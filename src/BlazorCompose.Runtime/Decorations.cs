@@ -19,4 +19,10 @@ public static class Decorations
     /// <param name="class">The CSS class value; any string expression. Chain calls to add more.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static View Class(this View view, string @class) => view;
+
+    /// <summary>Design-time syntax adding an <c>onclick</c> handler to the owning element.</summary>
+    /// <param name="view">The decorated view (an element factory such as Div/Span/Button).</param>
+    /// <param name="handler">The handler invoked on click; lowered to an EventCallback.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static View OnClick(this View view, System.Action handler) => view;
 }
