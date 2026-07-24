@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Components;
-using static BlazorCompose.UI;
+using BlazorCompose;
 
 namespace BlazorCompose.Site.Pages;
 
@@ -12,11 +12,11 @@ public partial class CounterPage : ComposeComponentBase
     private int _count;
 
     protected override View Body =>
-        VStack(
-            Text($"Count: {_count}"),
-            If(_count >= 3, () => Text("Milestone reached")),
-            Button("Increment", () => _count++),
-            ForEach(Steps, key: step => step.Id, content: step => Button($"+{step.Amount}", () => _count += step.Amount)));
+        Html.Div(
+            Html.Span($"Count: {_count}"),
+            Html.If(_count >= 3, () => Html.Span("Milestone reached")),
+            Html.Button("Increment").OnClick(() => _count++),
+            Html.ForEach(Steps, key: step => step.Id, content: step => Html.Button($"+{step.Amount}").OnClick(() => _count += step.Amount)));
 
     private sealed record IncrementStep(int Id, int Amount);
 }

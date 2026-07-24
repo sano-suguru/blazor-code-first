@@ -1,5 +1,4 @@
 using BlazorCompose;
-using static BlazorCompose.UI;
 
 namespace BlazorCompose.IntegrationTests.Components;
 
@@ -11,11 +10,11 @@ public partial class NullClassComponent : ComposeComponentBase
     private static string? NullClass => null;
 
     protected override View Body =>
-        VStack(
+        Html.Div(
             // A single .Class whose expression is null: Blazor omits a null attribute value entirely,
             // so the rendered <span> has no class attribute at all.
-            Text("single").Class(NullClass!),
+            Html.Span("single").Class(NullClass!),
             // N >= 2 chained .Class calls where one is null: the folded class expression is a C# `+`
             // concatenation, and null participates as "", so the class attribute is still emitted.
-            Text("multi").Class("a").Class(NullClass!));
+            Html.Span("multi").Class("a").Class(NullClass!));
 }

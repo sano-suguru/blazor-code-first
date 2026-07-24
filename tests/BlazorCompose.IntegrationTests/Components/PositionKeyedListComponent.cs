@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using BlazorCompose;
-using static BlazorCompose.UI;
 
 namespace BlazorCompose.IntegrationTests.Components;
 
@@ -11,11 +10,11 @@ public partial class PositionKeyedListComponent : ComposeComponentBase
     // key = current list position (index): a unique-but-positional key. State sticks to the DOM slot, not
     // the item — the index-key failure mode. Distinct from the identity-keyed positive control.
     protected override View Body =>
-        VStack(
-            ForEach(_items,
+        Html.Div(
+            Html.ForEach(_items,
                 key: i => _items.IndexOf(i),
-                content: i => Component<StatefulRowComponent>().Param(r => r.Label, i.Label)),
-            Button("Rotate", Rotate));
+                content: i => Html.Component<StatefulRowComponent>().Param(r => r.Label, i.Label)),
+            Html.Button("Rotate").OnClick(Rotate));
 
     private void Rotate()
     {
