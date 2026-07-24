@@ -13,9 +13,21 @@
     <!-- M0 spike: Step 1 Release publish produced zero IL2xxx/IL3xxx trim warnings, so lock in
          the clean state and fail fast if a future change introduces one. -->
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <!-- M0b spike: BlazorWasmPreRendering.Build config. Static mode crawls/fetches routes at
+         publish time and bakes the compose-generated RenderBody output into each route's
+         index.html as plain HTML, before any WASM/JS executes. -->
+    <BlazorWasmPrerenderingMode>Static</BlazorWasmPrerenderingMode>
+    <BlazorWasmPrerenderingKeepServer>false</BlazorWasmPrerenderingKeepServer>
+    <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter</BlazorWasmPrerenderingUrlPathToExplicitFetch>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- M0b spike: build-time static prerendering (community tool; not a first-class .NET 10
+         feature). Version pinned explicitly because the latest STABLE release (8.0.1 at spike
+         time) predates net10.0 support; 8.1.0-preview.4 is the first version whose restore
+         reports compatibility with a net10.0 TargetFramework. See site/README.md / M0 findings
+         for the adoption decision. -->
+    <PackageReference Include="BlazorWasmPreRendering.Build" Version="8.1.0-preview.4" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.10" PrivateAssets="all" />
   </ItemGroup>
