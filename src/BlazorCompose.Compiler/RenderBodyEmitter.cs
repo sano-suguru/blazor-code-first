@@ -68,6 +68,8 @@ internal static class RenderBodyEmitter
             ExpansionNode expansion => EmitExpansion(writer, expansion, startSeq, key),
             ForEachNode forEach => EmitForEach(writer, forEach, startSeq, key),
             ComponentNode component => EmitComponent(writer, component, startSeq, key),
+            ElementNode element => EmitElement(writer, element, startSeq, key),
+            TextContentNode text => EmitTextContent(writer, text, startSeq),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
@@ -222,6 +224,32 @@ internal static class RenderBodyEmitter
         }
         writer.AppendLine("__builder.CloseComponent();");
         return seq + SequenceAllocator.Width(node);
+    }
+
+    private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
+    {
+        writer.AppendLine($"__builder.OpenElement({seq}, \"{node.Tag}\");");
+        if (key is not null)
+            writer.AppendLine($"__builder.SetKey({key});");
+        int next = seq + 1;
+        next = EmitClassAttribute(writer, node.Classes, next);
+        foreach (var e in node.Events)
+        {
+            writer.AppendLine(
+                $"__builder.AddAttribute({next}, {e.AttributeName.ToCode()}, " +
+                $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
+            next++;
+        }
+        foreach (var child in node.Children)
+            next = EmitNode(writer, child, next);
+        writer.AppendLine("__builder.CloseElement();");
+        return seq + SequenceAllocator.Width(node);
+    }
+
+    private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)
+    {
+        writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
+        return seq + 1;
     }
 
     /// <summary>

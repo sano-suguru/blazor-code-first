@@ -22,6 +22,14 @@ internal static class RenderExpressionAnalyzer
     {
         context.CancellationToken.ThrowIfCancellationRequested();
 
+        // Mixed content: a string-typed expression in any position (child, If branch, ForEach content)
+        // becomes a bare text node. The pre-conversion Type is String even though it converts to View.
+        if (context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type
+                is { SpecialType: SpecialType.System_String })
+        {
+            return new TextContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
+        }
+
         if (expression is not InvocationExpressionSyntax invocation)
             return null;
 
@@ -30,6 +38,9 @@ internal static class RenderExpressionAnalyzer
             return null;
 
         var symbols = context.KnownSymbols;
+
+        static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
+            known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
 
         if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.TextMethod))
         {
@@ -61,7 +72,48 @@ internal static class RenderExpressionAnalyzer
             return new VStackTemplateNode(children.ToImmutable());
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.IfMethod))
+        {
+            string? tag =
+                Is(method, symbols.HtmlDiv) ? "div" :
+                Is(method, symbols.HtmlSpan) ? "span" :
+                Is(method, symbols.HtmlButton) ? "button" :
+                null;
+
+            if (tag is null && Is(method, symbols.HtmlElement))
+            {
+                var tagArg = invocation.ArgumentList.Arguments[0].Expression;
+                var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
+                if (constant is { HasValue: true, Value: string tagValue })
+                {
+                    tag = tagValue;
+                }
+                else
+                {
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
+                    return null;
+                }
+            }
+
+            if (tag is not null)
+            {
+                // Div/Span/Button: children are all args. Element: children are args[1..].
+                bool isElement = Is(method, symbols.HtmlElement);
+                var args = invocation.ArgumentList.Arguments;
+                var children = ImmutableArray.CreateBuilder<RenderTemplateNode>();
+                for (int i = isElement ? 1 : 0; i < args.Count; i++)
+                {
+                    var child = Analyze(args[i].Expression, context);
+                    if (child is null)
+                        return null;
+                    children.Add(child);
+                }
+
+                return new ElementTemplateNode(tag, default, default, children.ToImmutable());
+            }
+        }
+
+        if (Is(method, symbols.IfMethod) || Is(method, symbols.HtmlIf))
         {
             var condition = invocation.ArgumentList.Arguments[0].Expression;
             var thenExpr = ExtractLambdaBody(invocation.ArgumentList.Arguments[1].Expression);
@@ -95,7 +147,7 @@ internal static class RenderExpressionAnalyzer
                 otherwiseNode);
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ForEachMethod))
+        if (Is(method, symbols.ForEachMethod) || Is(method, symbols.HtmlForEach))
         {
             var sourceExpression = invocation.ArgumentList.Arguments[0].Expression;
             if (!TryExtractSingleParameterLambda(
@@ -152,7 +204,7 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ComponentMethod))
+        if (Is(method, symbols.ComponentMethod) || Is(method, symbols.HtmlComponent))
         {
             // Base case: UI.Component<T>() with no .Param yet.
             var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);

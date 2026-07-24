@@ -61,3 +61,13 @@ internal sealed record ComponentParameter(string Name, ExpressionTemplate Value)
 internal sealed record ComponentNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters) : RenderNode;
+
+/// <summary>An HTML element: tag, folded class channel, event list, and mixed children (text or elements).</summary>
+internal sealed record ElementNode(
+    string Tag,
+    EquatableArray<ExpressionTemplate> Classes = default,
+    EquatableArray<EventTemplate> Events = default,
+    EquatableArray<RenderNode> Children = default) : RenderNode;
+
+/// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>
+internal sealed record TextContentNode(ExpressionTemplate Content) : RenderNode;

@@ -50,6 +50,30 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.Class(this View, string)</c>, or null.</summary>
     public IMethodSymbol? ClassMethod { get; }
 
+    /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.OnClick(this View, Action)</c>, or null.</summary>
+    public IMethodSymbol? OnClickMethod { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Div(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    public IMethodSymbol? HtmlDiv { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Span(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    public IMethodSymbol? HtmlSpan { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Button(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    public IMethodSymbol? HtmlButton { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Element(string, params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    public IMethodSymbol? HtmlElement { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.If(bool, Func&lt;View&gt;, Func&lt;View&gt;?)</c>, or null.</summary>
+    public IMethodSymbol? HtmlIf { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.ForEach&lt;T&gt;(...)</c>, or null.</summary>
+    public IMethodSymbol? HtmlForEach { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, or null.</summary>
+    public IMethodSymbol? HtmlComponent { get; }
+
     private KnownSymbols(INamedTypeSymbol uiType, Compilation compilation)
     {
         ViewType = uiType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.View");
@@ -82,6 +106,35 @@ internal sealed class KnownSymbols
                 {
                     ClassMethod = classMethod;
                     break;
+                }
+            }
+
+            foreach (var member in decorationsType.GetMembers("OnClick"))
+            {
+                if (member is IMethodSymbol { IsExtensionMethod: true, Arity: 0, Parameters.Length: 2 } onClick)
+                {
+                    OnClickMethod = onClick;
+                    break;
+                }
+            }
+        }
+
+        var htmlType = uiType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.Html");
+        if (htmlType is not null)
+        {
+            foreach (var member in htmlType.GetMembers())
+            {
+                if (member is not IMethodSymbol method)
+                    continue;
+                switch (method.Name)
+                {
+                    case "Div" when method.Parameters.Length == 1: HtmlDiv = method; break;
+                    case "Span" when method.Parameters.Length == 1: HtmlSpan = method; break;
+                    case "Button" when method.Parameters.Length == 1: HtmlButton = method; break;
+                    case "Element" when method.Parameters.Length == 2: HtmlElement = method; break;
+                    case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
+                    case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
+                    case "Component" when method.Arity == 1 && method.Parameters.Length == 0: HtmlComponent = method; break;
                 }
             }
         }

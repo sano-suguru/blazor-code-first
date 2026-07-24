@@ -64,3 +64,13 @@ internal sealed record ForEachTemplateNode(
 internal sealed record ComponentTemplateNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters) : RenderTemplateNode;
+
+internal sealed record EventTemplate(ExpressionTemplate AttributeName, ExpressionTemplate Handler);
+
+internal sealed record ElementTemplateNode(
+    string Tag,
+    EquatableArray<ExpressionTemplate> Classes = default,
+    EquatableArray<EventTemplate> Events = default,
+    EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode;
+
+internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

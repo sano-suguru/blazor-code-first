@@ -35,8 +35,9 @@ internal static class KeyabilityResolver
         HashSet<string> activeKeys) =>
         node switch
         {
-            TextTemplateNode or ButtonTemplateNode or VStackTemplateNode or ComponentTemplateNode => ContentRootKind.Element,
-            IfTemplateNode or ForEachTemplateNode => ContentRootKind.Region,
+            TextTemplateNode or ButtonTemplateNode or VStackTemplateNode or ComponentTemplateNode
+                or ElementTemplateNode => ContentRootKind.Element,
+            IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode => ContentRootKind.Region,
             ComposableCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => ContentRootKind.Unresolved,
         };
@@ -86,6 +87,11 @@ internal static class KeyabilityResolver
 
             case VStackTemplateNode vstack:
                 foreach (var child in vstack.Children)
+                    CollectForEachContentDiagnostics(child, registry, sink);
+                break;
+
+            case ElementTemplateNode element:
+                foreach (var child in element.Children.AsImmutableArray())
                     CollectForEachContentDiagnostics(child, registry, sink);
                 break;
 
