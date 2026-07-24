@@ -26,7 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Granular package reference instead of <FrameworkReference Include="Microsoft.AspNetCore.App" />:
+         the shared-framework reference has no browser-wasm runtime pack, so it broke Blazor
+         WebAssembly consumers of the packaged library with NETSDK1082 (issue #23). Runtime only
+         uses ComponentBase, RenderTreeBuilder, EventCallback, and IComponent, all of which live in
+         Microsoft.AspNetCore.Components, so that single package is sufficient. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components" />
   </ItemGroup>
 
   <ItemGroup>

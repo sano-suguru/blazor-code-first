@@ -124,7 +124,10 @@ import sys
 import xml.etree.ElementTree as ET
 
 nuspec_path = sys.argv[1]
-namespace = {"n": "http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd"}
+# Packing a <dependencies> group (added when Runtime moved from an unconditional
+# FrameworkReference to a granular PackageReference, see issue #23) makes the SDK
+# emit the 2013/05 nuspec schema instead of the dependency-less 2012/06 schema.
+namespace = {"n": "http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd"}
 
 root = ET.parse(nuspec_path).getroot()
 metadata = root.find("n:metadata", namespace)
@@ -145,12 +148,16 @@ for element_name, expected_value in expected_values.items():
             f"Unexpected nuspec {element_name!r}: expected {expected_value!r}, got {actual_value!r}."
         )
 
+# Runtime must depend on the granular Microsoft.AspNetCore.Components package only,
+# never on the ASP.NET Core shared framework (which has no browser-wasm runtime
+# pack and broke WASM consumers, see issue #23).
 dependency_elements = metadata.findall(".//n:dependency", namespace)
-if dependency_elements:
-    dependency_ids = [element.attrib.get("id", "<missing-id>") for element in dependency_elements]
+dependency_ids = sorted(element.attrib.get("id", "<missing-id>") for element in dependency_elements)
+
+if dependency_ids != ["Microsoft.AspNetCore.Components"]:
     raise SystemExit(
-        "Unexpected package dependencies declared in nuspec: "
-        + ", ".join(dependency_ids)
+        "Unexpected package dependencies declared in nuspec: expected exactly "
+        f"['Microsoft.AspNetCore.Components'], got {dependency_ids}."
     )
 PY
 

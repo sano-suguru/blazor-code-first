@@ -282,7 +282,12 @@ public sealed class PackageContentsTests
             .Where(static element => element.Name.LocalName == "dependency")
             .ToArray();
 
-        Assert.Empty(dependencyElements);
+        // Runtime depends on the granular Microsoft.AspNetCore.Components package instead of
+        // the unconditional Microsoft.AspNetCore.App FrameworkReference, which had no
+        // browser-wasm runtime pack and broke Blazor WebAssembly consumers (issue #23).
+        var dependency = Assert.Single(dependencyElements);
+
+        Assert.Equal("Microsoft.AspNetCore.Components", dependency.Attribute("id")?.Value);
     }
 
     private static void AssertRuntimeExposesComposableAttribute(ZipArchive packageArchive)
