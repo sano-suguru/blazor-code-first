@@ -16,3 +16,6 @@ artifacts/
 
 # OS cruft
 .DS_Store
+
+# Local wrangler CLI cache/state (account info, not for commit)
+.wrangler/
