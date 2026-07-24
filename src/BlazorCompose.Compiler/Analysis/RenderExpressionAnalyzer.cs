@@ -253,35 +253,51 @@ internal static class RenderExpressionAnalyzer
             return new ComponentTemplateNode(inner.TypeName, appended);
         }
 
-        if (symbols.ClassMethod is not null
+        bool isClass = symbols.ClassMethod is not null
             && SymbolEqualityComparer.Default.Equals(
-                (method.ReducedFrom ?? method).OriginalDefinition, symbols.ClassMethod))
+                (method.ReducedFrom ?? method).OriginalDefinition, symbols.ClassMethod);
+        bool isOnClick = symbols.OnClickMethod is not null
+            && SymbolEqualityComparer.Default.Equals(
+                (method.ReducedFrom ?? method).OriginalDefinition, symbols.OnClickMethod);
+
+        if (isClass || isOnClick)
         {
-            // Receiver of `<expr>.Class(arg)` is the member-access expression's receiver.
-            if (invocation.Expression is not MemberAccessExpressionSyntax classAccess)
+            // Receiver of `<expr>.Class(arg)`/`<expr>.OnClick(arg)` is the member-access expression's receiver.
+            if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
                 return null;
 
-            var inner = Analyze(classAccess.Expression, context);
-            // null: unanalyzable or already diagnosed (including an inner .Class that reported BC3008) —
+            var inner = Analyze(decoAccess.Expression, context);
+            // null: unanalyzable or already diagnosed (including an inner decoration that reported BC3008) —
             // propagate silently so the decoration is not double-reported.
             if (inner is null)
                 return null;
 
-            var classTemplate = ExpressionTemplateFactory.Create(
-                invocation.ArgumentList.Arguments[0].Expression, context);
+            var arg = invocation.ArgumentList.Arguments[0].Expression;
 
             switch (inner)
             {
-                case TextTemplateNode text:
-                    return text with { Classes = text.Classes.AsImmutableArray().Add(classTemplate) };
-                case ButtonTemplateNode button:
-                    return button with { Classes = button.Classes.AsImmutableArray().Add(classTemplate) };
-                case VStackTemplateNode vstack:
-                    return vstack with { Classes = vstack.Classes.AsImmutableArray().Add(classTemplate) };
+                // Old UI nodes keep .Class support during transition (removed in Task 8).
+                case TextTemplateNode t when isClass:
+                    return t with { Classes = t.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
+                case ButtonTemplateNode b when isClass:
+                    return b with { Classes = b.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
+                case VStackTemplateNode v when isClass:
+                    return v with { Classes = v.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
+
+                case ElementTemplateNode e when isClass:
+                    return e with { Classes = e.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
+                case ElementTemplateNode e when isOnClick:
+                    return e with
+                    {
+                        Events = e.Events.AsImmutableArray().Add(new EventTemplate(
+                            ExpressionTemplate.Literal("\"onclick\""),
+                            ExpressionTemplateFactory.Create(arg, context))),
+                    };
+
                 default:
                     // If / ForEach / composable result / component: no single element to attach to.
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3008, classAccess.Name.GetLocation(), []));
+                        DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
                     return null;
             }
         }
