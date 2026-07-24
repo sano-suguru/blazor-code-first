@@ -10,6 +10,9 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <!-- Compose components navigate without throwing on cancellation (mirrors the sample). -->
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- M0 spike: Step 1 Release publish produced zero IL2xxx/IL3xxx trim warnings, so lock in
+         the clean state and fail fast if a future change introduces one. -->
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
