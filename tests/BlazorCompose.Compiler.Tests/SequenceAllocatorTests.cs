@@ -128,4 +128,54 @@ public sealed class SequenceAllocatorTests
 
         Assert.Equal(1 + SequenceAllocator.Width(content), SequenceAllocator.Width(node));
     }
+
+    [Fact]
+    public void SequenceAllocator_DecoratedTextNode_HasWidthThree()
+    {
+        var node = new TextNode(
+            ExpressionTemplate.Literal("\"hello\""),
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"badge\"")));
+
+        Assert.Equal(3, SequenceAllocator.Width(node));
+    }
+
+    [Fact]
+    public void SequenceAllocator_DecoratedTextNode_WidthIsIndependentOfClassCount()
+    {
+        var one = new TextNode(
+            ExpressionTemplate.Literal("\"hello\""),
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"a\"")));
+        var three = new TextNode(
+            ExpressionTemplate.Literal("\"hello\""),
+            ImmutableArray.Create(
+                ExpressionTemplate.Literal("\"a\""),
+                ExpressionTemplate.Literal("\"b\""),
+                ExpressionTemplate.Literal("\"c\"")));
+
+        Assert.Equal(SequenceAllocator.Width(one), SequenceAllocator.Width(three));
+        Assert.Equal(3, SequenceAllocator.Width(three));
+    }
+
+    [Fact]
+    public void SequenceAllocator_DecoratedButtonNode_HasWidthFour()
+    {
+        var node = new ButtonNode(
+            ExpressionTemplate.Literal("\"label\""),
+            ExpressionTemplate.Literal("() => { }"),
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"btn\"")));
+
+        Assert.Equal(4, SequenceAllocator.Width(node));
+    }
+
+    [Fact]
+    public void SequenceAllocator_DecoratedVStackNode_AddsOneForClassAttribute()
+    {
+        var child = new TextNode(ExpressionTemplate.Literal("\"a\""));
+        var undecorated = new VStackNode(ImmutableArray.Create<RenderNode>(child));
+        var decorated = new VStackNode(
+            ImmutableArray.Create<RenderNode>(child),
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"row\"")));
+
+        Assert.Equal(SequenceAllocator.Width(undecorated) + 1, SequenceAllocator.Width(decorated));
+    }
 }

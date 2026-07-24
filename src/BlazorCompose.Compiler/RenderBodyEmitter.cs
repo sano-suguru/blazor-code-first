@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Text;
 using BlazorCompose.Compiler.Generation;
 using Microsoft.CodeAnalysis.Text;
@@ -76,7 +77,9 @@ internal static class RenderBodyEmitter
         writer.AppendLine($"__builder.OpenElement({seq}, \"span\");");
         if (key is not null)
             writer.AppendLine($"__builder.SetKey({key});");
-        writer.AppendLine($"__builder.AddContent({seq + 1}, {node.ContentExpression.ToCode()});");
+        int next = seq + 1;
+        next = EmitClassAttribute(writer, node.Classes, next);
+        writer.AppendLine($"__builder.AddContent({next}, {node.ContentExpression.ToCode()});");
         writer.AppendLine("__builder.CloseElement();");
         return seq + SequenceAllocator.Width(node);
     }
@@ -86,10 +89,13 @@ internal static class RenderBodyEmitter
         writer.AppendLine($"__builder.OpenElement({seq}, \"button\");");
         if (key is not null)
             writer.AppendLine($"__builder.SetKey({key});");
+        int next = seq + 1;
+        next = EmitClassAttribute(writer, node.Classes, next);
         writer.AppendLine(
-            $"__builder.AddAttribute({seq + 1}, \"onclick\", " +
+            $"__builder.AddAttribute({next}, \"onclick\", " +
             $"{EventCallbackFactory}.Create(this, {node.HandlerExpression.ToCode()}));");
-        writer.AppendLine($"__builder.AddContent({seq + 2}, {node.LabelExpression.ToCode()});");
+        next++;
+        writer.AppendLine($"__builder.AddContent({next}, {node.LabelExpression.ToCode()});");
         writer.AppendLine("__builder.CloseElement();");
         return seq + SequenceAllocator.Width(node);
     }
@@ -100,10 +106,33 @@ internal static class RenderBodyEmitter
         if (key is not null)
             writer.AppendLine($"__builder.SetKey({key});");
         int nextSeq = seq + 1;
+        nextSeq = EmitClassAttribute(writer, node.Classes, nextSeq);
         foreach (var child in node.Children)
             nextSeq = EmitNode(writer, child, nextSeq);
         writer.AppendLine("__builder.CloseElement();");
         return nextSeq;
+    }
+
+    /// <summary>
+    /// Emits the folded <c>class</c> attribute for a decorated element and returns the next sequence
+    /// number. All <c>.Class</c> decorations collapse into one attribute frame (ARCHITECTURE.md §2.7(A)):
+    /// a single class is emitted verbatim; N≥2 classes are concatenated as <c>(e0) + " " + (e1) + …</c>
+    /// with each expression parenthesized so operator precedence (e.g. a ternary or <c>??</c>) is
+    /// preserved. When every class is a string literal the C# compiler constant-folds this to one string.
+    /// When there is no decoration, no frame is emitted and the sequence is unchanged.
+    /// </summary>
+    private static int EmitClassAttribute(IndentedWriter writer, EquatableArray<ExpressionTemplate> classes, int seq)
+    {
+        if (classes.Length == 0)
+            return seq;
+
+        var array = classes.AsImmutableArray();
+        string value = array.Length == 1
+            ? array[0].ToCode()
+            : string.Join(" + \" \" + ", array.Select(static c => $"({c.ToCode()})"));
+
+        writer.AppendLine($"__builder.AddAttribute({seq}, \"class\", {value});");
+        return seq + 1;
     }
 
     private static int EmitIf(IndentedWriter writer, IfNode node, int seq, string? key = null)

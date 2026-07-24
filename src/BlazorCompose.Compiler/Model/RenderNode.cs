@@ -7,16 +7,22 @@ namespace BlazorCompose.Compiler;
 /// </summary>
 internal abstract record RenderNode;
 
-/// <summary>Represents a <c>Text(expr)</c> call that emits an HTML <c>span</c>.</summary>
-internal sealed record TextNode(ExpressionTemplate ContentExpression) : RenderNode;
+/// <summary>Represents a <c>Text(expr)</c> call that emits an HTML <c>span</c>.
+/// <paramref name="Classes"/> holds the folded <c>.Class</c> decoration expressions (empty if undecorated).</summary>
+internal sealed record TextNode(
+    ExpressionTemplate ContentExpression,
+    EquatableArray<ExpressionTemplate> Classes = default) : RenderNode;
 
 /// <summary>Represents a <c>Button(label, handler)</c> call that emits an HTML <c>button</c>.</summary>
 internal sealed record ButtonNode(
     ExpressionTemplate LabelExpression,
-    ExpressionTemplate HandlerExpression) : RenderNode;
+    ExpressionTemplate HandlerExpression,
+    EquatableArray<ExpressionTemplate> Classes = default) : RenderNode;
 
 /// <summary>Represents a <c>VStack(children…)</c> call that emits an HTML <c>div</c> wrapper.</summary>
-internal sealed record VStackNode(EquatableArray<RenderNode> Children) : RenderNode;
+internal sealed record VStackNode(
+    EquatableArray<RenderNode> Children,
+    EquatableArray<ExpressionTemplate> Classes = default) : RenderNode;
 
 /// <summary>Represents an <c>If(condition, then, otherwise)</c> call with an optional else branch.</summary>
 internal sealed record IfNode(ExpressionTemplate ConditionExpression, RenderNode Then, RenderNode? Otherwise) : RenderNode;

@@ -20,14 +20,15 @@ internal static class SequenceAllocator
     /// </summary>
     public static int Width(RenderNode node) => node switch
     {
-        // OpenElement("span") + AddContent = 2 calls
-        TextNode => 2,
+        // OpenElement("span") + AddContent = 2 calls; a decorated element adds one class attribute frame.
+        TextNode { Classes: var classes } => 2 + (classes.Length == 0 ? 0 : 1),
 
-        // OpenElement("button") + AddAttribute("onclick") + AddContent = 3 calls
-        ButtonNode => 3,
+        // OpenElement("button") + AddAttribute("onclick") + AddContent = 3 calls; +1 if decorated.
+        ButtonNode { Classes: var classes } => 3 + (classes.Length == 0 ? 0 : 1),
 
-        // OpenElement("div") = 1 call, plus the sum of all children
-        VStackNode { Children: var children } => 1 + children.Sum(Width),
+        // OpenElement("div") = 1 call, +1 if decorated, plus the sum of all children.
+        VStackNode { Classes: var classes, Children: var children } =>
+            1 + (classes.Length == 0 ? 0 : 1) + children.Sum(Width),
 
         // OpenRegion(k) = 1 call, then both branches (disjoint ranges: then=[k+1, k+1+W(T1)),
         // else=[k+1+W(T1), k+1+W(T1)+W(T2))).  Both widths are reserved regardless of which
