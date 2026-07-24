@@ -114,4 +114,17 @@ public sealed class RenderingTests : BunitContext
         cut.FindAll("button")[3].Click();
         Assert.Equal("b:2", cut.FindAll("span")[0].TextContent);
     }
+
+    [Fact]
+    public void ClassDecoratedComponent_WhenRendered_EmitsFoldedClassAttributes()
+    {
+        var cut = Render<ClassDecoratedComponent>();
+
+        cut.MarkupMatches(
+            "<div class=\"panel\">" +
+            "<span class=\"badge\">Hi</span>" +
+            "<span class=\"a b\">Multi</span>" +
+            "<span class=\"on\">Dyn</span>" +
+            "</div>");
+    }
 }

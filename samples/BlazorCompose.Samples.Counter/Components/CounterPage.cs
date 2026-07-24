@@ -16,7 +16,8 @@ public partial class CounterPage : ComposeComponentBase
             Text($"Count: {_count}"),
             If(_count >= 3, () => Text("Milestone reached")),
             Button("Increment", () => _count++),
-            ForEach(Steps, key: step => step.Id, content: step => Button($"+{step.Amount}", () => _count += step.Amount)));
+            ForEach(Steps, key: step => step.Id, content: step => Button($"+{step.Amount}", () => _count += step.Amount)))
+        .Class("bc-counter");
 
     private sealed record IncrementStep(int Id, int Amount);
 }
