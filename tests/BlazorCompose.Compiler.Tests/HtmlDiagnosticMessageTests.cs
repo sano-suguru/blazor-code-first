@@ -1,5 +1,3 @@
-using System.Linq;
-
 namespace BlazorCompose.Compiler.Tests;
 
 public sealed class HtmlDiagnosticMessageTests

@@ -76,7 +76,8 @@ internal static class DiagnosticDescriptors
     /// BC3003: A <c>ForEach</c> content template's root is not a single element or component, so its key
     /// has no frame to attach to (Blazor's <c>SetKey</c> keys the currently open element/component frame).
     /// The required-key contract cannot be honored, so emission is suppressed. Mirrors Razor, where
-    /// <c>@key</c> cannot be applied to an <c>@if</c>; wrap the content in a container element instead.
+    /// <c>@key</c> cannot be applied to an <c>@if</c>; wrap the content in an element such as
+    /// <c>Html.Div(...)</c> instead.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3003 = new(
         id: "BC3003",
@@ -88,8 +89,8 @@ internal static class DiagnosticDescriptors
         description:
             "A ForEach key is applied to the content's root element or component frame. When the content " +
             "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
-            "or bare text (an Html.Raw markup node), there is no frame to key, so the required key cannot " +
-            "be applied. Wrap the content in a container element such as Html.Div(...).");
+            "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
+            "required key cannot be applied. Wrap the content in a container element such as Html.Div(...).");
 
     /// <summary>
     /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderBody
@@ -177,9 +178,10 @@ internal static class DiagnosticDescriptors
             "duplicate is reported at compile time.");
 
     /// <summary>
-    /// BC3008: A <c>.Class</c> decoration was applied to a node that does not open a single HTML element
-    /// (an <c>If</c>/<c>ForEach</c> region root, or a <c>[Composable]</c> call result). Decorations fold
-    /// into the owning element's <c>class</c> attribute, so there must be an element to attach to.
+    /// BC3008: A decoration (<c>.Class</c> or <c>.OnClick</c>) was applied to a node that does not open a
+    /// single HTML element (an <c>If</c>/<c>ForEach</c> region root, or a <c>[Composable]</c>/Component call
+    /// result). Decorations fold into the attributes of the element opened by an Html element helper or
+    /// <c>Html.Element</c>, so there must be such an element to attach to.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3008 = new(
         id: "BC3008",
