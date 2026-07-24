@@ -81,15 +81,15 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BC3003 = new(
         id: "BC3003",
         title: "ForEach content must be a single element or component",
-        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as VStack(...)",
+        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as Html.Div(...)",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "A ForEach key is applied to the content's root element or component frame. When the content " +
             "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
-            "there is no frame to key, so the required key cannot be applied. Wrap the content in a " +
-            "container element such as VStack(...).");
+            "or bare text (an Html.Raw markup node), there is no frame to key, so the required key cannot " +
+            "be applied. Wrap the content in a container element such as Html.Div(...).");
 
     /// <summary>
     /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderBody
@@ -184,15 +184,15 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BC3008 = new(
         id: "BC3008",
         title: "Decoration target must be a single element",
-        messageFormat: ".Class can only decorate a single element (Text, Button, or VStack); it cannot be applied to If, ForEach, or a [Composable] result",
+        messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, or a [Composable]/Component result",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            ".Class folds into the owning element's class attribute, so it can only be applied to a node " +
-            "that opens a single HTML element (Text, Button, or VStack). Applying it to a region-rooted " +
-            "node (If, ForEach) or a [Composable] call result has no element to attach to. Decorate a " +
-            "concrete element instead.");
+            "A decoration folds into the owning element's attributes, so it can only be applied to a node " +
+            "that opens a single HTML element (an Html element helper or Html.Element). Applying it to a " +
+            "region-rooted node (If, ForEach) or a [Composable]/Component result has no element to attach " +
+            "to. Decorate a concrete element instead.");
 
     /// <summary>
     /// BC3009: <c>Html.Element</c> was called with a tag argument that is not a compile-time constant
