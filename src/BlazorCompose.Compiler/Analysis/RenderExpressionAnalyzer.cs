@@ -229,7 +229,7 @@ internal static class RenderExpressionAnalyzer
                 default:
                     // If / ForEach / composable result / component: no single element to attach to.
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3008, invocation.GetLocation(), []));
+                        DiagnosticDescriptors.BC3008, classAccess.Name.GetLocation(), []));
                     return null;
             }
         }
