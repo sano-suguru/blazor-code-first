@@ -14,6 +14,7 @@ static BlazorCompose.UI.Text(string! content) -> BlazorCompose.View
 static BlazorCompose.UI.VStack(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
 BlazorCompose.View
 BlazorCompose.View.View() -> void
+static BlazorCompose.View.implicit operator BlazorCompose.View(string! text) -> BlazorCompose.View
 BlazorCompose.Decorations
 static BlazorCompose.Decorations.Class(this BlazorCompose.View view, string! class) -> BlazorCompose.View
 BlazorCompose.ComponentView<TComponent>
