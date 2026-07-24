@@ -28,6 +28,10 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Explicit --branch so a push to main deploys to PRODUCTION. Without it, CI runs on a
+          # detached HEAD and wrangler falls back to a preview deployment. github.ref_name is
+          # "main" on the push trigger and the branch name on a manual workflow_dispatch (preview).
           command: >-
             pages deploy site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
             --project-name blazor-compose-site
+            --branch=${{ github.ref_name }}
