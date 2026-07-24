@@ -287,7 +287,7 @@ public static partial class Widgets
 protected override View Body =>
     Html.Div(
         Html.Span("Data Grid"),
-        Component<MudDataGrid<Order>>()
+        Html.Component<MudDataGrid<Order>>()
             .Param(g => g.Items, _orders)
             .Param(g => g.Dense, true)
     );

@@ -12,7 +12,7 @@ namespace BlazorCompose;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Usage",
     "CA2225:Operator overloads have named alternates",
-    Justification = "The string conversion mirrors the UI factories: it is inert design-time syntax " +
+    Justification = "The string conversion mirrors the Html factories: it is inert design-time syntax " +
         "read by the source generator (a string argument in element content becomes a text node) and " +
         "always yields the default View at runtime, so a named alternate would misleadingly imply work.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
