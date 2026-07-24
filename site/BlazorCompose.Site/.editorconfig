@@ -1,0 +1,7 @@
+# site/BlazorCompose.Site is an application (Blazor WebAssembly entry point + components), not
+# a library. ConfigureAwait(false) is inappropriate here: Blazor's renderer relies on the
+# default SynchronizationContext to marshal continuations back to the render thread, so
+# suppressing it (as CA2007 suggests) can break component state updates. This mirrors the
+# CA2007 exemption already applied to tests/**/*.cs in the repository-root .editorconfig.
+[*.cs]
+dotnet_diagnostic.CA2007.severity = none
