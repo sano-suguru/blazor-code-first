@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- site/ is outside the solution and carries experimental deps; keep its
+         versions local so the shared Directory.Packages.props stays clean. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Compose components navigate without throwing on cancellation (mirrors the sample). -->
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- M0 spike: Step 1 Release publish produced zero IL2xxx/IL3xxx trim warnings, so lock in
+         the clean state and fail fast if a future change introduces one. -->
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.10" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlazorCompose.Runtime\BlazorCompose.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\BlazorCompose.Compiler\BlazorCompose.Compiler.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!--
+    BlazorCompose.Runtime declares <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    (appropriate for its Microsoft.NET.Sdk.Web-hosted consumers, e.g. the Counter sample) and
+    that FrameworkReference flows transitively into any ProjectReference consumer. There is no
+    Microsoft.AspNetCore.App runtime pack for RuntimeIdentifier "browser-wasm", so an
+    unmodified transitive reference makes this WASM app fail to build with NETSDK1082. All of
+    the runtime surface BlazorCompose.Runtime actually needs (RenderTreeBuilder, etc.) is
+    already supplied to this app via the Microsoft.AspNetCore.Components.WebAssembly package
+    graph above, so it is safe to drop the inherited FrameworkReference here without losing
+    functionality. This is a site/-local workaround, not a fix: see M0 spike findings for a
+    recommendation to reconsider the FrameworkReference in BlazorCompose.Runtime.csproj so WASM
+    consumers do not need this override.
+  -->
+  <Target Name="RemoveTransitiveAspNetCoreAppFrameworkReferenceForWasm"
+          AfterTargets="AddTransitiveFrameworkReferences">
+    <ItemGroup>
+      <FrameworkReference Remove="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+  </Target>
+
+</Project>
