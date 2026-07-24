@@ -1,16 +1,20 @@
+using System.Collections.Immutable;
 using BlazorCompose.Compiler;
 
 namespace BlazorCompose.Compiler.Tests;
 
 public sealed class RenderBodyEmitterForEachTests
 {
+    private static ElementNode Span(ExpressionTemplate content) =>
+        new("span", default, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
+
     [Fact]
     public void Emit_ForEachRoot_EmitsKeyedForeachRegionWithContentAtSeqPlusOne()
     {
         var node = new ForEachNode(
             Source: ExpressionTemplate.Literal("_items"),
             Key: ExpressionTemplate.Literal("__bc_item_0.Id"),
-            Content: new TextNode(ExpressionTemplate.Literal("__bc_item_0.Title")),
+            Content: Span(ExpressionTemplate.Literal("__bc_item_0.Title")),
             LoopVariableName: "__bc_item_0");
 
         var model = new ComponentModel(
@@ -39,7 +43,7 @@ public sealed class RenderBodyEmitterForEachTests
         var node = new ForEachNode(
             Source: ExpressionTemplate.Literal("_items"),
             Key: ExpressionTemplate.Literal("__bc_item_0.Id"),
-            Content: new TextNode(ExpressionTemplate.Literal("__bc_item_0.Title")),
+            Content: Span(ExpressionTemplate.Literal("__bc_item_0.Title")),
             LoopVariableName: "__bc_item_0");
 
         var model = new ComponentModel(

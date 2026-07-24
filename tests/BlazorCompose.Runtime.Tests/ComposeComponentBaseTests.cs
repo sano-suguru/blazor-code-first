@@ -28,15 +28,15 @@ public sealed class ComposeComponentBaseTests
     }
 
     [Fact]
-    public void UIFactories_WhenInvoked_RemainInertAtRuntime()
+    public void HtmlFactories_WhenInvoked_RemainInertAtRuntime()
     {
         var onClickCalled = false;
 
-        _ = UI.Text("Hello");
-        _ = UI.Button("Increment", () => onClickCalled = true);
-        _ = UI.VStack(
-            UI.Text("Child"),
-            UI.If(
+        _ = Html.Span("Hello");
+        _ = Html.Button("Increment").OnClick(() => onClickCalled = true);
+        _ = Html.Div(
+            Html.Span("Child"),
+            Html.If(
                 condition: true,
                 then: static () => throw new InvalidOperationException("Then branch should not run."),
                 otherwise: static () => throw new InvalidOperationException("Else branch should not run.")));

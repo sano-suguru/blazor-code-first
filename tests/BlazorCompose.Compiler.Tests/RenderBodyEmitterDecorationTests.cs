@@ -10,10 +10,23 @@ public sealed class RenderBodyEmitterDecorationTests
         RenderBodyEmitter.Emit(new ComponentModel(
             HintName: "T.g.cs", ClassName: "T", Namespace: null, RootNode: root)).ToString();
 
+    private static ElementNode Span(ExpressionTemplate content, EquatableArray<ExpressionTemplate> classes = default) =>
+        new("span", classes, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
+
+    private static ElementNode Button(
+        ExpressionTemplate label,
+        ExpressionTemplate handler,
+        EquatableArray<ExpressionTemplate> classes = default) =>
+        new(
+            "button",
+            classes,
+            ImmutableArray.Create(new EventTemplate(ExpressionTemplate.Literal("\"onclick\""), handler)),
+            ImmutableArray.Create<RenderNode>(new TextContentNode(label)));
+
     [Fact]
-    public void Emit_SingleClassText_EmitsClassAttributeVerbatimAtSeqPlusOne()
+    public void Emit_SingleClassSpan_EmitsClassAttributeVerbatimAtSeqPlusOne()
     {
-        var node = new TextNode(
+        var node = Span(
             ExpressionTemplate.Literal("\"Hi\""),
             ImmutableArray.Create(ExpressionTemplate.Literal("\"badge\"")));
 
@@ -25,9 +38,9 @@ public sealed class RenderBodyEmitterDecorationTests
     }
 
     [Fact]
-    public void Emit_MultipleClassesText_FoldsIntoSingleParenthesizedConcatenation()
+    public void Emit_MultipleClassesSpan_FoldsIntoSingleParenthesizedConcatenation()
     {
-        var node = new TextNode(
+        var node = Span(
             ExpressionTemplate.Literal("\"Hi\""),
             ImmutableArray.Create(
                 ExpressionTemplate.Literal("\"a\""),
@@ -40,9 +53,9 @@ public sealed class RenderBodyEmitterDecorationTests
     }
 
     [Fact]
-    public void Emit_DynamicClassText_EmitsExpressionAsAttributeValue()
+    public void Emit_DynamicClassSpan_EmitsExpressionAsAttributeValue()
     {
-        var node = new TextNode(
+        var node = Span(
             ExpressionTemplate.Literal("\"Hi\""),
             ImmutableArray.Create(ExpressionTemplate.Literal("_on ? \"on\" : \"off\"")));
 
@@ -54,7 +67,7 @@ public sealed class RenderBodyEmitterDecorationTests
     [Fact]
     public void Emit_DecoratedButton_EmitsClassBeforeOnclick()
     {
-        var node = new ButtonNode(
+        var node = Button(
             ExpressionTemplate.Literal("\"OK\""),
             ExpressionTemplate.Literal("OnOk"),
             ImmutableArray.Create(
@@ -74,9 +87,9 @@ public sealed class RenderBodyEmitterDecorationTests
     }
 
     [Fact]
-    public void Emit_UndecoratedText_EmitsNoClassAttribute()
+    public void Emit_UndecoratedSpan_EmitsNoClassAttribute()
     {
-        var generated = EmitRoot(new TextNode(ExpressionTemplate.Literal("\"Hi\"")));
+        var generated = EmitRoot(Span(ExpressionTemplate.Literal("\"Hi\"")));
 
         Assert.DoesNotContain("\"class\"", generated);
         Assert.Contains("__builder.AddContent(1, \"Hi\");", generated);

@@ -13,26 +13,26 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class ComposableDefinitionTests
 {
     [Theory]
-    [InlineData("[Composable] private View Helper() => Text(\"x\");", "must be static")]
-    [InlineData("[Composable] private static View Helper<T>() => Text(\"x\");", "must be non-generic")]
-    [InlineData("[Composable] private static View Helper() { return Text(\"x\"); }", "must be expression-bodied")]
+    [InlineData("[Composable] private View Helper() => Span(\"x\");", "must be static")]
+    [InlineData("[Composable] private static View Helper<T>() => Span(\"x\");", "must be non-generic")]
+    [InlineData("[Composable] private static View Helper() { return Span(\"x\"); }", "must be expression-bodied")]
     [InlineData("[Composable] private static string Helper() => \"x\";", "must return BlazorCompose.View")]
-    [InlineData("[Composable] private static View Helper(params string[] values) => Text(values[0]);", "params parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(params string[] values) => Span(values[0]);", "params parameters are unsupported")]
     [InlineData("[Composable] private static View Helper(View content) => content;", "View parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(ref int value) => Text(\"x\");", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(out int value) => Text(\"x\");", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(in int value) => Text(\"x\");", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(ref readonly int value) => Text(\"x\");", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(ref int value) => Span(\"x\");", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(out int value) => Span(\"x\");", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(in int value) => Span(\"x\");", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(ref readonly int value) => Span(\"x\");", "by-reference parameters are unsupported")]
     public void ComposableDefinition_UnsupportedDeclaration_ReportsBC1002(string declaration, string message)
     {
         var source = $$"""
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             public partial class Counter : ComposeComponentBase
             {
                 {{declaration}}
-                protected override View Body => Text("Body");
+                protected override View Body => Span("Body");
             }
             """;
 
@@ -48,14 +48,14 @@ public sealed class ComposableDefinitionTests
     {
         var source = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Greeting(string name) => Text(name);
+                private static View Greeting(string name) => Span(name);
 
-                protected override View Body => Text("Body");
+                protected override View Body => Span("Body");
             }
             """;
 
@@ -102,17 +102,17 @@ public sealed class ComposableDefinitionTests
     {
         var source = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Target(string a, int b = 1, int c = 2) => Text(a);
+                private static View Target(string a, int b = 1, int c = 2) => Span(a);
 
                 [Composable]
                 private static View Caller() => Target("supplied");
 
-                protected override View Body => Text("Body");
+                protected override View Body => Span("Body");
             }
             """;
 
@@ -148,16 +148,16 @@ public sealed class ComposableDefinitionTests
     {
         var source = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Helper(string s) => VStack(
-                    Text(int.TryParse(s, out var parsed) ? s : s),
-                    Text(parsed.ToString()));
+                private static View Helper(string s) => Div(
+                    Span(int.TryParse(s, out var parsed) ? s : s),
+                    Span(parsed.ToString()));
 
-                protected override View Body => Text("Body");
+                protected override View Body => Span("Body");
             }
             """;
 
@@ -172,15 +172,15 @@ public sealed class ComposableDefinitionTests
     {
         var source = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
                 private static View Helper(string s) =>
-                    Text(int.TryParse(s, out var parsed) ? parsed.ToString() : "0");
+                    Span(int.TryParse(s, out var parsed) ? parsed.ToString() : "0");
 
-                protected override View Body => Text("Body");
+                protected override View Body => Span("Body");
             }
             """;
 
@@ -194,14 +194,14 @@ public sealed class ComposableDefinitionTests
     {
         var source = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Greeting(string name) => Text(nameof(name) + name);
+                private static View Greeting(string name) => Span(nameof(name) + name);
 
-                protected override View Body => Text("Body");
+                protected override View Body => Span("Body");
             }
             """;
 

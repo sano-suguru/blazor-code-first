@@ -35,8 +35,7 @@ internal static class KeyabilityResolver
         HashSet<string> activeKeys) =>
         node switch
         {
-            TextTemplateNode or ButtonTemplateNode or VStackTemplateNode or ComponentTemplateNode
-                or ElementTemplateNode => ContentRootKind.Element,
+            ComponentTemplateNode or ElementTemplateNode => ContentRootKind.Element,
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode => ContentRootKind.Region,
             ComposableCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => ContentRootKind.Unresolved,
@@ -85,11 +84,6 @@ internal static class KeyabilityResolver
                 CollectForEachContentDiagnostics(forEach.Content, registry, sink);
                 break;
 
-            case VStackTemplateNode vstack:
-                foreach (var child in vstack.Children)
-                    CollectForEachContentDiagnostics(child, registry, sink);
-                break;
-
             case ElementTemplateNode element:
                 foreach (var child in element.Children.AsImmutableArray())
                     CollectForEachContentDiagnostics(child, registry, sink);
@@ -101,9 +95,9 @@ internal static class KeyabilityResolver
                     CollectForEachContentDiagnostics(ifNode.Otherwise, registry, sink);
                 break;
 
-                // Text/Button/ComposableCall have no nested template children to walk. A composable call's
-                // own body is walked once from the registry pass (CollectComposableForEachDiagnostics), not
-                // re-walked at every call site.
+                // ComponentTemplateNode/TextContentTemplateNode/ComposableCallTemplateNode have no nested
+                // template children to walk. A composable call's own body is walked once from the registry
+                // pass (CollectComposableForEachDiagnostics), not re-walked at every call site.
         }
     }
 

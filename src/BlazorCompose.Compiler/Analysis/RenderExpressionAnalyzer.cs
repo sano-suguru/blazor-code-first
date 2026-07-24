@@ -42,36 +42,6 @@ internal static class RenderExpressionAnalyzer
         static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
             known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.TextMethod))
-        {
-            var content = invocation.ArgumentList.Arguments[0].Expression;
-            return new TextTemplateNode(ExpressionTemplateFactory.Create(content, context));
-        }
-
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ButtonMethod))
-        {
-            var label = invocation.ArgumentList.Arguments[0].Expression;
-            var handler = invocation.ArgumentList.Arguments[1].Expression;
-            return new ButtonTemplateNode(
-                ExpressionTemplateFactory.Create(label, context),
-                ExpressionTemplateFactory.Create(handler, context));
-        }
-
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.VStackMethod))
-        {
-            var children = ImmutableArray.CreateBuilder<RenderTemplateNode>(
-                invocation.ArgumentList.Arguments.Count);
-            foreach (var argument in invocation.ArgumentList.Arguments)
-            {
-                var child = Analyze(argument.Expression, context);
-                if (child is null)
-                    return null;
-                children.Add(child);
-            }
-
-            return new VStackTemplateNode(children.ToImmutable());
-        }
-
         {
             string? tag =
                 Is(method, symbols.HtmlDiv) ? "div" :
@@ -113,7 +83,7 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        if (Is(method, symbols.IfMethod) || Is(method, symbols.HtmlIf))
+        if (Is(method, symbols.HtmlIf))
         {
             var condition = invocation.ArgumentList.Arguments[0].Expression;
             var thenExpr = ExtractLambdaBody(invocation.ArgumentList.Arguments[1].Expression);
@@ -147,7 +117,7 @@ internal static class RenderExpressionAnalyzer
                 otherwiseNode);
         }
 
-        if (Is(method, symbols.ForEachMethod) || Is(method, symbols.HtmlForEach))
+        if (Is(method, symbols.HtmlForEach))
         {
             var sourceExpression = invocation.ArgumentList.Arguments[0].Expression;
             if (!TryExtractSingleParameterLambda(
@@ -204,9 +174,9 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        if (Is(method, symbols.ComponentMethod) || Is(method, symbols.HtmlComponent))
+        if (Is(method, symbols.HtmlComponent))
         {
-            // Base case: UI.Component<T>() with no .Param yet.
+            // Base case: Html.Component<T>() with no .Param yet.
             var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);
         }
@@ -276,14 +246,6 @@ internal static class RenderExpressionAnalyzer
 
             switch (inner)
             {
-                // Old UI nodes keep .Class support during transition (removed in Task 8).
-                case TextTemplateNode t when isClass:
-                    return t with { Classes = t.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
-                case ButtonTemplateNode b when isClass:
-                    return b with { Classes = b.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
-                case VStackTemplateNode v when isClass:
-                    return v with { Classes = v.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
-
                 case ElementTemplateNode e when isClass:
                     return e with { Classes = e.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
                 case ElementTemplateNode e when isOnClick:
@@ -295,7 +257,9 @@ internal static class RenderExpressionAnalyzer
                     };
 
                 default:
-                    // If / ForEach / composable result / component: no single element to attach to.
+                    // ElementTemplateNode is the only node with a single element frame a class/event can
+                    // attach to. Every other node — If / ForEach / composable call / component / bare text
+                    // content — has no such frame, so decorating it is always rejected.
                     context.Diagnostics.Add(DiagnosticInfo.Create(
                         DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
                     return null;

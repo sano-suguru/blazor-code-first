@@ -31,19 +31,6 @@ internal sealed record ComposableInvocationArgument(
 
 internal abstract record RenderTemplateNode;
 
-internal sealed record TextTemplateNode(
-    ExpressionTemplate Content,
-    EquatableArray<ExpressionTemplate> Classes = default) : RenderTemplateNode;
-
-internal sealed record ButtonTemplateNode(
-    ExpressionTemplate Label,
-    ExpressionTemplate Handler,
-    EquatableArray<ExpressionTemplate> Classes = default) : RenderTemplateNode;
-
-internal sealed record VStackTemplateNode(
-    EquatableArray<RenderTemplateNode> Children,
-    EquatableArray<ExpressionTemplate> Classes = default) : RenderTemplateNode;
-
 internal sealed record IfTemplateNode(
     ExpressionTemplate Condition,
     RenderTemplateNode Then,

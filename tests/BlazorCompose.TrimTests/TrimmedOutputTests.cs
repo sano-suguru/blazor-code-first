@@ -8,7 +8,7 @@ namespace BlazorCompose.TrimTests;
 /// to verify that the trimmer behaves according to the architecture's expectations:
 /// - Generated <c>RenderBody</c> must be retained (it is rooted by <c>BuildRenderTree</c>).
 /// - The <c>Body</c> getter should be trimmed from both derived and base types (no runtime caller).
-/// - All unreferenced inert factory methods in <c>BlazorCompose.UI</c> should be trimmed.
+/// - All unreferenced inert factory methods in <c>BlazorCompose.Html</c> should be trimmed.
 /// </summary>
 public sealed class TrimmedOutputTests
 {
@@ -68,13 +68,14 @@ public sealed class TrimmedOutputTests
     {
         var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
 
-        var methods = GetMethodNames(runtimeAssemblyPath, "UI", expectedNamespace: "BlazorCompose");
+        var methods = GetMethodNames(runtimeAssemblyPath, "Html", expectedNamespace: "BlazorCompose");
 
-        // All four initial inert factories are unreachable at runtime — the source generator
-        // inlines their semantics into RenderBody via direct RenderTreeBuilder calls.
-        Assert.DoesNotContain("Text", methods);
+        // All inert factories are unreachable at runtime — the source generator inlines their
+        // semantics into RenderBody via direct RenderTreeBuilder calls.
+        Assert.DoesNotContain("Div", methods);
+        Assert.DoesNotContain("Span", methods);
         Assert.DoesNotContain("Button", methods);
-        Assert.DoesNotContain("VStack", methods);
+        Assert.DoesNotContain("Element", methods);
         Assert.DoesNotContain("If", methods);
         Assert.DoesNotContain("ForEach", methods);
         Assert.DoesNotContain("Component", methods);

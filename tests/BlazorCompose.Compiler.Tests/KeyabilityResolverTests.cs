@@ -8,11 +8,15 @@ public sealed class KeyabilityResolverTests
 {
     private static ExpressionTemplate Lit(string text) => ExpressionTemplate.Literal(text);
 
+    private static ElementTemplateNode Span(ExpressionTemplate content) =>
+        new("span", default, default, ImmutableArray.Create<RenderTemplateNode>(new TextContentTemplateNode(content)));
+
     [Fact]
-    public void ResolveRootKind_VStack_IsElement()
+    public void ResolveRootKind_Div_IsElement()
     {
-        var node = new VStackTemplateNode(ImmutableArray.Create<RenderTemplateNode>(
-            new TextTemplateNode(Lit("\"x\""))));
+        var node = new ElementTemplateNode(
+            "div", default, default,
+            ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
 
         Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
     }
@@ -20,7 +24,7 @@ public sealed class KeyabilityResolverTests
     [Fact]
     public void ResolveRootKind_BareIf_IsRegion()
     {
-        var node = new IfTemplateNode(Lit("true"), new TextTemplateNode(Lit("\"x\"")), null);
+        var node = new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null);
 
         Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
     }
@@ -48,7 +52,7 @@ public sealed class KeyabilityResolverTests
         // ForEach whose content root is a bare If (region).
         var forEach = new ForEachTemplateNode(
             Lit("_xs"), Lit("__bc_item_0.Id"),
-            new IfTemplateNode(Lit("true"), new TextTemplateNode(Lit("\"x\"")), null),
+            new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null),
             new TemplateLocation("f", default, default));
         var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
 
@@ -62,7 +66,7 @@ public sealed class KeyabilityResolverTests
     {
         var forEach = new ForEachTemplateNode(
             Lit("_xs"), Lit("__bc_item_0.Id"),
-            new TextTemplateNode(Lit("__bc_item_0.Name")),
+            Span(Lit("__bc_item_0.Name")),
             new TemplateLocation("f", default, default));
         var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
 

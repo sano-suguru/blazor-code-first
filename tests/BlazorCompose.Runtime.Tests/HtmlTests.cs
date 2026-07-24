@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using BlazorCompose;
 
 namespace BlazorCompose.Runtime.Tests;
@@ -8,6 +9,16 @@ public sealed class HtmlTests
     [Fact]
     public void Div_IsInert_ReturnsDefaultView() =>
         Assert.Equal(default, Html.Div("a", Html.Span("b")));
+
+    [Fact]
+    public void ForEach_WhenInvokedAtRuntime_ReturnsDefaultInertView()
+    {
+        IEnumerable<int> source = [1, 2, 3];
+
+        var view = Html.ForEach(source, key: static x => x, content: static x => Html.Span(x.ToString()));
+
+        Assert.Equal(default, view);
+    }
 
     [Fact]
     public void Span_IsInert_ReturnsDefaultView() =>

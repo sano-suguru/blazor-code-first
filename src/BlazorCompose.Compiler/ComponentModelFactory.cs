@@ -51,8 +51,8 @@ internal static class ComponentModelFactory
         if (!ComposeComponentBaseFacts.InheritsFromComposeComponentBase(symbol))
             return null;
 
-        // Resolve the BlazorCompose.UI factory symbols only once the candidate is confirmed to be a
-        // component, so unrelated base-listed classes do not pay for the UI type lookup.  Resolution is
+        // Resolve the BlazorCompose.Html factory symbols only once the candidate is confirmed to be a
+        // component, so unrelated base-listed classes do not pay for the Html type lookup.  Resolution is
         // transient to this compilation and never escapes into the cached pipeline.
         var knownSymbols = KnownSymbols.TryCreate(syntaxContext.SemanticModel.Compilation);
         if (knownSymbols is null)

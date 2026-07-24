@@ -28,9 +28,9 @@ internal enum ExecutionContextKind
     Opaque,
 
     /// <summary>
-    /// Deferred event handler: the recognized second argument of a <c>UI.Button</c> call.
-    /// Code in this context executes after rendering (in response to a DOM event), so state
-    /// mutations are expected and must not be reported as BC3001.
+    /// Deferred event handler: the recognized (sole, reduced) argument of a Html-mirror
+    /// <c>View.OnClick(...)</c> call. Code in this context executes after rendering (in response to a
+    /// DOM event), so state mutations are expected and must not be reported as BC3001.
     /// </summary>
     DeferredEventHandler,
 }
