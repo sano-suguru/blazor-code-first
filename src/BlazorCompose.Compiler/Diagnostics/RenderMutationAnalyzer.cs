@@ -205,6 +205,10 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// </summary>
     private static bool IsOnClickHandlerArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
     {
+        // Assumes the fluent (reduced) call form, where the handler is Arguments[0]. A non-fluent
+        // static call, Decorations.OnClick(view, handler), would place the handler at Arguments[1]
+        // and is intentionally not matched here — it fails safe by still reporting BC3001 rather than
+        // silently hiding a real mutation.
         if (lambda.Parent is ArgumentSyntax arg &&
             arg.Parent is ArgumentListSyntax argList &&
             argList.Parent is InvocationExpressionSyntax invocation &&

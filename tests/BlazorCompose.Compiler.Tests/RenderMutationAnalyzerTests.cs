@@ -81,6 +81,21 @@ public sealed class RenderMutationAnalyzerTests
         }
         """;
 
+    /// <summary>
+    /// Negative control for the Html.OnClick exemption: the mutation's nearest enclosing lambda is
+    /// the Html.If content lambda, not an OnClick handler, so it must still report BC3001.
+    /// </summary>
+    private const string IncrementInHtmlIfContentLambdaSource = """
+        using BlazorCompose;
+
+        public partial class Counter : ComposeComponentBase
+        {
+            private bool _flag = true;
+            private int _count;
+            protected override View Body => Html.If(_flag, () => Html.Span((_count++).ToString()));
+        }
+        """;
+
     // -----------------------------------------------------------------------
     // Sources that must NOT report BC3001
     // -----------------------------------------------------------------------
@@ -125,6 +140,21 @@ public sealed class RenderMutationAnalyzerTests
         }
         """;
 
+    /// <summary>
+    /// Positive case for the Html.OnClick exemption: the mutation's nearest enclosing lambda is the
+    /// (reduced) sole argument of the Html-mirror <c>View.OnClick(...)</c> extension call, so it must
+    /// not report BC3001.
+    /// </summary>
+    private const string IncrementInHtmlOnClickHandlerSource = """
+        using BlazorCompose;
+
+        public partial class Counter : ComposeComponentBase
+        {
+            private int _count;
+            protected override View Body => Html.Button("Increment").OnClick(() => _count++);
+        }
+        """;
+
     // -----------------------------------------------------------------------
     // Theory data
     // -----------------------------------------------------------------------
@@ -136,13 +166,15 @@ public sealed class RenderMutationAnalyzerTests
         CompoundAssignmentInTextSource,
         DecrementInTextSource,
         PropertyAssignmentInTextSource,
-        PropertyIncrementInTextSource);
+        PropertyIncrementInTextSource,
+        IncrementInHtmlIfContentLambdaSource);
 
     /// <summary>Deferred mutations (event handlers, helper methods) that must not report BC3001.</summary>
     public static TheoryData<string> MutationSourcesThatDoNotReportBC3001 { get; } = BuildTheoryData(
         IncrementInButtonHandlerSource,
         PropertyIncrementInButtonHandlerSource,
-        HelperMutationSource);
+        HelperMutationSource,
+        IncrementInHtmlOnClickHandlerSource);
 
     private static TheoryData<string> BuildTheoryData(params string[] sources)
     {
