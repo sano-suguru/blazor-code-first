@@ -201,6 +201,39 @@ internal static class RenderExpressionAnalyzer
             return new ComponentTemplateNode(inner.TypeName, appended);
         }
 
+        if (symbols.ClassMethod is not null
+            && SymbolEqualityComparer.Default.Equals(
+                (method.ReducedFrom ?? method).OriginalDefinition, symbols.ClassMethod))
+        {
+            // Receiver of `<expr>.Class(arg)` is the member-access expression's receiver.
+            if (invocation.Expression is not MemberAccessExpressionSyntax classAccess)
+                return null;
+
+            var inner = Analyze(classAccess.Expression, context);
+            // null: unanalyzable or already diagnosed (including an inner .Class that reported BC3008) —
+            // propagate silently so the decoration is not double-reported.
+            if (inner is null)
+                return null;
+
+            var classTemplate = ExpressionTemplateFactory.Create(
+                invocation.ArgumentList.Arguments[0].Expression, context);
+
+            switch (inner)
+            {
+                case TextTemplateNode text:
+                    return text with { Classes = text.Classes.AsImmutableArray().Add(classTemplate) };
+                case ButtonTemplateNode button:
+                    return button with { Classes = button.Classes.AsImmutableArray().Add(classTemplate) };
+                case VStackTemplateNode vstack:
+                    return vstack with { Classes = vstack.Classes.AsImmutableArray().Add(classTemplate) };
+                default:
+                    // If / ForEach / composable result / component: no single element to attach to.
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3008, classAccess.Name.GetLocation(), []));
+                    return null;
+            }
+        }
+
         if (IsComposable(method, context))
         {
             var arguments = CreateInvocationArguments(invocation, method, context);

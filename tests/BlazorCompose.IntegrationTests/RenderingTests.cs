@@ -114,4 +114,34 @@ public sealed class RenderingTests : BunitContext
         cut.FindAll("button")[3].Click();
         Assert.Equal("b:2", cut.FindAll("span")[0].TextContent);
     }
+
+    [Fact]
+    public void ClassDecoratedComponent_WhenRendered_EmitsFoldedClassAttributes()
+    {
+        var cut = Render<ClassDecoratedComponent>();
+
+        cut.MarkupMatches(
+            "<div class=\"panel\">" +
+            "<span class=\"badge\">Hi</span>" +
+            "<span class=\"a b\">Multi</span>" +
+            "<span class=\"on\">Dyn</span>" +
+            "</div>");
+    }
+
+    [Fact]
+    public void NullClassComponent_WhenRendered_OmitsAttributeForSingleNullButKeepsItForChained()
+    {
+        var cut = Render<NullClassComponent>();
+
+        var spans = cut.FindAll("span");
+
+        // A single .Class whose expression is null: Blazor omits a null attribute value, so no
+        // class attribute is rendered at all. Assert with GetAttribute (returns null when absent)
+        // rather than MarkupMatches, which would blur presence vs. absence.
+        Assert.Null(spans[0].GetAttribute("class"));
+
+        // N >= 2 chained .Class calls where one is null: the folded expression is a C# `+`
+        // concatenation, and null participates as "", so the class attribute is still present.
+        Assert.NotNull(spans[1].GetAttribute("class"));
+    }
 }

@@ -2187,6 +2187,185 @@ public sealed class GeneratorTests
         Assert.Empty(result.GeneratedSources);
     }
 
+    [Fact]
+    public void Generator_SingleClassOnText_EmitsClassAttribute()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Text("Hi").Class("badge");
+            }
+            """);
+
+        var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.OpenElement(0, \"span\");", source);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"badge\");", source);
+        Assert.Contains("__builder.AddContent(2, \"Hi\");", source);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_ChainedClassesOnText_FoldIntoOneAttributeInSourceOrder()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Text("Hi").Class("a").Class("b");
+            }
+            """);
+
+        var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.AddAttribute(1, \"class\", (\"a\") + \" \" + (\"b\"));", source);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_DynamicClassOnButton_EmitsClassBeforeOnclick()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private bool _on;
+                protected override View Body => Button("OK", () => _on = !_on).Class(_on ? "on" : "off");
+            }
+            """);
+
+        var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.AddAttribute(1, \"class\", _on ? \"on\" : \"off\");", source);
+        Assert.Contains("__builder.AddAttribute(2, \"onclick\", ", source);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_ClassOnForEachItemContent_SubstitutesLoopVariableHole()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private readonly List<string> _rows = new();
+                protected override View Body =>
+                    ForEach(_rows, key: r => r, content: r => Text(r).Class(r));
+            }
+            """);
+
+        var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        // The class hole is substituted with the generated loop variable, not left unbound.
+        Assert.Contains("\"class\", __bc_item_", source);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_ClassOnComposableArgument_SubstitutesArgumentHole()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => VStack(Chip("hot"));
+
+                [Composable]
+                private static View Chip(string c) => Text("chip").Class(c);
+            }
+            """);
+
+        var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("\"class\", ", source);
+        // If the hole were not substituted, ToCode() would throw and generation would fail; a compiling
+        // output proves the composable-argument class hole was bound.
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_ClassOnIf_ReportsBC3008()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => If(true, () => Text("x")).Class("y");
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics,
+            d => d.Id == "BC3008" && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void Generator_ClassOnRegion_ReportsBC3008Once()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => If(true, () => Text("x")).Class("a").Class("b");
+            }
+            """);
+
+        // The inner .Class reports BC3008 and returns null; the outer .Class propagates null silently.
+        Assert.Single(result.Diagnostics, d => d.Id == "BC3008");
+    }
+
+    [Fact]
+    public void Generator_ClassOnForEachWithBadKey_ReportsBothBC3002AndBC3008()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using static BlazorCompose.UI;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private readonly List<string> _rows = new();
+                protected override View Body =>
+                    ForEach(_rows, key: r => 0, content: r => Text(r)).Class("c");
+            }
+            """);
+
+        // The receiver's own defect (constant key) and the illegal decoration are independent problems.
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC3002");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC3008");
+    }
+
+    [Fact]
+    public void Generator_ClassOnComponent_IsRejectedByTypeSystem()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.UI;
+
+            public sealed class Widget : ComponentBase { }
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Component<Widget>().Class("x");
+            }
+            """);
+
+        // ComponentView<T> has no .Class, and extension resolution does not cross the user-defined
+        // implicit conversion to View, so this is a plain C# error, not a generator diagnostic.
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
+    }
+
     /// <summary>
     /// Asserts that both <paramref name="first"/> and <paramref name="second"/> occur in
     /// <paramref name="source"/> and that <paramref name="first"/> appears before <paramref name="second"/>.

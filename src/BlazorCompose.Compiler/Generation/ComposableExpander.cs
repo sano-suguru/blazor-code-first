@@ -68,12 +68,15 @@ internal static class ComposableExpander
         switch (node)
         {
             case TextTemplateNode text:
-                return new TextNode(text.Content.Substitute(substitution));
+                return new TextNode(
+                    text.Content.Substitute(substitution),
+                    SubstituteClasses(text.Classes, substitution));
 
             case ButtonTemplateNode button:
                 return new ButtonNode(
                     button.Label.Substitute(substitution),
-                    button.Handler.Substitute(substitution));
+                    button.Handler.Substitute(substitution),
+                    SubstituteClasses(button.Classes, substitution));
 
             case VStackTemplateNode vstack:
                 {
@@ -93,7 +96,7 @@ internal static class ComposableExpander
                         children.Add(expanded);
                     }
 
-                    return new VStackNode(children.ToImmutable());
+                    return new VStackNode(children.ToImmutable(), SubstituteClasses(vstack.Classes, substitution));
                 }
 
             case IfTemplateNode ifNode:
@@ -351,6 +354,18 @@ internal static class ComposableExpander
         TextNode or ButtonNode or VStackNode or ComponentNode => true,
         _ => false,
     };
+
+    private static EquatableArray<ExpressionTemplate> SubstituteClasses(
+        EquatableArray<ExpressionTemplate> classes, ImmutableArray<string> substitution)
+    {
+        if (classes.Length == 0)
+            return classes;
+
+        var builder = ImmutableArray.CreateBuilder<ExpressionTemplate>(classes.Length);
+        foreach (var @class in classes)
+            builder.Add(@class.Substitute(substitution));
+        return builder.ToImmutable();
+    }
 
     private static string CreateLocalName(int callPreorderOrdinal, int parameterOrdinal) =>
         $"__bc_arg_{callPreorderOrdinal}_{parameterOrdinal}";

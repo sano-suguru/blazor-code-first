@@ -177,6 +177,24 @@ internal static class DiagnosticDescriptors
             "duplicate is reported at compile time.");
 
     /// <summary>
+    /// BC3008: A <c>.Class</c> decoration was applied to a node that does not open a single HTML element
+    /// (an <c>If</c>/<c>ForEach</c> region root, or a <c>[Composable]</c> call result). Decorations fold
+    /// into the owning element's <c>class</c> attribute, so there must be an element to attach to.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3008 = new(
+        id: "BC3008",
+        title: "Decoration target must be a single element",
+        messageFormat: ".Class can only decorate a single element (Text, Button, or VStack); it cannot be applied to If, ForEach, or a [Composable] result",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            ".Class folds into the owning element's class attribute, so it can only be applied to a node " +
+            "that opens a single HTML element (Text, Button, or VStack). Applying it to a region-rooted " +
+            "node (If, ForEach) or a [Composable] call result has no element to attach to. Decorate a " +
+            "concrete element instead.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

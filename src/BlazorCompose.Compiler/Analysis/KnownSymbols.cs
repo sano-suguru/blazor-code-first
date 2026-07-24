@@ -47,6 +47,9 @@ internal sealed class KnownSymbols
     /// <summary>Resolved <c>Microsoft.AspNetCore.Components.ParameterAttribute</c>, or null.</summary>
     public INamedTypeSymbol? ParameterAttributeType { get; }
 
+    /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.Class(this View, string)</c>, or null.</summary>
+    public IMethodSymbol? ClassMethod { get; }
+
     private KnownSymbols(INamedTypeSymbol uiType, Compilation compilation)
     {
         ViewType = uiType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.View");
@@ -63,6 +66,21 @@ internal sealed class KnownSymbols
                 if (member is IMethodSymbol { Arity: 1, Parameters.Length: 2 } paramMethod)
                 {
                     ParamMethod = paramMethod;
+                    break;
+                }
+            }
+        }
+
+        var decorationsType =
+            uiType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.Decorations");
+        if (decorationsType is not null)
+        {
+            foreach (var member in decorationsType.GetMembers("Class"))
+            {
+                // Unreduced extension method: (this View, string), arity 0.
+                if (member is IMethodSymbol { IsExtensionMethod: true, Arity: 0, Parameters.Length: 2 } classMethod)
+                {
+                    ClassMethod = classMethod;
                     break;
                 }
             }
