@@ -7,6 +7,11 @@ on:
       - "site/**"
       - "src/**"
       - ".github/workflows/site.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "src/**"
+      - ".github/workflows/site.yml"
   workflow_dispatch:
 
 jobs:
@@ -20,10 +25,31 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Regenerate docs and verify freshness
+        run: |
+          dotnet run --project site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site.DocGen.Cli.csproj -- \
+            site/content \
+            site/BlazorCompose.Site/Content/Docs.g.cs \
+            site/BlazorCompose.Site/wwwroot/css/highlight.css
+          git diff --exit-code -- \
+            site/BlazorCompose.Site/Content/Docs.g.cs \
+            site/BlazorCompose.Site/wwwroot/css/highlight.css
+
+      - name: DocGen unit tests
+        run: dotnet test site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj
+
       - name: Publish (static, trimmed)
         run: dotnet publish site/BlazorCompose.Site/BlazorCompose.Site.csproj -c Release
 
+      - name: Verify prerendered /docs
+        run: |
+          f=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot/docs/index.html
+          test -f "$f"
+          grep -q 'id="installation"' "$f"
+          grep -q 'class="csharp"' "$f"
+
       - name: Deploy to Cloudflare Pages
+        if: github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

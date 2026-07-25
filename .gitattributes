@@ -1,0 +1,3 @@
+site/**/*.g.cs text eol=lf
+site/**/highlight.css text eol=lf
+site/content/*.md text eol=lf
