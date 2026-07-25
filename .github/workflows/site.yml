@@ -61,9 +61,25 @@ jobs:
           echo "Checking for non-English (CJK) characters in site/**/*.cs and *.razor..."
           # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
           # em dash (U+2014), which appears legitimately in existing English comments.
-          if grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
-              '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/; then
-            echo "::error::Non-English (CJK) characters found at the file(s)/line(s) printed above. Source comments and documentation must be written in English." >&2
+          #
+          # grep exits 1 for "no match" and 2 for an error (for example a grep built without
+          # PCRE, which rejects -P). An `if grep ...; then` guard treats both exit codes as
+          # "clean", so a broken/unavailable -P support would make this check silently pass
+          # forever -- the same class of defect as the negated-grep bug already fixed on this
+          # branch. Capture the output and exit code separately so a check-level failure (rc=2)
+          # is reported distinctly from a genuinely clean result (rc=1, no hits).
+          set +e
+          cjk_hits=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
+              '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/)
+          cjk_rc=$?
+          set -e
+          if [ "$cjk_rc" -gt 1 ]; then
+            echo "::error::the CJK source check could not run (grep exited $cjk_rc)" >&2
+            exit 1
+          fi
+          if [ -n "$cjk_hits" ]; then
+            echo "::error::Non-English (CJK) characters found at the file(s)/line(s) below. Source comments and documentation must be written in English." >&2
+            printf '%s\n' "$cjk_hits" >&2
             exit 1
           fi
 
@@ -74,7 +90,11 @@ jobs:
           while IFS= read -r -d '' rel; do
             f="site/$rel"
             # Skip binary files (e.g. favicon.png): `file`'s mime-encoding detection is more
-            # reliable across grep implementations than a raw NUL-byte scan.
+            # reliable across grep implementations than a raw NUL-byte scan. Known limitation:
+            # `file` reports UTF-16 text without a BOM as "binary" too, so such a file would be
+            # silently skipped here. No file under site/ is UTF-16 today (all tracked files are
+            # us-ascii, utf-8, or the one genuinely binary favicon.png) -- this does not cover
+            # every conceivable text encoding unconditionally.
             if [ "$(file -b --mime-encoding "$f")" = "binary" ]; then
               continue
             fi
