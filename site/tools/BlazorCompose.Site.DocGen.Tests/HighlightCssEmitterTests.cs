@@ -47,7 +47,10 @@ public class HighlightCssEmitterTests
         Assert.NotEmpty(usedClasses);
         foreach (string cls in usedClasses)
         {
-            Assert.Contains("." + cls, css);
+            // Boundary-aware match: a raw substring check would let ".string" pass
+            // merely because ".stringCSharpVerbatim{...}" is present, masking
+            // dropped rules for classes that are prefixes of others.
+            Assert.Matches(@"\." + Regex.Escape(cls) + @"\s*\{", css);
         }
     }
 }
