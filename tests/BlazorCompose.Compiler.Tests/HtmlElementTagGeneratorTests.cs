@@ -73,4 +73,28 @@ public sealed class HtmlElementTagGeneratorTests
         var result = CompilationTestHost.RunGenerator(WhitespaceTagSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC3009");
     }
+
+    [Theory]
+    [InlineData("Nav", "nav")]
+    [InlineData("Header", "header")]
+    [InlineData("Main", "main")]
+    [InlineData("Article", "article")]
+    [InlineData("H1", "h1")]
+    [InlineData("Ul", "ul")]
+    [InlineData("A", "a")]
+    [InlineData("Img", "img")]
+    public void CuratedHelper_EmitsItsTag(string helper, string tag)
+    {
+        var source = $$"""
+            using BlazorCompose;
+            public partial class C : ComposeComponentBase
+            {
+                protected override View Body => Html.{{helper}}();
+            }
+            """;
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains($"__builder.OpenElement(0, \"{tag}\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
 }

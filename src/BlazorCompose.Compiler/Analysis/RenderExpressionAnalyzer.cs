@@ -43,11 +43,9 @@ internal static class RenderExpressionAnalyzer
             known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
 
         {
-            string? tag =
-                Is(method, symbols.HtmlDiv) ? "div" :
-                Is(method, symbols.HtmlSpan) ? "span" :
-                Is(method, symbols.HtmlButton) ? "button" :
-                null;
+            string? tag = symbols.ElementTags.TryGetValue(KnownSymbols.Normalize(method), out var mapped)
+                ? mapped
+                : null;
 
             if (tag is null && Is(method, symbols.HtmlElement))
             {
