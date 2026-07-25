@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
 
 namespace BlazorCompose.Compiler.Analysis;
@@ -32,17 +33,64 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.Class(this View, string)</c>, or null.</summary>
     public IMethodSymbol? ClassMethod { get; }
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.OnClick(this View, Action)</c>, or null.</summary>
-    public IMethodSymbol? OnClickMethod { get; }
+    /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
+    /// runtime helper declarations are kept in sync by KnownSymbolsSyncTests.</summary>
+    private static readonly Dictionary<string, string> CuratedTags = new(System.StringComparer.Ordinal)
+    {
+        ["Div"] = "div",
+        ["Span"] = "span",
+        ["Button"] = "button",
+        ["Nav"] = "nav",
+        ["Header"] = "header",
+        ["Main"] = "main",
+        ["Aside"] = "aside",
+        ["Footer"] = "footer",
+        ["Section"] = "section",
+        ["Article"] = "article",
+        ["P"] = "p",
+        ["H1"] = "h1",
+        ["H2"] = "h2",
+        ["H3"] = "h3",
+        ["H4"] = "h4",
+        ["H5"] = "h5",
+        ["H6"] = "h6",
+        ["Ul"] = "ul",
+        ["Ol"] = "ol",
+        ["Li"] = "li",
+        ["A"] = "a",
+        ["Img"] = "img",
+    };
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Div(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
-    public IMethodSymbol? HtmlDiv { get; }
+    /// <summary>Named attribute shortcut method name → attribute name.</summary>
+    private static readonly Dictionary<string, string> AttributeShortcutNames = new(System.StringComparer.Ordinal)
+    {
+        ["Href"] = "href",
+        ["Src"] = "src",
+        ["Alt"] = "alt",
+        ["Id"] = "id",
+        ["Type"] = "type",
+        ["Title"] = "title",
+        ["Role"] = "role",
+    };
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Span(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
-    public IMethodSymbol? HtmlSpan { get; }
+    /// <summary>Normalizes a method to the comparable key used in every map: reduced extension methods
+    /// (fluent decorations) are unreduced, then the original definition is taken.</summary>
+    public static ISymbol Normalize(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Button(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
-    public IMethodSymbol? HtmlButton { get; }
+    /// <summary>Curated element helper method → HTML tag name.</summary>
+    public IReadOnlyDictionary<ISymbol, string> ElementTags { get; }
+
+    /// <summary>Named attribute shortcut decoration method → attribute name.</summary>
+    public IReadOnlyDictionary<ISymbol, string> AttributeShortcuts { get; }
+
+    /// <summary>Named event shortcut decoration method (e.g. <c>OnClick</c> overloads) → HTML event name.</summary>
+    public IReadOnlyDictionary<ISymbol, string> EventShortcuts { get; }
+
+    /// <summary>All <c>Decorations.Attr</c> overloads.</summary>
+    public IReadOnlyCollection<ISymbol> AttrMethods { get; }
+
+    /// <summary>All <c>Decorations.On</c> overloads.</summary>
+    public IReadOnlyCollection<ISymbol> OnMethods { get; }
 
     /// <summary>Resolved symbol for <c>BlazorCompose.Html.Element(string, params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
     public IMethodSymbol? HtmlElement { get; }
@@ -79,43 +127,58 @@ internal sealed class KnownSymbols
 
         var decorationsType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.Decorations");
+
+        var attributeShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
+        var eventShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
+        var attrMethods = new List<ISymbol>();
+        var onMethods = new List<ISymbol>();
         if (decorationsType is not null)
         {
-            foreach (var member in decorationsType.GetMembers("Class"))
+            foreach (var member in decorationsType.GetMembers())
             {
-                // Unreduced extension method: (this View, string), arity 0.
-                if (member is IMethodSymbol { IsExtensionMethod: true, Arity: 0, Parameters.Length: 2 } classMethod)
+                if (member is not IMethodSymbol { IsExtensionMethod: true } method)
+                    continue;
+                var key = Normalize(method);
+                switch (method.Name)
                 {
-                    ClassMethod = classMethod;
-                    break;
-                }
-            }
-
-            foreach (var member in decorationsType.GetMembers("OnClick"))
-            {
-                if (member is IMethodSymbol { IsExtensionMethod: true, Arity: 0, Parameters.Length: 2 } onClick)
-                {
-                    OnClickMethod = onClick;
-                    break;
+                    case "Class" when method.Parameters.Length == 2: ClassMethod = method; break;
+                    case "OnClick":
+                        // Both overloads map to "onclick"; the analyzer's decoration branch dispatches
+                        // on EventShortcuts, so no separate first-overload symbol is retained.
+                        eventShortcuts[key] = "onclick";
+                        break;
+                    case "On": onMethods.Add(key); break;                     // both overloads
+                    case "Attr": attrMethods.Add(key); break;
+                    default:
+                        if (AttributeShortcutNames.TryGetValue(method.Name, out var attr))
+                            attributeShortcuts[key] = attr;
+                        break;
                 }
             }
         }
+        AttributeShortcuts = attributeShortcuts;
+        EventShortcuts = eventShortcuts;
+        AttrMethods = attrMethods;
+        OnMethods = onMethods;
 
+        var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
         {
             if (member is not IMethodSymbol method)
                 continue;
             switch (method.Name)
             {
-                case "Div" when method.Parameters.Length == 1: HtmlDiv = method; break;
-                case "Span" when method.Parameters.Length == 1: HtmlSpan = method; break;
-                case "Button" when method.Parameters.Length == 1: HtmlButton = method; break;
                 case "Element" when method.Parameters.Length == 2: HtmlElement = method; break;
                 case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
                 case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
                 case "Component" when method.Arity == 1 && method.Parameters.Length == 0: HtmlComponent = method; break;
+                default:
+                    if (CuratedTags.TryGetValue(method.Name, out var tag))
+                        elementTags[Normalize(method)] = tag;
+                    break;
             }
         }
+        ElementTags = elementTags;
     }
 
     /// <summary>

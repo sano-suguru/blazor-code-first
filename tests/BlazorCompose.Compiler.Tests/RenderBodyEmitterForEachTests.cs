@@ -6,7 +6,7 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class RenderBodyEmitterForEachTests
 {
     private static ElementNode Span(ExpressionTemplate content) =>
-        new("span", default, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
+        new("span", default, default, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
 
     [Fact]
     public void Emit_ForEachRoot_EmitsKeyedForeachRegionWithContentAtSeqPlusOne()

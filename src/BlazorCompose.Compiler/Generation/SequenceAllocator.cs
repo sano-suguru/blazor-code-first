@@ -36,11 +36,11 @@ internal static class SequenceAllocator
         // SetKey/CloseComponent consume no sequence number.
         ComponentNode { Parameters: var parameters } => 1 + parameters.Length,
 
-        // OpenElement(tag) = 1 call, +1 if class-decorated, +1 per event attribute, plus the sum of all
-        // children. Must branch on the identical conditions and order as RenderBodyEmitter.EmitElement
-        // (class fold -> events -> children) or sequence numbers will drift.
-        ElementNode { Classes: var classes, Events: var events, Children: var children } =>
-            1 + (classes.Length == 0 ? 0 : 1) + events.Length + children.Sum(Width),
+        // OpenElement(tag) = 1 call, +1 if class-decorated, +1 per attribute, +1 per event, plus the sum
+        // of all children. Must branch on the identical conditions and order as
+        // RenderBodyEmitter.EmitElement (class fold -> attributes -> events -> children).
+        ElementNode { Classes: var classes, Attributes: var attributes, Events: var events, Children: var children } =>
+            1 + (classes.Length == 0 ? 0 : 1) + attributes.Length + events.Length + children.Sum(Width),
 
         // AddContent = 1 call; no wrapping element.
         TextContentNode => 1,

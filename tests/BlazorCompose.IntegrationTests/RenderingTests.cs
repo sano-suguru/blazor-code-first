@@ -144,4 +144,26 @@ public sealed class RenderingTests : BunitContext
         // concatenation, and null participates as "", so the class attribute is still present.
         Assert.NotNull(spans[1].GetAttribute("class"));
     }
+
+    [Fact]
+    public void SemanticShell_RendersExpectedDom()
+    {
+        var cut = Render<SemanticShellComponent>();
+
+        cut.Find("nav[aria-label=\"Primary\"]");
+        var logo = cut.Find("nav a[href=\"/\"] img");
+        Assert.Equal("/logo.png", logo.GetAttribute("src"));
+        Assert.Equal("Logo", logo.GetAttribute("alt"));
+        cut.Find("nav a[href=\"/docs\"]");
+        cut.Find("header h1");
+        Assert.Equal("Content", cut.Find("main p").TextContent);
+    }
+
+    [Fact]
+    public void SemanticShell_OnMouseEnter_DispatchesHandler()
+    {
+        var cut = Render<SemanticShellComponent>();
+        cut.Find("nav").MouseEnter();     // bUnit strongly-typed trigger for the onmouseenter attribute
+        Assert.Equal(1, cut.Instance.Hovered);
+    }
 }

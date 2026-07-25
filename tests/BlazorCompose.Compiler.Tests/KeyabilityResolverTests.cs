@@ -9,13 +9,13 @@ public sealed class KeyabilityResolverTests
     private static ExpressionTemplate Lit(string text) => ExpressionTemplate.Literal(text);
 
     private static ElementTemplateNode Span(ExpressionTemplate content) =>
-        new("span", default, default, ImmutableArray.Create<RenderTemplateNode>(new TextContentTemplateNode(content)));
+        new("span", default, default, default, ImmutableArray.Create<RenderTemplateNode>(new TextContentTemplateNode(content)));
 
     [Fact]
     public void ResolveRootKind_Div_IsElement()
     {
         var node = new ElementTemplateNode(
-            "div", default, default,
+            "div", default, default, default,
             ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
 
         Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));

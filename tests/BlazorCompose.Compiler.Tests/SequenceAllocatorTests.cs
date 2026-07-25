@@ -8,7 +8,7 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class SequenceAllocatorTests
 {
     private static ElementNode Span(ExpressionTemplate content, EquatableArray<ExpressionTemplate> classes = default) =>
-        new("span", classes, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
+        new("span", classes, default, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
 
     private static ElementNode Button(
         ExpressionTemplate label,
@@ -17,12 +17,18 @@ public sealed class SequenceAllocatorTests
         new(
             "button",
             classes,
-            ImmutableArray.Create(new EventTemplate(ExpressionTemplate.Literal("\"onclick\""), handler)),
+            default,
+            ImmutableArray.Create(new EventTemplate("onclick", handler)),
             ImmutableArray.Create<RenderNode>(new TextContentNode(label)));
 
     private static ElementNode Div(
         EquatableArray<RenderNode> children, EquatableArray<ExpressionTemplate> classes = default) =>
-        new("div", classes, default, children);
+        new("div", classes, default, default, children);
+
+    private static ElementNode DivWithAttrs(
+        EquatableArray<AttributeTemplate> attributes,
+        EquatableArray<ExpressionTemplate> classes = default) =>
+        new("div", classes, attributes, default, ImmutableArray<RenderNode>.Empty);
 
     [Fact]
     public void SequenceAllocator_SpanElement_HasWidthTwo()
@@ -194,5 +200,28 @@ public sealed class SequenceAllocatorTests
             ImmutableArray.Create(ExpressionTemplate.Literal("\"row\"")));
 
         Assert.Equal(SequenceAllocator.Width(undecorated) + 1, SequenceAllocator.Width(decorated));
+    }
+
+    [Fact]
+    public void SequenceAllocator_Attributes_AddOneFrameEach()
+    {
+        var attrs = ImmutableArray.Create(
+            new AttributeTemplate("href", ExpressionTemplate.Literal("\"/a\"")),
+            new AttributeTemplate("id", ExpressionTemplate.Literal("\"x\"")));
+        // 1 (OpenElement) + 2 attributes = 3
+        Assert.Equal(3, SequenceAllocator.Width(DivWithAttrs(attrs)));
+    }
+
+    [Fact]
+    public void SequenceAllocator_ClassAttributesEvents_SumInOrder()
+    {
+        var node = new ElementNode(
+            "a",
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"nav\"")),                 // class fold -> 1
+            ImmutableArray.Create(new AttributeTemplate("href", ExpressionTemplate.Literal("\"/a\""))), // attr -> 1
+            ImmutableArray.Create(new EventTemplate("onclick", ExpressionTemplate.Literal("() => { }"))), // event -> 1
+            ImmutableArray.Create<RenderNode>(new TextContentNode(ExpressionTemplate.Literal("\"Home\"")))); // child -> 1
+        // 1 (OpenElement) + 1 class + 1 attr + 1 event + 1 child = 5
+        Assert.Equal(5, SequenceAllocator.Width(node));
     }
 }

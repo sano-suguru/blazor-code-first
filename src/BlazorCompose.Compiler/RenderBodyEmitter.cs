@@ -189,10 +189,17 @@ internal static class RenderBodyEmitter
             writer.AppendLine($"__builder.SetKey({key});");
         int next = seq + 1;
         next = EmitClassAttribute(writer, node.Classes, next);
+        foreach (var attribute in node.Attributes)
+        {
+            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
+            writer.AppendLine($"__builder.AddAttribute({next}, {name}, {attribute.Value.ToCode()});");
+            next++;
+        }
         foreach (var e in node.Events)
         {
+            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(e.Name, quote: true);
             writer.AppendLine(
-                $"__builder.AddAttribute({next}, {e.AttributeName.ToCode()}, " +
+                $"__builder.AddAttribute({next}, {name}, " +
                 $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
             next++;
         }

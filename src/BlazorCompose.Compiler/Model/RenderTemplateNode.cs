@@ -52,12 +52,16 @@ internal sealed record ComponentTemplateNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters) : RenderTemplateNode;
 
-internal sealed record EventTemplate(ExpressionTemplate AttributeName, ExpressionTemplate Handler);
+internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
+
+/// <summary>An element attribute: a resolved constant name plus a value expression template.</summary>
+internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 
 internal sealed record ElementTemplateNode(
     string Tag,
-    EquatableArray<ExpressionTemplate> Classes = default,
-    EquatableArray<EventTemplate> Events = default,
+    EquatableArray<ExpressionTemplate> Classes = default,       // folded class channel (RM1)
+    EquatableArray<AttributeTemplate> Attributes = default,     // one frame each (RM2)
+    EquatableArray<EventTemplate> Events = default,             // one frame each
     EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode;
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

@@ -34,6 +34,17 @@ public sealed class HtmlDecorationGeneratorTests
         }
         """;
 
+    private const string ChainedDecorationsOnIfSource = """
+        using BlazorCompose;
+
+        public partial class C : ComposeComponentBase
+        {
+            private bool _b = true;
+            protected override View Body =>
+                Html.If(_b, () => Html.Span("y")).Class("bad").Attr("id", "x").OnClick(() => { });
+        }
+        """;
+
     [Fact]
     public void Button_WithOnClick_EmitsOnclickAttributeThenContent()
     {
@@ -64,5 +75,15 @@ public sealed class HtmlDecorationGeneratorTests
     {
         var result = CompilationTestHost.RunGenerator(ClassOnIfSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC3008");
+    }
+
+    [Fact]
+    public void ChainedDecorationsOnIf_ReportsBC3008Once()
+    {
+        // A chain of decorations on a non-element root (.Class, then .Attr, then .OnClick) must not
+        // pile up BC3008 once per decoration: only the innermost receiver (.Class, the first decoration
+        // applied to the If result) is diagnosed; the outer decorations propagate the null silently.
+        var result = CompilationTestHost.RunGenerator(ChainedDecorationsOnIfSource);
+        Assert.Single(result.Diagnostics, d => d.Id == "BC3008");
     }
 }
