@@ -44,4 +44,28 @@ public class MarkdownConverterTests
         string html = MarkdownConverter.ToHtml("```\n```");
         Assert.Contains("<pre", html);
     }
+
+    [Fact]
+    public void ToHtml_WithKnownSlugs_RewritesRelativeLinksAndKeepsHighlighting()
+    {
+        string html = MarkdownConverter.ToHtml(
+            "## Section\n\n[next](./control-flow.md)\n\n```csharp\nvar x = 1;\n```\n",
+            new HashSet<string>(["control-flow"], StringComparer.Ordinal),
+            "sample.md");
+
+        Assert.Contains("href=\"/docs/control-flow\"", html);
+        // The AST path must not lose the ColorCode renderer registration.
+        Assert.Contains("class=\"csharp\"", html);
+        Assert.Contains("<span class=\"keyword\"", html);
+        Assert.Contains("id=\"section\"", html);
+    }
+
+    [Fact]
+    public void ToHtml_WithKnownSlugs_EnforcesTheNoH1Rule()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => MarkdownConverter.ToHtml(
+            "# Title\n", new HashSet<string>(StringComparer.Ordinal), "sample.md"));
+
+        Assert.Contains("sample.md", ex.Message);
+    }
 }

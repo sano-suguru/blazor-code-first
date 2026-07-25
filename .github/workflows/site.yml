@@ -38,15 +38,142 @@ jobs:
       - name: DocGen unit tests
         run: dotnet test site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj
 
+      # site/ sits outside BlazorCompose.slnx, so it is outside the repository's main
+      # `dotnet format` gate (see AGENTS.md). This step closes that gap for the site projects.
+      # `dotnet format` requires a restored project; restore is left implicit here (no
+      # --no-restore) rather than adding a separate restore step, since each `dotnet format`
+      # invocation below already restores its own project on demand.
+      - name: Format check (site/)
+        run: |
+          # Build the site app before formatting it. `dotnet format` loads each project as a Roslyn
+          # workspace and compiles it, and the app's RenderBody comes from the BlazorCompose source
+          # generator referenced as an analyzer ProjectReference. On a cold checkout that generator
+          # assembly does not exist yet, so the workspace load reports CS0534 ("does not implement
+          # inherited abstract member RenderBody") for every compose component and the step fails.
+          # Building first produces the generator; the DocGen projects need no such step.
+          dotnet build site/BlazorCompose.Site/BlazorCompose.Site.csproj
+          dotnet format site/BlazorCompose.Site/BlazorCompose.Site.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCompose.Site.DocGen/BlazorCompose.Site.DocGen.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site.DocGen.Cli.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj --verify-no-changes
+
+      - name: Verify site source hygiene
+        run: |
+          set -euo pipefail
+
+          # Mechanical guards for issues that slipped past human review during M4: 21 Japanese
+          # trailing comments in two committed test files were caught only by a whole-branch
+          # review at the very end, and nothing here caught CRLF/missing-newline drift either.
+
+          echo "Checking for non-English (CJK) characters in site/**/*.cs and *.razor..."
+          # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
+          # em dash (U+2014), which appears legitimately in existing English comments.
+          #
+          # grep exits 1 for "no match" and 2 for an error (for example a grep built without
+          # PCRE, which rejects -P). An `if grep ...; then` guard treats both exit codes as
+          # "clean", so a broken/unavailable -P support would make this check silently pass
+          # forever -- the same class of defect as the negated-grep bug already fixed on this
+          # branch. Capture the output and exit code separately so a check-level failure (rc=2)
+          # is reported distinctly from a genuinely clean result (rc=1, no hits).
+          set +e
+          cjk_hits=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
+              '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/)
+          cjk_rc=$?
+          set -e
+          if [ "$cjk_rc" -gt 1 ]; then
+            echo "::error::the CJK source check could not run (grep exited $cjk_rc)" >&2
+            exit 1
+          fi
+          if [ -n "$cjk_hits" ]; then
+            echo "::error::Non-English (CJK) characters found at the file(s)/line(s) below. Source comments and documentation must be written in English." >&2
+            printf '%s\n' "$cjk_hits" >&2
+            exit 1
+          fi
+
+          echo "Checking for missing trailing newlines under site/..."
+          # Mirrors the root .editorconfig's insert_final_newline = true. Uses `git ls-files` so
+          # bin/ and obj/ are excluded automatically (they are gitignored, not build-detected).
+          missing=0
+          while IFS= read -r -d '' rel; do
+            f="site/$rel"
+            # Skip binary files (e.g. favicon.png): `file`'s mime-encoding detection is more
+            # reliable across grep implementations than a raw NUL-byte scan. Known limitation:
+            # `file` reports UTF-16 text without a BOM as "binary" too, so such a file would be
+            # silently skipped here. No file under site/ is UTF-16 today (all tracked files are
+            # us-ascii, utf-8, or the one genuinely binary favicon.png) -- this does not cover
+            # every conceivable text encoding unconditionally.
+            if [ "$(file -b --mime-encoding "$f")" = "binary" ]; then
+              continue
+            fi
+            # Command substitution strips all trailing newlines, so a non-empty result here means
+            # the file's last byte was not '\n'.
+            if [ -s "$f" ] && [ -n "$(tail -c1 "$f")" ]; then
+              echo "::error::$f is missing a trailing newline" >&2
+              missing=1
+            fi
+          done < <(git -C site ls-files -z)
+          # Must be an if/exit, not `! <command>`: under `set -e` a negated command is exempt from
+          # errexit (POSIX), so relying on negation here would silently swallow this failure.
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+
       - name: Publish (static, trimmed)
         run: dotnet publish site/BlazorCompose.Site/BlazorCompose.Site.csproj -c Release
 
-      - name: Verify prerendered /docs
+      - name: Verify prerendered shell and documents
         run: |
-          f=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot/docs/index.html
-          test -f "$f"
-          grep -q 'id="installation"' "$f"
-          grep -q 'class="csharp"' "$f"
+          set -euo pipefail
+          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+
+          # Attribute order in the generated HTML is class-before-href today; match either order so
+          # a future emitter change cannot silently turn this guard into a no-op.
+          active_link() {
+            grep -qE "<a[^>]*class=\"nav-link active\"[^>]*href=\"$2\"|<a[^>]*href=\"$2\"[^>]*class=\"nav-link active\"" "$1"
+          }
+
+          # The shell must be present on every prerendered route.
+          for f in index.html counter/index.html docs/index.html; do
+            grep -q 'class="site-nav"' "$P/$f"
+          done
+
+          active_link "$P/index.html" "/"
+          active_link "$P/counter/index.html" "/counter"
+
+          # Each document route is prerendered with the shell, exactly one title, its own nav link
+          # marked active, and no leftover .md link. The per-route active check is the real guard: if
+          # path normalization is wrong, every route renders the same active link.
+          for slug in getting-started elements-and-decorations control-flow; do
+            f="$P/docs/$slug/index.html"
+            test -f "$f"
+            grep -q 'class="site-nav"' "$f"
+            active_link "$f" "/docs/$slug"
+            test "$(grep -o 'nav-link active' "$f" | wc -l)" -eq 1
+            test "$(grep -c '<title>' "$f")" = 1
+            # Must be an if/exit, not `! grep ...`: under `set -e` a negated command is exempt from
+            # errexit (POSIX), and this is not the script's last command, so a leftover .md link
+            # would be detected and then silently ignored.
+            if grep -qE 'href="[^"]*\.md("|#|\?)' "$f"; then
+              echo "::error::$f still contains an un-rewritten .md link" >&2
+              exit 1
+            fi
+          done
+
+          # "/docs" activates the default (lowest order) document.
+          active_link "$P/docs/index.html" "/docs/getting-started"
+
+          # "/docs" must render the default document's BODY, not just mark its nav link active:
+          # the nav check passes even when the page renders "Not found", so without this a broken
+          # default-document resolution would ship on the one URL the spec promises to preserve.
+          grep -q '<h1>Getting Started</h1>' "$P/docs/index.html"
+          grep -q 'id="installation"' "$P/docs/index.html"
+
+          # Content conversion survived the AST pass.
+          grep -q 'id="installation"' "$P/docs/getting-started/index.html"
+          grep -q 'class="csharp"' "$P/docs/getting-started/index.html"
+          grep -q 'class="headlink"' "$P/docs/control-flow/index.html"
+          grep -q 'href="/docs/control-flow"' "$P/docs/getting-started/index.html"
+          grep -q '<title>Getting Started</title>' "$P/docs/getting-started/index.html"
 
       - name: Deploy to Cloudflare Pages
         if: github.event_name != 'pull_request'

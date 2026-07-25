@@ -1,4 +1,7 @@
-# Getting Started
+---
+title: Getting Started
+order: 10
+---
 
 BlazorCompose lets you write Blazor UI as plain C#. This page is itself rendered
 from Markdown, converted at build time and injected through `Html.Raw`.
@@ -29,3 +32,4 @@ public partial class Home : ComposeComponentBase
 
 - Read the [counter sample](/counter) to see events, `If`, and keyed `ForEach`.
 - Jump to [Installation](#installation) or [A first component](#a-first-component).
+- Learn the [element vocabulary](./elements-and-decorations.md) and [control flow](./control-flow.md#if).

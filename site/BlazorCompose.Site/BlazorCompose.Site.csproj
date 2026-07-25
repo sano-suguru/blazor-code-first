@@ -18,7 +18,6 @@
          index.html as plain HTML, before any WASM/JS executes. -->
     <BlazorWasmPrerenderingMode>Static</BlazorWasmPrerenderingMode>
     <BlazorWasmPrerenderingKeepServer>false</BlazorWasmPrerenderingKeepServer>
-    <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs</BlazorWasmPrerenderingUrlPathToExplicitFetch>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,5 +37,29 @@
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
+
+  <!-- Derive the prerendered route list from the same source of truth as the docs manifest
+       (site/content/*.md), so adding a document cannot silently skip prerendering.
+
+       This must be a target, not a static PropertyGroup: MSBuild evaluates properties before items,
+       so @(DocMarkdown) would be empty at evaluation time. The prerender tool's own target runs
+       AfterTargets="Publish" and expands the property inside its Exec command line, i.e. at target
+       execution time, so setting it from a BeforeTargets hook is sufficient. If the tool ever renames
+       that target this silently stops applying — the CI prerender verification is what catches it.
+       That guard works for a subtler reason than "the routes go missing": if the target were
+       renamed, the tool would fall back to crawling links from "/", and since SiteNav links every
+       "/docs/{slug}" route from every page, all the per-document routes would still be discovered
+       that way. What actually makes the guard bite is that nothing links to the bare "/docs" URL, so
+       docs/index.html would be missing and CI's shell-presence loop would fail on it. Adding a
+       "/docs" nav link would quietly disarm this guard. -->
+  <Target Name="ComputeDocsPrerenderPaths" BeforeTargets="BlazorWasmPrerendering">
+    <ItemGroup>
+      <DocMarkdown Include="$(MSBuildProjectDirectory)/../content/*.md" />
+    </ItemGroup>
+    <PropertyGroup>
+      <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs;@(DocMarkdown->'/docs/%(Filename)')</BlazorWasmPrerenderingUrlPathToExplicitFetch>
+    </PropertyGroup>
+    <Message Importance="high" Text="Prerendering routes: $(BlazorWasmPrerenderingUrlPathToExplicitFetch)" />
+  </Target>
 
 </Project>
