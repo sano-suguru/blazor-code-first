@@ -29,7 +29,18 @@ public static class DocGenRunner
         string css = HighlightCssEmitter.Emit();
 
         // Artifacts are LF-normalized by their emitters; write bytes as-is.
-        File.WriteAllText(docsOutPath, docsSource, Utf8NoBom);
-        File.WriteAllText(cssOutPath, css, Utf8NoBom);
+        WriteFile(docsOutPath, docsSource);
+        WriteFile(cssOutPath, css);
+    }
+
+    private static void WriteFile(string path, string content)
+    {
+        string? dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.WriteAllText(path, content, Utf8NoBom);
     }
 }

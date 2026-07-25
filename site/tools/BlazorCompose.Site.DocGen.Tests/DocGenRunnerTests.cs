@@ -36,6 +36,32 @@ public class DocGenRunnerTests
     }
 
     [Fact]
+    public void Run_CreatesMissingOutputDirectories()
+    {
+        string dir = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            string content = Path.Combine(dir, "content");
+            Directory.CreateDirectory(content);
+            File.WriteAllText(Path.Combine(content, "getting-started.md"),
+                "# Getting Started\n");
+
+            // Neither output's parent directory exists yet.
+            string docsOut = Path.Combine(dir, "generated", "docs", "Docs.g.cs");
+            string cssOut = Path.Combine(dir, "generated", "css", "highlight.css");
+
+            DocGenRunner.Run(content, docsOut, cssOut);
+
+            Assert.True(File.Exists(docsOut));
+            Assert.True(File.Exists(cssOut));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Run_IsDeterministic_AcrossEnumerationOrder()
     {
         string dir = Directory.CreateTempSubdirectory().FullName;
