@@ -73,6 +73,36 @@ public class CSharpDocEmitterTests
         Assert.Contains("\\\"Quoted\\\"", EmitOne("a", "\"Quoted\"", 1, "<p/>"));
 
     [Fact]
+    public void Emit_EscapesBackslash()
+    {
+        // A literal backslash must become `\\` in the generated literal, or it would combine
+        // with the next character to form an unintended (or illegal) escape sequence.
+        string source = EmitOne("a", "A", 1, "<p>C:\\path</p>");
+
+        Assert.Contains("C:\\\\path", source);
+    }
+
+    [Fact]
+    public void Emit_EscapesUnicodeLineTerminatorCodePoints()
+    {
+        // U+0085 (NEL), U+2028 (LINE SEPARATOR), and U+2029 (PARAGRAPH SEPARATOR) are all
+        // classified as new-line characters by the C# lexer, so they are illegal inside a
+        // non-verbatim string literal (CS1010) even though they are >= 0x20 and would
+        // otherwise fall through Escape's default branch untouched. They must be emitted as
+        // \uXXXX escapes. Written here as C# escapes rather than raw code points, so this test
+        // file itself does not become the corruption hazard it is guarding against.
+        string source = EmitOne("a", "A", 1, "<p>a\u0085b\u2028c\u2029d</p>");
+
+        Assert.Contains("\\u0085", source, StringComparison.Ordinal);
+        Assert.Contains("\\u2028", source, StringComparison.Ordinal);
+        Assert.Contains("\\u2029", source, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("\u0085", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u2028", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u2029", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Emit_DuplicateSlug_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => CSharpDocEmitter.Emit(
