@@ -45,6 +45,13 @@ jobs:
       # invocation below already restores its own project on demand.
       - name: Format check (site/)
         run: |
+          # Build the site app before formatting it. `dotnet format` loads each project as a Roslyn
+          # workspace and compiles it, and the app's RenderBody comes from the BlazorCompose source
+          # generator referenced as an analyzer ProjectReference. On a cold checkout that generator
+          # assembly does not exist yet, so the workspace load reports CS0534 ("does not implement
+          # inherited abstract member RenderBody") for every compose component and the step fails.
+          # Building first produces the generator; the DocGen projects need no such step.
+          dotnet build site/BlazorCompose.Site/BlazorCompose.Site.csproj
           dotnet format site/BlazorCompose.Site/BlazorCompose.Site.csproj --verify-no-changes
           dotnet format site/tools/BlazorCompose.Site.DocGen/BlazorCompose.Site.DocGen.csproj --verify-no-changes
           dotnet format site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site.DocGen.Cli.csproj --verify-no-changes
