@@ -197,4 +197,55 @@ public sealed class RenderMutationAnalyzerTests
 
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3001");
     }
+
+    [Fact]
+    public async Task OnHandler_Mutation_IsExempt()
+    {
+        const string source = """
+            using BlazorCompose;
+            public partial class C : ComposeComponentBase
+            {
+                private int _n;
+                protected override View Body => Html.Div().On("onmouseenter", () => _n++);
+            }
+            """;
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3001");
+    }
+
+    [Fact]
+    public async Task AsyncOnClickHandler_NestedLambdaMutation_IsExempt()
+    {
+        // Regression: the nested lambda i => total += i is inside the deferred handler; must NOT fire BC3001.
+        const string source = """
+            using System.Collections.Generic;
+            using System.Linq;
+            using BlazorCompose;
+            public partial class C : ComposeComponentBase
+            {
+                private int total;
+                private List<int> items = new();
+                protected override View Body =>
+                    Html.Button("Sum").OnClick(async () => { await System.Threading.Tasks.Task.Yield(); items.ForEach(i => total += i); });
+            }
+            """;
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3001");
+    }
+
+    [Fact]
+    public async Task AttrValueMutation_IsReported()
+    {
+        // .Attr value runs during render — a mutation there is a real BC3001 (not a deferred handler).
+        const string source = """
+            using BlazorCompose;
+            public partial class C : ComposeComponentBase
+            {
+                private int _n;
+                protected override View Body => Html.Div().Attr("data-n", (_n++).ToString());
+            }
+            """;
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+        Assert.Contains(diagnostics, static d => d.Id == "BC3001");
+    }
 }

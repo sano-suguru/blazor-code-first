@@ -15,9 +15,12 @@ namespace BlazorCompose.Compiler.Diagnostics;
 /// <para>
 /// The initial detectable boundary covers statically identifiable direct writes: field assignments,
 /// property assignments, and increment/decrement operators whose target is an instance member of the
-/// containing component.  The recognized deferred event handler lambda — the sole argument of a
-/// Html-mirror <c>View.OnClick(...)</c> call — is excluded because state mutations there are the
-/// correct location for imperative state transitions and execute after rendering, not during it.
+/// containing component. The recognized deferred event handlers — the last-argument lambda of a
+/// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call — are excluded because state
+/// mutations there are the correct location for imperative state transitions and execute after
+/// rendering, not during it. A mutation is exempt when <em>any</em> enclosing lambda (not just the
+/// innermost) is such a handler argument, so nested lambdas inside a deferred handler body remain
+/// exempt as well.
 /// </para>
 /// <para>
 /// Arbitrary interprocedural side effects (mutations inside a helper method called from Body) are
@@ -142,15 +145,17 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     // ---------------------------------------------------------------------------
-    // Helpers — OnClick handler context detection
+    // Helpers — deferred event handler context detection
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed in a
-    /// lambda that is syntactically a recognized deferred event handler argument: the single
-    /// argument of a Html-mirror <c>View.OnClick(...)</c> call. Stops at the first enclosing lambda
-    /// and returns <see langword="false"/> when that lambda does not match; this ensures that
-    /// If-content lambdas (which remain rendering contexts) are still reported.
+    /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed — at any
+    /// nesting depth — by a lambda that is syntactically a recognized deferred event handler
+    /// argument: the last argument of a Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c>
+    /// call. Every enclosing lambda is checked (not just the innermost), so a mutation inside a
+    /// nested lambda that itself lives inside a recognized handler lambda (e.g.
+    /// <c>OnClick(async () => items.ForEach(i => total += i))</c>) is still exempt. If-content
+    /// lambdas and other non-handler lambdas do not match and analysis continues outward.
     /// </summary>
     private static bool IsInsideDeferredEventHandlerLambda(
         SyntaxNode operationSyntax,
@@ -159,11 +164,10 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var node = operationSyntax.Parent;
         while (node is not null)
         {
-            if (node is LambdaExpressionSyntax lambda)
+            if (node is LambdaExpressionSyntax lambda &&
+                IsDeferredEventHandlerArgument(lambda, semanticModel))
             {
-                return IsOnClickHandlerArgument(lambda, semanticModel);
-                // The nearest enclosing lambda is not a recognized handler; stop here.
-                // (If-content lambdas and other lambdas remain rendering contexts.)
+                return true;
             }
             node = node.Parent;
         }
@@ -171,27 +175,25 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the (sole, reduced) argument
-    /// of a Html-mirror <c>Decorations.OnClick(this View, Action)</c> invocation.
+    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the last argument of a Html-mirror
+    /// <c>Decorations.OnClick(...)</c> or <c>Decorations.On(...)</c> invocation. The handler is always the
+    /// final argument in every call form (reduced fluent OnClick=arg0, reduced fluent On=arg1, non-fluent
+    /// static form=last), so "last argument" matches all of them.
     /// </summary>
-    private static bool IsOnClickHandlerArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
+    private static bool IsDeferredEventHandlerArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
     {
-        // Assumes the fluent (reduced) call form, where the handler is Arguments[0]. A non-fluent
-        // static call, Decorations.OnClick(view, handler), would place the handler at Arguments[1]
-        // and is intentionally not matched here — it fails safe by still reporting BC3001 rather than
-        // silently hiding a real mutation.
         if (lambda.Parent is ArgumentSyntax arg &&
             arg.Parent is ArgumentListSyntax argList &&
             argList.Parent is InvocationExpressionSyntax invocation &&
             argList.Arguments.Count >= 1 &&
-            argList.Arguments[0] == arg)
+            argList.Arguments[argList.Arguments.Count - 1] == arg)
         {
             var symbolInfo = semanticModel.GetSymbolInfo(invocation);
-            // Anchor the namespace check to the global root, consistent with
-            // ComposeComponentBaseFacts.InheritsFromComposeComponentBase, so that a user-defined type
-            // in e.g. Some.BlazorCompose.Decorations cannot spoof the exclusion.
-            if (symbolInfo.Symbol is IMethodSymbol { Name: "OnClick", IsExtensionMethod: true } onClickMethod &&
-                (onClickMethod.ReducedFrom ?? onClickMethod).ContainingType is { Name: "Decorations" } decorationsType &&
+            // Anchor the namespace to the global root so a user-defined Some.BlazorCompose.Decorations
+            // cannot spoof the exclusion.
+            if (symbolInfo.Symbol is IMethodSymbol { IsExtensionMethod: true } method &&
+                method.Name is "OnClick" or "On" &&
+                (method.ReducedFrom ?? method).ContainingType is { Name: "Decorations" } decorationsType &&
                 decorationsType.ContainingNamespace is { IsGlobalNamespace: false, Name: "BlazorCompose" } ns &&
                 ns.ContainingNamespace.IsGlobalNamespace)
             {
