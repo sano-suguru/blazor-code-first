@@ -1,3 +1,15 @@
-site/**/*.g.cs text eol=lf
-site/**/highlight.css text eol=lf
-site/content/*.md text eol=lf
+# Force LF line endings for all text files under site/ regardless of the checkout platform's
+# core.autocrlf setting, so an editor on Windows cannot reintroduce CRLF through a commit.
+# This consolidates the narrower rules that used to live here (site/**/*.g.cs, highlight.css,
+# site/content/*.md); those patterns are subsets of the ones below and are no longer listed
+# separately.
+site/**/*.cs text eol=lf
+site/**/*.razor text eol=lf
+site/**/*.html text eol=lf
+site/**/*.css text eol=lf
+site/**/*.json text eol=lf
+site/**/*.csproj text eol=lf
+site/**/*.md text eol=lf
+site/**/*.txt text eol=lf
+site/**/.editorconfig text eol=lf
+site/**/_redirects text eol=lf

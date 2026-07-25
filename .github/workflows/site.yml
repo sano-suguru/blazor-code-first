@@ -38,6 +38,59 @@ jobs:
       - name: DocGen unit tests
         run: dotnet test site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj
 
+      # site/ sits outside BlazorCompose.slnx, so it is outside the repository's main
+      # `dotnet format` gate (see AGENTS.md). This step closes that gap for the site projects.
+      # `dotnet format` requires a restored project; restore is left implicit here (no
+      # --no-restore) rather than adding a separate restore step, since each `dotnet format`
+      # invocation below already restores its own project on demand.
+      - name: Format check (site/)
+        run: |
+          dotnet format site/BlazorCompose.Site/BlazorCompose.Site.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCompose.Site.DocGen/BlazorCompose.Site.DocGen.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site.DocGen.Cli.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj --verify-no-changes
+
+      - name: Verify site source hygiene
+        run: |
+          set -euo pipefail
+
+          # Mechanical guards for issues that slipped past human review during M4: 21 Japanese
+          # trailing comments in two committed test files were caught only by a whole-branch
+          # review at the very end, and nothing here caught CRLF/missing-newline drift either.
+
+          echo "Checking for non-English (CJK) characters in site/**/*.cs and *.razor..."
+          # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
+          # em dash (U+2014), which appears legitimately in existing English comments.
+          if grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
+              '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/; then
+            echo "::error::Non-English (CJK) characters found at the file(s)/line(s) printed above. Source comments and documentation must be written in English." >&2
+            exit 1
+          fi
+
+          echo "Checking for missing trailing newlines under site/..."
+          # Mirrors the root .editorconfig's insert_final_newline = true. Uses `git ls-files` so
+          # bin/ and obj/ are excluded automatically (they are gitignored, not build-detected).
+          missing=0
+          while IFS= read -r -d '' rel; do
+            f="site/$rel"
+            # Skip binary files (e.g. favicon.png): `file`'s mime-encoding detection is more
+            # reliable across grep implementations than a raw NUL-byte scan.
+            if [ "$(file -b --mime-encoding "$f")" = "binary" ]; then
+              continue
+            fi
+            # Command substitution strips all trailing newlines, so a non-empty result here means
+            # the file's last byte was not '\n'.
+            if [ -s "$f" ] && [ -n "$(tail -c1 "$f")" ]; then
+              echo "::error::$f is missing a trailing newline" >&2
+              missing=1
+            fi
+          done < <(git -C site ls-files -z)
+          # Must be an if/exit, not `! <command>`: under `set -e` a negated command is exempt from
+          # errexit (POSIX), so relying on negation here would silently swallow this failure.
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+
       - name: Publish (static, trimmed)
         run: dotnet publish site/BlazorCompose.Site/BlazorCompose.Site.csproj -c Release
 

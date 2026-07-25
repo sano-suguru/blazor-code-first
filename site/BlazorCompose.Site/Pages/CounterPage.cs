@@ -1,12 +1,12 @@
-using Microsoft.AspNetCore.Components;
 using BlazorCompose;
 using BlazorCompose.Site.Layout;
+using Microsoft.AspNetCore.Components;
 using static BlazorCompose.Html;
 
 namespace BlazorCompose.Site.Pages;
 
 [Route("/counter")]
-public partial class CounterPage : ComposeComponentBase
+public sealed partial class CounterPage : ComposeComponentBase
 {
     // Stable identity keys (not indices) so the generator can diff the list safely.
     private static readonly List<IncrementStep> Steps = [new(1, 1), new(2, 5), new(3, 10)];

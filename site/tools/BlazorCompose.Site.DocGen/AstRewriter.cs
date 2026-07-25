@@ -126,7 +126,9 @@ public static class AstRewriter
     /// page h1 by the page itself). Heading ids are already assigned at parse time by
     /// UseAutoIdentifiers, so they can be read straight off the heading's attributes. The anchor
     /// carries a literal "#" as link text plus an aria-label rather than relying on CSS generated
-    /// content, because an anchor with no text has no accessible name.
+    /// content, because an anchor with no text has no accessible name. Must be called at most once
+    /// per parsed document: it appends an anchor rather than replacing one, so a second call would
+    /// duplicate the anchor on every eligible heading.
     /// </remarks>
     public static void AddHeadingLinks(MarkdownDocument document)
     {
