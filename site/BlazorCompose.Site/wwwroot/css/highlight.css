@@ -1,0 +1,58 @@
+.plainText{color:#000000;color:#FFFFFF;}
+.htmlServerSideScript{color:#FFFF00;}
+.htmlComment{color:#008000;}
+.htmlTagDelimiter{color:#0000FF;}
+.htmlElementName{color:#A31515;}
+.htmlAttributeName{color:#FF0000;}
+.htmlAttributeValue{color:#0000FF;}
+.htmlOperator{color:#0000FF;}
+.comment{color:#008000;}
+.xmlDocTag{color:#808080;}
+.xmlDocComment{color:#008000;}
+.string{color:#A31515;}
+.stringCSharpVerbatim{color:#A31515;}
+.keyword{color:#0000FF;}
+.preprocessorKeyword{color:#0000FF;}
+.htmlEntity{color:#FF0000;}
+.jsonKey{color:#FF8700;}
+.jsonString{color:#008B8B;}
+.jsonNumber{color:#00d700;}
+.jsonConst{color:#af87ff;}
+.xmlAttribute{color:#FF0000;}
+.xmlAttributeQuotes{color:#000000;}
+.xmlAttributeValue{color:#0000FF;}
+.xmlCDataSection{color:#808080;}
+.xmlComment{color:#008000;}
+.xmlDelimiter{color:#0000FF;}
+.xmlName{color:#A31515;}
+.className{color:#48D1CC;}
+.cssSelector{color:#A31515;}
+.cssPropertyName{color:#FF0000;}
+.cssPropertyValue{color:#0000FF;}
+.sqlSystemFunction{color:#FF00FF;}
+.powershellAttribute{color:#B0E0E6;}
+.powershellOperator{color:#808080;}
+.powershellType{color:#008080;}
+.powershellVariable{color:#FF4500;}
+.powershellCommand{color:#000080;}
+.powershellParameter{color:#808080;}
+.type{color:#008080;}
+.typeVariable{color:#008080;font-style: italic;}
+.namespace{color:#000080;}
+.constructor{color:#800080;}
+.predefined{color:#000080;}
+.pseudoKeyword{color:#000080;}
+.stringEscape{color:#808080;}
+.controlKeyword{color:#0000FF;}
+.number{}
+.operator{}
+.delimiter{}
+.markdownHeader{color:#0000FF;font-weight: bold;}
+.markdownCode{color:#008080;}
+.markdownListItem{font-weight: bold;}
+.italic{font-style: italic;}
+.bold{font-weight: bold;}
+.builtinFunction{color:#6B8E23;font-weight: bold;}
+.builtinValue{color:#556B2F;font-weight: bold;}
+.attribute{color:#008B8B;font-style: italic;}
+.specialChar{}
