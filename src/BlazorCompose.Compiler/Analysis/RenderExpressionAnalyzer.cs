@@ -180,6 +180,12 @@ internal static class RenderExpressionAnalyzer
             return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);
         }
 
+        if (Is(method, symbols.HtmlRaw))
+        {
+            var arg = invocation.ArgumentList.Arguments[0].Expression;
+            return new RawMarkupTemplateNode(ExpressionTemplateFactory.Create(arg, context));
+        }
+
         if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod))
         {
             // Chained: <ComponentView<T> receiver>.Param(selector, value). Recurse into the receiver to

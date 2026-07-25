@@ -49,6 +49,13 @@ public sealed class KnownSymbolsSyncTests
         Assert.Equal(2, symbols.EventShortcuts.Count(kvp => kvp.Value == "onclick"));
     }
 
+    [Fact]
+    public void Raw_IsResolved()
+    {
+        var (symbols, _) = ResolveHtml();
+        Assert.NotNull(symbols.HtmlRaw);
+    }
+
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()
     {
         var compilation = CompilationTestHost.CreateCompilation("");

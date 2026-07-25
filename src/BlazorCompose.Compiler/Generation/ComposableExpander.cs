@@ -170,6 +170,9 @@ internal static class ComposableExpander
                         children.ToImmutable());
                 }
 
+            case RawMarkupTemplateNode raw:
+                return new RawMarkupNode(raw.Content.Substitute(substitution));
+
             case ComposableCallTemplateNode call:
                 return ExpandCall(
                     call,
