@@ -80,7 +80,7 @@ internal static class RenderExpressionAnalyzer
                     children.Add(child);
                 }
 
-                return new ElementTemplateNode(tag, default, default, children.ToImmutable());
+                return new ElementTemplateNode(tag, default, default, default, children.ToImmutable());
             }
         }
 
@@ -253,7 +253,7 @@ internal static class RenderExpressionAnalyzer
                     return e with
                     {
                         Events = e.Events.AsImmutableArray().Add(new EventTemplate(
-                            ExpressionTemplate.Literal("\"onclick\""),
+                            "onclick",
                             ExpressionTemplateFactory.Create(arg, context))),
                     };
 

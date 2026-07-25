@@ -154,15 +154,18 @@ internal static class ComposableExpander
                         children.Add(expanded);
                     }
 
+                    var attributes = ImmutableArray.CreateBuilder<AttributeTemplate>(element.Attributes.Length);
+                    foreach (var a in element.Attributes.AsImmutableArray())
+                        attributes.Add(new AttributeTemplate(a.Name, a.Value.Substitute(substitution)));
+
                     var events = ImmutableArray.CreateBuilder<EventTemplate>(element.Events.Length);
                     foreach (var e in element.Events.AsImmutableArray())
-                        events.Add(new EventTemplate(
-                            e.AttributeName.Substitute(substitution),
-                            e.Handler.Substitute(substitution)));
+                        events.Add(new EventTemplate(e.Name, e.Handler.Substitute(substitution)));
 
                     return new ElementNode(
                         element.Tag,
                         SubstituteClasses(element.Classes, substitution),
+                        attributes.ToImmutable(),
                         events.ToImmutable(),
                         children.ToImmutable());
                 }

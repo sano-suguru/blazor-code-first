@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using BlazorCompose.Compiler;
+using BlazorCompose.Compiler.Generation;
 
 namespace BlazorCompose.Compiler.Tests;
 
@@ -11,7 +12,7 @@ public sealed class RenderBodyEmitterDecorationTests
             HintName: "T.g.cs", ClassName: "T", Namespace: null, RootNode: root)).ToString();
 
     private static ElementNode Span(ExpressionTemplate content, EquatableArray<ExpressionTemplate> classes = default) =>
-        new("span", classes, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
+        new("span", classes, default, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
 
     private static ElementNode Button(
         ExpressionTemplate label,
@@ -20,7 +21,8 @@ public sealed class RenderBodyEmitterDecorationTests
         new(
             "button",
             classes,
-            ImmutableArray.Create(new EventTemplate(ExpressionTemplate.Literal("\"onclick\""), handler)),
+            default,
+            ImmutableArray.Create(new EventTemplate("onclick", handler)),
             ImmutableArray.Create<RenderNode>(new TextContentNode(label)));
 
     [Fact]
@@ -93,5 +95,51 @@ public sealed class RenderBodyEmitterDecorationTests
 
         Assert.DoesNotContain("\"class\"", generated);
         Assert.Contains("__builder.AddContent(1, \"Hi\");", generated);
+    }
+
+    [Fact]
+    public void EmitElement_EmitsClassThenAttributesThenEventsThenChildren_InSequenceOrder()
+    {
+        var node = new ElementNode(
+            "a",
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"nav\"")),
+            ImmutableArray.Create(new AttributeTemplate("href", ExpressionTemplate.Literal("\"/a\""))),
+            ImmutableArray.Create(new EventTemplate("onclick", ExpressionTemplate.Literal("() => { }"))),
+            ImmutableArray.Create<RenderNode>(new TextContentNode(ExpressionTemplate.Literal("\"Home\""))));
+
+        var code = EmitRoot(node);
+
+        Assert.Contains("__builder.OpenElement(0, \"a\");", code);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"nav\");", code);
+        Assert.Contains("__builder.AddAttribute(2, \"href\", \"/a\");", code);
+        Assert.Contains(
+            "__builder.AddAttribute(3, \"onclick\", global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => { }));",
+            code);
+        Assert.Contains("__builder.AddContent(4, \"Home\");", code);
+    }
+
+    [Fact]
+    public void EmitElement_SequenceArgumentCount_EqualsWidth()
+    {
+        // Regression guard for the Width/Emit invariant: for a non-branching element tree the number of
+        // sequence-consuming builder calls emitted must equal SequenceAllocator.Width(node).
+        var node = new ElementNode(
+            "a",
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"nav\"")),
+            ImmutableArray.Create(
+                new AttributeTemplate("href", ExpressionTemplate.Literal("\"/a\"")),
+                new AttributeTemplate("id", ExpressionTemplate.Literal("\"x\""))),
+            ImmutableArray.Create(new EventTemplate("onclick", ExpressionTemplate.Literal("() => { }"))),
+            ImmutableArray.Create<RenderNode>(
+                new TextContentNode(ExpressionTemplate.Literal("\"Home\"")),
+                new ElementNode("span", default, default, default,
+                    ImmutableArray.Create<RenderNode>(new TextContentNode(ExpressionTemplate.Literal("\"!\""))))));
+
+        var code = EmitRoot(node);
+        int seqCalls = System.Text.RegularExpressions.Regex.Count(
+            code,
+            @"__builder\.(OpenElement|AddAttribute|AddContent|OpenComponent|AddComponentParameter)\(");
+
+        Assert.Equal(SequenceAllocator.Width(node), seqCalls);
     }
 }
