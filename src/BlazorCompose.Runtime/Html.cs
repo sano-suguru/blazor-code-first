@@ -5,8 +5,10 @@ namespace BlazorCompose;
 /// literal HTML. Every member is inert: the BlazorCompose source generator analyzes calls to these
 /// members and emits the equivalent <c>RenderTreeBuilder</c> instructions into the component's generated
 /// <c>RenderBody</c>. They are never meant to run — at runtime they perform no work and return only a
-/// default value, so they must not be invoked directly. Use qualified (<c>Html.Div(...)</c>); a
-/// <c>using static BlazorCompose.Html;</c> is optional and risks identifier collisions with domain types.
+/// default value, so they must not be invoked directly. Add <c>using static BlazorCompose.Html;</c> and
+/// call factories unqualified (<c>Div(...)</c>); this is the recommended terse authoring form. The
+/// qualified form (<c>Html.Div(...)</c>) remains available as an escape hatch for the rare file where an
+/// imported factory name collides with a local identifier (for example, a domain type named <c>Component</c>).
 /// </summary>
 public static class Html
 {

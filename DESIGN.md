@@ -103,7 +103,7 @@ public partial class CounterPage : ComposeComponentBase
 }
 ```
 
-- ファクトリは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div(...)` のように**非修飾で呼び出す**ことです。`Article` / `Section` のような要素名がドメイン型やジェネリック引数と衝突するファイルに限り、衝突する呼び出しだけを `Html.Div(...)` のように修飾するエスケープハッチとして残します。
+- ファクトリは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div(...)` のように**非修飾で呼び出す**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートしたファクトリ名が衝突する場合に限り、衝突する呼び出しだけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。RM2(§9)で `Nav` / `Header` / `Article` / `Section` 等の短いタグ名ヘルパーが加わると、ドメイン型やジェネリック引数との衝突可能性はさらに広がる見込みです(これらは現時点では未実装で使用できません)。
 - `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも任意タグ用の `Html.Element(string tag, ...)` の名前付き別名として実装され、同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBC3009で診断されます)。現行実装のcuratedヘルパーは `Div` / `Span` / `Button` / `Element` の4種で、`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` 等の拡充は次段階(RM2、§9)で加えます。
 - 要素は文字列と `View` を**混在**して子に取ります(`params ReadOnlySpan<View>`)。生の文字列引数は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` ファクトリは持ちません。テキストのみを明示的に囲みたい場合は `Span("...")` を使います。
 - 属性・イベントは要素本体への引数ではなく、**装飾チェーン**(postfix fluent)で与えます。`.Class(string)` は単一の `class` 属性へ畳み込まれ(チェーンで複数回指定可能)、`.OnClick(handler)` は `onclick` イベントとして発行されます。汎用 `.Attr(name, value)`・汎用 `.On(eventName, handler)`・型付き属性ショートカット(`.Href` / `.Src` 等)は次段階(RM2、§9)で加えます。
