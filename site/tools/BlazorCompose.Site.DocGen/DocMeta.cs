@@ -14,7 +14,7 @@ public sealed record DocMeta(string Slug, string Title, int Order);
 /// </remarks>
 public static partial class DocSlug
 {
-    [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
+    [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*\z")]
     private static partial Regex SlugPattern();
 
     public static string Validate(string fileNameStem, string fileName)
@@ -26,7 +26,7 @@ public static partial class DocSlug
         {
             throw new InvalidOperationException(
                 $"Invalid document '{fileName}': the file name must be a URL-safe slug matching " +
-                "'^[a-z0-9]+(-[a-z0-9]+)*$' (lowercase words separated by single hyphens), " +
+                @"'^[a-z0-9]+(-[a-z0-9]+)*\z' (lowercase words separated by single hyphens), " +
                 $"but was '{fileNameStem}'.");
         }
 

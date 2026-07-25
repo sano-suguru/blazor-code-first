@@ -29,6 +29,7 @@ public class DocMetaTests
     [InlineData("trailing-")]
     [InlineData("double--dash")]
     [InlineData("")]
+    [InlineData("getting-started\n")]  // 末尾改行: .NET の '$' は許してしまうため \z で弾く
     public void Validate_RejectsUnsafeStems(string stem)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => DocSlug.Validate(stem, "sample.md"));
