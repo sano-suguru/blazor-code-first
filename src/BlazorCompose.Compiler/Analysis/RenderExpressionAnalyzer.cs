@@ -53,7 +53,8 @@ internal static class RenderExpressionAnalyzer
             {
                 var tagArg = invocation.ArgumentList.Arguments[0].Expression;
                 var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
-                if (constant is { HasValue: true, Value: string tagValue })
+                if (constant is { HasValue: true, Value: string tagValue } &&
+                    !string.IsNullOrWhiteSpace(tagValue))
                 {
                     tag = tagValue;
                 }

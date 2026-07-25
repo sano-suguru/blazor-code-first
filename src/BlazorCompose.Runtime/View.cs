@@ -16,7 +16,7 @@ namespace BlazorCompose;
         "read by the source generator (a string argument in element content becomes a text node) and " +
         "always yields the default View at runtime, so a named alternate would misleadingly imply work.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
-    "Design",
+    "Performance",
     "CA1815:Override equals and operator equals on value types",
     Justification = "View is an inert marker type carrying no state; it is always the default value. " +
         "Equality is structurally determined and needs no override.")]

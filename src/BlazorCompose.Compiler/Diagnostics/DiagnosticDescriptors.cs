@@ -197,22 +197,23 @@ internal static class DiagnosticDescriptors
             "to. Decorate a concrete element instead.");
 
     /// <summary>
-    /// BC3009: <c>Html.Element</c> was called with a tag argument that is not a compile-time constant
-    /// string. A constant tag keeps the element declarative and predictable (design-time syntax the
-    /// generator can lower to a literal <c>OpenElement</c>); this is not an AOT/sequencing constraint,
-    /// and non-constant tags are not a security (injection) concern.
+    /// BC3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time
+    /// constant string. A non-empty constant tag keeps the element declarative and predictable
+    /// (design-time syntax the generator can lower to a literal <c>OpenElement</c>); this is not an
+    /// AOT/sequencing constraint, and non-constant or empty tags are not a security (injection) concern.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3009 = new(
         id: "BC3009",
         title: "Element tag must be a compile-time constant string",
-        messageFormat: "Html.Element tag must be a compile-time constant string; use a string literal or a const",
+        messageFormat: "Html.Element tag must be a non-empty compile-time constant string; use a non-empty " +
+            "string literal or a const",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "Html.Element(tag, ...) lowers the tag to a literal OpenElement call, so the tag must be a " +
-            "compile-time constant string. This keeps the vocabulary declarative and predictable, " +
-            "consistent with the design-time nature of the factories.");
+            "non-empty compile-time constant string. This keeps the vocabulary declarative and " +
+            "predictable, consistent with the design-time nature of the factories.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
