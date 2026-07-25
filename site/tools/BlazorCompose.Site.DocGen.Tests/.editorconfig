@@ -1,0 +1,6 @@
+# This project lives under site/tools/, outside the repository-root .editorconfig's
+# `tests/**/*.cs` exemption glob (which only covers the top-level tests/ directory), so the
+# xUnit-convention CA1707 exemption is re-applied here for this test project specifically.
+[*.cs]
+# xUnit convention: underscore-separated test method names.
+dotnet_diagnostic.CA1707.severity = none

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- site tools carry experimental deps; keep versions local so the shared
+         Directory.Packages.props stays clean (mirrors site/BlazorCompose.Site). -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Brings Markdig + ColorCode-Universal transitively; used directly in
+         MarkdownConverter/HighlightCssEmitter (Tasks 2-3). -->
+    <PackageReference Include="Markdown.ColorCode" Version="3.0.1" />
+  </ItemGroup>
+
+</Project>
