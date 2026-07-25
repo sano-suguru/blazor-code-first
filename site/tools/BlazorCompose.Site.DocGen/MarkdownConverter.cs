@@ -8,6 +8,10 @@ namespace BlazorCompose.Site.DocGen;
 /// ColorCode syntax highlighting. Deterministic and side-effect free.</summary>
 public static class MarkdownConverter
 {
+    // Shared, built once. The ColorCode extension's HtmlClassFormatter keeps a mutable
+    // TextWriter as instance state, so this pipeline is safe for SEQUENTIAL reuse only
+    // (DocGenRunner calls ToHtml in a sequential foreach). Concurrent calls to ToHtml are
+    // not supported and can race on that shared formatter state.
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)
         // HtmlFormatterType.Css => class-based spans (not inline styles); the shared
