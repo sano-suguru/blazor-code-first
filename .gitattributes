@@ -13,4 +13,10 @@ site/**/*.md text eol=lf
 site/**/*.txt text eol=lf
 site/**/.editorconfig text eol=lf
 site/**/_redirects text eol=lf
+
+# CI sources eng/ci-assert.sh (". eng/ci-assert.sh") rather than executing it, and a CRLF
+# checkout would corrupt that under bash: the trailing \r becomes part of the last token on
+# every line, breaking function definitions and comparisons in ways that are hard to trace back
+# to line endings. This repo-wide *.sh pattern covers eng/*.sh (including eng/ci-assert.sh), but
+# NOT the extensionless eng/hooks/pre-push, which stays unspecified under this rule.
 *.sh text eol=lf

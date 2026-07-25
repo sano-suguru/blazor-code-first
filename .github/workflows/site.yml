@@ -66,6 +66,13 @@ jobs:
           # Mechanical guards for issues that slipped past human review during M4: 21 Japanese
           # trailing comments in two committed test files were caught only by a whole-branch
           # review at the very end, and nothing here caught CRLF/missing-newline drift either.
+          #
+          # This step does not source eng/ci-assert.sh even though it hand-rolls the same two
+          # shell hazards that library exists to contain (see below). Its helpers all take a
+          # single file plus an ERE, but neither check here fits that shape: the CJK scan is a
+          # recursive `grep -rnP` over a directory tree, and the newline check walks a
+          # `git ls-files` loop rather than testing one path. Reusing the library would mean
+          # restructuring both checks around it rather than just calling it.
 
           echo "Checking for non-English (CJK) characters in site/**/*.cs and *.razor..."
           # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
@@ -74,9 +81,9 @@ jobs:
           # grep exits 1 for "no match" and 2 for an error (for example a grep built without
           # PCRE, which rejects -P). An `if grep ...; then` guard treats both exit codes as
           # "clean", so a broken/unavailable -P support would make this check silently pass
-          # forever -- the same class of defect as the negated-grep bug already fixed on this
-          # branch. Capture the output and exit code separately so a check-level failure (rc=2)
-          # is reported distinctly from a genuinely clean result (rc=1, no hits).
+          # forever -- the same class of defect as the negated-grep bug already fixed for this
+          # same check. Capture the output and exit code separately so a check-level failure
+          # (rc=2) is reported distinctly from a genuinely clean result (rc=1, no hits).
           set +e
           cjk_hits=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
               '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/)

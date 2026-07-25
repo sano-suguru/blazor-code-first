@@ -23,6 +23,19 @@ fail() {
   exit 1
 }
 
+# Guard against a wrong-arity call to one of the public assertion functions below. Without this,
+# a caller that drops an argument (most often the trailing message) does not fail until the
+# assertion itself needs that argument, surfacing as a confusing "unbound variable" abort instead
+# of naming the actual mistake.
+_assert_argc() {
+  if [ "$#" -ne 3 ]; then
+    fail "_assert_argc: expected 3 arguments, got $#"
+  fi
+  if [ "$3" -ne "$2" ]; then
+    fail "$1: expected $2 argument(s), got $3"
+  fi
+}
+
 # Classify a grep exit status: 0 match, 1 no match, >=2 the check itself failed.
 # Restores the caller's errexit setting rather than forcing it on, so sourcing these helpers into an
 # interactive or non-errexit shell cannot silently change its error mode.
@@ -46,6 +59,7 @@ _assert_grep_status() {
 
 # The pattern must match at least once.
 assert_grep() {
+  _assert_argc assert_grep 3 "$#"
   if ! _assert_grep_status "$1" "$2"; then
     fail "$3 (file: $2, expected pattern: $1)"
   fi
@@ -53,6 +67,7 @@ assert_grep() {
 
 # The pattern must not match.
 assert_not_grep() {
+  _assert_argc assert_not_grep 3 "$#"
   if _assert_grep_status "$1" "$2"; then
     fail "$3 (file: $2, forbidden pattern: $1)"
   fi
@@ -61,6 +76,13 @@ assert_not_grep() {
 # The pattern must match exactly the expected number of occurrences.
 assert_count() {
   local out rc prev=$- actual
+  _assert_argc assert_count 4 "$#"
+  # Guard the expected-count argument itself: with this validated, the exact string comparison
+  # below ("$actual" != "$3") is safe, since "01" or "+1" can no longer sneak past it disguised as
+  # a number.
+  case "$3" in
+    ''|*[!0-9]*) fail "assert_count: expected count must be a non-negative integer, got '$3'" ;;
+  esac
   if [ ! -f "$2" ]; then
     fail "expected file does not exist: $2"
   fi
@@ -87,6 +109,7 @@ assert_count() {
 
 # The file must exist.
 assert_file() {
+  _assert_argc assert_file 2 "$#"
   if [ ! -f "$1" ]; then
     fail "$2 (missing file: $1)"
   fi
@@ -94,6 +117,7 @@ assert_file() {
 
 # The file must not exist.
 assert_no_file() {
+  _assert_argc assert_no_file 2 "$#"
   if [ -e "$1" ]; then
     fail "$2 (unexpected file: $1)"
   fi
