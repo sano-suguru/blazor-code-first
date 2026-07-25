@@ -35,4 +35,24 @@ public sealed class HtmlTests
     [Fact]
     public void OnClick_IsInert_ReturnsReceiverView() =>
         Assert.Equal(default, Html.Button("OK").OnClick(() => { }));
+
+    [Fact]
+    public void CuratedElementHelpers_AreInert_ReturnDefault()
+    {
+        // Inert design-time syntax: at runtime they must return the default View and do no work.
+        Assert.Equal(default, Html.Nav());
+        Assert.Equal(default, Html.Header("x"));
+        Assert.Equal(default, Html.Main());
+        Assert.Equal(default, Html.Aside());
+        Assert.Equal(default, Html.Footer());
+        Assert.Equal(default, Html.Section());
+        Assert.Equal(default, Html.Article());
+        Assert.Equal(default, Html.P("t"));
+        Assert.Equal(default, Html.H1("h"));
+        Assert.Equal(default, Html.H6("h"));
+        Assert.Equal(default, Html.Ul(Html.Li("a")));
+        Assert.Equal(default, Html.Ol());
+        Assert.Equal(default, Html.A("link"));
+        Assert.Equal(default, Html.Img());
+    }
 }

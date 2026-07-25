@@ -21,6 +21,64 @@ public static class Html
     /// <summary>Design-time syntax for an HTML <c>button</c> element; attach a handler with <c>.OnClick</c>.</summary>
     public static View Button(params System.ReadOnlySpan<View> children) => default;
 
+    /// <summary>Design-time syntax for an HTML <c>nav</c> element.</summary>
+    public static View Nav(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>header</c> element.</summary>
+    public static View Header(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>main</c> element.</summary>
+    public static View Main(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>aside</c> element.</summary>
+    public static View Aside(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>footer</c> element.</summary>
+    public static View Footer(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>section</c> element.</summary>
+    public static View Section(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>article</c> element.</summary>
+    public static View Article(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>p</c> element.</summary>
+    public static View P(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>h1</c> element.</summary>
+    public static View H1(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>h2</c> element.</summary>
+    public static View H2(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>h3</c> element.</summary>
+    public static View H3(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>h4</c> element.</summary>
+    public static View H4(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>h5</c> element.</summary>
+    public static View H5(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>h6</c> element.</summary>
+    public static View H6(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>ul</c> element.</summary>
+    public static View Ul(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>ol</c> element.</summary>
+    public static View Ol(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>li</c> element.</summary>
+    public static View Li(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>a</c> element; set the target with <c>.Href</c>.</summary>
+    public static View A(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for an HTML <c>img</c> element; set <c>.Src</c>/<c>.Alt</c>. This is a
+    /// void element — passing children produces invalid HTML and is not prevented by the type system.</summary>
+    public static View Img(params System.ReadOnlySpan<View> children) => default;
+
     /// <summary>Design-time syntax for an arbitrary HTML element; <paramref name="tag"/> must be a compile-time constant.</summary>
     public static View Element(string tag, params System.ReadOnlySpan<View> children) => default;
 
