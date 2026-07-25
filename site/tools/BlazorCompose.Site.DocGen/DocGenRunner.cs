@@ -6,9 +6,15 @@ namespace BlazorCompose.Site.DocGen;
 /// artifacts (Docs.g.cs and highlight.css) deterministically (UTF-8 no BOM, LF).</summary>
 /// <remarks>
 /// Two passes are required because cross-document validation must happen before any conversion:
-/// pass 1 reads and validates every document, and <see cref="Run"/> derives the complete slug set
-/// from that output before pass 2 begins; pass 2 then converts each document, rewriting relative
-/// links and failing the build on a link that points at a document that does not exist.
+/// pass 1 reads and validates every document — file name, front matter, and duplicate order — and
+/// <see cref="Run"/> derives the complete slug set from that output before pass 2 begins; pass 2 then
+/// converts each document, rewriting relative links and failing the build on a link that points at a
+/// document that does not exist.
+///
+/// Duplicate order is detected here rather than in <see cref="CSharpDocEmitter"/> because only pass 1
+/// holds the file name of each colliding document, so only pass 1 can name both halves of the
+/// collision. The emitter keeps its own duplicate checks as a defensive assertion at its public
+/// boundary.
 /// </remarks>
 public static class DocGenRunner
 {
@@ -34,13 +40,20 @@ public static class DocGenRunner
         WriteFile(cssOutPath, HighlightCssEmitter.Emit());
     }
 
-    /// <summary>Pass 1: read every document and validate its file name and front matter. Ordered by
-    /// file name (Ordinal) so failures are reported deterministically.</summary>
+    /// <summary>Pass 1: read every document, validate its file name and front matter, and reject a
+    /// duplicate front matter order. Ordered by file name (Ordinal) so failures are reported
+    /// deterministically and the "already declared by" half of a collision message is stable.</summary>
     private static List<DocSource> ReadAndValidate(string contentDir)
     {
         var files = Directory.EnumerateFiles(contentDir, "*.md")
             .OrderBy(Path.GetFileName, StringComparer.Ordinal)
             .ToList();
+
+        // Maps an order to the first file that declared it, so a collision can name both halves.
+        // Duplicate slugs are not checked here: file names are unique within one directory and
+        // DocSlug forbids uppercase, so two documents cannot reach this loop with the same slug.
+        // CSharpDocEmitter keeps that check as a defensive assertion at its own public boundary.
+        var orderOwners = new Dictionary<int, string>();
 
         var sources = new List<DocSource>(files.Count);
         foreach (string file in files)
@@ -48,11 +61,24 @@ public static class DocGenRunner
             string fileName = Path.GetFileName(file);
             string slug = DocSlug.Validate(Path.GetFileNameWithoutExtension(file), fileName);
             var (fields, body) = FrontMatter.Split(File.ReadAllText(file), fileName);
+
+            if (orderOwners.TryGetValue(fields.Order, out string? orderOwner))
+            {
+                throw Invalid(
+                    fileName,
+                    $"front matter order {fields.Order} is already declared by '{orderOwner}'. " +
+                    "Each document must declare a distinct 'order' so navigation ordering is unambiguous.");
+            }
+
+            orderOwners.Add(fields.Order, fileName);
             sources.Add(new DocSource(new DocMeta(slug, fields.Title, fields.Order), fileName, body));
         }
 
         return sources;
     }
+
+    private static InvalidOperationException Invalid(string fileName, string reason) =>
+        new($"Invalid document '{fileName}': {reason}");
 
     private static void WriteFile(string path, string content)
     {

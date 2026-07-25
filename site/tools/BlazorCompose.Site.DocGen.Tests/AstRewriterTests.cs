@@ -24,14 +24,19 @@ public class AstRewriterTests
     [InlineData("[x](control-flow.md)", "href=\"/docs/control-flow\"")]
     [InlineData("[x](./control-flow.md)", "href=\"/docs/control-flow\"")]
     [InlineData("[x](./control-flow.md#loops)", "href=\"/docs/control-flow#loops\"")]
+    [InlineData("[x](control-flow.md#step:1)", "href=\"/docs/control-flow#step:1\"")]
+    [InlineData("[x](./control-flow.md#step:1)", "href=\"/docs/control-flow#step:1\"")]
+    [InlineData("[x](control-flow.md#a/b)", "href=\"/docs/control-flow#a/b\"")]
     public void RewriteRelativeLinks_SiblingDocument_BecomesSpaRoute(string markdown, string expected) =>
         Assert.Contains(expected, Rewrite(markdown));
 
     [Theory]
     [InlineData("[x](#installation)", "href=\"#installation\"")]
+    [InlineData("[x](#step:1)", "href=\"#step:1\"")]
     [InlineData("[x](/counter)", "href=\"/counter\"")]
     [InlineData("[x](https://example.com/a.md)", "href=\"https://example.com/a.md\"")]
     [InlineData("[x](mailto:a@example.com)", "href=\"mailto:a@example.com\"")]
+    [InlineData("[x](mailto:a@example.com#note)", "href=\"mailto:a@example.com#note\"")]
     [InlineData("[x](mailto:notes.md)", "href=\"mailto:notes.md\"")]
     [InlineData("[x](tel:123)", "href=\"tel:123\"")]
     [InlineData("[x](../parent.md)", "href=\"../parent.md\"")]
@@ -47,6 +52,17 @@ public class AstRewriterTests
     public void RewriteRelativeLinks_BrokenLink_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => Rewrite("[x](nope.md)"));
+        Assert.Contains("sample.md", ex.Message);
+        Assert.Contains("nope.md", ex.Message);
+    }
+
+    [Fact]
+    public void RewriteRelativeLinks_BrokenLinkWithFragment_Throws()
+    {
+        // Before the fragment-split fix, a colon inside a fragment (e.g. "#a:b") made this shape
+        // misread as a scheme and skip validation entirely, shipping a raw, un-rewritten ".md"
+        // href instead of failing the build.
+        var ex = Assert.Throws<InvalidOperationException>(() => Rewrite("[x](nope.md#a:b)"));
         Assert.Contains("sample.md", ex.Message);
         Assert.Contains("nope.md", ex.Message);
     }

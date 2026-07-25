@@ -6,11 +6,13 @@ on:
     paths:
       - "site/**"
       - "src/**"
+      - "eng/ci-assert.sh"
       - ".github/workflows/site.yml"
   pull_request:
     paths:
       - "site/**"
       - "src/**"
+      - "eng/ci-assert.sh"
       - ".github/workflows/site.yml"
   workflow_dispatch:
 
@@ -64,6 +66,13 @@ jobs:
           # Mechanical guards for issues that slipped past human review during M4: 21 Japanese
           # trailing comments in two committed test files were caught only by a whole-branch
           # review at the very end, and nothing here caught CRLF/missing-newline drift either.
+          #
+          # This step does not source eng/ci-assert.sh even though it hand-rolls the same two
+          # shell hazards that library exists to contain (see below). Its helpers all take a
+          # single file plus an ERE, but neither check here fits that shape: the CJK scan is a
+          # recursive `grep -rnP` over a directory tree, and the newline check walks a
+          # `git ls-files` loop rather than testing one path. Reusing the library would mean
+          # restructuring both checks around it rather than just calling it.
 
           echo "Checking for non-English (CJK) characters in site/**/*.cs and *.razor..."
           # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
@@ -72,9 +81,9 @@ jobs:
           # grep exits 1 for "no match" and 2 for an error (for example a grep built without
           # PCRE, which rejects -P). An `if grep ...; then` guard treats both exit codes as
           # "clean", so a broken/unavailable -P support would make this check silently pass
-          # forever -- the same class of defect as the negated-grep bug already fixed on this
-          # branch. Capture the output and exit code separately so a check-level failure (rc=2)
-          # is reported distinctly from a genuinely clean result (rc=1, no hits).
+          # forever -- the same class of defect as the negated-grep bug already fixed for this
+          # same check. Capture the output and exit code separately so a check-level failure
+          # (rc=2) is reported distinctly from a genuinely clean result (rc=1, no hits).
           set +e
           cjk_hits=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
               '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/)
@@ -124,56 +133,54 @@ jobs:
       - name: Verify prerendered shell and documents
         run: |
           set -euo pipefail
+          . eng/ci-assert.sh
+
           P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
 
           # Attribute order in the generated HTML is class-before-href today; match either order so
           # a future emitter change cannot silently turn this guard into a no-op.
-          active_link() {
-            grep -qE "<a[^>]*class=\"nav-link active\"[^>]*href=\"$2\"|<a[^>]*href=\"$2\"[^>]*class=\"nav-link active\"" "$1"
+          assert_active_link() {
+            assert_grep \
+              "<a[^>]*class=\"nav-link active\"[^>]*href=\"$2\"|<a[^>]*href=\"$2\"[^>]*class=\"nav-link active\"" \
+              "$1" "the nav link for '$2' is not marked active"
           }
 
           # The shell must be present on every prerendered route.
           for f in index.html counter/index.html docs/index.html; do
-            grep -q 'class="site-nav"' "$P/$f"
+            assert_grep 'class="site-nav"' "$P/$f" "the site shell (nav) is missing from this route"
           done
 
-          active_link "$P/index.html" "/"
-          active_link "$P/counter/index.html" "/counter"
+          assert_active_link "$P/index.html" "/"
+          assert_active_link "$P/counter/index.html" "/counter"
 
           # Each document route is prerendered with the shell, exactly one title, its own nav link
           # marked active, and no leftover .md link. The per-route active check is the real guard: if
           # path normalization is wrong, every route renders the same active link.
           for slug in getting-started elements-and-decorations control-flow; do
             f="$P/docs/$slug/index.html"
-            test -f "$f"
-            grep -q 'class="site-nav"' "$f"
-            active_link "$f" "/docs/$slug"
-            test "$(grep -o 'nav-link active' "$f" | wc -l)" -eq 1
-            test "$(grep -c '<title>' "$f")" = 1
-            # Must be an if/exit, not `! grep ...`: under `set -e` a negated command is exempt from
-            # errexit (POSIX), and this is not the script's last command, so a leftover .md link
-            # would be detected and then silently ignored.
-            if grep -qE 'href="[^"]*\.md("|#|\?)' "$f"; then
-              echo "::error::$f still contains an un-rewritten .md link" >&2
-              exit 1
-            fi
+            assert_file "$f" "the document route /docs/$slug was not prerendered"
+            assert_grep 'class="site-nav"' "$f" "the site shell (nav) is missing from this document route"
+            assert_active_link "$f" "/docs/$slug"
+            assert_count 'nav-link active' "$f" 1 "exactly one nav link must be active on a document route"
+            assert_count '<title>' "$f" 1 "a document route must render exactly one title element"
+            assert_not_grep 'href="[^"]*\.md("|#|\?)' "$f" "an un-rewritten .md link survived into the prerendered HTML"
           done
 
           # "/docs" activates the default (lowest order) document.
-          active_link "$P/docs/index.html" "/docs/getting-started"
+          assert_active_link "$P/docs/index.html" "/docs/getting-started"
 
           # "/docs" must render the default document's BODY, not just mark its nav link active:
           # the nav check passes even when the page renders "Not found", so without this a broken
           # default-document resolution would ship on the one URL the spec promises to preserve.
-          grep -q '<h1>Getting Started</h1>' "$P/docs/index.html"
-          grep -q 'id="installation"' "$P/docs/index.html"
+          assert_grep '<h1>Getting Started</h1>' "$P/docs/index.html" "/docs did not render the default document's h1"
+          assert_grep 'id="installation"' "$P/docs/index.html" "/docs did not render the default document's body"
 
           # Content conversion survived the AST pass.
-          grep -q 'id="installation"' "$P/docs/getting-started/index.html"
-          grep -q 'class="csharp"' "$P/docs/getting-started/index.html"
-          grep -q 'class="headlink"' "$P/docs/control-flow/index.html"
-          grep -q 'href="/docs/control-flow"' "$P/docs/getting-started/index.html"
-          grep -q '<title>Getting Started</title>' "$P/docs/getting-started/index.html"
+          assert_grep 'id="installation"' "$P/docs/getting-started/index.html" "heading ids are missing"
+          assert_grep 'class="csharp"' "$P/docs/getting-started/index.html" "code highlighting is missing"
+          assert_grep 'class="headlink"' "$P/docs/control-flow/index.html" "heading permalinks are missing"
+          assert_grep 'href="/docs/control-flow"' "$P/docs/getting-started/index.html" "a sibling .md link was not rewritten to its SPA route"
+          assert_grep '<title>Getting Started</title>' "$P/docs/getting-started/index.html" "the per-page title is wrong or missing"
 
       - name: Deploy to Cloudflare Pages
         if: github.event_name != 'pull_request'

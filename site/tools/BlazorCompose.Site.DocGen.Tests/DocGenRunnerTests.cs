@@ -106,6 +106,40 @@ public class DocGenRunnerTests
     }
 
     [Fact]
+    public void Run_DuplicateOrder_ThrowsNamingBothFiles()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 10\n---\n\n## B\n");
+
+            var ex = Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
+
+            // Both halves of the collision must be named, so the author does not have to search the
+            // content directory for the other file.
+            Assert.Contains("a.md", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("b.md", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("10", ex.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Run_DuplicateOrder_FailsBeforeWritingAnyArtifact()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 10\n---\n\n## B\n");
+
+            Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
+
+            // Validation precedes conversion and emission: a rejected content set leaves no artifact.
+            Assert.False(File.Exists(docsOut));
+            Assert.False(File.Exists(cssOut));
+        });
+    }
+
+    [Fact]
     public void Run_IsDeterministic()
     {
         WithContent((content, docsOut, cssOut) =>
