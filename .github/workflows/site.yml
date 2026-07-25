@@ -7,6 +7,11 @@ on:
       - "site/**"
       - "src/**"
       - ".github/workflows/site.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "src/**"
+      - ".github/workflows/site.yml"
   workflow_dispatch:
 
 jobs:
@@ -44,6 +49,7 @@ jobs:
           grep -q 'class="csharp"' "$f"
 
       - name: Deploy to Cloudflare Pages
+        if: github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
