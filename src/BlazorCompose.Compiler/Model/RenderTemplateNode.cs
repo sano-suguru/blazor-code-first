@@ -65,3 +65,10 @@ internal sealed record ElementTemplateNode(
     EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode;
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;
+
+/// <summary>Wrapper-less grouping: children emitted in sequence with no enclosing element frame.</summary>
+internal sealed record FragmentTemplateNode(
+    EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode;
+
+/// <summary>Trusted raw HTML injected verbatim via AddMarkupContent (MarkupString-equivalent).</summary>
+internal sealed record RawMarkupTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;
