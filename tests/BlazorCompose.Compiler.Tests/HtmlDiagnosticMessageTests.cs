@@ -12,6 +12,15 @@ public sealed class HtmlDiagnosticMessageTests
     }
 
     [Fact]
+    public void BC3008_Message_NamesFragmentAndRaw()
+    {
+        var d = BlazorCompose.Compiler.Diagnostics.DiagnosticDescriptors.BC3008;
+        var msg = d.MessageFormat.ToString();
+        Assert.Contains("Fragment", msg, System.StringComparison.Ordinal);
+        Assert.Contains("Raw", msg, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BC3003_Message_SuggestsElementWrapNotVStack()
     {
         var d = BlazorCompose.Compiler.Diagnostics.DiagnosticDescriptors.BC3003;
