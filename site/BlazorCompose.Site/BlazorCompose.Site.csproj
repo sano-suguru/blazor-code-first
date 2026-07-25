@@ -18,7 +18,7 @@
          index.html as plain HTML, before any WASM/JS executes. -->
     <BlazorWasmPrerenderingMode>Static</BlazorWasmPrerenderingMode>
     <BlazorWasmPrerenderingKeepServer>false</BlazorWasmPrerenderingKeepServer>
-    <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter</BlazorWasmPrerenderingUrlPathToExplicitFetch>
+    <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs</BlazorWasmPrerenderingUrlPathToExplicitFetch>
   </PropertyGroup>
 
   <ItemGroup>
