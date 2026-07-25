@@ -52,6 +52,8 @@ public static class Decorations
     /// compile-time constant. A name of <c>"class"</c> folds into the element's class channel; every other
     /// name is single-binding (a duplicate is reported). Styles are set here (<c>.Attr("style", …)</c>);
     /// there is deliberately no <c>.Style</c> shortcut, nudging toward external CSS + <c>.Class</c>.
+    /// A bulk <c>.Attrs(IDictionary&lt;string, string&gt;)</c> splat is deferred (RM3+) and not yet available;
+    /// bind each attribute individually with this overload or a named shortcut until then.
     /// </summary>
     public static View Attr(this View view, string name, string value) => view;
 

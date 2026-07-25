@@ -105,7 +105,7 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderBody:
     return code
 ```
 
-`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: `Text` = 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンは親要素のクラス属性へ静的に合成されるため、装飾の追加はフレーム数を増やしません(`.Padding(24).Bold()` は単一の `AddAttribute` に畳み込まれます)。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
+`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: 子を持たない `Span` = 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
 
 ### 2.3 静的シーケンス可能サブセット(SSC)
 
@@ -181,27 +181,28 @@ Blazorのリージョンはシーケンス空間を分離するため、`D` 内�
 
 本方式で要となるのは、単純な要素発行ではなく、装飾チェーン・リスト・`[Composable]` の3つの変換です。§2.4の `If` と同じ密度で、それぞれ「どの入力を、どの生成コードに変えるか」を定めます。
 
-**(A) 装飾チェーンの畳み込み — 入力: 装飾の連鎖 / 出力: 単一の属性フレーム**
+**(A) 装飾チェーンの畳み込み — 入力: 装飾の連鎖 / 出力: `class` は畳み込み、他の属性・イベントは1:1のフレーム**
 
-装飾メソッドは所有要素の属性へ静的に合成され、フレーム数を増やしません。N個の装飾を連ねても、追加される `RenderTreeBuilder` 呼び出しは0です。
+装飾メソッドは所有要素の属性・イベントへ静的に合成され、ラッパーノードを増やしません。`class` は特別で、`.Class`(または `.Attr("class", …)`)を何個連ねても単一の `class` 属性へ畳み込まれ、追加の属性フレームは生まれません。`class` 以外の属性・イベント(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ独立した属性/イベントフレームとして1:1で発行され、同一属性・イベントの重複バインディングはBC3010で診断されます。
 
 ```csharp
 // 入力(設計時のC#式)
-Text("Hello")
-    .FontSize(24)
-    .Bold()
-    .Foreground(Colors.Slate900)
+Button("Save")
+    .Class("btn")
+    .Class("btn-primary")
+    .OnClick(() => Save())
 ```
 
 ```csharp
-// 出力(生成コード) — 3つの装飾は1つの class 属性へ畳み込まれる
-__b.OpenElement(k,   "span");
-__b.AddAttribute(k+1, "class", Theme.Class(Cls.Fs24, Cls.Bold, Cls.FgSlate900));
-__b.AddContent(k+2, "Hello");
+// 出力(生成コード) — 2つの .Class は1つの class 属性へ畳み込まれ、.OnClick は独立したフレーム
+__b.OpenElement(k,   "button");
+__b.AddAttribute(k+1, "class", "btn btn-primary");
+__b.AddAttribute(k+2, "onclick", /* () => Save() */);
+__b.AddContent(k+3, "Save");
 __b.CloseElement();
 ```
 
-装飾付き `Text` の `FrameWidth` は装飾の個数によらず3(`OpenElement` + `AddAttribute` + `AddContent`)で一定です。ラッパーノード方式であればN個の装飾はN個のフレームとN個のDOMノードを生みますが、本方式は所有要素の属性合成へ畳み込むため、フレーム幅・DOM深さともに増えません。この不変性が、装飾を重ねても差分検知のシーケンス割当が安定する根拠です。
+この `Button` の `FrameWidth` は4(`OpenElement` + `class` 属性 + `onclick` イベント + `AddContent`)です。`.Class` を何回連ねてもフレーム幅は増えませんが、`class` 以外の装飾を1つ追加するとフレーム幅も1つ増えます。ラッパーノード方式(装飾ごとに専用のラッパー要素を生成する方式)であれば装飾はDOMノードそのものを増やしますが、本方式はいずれの装飾も所有要素の属性・イベントとして合成するためDOM深さは増えません。要点は「`class` は装飾の個数によらずフレーム幅が一定に畳み込まれる一方、それ以外の属性・イベントは1装飾につき1フレームの1:1対応である」という非対称性で、この不変性が装飾を重ねても差分検知のシーケンス割当が安定する根拠です。
 
 **(B) `ForEach` — 入力: リストの変異 / 出力: キー整合の最小パッチ**
 
@@ -210,7 +211,7 @@ __b.CloseElement();
 ```csharp
 // 入力
 ForEach(_items, key: t => t.Id, content: item =>
-    HStack(CheckBox(item.Done, v => item.Done = v), Text(item.Title)))
+    Div(Span(item.Title)).Class(item.Done ? "task done" : "task"))
 ```
 
 ```csharp
@@ -218,20 +219,18 @@ ForEach(_items, key: t => t.Id, content: item =>
 __b.OpenRegion(k);
 foreach (var item in _items)
 {
-    __b.OpenElement(k+1, "div");                        // HStack (content の根要素): seq ∈ [k+1, k+1+W(content))
+    __b.OpenElement(k+1, "div");                        // Div (content の根要素): seq ∈ [k+1, k+1+W(content))
     __b.SetKey(item.Id);                                // ← 根要素を開いた「直後」に付ける
-    __b.OpenElement(k+2, "input");                      // CheckBox
-    __b.AddAttribute(k+3, "onchange", /* v => item.Done = v */);
-    __b.CloseElement();
-    __b.OpenElement(k+4, "span"); __b.AddContent(k+5, item.Title); __b.CloseElement();
+    __b.AddAttribute(k+2, "class", item.Done ? "task done" : "task");
+    __b.OpenElement(k+3, "span"); __b.AddContent(k+4, item.Title); __b.CloseElement();
     __b.CloseElement();
 }
 __b.CloseRegion();
 ```
 
-`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => VStack(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
+`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
 
-入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(入力中のチェックボックスのフォーカス等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
+入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
 
 **(C) `[Composable]` の静的インライン展開 — 入力: 部品呼び出し / 出力: 連続seqへの直接展開**
 
@@ -240,22 +239,22 @@ __b.CloseRegion();
 ```csharp
 // 入力
 protected override View Body =>
-    VStack(Header("My App"), Text("Body"));
+    Div(Toolbar("My App"), Span("Body"));
 
 [Composable]
-private static View Header(string title) =>
-    HStack(Icon(Icons.Menu), Text(title));
+private static View Toolbar(string title) =>
+    Div(Span(title)).Class("toolbar");
 ```
 
 ```csharp
-// 出力(生成コード) — Header はインライン展開され、seqは 0 から連続する
-__b.OpenElement(0, "div");                              // VStack
-//   ↓ Header("My App") のインライン展開開始(リージョン境界なし)
-__b.OpenElement(1, "div");                              // HStack (Header 本体)
-__b.OpenElement(2, "span"); /* Icon(Icons.Menu) */ __b.CloseElement();
+// 出力(生成コード) — Toolbar はインライン展開され、seqは 0 から連続する
+__b.OpenElement(0, "div");                              // Div (Body の根要素)
+//   ↓ Toolbar("My App") のインライン展開開始(リージョン境界なし)
+__b.OpenElement(1, "div");                              // Div (Toolbar 本体)
+__b.AddAttribute(2, "class", "toolbar");
 __b.OpenElement(3, "span"); __b.AddContent(4, "My App"); __b.CloseElement();  // 引数 title を移植
 __b.CloseElement();
-//   ↑ Header 展開終わり
+//   ↑ Toolbar 展開終わり
 __b.OpenElement(5, "span"); __b.AddContent(6, "Body"); __b.CloseElement();
 __b.CloseElement();
 ```
@@ -393,7 +392,7 @@ public closed union ViewNode
 | BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる          |
 | BC3001 | Error   | 現行実装では `Body` 本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`Button` onClickラムダ(遅延イベントハンドラ)は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
-| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach` 等)。内側を容器要素で包む(例: `VStack(...)`)必要がある |
+| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach` 等)。内側を容器要素で包む(例: `Div(...)`)必要がある |
 | BC3005 | Error   | `Component<T>().Param` のセレクタが単純なプロパティ選択(`c => c.Prop`)でない(キャスト/メソッド呼び出し/捕捉変数のメンバー等) |
 | BC3006 | Error   | `Component<T>().Param` の対象が settable な `[Parameter]` プロパティでない(実行時 throw を防ぐためコンパイル時に拒否) |
 | BC3007 | Error   | `Component<T>().Param` のチェーンが同一プロパティを複数回バインドしている(Blazorは最後の値のみ適用するため重複はコンパイル時に拒否) |
