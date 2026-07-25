@@ -4,3 +4,6 @@
 [*.cs]
 # xUnit convention: underscore-separated test method names.
 dotnet_diagnostic.CA1707.severity = none
+# Assert.Contains(string, string) substring checks in tests are plain-text fixture
+# comparisons, not culture-sensitive user data; StringComparison would only add noise.
+dotnet_diagnostic.CA1307.severity = none
