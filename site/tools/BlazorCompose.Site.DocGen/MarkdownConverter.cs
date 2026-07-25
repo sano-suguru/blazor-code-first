@@ -20,4 +20,15 @@ public static class MarkdownConverter
         .Build();
 
     public static string ToHtml(string markdown) => Markdig.Markdown.ToHtml(markdown, Pipeline);
+
+    /// <summary>Converts a document body, enforcing the body authoring rules. Used by DocGenRunner;
+    /// the single-argument overload stays rule-free for focused unit tests.</summary>
+    public static string ToHtml(string markdown, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        ArgumentNullException.ThrowIfNull(fileName);
+
+        MarkdownBodyRules.EnsureNoTopLevelHeading(Markdig.Markdown.Parse(markdown, Pipeline), fileName);
+        return ToHtml(markdown);
+    }
 }
