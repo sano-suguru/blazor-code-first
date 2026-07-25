@@ -33,9 +33,6 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.Class(this View, string)</c>, or null.</summary>
     public IMethodSymbol? ClassMethod { get; }
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.OnClick(this View, Action)</c>, or null.</summary>
-    public IMethodSymbol? OnClickMethod { get; }
-
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
     /// runtime helper declarations are kept in sync by KnownSymbolsSyncTests.</summary>
     private static readonly Dictionary<string, string> CuratedTags = new(System.StringComparer.Ordinal)
@@ -146,11 +143,9 @@ internal sealed class KnownSymbols
                 {
                     case "Class" when method.Parameters.Length == 2: ClassMethod = method; break;
                     case "OnClick":
-                        // Both overloads map to "onclick"; OnClickMethod keeps its RM1 first-overload
-                        // assignment until the analyzer's decoration branch switches to EventShortcuts
-                        // in Task 5, at which point OnClickMethod is removed.
+                        // Both overloads map to "onclick"; the analyzer's decoration branch dispatches
+                        // on EventShortcuts, so no separate first-overload symbol is retained.
                         eventShortcuts[key] = "onclick";
-                        OnClickMethod ??= method;
                         break;
                     case "On": onMethods.Add(key); break;                     // both overloads
                     case "Attr": attrMethods.Add(key); break;

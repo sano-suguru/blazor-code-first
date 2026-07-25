@@ -178,10 +178,11 @@ internal static class DiagnosticDescriptors
             "duplicate is reported at compile time.");
 
     /// <summary>
-    /// BC3008: A decoration (<c>.Class</c> or <c>.OnClick</c>) was applied to a node that does not open a
-    /// single HTML element (an <c>If</c>/<c>ForEach</c> region root, or a <c>[Composable]</c>/Component call
-    /// result). Decorations fold into the attributes of the element opened by an Html element helper or
-    /// <c>Html.Element</c>, so there must be such an element to attach to.
+    /// BC3008: A decoration (<c>.Class</c>/<c>.Attr</c>/a named attribute shortcut/<c>.OnClick</c>/<c>.On</c>)
+    /// was applied to a node that does not open a single HTML element (an <c>If</c>/<c>ForEach</c> region
+    /// root, or a <c>[Composable]</c>/Component call result). Decorations fold into the attributes of the
+    /// element opened by an Html element helper or <c>Html.Element</c>, so there must be such an element to
+    /// attach to.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3008 = new(
         id: "BC3008",
@@ -214,6 +215,40 @@ internal static class DiagnosticDescriptors
             "Html.Element(tag, ...) lowers the tag to a literal OpenElement call, so the tag must be a " +
             "non-empty compile-time constant string. This keeps the vocabulary declarative and " +
             "predictable, consistent with the design-time nature of the factories.");
+
+    /// <summary>
+    /// BC3010: An attribute or event is bound more than once on the same element. Blazor applies the last
+    /// binding and silently drops earlier ones, so a duplicate is dead code. <c>class</c> is the sole
+    /// exception — multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3010 = new(
+        id: "BC3010",
+        title: "Attribute or event is bound more than once",
+        messageFormat: "'{0}' is bound more than once on this element; remove the duplicate (only 'class' may be repeated — it folds)",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Every attribute and event other than 'class' is single-binding. Binding one twice makes the " +
+            "earlier value dead — Blazor applies the last write — so the duplicate is reported at compile " +
+            "time. Multiple .Class or .Attr(\"class\", …) decorations fold into a single class attribute.");
+
+    /// <summary>
+    /// BC3011: A <c>.Attr</c> name or <c>.On</c> event name is not a non-empty compile-time constant
+    /// string. A constant name keeps the decoration declarative and typo-checkable, and is required to
+    /// route class-folding and detect duplicate bindings. Sibling of BC3009 (constant Element tag).
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3011 = new(
+        id: "BC3011",
+        title: "Attribute/event name must be a compile-time constant string",
+        messageFormat: ".Attr name and .On event name must be a non-empty compile-time constant string",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            ".Attr(name, …) and .On(eventName, …) lower the name to a literal attribute, so it must be a " +
+            "non-empty compile-time constant string. This keeps the vocabulary declarative and " +
+            "typo-checkable and is the prerequisite for class folding and duplicate-binding detection.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

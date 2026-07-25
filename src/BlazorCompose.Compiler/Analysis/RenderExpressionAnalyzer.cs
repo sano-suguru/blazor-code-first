@@ -222,47 +222,122 @@ internal static class RenderExpressionAnalyzer
             return new ComponentTemplateNode(inner.TypeName, appended);
         }
 
+        // --- Decoration chain: class fold / attribute shortcut / generic .Attr / event shortcut / .On ---
+        var normalized = KnownSymbols.Normalize(method);
         bool isClass = symbols.ClassMethod is not null
-            && SymbolEqualityComparer.Default.Equals(
-                (method.ReducedFrom ?? method).OriginalDefinition, symbols.ClassMethod);
-        bool isOnClick = symbols.OnClickMethod is not null
-            && SymbolEqualityComparer.Default.Equals(
-                (method.ReducedFrom ?? method).OriginalDefinition, symbols.OnClickMethod);
+            && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod));
+        bool isAttrShortcut = symbols.AttributeShortcuts.TryGetValue(normalized, out var shortcutAttrName);
+        bool isEventShortcut = symbols.EventShortcuts.TryGetValue(normalized, out var shortcutEventName);
+        bool isAttr = Contains(symbols.AttrMethods, normalized);
+        bool isOn = Contains(symbols.OnMethods, normalized);
 
-        if (isClass || isOnClick)
+        if (isClass || isAttrShortcut || isEventShortcut || isAttr || isOn)
         {
-            // Receiver of `<expr>.Class(arg)`/`<expr>.OnClick(arg)` is the member-access expression's receiver.
             if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
                 return null;
 
             var inner = Analyze(decoAccess.Expression, context);
-            // null: unanalyzable or already diagnosed (including an inner decoration that reported BC3008) —
-            // propagate silently so the decoration is not double-reported.
+            // null: unanalyzable or already diagnosed — propagate silently (no double report).
             if (inner is null)
                 return null;
 
-            var arg = invocation.ArgumentList.Arguments[0].Expression;
-
-            switch (inner)
+            if (inner is not ElementTemplateNode element)
             {
-                case ElementTemplateNode e when isClass:
-                    return e with { Classes = e.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
-                case ElementTemplateNode e when isOnClick:
-                    return e with
-                    {
-                        Events = e.Events.AsImmutableArray().Add(new EventTemplate(
-                            "onclick",
-                            ExpressionTemplateFactory.Create(arg, context))),
-                    };
-
-                default:
-                    // ElementTemplateNode is the only node with a single element frame a class/event can
-                    // attach to. Every other node — If / ForEach / composable call / component / bare text
-                    // content — has no such frame, so decorating it is always rejected.
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
-                    return null;
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
+                return null;
             }
+
+            var args = invocation.ArgumentList.Arguments;
+
+            if (isClass)
+            {
+                return element with
+                {
+                    Classes = element.Classes.AsImmutableArray().Add(
+                        ExpressionTemplateFactory.Create(args[0].Expression, context)),
+                };
+            }
+
+            if (isEventShortcut || isOn)
+            {
+                // Shortcut: name is implied; .On: name is arg[0] (constant required), handler is arg[1].
+                string? eventName;
+                ExpressionSyntax handlerExpr;
+                if (isEventShortcut)
+                {
+                    eventName = shortcutEventName;
+                    handlerExpr = args[0].Expression;
+                }
+                else if (TryGetConstantName(args[0].Expression, context, out eventName))
+                {
+                    handlerExpr = args[1].Expression;
+                }
+                else
+                {
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3011, args[0].GetLocation(), []));
+                    return null;
+                }
+
+                foreach (var existing in element.Events.AsImmutableArray())
+                {
+                    if (string.Equals(existing.Name, eventName, System.StringComparison.Ordinal))
+                    {
+                        context.Diagnostics.Add(DiagnosticInfo.Create(
+                            DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [eventName!]));
+                        return null;
+                    }
+                }
+
+                return element with
+                {
+                    Events = element.Events.AsImmutableArray().Add(
+                        new EventTemplate(eventName!, ExpressionTemplateFactory.Create(handlerExpr, context))),
+                };
+            }
+
+            // Attribute shortcut or generic .Attr.
+            string? attrName;
+            ExpressionSyntax valueExpr;
+            if (isAttrShortcut)
+            {
+                attrName = shortcutAttrName;
+                valueExpr = args[0].Expression;
+            }
+            else if (TryGetConstantName(args[0].Expression, context, out attrName))
+            {
+                valueExpr = args[1].Expression;
+            }
+            else
+            {
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BC3011, args[0].GetLocation(), []));
+                return null;
+            }
+
+            var value = ExpressionTemplateFactory.Create(valueExpr, context);
+
+            // 'class' folds (case-sensitive, ordinal) — same channel as .Class, may repeat.
+            if (string.Equals(attrName, "class", System.StringComparison.Ordinal))
+            {
+                return element with { Classes = element.Classes.AsImmutableArray().Add(value) };
+            }
+
+            foreach (var existing in element.Attributes.AsImmutableArray())
+            {
+                if (string.Equals(existing.Name, attrName, System.StringComparison.Ordinal))
+                {
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [attrName!]));
+                    return null;
+                }
+            }
+
+            return element with
+            {
+                Attributes = element.Attributes.AsImmutableArray().Add(new AttributeTemplate(attrName!, value)),
+            };
         }
 
         if (IsComposable(method, context))
@@ -279,6 +354,29 @@ internal static class RenderExpressionAnalyzer
         }
 
         return null;
+    }
+
+    private static bool Contains(IReadOnlyCollection<ISymbol> set, ISymbol symbol)
+    {
+        foreach (var s in set)
+        {
+            if (SymbolEqualityComparer.Default.Equals(s, symbol))
+                return true;
+        }
+        return false;
+    }
+
+    private static bool TryGetConstantName(
+        ExpressionSyntax expression, ComposableBodyContext context, out string? name)
+    {
+        var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
+        if (constant is { HasValue: true, Value: string value } && !string.IsNullOrWhiteSpace(value))
+        {
+            name = value;
+            return true;
+        }
+        name = null;
+        return false;
     }
 
     private static bool IsComposable(IMethodSymbol method, ComposableBodyContext context)
