@@ -113,3 +113,177 @@ code {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* --- Site shell (M4) ------------------------------------------------------ */
+
+:root {
+    --shell-max: 72rem;
+    --nav-width: 15rem;
+    --accent: #0071c1;
+    --border: #e2e5e9;
+    --muted: #5c6670;
+}
+
+body {
+    margin: 0;
+    color: #1b1f23;
+    line-height: 1.6;
+}
+
+.site-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.site-header {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.site-header .brand {
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-decoration: none;
+    color: inherit;
+}
+
+.site-header .tagline {
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.site-body {
+    display: flex;
+    flex: 1;
+    gap: 2rem;
+    width: 100%;
+    max-width: var(--shell-max);
+    margin: 0 auto;
+    padding: 1.5rem;
+    box-sizing: border-box;
+    align-items: flex-start;
+}
+
+/* Sticky so the persistent nav keeps its position while the main column scrolls. */
+.site-nav {
+    flex: 0 0 var(--nav-width);
+    position: sticky;
+    top: 1.5rem;
+}
+
+.nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-list li {
+    margin: 0.125rem 0;
+}
+
+.nav-link {
+    display: block;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.25rem;
+    text-decoration: none;
+    color: var(--muted);
+}
+
+.nav-link:hover {
+    background: #f3f5f7;
+    color: #1b1f23;
+}
+
+.nav-link.active {
+    background: #e8f1fa;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.site-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.site-footer {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+/* --- Prose (rendered Markdown) ------------------------------------------- */
+
+.prose h1 {
+    margin-top: 0;
+    font-size: 2rem;
+}
+
+.prose h2 {
+    margin-top: 2rem;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.prose pre {
+    overflow-x: auto;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    background: #f7f9fa;
+}
+
+.prose :not(pre) > code {
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.2rem;
+    background: #f3f5f7;
+    font-size: 0.9em;
+}
+
+.prose table {
+    border-collapse: collapse;
+}
+
+.prose th,
+.prose td {
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border);
+}
+
+/* Heading anchors (Task 9). The "#" is real link text, not generated content, so assistive
+   technology can announce the link; it is only visually de-emphasized until hover or focus. */
+.headlink {
+    margin-left: 0.4rem;
+    color: var(--muted);
+    text-decoration: none;
+    opacity: 0;
+}
+
+h2:hover .headlink,
+h3:hover .headlink,
+h4:hover .headlink,
+h5:hover .headlink,
+h6:hover .headlink,
+.headlink:focus {
+    opacity: 1;
+}
+
+@media (max-width: 48rem) {
+    .site-body {
+        flex-direction: column;
+    }
+
+    .site-nav {
+        position: static;
+        flex-basis: auto;
+        width: 100%;
+    }
+}
