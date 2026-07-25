@@ -6,9 +6,9 @@ namespace BlazorCompose.Site.DocGen;
 /// artifacts (Docs.g.cs and highlight.css) deterministically (UTF-8 no BOM, LF).</summary>
 /// <remarks>
 /// Two passes are required because cross-document validation must happen before any conversion:
-/// pass 1 reads every document, and this method derives the complete slug set from that output
-/// before pass 2 begins; pass 2 then converts each document, rewriting relative links and failing
-/// the build on a link that points at a document that does not exist.
+/// pass 1 reads and validates every document, and <see cref="Run"/> derives the complete slug set
+/// from that output before pass 2 begins; pass 2 then converts each document, rewriting relative
+/// links and failing the build on a link that points at a document that does not exist.
 /// </remarks>
 public static class DocGenRunner
 {
