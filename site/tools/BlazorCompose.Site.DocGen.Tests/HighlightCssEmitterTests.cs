@@ -21,6 +21,17 @@ public class HighlightCssEmitterTests
         Assert.Contains(".keyword", css);
     }
 
+    // ColorCode's DefaultLight dictionary defines .plainText as a self-overriding
+    // (white-wins) rule. The pipeline never emits class="plainText" (inter-token text
+    // is unwrapped; plain/unknown/empty fences emit no class), so keeping it would be
+    // dead weight that renders invisible white-on-light text if ever hit.
+    [Fact]
+    public void Emit_DropsPlainTextRule()
+    {
+        string css = HighlightCssEmitter.Emit();
+        Assert.DoesNotContain(".plainText", css);
+    }
+
     // Parity: every class the pipeline actually emits into real HTML must have a
     // selector in the generated CSS. Derives "used classes" from real HTML output,
     // NOT from the emitter itself, so any class-scheme drift between the HTML
