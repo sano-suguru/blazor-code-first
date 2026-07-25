@@ -7,7 +7,7 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class KnownSymbolsSyncTests
 {
     // Structural Html members that are NOT curated element tags.
-    private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component"];
+    private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component", "Fragment", "Raw"];
 
     [Fact]
     public void ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural()

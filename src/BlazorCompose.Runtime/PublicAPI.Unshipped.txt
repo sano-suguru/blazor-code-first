@@ -51,6 +51,8 @@ static BlazorCompose.Html.Li(params System.ReadOnlySpan<BlazorCompose.View> chil
 static BlazorCompose.Html.A(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
 static BlazorCompose.Html.Img(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
 static BlazorCompose.Html.Element(string! tag, params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.Fragment(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.Raw(string! rawHtml) -> BlazorCompose.View
 static BlazorCompose.Html.If(bool condition, System.Func<BlazorCompose.View>! then, System.Func<BlazorCompose.View>? otherwise = null) -> BlazorCompose.View
 static BlazorCompose.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCompose.View>! content) -> BlazorCompose.View
 static BlazorCompose.Html.Component<TComponent>() -> BlazorCompose.ComponentView<TComponent>

@@ -37,6 +37,14 @@ public sealed class HtmlTests
         Assert.Equal(default, Html.Button("OK").OnClick(() => { }));
 
     [Fact]
+    public void Fragment_IsInert_ReturnsDefaultView() =>
+        Assert.Equal(default, Html.Fragment(Html.Span("a"), "b"));
+
+    [Fact]
+    public void Raw_IsInert_ReturnsDefaultView() =>
+        Assert.Equal(default, Html.Raw("<b>x</b>"));
+
+    [Fact]
     public void CuratedElementHelpers_AreInert_ReturnDefault()
     {
         // Inert design-time syntax: at runtime they must return the default View and do no work.

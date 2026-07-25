@@ -82,6 +82,19 @@ public static class Html
     /// <summary>Design-time syntax for an arbitrary HTML element; <paramref name="tag"/> must be a compile-time constant.</summary>
     public static View Element(string tag, params System.ReadOnlySpan<View> children) => default;
 
+    /// <summary>Design-time syntax for wrapper-less grouping: emits the children in sequence with no
+    /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no single frame, so it is
+    /// non-keyable — it cannot be a ForEach content root (BC3003) — and cannot be decorated (BC3008).
+    /// Children may be zero or more mixed string/element values.</summary>
+    public static View Fragment(params System.ReadOnlySpan<View> children) => default;
+
+    /// <summary>Design-time syntax for injecting a trusted HTML string verbatim via AddMarkupContent
+    /// (the MarkupString equivalent). TRUSTED CONTENT ONLY: the string is written to the DOM without
+    /// escaping, so flowing untrusted data (user input, external responses) through here is an XSS vector.
+    /// The value may be a string literal or a field/const reference (delivery-mechanism independent). Raw
+    /// opens no element, so it cannot be decorated (BC3008) or be a ForEach content root (BC3003).</summary>
+    public static View Raw(string rawHtml) => default;
+
     /// <summary>Design-time syntax for conditional rendering with an optional else branch.</summary>
     public static View If(bool condition, System.Func<View> then, System.Func<View>? otherwise = null) => default;
 
