@@ -57,4 +57,26 @@ public class CSharpDocEmitterTests
         string src = CSharpDocEmitter.Emit([("Intro", "<p>x</p>")]);
         Assert.DoesNotContain("\r\n", src);
     }
+
+    [Fact]
+    public void Emit_EscapesUnicodeNewlineCodePoints()
+    {
+        // U+0085 (NEL), U+2028 (LINE SEPARATOR), and U+2029 (PARAGRAPH SEPARATOR) are all
+        // classified as new-line-characters by the C# lexer and are forbidden inside a
+        // non-verbatim string literal (CS1010), even though they are >= 0x20 and would
+        // otherwise fall through the default escaping branch untouched.
+        // Unicode escapes (rather than the raw code points) are used here so this test
+        // file itself does not trip the very same CS1010 rule.
+        string html = "a\u0085b\u2028c\u2029d";
+        string src = CSharpDocEmitter.Emit([("Doc", html)]);
+
+        Assert.Contains("\\u0085", src, StringComparison.Ordinal);
+        Assert.Contains("\\u2028", src, StringComparison.Ordinal);
+        Assert.Contains("\\u2029", src, StringComparison.Ordinal);
+
+        // The raw code points must NOT appear unescaped in the generated source.
+        Assert.DoesNotContain("\u0085", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u2028", src, StringComparison.Ordinal);
+        Assert.DoesNotContain("\u2029", src, StringComparison.Ordinal);
+    }
 }
