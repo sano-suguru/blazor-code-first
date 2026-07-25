@@ -44,6 +44,8 @@ public class FrontMatterTests
     [InlineData("---\ntitle: T\norder: abc\n---\n", "order")]         // order is not an integer
     [InlineData("---\ntitle:   \norder: 1\n---\n", "title")]          // title is empty
     [InlineData("---\ntitle: T\norder: 1\n", "closing")]              // no closing ---
+    [InlineData("---\ntitle: A\norder: 1\ntitle: B\n---\n", "more than once")]  // duplicate title
+    [InlineData("---\ntitle: T\norder: 1\norder: 2\n---\n", "more than once")]  // duplicate order
     public void Split_InvalidFrontMatter_Throws(string raw, string messageFragment)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => FrontMatter.Split(raw, "sample.md"));

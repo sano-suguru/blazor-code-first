@@ -20,8 +20,8 @@ public sealed record FrontMatterFields(string Title, int Order);
 /// no error at all. Text separation cannot fail that way.
 ///
 /// The parser is deliberately strict rather than a general YAML implementation: content is
-/// repository-owned, so an unknown key or a malformed value is a build error with a clear message
-/// instead of a silently ignored line.
+/// repository-owned, so an unknown key, a repeated key, or a malformed value is a build error with
+/// a clear message instead of a silently ignored line.
 /// </remarks>
 public static class FrontMatter
 {
@@ -88,6 +88,11 @@ public static class FrontMatter
             switch (key)
             {
                 case "title":
+                    if (title is not null)
+                    {
+                        throw Invalid(fileName, "front matter key 'title' is declared more than once.");
+                    }
+
                     if (value.Length == 0)
                     {
                         throw Invalid(fileName, "front matter 'title' must not be empty.");
@@ -97,6 +102,11 @@ public static class FrontMatter
                     break;
 
                 case "order":
+                    if (order is not null)
+                    {
+                        throw Invalid(fileName, "front matter key 'order' is declared more than once.");
+                    }
+
                     if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
                     {
                         throw Invalid(fileName, $"front matter 'order' must be an integer but was '{value}'.");
