@@ -1,3 +1,4 @@
+using Markdig.Renderers.Html; // GetAttributes / AddClass / AddProperty extension methods
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
@@ -116,7 +117,39 @@ public static class AstRewriter
         return !withoutPrefix.Contains('/', StringComparison.Ordinal);
     }
 
-    /// <summary>Appends a clickable anchor to every h2-h6 heading. Implemented in Task 9.</summary>
-    public static void AddHeadingLinks(MarkdownDocument document) =>
+    /// <summary>
+    /// Appends a clickable anchor ("headlink") to every h2-h6 heading that has an id, so each section
+    /// can be linked directly.
+    /// </summary>
+    /// <remarks>
+    /// h1 is excluded: a document body must not contain one (the front matter title is rendered as the
+    /// page h1 by the page itself). Heading ids are already assigned at parse time by
+    /// UseAutoIdentifiers, so they can be read straight off the heading's attributes. The anchor
+    /// carries a literal "#" as link text plus an aria-label rather than relying on CSS generated
+    /// content, because an anchor with no text has no accessible name.
+    /// </remarks>
+    public static void AddHeadingLinks(MarkdownDocument document)
+    {
         ArgumentNullException.ThrowIfNull(document);
+
+        foreach (var heading in document.Descendants<HeadingBlock>())
+        {
+            if (heading.Level < 2 || heading.Inline is null)
+            {
+                continue;
+            }
+
+            string? id = heading.GetAttributes().Id;
+            if (string.IsNullOrEmpty(id))
+            {
+                continue;
+            }
+
+            var anchor = new LinkInline { Url = "#" + id };
+            anchor.GetAttributes().AddClass("headlink");
+            anchor.GetAttributes().AddProperty("aria-label", "Permalink to this section");
+            anchor.AppendChild(new LiteralInline("#"));
+            heading.Inline.AppendChild(anchor);
+        }
+    }
 }

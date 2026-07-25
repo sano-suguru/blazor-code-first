@@ -68,4 +68,62 @@ public class AstRewriterTests
         var ex = Assert.Throws<InvalidOperationException>(() => Rewrite("[x](CONTROL-FLOW.MD)"));
         Assert.Contains("lowercase", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    private static string AddHeadingLinks(string markdown)
+    {
+        var pipeline = new MarkdownPipelineBuilder()
+            .UseAutoIdentifiers(Markdig.Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
+            .Build();
+        var document = Markdig.Markdown.Parse(markdown, pipeline);
+        AstRewriter.AddHeadingLinks(document);
+
+        using var writer = new StringWriter();
+        document.ToHtml(writer, pipeline);
+        return writer.ToString();
+    }
+
+    [Fact]
+    public void AddHeadingLinks_H2_GetsAnchorToItsOwnSlug()
+    {
+        string html = AddHeadingLinks("## Getting Started\n");
+
+        Assert.Contains("id=\"getting-started\"", html);
+        Assert.Contains("href=\"#getting-started\"", html);
+        Assert.Contains("class=\"headlink\"", html);
+    }
+
+    [Fact]
+    public void AddHeadingLinks_AnchorHasDiscernibleText()
+    {
+        // An empty <a> has no accessible name, so the anchor carries real link text plus an
+        // aria-label rather than relying on a CSS ::before glyph.
+        string html = AddHeadingLinks("## Section\n");
+
+        Assert.Contains(">#</a>", html);
+        Assert.Contains("aria-label=", html);
+    }
+
+    [Theory]
+    [InlineData("### Three\n", "#three")]
+    [InlineData("#### Four\n", "#four")]
+    [InlineData("##### Five\n", "#five")]
+    [InlineData("###### Six\n", "#six")]
+    public void AddHeadingLinks_H3ThroughH6_GetAnchors(string markdown, string expectedHref) =>
+        Assert.Contains($"href=\"{expectedHref}\"", AddHeadingLinks(markdown));
+
+    [Fact]
+    public void AddHeadingLinks_H1_GetsNoAnchor()
+    {
+        // Bodies must not contain an h1 (MarkdownBodyRules enforces it), but the rewriter must not
+        // add anchors to one if it ever sees it.
+        Assert.DoesNotContain("headlink", AddHeadingLinks("# Top\n"));
+    }
+
+    [Fact]
+    public void AddHeadingLinks_AddsOneAnchorPerHeading()
+    {
+        string html = AddHeadingLinks("## A\n\n## B\n");
+
+        Assert.Equal(2, html.Split("class=\"headlink\"").Length - 1);
+    }
 }
