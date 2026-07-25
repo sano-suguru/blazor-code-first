@@ -37,11 +37,14 @@ public static class AstRewriter
 
         foreach (var link in document.Descendants<LinkInline>())
         {
-            if (link.IsImage || link.Url is null || !IsSiblingFileTarget(link.Url))
+            if (link.IsImage || link.Url is null)
             {
                 continue;
             }
 
+            // Split the fragment BEFORE any classification: the scheme test below must not mistake a
+            // colon inside a fragment ("other.md#step:1") for a URL scheme. The query-string check
+            // already ran on the stripped path; both checks now agree on what they inspect.
             string path = link.Url;
             string fragment = "";
             int hash = path.IndexOf('#', StringComparison.Ordinal);
@@ -49,6 +52,11 @@ public static class AstRewriter
             {
                 fragment = path[hash..];
                 path = path[..hash];
+            }
+
+            if (!IsSiblingFileTarget(path))
+            {
+                continue;
             }
 
             if (path.Contains('?', StringComparison.Ordinal))
@@ -94,11 +102,16 @@ public static class AstRewriter
         }
     }
 
-    /// <summary>Recognizes a same-directory file reference, rejecting pure fragments, rooted paths,
-    /// absolute URLs, scheme-like targets ("mailto:", "tel:"), and any path with a directory part.</summary>
+    /// <summary>Recognizes a same-directory file reference, rejecting rooted paths, absolute URLs,
+    /// scheme-like targets ("mailto:", "tel:"), and any path with a directory part.</summary>
+    /// <remarks>
+    /// Takes the URL with its fragment already removed, so a colon inside a fragment cannot be read as
+    /// a scheme. A pure fragment ("#section") therefore arrives here as an empty string and is
+    /// rejected by the length guard.
+    /// </remarks>
     private static bool IsSiblingFileTarget(string url)
     {
-        if (url.Length == 0 || url[0] is '#' or '/')
+        if (url.Length == 0 || url[0] is '/')
         {
             return false;
         }

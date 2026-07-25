@@ -24,11 +24,15 @@ public class AstRewriterTests
     [InlineData("[x](control-flow.md)", "href=\"/docs/control-flow\"")]
     [InlineData("[x](./control-flow.md)", "href=\"/docs/control-flow\"")]
     [InlineData("[x](./control-flow.md#loops)", "href=\"/docs/control-flow#loops\"")]
+    [InlineData("[x](control-flow.md#step:1)", "href=\"/docs/control-flow#step:1\"")]
+    [InlineData("[x](./control-flow.md#step:1)", "href=\"/docs/control-flow#step:1\"")]
+    [InlineData("[x](control-flow.md#a/b)", "href=\"/docs/control-flow#a/b\"")]
     public void RewriteRelativeLinks_SiblingDocument_BecomesSpaRoute(string markdown, string expected) =>
         Assert.Contains(expected, Rewrite(markdown));
 
     [Theory]
     [InlineData("[x](#installation)", "href=\"#installation\"")]
+    [InlineData("[x](#step:1)", "href=\"#step:1\"")]
     [InlineData("[x](/counter)", "href=\"/counter\"")]
     [InlineData("[x](https://example.com/a.md)", "href=\"https://example.com/a.md\"")]
     [InlineData("[x](mailto:a@example.com)", "href=\"mailto:a@example.com\"")]
