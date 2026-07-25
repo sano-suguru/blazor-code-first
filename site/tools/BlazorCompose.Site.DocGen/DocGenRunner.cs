@@ -6,8 +6,9 @@ namespace BlazorCompose.Site.DocGen;
 /// artifacts (Docs.g.cs and highlight.css) deterministically (UTF-8 no BOM, LF).</summary>
 /// <remarks>
 /// Two passes are required because cross-document validation must happen before any conversion:
-/// pass 1 establishes the complete slug set so that pass 2 can rewrite relative links and fail the
-/// build on a link that points at a document that does not exist.
+/// pass 1 reads every document, and this method derives the complete slug set from that output
+/// before pass 2 begins; pass 2 then converts each document, rewriting relative links and failing
+/// the build on a link that points at a document that does not exist.
 /// </remarks>
 public static class DocGenRunner
 {
@@ -19,10 +20,13 @@ public static class DocGenRunner
     {
         var sources = ReadAndValidate(contentDir);
 
+        // Pass 2 needs the complete slug set so a link to a missing document fails the build.
+        var knownSlugs = sources.Select(s => s.Meta.Slug).ToHashSet(StringComparer.Ordinal);
+
         var docs = new List<(DocMeta Meta, string Html)>(sources.Count);
         foreach (var source in sources)
         {
-            docs.Add((source.Meta, MarkdownConverter.ToHtml(source.Body, source.FileName)));
+            docs.Add((source.Meta, MarkdownConverter.ToHtml(source.Body, knownSlugs, source.FileName)));
         }
 
         // Artifacts are LF-normalized by their emitters; write bytes as-is.
