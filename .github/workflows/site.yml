@@ -57,6 +57,9 @@ jobs:
             grep -q 'class="site-nav"' "$P/$f"
           done
 
+          active_link "$P/index.html" "/"
+          active_link "$P/counter/index.html" "/counter"
+
           # Each document route is prerendered with the shell, exactly one title, its own nav link
           # marked active, and no leftover .md link. The per-route active check is the real guard: if
           # path normalization is wrong, every route renders the same active link.
@@ -65,6 +68,7 @@ jobs:
             test -f "$f"
             grep -q 'class="site-nav"' "$f"
             active_link "$f" "/docs/$slug"
+            test "$(grep -o 'nav-link active' "$f" | wc -l)" -eq 1
             test "$(grep -c '<title>' "$f")" = 1
             # Must be an if/exit, not `! grep ...`: under `set -e` a negated command is exempt from
             # errexit (POSIX), and this is not the script's last command, so a leftover .md link
@@ -77,6 +81,12 @@ jobs:
 
           # "/docs" activates the default (lowest order) document.
           active_link "$P/docs/index.html" "/docs/getting-started"
+
+          # "/docs" must render the default document's BODY, not just mark its nav link active:
+          # the nav check passes even when the page renders "Not found", so without this a broken
+          # default-document resolution would ship on the one URL the spec promises to preserve.
+          grep -q '<h1>Getting Started</h1>' "$P/docs/index.html"
+          grep -q 'id="installation"' "$P/docs/index.html"
 
           # Content conversion survived the AST pass.
           grep -q 'id="installation"' "$P/docs/getting-started/index.html"

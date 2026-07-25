@@ -21,15 +21,15 @@ public class DocMetaTests
         Assert.Equal(stem, DocSlug.Validate(stem, stem + ".md"));
 
     [Theory]
-    [InlineData("Getting-Started")]  // 大文字
-    [InlineData("getting started")]  // 空白
-    [InlineData("getting_started")]  // アンダースコア
-    [InlineData("getting.started")]  // ドット
+    [InlineData("Getting-Started")]  // uppercase
+    [InlineData("getting started")]  // whitespace
+    [InlineData("getting_started")]  // underscore
+    [InlineData("getting.started")]  // dot
     [InlineData("-leading")]
     [InlineData("trailing-")]
     [InlineData("double--dash")]
     [InlineData("")]
-    [InlineData("getting-started\n")]  // 末尾改行: .NET の '$' は許してしまうため \z で弾く
+    [InlineData("getting-started\n")]  // trailing newline: .NET's '$' would accept it, so the pattern anchors with \z
     public void Validate_RejectsUnsafeStems(string stem)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => DocSlug.Validate(stem, "sample.md"));
@@ -39,9 +39,9 @@ public class DocMetaTests
     [Theory]
     [InlineData("# Title\n")]              // ATX h1
     [InlineData("Title\n=====\n")]         // setext h1
-    [InlineData("#\tTitle\n")]             // タブ区切り ATX h1
-    [InlineData("> # Quoted title\n")]     // 引用内
-    [InlineData("- # In a list\n")]        // リスト内
+    [InlineData("#\tTitle\n")]             // tab-separated ATX h1
+    [InlineData("> # Quoted title\n")]     // inside a blockquote
+    [InlineData("- # In a list\n")]        // inside a list item
     public void EnsureNoTopLevelHeading_H1Forms_Throw(string markdown)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => CheckBody(markdown));
@@ -50,12 +50,12 @@ public class DocMetaTests
     }
 
     [Theory]
-    [InlineData("## Section\n\n### Sub\n")]                  // h2 以下は許可
-    [InlineData("## Section\n=====\n")]                      // 見出し直後の '=' は段落
-    [InlineData("text\n\n    # indented code\n\nmore\n")]    // インデントコードブロック
-    [InlineData("```text\n~~~\n# not a heading\n```\n")]     // フェンス内の '~~~' と '#'
-    [InlineData("- item\n===\n")]                            // リスト継続行
-    [InlineData("| a | b |\n|---|---|\n| 1 | 2 |\n")]        // テーブル区切り
+    [InlineData("## Section\n\n### Sub\n")]                  // h2 and below are allowed
+    [InlineData("## Section\n=====\n")]                      // an '=' line after a heading is a paragraph, not a setext h1
+    [InlineData("text\n\n    # indented code\n\nmore\n")]    // indented code block
+    [InlineData("```text\n~~~\n# not a heading\n```\n")]     // '~~~' and '#' inside a fenced block
+    [InlineData("- item\n===\n")]                            // list continuation line
+    [InlineData("| a | b |\n|---|---|\n| 1 | 2 |\n")]        // table delimiter row
     [InlineData("text\n\n---\n\nmore\n")]                    // thematic break
     public void EnsureNoTopLevelHeading_NonH1Content_IsAllowed(string markdown) => CheckBody(markdown);
 }

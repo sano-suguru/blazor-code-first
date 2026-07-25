@@ -32,7 +32,9 @@ Cloudflare Pages hosts static assets only; it does not build .NET.
 Markdown under `site/content/*.md` is converted to HTML at authoring time by the
 `DocGen` tool and committed as generated artifacts:
 
-- `site/BlazorCompose.Site/Content/Docs.g.cs` — one `public const string` per doc.
+- `site/BlazorCompose.Site/Content/Docs.g.cs` — a `DocEntry` record per doc plus a `Docs` manifest:
+  `Docs.All` (an `ImmutableArray<DocEntry>` ordered by front matter `order`, ties broken by slug)
+  and `Docs.Find(slug)` (case-insensitive lookup).
 - `site/BlazorCompose.Site/wwwroot/css/highlight.css` — ColorCode class theme.
 
 After editing any `.md`, regenerate and commit the artifacts:
@@ -62,7 +64,11 @@ order: 40
 
 - The file name becomes the `/docs/<slug>` route, so it must match `^[a-z0-9]+(-[a-z0-9]+)*\z`
   (lowercase words separated by single hyphens).
+- `site/content/` is flat: only top-level `*.md` files become documents. A file placed in a
+  subdirectory is silently ignored, not reported as an error.
 - `title` and `order` are both required, and `order` must be unique across documents.
+- The document with the lowest `order` is what the bare `/docs` URL renders, so picking an `order`
+  lower than the current minimum changes the content of a published URL.
 - Do not write an h1 — the page renders the front matter `title` as the h1.
 - Link to sibling documents with `./other.md` (optionally `./other.md#section`). DocGen rewrites
   these to SPA routes and fails the build if the target does not exist. Raw HTML `<a>` tags bypass

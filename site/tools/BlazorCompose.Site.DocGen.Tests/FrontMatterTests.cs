@@ -37,13 +37,13 @@ public class FrontMatterTests
     }
 
     [Theory]
-    [InlineData("## No front matter\n", "front matter")]              // ブロック自体が無い
-    [InlineData("---\norder: 1\n---\n", "title")]                     // title 欠落
-    [InlineData("---\ntitle: T\n---\n", "order")]                     // order 欠落
-    [InlineData("---\ntitle: T\norder: 1\nextra: x\n---\n", "extra")] // 未知キー
-    [InlineData("---\ntitle: T\norder: abc\n---\n", "order")]         // order が整数でない
-    [InlineData("---\ntitle:   \norder: 1\n---\n", "title")]          // title が空
-    [InlineData("---\ntitle: T\norder: 1\n", "closing")]              // 終端 --- が無い
+    [InlineData("## No front matter\n", "front matter")]              // no front matter block at all
+    [InlineData("---\norder: 1\n---\n", "title")]                     // missing title
+    [InlineData("---\ntitle: T\n---\n", "order")]                     // missing order
+    [InlineData("---\ntitle: T\norder: 1\nextra: x\n---\n", "extra")] // unknown key
+    [InlineData("---\ntitle: T\norder: abc\n---\n", "order")]         // order is not an integer
+    [InlineData("---\ntitle:   \norder: 1\n---\n", "title")]          // title is empty
+    [InlineData("---\ntitle: T\norder: 1\n", "closing")]              // no closing ---
     public void Split_InvalidFrontMatter_Throws(string raw, string messageFragment)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => FrontMatter.Split(raw, "sample.md"));

@@ -44,8 +44,8 @@ public sealed partial class DocsPage : ComposeComponentBase
                     Raw(_html))
                 .Class("prose"),
             () => Section(
-                    Component<DocTitle>().Param(t => t.Title, "Not found"),
-                    H1("Not found"),
+                    Component<DocTitle>().Param(t => t.Title, _title),
+                    H1(_title),
                     P("The requested document does not exist."))
                 .Class("prose"));
 }
