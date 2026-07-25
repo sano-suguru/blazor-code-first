@@ -32,3 +32,4 @@ public partial class Home : ComposeComponentBase
 
 - Read the [counter sample](/counter) to see events, `If`, and keyed `ForEach`.
 - Jump to [Installation](#installation) or [A first component](#a-first-component).
+- Learn the [element vocabulary](./elements-and-decorations.md) and [control flow](./control-flow.md#if).
