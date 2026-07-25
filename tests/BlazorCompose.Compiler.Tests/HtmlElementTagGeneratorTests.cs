@@ -30,6 +30,15 @@ public sealed class HtmlElementTagGeneratorTests
         }
         """;
 
+    private const string WhitespaceTagSource = """
+        using BlazorCompose;
+
+        public partial class C : ComposeComponentBase
+        {
+            protected override View Body => Html.Element("   ", Html.Span("x"));
+        }
+        """;
+
     [Fact]
     public void Element_WithConstantTag_EmitsOpenElementWithTagAndChild()
     {
@@ -53,6 +62,15 @@ public sealed class HtmlElementTagGeneratorTests
     public void Element_WithEmptyTag_ReportsBC3009()
     {
         var result = CompilationTestHost.RunGenerator(EmptyTagSource);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC3009");
+    }
+
+    // Pins the guard's IsNullOrWhiteSpace choice: a whitespace-only tag (not caught by a
+    // narrower IsNullOrEmpty) must still be rejected, so it cannot lower to OpenElement(seq, "   ").
+    [Fact]
+    public void Element_WithWhitespaceTag_ReportsBC3009()
+    {
+        var result = CompilationTestHost.RunGenerator(WhitespaceTagSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC3009");
     }
 }
