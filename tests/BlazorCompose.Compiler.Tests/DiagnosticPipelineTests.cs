@@ -12,16 +12,16 @@ public sealed class DiagnosticPipelineTests
         // in the same Body. The warning must not be dropped by the co-located error.
         const string source = """
             using System.Collections.Generic;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             public partial class P : BlazorCompose.ComposeComponentBase
             {
                 private readonly List<int> _xs = new();
                 private readonly List<Group> _groups = new();
                 protected override BlazorCompose.View Body =>
-                    VStack(
-                        ForEach(_xs, key: _ => 0, content: x => Text(x.ToString())),
+                    Div(
+                        ForEach(_xs, key: _ => 0, content: x => Span(x.ToString())),
                         ForEach(_groups, key: g => g.Id, content: g =>
-                            ForEach(g.Items, key: i => i.Id, content: i => Text(i.Name))));
+                            ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name))));
                 private sealed record Item(int Id, string Name);
                 private sealed record Group(int Id, List<Item> Items);
             }
@@ -38,7 +38,7 @@ public sealed class DiagnosticPipelineTests
     {
         // A non-factory, non-composable call returning View reaches the model stage with a null template.
         const string source = """
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             public partial class P : BlazorCompose.ComposeComponentBase
             {
                 protected override BlazorCompose.View Body => Opaque();
@@ -57,12 +57,12 @@ public sealed class DiagnosticPipelineTests
     {
         const string source = """
             using System.Collections.Generic;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             public partial class P : BlazorCompose.ComposeComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCompose.View Body => ForEach(_xs, key: x => x, content: Render);
-                private static BlazorCompose.View Render(int x) => Text(x.ToString());
+                private static BlazorCompose.View Render(int x) => Span(x.ToString());
             }
             """;
 

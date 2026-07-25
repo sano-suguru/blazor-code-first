@@ -26,7 +26,7 @@ BlazorComposeの中核は、Razorコンパイラと同型のコンパイル戦�
 
 UI定義(`Body`)は設計時のソース・オブ・トゥルースであり、実行時には評価されません。Source Generatorが `Body` の式ツリーを解析し、静的シーケンス番号を定数として埋め込んだレンダリングメソッドを部分クラスに生成します。これはRazorコンパイラが採る方式と同型であり、Blazorの差分検知が要求する「シーケンス番号のコンパイル時確定」を構造的に満たします(§5)。
 
-この方式により、コードファーストUIで従来問題となる2つの型システム上の障害が同時に解消されます。ひとつは、C#には SwiftUI の `some View` に相当する不透明戻り値型が存在しないため、装飾チェーンの合成型(`Padded<VStack<...>>` 等)を統一的に返す手段がありませんが、実行時評価を行わない本方式では全APIが軽量なマーカー型 `View` を返すだけで済みます。もうひとつは、実行時ツリー構築方式では避けられないヒープ割り当てが、本方式では原理的に発生しません(生成コードは `RenderTreeBuilder` へ直接命令を発行します)。
+この方式により、コードファーストUIで従来問題となる2つの型システム上の障害が同時に解消されます。ひとつは、C#には SwiftUI の `some View` に相当する不透明戻り値型が存在しないため、装飾チェーンの合成型(SwiftUIでの `Padded<VStack<...>>` 型のような)を統一的に返す手段がありませんが、実行時評価を行わない本方式では全APIが軽量なマーカー型 `View` を返すだけで済みます。もうひとつは、実行時ツリー構築方式では避けられないヒープ割り当てが、本方式では原理的に発生しません(生成コードは `RenderTreeBuilder` へ直接命令を発行します)。
 
 解析の適用範囲は明示的に仕様化します。静的解析可能な構文サブセット(SSC)の内側では完全な静的シーケンス割当を行い、外側(解析不能なヘルパー呼び出し等)は動的リージョンとして正確性を保ったまま縮退させます(§5.3)。
 
@@ -52,7 +52,7 @@ UI定義(`Body`)は設計時のソース・オブ・トゥルースであり、�
 
 ### 2.1 HTMLを排した純粋なC#
 
-HTMLのタグ記述や生の文字列によるCSSクラス指定を廃止し、すべてをC#のメソッド、型安全な列挙型、構造体で表現します。IDEのインテリセンスが機能し、レイアウトやスタイルのエラーはビルド時に検知されます。
+HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止し、すべてをC#のメソッド、型安全な列挙型、構造体で表現します。CSSクラスの指定自体は `.Class(string)` が受け付ける文字列がそのまま `class` 属性へ流れる、意図的な生文字列エスケープハッチです(§4.1)。IDEのインテリセンスが機能し、レイアウトやスタイルのエラーはビルド時に検知されます。
 
 ### 2.2 既存Blazorとのシームレスな統合
 
@@ -83,40 +83,37 @@ HTMLのタグ記述や生の文字列によるCSSクラス指定を廃止し、�
 
 ### 4.1 基本コンポーネントの構造
 
-開発者は `ComposeComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。SwiftUIの `var body: some View` に対応する記述体験です。
+開発者は `ComposeComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。語彙はHTML要素をそのまま写す「HTMLミラー表層」を採ります。この表層への転回の背景・比較検討・到達像は方向設計文書 `docs/superpowers/specs/2026-07-25-html-mirror-surface-direction-design.md` に詳細を記載しており、本節はその改訂結果です。
 
 ```csharp
-using static BlazorCompose.UI;
+using BlazorCompose;
+using static BlazorCompose.Html;
 
 public partial class CounterPage : ComposeComponentBase
 {
     private int _count;
 
     protected override View Body =>
-        VStack(spacing: 16,
-            Text($"Count: {_count}")
-                .FontSize(24)
-                .Bold()
-                .Foreground(Colors.Slate900),
-
-            HStack(spacing: 8,
-                Button("Increment", () => _count++)
-                    .Style(ButtonStyle.Primary),
-                Button("Reset", () => _count = 0)
-                    .Style(ButtonStyle.Outline)
-            )
+        Div(
+            Span($"Count: {_count}"),
+            Button("Increment").OnClick(() => _count++),
+            Button("Reset").OnClick(() => _count = 0)
         )
-        .Padding(24)
-        .Background(Colors.White)
-        .CornerRadius(12);
+        .Class("bc-counter");
 }
 ```
 
+- ファクトリは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div(...)` のように**非修飾で呼び出す**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートしたファクトリ名が衝突する場合に限り、衝突する呼び出しだけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。RM2(§9)で `Nav` / `Header` / `Article` / `Section` 等の短いタグ名ヘルパーが加わると、ドメイン型やジェネリック引数との衝突可能性はさらに広がる見込みです(これらは現時点では未実装で使用できません)。
+- `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも任意タグ用の `Html.Element(string tag, ...)` の名前付き別名として実装され、同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBC3009で診断されます)。現行実装のcuratedヘルパーは `Div` / `Span` / `Button` / `Element` の4種で、`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` 等の拡充は次段階(RM2、§9)で加えます。
+- 要素は文字列と `View` を**混在**して子に取ります(`params ReadOnlySpan<View>`)。生の文字列引数は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` ファクトリは持ちません。テキストのみを明示的に囲みたい場合は `Span("...")` を使います。
+- 属性・イベントは要素本体への引数ではなく、**装飾チェーン**(postfix fluent)で与えます。`.Class(string)` は単一の `class` 属性へ畳み込まれ(チェーンで複数回指定可能)、`.OnClick(handler)` は `onclick` イベントとして発行されます。汎用 `.Attr(name, value)`・汎用 `.On(eventName, handler)`・型付き属性ショートカット(`.Href` / `.Src` 等)は次段階(RM2、§9)で加えます。
+- 装飾チェーンがpostfix fluentである点は、同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)とは異なります。これは系譜への準拠を意図したものではなく、既存の `.Class` 機構の継続とC#のfluentイディオムを優先した意図的な選択です。
+- 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノード+文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、HTML妥当性レベル(void要素が子を持てない、属性が当該要素に適用可能か等)の検査は含みません。
 - `View` はすべてのファクトリ・装飾メソッドが返す軽量なマーカー型(空の `readonly struct`)です。式は通常のC#として型検査されますが、実行時に評価されることはなく、Source Generatorが式ツリーを直接レンダリングコードへ変換します。
-- `VStack(spacing: 16, ...)` の子要素は `params View[]` で受けるため、任意個の子を自然に記述できます。マーカー型方式のため、`params` 配列が実行時に確保されることもありません。
 - 状態(`_count`)への参照や補間文字列、イベントラムダは、生成コードへ構文ごと移植されます(同一partialクラス内のため、privateメンバーへのアクセスも保たれます)。
+- **casingの限界**: C#のメソッド名はPascalCase、HTMLタグ名は小文字であるため、`Div`(修飾形では `Html.Div`)は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
 
-レイアウトコンテナには `VStack` / `HStack` を採用します。Jetpack Compose流の `Column` / `Row` も検討しましたが、Blazorエコシステムでは `Column` がデータグリッド(QuickGrid、MudBlazor等)の列定義と強く結び付いており、混同を招くため、軸方向が一義に伝わるSwiftUI流を選択しています。
+かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorComposeにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div(...).Class("row")` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` が加わる段階(RM2、§9)では `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、`.Attr` はRM1時点では未実装であり、現行APIでは使用できません。`Text()` ファクトリの廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#メソッドとして写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
 
 ### 4.2 リストと条件分岐の表現
 
@@ -128,26 +125,22 @@ public partial class TaskListPage : ComposeComponentBase
     private readonly List<TaskItem> _items = [];
 
     protected override View Body =>
-        VStack(spacing: 12,
-            Text("Tasks").FontSize(20).FontWeight(FontWeight.SemiBold),
+        Div(
+            Span("Tasks"),
 
             If(_items.Count == 0,
-                then: () => Text("No tasks yet")
-                                .Foreground(Colors.Gray500)
-                                .Italic(),
+                then: () => Span("No tasks yet").Class("empty"),
                 otherwise: () => ForEach(_items,
                     key: t => t.Id,
                     content: item =>
-                        HStack(spacing: 8,
-                            CheckBox(item.Done, v => item.Done = v),
-                            Text(item.Title)
-                                .StrikeThrough(item.Done)
+                        Div(
+                            Span(item.Title)
                         )
-                        .Padding(vertical: 4)
+                        .Class(item.Done ? "task done" : "task")
                 )
             ),
 
-            Button("Add Task", AddItem).Style(ButtonStyle.Primary)
+            Button("Add Task").OnClick(AddItem)
         );
 
     private void AddItem() => _items.Add(new TaskItem("New task"));
@@ -164,20 +157,17 @@ UIの部分は `[Composable]` 属性を付与した静的メソッドに抽出�
 
 ```csharp
 protected override View Body =>
-    VStack(
+    Div(
         Header("My Application"),   // [Composable] メソッド — 静的展開の対象
         BodyContent()
     );
 
 [Composable]
 private static View Header(string title) =>
-    HStack(
-        Icon(Icons.Menu),
-        Text(title).FontSize(18)
+    Div(
+        Span(title)
     )
-    .Padding(horizontal: 16, vertical: 12)
-    .Background(Colors.Slate800)
-    .Foreground(Colors.White);
+    .Class("app-header");
 ```
 
 `[Composable]` の付かないメソッドが `View` を返す場合、Source Generatorはその内部を解析できないため、当該メソッドは実行時に評価される動的コンテンツとして扱われます(戻り値の `View` に `RenderFragment` を内包させる形式。§5.3)。
@@ -200,22 +190,20 @@ public partial class CounterPage
 {
     protected override void RenderBody(RenderTreeBuilder __b)
     {
-        __b.OpenElement(0, "div");                                    // VStack + 装飾
-        __b.AddAttribute(1, "class", Theme.Class(Cls.VStack, Cls.Gap16,
-                                                 Cls.Pad24, Cls.BgWhite, Cls.Radius12));
-        __b.OpenElement(2, "span");                                   // Text
-        __b.AddAttribute(3, "class", Theme.Class(Cls.Fs24, Cls.Bold, Cls.FgSlate900));
-        __b.AddContent(4, $"Count: {_count}");                        // 状態参照は構文ごと移植
+        __b.OpenElement(0, "div");                                    // Div + .Class
+        __b.AddAttribute(1, "class", "bc-counter");
+        __b.OpenElement(2, "span");                                   // Span (mixed content)
+        __b.AddContent(3, $"Count: {_count}");                        // 状態参照は構文ごと移植
         __b.CloseElement();
-        __b.OpenElement(5, "div");                                    // HStack
-        __b.AddAttribute(6, "class", Theme.Class(Cls.HStack, Cls.Gap8));
-        __b.OpenElement(7, "button");
-        __b.AddAttribute(8, "class", Theme.Class(Cls.BtnPrimary));
-        __b.AddAttribute(9, "onclick",
+        __b.OpenElement(4, "button");                                 // Button + .OnClick
+        __b.AddAttribute(5, "onclick",
             EventCallback.Factory.Create(this, () => _count++));      // ラムダも移植
-        __b.AddContent(10, "Increment");
+        __b.AddContent(6, "Increment");
         __b.CloseElement();
-        /* … Reset ボタン … */
+        __b.OpenElement(7, "button");
+        __b.AddAttribute(8, "onclick",
+            EventCallback.Factory.Create(this, () => _count = 0));
+        __b.AddContent(9, "Reset");
         __b.CloseElement();
         __b.CloseElement();
     }
@@ -287,12 +275,8 @@ public static partial class Widgets
 {
     [Composable]
     public static View StatusBadge(Status status) =>
-        HStack(spacing: 4,
-            Icon(status.IsHealthy ? Icons.Check : Icons.Alert),
-            Text(status.Label).FontSize(12)
-        )
-        .Padding(horizontal: 8, vertical: 2)
-        .CornerRadius(999);
+        Span(status.Label)
+            .Class(status.IsHealthy ? "badge badge-ok" : "badge badge-alert");
 }
 ```
 
@@ -302,8 +286,8 @@ public static partial class Widgets
 
 ```csharp
 protected override View Body =>
-    VStack(
-        Text("Data Grid").FontSize(20),
+    Div(
+        Span("Data Grid"),
         Component<MudDataGrid<Order>>()
             .Param(g => g.Items, _orders)
             .Param(g => g.Dense, true)
@@ -358,7 +342,7 @@ C#によるコードファーストUIの試みは本ライブラリが最初で�
 
 ### 第1フェーズ: コアAPIとPoC
 
-基本レイアウト(`VStack`, `HStack`, `Grid`)と `Text`, `Button` を実装し、Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインを実証します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
+コアAPIはHTMLミラー表層として実装します。常用タグの名前付きヘルパー(`Html.Div` / `Span` / `Button`)と任意タグ用の `Html.Element` を統一 `Element` ノードへ落とし、属性・イベントは装飾チェーン(`.Class` / `.OnClick`)で与えます(§4.1、方向設計文書 `docs/superpowers/specs/2026-07-25-html-mirror-surface-direction-design.md`)。かつて本節が第1フェーズの語彙としていたSwiftUI/Compose風の `VStack` / `HStack` / `Grid` と型付き装飾(`.Padding()` / `.FontSize()` 等)は本方針により置き換えられ、新たな設計文書の改訂なしに復活しません。実装はマイルストーンRM1–RM3へ分割します。RM1は統合 `Element` ノード・mixed content・装飾チェーンの一般化を対象とし、M1で先行実装した `.Class` を土台に `.OnClick` を確立します。RM2はcuratedタグ集合の拡充・型付き属性ショートカット・汎用 `.Attr` / `.On` を、RM3は `Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)を追加します。Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインの実証は各マイルストーンを通じて継続します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
 
 ### 第2フェーズ: 解析範囲の拡張と .NET 11 対応
 

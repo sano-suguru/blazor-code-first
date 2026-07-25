@@ -76,7 +76,7 @@ public sealed class BlazorComposeGenerator : IIncrementalGenerator
 
         // Expand each analyzed component against the registry as a pure value transform.  Both inputs are
         // value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic branch, and a
-        // change to the UI API surface re-runs the transform above and correctly invalidates here.
+        // change to the compose API surface re-runs the transform above and correctly invalidates here.
         var modelResults = analyses
             .Combine(registry)
             .Select(static (input, _) => ComponentModelFactory.Expand(input.Left!, input.Right))

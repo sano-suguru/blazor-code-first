@@ -17,37 +17,37 @@ public sealed class IncrementalGeneratorTests
 {
     private const string ComponentASource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public partial class ComponentA : ComposeComponentBase
         {
-            protected override View Body => Text("Hello A");
+            protected override View Body => Span("Hello A");
         }
         """;
 
     private const string ComponentBSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public partial class ComponentB : ComposeComponentBase
         {
-            protected override View Body => Text("Hello B");
+            protected override View Body => Span("Hello B");
         }
         """;
 
     private const string ComponentBModifiedSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public partial class ComponentB : ComposeComponentBase
         {
-            protected override View Body => Text("Modified B");
+            protected override View Body => Span("Modified B");
         }
         """;
 
@@ -173,15 +173,15 @@ public sealed class IncrementalGeneratorTests
     }
 
     /// <summary>
-    /// Regression test: changing the <c>BlazorCompose.UI</c> API signature between reused-driver
+    /// Regression test: changing the <c>BlazorCompose.Html</c> API signature between reused-driver
     /// runs must invalidate all component models (not incorrectly cache them).  This validates
     /// that <c>KnownSymbols</c> equality is based on a semantic signature fingerprint, not mere
     /// symbol presence.
     /// </summary>
     [Fact]
-    public void IncrementalGenerator_WhenUIApiSignatureChanges_InvalidatesAllComponentModels()
+    public void IncrementalGenerator_WhenHtmlApiSignatureChanges_InvalidatesAllComponentModels()
     {
-        // Source-defined UI type so we can mutate its signature between runs.
+        // Source-defined Html type so we can mutate its signature between runs.
         const string runtimeSourceV1 = """
             namespace BlazorCompose
             {
@@ -190,9 +190,9 @@ public sealed class IncrementalGeneratorTests
                 {
                     protected abstract View Body { get; }
                 }
-                public static class UI
+                public static class Html
                 {
-                    public static View Text(string content) => default;
+                    public static View Span(string content) => default;
                 }
             }
             """;
@@ -205,22 +205,22 @@ public sealed class IncrementalGeneratorTests
                 {
                     protected abstract View Body { get; }
                 }
-                public static class UI
+                public static class Html
                 {
-                    public static View Text(string content, string style) => default;
+                    public static View Span(string content, string style) => default;
                 }
             }
             """;
 
         const string componentSource = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             namespace TestNs;
 
             public partial class MyComponent : ComposeComponentBase
             {
-                protected override View Body => Text("Hello");
+                protected override View Body => Span("Hello");
             }
             """;
 
@@ -246,12 +246,12 @@ public sealed class IncrementalGeneratorTests
             generators: [new BlazorComposeGenerator().AsSourceGenerator()],
             driverOptions: driverOptions);
 
-        // Run 1: Text(string) matches — component is generated
+        // Run 1: Span(string) matches — component is generated
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation1, out _, out _);
         var run1 = driver.GetRunResult();
         Assert.Single(run1.Results[0].GeneratedSources);
 
-        // Act: replace the runtime tree with V2 (Text now takes two parameters)
+        // Act: replace the runtime tree with V2 (Span now takes two parameters)
         var runtimeTreeV2 = CSharpSyntaxTree.ParseText(
             runtimeSourceV2,
             CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
@@ -259,16 +259,16 @@ public sealed class IncrementalGeneratorTests
 
         var compilation2 = compilation1.ReplaceSyntaxTree(runtimeTreeV1, runtimeTreeV2);
 
-        // Run 2: reuse driver with changed UI API
+        // Run 2: reuse driver with changed Html API
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation2, out _, out _);
         var run2 = driver.GetRunResult();
 
-        // The UI API changed, so the syntax-provider transform must re-analyze each candidate against
-        // the new compilation (resolving BlazorCompose.UI symbols transiently) and the downstream
+        // The Html API changed, so the syntax-provider transform must re-analyze each candidate against
+        // the new compilation (resolving BlazorCompose.Html symbols transiently) and the downstream
         // pipeline must NOT incorrectly cache the old component model.
         var trackedSteps = run2.Results[0].TrackedSteps;
 
-        // Verify the component analysis was recomputed (Modified or New): Text(string) no longer
+        // Verify the component analysis was recomputed (Modified or New): Span(string) no longer
         // resolves, so the analyzed template changes to a model-less result.
         Assert.True(trackedSteps.ContainsKey("ComponentAnalysis"),
             "Expected tracked step 'ComponentAnalysis'");
@@ -279,19 +279,19 @@ public sealed class IncrementalGeneratorTests
                 output.Reason is IncrementalStepRunReason.Modified or IncrementalStepRunReason.New,
                 $"Expected ComponentAnalysis Modified/New but got {output.Reason}"));
 
-        // The component model must NOT be reused (Cached) in Run 2 because Text(string) no longer
+        // The component model must NOT be reused (Cached) in Run 2 because Span(string) no longer
         // matches (it now requires 2 params); the regression this guards against is a stale Cached
-        // reuse of the old model built against the previous UI API.
+        // reuse of the old model built against the previous Html API.
         if (trackedSteps.TryGetValue("ComponentModeling", out var modelingSteps))
         {
             var modelOutputs = modelingSteps.SelectMany(s => s.Outputs).ToImmutableArray();
             Assert.All(modelOutputs, output =>
                 Assert.True(
                     output.Reason is not IncrementalStepRunReason.Cached,
-                    $"ComponentModel was incorrectly cached after UI API signature change (reason: {output.Reason})"));
+                    $"ComponentModel was incorrectly cached after Html API signature change (reason: {output.Reason})"));
         }
 
-        // The second run should produce NO generated sources because Text(string) no longer
+        // The second run should produce NO generated sources because Span(string) no longer
         // resolves to a known single-param method.
         Assert.Empty(run2.Results[0].GeneratedSources);
     }
@@ -300,19 +300,19 @@ public sealed class IncrementalGeneratorTests
     public void IncrementalGenerator_WhenUnrelatedTreeChanges_KeepsGeneratingComponent()
     {
         // Regression guard for symbol provenance: editing an unrelated tree produces a new compilation.
-        // The component's Body analysis must re-resolve BlazorCompose.UI from that new compilation rather
+        // The component's Body analysis must re-resolve BlazorCompose.Html from that new compilation rather
         // than reusing symbols from the previous one; otherwise a cross-compilation symbol comparison would
-        // silently stop recognizing Text/Button/VStack/If and drop the generated RenderBody on every
+        // silently stop recognizing Div/Span/Button/If and drop the generated RenderBody on every
         // incremental edit (visible under dotnet watch / the IDE, not a single-shot build).
         const string componentSource = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             namespace TestNs;
 
             public partial class MyComponent : ComposeComponentBase
             {
-                protected override View Body => Text("Hello");
+                protected override View Body => Span("Hello");
             }
             """;
 
@@ -342,9 +342,9 @@ public sealed class IncrementalGeneratorTests
                 {
                     protected abstract View Body { get; }
                 }
-                public static class UI
+                public static class Html
                 {
-                    public static View Text(string content) => default;
+                    public static View Span(string content) => default;
                 }
             }
             """;
@@ -407,46 +407,46 @@ public sealed class IncrementalGeneratorTests
 
     private const string WidgetsSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public static class Widgets
         {
             [Composable]
-            public static View Label(string value) => Text(value);
+            public static View Label(string value) => Span(value);
         }
         """;
 
     private const string BadgesSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public static class Badges
         {
             [Composable]
-            public static View Badge(string value) => Text("[" + value + "]");
+            public static View Badge(string value) => Span("[" + value + "]");
         }
         """;
 
     private const string WidgetsModifiedSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public static class Widgets
         {
             [Composable]
-            public static View Label(string value) => Text(value + "!");
+            public static View Label(string value) => Span(value + "!");
         }
         """;
 
     private const string CallerSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
@@ -458,13 +458,13 @@ public sealed class IncrementalGeneratorTests
 
     private const string UnrelatedSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         namespace TestNs;
 
         public partial class Unrelated : ComposeComponentBase
         {
-            protected override View Body => Text("z");
+            protected override View Body => Span("z");
         }
         """;
 
@@ -544,13 +544,13 @@ public sealed class IncrementalGeneratorTests
     {
         const string source = """
             using System.Collections.Generic;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             public static class Widgets
             {
                 [BlazorCompose.Composable]
                 public static BlazorCompose.View Never(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
-                        ForEach(g.Items, key: i => i.Id, content: i => Text(i.Name)));
+                        ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name)));
                 public sealed record Item(int Id, string Name);
                 public sealed record Group(int Id, List<Item> Items);
             }
@@ -610,7 +610,7 @@ public sealed class IncrementalGeneratorTests
     {
         const string cyclicSource = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
 
             namespace TestNs;
 
@@ -658,7 +658,7 @@ public sealed class IncrementalGeneratorTests
             """;
         const string hostSource = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace TestNs;
             public partial class Host : ComposeComponentBase
             {

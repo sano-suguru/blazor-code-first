@@ -21,7 +21,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -41,7 +41,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -60,7 +60,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -83,7 +83,7 @@ public sealed class ComponentInteropTests
         const string host = """
             using System.Collections.Generic;
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -111,7 +111,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -138,7 +138,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -158,7 +158,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -190,7 +190,7 @@ public sealed class ComponentInteropTests
     {
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -218,7 +218,7 @@ public sealed class ComponentInteropTests
             """;
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {
@@ -243,7 +243,7 @@ public sealed class ComponentInteropTests
             """;
         const string host = """
             using BlazorCompose;
-            using static BlazorCompose.UI;
+            using static BlazorCompose.Html;
             namespace T;
             public partial class Host : ComposeComponentBase
             {

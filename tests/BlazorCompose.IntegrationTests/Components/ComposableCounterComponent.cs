@@ -1,5 +1,5 @@
 using BlazorCompose;
-using static BlazorCompose.UI;
+using static BlazorCompose.Html;
 
 namespace BlazorCompose.IntegrationTests.Components;
 
@@ -11,12 +11,12 @@ public partial class ComposableCounterComponent : ComposeComponentBase
     public int ArgumentEvaluations => _argumentEvaluations;
 
     protected override View Body =>
-        VStack(
+        Div(
             CounterLabel(GetCountLabel()),
-            Button("Increment", () => _count++));
+            Button("Increment").OnClick(() => _count++));
 
     [Composable]
-    private static View CounterLabel(string value) => Text(value);
+    private static View CounterLabel(string value) => Span(value);
 
     private string GetCountLabel()
     {

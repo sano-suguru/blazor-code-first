@@ -20,16 +20,6 @@ internal static class SequenceAllocator
     /// </summary>
     public static int Width(RenderNode node) => node switch
     {
-        // OpenElement("span") + AddContent = 2 calls; a decorated element adds one class attribute frame.
-        TextNode { Classes: var classes } => 2 + (classes.Length == 0 ? 0 : 1),
-
-        // OpenElement("button") + AddAttribute("onclick") + AddContent = 3 calls; +1 if decorated.
-        ButtonNode { Classes: var classes } => 3 + (classes.Length == 0 ? 0 : 1),
-
-        // OpenElement("div") = 1 call, +1 if decorated, plus the sum of all children.
-        VStackNode { Classes: var classes, Children: var children } =>
-            1 + (classes.Length == 0 ? 0 : 1) + children.Sum(Width),
-
         // OpenRegion(k) = 1 call, then both branches (disjoint ranges: then=[k+1, k+1+W(T1)),
         // else=[k+1+W(T1), k+1+W(T1)+W(T2))).  Both widths are reserved regardless of which
         // branch executes so that the sequence of any following sibling is stable.
@@ -45,6 +35,15 @@ internal static class SequenceAllocator
         // OpenComponent(k) = 1 call, plus one AddComponentParameter per parameter.
         // SetKey/CloseComponent consume no sequence number.
         ComponentNode { Parameters: var parameters } => 1 + parameters.Length,
+
+        // OpenElement(tag) = 1 call, +1 if class-decorated, +1 per event attribute, plus the sum of all
+        // children. Must branch on the identical conditions and order as RenderBodyEmitter.EmitElement
+        // (class fold -> events -> children) or sequence numbers will drift.
+        ElementNode { Classes: var classes, Events: var events, Children: var children } =>
+            1 + (classes.Length == 0 ? 0 : 1) + events.Length + children.Sum(Width),
+
+        // AddContent = 1 call; no wrapping element.
+        TextContentNode => 1,
 
         _ => throw new NotSupportedException(
             $"Unknown RenderNode type '{node.GetType().Name}'; add a Width case for it."),

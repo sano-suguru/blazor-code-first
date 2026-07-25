@@ -65,11 +65,11 @@ public sealed class EquatableArrayTests
     [Fact]
     public void NestedEquality_ThroughRecord_IsStructural()
     {
-        var childA = new TextNode(ExpressionTemplate.Literal("x"));
-        var childB = new TextNode(ExpressionTemplate.Literal("x"));
+        var childA = new TextContentNode(ExpressionTemplate.Literal("x"));
+        var childB = new TextContentNode(ExpressionTemplate.Literal("x"));
 
-        var left = new VStackNode(ImmutableArray.Create<RenderNode>(childA));
-        var right = new VStackNode(ImmutableArray.Create<RenderNode>(childB));
+        var left = new ElementNode("div", default, default, ImmutableArray.Create<RenderNode>(childA));
+        var right = new ElementNode("div", default, default, ImmutableArray.Create<RenderNode>(childB));
 
         Assert.Equal(left, right);
         Assert.Equal(left.GetHashCode(), right.GetHashCode());
@@ -91,8 +91,8 @@ public sealed class EquatableArrayTests
         // both equal to AND hash-equal with the same record built from an empty array, otherwise
         // Roslyn would treat two value-equal models as different (equal compare, split hash) and
         // silently corrupt caching.
-        var fromDefault = new VStackNode(default);
-        var fromEmpty = new VStackNode(ImmutableArray<RenderNode>.Empty);
+        var fromDefault = new ElementNode("div", default, default, default);
+        var fromEmpty = new ElementNode("div", default, default, ImmutableArray<RenderNode>.Empty);
 
         Assert.Equal(fromDefault, fromEmpty);
         Assert.Equal(fromDefault.GetHashCode(), fromEmpty.GetHashCode());
@@ -101,12 +101,12 @@ public sealed class EquatableArrayTests
     [Fact]
     public void NestedEquality_TwoLevels_IsStructural()
     {
-        // Two levels of EquatableArray nesting (VStack -> VStack -> Text), each built from distinct
+        // Two levels of EquatableArray nesting (div -> div -> text), each built from distinct
         // backing arrays, must compare and hash equal so value equality propagates all the way down.
-        static VStackNode Build() =>
-            new(ImmutableArray.Create<RenderNode>(
-                new VStackNode(ImmutableArray.Create<RenderNode>(
-                    new TextNode(ExpressionTemplate.Literal("x"))))));
+        static ElementNode Build() =>
+            new("div", default, default, ImmutableArray.Create<RenderNode>(
+                new ElementNode("div", default, default, ImmutableArray.Create<RenderNode>(
+                    new TextContentNode(ExpressionTemplate.Literal("x"))))));
 
         var left = Build();
         var right = Build();

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
-using static BlazorCompose.UI;
+using BlazorCompose;
+using static BlazorCompose.Html;
 
 namespace BlazorCompose.Site.Pages;
 
@@ -7,7 +8,7 @@ namespace BlazorCompose.Site.Pages;
 public partial class Home : ComposeComponentBase
 {
     protected override View Body =>
-        VStack(
-            Text("BlazorCompose docs site — WASM feasibility spike"),
-            Text("Navigate to /counter to exercise events, If, and keyed ForEach."));
+        Div(
+            Span("BlazorCompose docs site — WASM feasibility spike"),
+            Span("Navigate to /counter to exercise events, If, and keyed ForEach."));
 }

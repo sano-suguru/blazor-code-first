@@ -76,20 +76,21 @@ internal static class DiagnosticDescriptors
     /// BC3003: A <c>ForEach</c> content template's root is not a single element or component, so its key
     /// has no frame to attach to (Blazor's <c>SetKey</c> keys the currently open element/component frame).
     /// The required-key contract cannot be honored, so emission is suppressed. Mirrors Razor, where
-    /// <c>@key</c> cannot be applied to an <c>@if</c>; wrap the content in a container element instead.
+    /// <c>@key</c> cannot be applied to an <c>@if</c>; wrap the content in an element such as
+    /// <c>Html.Div(...)</c> instead.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3003 = new(
         id: "BC3003",
         title: "ForEach content must be a single element or component",
-        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as VStack(...)",
+        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as Html.Div(...)",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "A ForEach key is applied to the content's root element or component frame. When the content " +
             "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
-            "there is no frame to key, so the required key cannot be applied. Wrap the content in a " +
-            "container element such as VStack(...).");
+            "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
+            "required key cannot be applied. Wrap the content in a container element such as Html.Div(...).");
 
     /// <summary>
     /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderBody
@@ -177,22 +178,42 @@ internal static class DiagnosticDescriptors
             "duplicate is reported at compile time.");
 
     /// <summary>
-    /// BC3008: A <c>.Class</c> decoration was applied to a node that does not open a single HTML element
-    /// (an <c>If</c>/<c>ForEach</c> region root, or a <c>[Composable]</c> call result). Decorations fold
-    /// into the owning element's <c>class</c> attribute, so there must be an element to attach to.
+    /// BC3008: A decoration (<c>.Class</c> or <c>.OnClick</c>) was applied to a node that does not open a
+    /// single HTML element (an <c>If</c>/<c>ForEach</c> region root, or a <c>[Composable]</c>/Component call
+    /// result). Decorations fold into the attributes of the element opened by an Html element helper or
+    /// <c>Html.Element</c>, so there must be such an element to attach to.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3008 = new(
         id: "BC3008",
         title: "Decoration target must be a single element",
-        messageFormat: ".Class can only decorate a single element (Text, Button, or VStack); it cannot be applied to If, ForEach, or a [Composable] result",
+        messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, or a [Composable]/Component result",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            ".Class folds into the owning element's class attribute, so it can only be applied to a node " +
-            "that opens a single HTML element (Text, Button, or VStack). Applying it to a region-rooted " +
-            "node (If, ForEach) or a [Composable] call result has no element to attach to. Decorate a " +
-            "concrete element instead.");
+            "A decoration folds into the owning element's attributes, so it can only be applied to a node " +
+            "that opens a single HTML element (an Html element helper or Html.Element). Applying it to a " +
+            "region-rooted node (If, ForEach) or a [Composable]/Component result has no element to attach " +
+            "to. Decorate a concrete element instead.");
+
+    /// <summary>
+    /// BC3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time
+    /// constant string. A non-empty constant tag keeps the element declarative and predictable
+    /// (design-time syntax the generator can lower to a literal <c>OpenElement</c>); this is not an
+    /// AOT/sequencing constraint, and non-constant or empty tags are not a security (injection) concern.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3009 = new(
+        id: "BC3009",
+        title: "Element tag must be a compile-time constant string",
+        messageFormat: "Html.Element tag must be a non-empty compile-time constant string; use a non-empty " +
+            "string literal or a const",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Html.Element(tag, ...) lowers the tag to a literal OpenElement call, so the tag must be a " +
+            "non-empty compile-time constant string. This keeps the vocabulary declarative and " +
+            "predictable, consistent with the design-time nature of the factories.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

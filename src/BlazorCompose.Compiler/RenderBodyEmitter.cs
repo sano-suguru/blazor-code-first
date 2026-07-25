@@ -61,57 +61,15 @@ internal static class RenderBodyEmitter
     private static int EmitNode(IndentedWriter writer, RenderNode node, int startSeq, string? key = null) =>
         node switch
         {
-            TextNode text => EmitText(writer, text, startSeq, key),
-            ButtonNode button => EmitButton(writer, button, startSeq, key),
-            VStackNode vstack => EmitVStack(writer, vstack, startSeq, key),
             IfNode ifNode => EmitIf(writer, ifNode, startSeq, key),
             ExpansionNode expansion => EmitExpansion(writer, expansion, startSeq, key),
             ForEachNode forEach => EmitForEach(writer, forEach, startSeq, key),
             ComponentNode component => EmitComponent(writer, component, startSeq, key),
+            ElementNode element => EmitElement(writer, element, startSeq, key),
+            TextContentNode text => EmitTextContent(writer, text, startSeq),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
-
-    private static int EmitText(IndentedWriter writer, TextNode node, int seq, string? key = null)
-    {
-        writer.AppendLine($"__builder.OpenElement({seq}, \"span\");");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
-        int next = seq + 1;
-        next = EmitClassAttribute(writer, node.Classes, next);
-        writer.AppendLine($"__builder.AddContent({next}, {node.ContentExpression.ToCode()});");
-        writer.AppendLine("__builder.CloseElement();");
-        return seq + SequenceAllocator.Width(node);
-    }
-
-    private static int EmitButton(IndentedWriter writer, ButtonNode node, int seq, string? key = null)
-    {
-        writer.AppendLine($"__builder.OpenElement({seq}, \"button\");");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
-        int next = seq + 1;
-        next = EmitClassAttribute(writer, node.Classes, next);
-        writer.AppendLine(
-            $"__builder.AddAttribute({next}, \"onclick\", " +
-            $"{EventCallbackFactory}.Create(this, {node.HandlerExpression.ToCode()}));");
-        next++;
-        writer.AppendLine($"__builder.AddContent({next}, {node.LabelExpression.ToCode()});");
-        writer.AppendLine("__builder.CloseElement();");
-        return seq + SequenceAllocator.Width(node);
-    }
-
-    private static int EmitVStack(IndentedWriter writer, VStackNode node, int seq, string? key = null)
-    {
-        writer.AppendLine($"__builder.OpenElement({seq}, \"div\");");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
-        int nextSeq = seq + 1;
-        nextSeq = EmitClassAttribute(writer, node.Classes, nextSeq);
-        foreach (var child in node.Children)
-            nextSeq = EmitNode(writer, child, nextSeq);
-        writer.AppendLine("__builder.CloseElement();");
-        return nextSeq;
-    }
 
     /// <summary>
     /// Emits the folded <c>class</c> attribute for a decorated element and returns the next sequence
@@ -222,6 +180,32 @@ internal static class RenderBodyEmitter
         }
         writer.AppendLine("__builder.CloseComponent();");
         return seq + SequenceAllocator.Width(node);
+    }
+
+    private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
+    {
+        writer.AppendLine($"__builder.OpenElement({seq}, \"{node.Tag}\");");
+        if (key is not null)
+            writer.AppendLine($"__builder.SetKey({key});");
+        int next = seq + 1;
+        next = EmitClassAttribute(writer, node.Classes, next);
+        foreach (var e in node.Events)
+        {
+            writer.AppendLine(
+                $"__builder.AddAttribute({next}, {e.AttributeName.ToCode()}, " +
+                $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
+            next++;
+        }
+        foreach (var child in node.Children)
+            next = EmitNode(writer, child, next);
+        writer.AppendLine("__builder.CloseElement();");
+        return seq + SequenceAllocator.Width(node);
+    }
+
+    private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)
+    {
+        writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
+        return seq + 1;
     }
 
     /// <summary>

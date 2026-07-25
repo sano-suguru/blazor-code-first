@@ -8,11 +8,11 @@ public sealed class PartialComponentAnalyzerTests
     // Same component as GeneratorTests but without the partial modifier.
     private const string NonPartialCounterSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public class Counter : ComposeComponentBase
         {
-            protected override View Body => Text("Count");
+            protected override View Body => Span("Count");
         }
         """;
 

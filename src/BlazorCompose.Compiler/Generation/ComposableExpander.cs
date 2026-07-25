@@ -67,38 +67,6 @@ internal static class ComposableExpander
 
         switch (node)
         {
-            case TextTemplateNode text:
-                return new TextNode(
-                    text.Content.Substitute(substitution),
-                    SubstituteClasses(text.Classes, substitution));
-
-            case ButtonTemplateNode button:
-                return new ButtonNode(
-                    button.Label.Substitute(substitution),
-                    button.Handler.Substitute(substitution),
-                    SubstituteClasses(button.Classes, substitution));
-
-            case VStackTemplateNode vstack:
-                {
-                    var children = ImmutableArray.CreateBuilder<RenderNode>(vstack.Children.Length);
-                    foreach (var child in vstack.Children)
-                    {
-                        var expanded = ExpandNode(
-                            child,
-                            substitution,
-                            ref nextLogicalPreorderOrdinal,
-                            activeMethodStack,
-                            registry,
-                            generatedTypeInheritanceKeys,
-                            diagnostics);
-                        if (expanded is null)
-                            return null;
-                        children.Add(expanded);
-                    }
-
-                    return new VStackNode(children.ToImmutable(), SubstituteClasses(vstack.Classes, substitution));
-                }
-
             case IfTemplateNode ifNode:
                 {
                     var thenNode = ExpandNode(
@@ -168,6 +136,35 @@ internal static class ComposableExpander
                     foreach (var parameter in component.Parameters)
                         parameters.Add(new ComponentParameter(parameter.Name, parameter.Value.Substitute(substitution)));
                     return new ComponentNode(component.TypeName, parameters.ToImmutable());
+                }
+
+            case TextContentTemplateNode text:
+                return new TextContentNode(text.Content.Substitute(substitution));
+
+            case ElementTemplateNode element:
+                {
+                    var children = ImmutableArray.CreateBuilder<RenderNode>(element.Children.Length);
+                    foreach (var child in element.Children.AsImmutableArray())
+                    {
+                        var expanded = ExpandNode(
+                            child, substitution, ref nextLogicalPreorderOrdinal,
+                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
+                        if (expanded is null)
+                            return null;
+                        children.Add(expanded);
+                    }
+
+                    var events = ImmutableArray.CreateBuilder<EventTemplate>(element.Events.Length);
+                    foreach (var e in element.Events.AsImmutableArray())
+                        events.Add(new EventTemplate(
+                            e.AttributeName.Substitute(substitution),
+                            e.Handler.Substitute(substitution)));
+
+                    return new ElementNode(
+                        element.Tag,
+                        SubstituteClasses(element.Classes, substitution),
+                        events.ToImmutable(),
+                        children.ToImmutable());
                 }
 
             case ComposableCallTemplateNode call:
@@ -344,14 +341,14 @@ internal static class ComposableExpander
     /// <summary>
     /// Determines whether an expanded content node's root frame is a single element or component (and so
     /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent — its composable body's root
-    /// is the real frame — so it is unwrapped. Element/component-rooted nodes (<see cref="TextNode"/>,
-    /// <see cref="ButtonNode"/>, <see cref="VStackNode"/>, <see cref="ComponentNode"/>) are keyable;
-    /// region-rooted nodes (<see cref="IfNode"/>, <see cref="ForEachNode"/>) are not.
+    /// is the real frame — so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
+    /// <see cref="ElementNode"/>) are keyable; region-rooted nodes (<see cref="IfNode"/>,
+    /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) are not.
     /// </summary>
     private static bool IsKeyableRoot(RenderNode node) => node switch
     {
         ExpansionNode expansion => IsKeyableRoot(expansion.Body),
-        TextNode or ButtonNode or VStackNode or ComponentNode => true,
+        ComponentNode or ElementNode => true,
         _ => false,
     };
 

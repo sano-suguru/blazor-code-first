@@ -7,23 +7,6 @@ namespace BlazorCompose.Compiler;
 /// </summary>
 internal abstract record RenderNode;
 
-/// <summary>Represents a <c>Text(expr)</c> call that emits an HTML <c>span</c>.
-/// <paramref name="Classes"/> holds the folded <c>.Class</c> decoration expressions (empty if undecorated).</summary>
-internal sealed record TextNode(
-    ExpressionTemplate ContentExpression,
-    EquatableArray<ExpressionTemplate> Classes = default) : RenderNode;
-
-/// <summary>Represents a <c>Button(label, handler)</c> call that emits an HTML <c>button</c>.</summary>
-internal sealed record ButtonNode(
-    ExpressionTemplate LabelExpression,
-    ExpressionTemplate HandlerExpression,
-    EquatableArray<ExpressionTemplate> Classes = default) : RenderNode;
-
-/// <summary>Represents a <c>VStack(children…)</c> call that emits an HTML <c>div</c> wrapper.</summary>
-internal sealed record VStackNode(
-    EquatableArray<RenderNode> Children,
-    EquatableArray<ExpressionTemplate> Classes = default) : RenderNode;
-
 /// <summary>Represents an <c>If(condition, then, otherwise)</c> call with an optional else branch.</summary>
 internal sealed record IfNode(ExpressionTemplate ConditionExpression, RenderNode Then, RenderNode? Otherwise) : RenderNode;
 
@@ -61,3 +44,13 @@ internal sealed record ComponentParameter(string Name, ExpressionTemplate Value)
 internal sealed record ComponentNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters) : RenderNode;
+
+/// <summary>An HTML element: tag, folded class channel, event list, and mixed children (text or elements).</summary>
+internal sealed record ElementNode(
+    string Tag,
+    EquatableArray<ExpressionTemplate> Classes = default,
+    EquatableArray<EventTemplate> Events = default,
+    EquatableArray<RenderNode> Children = default) : RenderNode;
+
+/// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>
+internal sealed record TextContentNode(ExpressionTemplate Content) : RenderNode;

@@ -17,67 +17,82 @@ public sealed class RenderMutationAnalyzerTests
 
     private const string IncrementInTextSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Text($"{_count++}");
+            protected override View Body => Span($"{_count++}");
         }
         """;
 
     private const string AssignmentInTextSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Text($"{_count = 4}");
+            protected override View Body => Span($"{_count = 4}");
         }
         """;
 
     private const string CompoundAssignmentInTextSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Text($"{_count += 4}");
+            protected override View Body => Span($"{_count += 4}");
         }
         """;
 
     private const string DecrementInTextSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Text($"{_count--}");
+            protected override View Body => Span($"{_count--}");
         }
         """;
 
     private const string PropertyAssignmentInTextSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int Count { get; set; }
-            protected override View Body => Text($"{Count = 4}");
+            protected override View Body => Span($"{Count = 4}");
         }
         """;
 
     private const string PropertyIncrementInTextSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int Count { get; set; }
-            protected override View Body => Text($"{Count++}");
+            protected override View Body => Span($"{Count++}");
+        }
+        """;
+
+    /// <summary>
+    /// Negative control for the Html.OnClick exemption: the mutation's nearest enclosing lambda is
+    /// the Html.If content lambda, not an OnClick handler, so it must still report BC3001.
+    /// </summary>
+    private const string IncrementInHtmlIfContentLambdaSource = """
+        using BlazorCompose;
+
+        public partial class Counter : ComposeComponentBase
+        {
+            private bool _flag = true;
+            private int _count;
+            protected override View Body => Html.If(_flag, () => Html.Span((_count++).ToString()));
         }
         """;
 
@@ -85,37 +100,41 @@ public sealed class RenderMutationAnalyzerTests
     // Sources that must NOT report BC3001
     // -----------------------------------------------------------------------
 
-    private const string IncrementInButtonHandlerSource = """
+    /// <summary>
+    /// Positive case for the Html.OnClick exemption (simple increment): the mutation's nearest
+    /// enclosing lambda is the (reduced) sole argument of the Html-mirror
+    /// <c>View.OnClick(...)</c> extension call, so it must not report BC3001.
+    /// </summary>
+    private const string IncrementInHtmlOnClickHandlerSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
 
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Button("Increment", () => _count++);
+            protected override View Body => Html.Button("Increment").OnClick(() => _count++);
         }
         """;
 
-    private const string PropertyIncrementInButtonHandlerSource = """
+    /// <summary>Same exemption, but the mutation targets a property rather than a field.</summary>
+    private const string PropertyIncrementInHtmlOnClickHandlerSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
 
         public partial class Counter : ComposeComponentBase
         {
             private int Count { get; set; }
-            protected override View Body => Button("Increment", () => Count++);
+            protected override View Body => Html.Button("Increment").OnClick(() => Count++);
         }
         """;
 
     private const string HelperMutationSource = """
         using BlazorCompose;
-        using static BlazorCompose.UI;
+        using static BlazorCompose.Html;
 
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
 
-            protected override View Body => Text(MutateAndReturnText());
+            protected override View Body => Span(MutateAndReturnText());
 
             private string MutateAndReturnText()
             {
@@ -136,12 +155,13 @@ public sealed class RenderMutationAnalyzerTests
         CompoundAssignmentInTextSource,
         DecrementInTextSource,
         PropertyAssignmentInTextSource,
-        PropertyIncrementInTextSource);
+        PropertyIncrementInTextSource,
+        IncrementInHtmlIfContentLambdaSource);
 
     /// <summary>Deferred mutations (event handlers, helper methods) that must not report BC3001.</summary>
     public static TheoryData<string> MutationSourcesThatDoNotReportBC3001 { get; } = BuildTheoryData(
-        IncrementInButtonHandlerSource,
-        PropertyIncrementInButtonHandlerSource,
+        IncrementInHtmlOnClickHandlerSource,
+        PropertyIncrementInHtmlOnClickHandlerSource,
         HelperMutationSource);
 
     private static TheoryData<string> BuildTheoryData(params string[] sources)

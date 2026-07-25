@@ -212,7 +212,7 @@ public static class CompilationTestHost
             Add(path);
         }
 
-        // BlazorCompose.Runtime (provides ComposeComponentBase, View, UI)
+        // BlazorCompose.Runtime (provides ComposeComponentBase, View, Html)
         if (includeRuntime)
             Add(typeof(BlazorCompose.ComposeComponentBase).Assembly.Location);
 

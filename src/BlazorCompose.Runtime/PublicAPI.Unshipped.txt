@@ -6,18 +6,21 @@ BlazorCompose.ComposeComponentBase.ComposeComponentBase() -> void
 abstract BlazorCompose.ComposeComponentBase.Body.get -> BlazorCompose.View
 override sealed BlazorCompose.ComposeComponentBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
 abstract BlazorCompose.ComposeComponentBase.RenderBody(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
-BlazorCompose.UI
-static BlazorCompose.UI.Button(string! label, System.Action! onClick) -> BlazorCompose.View
-static BlazorCompose.UI.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCompose.View>! content) -> BlazorCompose.View
-static BlazorCompose.UI.If(bool condition, System.Func<BlazorCompose.View>! then, System.Func<BlazorCompose.View>? otherwise = null) -> BlazorCompose.View
-static BlazorCompose.UI.Text(string! content) -> BlazorCompose.View
-static BlazorCompose.UI.VStack(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
 BlazorCompose.View
 BlazorCompose.View.View() -> void
+static BlazorCompose.View.implicit operator BlazorCompose.View(string! text) -> BlazorCompose.View
 BlazorCompose.Decorations
 static BlazorCompose.Decorations.Class(this BlazorCompose.View view, string! class) -> BlazorCompose.View
+static BlazorCompose.Decorations.OnClick(this BlazorCompose.View view, System.Action! handler) -> BlazorCompose.View
 BlazorCompose.ComponentView<TComponent>
 BlazorCompose.ComponentView<TComponent>.ComponentView() -> void
 BlazorCompose.ComponentView<TComponent>.Param<TValue>(System.Func<TComponent, TValue>! selector, TValue value) -> BlazorCompose.ComponentView<TComponent>
 static BlazorCompose.ComponentView<TComponent>.implicit operator BlazorCompose.View(BlazorCompose.ComponentView<TComponent> _) -> BlazorCompose.View
-static BlazorCompose.UI.Component<TComponent>() -> BlazorCompose.ComponentView<TComponent>
+BlazorCompose.Html
+static BlazorCompose.Html.Div(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.Span(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.Button(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.Element(string! tag, params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.If(bool condition, System.Func<BlazorCompose.View>! then, System.Func<BlazorCompose.View>? otherwise = null) -> BlazorCompose.View
+static BlazorCompose.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCompose.View>! content) -> BlazorCompose.View
+static BlazorCompose.Html.Component<TComponent>() -> BlazorCompose.ComponentView<TComponent>

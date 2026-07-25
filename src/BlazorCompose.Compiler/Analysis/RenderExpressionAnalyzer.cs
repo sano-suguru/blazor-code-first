@@ -22,6 +22,14 @@ internal static class RenderExpressionAnalyzer
     {
         context.CancellationToken.ThrowIfCancellationRequested();
 
+        // Mixed content: a string-typed expression in any position (child, If branch, ForEach content)
+        // becomes a bare text node. The pre-conversion Type is String even though it converts to View.
+        if (context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type
+                is { SpecialType: SpecialType.System_String })
+        {
+            return new TextContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
+        }
+
         if (expression is not InvocationExpressionSyntax invocation)
             return null;
 
@@ -31,37 +39,52 @@ internal static class RenderExpressionAnalyzer
 
         var symbols = context.KnownSymbols;
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.TextMethod))
-        {
-            var content = invocation.ArgumentList.Arguments[0].Expression;
-            return new TextTemplateNode(ExpressionTemplateFactory.Create(content, context));
-        }
+        static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
+            known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ButtonMethod))
         {
-            var label = invocation.ArgumentList.Arguments[0].Expression;
-            var handler = invocation.ArgumentList.Arguments[1].Expression;
-            return new ButtonTemplateNode(
-                ExpressionTemplateFactory.Create(label, context),
-                ExpressionTemplateFactory.Create(handler, context));
-        }
+            string? tag =
+                Is(method, symbols.HtmlDiv) ? "div" :
+                Is(method, symbols.HtmlSpan) ? "span" :
+                Is(method, symbols.HtmlButton) ? "button" :
+                null;
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.VStackMethod))
-        {
-            var children = ImmutableArray.CreateBuilder<RenderTemplateNode>(
-                invocation.ArgumentList.Arguments.Count);
-            foreach (var argument in invocation.ArgumentList.Arguments)
+            if (tag is null && Is(method, symbols.HtmlElement))
             {
-                var child = Analyze(argument.Expression, context);
-                if (child is null)
+                var tagArg = invocation.ArgumentList.Arguments[0].Expression;
+                var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
+                if (constant is { HasValue: true, Value: string tagValue } &&
+                    !string.IsNullOrWhiteSpace(tagValue))
+                {
+                    tag = tagValue;
+                }
+                else
+                {
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
                     return null;
-                children.Add(child);
+                }
             }
 
-            return new VStackTemplateNode(children.ToImmutable());
+            if (tag is not null)
+            {
+                // Div/Span/Button: children are all args. Element: children are args[1..].
+                bool isElement = Is(method, symbols.HtmlElement);
+                var args = invocation.ArgumentList.Arguments;
+                var children = ImmutableArray.CreateBuilder<RenderTemplateNode>();
+                for (int i = isElement ? 1 : 0; i < args.Count; i++)
+                {
+                    var child = Analyze(args[i].Expression, context);
+                    if (child is null)
+                        return null;
+                    children.Add(child);
+                }
+
+                return new ElementTemplateNode(tag, default, default, children.ToImmutable());
+            }
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.IfMethod))
+        if (Is(method, symbols.HtmlIf))
         {
             var condition = invocation.ArgumentList.Arguments[0].Expression;
             var thenExpr = ExtractLambdaBody(invocation.ArgumentList.Arguments[1].Expression);
@@ -95,7 +118,7 @@ internal static class RenderExpressionAnalyzer
                 otherwiseNode);
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ForEachMethod))
+        if (Is(method, symbols.HtmlForEach))
         {
             var sourceExpression = invocation.ArgumentList.Arguments[0].Expression;
             if (!TryExtractSingleParameterLambda(
@@ -152,9 +175,9 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ComponentMethod))
+        if (Is(method, symbols.HtmlComponent))
         {
-            // Base case: UI.Component<T>() with no .Param yet.
+            // Base case: Html.Component<T>() with no .Param yet.
             var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);
         }
@@ -201,35 +224,45 @@ internal static class RenderExpressionAnalyzer
             return new ComponentTemplateNode(inner.TypeName, appended);
         }
 
-        if (symbols.ClassMethod is not null
+        bool isClass = symbols.ClassMethod is not null
             && SymbolEqualityComparer.Default.Equals(
-                (method.ReducedFrom ?? method).OriginalDefinition, symbols.ClassMethod))
+                (method.ReducedFrom ?? method).OriginalDefinition, symbols.ClassMethod);
+        bool isOnClick = symbols.OnClickMethod is not null
+            && SymbolEqualityComparer.Default.Equals(
+                (method.ReducedFrom ?? method).OriginalDefinition, symbols.OnClickMethod);
+
+        if (isClass || isOnClick)
         {
-            // Receiver of `<expr>.Class(arg)` is the member-access expression's receiver.
-            if (invocation.Expression is not MemberAccessExpressionSyntax classAccess)
+            // Receiver of `<expr>.Class(arg)`/`<expr>.OnClick(arg)` is the member-access expression's receiver.
+            if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
                 return null;
 
-            var inner = Analyze(classAccess.Expression, context);
-            // null: unanalyzable or already diagnosed (including an inner .Class that reported BC3008) —
+            var inner = Analyze(decoAccess.Expression, context);
+            // null: unanalyzable or already diagnosed (including an inner decoration that reported BC3008) —
             // propagate silently so the decoration is not double-reported.
             if (inner is null)
                 return null;
 
-            var classTemplate = ExpressionTemplateFactory.Create(
-                invocation.ArgumentList.Arguments[0].Expression, context);
+            var arg = invocation.ArgumentList.Arguments[0].Expression;
 
             switch (inner)
             {
-                case TextTemplateNode text:
-                    return text with { Classes = text.Classes.AsImmutableArray().Add(classTemplate) };
-                case ButtonTemplateNode button:
-                    return button with { Classes = button.Classes.AsImmutableArray().Add(classTemplate) };
-                case VStackTemplateNode vstack:
-                    return vstack with { Classes = vstack.Classes.AsImmutableArray().Add(classTemplate) };
+                case ElementTemplateNode e when isClass:
+                    return e with { Classes = e.Classes.AsImmutableArray().Add(ExpressionTemplateFactory.Create(arg, context)) };
+                case ElementTemplateNode e when isOnClick:
+                    return e with
+                    {
+                        Events = e.Events.AsImmutableArray().Add(new EventTemplate(
+                            ExpressionTemplate.Literal("\"onclick\""),
+                            ExpressionTemplateFactory.Create(arg, context))),
+                    };
+
                 default:
-                    // If / ForEach / composable result / component: no single element to attach to.
+                    // ElementTemplateNode is the only node with a single element frame a class/event can
+                    // attach to. Every other node — If / ForEach / composable call / component / bare text
+                    // content — has no such frame, so decorating it is always rejected.
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3008, classAccess.Name.GetLocation(), []));
+                        DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
                     return null;
             }
         }
