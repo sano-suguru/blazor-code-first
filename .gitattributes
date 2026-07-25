@@ -13,3 +13,4 @@ site/**/*.md text eol=lf
 site/**/*.txt text eol=lf
 site/**/.editorconfig text eol=lf
 site/**/_redirects text eol=lf
+*.sh text eol=lf
