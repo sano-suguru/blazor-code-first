@@ -13,3 +13,10 @@ dotnet_diagnostic.CA2007.severity = none
 # suggestion is inapplicable here and is suppressed for this directory only.
 [Pages/*.cs]
 dotnet_diagnostic.CA1515.severity = none
+
+# Layout components are referenced from MainLayout.razor by tag name, and Razor's component
+# discovery only resolves public types: making these internal (as CA1515 suggests for
+# application-only APIs) fails the build with RZ10012 and additionally trips CA1812. The analyzer
+# suggestion is therefore inapplicable to this directory.
+[Layout/*.cs]
+dotnet_diagnostic.CA1515.severity = none

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using BlazorCompose;
+using BlazorCompose.Site.Layout;
 using static BlazorCompose.Html;
 
 namespace BlazorCompose.Site.Pages;
@@ -14,6 +15,7 @@ public partial class CounterPage : ComposeComponentBase
 
     protected override View Body =>
         Div(
+            Component<DocTitle>().Param(t => t.Title, "Counter"),
             Span($"Count: {_count}"),
             If(_count >= 3, () => Span("Milestone reached")),
             Button("Increment").OnClick(() => _count++),

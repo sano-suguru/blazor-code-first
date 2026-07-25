@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+@*
+    The only Razor glue in the shell. A Compose component cannot wrap routed page content today:
+    ComposeComponentBase seals BuildRenderTree and cannot derive from LayoutComponentBase, and
+    Component<T>() cannot pass RenderFragment children. This layout therefore owns the chrome
+    skeleton and the @Body seam, while the header, nav, and footer are Compose components.
+*@
+<div class="site-shell">
+    <SiteHeader />
+    <div class="site-body">
+        <SiteNav />
+        <main class="site-main">@Body</main>
+    </div>
+    <SiteFooter />
+</div>

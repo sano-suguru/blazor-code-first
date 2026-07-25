@@ -1,4 +1,7 @@
-# Getting Started
+---
+title: Getting Started
+order: 10
+---
 
 BlazorCompose lets you write Blazor UI as plain C#. This page is itself rendered
 from Markdown, converted at build time and injected through `Html.Raw`.
