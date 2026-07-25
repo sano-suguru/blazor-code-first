@@ -46,3 +46,25 @@ dotnet run --project site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site
 
 CI regenerates and fails on drift (`git diff --exit-code`). The app build does not
 run the tool; `Docs.g.cs` is compiled as ordinary committed source.
+
+### Authoring a document
+
+Add `site/content/<slug>.md` with front matter, then regenerate the committed artifacts:
+
+````markdown
+---
+title: My Page
+order: 40
+---
+
+## First section
+````
+
+- The file name becomes the `/docs/<slug>` route, so it must match `^[a-z0-9]+(-[a-z0-9]+)*\z`
+  (lowercase words separated by single hyphens).
+- `title` and `order` are both required, and `order` must be unique across documents.
+- Do not write an h1 — the page renders the front matter `title` as the h1.
+- Link to sibling documents with `./other.md` (optionally `./other.md#section`). DocGen rewrites
+  these to SPA routes and fails the build if the target does not exist. Raw HTML `<a>` tags bypass
+  that rewrite, so use Markdown link syntax.
+- Headings h2 through h6 automatically get a permalink anchor.

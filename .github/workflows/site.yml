@@ -41,12 +41,43 @@ jobs:
       - name: Publish (static, trimmed)
         run: dotnet publish site/BlazorCompose.Site/BlazorCompose.Site.csproj -c Release
 
-      - name: Verify prerendered /docs
+      - name: Verify prerendered shell and documents
         run: |
-          f=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot/docs/index.html
-          test -f "$f"
-          grep -q 'id="installation"' "$f"
-          grep -q 'class="csharp"' "$f"
+          set -euo pipefail
+          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+
+          # Attribute order in the generated HTML is class-before-href today; match either order so
+          # a future emitter change cannot silently turn this guard into a no-op.
+          active_link() {
+            grep -qE "<a[^>]*class=\"nav-link active\"[^>]*href=\"$2\"|<a[^>]*href=\"$2\"[^>]*class=\"nav-link active\"" "$1"
+          }
+
+          # The shell must be present on every prerendered route.
+          for f in index.html counter/index.html docs/index.html; do
+            grep -q 'class="site-nav"' "$P/$f"
+          done
+
+          # Each document route is prerendered with the shell, exactly one title, its own nav link
+          # marked active, and no leftover .md link. The per-route active check is the real guard: if
+          # path normalization is wrong, every route renders the same active link.
+          for slug in getting-started elements-and-decorations control-flow; do
+            f="$P/docs/$slug/index.html"
+            test -f "$f"
+            grep -q 'class="site-nav"' "$f"
+            active_link "$f" "/docs/$slug"
+            test "$(grep -c '<title>' "$f")" = 1
+            ! grep -qE 'href="[^"]*\.md("|#|\?)' "$f"
+          done
+
+          # "/docs" activates the default (lowest order) document.
+          active_link "$P/docs/index.html" "/docs/getting-started"
+
+          # Content conversion survived the AST pass.
+          grep -q 'id="installation"' "$P/docs/getting-started/index.html"
+          grep -q 'class="csharp"' "$P/docs/getting-started/index.html"
+          grep -q 'class="headlink"' "$P/docs/control-flow/index.html"
+          grep -q 'href="/docs/control-flow"' "$P/docs/getting-started/index.html"
+          grep -q '<title>Getting Started</title>' "$P/docs/getting-started/index.html"
 
       - name: Deploy to Cloudflare Pages
         if: github.event_name != 'pull_request'
