@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BlazorCompose;
+using static BlazorCompose.Html;
 
 namespace BlazorCompose.IntegrationTests.Components;
 
@@ -8,11 +9,11 @@ public partial class StatefulKeyedListComponent : ComposeComponentBase
     private readonly List<Row> _items = [new(1, "a"), new(2, "b"), new(3, "c")];
 
     protected override View Body =>
-        Html.Div(
-            Html.ForEach(_items,
+        Div(
+            ForEach(_items,
                 key: i => i.Id,
-                content: i => Html.Component<StatefulRowComponent>().Param(r => r.Label, i.Label)),
-            Html.Button("Rotate").OnClick(Rotate));
+                content: i => Component<StatefulRowComponent>().Param(r => r.Label, i.Label)),
+            Button("Rotate").OnClick(Rotate));
 
     private void Rotate()
     {

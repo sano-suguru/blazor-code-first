@@ -87,32 +87,33 @@ HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止�
 
 ```csharp
 using BlazorCompose;
+using static BlazorCompose.Html;
 
 public partial class CounterPage : ComposeComponentBase
 {
     private int _count;
 
     protected override View Body =>
-        Html.Div(
-            Html.Span($"Count: {_count}"),
-            Html.Button("Increment").OnClick(() => _count++),
-            Html.Button("Reset").OnClick(() => _count = 0)
+        Div(
+            Span($"Count: {_count}"),
+            Button("Increment").OnClick(() => _count++),
+            Button("Reset").OnClick(() => _count = 0)
         )
         .Class("bc-counter");
 }
 ```
 
-- ファクトリは静的クラス `Html` に集約します。`Html.Div(...)` のように**修飾して呼び出す**のを推奨形とし、`using static BlazorCompose.Html;` によるグローバル展開はオプトインです(短いPascalCase名がユーザーコードの識別子と衝突しうるため、上級者向けの選択と位置付けます)。
+- ファクトリは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div(...)` のように**非修飾で呼び出す**ことです。`Article` / `Section` のような要素名がドメイン型やジェネリック引数と衝突するファイルに限り、衝突する呼び出しだけを `Html.Div(...)` のように修飾するエスケープハッチとして残します。
 - `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも任意タグ用の `Html.Element(string tag, ...)` の名前付き別名として実装され、同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBC3009で診断されます)。現行実装のcuratedヘルパーは `Div` / `Span` / `Button` / `Element` の4種で、`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` 等の拡充は次段階(RM2、§9)で加えます。
-- 要素は文字列と `View` を**混在**して子に取ります(`params ReadOnlySpan<View>`)。生の文字列引数は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` ファクトリは持ちません。テキストのみを明示的に囲みたい場合は `Html.Span("...")` を使います。
+- 要素は文字列と `View` を**混在**して子に取ります(`params ReadOnlySpan<View>`)。生の文字列引数は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` ファクトリは持ちません。テキストのみを明示的に囲みたい場合は `Span("...")` を使います。
 - 属性・イベントは要素本体への引数ではなく、**装飾チェーン**(postfix fluent)で与えます。`.Class(string)` は単一の `class` 属性へ畳み込まれ(チェーンで複数回指定可能)、`.OnClick(handler)` は `onclick` イベントとして発行されます。汎用 `.Attr(name, value)`・汎用 `.On(eventName, handler)`・型付き属性ショートカット(`.Href` / `.Src` 等)は次段階(RM2、§9)で加えます。
 - 装飾チェーンがpostfix fluentである点は、同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)とは異なります。これは系譜への準拠を意図したものではなく、既存の `.Class` 機構の継続とC#のfluentイディオムを優先した意図的な選択です。
 - 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノード+文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、HTML妥当性レベル(void要素が子を持てない、属性が当該要素に適用可能か等)の検査は含みません。
 - `View` はすべてのファクトリ・装飾メソッドが返す軽量なマーカー型(空の `readonly struct`)です。式は通常のC#として型検査されますが、実行時に評価されることはなく、Source Generatorが式ツリーを直接レンダリングコードへ変換します。
 - 状態(`_count`)への参照や補間文字列、イベントラムダは、生成コードへ構文ごと移植されます(同一partialクラス内のため、privateメンバーへのアクセスも保たれます)。
-- **casingの限界**: C#のメソッド名はPascalCase、HTMLタグ名は小文字であるため、`Html.Div` は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
+- **casingの限界**: C#のメソッド名はPascalCase、HTMLタグ名は小文字であるため、`Div`(修飾形では `Html.Div`)は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
 
-かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorComposeにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Html.Div(...).Class("row")` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` が加わる段階(RM2、§9)では `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、`.Attr` はRM1時点では未実装であり、現行APIでは使用できません。`Text()` ファクトリの廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#メソッドとして写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
+かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorComposeにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div(...).Class("row")` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` が加わる段階(RM2、§9)では `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、`.Attr` はRM1時点では未実装であり、現行APIでは使用できません。`Text()` ファクトリの廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#メソッドとして写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
 
 ### 4.2 リストと条件分岐の表現
 
@@ -124,22 +125,22 @@ public partial class TaskListPage : ComposeComponentBase
     private readonly List<TaskItem> _items = [];
 
     protected override View Body =>
-        Html.Div(
-            Html.Span("Tasks"),
+        Div(
+            Span("Tasks"),
 
-            Html.If(_items.Count == 0,
-                then: () => Html.Span("No tasks yet").Class("empty"),
-                otherwise: () => Html.ForEach(_items,
+            If(_items.Count == 0,
+                then: () => Span("No tasks yet").Class("empty"),
+                otherwise: () => ForEach(_items,
                     key: t => t.Id,
                     content: item =>
-                        Html.Div(
-                            Html.Span(item.Title)
+                        Div(
+                            Span(item.Title)
                         )
                         .Class(item.Done ? "task done" : "task")
                 )
             ),
 
-            Html.Button("Add Task").OnClick(AddItem)
+            Button("Add Task").OnClick(AddItem)
         );
 
     private void AddItem() => _items.Add(new TaskItem("New task"));
@@ -156,15 +157,15 @@ UIの部分は `[Composable]` 属性を付与した静的メソッドに抽出�
 
 ```csharp
 protected override View Body =>
-    Html.Div(
+    Div(
         Header("My Application"),   // [Composable] メソッド — 静的展開の対象
         BodyContent()
     );
 
 [Composable]
 private static View Header(string title) =>
-    Html.Div(
-        Html.Span(title)
+    Div(
+        Span(title)
     )
     .Class("app-header");
 ```
@@ -189,12 +190,12 @@ public partial class CounterPage
 {
     protected override void RenderBody(RenderTreeBuilder __b)
     {
-        __b.OpenElement(0, "div");                                    // Html.Div + .Class
+        __b.OpenElement(0, "div");                                    // Div + .Class
         __b.AddAttribute(1, "class", "bc-counter");
-        __b.OpenElement(2, "span");                                   // Html.Span (mixed content)
+        __b.OpenElement(2, "span");                                   // Span (mixed content)
         __b.AddContent(3, $"Count: {_count}");                        // 状態参照は構文ごと移植
         __b.CloseElement();
-        __b.OpenElement(4, "button");                                 // Html.Button + .OnClick
+        __b.OpenElement(4, "button");                                 // Button + .OnClick
         __b.AddAttribute(5, "onclick",
             EventCallback.Factory.Create(this, () => _count++));      // ラムダも移植
         __b.AddContent(6, "Increment");
@@ -274,7 +275,7 @@ public static partial class Widgets
 {
     [Composable]
     public static View StatusBadge(Status status) =>
-        Html.Span(status.Label)
+        Span(status.Label)
             .Class(status.IsHealthy ? "badge badge-ok" : "badge badge-alert");
 }
 ```
@@ -285,9 +286,9 @@ public static partial class Widgets
 
 ```csharp
 protected override View Body =>
-    Html.Div(
-        Html.Span("Data Grid"),
-        Html.Component<MudDataGrid<Order>>()
+    Div(
+        Span("Data Grid"),
+        Component<MudDataGrid<Order>>()
             .Param(g => g.Items, _orders)
             .Param(g => g.Dense, true)
     );

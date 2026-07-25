@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BlazorCompose;
+using static BlazorCompose.Html;
 
 namespace BlazorCompose.IntegrationTests.Components;
 
@@ -8,9 +9,9 @@ public partial class KeyedListComponent : ComposeComponentBase
     private readonly List<Row> _items = [new(1, "one"), new(2, "two"), new(3, "three")];
 
     protected override View Body =>
-        Html.Div(
-            Html.ForEach(_items, key: r => r.Id, content: r => Html.Span(r.Label)),
-            Html.Button("Rotate").OnClick(Rotate));
+        Div(
+            ForEach(_items, key: r => r.Id, content: r => Span(r.Label)),
+            Button("Rotate").OnClick(Rotate));
 
     private void Rotate()
     {
