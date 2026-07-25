@@ -74,4 +74,55 @@ public sealed class KeyabilityResolverTests
 
         Assert.Empty(sink);
     }
+
+    [Fact]
+    public void ResolveRootKind_Fragment_IsRegion()
+    {
+        var node = new FragmentTemplateNode(
+            ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+    }
+
+    [Fact]
+    public void ResolveRootKind_RawMarkup_IsRegion()
+    {
+        var node = new RawMarkupTemplateNode(Lit("\"<b>x</b>\""));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+    }
+
+    [Fact]
+    public void CollectForEachContentDiagnostics_FragmentContentRoot_EmitsBc3003()
+    {
+        // ForEach whose content root is a Fragment (non-keyable) — even wrapping a single Div.
+        var forEach = new ForEachTemplateNode(
+            Lit("_xs"), Lit("__bc_item_0.Id"),
+            new FragmentTemplateNode(ImmutableArray.Create<RenderTemplateNode>(
+                new ElementTemplateNode("div", default, default, default,
+                    ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\"")))))),
+            new TemplateLocation("f", default, default));
+
+        var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
+        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ComposableRegistry.Empty, sink);
+
+        Assert.Contains(sink, d => d.Id == "BC3003");
+    }
+
+    [Fact]
+    public void CollectForEachContentDiagnostics_ForEachNestedInFragment_IsWalked()
+    {
+        // A Fragment child that itself holds a region-rooted ForEach must still surface BC3003 — proves the
+        // walker recurses into Fragment children.
+        var innerForEach = new ForEachTemplateNode(
+            Lit("_ys"), Lit("__bc_item_1.Id"),
+            new IfTemplateNode(Lit("true"), Span(Lit("\"y\"")), null),
+            new TemplateLocation("f", default, default));
+        var root = new ElementTemplateNode("div", default, default, default,
+            ImmutableArray.Create<RenderTemplateNode>(
+                new FragmentTemplateNode(ImmutableArray.Create<RenderTemplateNode>(innerForEach))));
+
+        var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
+        KeyabilityResolver.CollectForEachContentDiagnostics(root, ComposableRegistry.Empty, sink);
+
+        Assert.Contains(sink, d => d.Id == "BC3003");
+    }
 }

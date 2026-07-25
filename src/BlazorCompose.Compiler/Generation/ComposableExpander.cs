@@ -170,6 +170,24 @@ internal static class ComposableExpander
                         children.ToImmutable());
                 }
 
+            case RawMarkupTemplateNode raw:
+                return new RawMarkupNode(raw.Content.Substitute(substitution));
+
+            case FragmentTemplateNode fragment:
+                {
+                    var children = ImmutableArray.CreateBuilder<RenderNode>(fragment.Children.Length);
+                    foreach (var child in fragment.Children.AsImmutableArray())
+                    {
+                        var expanded = ExpandNode(
+                            child, substitution, ref nextLogicalPreorderOrdinal,
+                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
+                        if (expanded is null)
+                            return null;
+                        children.Add(expanded);
+                    }
+                    return new FragmentNode(children.ToImmutable());
+                }
+
             case ComposableCallTemplateNode call:
                 return ExpandCall(
                     call,
@@ -182,7 +200,8 @@ internal static class ComposableExpander
                     diagnostics);
 
             default:
-                return null;
+                throw new NotSupportedException(
+                    $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
         }
     }
 
@@ -346,7 +365,8 @@ internal static class ComposableExpander
     /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent — its composable body's root
     /// is the real frame — so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
     /// <see cref="ElementNode"/>) are keyable; region-rooted nodes (<see cref="IfNode"/>,
-    /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) are not.
+    /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) and wrapper-less nodes
+    /// (<see cref="FragmentNode"/>, <see cref="RawMarkupNode"/>) are not.
     /// </summary>
     private static bool IsKeyableRoot(RenderNode node) => node switch
     {

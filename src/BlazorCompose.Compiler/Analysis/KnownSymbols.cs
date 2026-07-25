@@ -104,6 +104,12 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, or null.</summary>
     public IMethodSymbol? HtmlComponent { get; }
 
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Raw(string)</c>, or null.</summary>
+    public IMethodSymbol? HtmlRaw { get; }
+
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Fragment(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    public IMethodSymbol? HtmlFragment { get; }
+
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
         ViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.View");
@@ -172,6 +178,8 @@ internal sealed class KnownSymbols
                 case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
                 case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
                 case "Component" when method.Arity == 1 && method.Parameters.Length == 0: HtmlComponent = method; break;
+                case "Raw" when method.Parameters.Length == 1: HtmlRaw = method; break;
+                case "Fragment" when method.Parameters.Length == 1: HtmlFragment = method; break;
                 default:
                     if (CuratedTags.TryGetValue(method.Name, out var tag))
                         elementTags[Normalize(method)] = tag;

@@ -1,0 +1,35 @@
+using BlazorCompose.IntegrationTests.Components;
+using Bunit;
+
+namespace BlazorCompose.IntegrationTests;
+
+public sealed class RawFragmentRenderingTests : BunitContext
+{
+    [Fact]
+    public void Raw_InjectsMarkupVerbatim_IntoMainPanel()
+    {
+        var cut = Render<RawFragmentShellComponent>();
+
+        // The Raw HTML materializes as real DOM inside <main>, including its inner <em>.
+        Assert.Equal("world", cut.Find("main em").TextContent);
+        Assert.Contains("Hello", cut.Find("main").TextContent);
+    }
+
+    [Fact]
+    public void Fragment_EmitsChildrenAsSiblings_WithNoWrapperElement()
+    {
+        var cut = Render<RawFragmentShellComponent>();
+
+        // The fragment's h2 and p are DIRECT children of the outer div (the child combinator `div > …`
+        // matches only if no wrapper element was emitted for the fragment). The raw markdown's own <p>
+        // lives under <main>, so `div > p` uniquely selects the fragment's "Body" paragraph.
+        Assert.Equal("Section", cut.Find("div > h2").TextContent);
+        Assert.Equal("Body", cut.Find("div > p").TextContent);
+
+        // Proof of wrapper-less emission that also rules out a <div>-shaped wrapper (which `div > h2`
+        // alone would not catch): the outer shell div must have exactly 5 direct element children —
+        // nav, header, main, and the fragment's h2 + p as direct siblings. Any interposed wrapper
+        // element (of any tag) around the fragment's children would change this count.
+        Assert.Equal(5, cut.Find("div").ChildElementCount);
+    }
+}

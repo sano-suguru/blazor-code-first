@@ -45,6 +45,12 @@ internal static class SequenceAllocator
         // AddContent = 1 call; no wrapping element.
         TextContentNode => 1,
 
+        // Fragment: no wrapping element; width is the sum of children (like ExpansionNode without locals).
+        FragmentNode { Children: var children } => children.Sum(Width),
+
+        // AddMarkupContent = 1 call; no wrapping element (mirrors TextContentNode's AddContent = 1).
+        RawMarkupNode => 1,
+
         _ => throw new NotSupportedException(
             $"Unknown RenderNode type '{node.GetType().Name}'; add a Width case for it."),
     };

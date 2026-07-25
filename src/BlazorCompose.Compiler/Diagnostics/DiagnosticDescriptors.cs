@@ -90,7 +90,9 @@ internal static class DiagnosticDescriptors
             "A ForEach key is applied to the content's root element or component frame. When the content " +
             "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
             "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
-            "required key cannot be applied. Wrap the content in a container element such as Html.Div(...).");
+            "required key cannot be applied. A Fragment (wrapper-less grouping) and Raw (raw markup) also " +
+            "open no single keyable frame; make the content a single element or component. Wrap the content " +
+            "in a container element such as Html.Div(...).");
 
     /// <summary>
     /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderBody
@@ -180,22 +182,22 @@ internal static class DiagnosticDescriptors
     /// <summary>
     /// BC3008: A decoration (<c>.Class</c>/<c>.Attr</c>/a named attribute shortcut/<c>.OnClick</c>/<c>.On</c>)
     /// was applied to a node that does not open a single HTML element (an <c>If</c>/<c>ForEach</c> region
-    /// root, or a <c>[Composable]</c>/Component call result). Decorations fold into the attributes of the
-    /// element opened by an Html element helper or <c>Html.Element</c>, so there must be such an element to
-    /// attach to.
+    /// root, a <c>Fragment</c>/<c>Raw</c> wrapper-less node, or a <c>[Composable]</c>/Component call result).
+    /// Decorations fold into the attributes of the element opened by an Html element helper or
+    /// <c>Html.Element</c>, so there must be such an element to attach to.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3008 = new(
         id: "BC3008",
         title: "Decoration target must be a single element",
-        messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, or a [Composable]/Component result",
+        messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, Fragment, Raw, or a [Composable]/Component result",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "A decoration folds into the owning element's attributes, so it can only be applied to a node " +
             "that opens a single HTML element (an Html element helper or Html.Element). Applying it to a " +
-            "region-rooted node (If, ForEach) or a [Composable]/Component result has no element to attach " +
-            "to. Decorate a concrete element instead.");
+            "region-rooted or wrapper-less node (If, ForEach, Fragment, Raw) or a " +
+            "[Composable]/Component result has no element to attach to. Decorate a concrete element instead.");
 
     /// <summary>
     /// BC3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time

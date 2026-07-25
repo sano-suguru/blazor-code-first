@@ -55,3 +55,9 @@ internal sealed record ElementNode(
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>
 internal sealed record TextContentNode(ExpressionTemplate Content) : RenderNode;
+
+/// <summary>A wrapper-less group: mixed children emitted in sequence with no enclosing element.</summary>
+internal sealed record FragmentNode(EquatableArray<RenderNode> Children = default) : RenderNode;
+
+/// <summary>Trusted raw HTML emitted with AddMarkupContent (no wrapping element).</summary>
+internal sealed record RawMarkupNode(ExpressionTemplate Content) : RenderNode;

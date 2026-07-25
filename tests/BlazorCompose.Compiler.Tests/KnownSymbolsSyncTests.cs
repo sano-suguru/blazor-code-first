@@ -7,7 +7,7 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class KnownSymbolsSyncTests
 {
     // Structural Html members that are NOT curated element tags.
-    private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component"];
+    private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component", "Fragment", "Raw"];
 
     [Fact]
     public void ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural()
@@ -47,6 +47,20 @@ public sealed class KnownSymbolsSyncTests
         Assert.Equal(2, symbols.OnMethods.Count);
         // .OnClick(Action) and .OnClick(Func<Task>) both map to "onclick" => 2 EventShortcuts entries.
         Assert.Equal(2, symbols.EventShortcuts.Count(kvp => kvp.Value == "onclick"));
+    }
+
+    [Fact]
+    public void Raw_IsResolved()
+    {
+        var (symbols, _) = ResolveHtml();
+        Assert.NotNull(symbols.HtmlRaw);
+    }
+
+    [Fact]
+    public void Fragment_IsResolved()
+    {
+        var (symbols, _) = ResolveHtml();
+        Assert.NotNull(symbols.HtmlFragment);
     }
 
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()

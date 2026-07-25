@@ -67,6 +67,8 @@ internal static class RenderBodyEmitter
             ComponentNode component => EmitComponent(writer, component, startSeq, key),
             ElementNode element => EmitElement(writer, element, startSeq, key),
             TextContentNode text => EmitTextContent(writer, text, startSeq),
+            FragmentNode fragment => EmitFragment(writer, fragment, startSeq, key),
+            RawMarkupNode raw => EmitRawMarkup(writer, raw, startSeq, key),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
@@ -212,6 +214,24 @@ internal static class RenderBodyEmitter
     private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)
     {
         writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
+        return seq + 1;
+    }
+
+    private static int EmitFragment(IndentedWriter writer, FragmentNode node, int seq, string? key = null)
+    {
+        // A fragment is non-keyable (BC3003 blocks it as a ForEach content root), so a threaded key would be
+        // silently dropped — fail fast, mirroring EmitIf/EmitForEach.
+        Debug.Assert(key is null, $"{nameof(EmitFragment)} does not support a threaded key; SetKey would be silently dropped.");
+        int next = seq;
+        foreach (var child in node.Children)
+            next = EmitNode(writer, child, next);
+        return seq + SequenceAllocator.Width(node);
+    }
+
+    private static int EmitRawMarkup(IndentedWriter writer, RawMarkupNode node, int seq, string? key = null)
+    {
+        Debug.Assert(key is null, $"{nameof(EmitRawMarkup)} does not support a threaded key; SetKey would be silently dropped.");
+        writer.AppendLine($"__builder.AddMarkupContent({seq}, {node.Content.ToCode()});");
         return seq + 1;
     }
 

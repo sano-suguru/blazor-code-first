@@ -224,4 +224,22 @@ public sealed class SequenceAllocatorTests
         // 1 (OpenElement) + 1 class + 1 attr + 1 event + 1 child = 5
         Assert.Equal(5, SequenceAllocator.Width(node));
     }
+
+    [Fact]
+    public void SequenceAllocator_RawMarkup_HasWidthOne() =>
+        Assert.Equal(1, SequenceAllocator.Width(new RawMarkupNode(ExpressionTemplate.Literal("\"<b>x</b>\""))));
+
+    [Fact]
+    public void SequenceAllocator_EmptyFragment_HasWidthZero() =>
+        Assert.Equal(0, SequenceAllocator.Width(new FragmentNode(ImmutableArray<RenderNode>.Empty)));
+
+    [Fact]
+    public void SequenceAllocator_Fragment_SumsChildWidths()
+    {
+        // two span children, each width 2 (OpenElement + AddContent) => 4.
+        var node = new FragmentNode(ImmutableArray.Create<RenderNode>(
+            Span(ExpressionTemplate.Literal("\"a\"")),
+            Span(ExpressionTemplate.Literal("\"b\""))));
+        Assert.Equal(4, SequenceAllocator.Width(node));
+    }
 }
