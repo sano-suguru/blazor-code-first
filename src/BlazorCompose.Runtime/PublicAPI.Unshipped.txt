@@ -12,6 +12,17 @@ static BlazorCompose.View.implicit operator BlazorCompose.View(string! text) -> 
 BlazorCompose.Decorations
 static BlazorCompose.Decorations.Class(this BlazorCompose.View view, string! class) -> BlazorCompose.View
 static BlazorCompose.Decorations.OnClick(this BlazorCompose.View view, System.Action! handler) -> BlazorCompose.View
+static BlazorCompose.Decorations.Href(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Src(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Alt(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Id(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Type(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Title(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Role(this BlazorCompose.View view, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.Attr(this BlazorCompose.View view, string! name, string! value) -> BlazorCompose.View
+static BlazorCompose.Decorations.On(this BlazorCompose.View view, string! eventName, System.Action! handler) -> BlazorCompose.View
+static BlazorCompose.Decorations.On(this BlazorCompose.View view, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCompose.View
+static BlazorCompose.Decorations.OnClick(this BlazorCompose.View view, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCompose.View
 BlazorCompose.ComponentView<TComponent>
 BlazorCompose.ComponentView<TComponent>.ComponentView() -> void
 BlazorCompose.ComponentView<TComponent>.Param<TValue>(System.Func<TComponent, TValue>! selector, TValue value) -> BlazorCompose.ComponentView<TComponent>
