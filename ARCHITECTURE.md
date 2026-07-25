@@ -107,6 +107,8 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderBody:
 
 `FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、文字列子を1つ持つ `Span`(`Span("...")`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
 
+`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008、詳細は§2.7(B)と付録A)。
+
 ### 2.3 静的シーケンス可能サブセット(SSC)
 
 任意のC#コードに対して条件(2)の `σ` を構成することはできません(呼び出しグラフが実行時にのみ確定するため)。解析の適用範囲を次の3階層に分類します:
@@ -228,7 +230,9 @@ foreach (var item in _items)
 __b.CloseRegion();
 ```
 
-`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
+`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BC3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
+
+この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderBodyEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。
 
 入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
 
@@ -392,12 +396,12 @@ public closed union ViewNode
 | BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる          |
 | BC3001 | Error   | 現行実装では `Body` 本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
-| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach` 等)。内側を容器要素で包む(例: `Div(...)`)必要がある |
+| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div(...)`)必要がある |
 | BC3004 | Error   | `ForEach` の `content`/`key` がインライン式ラムダでない(ブロック本体ラムダ/メソッドグループ等)ため静的解析できない |
 | BC3005 | Error   | `Component<T>().Param` のセレクタが単純なプロパティ選択(`c => c.Prop`)でない(キャスト/メソッド呼び出し/捕捉変数のメンバー等) |
 | BC3006 | Error   | `Component<T>().Param` の対象が settable な `[Parameter]` プロパティでない(実行時 throw を防ぐためコンパイル時に拒否) |
 | BC3007 | Error   | `Component<T>().Param` のチェーンが同一プロパティを複数回バインドしている(Blazorは最後の値のみ適用するため重複はコンパイル時に拒否) |
-| BC3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外(`If`/`ForEach`/`[Composable]`結果/`Component`)に適用されている |
+| BC3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`)に適用されている |
 | BC3009 | Error   | `Element` のタグ引数が非空のコンパイル時定数文字列でない(宣言性・予測可能性のため) |
 | BC3010 | Error   | 同一要素上で属性またはイベントが複数回バインドされている(Blazorは後勝ちで前を黙って捨てるため重複を拒否)。畳み込まれる `class` のみ例外 |
 | BC3011 | Error   | `.Attr` の名前 / `.On` のイベント名が非空のコンパイル時定数文字列でない(宣言性・タイポ検査・class畳み込み判定・重複検出の前提) |
