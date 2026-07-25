@@ -173,6 +173,21 @@ internal static class ComposableExpander
             case RawMarkupTemplateNode raw:
                 return new RawMarkupNode(raw.Content.Substitute(substitution));
 
+            case FragmentTemplateNode fragment:
+                {
+                    var children = ImmutableArray.CreateBuilder<RenderNode>(fragment.Children.Length);
+                    foreach (var child in fragment.Children.AsImmutableArray())
+                    {
+                        var expanded = ExpandNode(
+                            child, substitution, ref nextLogicalPreorderOrdinal,
+                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
+                        if (expanded is null)
+                            return null;
+                        children.Add(expanded);
+                    }
+                    return new FragmentNode(children.ToImmutable());
+                }
+
             case ComposableCallTemplateNode call:
                 return ExpandCall(
                     call,
@@ -185,7 +200,8 @@ internal static class ComposableExpander
                     diagnostics);
 
             default:
-                return null;
+                throw new NotSupportedException(
+                    $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
         }
     }
 

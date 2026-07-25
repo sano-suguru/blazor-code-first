@@ -56,6 +56,13 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotNull(symbols.HtmlRaw);
     }
 
+    [Fact]
+    public void Fragment_IsResolved()
+    {
+        var (symbols, _) = ResolveHtml();
+        Assert.NotNull(symbols.HtmlFragment);
+    }
+
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()
     {
         var compilation = CompilationTestHost.CreateCompilation("");

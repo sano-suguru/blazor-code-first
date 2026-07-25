@@ -68,17 +68,11 @@ internal static class RenderExpressionAnalyzer
             {
                 // Div/Span/Button: children are all args. Element: children are args[1..].
                 bool isElement = Is(method, symbols.HtmlElement);
-                var args = invocation.ArgumentList.Arguments;
-                var children = ImmutableArray.CreateBuilder<RenderTemplateNode>();
-                for (int i = isElement ? 1 : 0; i < args.Count; i++)
-                {
-                    var child = Analyze(args[i].Expression, context);
-                    if (child is null)
-                        return null;
-                    children.Add(child);
-                }
+                var kids = AnalyzeChildren(invocation.ArgumentList.Arguments, isElement ? 1 : 0, context);
+                if (kids is null)
+                    return null;
 
-                return new ElementTemplateNode(tag, default, default, default, children.ToImmutable());
+                return new ElementTemplateNode(tag, default, default, default, kids.Value);
             }
         }
 
@@ -184,6 +178,14 @@ internal static class RenderExpressionAnalyzer
         {
             var arg = invocation.ArgumentList.Arguments[0].Expression;
             return new RawMarkupTemplateNode(ExpressionTemplateFactory.Create(arg, context));
+        }
+
+        if (Is(method, symbols.HtmlFragment))
+        {
+            var children = AnalyzeChildren(invocation.ArgumentList.Arguments, startIndex: 0, context);
+            if (children is null)
+                return null;
+            return new FragmentTemplateNode(children.Value);
         }
 
         if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod))
@@ -370,6 +372,22 @@ internal static class RenderExpressionAnalyzer
                 return true;
         }
         return false;
+    }
+
+    /// <summary>Analyzes the argument list from <paramref name="startIndex"/> onward into child template
+    /// nodes, returning null if any child cannot be statically analyzed (propagated as translation failure).</summary>
+    private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
+        SeparatedSyntaxList<ArgumentSyntax> args, int startIndex, ComposableBodyContext context)
+    {
+        var children = ImmutableArray.CreateBuilder<RenderTemplateNode>();
+        for (int i = startIndex; i < args.Count; i++)
+        {
+            var child = Analyze(args[i].Expression, context);
+            if (child is null)
+                return null;
+            children.Add(child);
+        }
+        return children.ToImmutable();
     }
 
     private static bool TryGetConstantName(
