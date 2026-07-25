@@ -66,7 +66,13 @@ jobs:
             grep -q 'class="site-nav"' "$f"
             active_link "$f" "/docs/$slug"
             test "$(grep -c '<title>' "$f")" = 1
-            ! grep -qE 'href="[^"]*\.md("|#|\?)' "$f"
+            # Must be an if/exit, not `! grep ...`: under `set -e` a negated command is exempt from
+            # errexit (POSIX), and this is not the script's last command, so a leftover .md link
+            # would be detected and then silently ignored.
+            if grep -qE 'href="[^"]*\.md("|#|\?)' "$f"; then
+              echo "::error::$f still contains an un-rewritten .md link" >&2
+              exit 1
+            fi
           done
 
           # "/docs" activates the default (lowest order) document.
