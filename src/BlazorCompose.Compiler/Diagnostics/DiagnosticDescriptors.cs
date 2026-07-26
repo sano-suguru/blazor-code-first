@@ -9,17 +9,25 @@ namespace BlazorCompose.Compiler.Diagnostics;
 internal static class DiagnosticDescriptors
 {
     /// <summary>
-    /// BC1001: A class deriving from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>)
-    /// must be declared <c>partial</c> so the source generator can emit the <c>RenderView</c> override.
+    /// BC1001: A class that declares the design-time expression override (<c>Body</c> on
+    /// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) must be declared
+    /// <c>partial</c> so the source generator can emit the <c>RenderView</c> override into the same class.
+    /// A class that only inherits a Compose base without declaring the override has nothing generated
+    /// into it and is not reported.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1001 = new(
         id: "BC1001",
-        title: "Compose base subclass must be partial",
-        messageFormat: "'{0}' derives from {1} but is not declared partial; add the partial modifier",
+        title: "Class declaring a design-time expression must be partial",
+        messageFormat: "'{0}' declares the {1} design-time expression of {2} but is not declared partial; add the partial modifier",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Classes that derive from a Compose base (ComposeComponentBase or ComposeLayoutBase) must be declared partial so the source generator can emit the RenderView override.");
+        description:
+            "A class that declares the design-time expression override (Body on ComposeComponentBase, " +
+            "Chrome on ComposeLayoutBase) must be declared partial so the source generator can emit the " +
+            "RenderView override into the same class. A class that only inherits a Compose base without " +
+            "declaring the override — an intermediate abstract base, a leaf whose base already declares " +
+            "it, or a re-abstraction — has nothing generated into it and needs no partial modifier.");
 
     /// <summary>
     /// BC1002: A <c>[Composable]</c> method does not satisfy the source generator's supported

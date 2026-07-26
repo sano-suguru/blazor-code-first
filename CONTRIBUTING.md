@@ -82,9 +82,9 @@ Enable the shared pre-push hook once per clone so this runs automatically:
   exclusive branches disjoint ranges.
 - **`ForEach` requires a key that represents item identity.** Sequence numbers
   identify template positions; keys identify data instances.
-- Classes deriving from a Compose base (`ComposeComponentBase` or
-  `ComposeLayoutBase`) must be `partial` so the generator can emit
-  `RenderView` (otherwise `BC1001`).
+- Classes that **declare the design-time expression override** (`Body` or
+  `Chrome`) must be `partial` so the generator can emit `RenderView`
+  (otherwise `BC1001`). Merely inheriting a Compose base does not require it.
 - `Body`, `Chrome`, factory APIs, and decorators are inert design-time
   constructs. The design-time expression (`ComposeComponentBase.Body` or
   `ComposeLayoutBase.Chrome`) must not be evaluated at runtime or mutate
