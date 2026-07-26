@@ -2409,10 +2409,11 @@ public sealed class GeneratorTests
             }
             """;
 
-        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.AddContent(1, MakeHeader());", generated);
-        // and: no BC1003 reported
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
     }
 
     [Fact]
@@ -2500,8 +2501,11 @@ public sealed class GeneratorTests
 
         var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
 
+        Assert.Contains(
+            "global::Microsoft.AspNetCore.Components.RenderFragment __bc_arg_0_0 = Slot;",
+            generated);
         Assert.Contains("__builder.OpenElement(0, \"div\");", generated);
-        Assert.Contains("Slot", generated);
+        Assert.Contains("__builder.AddContent(1, __bc_arg_0_0);", generated);
     }
 
     /// <summary>

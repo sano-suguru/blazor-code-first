@@ -82,11 +82,13 @@ Enable the shared pre-push hook once per clone so this runs automatically:
   exclusive branches disjoint ranges.
 - **`ForEach` requires a key that represents item identity.** Sequence numbers
   identify template positions; keys identify data instances.
-- Components deriving from `ComposeComponentBase` must be `partial` so the
-  generator can emit `RenderView` (otherwise `BC1001`).
-- `Body`, factory APIs, and decorators are inert design-time constructs. `Body`
-  must not be evaluated at runtime or mutate state; state mutation in `Body` is
-  reported as `BC3001`.
+- Classes deriving from a Compose base (`ComposeComponentBase` or
+  `ComposeLayoutBase`) must be `partial` so the generator can emit
+  `RenderView` (otherwise `BC1001`).
+- `Body`, `Chrome`, factory APIs, and decorators are inert design-time
+  constructs. The design-time expression (`ComposeComponentBase.Body` or
+  `ComposeLayoutBase.Chrome`) must not be evaluated at runtime or mutate
+  state; state mutation inside it is reported as `BC3001`.
 - Preserve one-way flow: event dispatch precedes state mutation, which precedes
   rendering and DOM diff application.
 - Keep the SSC path free of runtime UI trees, reflection, and runtime

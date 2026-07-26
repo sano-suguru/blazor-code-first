@@ -92,9 +92,8 @@ internal static class DiagnosticDescriptors
             "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
             "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
             "required key cannot be applied. A Fragment (wrapper-less grouping), Raw (raw markup), and an " +
-            "externally supplied RenderFragment placed as content also open no single keyable frame; make " +
-            "the content a single element or component. Wrap the content " +
-            "in a container element such as Html.Div(...).");
+            "externally supplied RenderFragment placed as content also open no single keyable frame. Wrap " +
+            "the content in a container element such as Html.Div(...).");
 
     /// <summary>
     /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderView

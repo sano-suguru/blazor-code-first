@@ -1,20 +1,22 @@
 namespace BlazorCompose;
 
 /// <summary>
-/// A design-time-only marker for a node in a <see cref="ComposeComponentBase.Body"/> expression.
+/// A design-time-only marker for a node in a Compose design-time expression
+/// (<see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>).
 /// </summary>
 /// <remarks>
 /// <see cref="View"/> is inert syntax analyzed by the BlazorCompose source generator, not a runtime UI
-/// value. It carries no state and is never rendered directly; the generator translates the
-/// <c>Body</c> expression that produces it into a <c>RenderView</c> override. Instances observed at
-/// runtime are always the default value and must not be inspected or acted upon.
+/// value. It carries no state and is never rendered directly; the generator translates the design-time
+/// expression (<c>Body</c> or <c>Chrome</c>) that produces it into a <c>RenderView</c> override.
+/// Instances observed at runtime are always the default value and must not be inspected or acted upon.
 /// </remarks>
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Usage",
     "CA2225:Operator overloads have named alternates",
-    Justification = "The string conversion mirrors the Html factories: it is inert design-time syntax " +
-        "read by the source generator (a string argument in element content becomes a text node) and " +
-        "always yields the default View at runtime, so a named alternate would misleadingly imply work.")]
+    Justification = "Both conversions (string, RenderFragment?) mirror the Html factories: they are inert " +
+        "design-time syntax read by the source generator (a string argument in element content becomes a " +
+        "text node; a RenderFragment argument becomes an AddContent call) and always yield the default " +
+        "View at runtime, so a named alternate would misleadingly imply work.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
@@ -30,9 +32,11 @@ public readonly struct View
     public static implicit operator View(string text) => default;
 
     /// <summary>
-    /// Design-time syntax letting an externally supplied <see cref="Microsoft.AspNetCore.Components.RenderFragment"/> appear as element
-    /// content. Inert: the generator reads the original expression and emits
-    /// <c>RenderTreeBuilder.AddContent(sequence, fragment)</c>; at runtime this always yields the default View.
+    /// Design-time syntax letting an externally supplied
+    /// <see cref="Microsoft.AspNetCore.Components.RenderFragment"/> appear as element content. Inert:
+    /// the generator reads the original expression and emits
+    /// <c>RenderTreeBuilder.AddContent(sequence, fragment)</c>; at runtime this always yields the
+    /// default View.
     /// </summary>
     /// <remarks>
     /// The parameter is nullable because null is the normal case — an unset

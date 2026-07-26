@@ -369,7 +369,8 @@ internal static class ComposableExpander
     /// is the real frame — so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
     /// <see cref="ElementNode"/>) are keyable; region-rooted nodes (<see cref="IfNode"/>,
     /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) and wrapper-less nodes
-    /// (<see cref="FragmentNode"/>, <see cref="RawMarkupNode"/>) are not.
+    /// (<see cref="FragmentNode"/>, <see cref="RawMarkupNode"/>, <see cref="RenderFragmentContentNode"/>)
+    /// are not.
     /// </summary>
     private static bool IsKeyableRoot(RenderNode node) => node switch
     {
