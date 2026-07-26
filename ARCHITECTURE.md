@@ -232,7 +232,7 @@ __b.CloseRegion();
 
 `SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BC3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
 
-この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。
+この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` / `RenderFragmentContentTemplateNode`(外部由来の `RenderFragment?` を `AddContent(seq, RenderFragment?)` としてそのまま発行するノード)をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。この網羅契約により、展開後ノード `RenderFragmentContentNode`(`SequenceAllocator.Width` では常に1 — シーケンス引数を消費する `AddContent` 呼び出しが `RenderFragment?` の非nullを問わず不可欠であるため)を追加した際も、`SequenceAllocator.Width` と `RenderViewEmitter.EmitNode` の両方にケースを足す必要があり、片方だけの更新は例外で検出されます。
 
 入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
 
@@ -286,6 +286,8 @@ public readonly struct View
     internal View(RenderFragment fragment) => Fragment = fragment;
 }
 ```
+
+外部由来の `RenderFragment?` を要素コンテンツとして受け取る `implicit operator View(RenderFragment?)` は、現状SSC経路しか存在しないため `=> default` を返すだけの inert な変換です。これは暫定の実装であり、Opaque経路(または付録CのDEBUG解釈モード)が実装された時点で、この節の `Fragment` フィールドを実際に構築して返す実体を持ちます。
 
 ### 3.3 静的サブツリーの定数化
 
@@ -393,7 +395,7 @@ public closed union ViewNode
 | ID     | 種別    | 内容                                                                                  |
 | ------ | ------- | ------------------------------------------------------------------------------------- |
 | BC1001 | Error   | コンポーネントクラスが `partial` として宣言されていない(`RenderView` を生成できない)  |
-| BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる          |
+| BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装) |
 | BC3001 | Error   | 現行実装では `Body` 本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
 | BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div(...)`)必要がある |
