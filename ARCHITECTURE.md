@@ -79,6 +79,12 @@ ComposeComponentBase                 ② SSC分類(§2.3)
 
 生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `ComposeComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび全ファクトリAPIは実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
+設計時表現のゲッターは**単一の式に還元できなければなりません**。`=> expr` / `get => expr` /
+`get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。文を含む
+ゲッター(例: return の前のローカル変数宣言)は Transplantable 経路の領域であり未実装のため、BC1004 と
+して報告されます。設計時表現は実行時に評価されない不活性な構文であり、この制約は「式を静的に翻訳する」
+という前提そのものです。
+
 ### 2.2 シーケンス割当
 
 `Body` の式ツリー `e` を深さ優先(preorder)で走査し、各UIノードに互いに素なシーケンス区間を予約します。`counter` はソースコード上の絶対オフセットではなく、構文ツリーの論理的な preorder 走査順で割り振られる整数(preorder 序数)です。これにより、コメントや空白の変更がシーケンス番号の安定性に影響しないことが保証されます。
@@ -397,6 +403,7 @@ public closed union ViewNode
 | BC1001 | Error   | 設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)は対象外  |
 | BC1002 | Error   | `[Composable]` メソッドがSource Generatorのサポートする静的展開契約を満たさない(`View` 型パラメータ等)                                     |
 | BC1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
+| BC1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、単一の式に還元できないゲッターを宣言している(文を含むゲッター)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直す。ゲッター本体を持たない形(再abstract化・自動プロパティ)は対象外 |
 | BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装) |
 | BC3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |

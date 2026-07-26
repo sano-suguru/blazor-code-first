@@ -123,6 +123,26 @@ internal static class DiagnosticDescriptors
             "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
 
     /// <summary>
+    /// BC1004: A design-time expression override declares a getter whose body does not reduce to a
+    /// single expression, so there is nothing for the generator to translate. Distinct from BC1003: the
+    /// getter's shape is the problem, not the constructs used inside it, and the fix is to rewrite the
+    /// getter rather than to change which factories are called. Reported at the property identifier,
+    /// where BC1003 is location-less.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC1004 = new(
+        id: "BC1004",
+        title: "Design-time expression getter must reduce to a single expression",
+        messageFormat: "'{0}' declares the {1} design-time expression with a getter that does not reduce to a single expression; write it as '=> expr', 'get => expr', or 'get {{ return expr; }}'",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A design-time expression is an inert projection of state to UI that the generator translates " +
+            "statically; it is never evaluated at runtime. Its getter must therefore reduce to a single " +
+            "expression. A getter that contains statements — for example a local variable declared before " +
+            "the return — would require the Transplantable path, which is not implemented.");
+
+    /// <summary>
     /// BC3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
     /// lambda or a method group), so it cannot be statically analyzed. Transitional: narrows once the
     /// Transplantable/Opaque paths support such content.
