@@ -149,3 +149,41 @@ assert_no_file() {
     fail "$2 (unexpected file: $1)"
   fi
 }
+
+# Every occurrence of the selector pattern must also match the required pattern.
+#
+# A selector that matches NOTHING is a failure, not a vacuous pass: "every URL in this sitemap uses
+# the production origin" must not be satisfiable by a sitemap with no URLs in it. Neither grep runs
+# under a negation -- the second one uses -v and its status is captured -- so errexit's exemption for
+# negated commands cannot swallow either result.
+assert_every_line_matches() {
+  local selected offenders rc prev=$-
+  _assert_argc assert_every_line_matches 4 "$#"
+  if [ ! -f "$3" ]; then
+    fail "expected file does not exist: $3"
+  fi
+
+  set +e
+  selected=$(grep -oE -- "$1" "$3")
+  rc=$?
+  case $prev in *e*) set -e ;; esac
+
+  if [ "$rc" -gt 1 ]; then
+    fail "the selector '$1' could not run (grep exited $rc) on $3"
+  fi
+  if [ "$rc" -eq 1 ]; then
+    fail "$4 (file: $3, selector matched nothing: $1)"
+  fi
+
+  set +e
+  offenders=$(printf '%s\n' "$selected" | grep -vE -- "$2")
+  rc=$?
+  case $prev in *e*) set -e ;; esac
+
+  if [ "$rc" -gt 1 ]; then
+    fail "the required pattern '$2' could not run (grep exited $rc) over the selected text of $3"
+  fi
+  if [ -n "$offenders" ]; then
+    fail "$4 (file: $3, required pattern: $2, offending: $(printf '%s' "$offenders" | tr '\n' ' '))"
+  fi
+}

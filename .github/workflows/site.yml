@@ -285,6 +285,56 @@ jobs:
           assert_grep 'href="/docs/control-flow"' "$P/docs/getting-started/index.html" "a sibling .md link was not rewritten to its SPA route"
           assert_grep '<title>Getting Started</title>' "$P/docs/getting-started/index.html" "the per-page title is wrong or missing"
 
+      - name: Generate and verify sitemap.xml
+        run: |
+          set -euo pipefail
+          . eng/ci-assert.sh
+
+          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+          # The one place the production origin is written in this workflow.
+          ORIGIN=https://blazor-compose-site.pages.dev
+          # The same value as an extended regular expression, derived rather than retyped. Needed
+          # because the guards below pass patterns to grep -E, where an unescaped "." matches ANY
+          # character -- so a typo'd origin like "okXexample" would satisfy a bare "$ORIGIN" pattern.
+          ORIGIN_ERE=$(printf '%s' "$ORIGIN" | sed 's/[.[\*^$]/\\&/g')
+
+          # Derived from the publish output rather than from site/content, so the sitemap cannot
+          # declare a URL that was not deployed and cannot miss one that was. Every prerendered route
+          # is an index.html in its own directory, which makes the mapping mechanical and excludes
+          # 404.html without a special case. No lastmod: git does not preserve mtime, so any
+          # file-time-derived value would be noise. Trailing-slash form, because that is what
+          # Cloudflare's 308 normalizes to and what actually returns 200.
+          #
+          # No XML escaping, deliberately: the only variable segment is a document slug, and
+          # site/README.md constrains those to ^[a-z0-9]+(-[a-z0-9]+)*\z -- which DocSlug enforces at
+          # build time -- so no character requiring an entity can reach a <loc>. If that rule is ever
+          # relaxed, this needs an escape pass for at least "&".
+          {
+            printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+            printf '%s\n' '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+            ( cd "$P" && find . -type f -name index.html -print ) \
+              | sed -e 's|^\.||' -e 's|index\.html$||' \
+              | LC_ALL=C sort \
+              | while IFS= read -r path; do
+                  printf '  <url><loc>%s%s</loc></url>\n' "$ORIGIN" "$path"
+                done
+            printf '%s\n' '</urlset>'
+          } > "$P/sitemap.xml"
+
+          echo "--- generated sitemap.xml ---"
+          cat "$P/sitemap.xml"
+
+          # Prove the generator actually walked the publish output rather than emitting an empty
+          # urlset: these four routes exist in every deployment.
+          for path in / /counter/ /docs/ /docs/getting-started/; do
+            assert_grep "<loc>$ORIGIN_ERE$path</loc>" "$P/sitemap.xml" "the sitemap is missing a route that the publish output contains"
+          done
+          assert_not_grep '<loc>[^<]*/404/?</loc>' "$P/sitemap.xml" "the sitemap must not declare the 404 page"
+          # Anchored at the start of the extracted <loc> token and requiring a non-slash after the
+          # origin's single slash, so this catches an origin typo, http instead of https, AND a
+          # doubled slash. An unanchored or unescaped pattern catches only the scheme.
+          assert_every_line_matches '<loc>[^<]*</loc>' "^<loc>$ORIGIN_ERE/[^/]" "$P/sitemap.xml" "every sitemap URL must be the production origin followed by exactly one slash"
+
       - name: Verify the published _headers
         run: |
           set -euo pipefail
