@@ -10,12 +10,16 @@ namespace BlazorCompose.Site.Pages;
 /// Renders one documentation page. A single generic page serves every document: the DocGen manifest
 /// is the single source of truth for routes, navigation, and prerendered paths.
 /// </summary>
-[Route("/docs")]
 [Route("/docs/{Slug}")]
 public sealed partial class DocsPage : ComposeComponentBase
 {
-    /// <summary>The requested document, or null on the bare "/docs" route. Blazor fills unused route
-    /// parameters of a multi-template handler with null, so this does not retain a previous value.</summary>
+    /// <summary>The requested document's slug, taken from the route.</summary>
+    /// <remarks>
+    /// Declared nullable even though the single route template always supplies it: Blazor assigns
+    /// route parameters by reflection after construction, so the property is null until the first
+    /// assignment. <see cref="Docs.Find"/> accepts null and returns null, which renders the same
+    /// not-found body as an unknown slug.
+    /// </remarks>
     [Parameter]
     public string? Slug { get; set; }
 
@@ -25,10 +29,7 @@ public sealed partial class DocsPage : ComposeComponentBase
 
     protected override void OnParametersSet()
     {
-        // "/docs" keeps working as a published URL by showing the default (lowest Order) document.
-        var entry = Slug is null
-            ? (Docs.All.Length > 0 ? Docs.All[0] : null)
-            : Docs.Find(Slug);
+        var entry = Docs.Find(Slug);
 
         _found = entry is not null;
         _title = entry?.Title ?? "Not found";
@@ -43,9 +44,7 @@ public sealed partial class DocsPage : ComposeComponentBase
                     H1(_title),
                     Raw(_html))
                 .Class("prose"),
-            () => Section(
-                    Component<DocTitle>().Param(t => t.Title, _title),
-                    H1(_title),
-                    P("The requested document does not exist."))
-                .Class("prose"));
+            // Shared with the "/404" route: after the SPA catch-all was removed, an unknown slug is
+            // served as 404.html and then re-rendered here on hydration, so the two must match.
+            () => NotFoundContent.NotFound());
 }

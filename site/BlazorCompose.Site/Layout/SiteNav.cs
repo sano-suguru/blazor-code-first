@@ -38,10 +38,11 @@ public sealed partial class SiteNav : ComposeComponentBase, IDisposable
             Ul(
                 Li(A("Home").Href("/").Class(LinkClass("/"))),
                 Li(A("Counter").Href("/counter").Class(LinkClass("/counter"))),
+                Li(A("Docs").Href("/docs").Class(LinkClass("/docs"))),
                 ForEach(
                     Docs.All,
                     key: d => d.Slug,
-                    content: d => Li(A(d.Title).Href($"/docs/{d.Slug}").Class(DocLinkClass(d.Slug)))))
+                    content: d => Li(A(d.Title).Href($"/docs/{d.Slug}").Class(LinkClass($"/docs/{d.Slug}")))))
             .Class("nav-list"))
         .Class("site-nav");
 
@@ -65,22 +66,12 @@ public sealed partial class SiteNav : ComposeComponentBase, IDisposable
         return relative.Length == 0 ? "/" : "/" + relative;
     }
 
-    // Exact match only: a prefix match would light up "/" (Home) on every route.
+    // Exact match only: a prefix match would light up "/" (Home) on every route, and would light up
+    // "/docs" on every "/docs/{slug}" route. DocLinkClass used to special-case "/docs" to activate
+    // the default document's link; with "/docs" an index page of its own that case is gone, and the
+    // CI guard asserting exactly one active nav link per route is what keeps it from coming back.
     private string LinkClass(string path) =>
         string.Equals(CurrentPath(), path, StringComparison.OrdinalIgnoreCase)
             ? "nav-link active"
             : "nav-link";
-
-    // "/docs" renders the default document (lowest Order), so it activates that document's link.
-    private string DocLinkClass(string slug)
-    {
-        string current = CurrentPath();
-        bool isDefaultDoc = string.Equals(current, "/docs", StringComparison.OrdinalIgnoreCase)
-            && Docs.All.Length > 0
-            && string.Equals(Docs.All[0].Slug, slug, StringComparison.OrdinalIgnoreCase);
-
-        return isDefaultDoc || string.Equals(current, $"/docs/{slug}", StringComparison.OrdinalIgnoreCase)
-            ? "nav-link active"
-            : "nav-link";
-    }
 }

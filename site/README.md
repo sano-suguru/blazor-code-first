@@ -67,8 +67,8 @@ order: 40
 - `site/content/` is flat: only top-level `*.md` files become documents. A file placed in a
   subdirectory is silently ignored, not reported as an error.
 - `title` and `order` are both required, and `order` must be unique across documents.
-- The document with the lowest `order` is what the bare `/docs` URL renders, so picking an `order`
-  lower than the current minimum changes the content of a published URL.
+- `order` decides the position of the document in the navigation and in the `/docs` index. It no
+  longer changes what any URL renders: `/docs` is its own index page.
 - Do not write an h1 — the page renders the front matter `title` as the h1.
 - Link to sibling documents with `./other.md` (optionally `./other.md#section`). DocGen rewrites
   these to SPA routes and fails the build if the target does not exist. Raw HTML `<a>` tags bypass

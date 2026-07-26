@@ -1,12 +1,17 @@
-<Router AppAssembly="@typeof(Program).Assembly">
+@*
+    NotFoundPage, not the <NotFound> fragment. Router.NotFound is [Obsolete] in .NET 10, and
+    Router.RenderNotFound only falls back to it when NotFoundPage is null. NotFoundPage is rendered
+    through the <Found> template below -- Router calls Found(new RouteData(NotFoundPage, ...)) -- so
+    RouteView's DefaultLayout applies to it and no LayoutView or [Layout] attribute is needed.
+
+    This makes a link click to an unknown path render the same component that a hard request for
+    that path is served as 404.html, so the two cannot drift apart.
+
+    Razor naming a hand-written C# component is fine; the reverse -- Component<T>() naming a
+    Razor-generated type -- is what issue #31 forbids.
+*@
+<Router AppAssembly="@typeof(Program).Assembly" NotFoundPage="@typeof(Pages.NotFoundPage)">
     <Found Context="routeData">
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
     </Found>
-    <NotFound>
-        @* DefaultLayout only applies to RouteView, so NotFound needs its own LayoutView or an
-           unknown path would render without the shell. *@
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Not found.</p>
-        </LayoutView>
-    </NotFound>
 </Router>

@@ -1,0 +1,30 @@
+# Cloudflare Pages response headers.
+#
+# ONE rule per concern, never two rules setting the same header name. Pages MERGES the headers of
+# every matching rule, and (measured on a preview deployment) a duplicate header name arrives as
+# SEPARATE header lines rather than one comma-joined value -- so adding a catch-all "/*"
+# Cache-Control rule alongside the one below would produce a second, conflicting header line rather
+# than an override.
+#
+# HTML is deliberately left on the Cloudflare default (public, max-age=0, must-revalidate): every
+# route's index.html is regenerated on each deploy behind an unchanged URL, so it must revalidate.
+# Only /_framework/* is safe to freeze, because every file in it is fingerprinted.
+#
+# css/*.css and favicon.png are NOT frozen: their static web asset fingerprints are "soft" (the
+# published physical name stays bare), so an immutable rule there would pin a mutable URL for a year.
+
+/_framework/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# /404 is expected to be reachable as an ordinary 200 page, not only as a 404 response body: Pages
+# redirects /404.html to its extension-less counterpart and then serves the file matching /404. A 404
+# STATUS response is already non-indexable; a 200 one is not, hence this rule. Cloudflare documents
+# both redirect steps but NOT the resulting status code, so the 200 is an inference -- measured on a
+# preview deployment, see the PR that added this file. The rule is harmless either way.
+#
+# CI appends a "/*" noindex rule to preview deploys. Rules MERGE rather than override, so /404 on a
+# preview receives both directives as separate X-Robots-Tag header lines (measured on a preview
+# deployment, see the PR that added this file), not one comma-joined value; the order between the
+# two lines is not documented, only the presence of both.
+/404
+  X-Robots-Tag: noindex
