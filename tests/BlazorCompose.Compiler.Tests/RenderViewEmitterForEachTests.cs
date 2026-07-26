@@ -3,7 +3,7 @@ using BlazorCompose.Compiler;
 
 namespace BlazorCompose.Compiler.Tests;
 
-public sealed class RenderBodyEmitterForEachTests
+public sealed class RenderViewEmitterForEachTests
 {
     private static ElementNode Span(ExpressionTemplate content) =>
         new("span", default, default, default, ImmutableArray.Create<RenderNode>(new TextContentNode(content)));
@@ -23,7 +23,7 @@ public sealed class RenderBodyEmitterForEachTests
             Namespace: null,
             RootNode: node);
 
-        var generated = RenderBodyEmitter.Emit(model).ToString();
+        var generated = RenderViewEmitter.Emit(model).ToString();
 
         Assert.Contains("__builder.OpenRegion(0);", generated);
         Assert.Contains("foreach (var __bc_item_0 in _items)", generated);
@@ -52,7 +52,7 @@ public sealed class RenderBodyEmitterForEachTests
             Namespace: null,
             RootNode: node);
 
-        var generated = RenderBodyEmitter.Emit(model).ToString();
+        var generated = RenderViewEmitter.Emit(model).ToString();
 
         int openIdx = generated.IndexOf("__builder.OpenElement(1, \"span\");", System.StringComparison.Ordinal);
         int keyIdx = generated.IndexOf("__builder.SetKey(", System.StringComparison.Ordinal);

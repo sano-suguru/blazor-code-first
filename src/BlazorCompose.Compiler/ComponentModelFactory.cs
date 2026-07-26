@@ -65,7 +65,7 @@ internal static class ComponentModelFactory
         // Reuse the composable-definition analyzer so component bodies and composable bodies share a
         // single SSC classification.  The component body has no parameters, so no parameter holes exist;
         // its access-requirement and diagnostic accumulators are irrelevant here because the generated
-        // RenderBody is emitted directly into this same component type.
+        // RenderView is emitted directly into this same component type.
         var bodyContext = new ComposableBodyContext(
             syntaxContext.SemanticModel,
             symbol,
@@ -107,7 +107,7 @@ internal static class ComponentModelFactory
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         diagnostics.AddRange(analysis.BodyDiagnostics.AsImmutableArray());
 
-        // An unrecognized/unsupported Body shape yields no template; the abstract RenderBody then triggers
+        // An unrecognized/unsupported Body shape yields no template; the abstract RenderView then triggers
         // CS0534 in the user's compilation. Add a BlazorCompose-specific BC1003 unless the body already
         // produced an actionable diagnostic (dedup), so the failure is explained rather than opaque.
         if (analysis.Template is null)

@@ -4,10 +4,10 @@ using BlazorCompose.Compiler.Generation;
 
 namespace BlazorCompose.Compiler.Tests;
 
-public sealed class RenderBodyEmitterRawFragmentTests
+public sealed class RenderViewEmitterRawFragmentTests
 {
     private static string EmitRoot(RenderNode root) =>
-        RenderBodyEmitter.Emit(new ComponentModel(
+        RenderViewEmitter.Emit(new ComponentModel(
             HintName: "T.g.cs", ClassName: "T", Namespace: null, RootNode: root)).ToString();
 
     private static ElementNode Span(ExpressionTemplate content) =>

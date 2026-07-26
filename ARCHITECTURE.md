@@ -16,7 +16,7 @@
 
 | 機能                                             | 要件                               | 用途                             |
 | ------------------------------------------------ | ---------------------------------- | -------------------------------- |
-| Source Generatorによる部分クラスへのメンバー生成 | 全対応バージョン(成熟した標準機能) | `RenderBody` の生成(§2)          |
+| Source Generatorによる部分クラスへのメンバー生成 | 全対応バージョン(成熟した標準機能) | `RenderView` の生成(§2)          |
 | ILトリミング / Native AOT                        | .NET 10                            | 慣性API・未使用コードの除去(§5)  |
 | Union型 / `closed` 階層                          | C# 15 / .NET 11(条件付き)          | `ViewNode` の閉世界定義(§6)      |
 | Runtime Async                                    | .NET 11(条件付き)                  | イベントパイプライン軽量化(§4.3) |
@@ -71,20 +71,20 @@ seq(n) = σ(π(n)),   σ : Π → ℕ は単射             … (2)
 partial class C :                    ① partial検証・Body発見
 ComposeComponentBase                 ② SSC分類(§2.3)
   View Body => …        ──AST──▶    ③ DFS順シーケンス割当(§2.2)
-  [Composable] View F() => …         ④ RenderBody(RenderTreeBuilder) の生成
+  [Composable] View F() => …         ④ RenderView(RenderTreeBuilder) の生成
                                         — 静的seq定数の埋め込み
                                         — 動的式・ラムダの構文移植
                                         — [Composable] のインライン展開
 ```
 
-生成物は同一partialクラス内の `RenderBody` オーバーライドであり、基底クラス `ComposeComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび全ファクトリAPIは実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
+生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `ComposeComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび全ファクトリAPIは実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 ### 2.2 シーケンス割当
 
 `Body` の式ツリー `e` を深さ優先(preorder)で走査し、各UIノードに互いに素なシーケンス区間を予約します。`counter` はソースコード上の絶対オフセットではなく、構文ツリーの論理的な preorder 走査順で割り振られる整数(preorder 序数)です。これにより、コメントや空白の変更がシーケンス番号の安定性に影響しないことが保証されます。
 
 ```
-procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderBody:
+procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
     counter ← 0
     code ← ∅
     for each node v in DFS-Preorder(e):
@@ -173,7 +173,7 @@ Blazorのリージョンはシーケンス空間を分離するため、`D` 内�
 
 開発時の編集を、.NET Hot Reload(EnC)の編集クラスに対応付けて分類します。
 
-`Body` 式または `[Composable]` 本体の変更は、再生成された `RenderBody` のメソッド本体差し替えとして現れます。メソッド本体の更新はEnCが安定してサポートする編集クラスです。`[Composable]` メソッドの新規追加は既存型へのメンバー追加であり、同じくサポート範囲内です。コンポーネントクラスのシグネチャ変更等のrude editは、Razorコンポーネントと同様にアプリケーション再起動を要します。
+`Body` 式または `[Composable]` 本体の変更は、再生成された `RenderView` のメソッド本体差し替えとして現れます。メソッド本体の更新はEnCが安定してサポートする編集クラスです。`[Composable]` メソッドの新規追加は既存型へのメンバー追加であり、同じくサポート範囲内です。コンポーネントクラスのシグネチャ変更等のrude editは、Razorコンポーネントと同様にアプリケーション再起動を要します。
 
 リロード後の初回レンダリングの意味論は §1.2 から直接導かれます。編集により構文位置写像 `π` が変化した場合、新旧の `σ(π(n))` は一般に一致しないため(条件(1)の不成立)、当該コンポーネントのフレーム列は差分検知上「排他的破棄と新規生成」として扱われます。コンポーネントインスタンス自体は保持されるためC#フィールドの状態は残り、DOMローカル状態(フォーカス、スクロール位置等)は失われます。これはRazorファイル編集時と同一の意味論であり、追加の仕様を要しません。
 
@@ -232,7 +232,7 @@ __b.CloseRegion();
 
 `SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BC3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
 
-この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderBodyEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。
+この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。
 
 入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
 
@@ -302,10 +302,10 @@ public readonly struct View
 1. **イベント発火**(ブラウザ)
 2. **ディスパッチ**: Blazor `SynchronizationContext` へのディスパッチ完了
 3. **状態遷移**: `s_t` から `s_{t+1}` への更新
-4. **フレーム列生成**: `RenderBody` の実行による `r_{t+1}` の生成
+4. **フレーム列生成**: `RenderView` の実行による `r_{t+1}` の生成
 5. **差分適用**: `Δ(r_t, r_{t+1})` のDOM同期
 
-この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderBody` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「`Body` 内での状態変更禁止」に対応し、違反は診断BC3001となります。`Button` のonClickラムダ(`DeferredEventHandler`コンテキスト)はレンダリングではなくイベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BC3001注記参照)。`[Composable]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
+この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderView` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「`Body` 内での状態変更禁止」に対応し、違反は診断BC3001となります。`Button` のonClickラムダ(`DeferredEventHandler`コンテキスト)はレンダリングではなくイベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BC3001注記参照)。`[Composable]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
 
 ### 4.2 Blazor標準ディスパッチとの役割分担
 
@@ -345,7 +345,7 @@ BlazorComposeは実行時メタデータ分析・動的ディスパッチを排�
 
 リフレクションベースのバインディングを持つ同等構成との比較で、AOTコンパイル後のWasmペイロードサイズを約20〜30%削減(予測値)と見込みます。この予測値は、(a) BlazorCompose構成、(b) リフレクションバインディング構成、(c) 素のRazor構成の3系統のベンチマークにより確定値へ置き換えられます。素のRazor構成との比較ではほぼ同等となる見込みです。
 
-BlazorComposeのトリミング/AOT適合契約が対象とするのは、自身が生成するコード(リフレクション不使用の`RenderBody`、実行時に到達不能な各種ファクトリ、`ComponentView`ビルダー)がトリミングで除去されることまでです。`Component<T>().Param(...)` によるコンポーネント埋め込みでは、パラメータが実行時に適用される段でフレームワーク側のリフレクションベース`[Parameter]`バインダー(`ComponentProperties.SetProperties`)が到達可能になりますが、これはBlazor SDKのトリミングプロファイルが担う範囲であり、BlazorCompose自体の責務ではありません。トリムテストハーネス(`tests/BlazorCompose.TrimTestApp`)では、Blazor SDKのプロファイルを持たない素のコンソールアプリという性質上この1点のフレームワーク側`IL2072`が表面化するため、`ComponentProperties.SetProperties`のみに限定した抑制(`ILLink.LinkAttributes.xml`)を適用しています。
+BlazorComposeのトリミング/AOT適合契約が対象とするのは、自身が生成するコード(リフレクション不使用の`RenderView`、実行時に到達不能な各種ファクトリ、`ComponentView`ビルダー)がトリミングで除去されることまでです。`Component<T>().Param(...)` によるコンポーネント埋め込みでは、パラメータが実行時に適用される段でフレームワーク側のリフレクションベース`[Parameter]`バインダー(`ComponentProperties.SetProperties`)が到達可能になりますが、これはBlazor SDKのトリミングプロファイルが担う範囲であり、BlazorCompose自体の責務ではありません。トリムテストハーネス(`tests/BlazorCompose.TrimTestApp`)では、Blazor SDKのプロファイルを持たない素のコンソールアプリという性質上この1点のフレームワーク側`IL2072`が表面化するため、`ComponentProperties.SetProperties`のみに限定した抑制(`ILLink.LinkAttributes.xml`)を適用しています。
 
 ---
 
@@ -392,7 +392,7 @@ public closed union ViewNode
 
 | ID     | 種別    | 内容                                                                                  |
 | ------ | ------- | ------------------------------------------------------------------------------------- |
-| BC1001 | Error   | コンポーネントクラスが `partial` として宣言されていない(`RenderBody` を生成できない)  |
+| BC1001 | Error   | コンポーネントクラスが `partial` として宣言されていない(`RenderView` を生成できない)  |
 | BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる          |
 | BC3001 | Error   | 現行実装では `Body` 本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
@@ -416,6 +416,6 @@ public closed union ViewNode
 
 §2.6のツーリング検証で、特定環境においてSource Generatorの再実行がEnCに反映されないと判明した場合に限り、次のDEBUGビルド限定フォールバックを導入する余地を残します。
 
-DEBUG構成では、ファクトリ・装飾API群を慣性実装から実働実装(`View` に `RenderFragment` を構築して内包する)へ条件コンパイルで切り替え、`RenderBody` の代わりに `Body` を実行時評価します。全体は単一のリージョン内で動的シーケンスを用いて描画されます。Hot Reloadは `Body` プロパティ本体の差し替え(EnC標準サポート)として自然に機能し、SGの再実行に依存しません。RELEASE構成では本仕様の生成コード経路のみが用いられるため、出荷物の性能・サイズ特性に影響しません。
+DEBUG構成では、ファクトリ・装飾API群を慣性実装から実働実装(`View` に `RenderFragment` を構築して内包する)へ条件コンパイルで切り替え、`RenderView` の代わりに `Body` を実行時評価します。全体は単一のリージョン内で動的シーケンスを用いて描画されます。Hot Reloadは `Body` プロパティ本体の差し替え(EnC標準サポート)として自然に機能し、SGの再実行に依存しません。RELEASE構成では本仕様の生成コード経路のみが用いられるため、出荷物の性能・サイズ特性に影響しません。
 
 本案は開発時と実行時で描画経路が二重化する複雑性を伴うため、§2.6のツーリング確認で必要性が示されるまで導入しません。

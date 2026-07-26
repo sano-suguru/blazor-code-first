@@ -10,7 +10,7 @@ namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
 /// Normalizes a definition-side expression into a symbol-free <see cref="ExpressionTemplate"/> so it can
-/// be inlined at any expansion site.  The generated <c>RenderBody</c> carries no <c>using</c> directives,
+/// be inlined at any expansion site.  The generated <c>RenderView</c> carries no <c>using</c> directives,
 /// so every name that would otherwise depend on an import must be made self-contained.  Replacement
 /// decisions use Roslyn symbol identity — never textual substitution — so that:
 /// <list type="bullet">

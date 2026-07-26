@@ -7,8 +7,8 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCompose.Compiler;
 
-/// <summary>Emits a <c>RenderBody</c> override into the generated partial class.</summary>
-internal static class RenderBodyEmitter
+/// <summary>Emits a <c>RenderView</c> override into the generated partial class.</summary>
+internal static class RenderViewEmitter
 {
     private const string RtbType =
         "global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder";
@@ -33,7 +33,7 @@ internal static class RenderBodyEmitter
         writer.AppendLine($"partial class {model.ClassName}");
         writer.AppendLine("{");
         writer.Indent++;
-        writer.AppendLine($"protected override void RenderBody({RtbType} __builder)");
+        writer.AppendLine($"protected override void RenderView({RtbType} __builder)");
         writer.AppendLine("{");
         writer.Indent++;
 

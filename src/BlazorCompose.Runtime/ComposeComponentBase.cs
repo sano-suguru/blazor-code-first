@@ -5,12 +5,12 @@ namespace BlazorCompose;
 
 /// <summary>
 /// Base class for BlazorCompose components. Derived types declare their UI through a design-time
-/// <see cref="Body"/> expression that the source generator translates into a <see cref="RenderBody"/>
+/// <see cref="Body"/> expression that the source generator translates into a <see cref="RenderView"/>
 /// override.
 /// </summary>
 /// <remarks>
 /// Components deriving from this type must be declared <c>partial</c> so the generator can emit the
-/// <see cref="RenderBody"/> implementation into the same class; a non-partial component reports BC1001.
+/// <see cref="RenderView"/> implementation into the same class; a non-partial component reports BC1001.
 /// The component otherwise behaves as a standard Blazor <see cref="ComponentBase"/>.
 /// </remarks>
 public abstract class ComposeComponentBase : ComponentBase
@@ -22,7 +22,7 @@ public abstract class ComposeComponentBase : ComponentBase
     /// <remarks>
     /// <see cref="Body"/> is never evaluated at runtime and must not read or mutate component state;
     /// state mutation inside it reports BC3001. The generator analyzes the expression statically and
-    /// emits the corresponding rendering into <see cref="RenderBody"/>.
+    /// emits the corresponding rendering into <see cref="RenderView"/>.
     /// </remarks>
     protected abstract View Body { get; }
 
@@ -31,9 +31,9 @@ public abstract class ComposeComponentBase : ComponentBase
     /// <see cref="Body"/> expression and is not written by hand.
     /// </summary>
     /// <param name="builder">The render-tree builder that receives the generated rendering instructions.</param>
-    protected abstract void RenderBody(RenderTreeBuilder builder);
+    protected abstract void RenderView(RenderTreeBuilder builder);
 
-    /// <summary>Delegates Blazor's render-tree construction to the generator-emitted <see cref="RenderBody"/>.</summary>
+    /// <summary>Delegates Blazor's render-tree construction to the generator-emitted <see cref="RenderView"/>.</summary>
     /// <param name="builder">The render-tree builder supplied by Blazor.</param>
-    protected sealed override void BuildRenderTree(RenderTreeBuilder builder) => RenderBody(builder);
+    protected sealed override void BuildRenderTree(RenderTreeBuilder builder) => RenderView(builder);
 }

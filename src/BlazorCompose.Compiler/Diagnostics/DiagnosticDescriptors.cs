@@ -10,7 +10,7 @@ internal static class DiagnosticDescriptors
 {
     /// <summary>
     /// BC1001: A class deriving from <c>ComposeComponentBase</c> must be declared <c>partial</c>
-    /// so the source generator can emit the <c>RenderBody</c> override.
+    /// so the source generator can emit the <c>RenderView</c> override.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1001 = new(
         id: "BC1001",
@@ -19,7 +19,7 @@ internal static class DiagnosticDescriptors
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Classes that derive from ComposeComponentBase must be declared partial so the source generator can emit the RenderBody override.");
+        description: "Classes that derive from ComposeComponentBase must be declared partial so the source generator can emit the RenderView override.");
 
     /// <summary>
     /// BC1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
@@ -95,21 +95,21 @@ internal static class DiagnosticDescriptors
             "in a container element such as Html.Div(...).");
 
     /// <summary>
-    /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderBody
+    /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderView
     /// (no template, and no other actionable diagnostic was produced). Explains the CS0534 that the abstract
-    /// RenderBody would otherwise raise on its own. Transitional: its firing condition shrinks once the
+    /// RenderView would otherwise raise on its own. Transitional: its firing condition shrinks once the
     /// Opaque/Transplantable fallback paths are implemented.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1003 = new(
         id: "BC1003",
         title: "Component Body could not be translated",
-        messageFormat: "Component '{0}' Body could not be translated to a RenderBody; it uses a construct that is not statically analyzable",
+        messageFormat: "Component '{0}' Body could not be translated to a RenderView; it uses a construct that is not statically analyzable",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "The Body expression could not be classified into the statically sequenceable subset and no " +
-            "runtime fallback exists yet, so no RenderBody is generated. Use the supported factories and " +
+            "runtime fallback exists yet, so no RenderView is generated. Use the supported factories and " +
             "combinators, or an inline expression lambda, so the body can be analyzed.");
 
     /// <summary>

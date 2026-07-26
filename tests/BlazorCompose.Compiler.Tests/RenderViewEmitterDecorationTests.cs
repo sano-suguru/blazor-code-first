@@ -5,10 +5,10 @@ using BlazorCompose.Compiler.Generation;
 
 namespace BlazorCompose.Compiler.Tests;
 
-public sealed class RenderBodyEmitterDecorationTests
+public sealed class RenderViewEmitterDecorationTests
 {
     private static string EmitRoot(RenderNode root) =>
-        RenderBodyEmitter.Emit(new ComponentModel(
+        RenderViewEmitter.Emit(new ComponentModel(
             HintName: "T.g.cs", ClassName: "T", Namespace: null, RootNode: root)).ToString();
 
     private static ElementNode Span(ExpressionTemplate content, EquatableArray<ExpressionTemplate> classes = default) =>

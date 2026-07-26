@@ -74,20 +74,20 @@ public sealed class GeneratorTests
         """;
 
     [Fact]
-    public void Generator_PartialComponent_EmitsRenderBody()
+    public void Generator_PartialComponent_EmitsRenderView()
     {
         var result = CompilationTestHost.RunGenerator(PartialCounterSource);
 
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains(
-            "protected override void RenderBody(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)",
+            "protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)",
             source);
         Assert.Contains("__builder.OpenElement(0, \"span\")", source);
         Assert.Contains("__builder.AddContent(1, \"Count\")", source);
     }
 
     [Fact]
-    public void Generator_DivWithSpanAndButton_EmitsLinearSscRenderBody()
+    public void Generator_DivWithSpanAndButton_EmitsLinearSscRenderView()
     {
         var result = CompilationTestHost.RunGenerator(DivCounterSource);
 
@@ -113,7 +113,7 @@ public sealed class GeneratorTests
     {
         // Golden test: locks the full generated-source shape — indentation, blank lines, brace
         // placement, and preorder sequence — that the substring assertions elsewhere do not cover,
-        // guarding the RenderBodyEmitter's exact output. Line endings are normalized to '\n' because
+        // guarding the RenderViewEmitter's exact output. Line endings are normalized to '\n' because
         // the emitter uses Environment.NewLine (platform-dependent); structure must stay identical.
         var result = CompilationTestHost.RunGenerator(DivCounterSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString()
@@ -126,7 +126,7 @@ public sealed class GeneratorTests
 
             partial class Counter
             {
-                protected override void RenderBody(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
+                protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
                 {
                     __builder.OpenElement(0, "div");
                     __builder.OpenElement(1, "span");
@@ -1422,7 +1422,7 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        // '_secret' is a private field of Widgets and does not exist inside Counter's generated RenderBody;
+        // '_secret' is a private field of Widgets and does not exist inside Counter's generated RenderView;
         // nameof(_secret) must collapse to its constant string so it never references the vanished member.
         Assert.Contains("__builder.AddContent(1, \"_secret\")", generated);
         Assert.DoesNotContain("nameof(", generated);
@@ -1916,7 +1916,7 @@ public sealed class GeneratorTests
                     public static class Widgets
                     {
                         // 'Models.Widget' / 'Models.Box<int>' resolve lexically to 'Root.Models.*'
-                        // through the shared 'Root' parent, but the using-less generated RenderBody
+                        // through the shared 'Root' parent, but the using-less generated RenderView
                         // cannot resolve the relative 'Models' path, so it must be fully qualified on
                         // expansion while any written type arguments are preserved.
                         [Composable]
@@ -1977,7 +1977,7 @@ public sealed class GeneratorTests
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
         Assert.Contains("cannot be normalized", diagnostic.GetMessage(CultureInfo.InvariantCulture));
 
-        // Emission is suppressed rather than producing a broken RenderBody.
+        // Emission is suppressed rather than producing a broken RenderView.
         Assert.Empty(result.GeneratedSources);
 
         // The only remaining consequence is the expected abstract-member gap (CS0534); there is no
