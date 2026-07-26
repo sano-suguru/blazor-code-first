@@ -69,27 +69,32 @@ public sealed class ComposeLayoutRenderingTests : BunitContext
     [Fact]
     public void FragmentContent_TogglingBetweenNullAndNonNull_PreservesSiblingComponentState()
     {
-        // Sequence-stability check: toggling ChildContentHostComponent's ChildContent between a
-        // fragment and null must not disturb its sibling StatefulRowComponent's component instance.
-        // A diff bug that treats the null<->non-null transition as removing/re-adding surrounding
-        // frames would reset the sibling's internal counter to 0; this test would then fail.
-        var cut = Render<ToggleableChildContentComponent>();
+        // Sequence-stability check exercised inside ONE Compose-generated Body: a conditional/nullable
+        // RenderFragment position (`_show ? Slot : null`) sits next to a stateful sibling component in
+        // the same render tree, so both get their sequence numbers from the same static allocation pass
+        // (see ToggleableFragmentShellComponent). A bug that let the fragment's null<->non-null
+        // transition shift the sibling's allocated sequence number would make Blazor treat the sibling
+        // as a new component instance on toggle, resetting its internal counter to 0; this test would
+        // then fail. Two independently-diffed component instances would not exercise this: Blazor
+        // already isolates component boundaries from each other regardless of what BlazorCompose does,
+        // so only a shared render tree can prove the generator's own allocation is stable.
+        var cut = Render<ToggleableFragmentShellComponent>();
 
-        Assert.Equal("kid", cut.Find(".card").TextContent);
+        Assert.Contains("kid", cut.Markup);
 
         // Establish sibling state before any toggle.
         cut.FindAll("button")[0].Click();
         cut.FindAll("button")[0].Click();
         Assert.Equal("sibling:2", cut.Find("span").TextContent);
 
-        // Toggle ChildContent to null: .card must render empty, sibling state must be untouched.
+        // Toggle the fragment to null: "kid" must disappear, sibling state must be untouched.
         cut.FindAll("button")[1].Click();
-        Assert.Equal("", cut.Find(".card").TextContent);
+        Assert.DoesNotContain("kid", cut.Markup);
         Assert.Equal("sibling:2", cut.Find("span").TextContent);
 
-        // Toggle back to non-null: sibling state must still be preserved.
+        // Toggle back to non-null: "kid" returns, sibling state still preserved.
         cut.FindAll("button")[1].Click();
-        Assert.Equal("kid", cut.Find(".card").TextContent);
+        Assert.Contains("kid", cut.Markup);
         Assert.Equal("sibling:2", cut.Find("span").TextContent);
     }
 
