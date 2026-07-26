@@ -57,33 +57,43 @@ internal static class RenderExpressionAnalyzer
             string? tag = symbols.ElementTags.TryGetValue(KnownSymbols.Normalize(method), out var mapped)
                 ? mapped
                 : null;
+            bool isElement = Is(method, symbols.HtmlElement);
 
-            if (tag is null && Is(method, symbols.HtmlElement))
+            if (tag is not null || isElement)
             {
-                var tagArg = invocation.ArgumentList.Arguments[0].Expression;
-                var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
-                if (constant is { HasValue: true, Value: string tagValue } &&
-                    !string.IsNullOrWhiteSpace(tagValue))
-                {
-                    tag = tagValue;
-                }
-                else
-                {
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
+                if (FactoryArguments.Bind(invocation, context) is not { } args)
                     return null;
-                }
-            }
 
-            if (tag is not null)
-            {
-                // Div/Span/Button: children are all args. Element: children are args[1..].
-                bool isElement = Is(method, symbols.HtmlElement);
-                var kids = AnalyzeChildren(invocation.ArgumentList.Arguments, isElement ? 1 : 0, context);
+                if (isElement)
+                {
+                    if (args.At(0) is not { } tagArgument)
+                        return null;
+
+                    var tagArg = tagArgument.Expression;
+                    var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
+                    if (constant is { HasValue: true, Value: string tagValue } &&
+                        !string.IsNullOrWhiteSpace(tagValue))
+                    {
+                        tag = tagValue;
+                    }
+                    else
+                    {
+                        context.Diagnostics.Add(DiagnosticInfo.Create(
+                            DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
+                        return null;
+                    }
+                }
+
+                // One whole collection passed to the params parameter (Div(children: arr)) is not a list
+                // of children; leave it unanalyzable so it lands on BC1003 instead of being mis-split.
+                if (args.HasExplicitParamsArgument)
+                    return null;
+
+                var kids = AnalyzeChildren(args.ParamsElements, context);
                 if (kids is null)
                     return null;
 
-                return new ElementTemplateNode(tag, default, default, default, kids.Value);
+                return new ElementTemplateNode(tag!, default, default, default, kids.Value);
             }
         }
 
@@ -129,11 +139,19 @@ internal static class RenderExpressionAnalyzer
 
         if (Is(method, symbols.HtmlForEach))
         {
-            var sourceExpression = invocation.ArgumentList.Arguments[0].Expression;
-            if (!TryExtractSingleParameterLambda(
-                    invocation.ArgumentList.Arguments[1].Expression, out var keyParameter, out var keyBody)
+            if (FactoryArguments.Bind(invocation, context) is not { } args)
+                return null;
+
+            if (args.At(0) is not { } sourceArg ||
+                args.At(1) is not { } keyArg ||
+                args.At(2) is not { } contentArg)
+            {
+                return null;
+            }
+
+            if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
                 || !TryExtractSingleParameterLambda(
-                    invocation.ArgumentList.Arguments[2].Expression, out var contentParameter, out var contentBody))
+                    contentArg.Expression, out var contentParameter, out var contentBody))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3004,
@@ -154,7 +172,7 @@ internal static class RenderExpressionAnalyzer
 
             // Source references the enclosing scope (fields, composable params, outer items) — never this
             // item — so it is normalized before the iteration variable is registered.
-            var source = ExpressionTemplateFactory.Create(sourceExpression, context);
+            var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
             var itemOrdinal = context.PushIterationVariable(contentParamSymbol, keyParamSymbol);
             try
@@ -168,7 +186,7 @@ internal static class RenderExpressionAnalyzer
                 {
                     context.Diagnostics.Add(DiagnosticInfo.Create(
                         DiagnosticDescriptors.BC3002,
-                        invocation.ArgumentList.Arguments[1].GetLocation(),
+                        keyArg.GetLocation(),
                         []));
                 }
 
@@ -193,15 +211,28 @@ internal static class RenderExpressionAnalyzer
 
         if (Is(method, symbols.HtmlRaw))
         {
-            var arg = invocation.ArgumentList.Arguments[0].Expression;
-            return new RawMarkupTemplateNode(ExpressionTemplateFactory.Create(arg, context));
+            if (FactoryArguments.Bind(invocation, context) is not { } args ||
+                args.At(0) is not { } markupArg)
+            {
+                return null;
+            }
+
+            return new RawMarkupTemplateNode(
+                ExpressionTemplateFactory.Create(markupArg.Expression, context));
         }
 
         if (Is(method, symbols.HtmlFragment))
         {
-            var children = AnalyzeChildren(invocation.ArgumentList.Arguments, startIndex: 0, context);
+            if (FactoryArguments.Bind(invocation, context) is not { } args)
+                return null;
+
+            if (args.HasExplicitParamsArgument)
+                return null;
+
+            var children = AnalyzeChildren(args.ParamsElements, context);
             if (children is null)
                 return null;
+
             return new FragmentTemplateNode(children.Value);
         }
 
@@ -215,8 +246,16 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            var selector = invocation.ArgumentList.Arguments[0].Expression;
-            var valueExpression = invocation.ArgumentList.Arguments[1].Expression;
+            var paramArgs = FactoryArguments.Bind(invocation, context);
+            if (paramArgs is not { } args ||
+                args.At(0) is not { } selectorArg ||
+                args.At(1) is not { } valueArg)
+            {
+                return null;
+            }
+
+            var selector = selectorArg.Expression;
+            var valueExpression = valueArg.Expression;
 
             if (!TryGetSelectorProperty(selector, context, out var property))
             {
@@ -401,20 +440,22 @@ internal static class RenderExpressionAnalyzer
         return false;
     }
 
-    /// <summary>Analyzes the argument list from <paramref name="startIndex"/> onward into child template
-    /// nodes, returning null if any child cannot be statically analyzed (propagated as translation failure).</summary>
+    /// <summary>Analyzes each child expression into a child template node, returning null if any child
+    /// cannot be statically analyzed (propagated as translation failure).</summary>
     private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
-        SeparatedSyntaxList<ArgumentSyntax> args, int startIndex, ComposableBodyContext context)
+        ImmutableArray<ExpressionSyntax> children, ComposableBodyContext context)
     {
-        var children = ImmutableArray.CreateBuilder<RenderTemplateNode>();
-        for (int i = startIndex; i < args.Count; i++)
+        var nodes = ImmutableArray.CreateBuilder<RenderTemplateNode>(children.Length);
+        foreach (var child in children)
         {
-            var child = Analyze(args[i].Expression, context);
-            if (child is null)
+            var node = Analyze(child, context);
+            if (node is null)
                 return null;
-            children.Add(child);
+
+            nodes.Add(node);
         }
-        return children.ToImmutable();
+
+        return nodes.ToImmutable();
     }
 
     private static bool TryGetConstantName(

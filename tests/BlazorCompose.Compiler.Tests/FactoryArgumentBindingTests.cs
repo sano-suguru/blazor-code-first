@@ -118,4 +118,122 @@ public sealed class FactoryArgumentBindingTests
 
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS8323");
     }
+
+    [Fact]
+    public void ForEach_NamedArgumentsOutOfOrder_GeneratesSameSourceAsPositional()
+    {
+        // The form issue #36 cites. Unlike If and Attr this one does not silently miscompile — the
+        // swapped key/content lands on BC3003 or BC1003 — but it must still bind correctly.
+        const string named = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            using System.Collections.Generic;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private List<string> _items = new();
+
+                protected override View Body =>
+                    Div(ForEach(_items, content: i => Li(i), key: i => i));
+            }
+            """;
+
+        const string positional = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            using System.Collections.Generic;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private List<string> _items = new();
+
+                protected override View Body =>
+                    Div(ForEach(_items, i => i, i => Li(i)));
+            }
+            """;
+
+        var namedSource = Assert.Single(CompilationTestHost.RunGenerator(named).GeneratedSources)
+            .SourceText.ToString();
+        var positionalSource = Assert.Single(CompilationTestHost.RunGenerator(positional).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Equal(positionalSource, namedSource);
+    }
+
+    [Fact]
+    public void Element_TagNamedAfterChildren_GeneratesSameSourceAsPositional()
+    {
+        var named = GenerateBody("""Element(tag: "section", "a", "b")""");
+        var positional = GenerateBody("""Element("section", "a", "b")""");
+
+        Assert.Equal(positional, named);
+    }
+
+    [Fact]
+    public void Param_NamedArgumentsOutOfOrder_GeneratesSameSourceAsPositional()
+    {
+        const string named = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public sealed class Widget : ComponentBase
+            {
+                [Parameter] public string Label { get; set; } = "";
+            }
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Component<Widget>().Param(value: "x", selector: c => c.Label);
+            }
+            """;
+
+        const string positional = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public sealed class Widget : ComponentBase
+            {
+                [Parameter] public string Label { get; set; } = "";
+            }
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Component<Widget>().Param(c => c.Label, "x");
+            }
+            """;
+
+        var namedSource = Assert.Single(CompilationTestHost.RunGenerator(named).GeneratedSources)
+            .SourceText.ToString();
+        var positionalSource = Assert.Single(CompilationTestHost.RunGenerator(positional).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Equal(positionalSource, namedSource);
+    }
+
+    [Fact]
+    public void Element_ExplicitChildrenCollection_RemainsUnsupported()
+    {
+        // `Div(children: arr)` is legal C# (View[] converts to ReadOnlySpan<View>) but the argument is
+        // one whole collection, not a child list. It must land on BC1003 rather than be mis-split.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private static View[] Kids() => new View[] { Span("a") };
+
+                protected override View Body => Div(children: Kids());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+    }
 }
