@@ -2533,6 +2533,54 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_ClassOnRenderFragment_IsRejectedByTypeSystem()
+    {
+        // PR #50 deliberately added no diagnostic for decorating a RenderFragment, on the grounds that
+        // C# does not apply a user-defined implicit conversion to an extension-method receiver, so
+        // fragment.Class("x") does not compile in the first place. Nothing pinned that until now: if a
+        // decoration were ever added as an instance member on View, this would silently start compiling
+        // and reach the decoration branch instead.
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Card : ComposeComponentBase
+            {
+                [Parameter]
+                public RenderFragment? ChildContent { get; set; }
+
+                protected override View Body => Div(ChildContent.Class("x"));
+            }
+            """);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
+    }
+
+    [Fact]
+    public void Generator_GenericRenderFragmentAsChild_IsRejectedByTypeSystem()
+    {
+        // The implicit conversion to View is from the non-generic RenderFragment only. A
+        // RenderFragment<T> is a template needing a context argument, so it must not silently become
+        // content — the type system rejects it with CS1503 and no diagnostic of ours is needed.
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Card : ComposeComponentBase
+            {
+                [Parameter]
+                public RenderFragment<string>? Template { get; set; }
+
+                protected override View Body => Div(Template);
+            }
+            """);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1503");
+    }
+
+    [Fact]
     public void Generator_RenderFragmentParameterAsChild_EmitsAddContent()
     {
         const string source = """

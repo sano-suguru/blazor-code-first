@@ -47,4 +47,25 @@ public sealed class RenderViewEmitterFragmentContentTests
         Assert.Contains("__builder.AddContent(1, Body);", code);
         Assert.Contains("__builder.AddContent(2, \"after\");", code);
     }
+
+    [Fact]
+    public void Emitter_RenderFragmentAtTheRootOfChrome_EmitsAddContentAtSequenceZero()
+    {
+        // Every other fragment test places the fragment as a child, inside an If, or as ForEach content.
+        // The root case has no wrapping element: EmitNode is called with startSeq 0 and the node's emit
+        // does not care about nesting, so it is correct by construction — and was untested.
+        const string source = """
+            using BlazorCompose;
+
+            public partial class Shell : ComposeLayoutBase
+            {
+                protected override View Chrome => Body;
+            }
+            """;
+
+        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Contains("__builder.AddContent(0, Body);", generated);
+    }
 }

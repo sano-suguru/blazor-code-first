@@ -124,4 +124,17 @@ public sealed class ComposeLayoutRenderingTests : BunitContext
         Assert.Equal("derived", cut.Find(".derived-chrome").TextContent);
         Assert.Empty(cut.FindAll(".base-chrome"));
     }
+
+    [Fact]
+    public void NestedComposeLayouts_WrapThePageInBothLevels()
+    {
+        var routeData = new RouteData(typeof(NestedLayoutProbePage), new Dictionary<string, object?>());
+
+        var cut = Render<RouteView>(parameters => parameters.Add(p => p.RouteData, routeData));
+
+        // Outer chrome contains the inner chrome, which contains the page.
+        Assert.Equal(
+            "nested page content",
+            cut.Find(".outer .outer-slot .inner .inner-slot .nested-page-content").TextContent);
+    }
 }
