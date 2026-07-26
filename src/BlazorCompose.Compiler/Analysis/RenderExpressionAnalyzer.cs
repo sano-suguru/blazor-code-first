@@ -89,8 +89,13 @@ internal static class RenderExpressionAnalyzer
 
         if (Is(method, symbols.HtmlIf))
         {
-            var condition = invocation.ArgumentList.Arguments[0].Expression;
-            var thenExpr = ExtractLambdaBody(invocation.ArgumentList.Arguments[1].Expression);
+            if (FactoryArguments.Bind(invocation, context) is not { } args)
+                return null;
+
+            if (args.At(0) is not { } conditionArg || args.At(1) is not { } thenArg)
+                return null;
+
+            var thenExpr = ExtractLambdaBody(thenArg.Expression);
             if (thenExpr is null)
                 return null;
 
@@ -99,24 +104,25 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             RenderTemplateNode? otherwiseNode = null;
-            if (invocation.ArgumentList.Arguments.Count >= 3)
-            {
-                var otherwiseArg = invocation.ArgumentList.Arguments[2].Expression;
-                if (otherwiseArg is not LiteralExpressionSyntax
-                    { Token.RawKind: (int)SyntaxKind.NullKeyword })
-                {
-                    var otherwiseExpr = ExtractLambdaBody(otherwiseArg);
-                    if (otherwiseExpr is null)
-                        return null;
 
-                    otherwiseNode = Analyze(otherwiseExpr, context);
-                    if (otherwiseNode is null)
-                        return null;
-                }
+            // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
+            // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
+            // An explicitly passed null literal still means "no else branch".
+            if (args.At(2) is { } otherwiseArg &&
+                otherwiseArg.Expression is not LiteralExpressionSyntax
+                { Token.RawKind: (int)SyntaxKind.NullKeyword })
+            {
+                var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
+                if (otherwiseExpr is null)
+                    return null;
+
+                otherwiseNode = Analyze(otherwiseExpr, context);
+                if (otherwiseNode is null)
+                    return null;
             }
 
             return new IfTemplateNode(
-                ExpressionTemplateFactory.Create(condition, context),
+                ExpressionTemplateFactory.Create(conditionArg.Expression, context),
                 thenNode,
                 otherwiseNode);
         }
@@ -267,14 +273,18 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            var args = invocation.ArgumentList.Arguments;
+            if (FactoryArguments.Bind(invocation, context) is not { } args)
+                return null;
+
+            if (args.At(0) is not { } firstArg)
+                return null;
 
             if (isClass)
             {
                 return element with
                 {
                     Classes = element.Classes.AsImmutableArray().Add(
-                        ExpressionTemplateFactory.Create(args[0].Expression, context)),
+                        ExpressionTemplateFactory.Create(firstArg.Expression, context)),
                 };
             }
 
@@ -286,16 +296,19 @@ internal static class RenderExpressionAnalyzer
                 if (isEventShortcut)
                 {
                     eventName = shortcutEventName;
-                    handlerExpr = args[0].Expression;
+                    handlerExpr = firstArg.Expression;
                 }
-                else if (TryGetConstantName(args[0].Expression, context, out eventName))
+                else if (TryGetConstantName(firstArg.Expression, context, out eventName))
                 {
-                    handlerExpr = args[1].Expression;
+                    if (args.At(1) is not { } secondArg)
+                        return null;
+
+                    handlerExpr = secondArg.Expression;
                 }
                 else
                 {
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3011, args[0].GetLocation(), []));
+                        DiagnosticDescriptors.BC3011, firstArg.GetLocation(), []));
                     return null;
                 }
 
@@ -322,16 +335,19 @@ internal static class RenderExpressionAnalyzer
             if (isAttrShortcut)
             {
                 attrName = shortcutAttrName;
-                valueExpr = args[0].Expression;
+                valueExpr = firstArg.Expression;
             }
-            else if (TryGetConstantName(args[0].Expression, context, out attrName))
+            else if (TryGetConstantName(firstArg.Expression, context, out attrName))
             {
-                valueExpr = args[1].Expression;
+                if (args.At(1) is not { } secondArg)
+                    return null;
+
+                valueExpr = secondArg.Expression;
             }
             else
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3011, args[0].GetLocation(), []));
+                    DiagnosticDescriptors.BC3011, firstArg.GetLocation(), []));
                 return null;
             }
 
