@@ -198,10 +198,9 @@ jobs:
           for slug in getting-started elements-and-decorations control-flow; do
             ROUTES="$ROUTES docs/$slug/index.html"
           done
-          # Every prerendered HTML document. Identical to ROUTES today; 404.html joins this list once
-          # the real 404 lands, and only this list, because no nav link points at /404 and so its
-          # active-link expectation is zero rather than one.
-          ALL_HTML="$ROUTES"
+          # Every prerendered HTML document. 404.html is in this list but not in ROUTES, because no
+          # nav link points at /404: its active-nav-link expectation is zero, not one.
+          ALL_HTML="$ROUTES 404.html"
 
           # Attribute order in the generated HTML is class-before-href today; match either order so
           # a future emitter change cannot silently turn this guard into a no-op.
@@ -217,6 +216,29 @@ jobs:
             assert_count 'nav-link active' "$P/$f" 1 "exactly one nav link must be active on a prerendered route"
             assert_count '<title>' "$P/$f" 1 "a prerendered route must render exactly one title element"
           done
+
+          # A top-level 404.html is what makes Cloudflare Pages serve real 404s. Its documentation is
+          # explicit: "If your project does not include a top-level 404.html file, Pages assumes that
+          # you are deploying a single-page application." So if this file ever goes missing, Pages
+          # silently reverts to answering EVERY unknown URL with 200 and the home page -- an
+          # unbounded supply of soft 404s and duplicate content on an indexed site. This assertion is
+          # a production-correctness guard, and doubles as the canary for both the prerender route
+          # list and the copy target, since nothing links /404.
+          assert_file "$P/404.html" "the top-level 404.html is missing, so Cloudflare Pages will treat this deployment as a single-page application and answer every unknown URL with 200 and the home page"
+          assert_grep 'class="site-nav"' "$P/404.html" "the site shell (nav) is missing from 404.html"
+          assert_count '<title>' "$P/404.html" 1 "404.html must render exactly one title element"
+          # The BODY, not just the shell. This is the guard that keeps the shared [Composable] doing
+          # its job: 404.html and DocsPage's unknown-slug branch must render the same markup, because
+          # /docs/unknown is served as this file and then re-rendered by DocsPage on hydration. Without
+          # it, reverting the else-branch to its own private markup would leave CI green.
+          assert_grep '<h1>Page not found</h1>' "$P/404.html" "404.html does not render the shared not-found body"
+          # No nav link corresponds to /404, so nothing may be marked active there.
+          assert_count 'nav-link active' "$P/404.html" 0 "no nav link may be active on 404.html"
+          # The prerendered route lands in 404/index.html and is copied out; the directory must be
+          # gone, or /404/ would serve a second copy of the page.
+          assert_no_file "$P/404" "the prerendered 404/ directory was not removed after being copied to 404.html"
+          # The SPA catch-all is what prevented a real 404. The file is deleted, not emptied.
+          assert_no_file "$P/_redirects" "_redirects is back in the publish output; its catch-all would answer every unknown URL with 200 and the home page"
 
           # The prerendering wrappers must be gone. While they shipped, the prerendered markup was
           # inert and hidden under an opaque loader until WASM started, so it reached crawlers only.

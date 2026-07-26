@@ -44,9 +44,7 @@ public sealed partial class DocsPage : ComposeComponentBase
                     H1(_title),
                     Raw(_html))
                 .Class("prose"),
-            () => Section(
-                    Component<DocTitle>().Param(t => t.Title, _title),
-                    H1(_title),
-                    P("The requested document does not exist."))
-                .Class("prose"));
+            // Shared with the "/404" route: after the SPA catch-all was removed, an unknown slug is
+            // served as 404.html and then re-rendered here on hydration, so the two must match.
+            () => NotFoundContent.NotFound());
 }

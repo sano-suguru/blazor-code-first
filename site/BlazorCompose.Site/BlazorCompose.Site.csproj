@@ -59,22 +59,54 @@
        This must be a target, not a static PropertyGroup: MSBuild evaluates properties before items,
        so @(DocMarkdown) would be empty at evaluation time. The prerender tool's own target runs
        AfterTargets="Publish" and expands the property inside its Exec command line, i.e. at target
-       execution time, so setting it from a BeforeTargets hook is sufficient. If the tool ever renames
-       that target this silently stops applying — the CI prerender verification is what catches it.
-       That guard works for a subtler reason than "the routes go missing": if the target were
-       renamed, the tool would fall back to crawling links from "/", and since SiteNav links every
-       "/docs/{slug}" route from every page, all the per-document routes would still be discovered
-       that way. What actually makes the guard bite is that nothing links to the bare "/docs" URL, so
-       docs/index.html would be missing and CI's shell-presence loop would fail on it. Adding a
-       "/docs" nav link would quietly disarm this guard. -->
+       execution time, so setting it from a BeforeTargets hook is sufficient.
+
+       If the tool ever renames that target this silently stops applying, and the CI prerender
+       verification is what catches it — for a subtler reason than "the routes go missing". A
+       renamed target makes the tool fall back to crawling links from "/", and SiteNav links every
+       "/docs/{slug}" route from every page, so all the per-document routes would still be
+       discovered. What makes the guard bite is a route nothing links to. That used to be bare
+       "/docs"; now that "/docs" is an index page with a nav link, the role belongs to "/404", which
+       is reachable by URL only. CI asserts that 404.html exists, so a renamed target — or a
+       CopyPrerendered404 that stops running — fails the build. Do not add a link to "/404". -->
   <Target Name="ComputeDocsPrerenderPaths" BeforeTargets="BlazorWasmPrerendering">
     <ItemGroup>
       <DocMarkdown Include="$(MSBuildProjectDirectory)/../content/*.md" />
     </ItemGroup>
     <PropertyGroup>
-      <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs;@(DocMarkdown->'/docs/%(Filename)')</BlazorWasmPrerenderingUrlPathToExplicitFetch>
+      <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs;/404;@(DocMarkdown->'/docs/%(Filename)')</BlazorWasmPrerenderingUrlPathToExplicitFetch>
     </PropertyGroup>
     <Message Importance="high" Text="Prerendering routes: $(BlazorWasmPrerenderingUrlPathToExplicitFetch)" />
+  </Target>
+
+  <!-- Promote the prerendered "/404" route to the top-level 404.html that Cloudflare Pages requires.
+       Without that file Pages assumes a single-page application and answers every unknown URL with
+       200 and the home page, which is exactly what deleting wwwroot/_redirects was meant to stop.
+
+       The prerender tool writes IndexHtmlInSubFolders, so the route lands in "404/index.html"; the
+       directory is removed afterwards so "/404/" cannot serve a second copy. The Error task makes
+       this target self-checking: if the prerender step stops emitting the route, the build fails
+       here rather than producing a publish output that silently reverts to SPA behavior.
+
+       The Condition repeats the hooked target's own condition, and must stay in sync with it. An
+       AfterTargets hook runs even when the target it hooks was SKIPPED by its condition, so without
+       this line "dotnet publish -p:BlazorWasmPrerendering=disable" — the package's own escape hatch
+       — would fail on the Error above, as would the nested publish that the wasm-tools workload
+       triggers (which is why the upstream condition tests WasmBuildingForNestedPublish at all).
+
+       Note: no 404.html.br or 404.html.gz sidecar is produced, because compression sidecar
+       generation has already finished by this point. Cloudflare Pages does not use the sidecars, so
+       this is harmless — but a future CI guard that compares file counts would trip on it. -->
+  <Target Name="CopyPrerendered404" AfterTargets="BlazorWasmPrerendering"
+          Condition=" '$(BlazorWasmPrerendering)' != 'disable' AND '$(WasmBuildingForNestedPublish)' != 'true' ">
+    <PropertyGroup>
+      <_PrerenderedNotFound>$(PublishDir)wwwroot/404/index.html</_PrerenderedNotFound>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_PrerenderedNotFound)')"
+           Text="Prerendering did not produce '$(_PrerenderedNotFound)'. Cloudflare Pages needs a top-level 404.html or it treats the deployment as a single-page application." />
+    <Copy SourceFiles="$(_PrerenderedNotFound)" DestinationFiles="$(PublishDir)wwwroot/404.html" />
+    <RemoveDir Directories="$(PublishDir)wwwroot/404" />
+    <Message Importance="high" Text="Copied the prerendered /404 route to $(PublishDir)wwwroot/404.html" />
   </Target>
 
 </Project>
