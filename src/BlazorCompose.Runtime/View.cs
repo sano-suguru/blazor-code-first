@@ -18,8 +18,9 @@ namespace BlazorCompose;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
-    Justification = "View is an inert marker type carrying no state; it is always the default value. " +
-        "Equality is structurally determined and needs no override.")]
+    Justification = "View is an inert marker type carrying no state on the SSC path; it is always the " +
+        "default value there. Equality is structurally determined and needs no override. ARCHITECTURE.md " +
+        "§3.2 plans an internal RenderFragment field for the Opaque path; revisit this suppression then.")]
 public readonly struct View
 {
     /// <summary>
@@ -27,4 +28,22 @@ public readonly struct View
     /// generator reads the original string expression; at runtime this always yields the default View.
     /// </summary>
     public static implicit operator View(string text) => default;
+
+    /// <summary>
+    /// Design-time syntax letting an externally supplied <see cref="Microsoft.AspNetCore.Components.RenderFragment"/> appear as element
+    /// content. Inert: the generator reads the original expression and emits
+    /// <c>RenderTreeBuilder.AddContent(sequence, fragment)</c>; at runtime this always yields the default View.
+    /// </summary>
+    /// <remarks>
+    /// The parameter is nullable because null is the normal case — an unset
+    /// <c>[Parameter] RenderFragment?</c>, or a layout's Body before the first render. Blazor's
+    /// <c>AddContent(int, RenderFragment?)</c> emits nothing for null.
+    /// <para>
+    /// This conversion is inert only for the SSC path. ARCHITECTURE.md §3.2 specifies that the Opaque
+    /// path gives <see cref="View"/> an internal <c>RenderFragment</c> field; when that path (or the
+    /// DEBUG interpretation mode of ARCHITECTURE.md appendix C) is implemented, this operator gains a
+    /// real body. <c>=&gt; default</c> is the current SSC-only behavior, not a permanent contract.
+    /// </para>
+    /// </remarks>
+    public static implicit operator View(Microsoft.AspNetCore.Components.RenderFragment? fragment) => default;
 }

@@ -9,6 +9,7 @@ abstract BlazorCompose.ComposeComponentBase.RenderView(Microsoft.AspNetCore.Comp
 BlazorCompose.View
 BlazorCompose.View.View() -> void
 static BlazorCompose.View.implicit operator BlazorCompose.View(string! text) -> BlazorCompose.View
+static BlazorCompose.View.implicit operator BlazorCompose.View(Microsoft.AspNetCore.Components.RenderFragment? fragment) -> BlazorCompose.View
 BlazorCompose.Decorations
 static BlazorCompose.Decorations.Class(this BlazorCompose.View view, string! class) -> BlazorCompose.View
 static BlazorCompose.Decorations.OnClick(this BlazorCompose.View view, System.Action! handler) -> BlazorCompose.View
