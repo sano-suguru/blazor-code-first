@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace BlazorCompose.Runtime.Tests;
 
+using ParameterView = Microsoft.AspNetCore.Components.ParameterView;
+
 public sealed class ComposeLayoutBaseTests
 {
     // RenderView is hand-written here: the generator does not recognize ComposeLayoutBase until the
@@ -32,13 +34,24 @@ public sealed class ComposeLayoutBaseTests
     }
 
     [Fact]
-    public void BodyParameter_IsInheritedAndSettableByName()
+    public async Task BodyParameter_IsInheritedAndSettableByName()
     {
+        // Verify the parameter exists with the correct metadata
         var property = typeof(ProbeLayout).GetProperty("Body");
-
         Assert.NotNull(property);
         Assert.Equal(typeof(RenderFragment), property!.PropertyType);
         Assert.NotNull(property.GetCustomAttributes(typeof(ParameterAttribute), inherit: true).FirstOrDefault());
+
+        // Exercise the actual binding path: Blazor's LayoutView passes Body by the literal name "Body"
+        // and SetParametersAsync must make it observable through the inherited property.
+        var layout = new ProbeLayout();
+        var testFragment = (RenderFragment)(builder => builder.AddContent(0, "test"));
+        var parameters = ParameterView.FromDictionary(new Dictionary<string, object?> { ["Body"] = testFragment });
+
+        await layout.SetParametersAsync(parameters);
+
+        Assert.NotNull(layout.Body);
+        Assert.Equal(testFragment, layout.Body);
     }
 
     [Fact]
