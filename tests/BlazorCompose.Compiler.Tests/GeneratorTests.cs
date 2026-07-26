@@ -2455,7 +2455,7 @@ public sealed class GeneratorTests
 
         var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("Slot", generated);
+        Assert.Contains("__builder.AddContent(2, Slot);", generated);
     }
 
     [Fact]
