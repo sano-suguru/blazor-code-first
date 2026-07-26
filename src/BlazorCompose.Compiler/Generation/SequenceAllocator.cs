@@ -51,6 +51,10 @@ internal static class SequenceAllocator
         // AddMarkupContent = 1 call; no wrapping element (mirrors TextContentNode's AddContent = 1).
         RawMarkupNode => 1,
 
+        // AddContent(seq, RenderFragment?) = 1 sequence-consuming call. The region frame it opens is
+        // emitted only for a non-null fragment, but the call is unconditional (mirrors TextContentNode).
+        RenderFragmentContentNode => 1,
+
         _ => throw new NotSupportedException(
             $"Unknown RenderNode type '{node.GetType().Name}'; add a Width case for it."),
     };
