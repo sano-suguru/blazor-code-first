@@ -34,7 +34,7 @@ public sealed class PartialComponentAnalyzer : DiagnosticAnalyzer
         if (symbol.TypeKind != TypeKind.Class)
             return;
 
-        if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
+        if (ComposeComponentBaseFacts.FindComposeBase(symbol) is not { } composeBase)
             return;
 
         ClassDeclarationSyntax? firstDeclaration = null;
@@ -55,7 +55,8 @@ public sealed class PartialComponentAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.BC1001,
                 firstDeclaration.Identifier.GetLocation(),
-                symbol.Name));
+                symbol.Name,
+                composeBase.Name));
         }
     }
 }

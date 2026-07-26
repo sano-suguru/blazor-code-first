@@ -60,12 +60,16 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var targetSymbol = GetInstanceMemberTarget(ctx.Operation);
         if (targetSymbol is null) return;
 
-        // Condition 2: The operation is syntactically inside the Body getter of a
-        // ComposeComponentBase subclass.
+        // Condition 2: The operation is syntactically inside the design-time expression getter
+        // (Body or Chrome) of a Compose base subclass.
         var semanticModel = ctx.Operation.SemanticModel;
         if (semanticModel is null) return;
 
-        if (!TryGetDesignTimeExpressionOwnerType(ctx.Operation.Syntax, semanticModel, out var ownerType)) return;
+        if (!TryGetDesignTimeExpressionOwnerType(
+                ctx.Operation.Syntax, semanticModel, out var ownerType, out var expressionName))
+        {
+            return;
+        }
 
         // The target must belong to the same component (not a field on a nested type, etc.).
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
@@ -78,7 +82,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         ctx.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.BC3001,
             ctx.Operation.Syntax.GetLocation(),
-            targetSymbol.Name));
+            targetSymbol.Name,
+            expressionName));
     }
 
     // ---------------------------------------------------------------------------
@@ -121,9 +126,11 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     private static bool TryGetDesignTimeExpressionOwnerType(
         SyntaxNode operationSyntax,
         SemanticModel semanticModel,
-        out INamedTypeSymbol? ownerType)
+        out INamedTypeSymbol? ownerType,
+        out string? expressionName)
     {
         ownerType = null;
+        expressionName = null;
         var node = operationSyntax.Parent;
         while (node is not null)
         {
@@ -132,10 +139,11 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             {
                 if (semanticModel.GetDeclaredSymbol(propDecl) is IPropertySymbol prop &&
                     prop.ContainingType is INamedTypeSymbol type &&
-                    ComposeComponentBaseFacts.InheritsFromComposeBase(type) &&
-                    prop.Name == ComposeComponentBaseFacts.FindDesignTimeExpressionName(type))
+                    ComposeComponentBaseFacts.FindDesignTimeExpressionName(type) is { } name &&
+                    prop.Name == name)
                 {
                     ownerType = type;
+                    expressionName = name;
                     return true;
                 }
                 return false;

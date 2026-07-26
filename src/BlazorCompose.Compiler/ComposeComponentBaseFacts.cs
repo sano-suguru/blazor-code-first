@@ -15,16 +15,25 @@ internal static class ComposeComponentBaseFacts
         type.ContainingNamespace is { IsGlobalNamespace: false, Name: "BlazorCompose" } ns &&
         ns.ContainingNamespace.IsGlobalNamespace;
 
-    internal static bool InheritsFromComposeBase(INamedTypeSymbol symbol)
+    /// <summary>
+    /// Returns the Compose base found in <paramref name="symbol"/>'s base-type chain (<c>ComposeComponentBase</c>
+    /// or <c>ComposeLayoutBase</c>), or <see langword="null"/> when none is found. The single walk backing
+    /// both <see cref="InheritsFromComposeBase"/> and <see cref="FindDesignTimeExpressionName"/>, and the
+    /// source of the base type's own name for diagnostic messages.
+    /// </summary>
+    internal static INamedTypeSymbol? FindComposeBase(INamedTypeSymbol symbol)
     {
         for (var current = symbol.BaseType; current is not null; current = current.BaseType)
         {
             if (IsComposeBase(current))
-                return true;
+                return current;
         }
 
-        return false;
+        return null;
     }
+
+    internal static bool InheritsFromComposeBase(INamedTypeSymbol symbol) =>
+        FindComposeBase(symbol) is not null;
 
     /// <summary>
     /// The name of the abstract <c>BlazorCompose.View</c> property the Compose base declares — <c>Body</c>
@@ -37,16 +46,13 @@ internal static class ComposeComponentBaseFacts
     /// </remarks>
     internal static string? FindDesignTimeExpressionName(INamedTypeSymbol symbol)
     {
-        for (var current = symbol.BaseType; current is not null; current = current.BaseType)
-        {
-            if (!IsComposeBase(current))
-                continue;
+        if (FindComposeBase(symbol) is not { } composeBase)
+            return null;
 
-            foreach (var member in current.GetMembers())
-            {
-                if (member is IPropertySymbol { IsAbstract: true } property && IsViewType(property.Type))
-                    return property.Name;
-            }
+        foreach (var member in composeBase.GetMembers())
+        {
+            if (member is IPropertySymbol { IsAbstract: true } property && IsViewType(property.Type))
+                return property.Name;
         }
 
         return null;
