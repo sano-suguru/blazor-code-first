@@ -7,9 +7,9 @@ using BlazorCompose.Compiler.Diagnostics;
 namespace BlazorCompose.Compiler.Generation;
 
 /// <summary>
-/// The value-equal outcome of expanding a component <c>Body</c> template: the final
-/// <see cref="RenderNode"/> tree (or <see langword="null"/> when expansion failed) plus the call-site
-/// BC1002 <see cref="Diagnostics"/> captured as symbol-free data.
+/// The value-equal outcome of expanding a component's design-time expression (<c>Body</c> or
+/// <c>Chrome</c>) template: the final <see cref="RenderNode"/> tree (or <see langword="null"/> when
+/// expansion failed) plus the call-site BC1002 <see cref="Diagnostics"/> captured as symbol-free data.
 /// </summary>
 internal readonly record struct ExpansionResult(
     RenderNode? Node,
@@ -46,8 +46,8 @@ internal static class ComposableExpander
     }
 
     /// <param name="substitution">
-    /// The local names bound to the enclosing composable's parameter holes; empty at the component
-    /// <c>Body</c> root, where no holes exist.
+    /// The local names bound to the enclosing composable's parameter holes; empty at the component's
+    /// design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
     /// </param>
     /// <param name="activeMethodStack">
     /// The method keys currently being expanded along this path, used for cycle detection.  Sibling calls

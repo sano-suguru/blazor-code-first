@@ -98,6 +98,7 @@ internal static class ComponentModelFactory
             HintName: hintName,
             ClassName: symbol.Name,
             Namespace: namespaceName,
+            DesignTimeExpressionName: expressionName,
             InheritanceKeys: BuildInheritanceKeys(symbol),
             Template: template,
             BodyDiagnostics: bodyContext.Diagnostics.ToImmutable());
@@ -113,9 +114,10 @@ internal static class ComponentModelFactory
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         diagnostics.AddRange(analysis.BodyDiagnostics.AsImmutableArray());
 
-        // An unrecognized/unsupported Body shape yields no template; the abstract RenderView then triggers
-        // CS0534 in the user's compilation. Add a BlazorCompose-specific BC1003 unless the body already
-        // produced an actionable diagnostic (dedup), so the failure is explained rather than opaque.
+        // An unrecognized/unsupported design-time expression shape yields no template; the abstract
+        // RenderView then triggers CS0534 in the user's compilation. Add a BlazorCompose-specific BC1003
+        // unless the body already produced an actionable diagnostic (dedup), so the failure is explained
+        // rather than opaque.
         if (analysis.Template is null)
         {
             // Emit BC1003 unless an actionable ERROR was already recorded (e.g. BC3004/BC1002). A
@@ -126,7 +128,7 @@ internal static class ComponentModelFactory
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC1003,
                     Location.None,
-                    [analysis.ClassName]));
+                    [analysis.ClassName, analysis.DesignTimeExpressionName]));
             return new ComponentModelResult(null, diagnostics.ToImmutable());
         }
 

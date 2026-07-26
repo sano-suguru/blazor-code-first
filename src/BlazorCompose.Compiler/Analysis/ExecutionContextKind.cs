@@ -1,8 +1,8 @@
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Classifies a <c>Body</c> sub-expression into the three compiler pipeline paths and
-/// the execution contexts recognized for diagnostic purposes.
+/// Classifies a design-time expression (<c>Body</c> or <c>Chrome</c>) sub-expression into the three
+/// compiler pipeline paths and the execution contexts recognized for diagnostic purposes.
 /// </summary>
 internal enum ExecutionContextKind
 {

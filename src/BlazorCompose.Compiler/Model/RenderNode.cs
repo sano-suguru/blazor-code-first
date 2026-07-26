@@ -1,7 +1,8 @@
 namespace BlazorCompose.Compiler;
 
 /// <summary>
-/// Discriminated union of statically sequenceable UI nodes extracted from a <c>Body</c> expression.
+/// Discriminated union of statically sequenceable UI nodes extracted from a design-time expression
+/// (<c>Body</c> or <c>Chrome</c>).
 /// All fields contain only immutable templates and primitive values so that instances are immutable and value-equal.
 /// No syntax nodes, symbols, semantic models, or absolute TextSpan offsets are stored here.
 /// </summary>

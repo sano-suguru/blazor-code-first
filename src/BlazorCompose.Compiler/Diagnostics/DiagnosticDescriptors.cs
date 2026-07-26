@@ -104,22 +104,23 @@ internal static class DiagnosticDescriptors
             "the content in a container element such as Html.Div(...).");
 
     /// <summary>
-    /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderView
-    /// (no template, and no other actionable diagnostic was produced). Explains the CS0534 that the abstract
-    /// RenderView would otherwise raise on its own. Transitional: its firing condition shrinks once the
-    /// Opaque/Transplantable fallback paths are implemented.
+    /// BC1003: A component's design-time expression (<c>Body</c> or <c>Chrome</c>) reached the model
+    /// stage but could not be translated to a RenderView (no template, and no other actionable
+    /// diagnostic was produced). Explains the CS0534 that the abstract RenderView would otherwise raise
+    /// on its own. Transitional: its firing condition shrinks once the Opaque/Transplantable fallback
+    /// paths are implemented.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1003 = new(
         id: "BC1003",
-        title: "Component Body could not be translated",
-        messageFormat: "Component '{0}' Body could not be translated to a RenderView; it uses a construct that is not statically analyzable",
+        title: "Design-time expression could not be translated",
+        messageFormat: "The {1} design-time expression of '{0}' could not be translated to a RenderView; it uses a construct that is not statically analyzable",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The Body expression could not be classified into the statically sequenceable subset and no " +
-            "runtime fallback exists yet, so no RenderView is generated. Use the supported factories and " +
-            "combinators, or an inline expression lambda, so the body can be analyzed.");
+            "The design-time expression could not be classified into the statically sequenceable subset " +
+            "and no runtime fallback exists yet, so no RenderView is generated. Use the supported " +
+            "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
 
     /// <summary>
     /// BC3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied

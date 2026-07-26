@@ -145,4 +145,52 @@ public sealed class ComposeLayoutGeneratorTests
 
         Assert.DoesNotContain(diagnostics, d => d.Id == "BC3001");
     }
+
+    [Fact]
+    public void Generator_UntranslatableChrome_BC1003MessageNamesChrome()
+    {
+        // BC1003 hardcoded the word "Body", which is a false statement for a layout: what failed to
+        // translate is Chrome. GetView() is a plain View-returning method, which is the Opaque path and
+        // is not implemented, so the template comes out null and BC1003 fires.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Shell : ComposeLayoutBase
+            {
+                private View GetView() => Span("x");
+
+                protected override View Chrome => Main(GetView());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains("Chrome", diagnostic.GetMessage());
+        Assert.DoesNotContain("Body", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void Generator_UntranslatableBody_BC1003MessageNamesBody()
+    {
+        // Companion: a component must still say Body.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private View GetView() => Span("x");
+
+                protected override View Body => Div(GetView());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains("Body", diagnostic.GetMessage());
+        Assert.DoesNotContain("Chrome", diagnostic.GetMessage());
+    }
 }
