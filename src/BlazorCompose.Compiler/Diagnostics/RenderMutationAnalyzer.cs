@@ -8,8 +8,9 @@ using Microsoft.CodeAnalysis.Operations;
 namespace BlazorCompose.Compiler.Diagnostics;
 
 /// <summary>
-/// Reports BC3001 when a <c>Body</c> getter directly mutates instance state of the
-/// containing component during rendering.
+/// Reports BC3001 when a Compose base's design-time expression getter (<c>Body</c> on
+/// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) directly mutates instance
+/// state of the containing component during rendering.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -64,7 +65,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var semanticModel = ctx.Operation.SemanticModel;
         if (semanticModel is null) return;
 
-        if (!TryGetBodyOwnerType(ctx.Operation.Syntax, semanticModel, out var ownerType)) return;
+        if (!TryGetDesignTimeExpressionOwnerType(ctx.Operation.Syntax, semanticModel, out var ownerType)) return;
 
         // The target must belong to the same component (not a field on a nested type, etc.).
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
@@ -113,11 +114,11 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Walks the syntax ancestors of <paramref name="operationSyntax"/> to find an
-    /// <c>override Body</c> property declaration and verifies via the semantic model
-    /// that it belongs to a <c>ComposeComponentBase</c> subclass.
+    /// Walks the syntax ancestors of <paramref name="operationSyntax"/> to find an <c>override</c>
+    /// property declaration and verifies via the semantic model that it is the design-time expression
+    /// (<c>Body</c> or <c>Chrome</c>, resolved semantically) of a Compose base subclass.
     /// </summary>
-    private static bool TryGetBodyOwnerType(
+    private static bool TryGetDesignTimeExpressionOwnerType(
         SyntaxNode operationSyntax,
         SemanticModel semanticModel,
         out INamedTypeSymbol? ownerType)
@@ -127,12 +128,12 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         while (node is not null)
         {
             if (node is PropertyDeclarationSyntax propDecl &&
-                propDecl.Identifier.Text == "Body" &&
                 propDecl.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
             {
                 if (semanticModel.GetDeclaredSymbol(propDecl) is IPropertySymbol prop &&
                     prop.ContainingType is INamedTypeSymbol type &&
-                    ComposeComponentBaseFacts.InheritsFromComposeComponentBase(type))
+                    ComposeComponentBaseFacts.InheritsFromComposeBase(type) &&
+                    prop.Name == ComposeComponentBaseFacts.FindDesignTimeExpressionName(type))
                 {
                     ownerType = type;
                     return true;
