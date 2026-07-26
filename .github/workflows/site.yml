@@ -58,8 +58,8 @@ jobs:
           #     site.
           #   * On pull_request, github.ref_name is "<number>/merge", which is not a usable branch
           #     alias at all.
-          # Context values arrive through env, not ${{ }} interpolation into the script, so a branch
-          # name cannot inject shell.
+          # Context values arrive through env, not GitHub Actions expression interpolation directly
+          # into the script, so a branch name cannot inject shell.
           if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
             environment=production
             branch=main
