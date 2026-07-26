@@ -16,11 +16,66 @@ on:
       - ".github/workflows/site.yml"
   workflow_dispatch:
 
+# Commenting the preview URL needs pull-requests: write. Without an explicit block the job inherits
+# the repository default, which is read-only on many repositories and would 403 at comment time.
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  # github.ref is refs/pull/<number>/merge on a pull_request, so each PR gets its own group and
+  # supersedes only itself.
+  group: site-${{ github.ref }}
+  # Never cancel an in-flight PRODUCTION deploy: `wrangler pages deploy` uploads incrementally, and a
+  # cancelled upload would leave the live site as whatever partial state had been committed. This
+  # keys on the REF rather than on the production/preview decision, so a workflow_dispatch from main
+  # (a preview) is also protected from cancellation -- the safe direction.
+  #
+  # After this change workflow_dispatch can no longer produce a production deploy; it always deploys
+  # to a "dispatch-<branch>" preview. To redeploy production without a new commit, re-run the push
+  # workflow run: `gh run rerun <run-id>`.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve the deployment target
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          # Derive --branch from the production/preview decision rather than passing github.ref_name
+          # straight through. Two ways that went wrong:
+          #   * workflow_dispatch from main handed wrangler "main", i.e. a PRODUCTION deploy, while
+          #     the noindex logic below treats any non-push run as a preview -- deindexing the live
+          #     site.
+          #   * On pull_request, github.ref_name is "<number>/merge", which is not a usable branch
+          #     alias at all.
+          # Context values arrive through env, not ${{ }} interpolation into the script, so a branch
+          # name cannot inject shell.
+          if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
+            environment=production
+            branch=main
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            environment=preview
+            branch="pr-$PR_NUMBER"
+          else
+            # A dispatch on a branch whose name contains "/" would not survive as a Pages branch
+            # alias, so flatten the separator.
+            environment=preview
+            branch="dispatch-${REF_NAME//\//-}"
+          fi
+
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "Deploying as $environment to Cloudflare Pages branch '$branch'"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -182,16 +237,88 @@ jobs:
           assert_grep 'href="/docs/control-flow"' "$P/docs/getting-started/index.html" "a sibling .md link was not rewritten to its SPA route"
           assert_grep '<title>Getting Started</title>' "$P/docs/getting-started/index.html" "the per-page title is wrong or missing"
 
+      - name: Verify the published _headers
+        run: |
+          set -euo pipefail
+          . eng/ci-assert.sh
+
+          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+
+          # _headers is an ordinary wwwroot file, so if it ever stopped being published NOTHING else
+          # in this workflow would fail -- and the preview injection below appends with ">>", which
+          # would create a fresh file and succeed, deploying a _headers that has only the noindex
+          # rule and no immutable cache rule. Asserting the contents BEFORE any injection catches
+          # file loss, rule loss, and a mis-ordered workflow with one check.
+          assert_file "$P/_headers" "the publish output has no _headers file"
+          assert_grep '^/_framework/\*$' "$P/_headers" "the /_framework/* rule is missing from _headers"
+          assert_grep '^  Cache-Control: public, max-age=31536000, immutable$' "$P/_headers" "the immutable cache directive is missing from the /_framework/* rule"
+          assert_grep '^/404$' "$P/_headers" "the /404 rule is missing from _headers"
+          assert_grep '^  X-Robots-Tag: noindex$' "$P/_headers" "the /404 noindex directive is missing from _headers"
+
+      - name: Inject the preview noindex header
+        if: steps.target.outputs.environment == 'preview'
+        run: |
+          set -euo pipefail
+          . eng/ci-assert.sh
+
+          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+
+          # Cloudflare already sends X-Robots-Tag: noindex on every preview deployment by default, so
+          # what this rule actually adds is `nofollow` plus an explicit, self-evident statement of
+          # intent that does not depend on a platform default staying put.
+          #
+          # X-Robots-Tag only. robots.txt is deliberately NOT touched: "Disallow: /" stops the crawl,
+          # so the crawler never reads the noindex and the two directives CANCEL rather than add.
+          # The leading blank line keeps this a separate rule from the last one in the committed file.
+          printf '\n/*\n  X-Robots-Tag: noindex, nofollow\n' >> "$P/_headers"
+
+          assert_grep '^/\*$' "$P/_headers" "the injected preview rule has no /* path line"
+          assert_grep '^  X-Robots-Tag: noindex, nofollow$' "$P/_headers" "the injected preview noindex directive is missing"
+
+          echo "--- published _headers ---"
+          cat "$P/_headers"
+
       - name: Deploy to Cloudflare Pages
-        if: github.event_name != 'pull_request'
+        id: deploy
+        # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip.
+        # Test the head repository explicitly instead of probing for an empty secret.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Explicit --branch so a push to main deploys to PRODUCTION. Without it, CI runs on a
-          # detached HEAD and wrangler falls back to a preview deployment. github.ref_name is
-          # "main" on the push trigger and the branch name on a manual workflow_dispatch (preview).
+          # --branch comes from the resolved target, never from github.ref_name (see that step).
           command: >-
             pages deploy site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
             --project-name blazor-compose-site
-            --branch=${{ github.ref_name }}
+            --branch=${{ steps.target.outputs.branch }}
+
+      - name: Comment the preview URL on the pull request
+        # Same fork condition as the deploy step: with no deployment there is no URL to post.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ALIAS_URL: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          set -euo pipefail
+
+          # Prefer the branch alias (pr-N.<project>.pages.dev). A stable URL across redeploys is the
+          # entire reason --branch is set explicitly; deployment-url is per-deployment and changes
+          # every push, so it is only the fallback.
+          url="$ALIAS_URL"
+          if [ -z "$url" ]; then
+            url="$DEPLOYMENT_URL"
+          fi
+          if [ -z "$url" ]; then
+            echo "::error::the deploy step produced neither pages-deployment-alias-url nor deployment-url" >&2
+            exit 1
+          fi
+
+          body=$(printf 'Preview deploy: %s\n\nServed with `X-Robots-Tag: noindex, nofollow`.\n' "$url")
+
+          # Edit the bot's previous comment instead of stacking one per push. The `||` fallback covers
+          # a gh build without --create-if-none.
+          gh pr comment "$PR_NUMBER" --body "$body" --edit-last --create-if-none \
+            || gh pr comment "$PR_NUMBER" --body "$body"
