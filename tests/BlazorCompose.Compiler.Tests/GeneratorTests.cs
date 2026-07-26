@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using BlazorCompose.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 
@@ -162,12 +163,181 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_BlockBody_EmitsNoSourceAndReportsCS0534()
+    public void Generator_BlockBodyGetter_GeneratesSameSourceAsExpressionBody()
     {
-        var result = CompilationTestHost.RunGenerator(BlockBodySource);
+        // `get { return e; }` reduces to a single expression, so it must translate identically to
+        // `=> e`. Comparing the generated source (not just the absence of a diagnostic) is what proves
+        // the two spellings are the same program.
+        const string expressionBodySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var blockBody = Assert.Single(CompilationTestHost.RunGenerator(BlockBodySource).GeneratedSources)
+            .SourceText.ToString();
+        var expressionBody = Assert.Single(
+                CompilationTestHost.RunGenerator(expressionBodySource).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Equal(expressionBody, blockBody);
+    }
+
+    [Fact]
+    public void Generator_AccessorExpressionBodyGetter_GeneratesSameSourceAsExpressionBody()
+    {
+        const string accessorBodySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body { get => Span("Count"); }
+            }
+            """;
+
+        const string expressionBodySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var accessorBody = Assert.Single(CompilationTestHost.RunGenerator(accessorBodySource).GeneratedSources)
+            .SourceText.ToString();
+        var expressionBody = Assert.Single(
+                CompilationTestHost.RunGenerator(expressionBodySource).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Equal(expressionBody, accessorBody);
+    }
+
+    [Fact]
+    public void Generator_MultiStatementGetter_ReportsBC1004AtTheProperty()
+    {
+        // A getter with statements would need the Transplantable path, which is not implemented. The
+        // point of BC1004 is that the author is told THAT, instead of a bare CS0534 about RenderView
+        // which says nothing about the getter.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body
+                {
+                    get
+                    {
+                        var label = "Count";
+                        return Span(label);
+                    }
+                }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Single(result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS0534");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1004");
+        Assert.Contains("Body", diagnostic.GetMessage());
+        // BC1003 explains "the constructs inside are unanalyzable"; BC1004 explains "the getter shape
+        // is wrong". Only one of them should fire, or the author gets two contradictory fixes.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+
+        // Diagnostics that flow through the generator's ComponentAnalysis/DiagnosticInfo round trip
+        // carry a file-path-and-span Location (DiagnosticInfo.ToDiagnostic), not a live SyntaxTree
+        // reference, so the located text is recovered from the original source rather than from
+        // diagnostic.Location.SourceTree, which is null for that Location kind.
+        var sourceText = Microsoft.CodeAnalysis.Text.SourceText.From(source);
+        Assert.Equal("Body", sourceText.ToString(diagnostic.Location.SourceSpan));
+    }
+
+    [Fact]
+    public void Generator_ReAbstractedExpression_ReportsNoBlazorComposeDiagnostic()
+    {
+        // `abstract override` is legal and has no getter body (spec F1): nothing to translate and
+        // nothing to complain about. The complement-of-accepted-forms implementation would misfire here.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public abstract partial class Half : ComposeComponentBase
+            {
+                protected abstract override View Body { get; }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+    }
+
+    [Fact]
+    public void Generator_AutoPropertyOverride_ReportsNoBlazorComposeDiagnostic()
+    {
+        // An auto-property override with an initializer is legal and has no getter body (spec F2).
+        // Nothing is generated for this shape (FindDesignTimeExpression returns Absent), so the author
+        // is left with a bare CS0534 about RenderView rather than a BlazorCompose diagnostic that would
+        // point at the real cause — a known, recorded residual hole (see the final review's Minor #4).
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body { get; } = default;
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.Empty(result.GeneratedSources);
+
+        var diagnostic = Assert.Single(
+            result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS0534");
+        Assert.Contains("Counter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public async Task Generator_MultiStatementGetterWithMutation_ReportsBothBC1004AndBC3001()
+    {
+        // Two analyzers, two separate dedup paths: the generator reports BC1004 and
+        // RenderMutationAnalyzer independently reports BC3001. Both are actionable, so both firing is
+        // correct — pinned here so nobody "fixes" it into a single report.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private int _n;
+
+                protected override View Body
+                {
+                    get
+                    {
+                        _n++;
+                        return Span("x");
+                    }
+                }
+            }
+            """;
+
+        var generatorResult = CompilationTestHost.RunGenerator(source);
+        Assert.Contains(generatorResult.Diagnostics, d => d.Id == "BC1004");
+
+        var analyzerDiagnostics =
+            await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+        Assert.Contains(analyzerDiagnostics, d => d.Id == "BC3001");
     }
 
     [Fact]
@@ -656,6 +826,37 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.AddContent(2, __bc_arg_1_0)", generated);
         Assert.Contains("__builder.OpenElement(3, \"span\")", generated);
         Assert.DoesNotContain("Label(", generated);
+    }
+
+    [Fact]
+    public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBC1003()
+    {
+        // Sibling of the Html factory path's FactoryArgumentBindingTests.
+        // Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource: CreateInvocationArguments
+        // used the same fragile `(argument.Syntax as ArgumentSyntax)?.Expression` cast the Html factory
+        // path used to use. For a bare null-forgiving argument with nothing else to convert (Roslyn
+        // elides the `!` from the operation tree), the cast failed, the method returned null, and the
+        // call fell through to BC1003 instead of translating.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private static string? NullText => null;
+
+                [Composable]
+                private static View Label(string value) => Span(value);
+
+                protected override View Body => Label(NullText!);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("NullText!", generated);
     }
 
     [Fact]
@@ -2368,6 +2569,54 @@ public sealed class GeneratorTests
         // ComponentView<T> has no .Class, and extension resolution does not cross the user-defined
         // implicit conversion to View, so this is a plain C# error, not a generator diagnostic.
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
+    }
+
+    [Fact]
+    public void Generator_ClassOnRenderFragment_IsRejectedByTypeSystem()
+    {
+        // PR #50 deliberately added no diagnostic for decorating a RenderFragment, on the grounds that
+        // C# does not apply a user-defined implicit conversion to an extension-method receiver, so
+        // fragment.Class("x") does not compile in the first place. Nothing pinned that until now: if a
+        // decoration were ever added as an instance member on View, this would silently start compiling
+        // and reach the decoration branch instead.
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Card : ComposeComponentBase
+            {
+                [Parameter]
+                public RenderFragment? ChildContent { get; set; }
+
+                protected override View Body => Div(ChildContent.Class("x"));
+            }
+            """);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
+    }
+
+    [Fact]
+    public void Generator_GenericRenderFragmentAsChild_IsRejectedByTypeSystem()
+    {
+        // The implicit conversion to View is from the non-generic RenderFragment only. A
+        // RenderFragment<T> is a template needing a context argument, so it must not silently become
+        // content — the type system rejects it with CS1503 and no diagnostic of ours is needed.
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Card : ComposeComponentBase
+            {
+                [Parameter]
+                public RenderFragment<string>? Template { get; set; }
+
+                protected override View Body => Div(Template);
+            }
+            """);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1503");
     }
 
     [Fact]

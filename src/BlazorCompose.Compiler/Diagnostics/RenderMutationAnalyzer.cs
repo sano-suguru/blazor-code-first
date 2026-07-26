@@ -16,7 +16,7 @@ namespace BlazorCompose.Compiler.Diagnostics;
 /// <para>
 /// The initial detectable boundary covers statically identifiable direct writes: field assignments,
 /// property assignments, and increment/decrement operators whose target is an instance member of the
-/// containing component. The recognized deferred event handlers — the last-argument lambda of a
+/// containing component. The recognized deferred event handlers — the handler argument of a
 /// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call — are excluded because state
 /// mutations there are the correct location for imperative state transitions and execute after
 /// rendering, not during it. A mutation is exempt when <em>any</em> enclosing lambda (not just the
@@ -160,7 +160,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed — at any
     /// nesting depth — by a lambda that is syntactically a recognized deferred event handler
-    /// argument: the last argument of a Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c>
+    /// argument: the handler argument of a Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c>
     /// call. Every enclosing lambda is checked (not just the innermost), so a mutation inside a
     /// nested lambda that itself lives inside a recognized handler lambda (e.g.
     /// <c>OnClick(async () => items.ForEach(i => total += i))</c>) is still exempt. If-content
@@ -184,31 +184,58 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the last argument of a Html-mirror
-    /// <c>Decorations.OnClick(...)</c> or <c>Decorations.On(...)</c> invocation. The handler is always the
-    /// final argument in every call form (reduced fluent OnClick=arg0, reduced fluent On=arg1, non-fluent
-    /// static form=last), so "last argument" matches all of them.
+    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the handler argument of a
+    /// Html-mirror <c>Decorations.OnClick(...)</c> or <c>Decorations.On(...)</c> invocation. The handler
+    /// is identified by the parameter it binds to, not by its position: a named argument
+    /// (<c>.On(handler: h, eventName: "onclick")</c>) can put it anywhere in the list.
     /// </summary>
     private static bool IsDeferredEventHandlerArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
     {
-        if (lambda.Parent is ArgumentSyntax arg &&
-            arg.Parent is ArgumentListSyntax argList &&
-            argList.Parent is InvocationExpressionSyntax invocation &&
-            argList.Arguments.Count >= 1 &&
-            argList.Arguments[argList.Arguments.Count - 1] == arg)
+        if (lambda.Parent is not ArgumentSyntax arg ||
+            arg.Parent is not ArgumentListSyntax argList ||
+            argList.Parent is not InvocationExpressionSyntax invocation)
         {
-            var symbolInfo = semanticModel.GetSymbolInfo(invocation);
-            // Anchor the namespace to the global root so a user-defined Some.BlazorCompose.Decorations
-            // cannot spoof the exclusion.
-            if (symbolInfo.Symbol is IMethodSymbol { IsExtensionMethod: true } method &&
-                method.Name is "OnClick" or "On" &&
-                (method.ReducedFrom ?? method).ContainingType is { Name: "Decorations" } decorationsType &&
-                decorationsType.ContainingNamespace is { IsGlobalNamespace: false, Name: "BlazorCompose" } ns &&
-                ns.ContainingNamespace.IsGlobalNamespace)
-            {
-                return true;
-            }
+            return false;
         }
+
+        // Anchor the namespace to the global root so a user-defined Some.BlazorCompose.Decorations
+        // cannot spoof the exclusion.
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { IsExtensionMethod: true } method ||
+            method.Name is not ("OnClick" or "On") ||
+            (method.ReducedFrom ?? method).ContainingType is not { Name: "Decorations" } decorationsType ||
+            decorationsType.ContainingNamespace is not { IsGlobalNamespace: false, Name: "BlazorCompose" } ns ||
+            !ns.ContainingNamespace.IsGlobalNamespace)
+        {
+            return false;
+        }
+
+        return BindsToDelegateParameter(arg, invocation, semanticModel);
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="argument"/> binds to a delegate-typed
+    /// parameter of <paramref name="invocation"/> — the <c>Action</c> or <c>Func&lt;Task&gt;</c> handler of
+    /// <c>OnClick</c>/<c>On</c>, as opposed to the <c>string</c> event name.
+    /// </summary>
+    private static bool BindsToDelegateParameter(
+        ArgumentSyntax argument, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (semanticModel.GetOperation(invocation) is not IInvocationOperation operation)
+            return false;
+
+        foreach (var operationArgument in operation.Arguments)
+        {
+            // Reference equality is safe here even though FactoryArguments.Bind's default arm cannot
+            // rely on it (see the comment there): the elision that defeats a raw Syntax comparison only
+            // strips a bare null-forgiving suppression from the operation tree, and `argument` here is
+            // always a lambda literal — never a suppressed identifier — so operationArgument.Syntax
+            // always points back at the same ArgumentSyntax the caller matched on.
+            if (operationArgument.Syntax != argument)
+                continue;
+
+            return operationArgument.Parameter?.Type.TypeKind == TypeKind.Delegate;
+        }
+
         return false;
     }
 }

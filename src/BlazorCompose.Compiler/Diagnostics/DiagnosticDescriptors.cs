@@ -9,17 +9,25 @@ namespace BlazorCompose.Compiler.Diagnostics;
 internal static class DiagnosticDescriptors
 {
     /// <summary>
-    /// BC1001: A class deriving from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>)
-    /// must be declared <c>partial</c> so the source generator can emit the <c>RenderView</c> override.
+    /// BC1001: A class that declares the design-time expression override (<c>Body</c> on
+    /// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) must be declared
+    /// <c>partial</c> so the source generator can emit the <c>RenderView</c> override into the same class.
+    /// A class that only inherits a Compose base without declaring the override has nothing generated
+    /// into it and is not reported.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1001 = new(
         id: "BC1001",
-        title: "Compose base subclass must be partial",
-        messageFormat: "'{0}' derives from {1} but is not declared partial; add the partial modifier",
+        title: "Class declaring a design-time expression must be partial",
+        messageFormat: "'{0}' declares the {1} design-time expression of {2} but is not declared partial; add the partial modifier",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Classes that derive from a Compose base (ComposeComponentBase or ComposeLayoutBase) must be declared partial so the source generator can emit the RenderView override.");
+        description:
+            "A class that declares the design-time expression override (Body on ComposeComponentBase, " +
+            "Chrome on ComposeLayoutBase) must be declared partial so the source generator can emit the " +
+            "RenderView override into the same class. A class that only inherits a Compose base without " +
+            "declaring the override — an intermediate abstract base, a leaf whose base already declares " +
+            "it, or a re-abstraction — has nothing generated into it and needs no partial modifier.");
 
     /// <summary>
     /// BC1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
@@ -96,22 +104,43 @@ internal static class DiagnosticDescriptors
             "the content in a container element such as Html.Div(...).");
 
     /// <summary>
-    /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderView
-    /// (no template, and no other actionable diagnostic was produced). Explains the CS0534 that the abstract
-    /// RenderView would otherwise raise on its own. Transitional: its firing condition shrinks once the
-    /// Opaque/Transplantable fallback paths are implemented.
+    /// BC1003: A component's design-time expression (<c>Body</c> or <c>Chrome</c>) reached the model
+    /// stage but could not be translated to a RenderView (no template, and no other actionable
+    /// diagnostic was produced). Explains the CS0534 that the abstract RenderView would otherwise raise
+    /// on its own. Transitional: its firing condition shrinks once the Opaque/Transplantable fallback
+    /// paths are implemented.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1003 = new(
         id: "BC1003",
-        title: "Component Body could not be translated",
-        messageFormat: "Component '{0}' Body could not be translated to a RenderView; it uses a construct that is not statically analyzable",
+        title: "Design-time expression could not be translated",
+        messageFormat: "The {1} design-time expression of '{0}' could not be translated to a RenderView; it uses a construct that is not statically analyzable",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The Body expression could not be classified into the statically sequenceable subset and no " +
-            "runtime fallback exists yet, so no RenderView is generated. Use the supported factories and " +
-            "combinators, or an inline expression lambda, so the body can be analyzed.");
+            "The design-time expression could not be classified into the statically sequenceable subset " +
+            "and no runtime fallback exists yet, so no RenderView is generated. Use the supported " +
+            "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
+
+    /// <summary>
+    /// BC1004: A design-time expression override declares a getter whose body does not reduce to a
+    /// single expression, so there is nothing for the generator to translate. Distinct from BC1003: the
+    /// getter's shape is the problem, not the constructs used inside it, and the fix is to rewrite the
+    /// getter rather than to change which factories are called. Reported at the property identifier,
+    /// where BC1003 is location-less.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC1004 = new(
+        id: "BC1004",
+        title: "Design-time expression getter must reduce to a single expression",
+        messageFormat: "'{0}' declares the {1} design-time expression with a getter that does not reduce to a single expression; write it as '=> expr', 'get => expr', or 'get {{ return expr; }}'",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A design-time expression is an inert projection of state to UI that the generator translates " +
+            "statically; it is never evaluated at runtime. Its getter must therefore reduce to a single " +
+            "expression. A getter that contains statements — for example a local variable declared before " +
+            "the return — would require the Transplantable path, which is not implemented.");
 
     /// <summary>
     /// BC3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied

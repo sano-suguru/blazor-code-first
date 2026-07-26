@@ -9,8 +9,9 @@ namespace BlazorCompose;
 /// override.
 /// </summary>
 /// <remarks>
-/// Components deriving from this type must be declared <c>partial</c> so the generator can emit the
-/// <see cref="RenderView"/> implementation into the same class; a non-partial component reports BC1001.
+/// Components that declare the <see cref="Body"/> override must be declared <c>partial</c> so the
+/// generator can emit the <see cref="RenderView"/> implementation into the same class; a non-partial
+/// component reports BC1001.
 /// The component otherwise behaves as a standard Blazor <see cref="ComponentBase"/>.
 /// </remarks>
 public abstract class ComposeComponentBase : ComponentBase

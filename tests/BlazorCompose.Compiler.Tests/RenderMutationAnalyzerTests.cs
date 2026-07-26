@@ -248,4 +248,101 @@ public sealed class RenderMutationAnalyzerTests
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
         Assert.Contains(diagnostics, static d => d.Id == "BC3001");
     }
+
+    [Fact]
+    public async Task RenderMutationAnalyzer_NamedHandlerArgument_DoesNotReportBC3001()
+    {
+        // The handler is identified by the parameter it binds to, not by its position. A named argument
+        // puts it first, which used to defeat the deferred-handler exemption and produce a false BC3001.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private int _n;
+
+                protected override View Body =>
+                    Div().On(handler: () => _n++, eventName: "onclick");
+            }
+            """;
+
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BC3001");
+    }
+
+    [Fact]
+    public async Task RenderMutationAnalyzer_PositionalHandlerArgument_StillDoesNotReportBC3001()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private int _n;
+
+                protected override View Body => Div().On("onclick", () => _n++);
+            }
+            """;
+
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BC3001");
+    }
+
+    [Fact]
+    public async Task RenderMutationAnalyzer_MutationOutsideAnyHandler_StillReportsBC3001()
+    {
+        // Guard against the fix widening the exemption: a mutation that is not inside a handler lambda
+        // must still be reported.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private int _n;
+
+                protected override View Body => Span($"{_n++}");
+            }
+            """;
+
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+
+        Assert.Single(diagnostics, d => d.Id == "BC3001");
+    }
+
+    [Fact]
+    public async Task RenderMutationAnalyzer_SpoofedDecorationsNamespace_StillReportsBC3001()
+    {
+        // The exemption is anchored to the global BlazorCompose.Decorations. A user-defined type with
+        // the same name in another namespace must not be able to claim it. This property predates the
+        // positional fix and must survive it.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace Evil.BlazorCompose
+            {
+                public static class Decorations
+                {
+                    public static View On(this View view, string eventName, System.Action handler) => view;
+                }
+            }
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private int _n;
+
+                protected override View Body =>
+                    Evil.BlazorCompose.Decorations.On(Div(), "onclick", () => _n++);
+            }
+            """;
+
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+
+        Assert.Single(diagnostics, d => d.Id == "BC3001");
+    }
 }

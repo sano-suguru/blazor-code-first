@@ -38,6 +38,28 @@ Blazor requires a layout's routed content to be exposed through a parameter name
 its Razor meaning — the page being wrapped — and the layout's own design-time expression is
 named `Chrome` instead.
 
+## Nesting layouts
+
+A layout can itself sit inside another layout. Put `[Layout]` on the layout type, exactly as you
+would on a page:
+
+```csharp
+using BlazorCompose;
+using Microsoft.AspNetCore.Components;
+using static BlazorCompose.Html;
+
+[Layout(typeof(SiteLayout))]
+public partial class DocsLayout : ComposeLayoutBase
+{
+    protected override View Chrome => Div(Aside(TableOfContents()), Main(Body)).Class("docs");
+}
+```
+
+Nesting is resolved by Blazor, not by BlazorCompose: `LayoutView` reads the attribute off the layout
+type and wraps it in its own layout, and a Compose layout is an ordinary `LayoutComponentBase`
+descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Body` is the rendered
+`DocsLayout`, whose own `Body` is the routed page.
+
 ## RenderFragment becomes content directly
 
 `Body` is a plain Blazor `RenderFragment?`, not a BlazorCompose type, yet `Main(Body)` above

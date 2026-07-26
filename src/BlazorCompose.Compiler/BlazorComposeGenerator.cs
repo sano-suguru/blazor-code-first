@@ -6,9 +6,10 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCompose.Compiler;
 
 /// <summary>
-/// Incremental source generator entry point.  Discovers <c>ComposeComponentBase</c> subclasses and
-/// emits a <c>RenderView</c> override into the same partial class, and discovers <c>[Composable]</c>
-/// definitions into a value-equal registry while reporting declaration-time BC1002 diagnostics.
+/// Incremental source generator entry point.  Discovers Compose base subclasses
+/// (<c>ComposeComponentBase</c> and <c>ComposeLayoutBase</c>) and emits a <c>RenderView</c> override
+/// into the same partial class, and discovers <c>[Composable]</c> definitions into a value-equal
+/// registry while reporting declaration-time BC1002 diagnostics.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class BlazorComposeGenerator : IIncrementalGenerator
@@ -16,8 +17,9 @@ public sealed class BlazorComposeGenerator : IIncrementalGenerator
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Analyze each candidate component inside the syntax transform: KnownSymbols is resolved
-        // transiently from the candidate's own compilation and the Body is classified into a symbol-free
-        // template here, so no SemanticModel/ISymbol/Compilation ever flows into the cached pipeline.
+        // transiently from the candidate's own compilation and its design-time expression (Body or
+        // Chrome) is classified into a symbol-free template here, so no
+        // SemanticModel/ISymbol/Compilation ever flows into the cached pipeline.
         var analyses = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) => node is ClassDeclarationSyntax { BaseList: not null },
