@@ -161,8 +161,12 @@ public sealed class FactoryArgumentBindingTests
     }
 
     [Fact]
-    public void Element_TagNamedAfterChildren_GeneratesSameSourceAsPositional()
+    public void Element_TagNamed_GeneratesSameSourceAsPositional()
     {
+        // `tag` can only be named in its natural first position: children bind to the expanded
+        // `params` parameter, and C# does not allow naming an expanded params argument. So there is
+        // no legal spelling that names `tag` after the children — this covers naming the first
+        // argument, not reordering past children.
         var named = GenerateBody("""Element(tag: "section", "a", "b")""");
         var positional = GenerateBody("""Element("section", "a", "b")""");
 
