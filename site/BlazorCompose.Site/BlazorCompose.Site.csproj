@@ -18,6 +18,21 @@
          index.html as plain HTML, before any WASM/JS executes. -->
     <BlazorWasmPrerenderingMode>Static</BlazorWasmPrerenderingMode>
     <BlazorWasmPrerenderingKeepServer>false</BlazorWasmPrerenderingKeepServer>
+    <!-- Without this the prerendered markup ships inside "<div b-prerendering-container inert>"
+         under an opaque "<div b-prerendering-loader>" (z-index 1), both nested in "<div id="app">",
+         so they only disappear once Blazor replaces #app - i.e. after WASM starts. The prerendered
+         HTML was therefore crawler-only and did nothing for a human's first paint. Deleting the
+         wrappers makes the prerendered navigation plain <a> elements that work before hydration.
+         Accepted trade-off: /counter's Increment button is now visible and clickable before
+         hydration and does nothing. No disabled-until-hydrated plumbing is being built for it. -->
+    <BlazorWasmPrerenderingDeleteLoadingContents>true</BlazorWasmPrerenderingDeleteLoadingContents>
+    <!-- Drops icudt_CJK.dat (956KB), icudt_EFIGS.dat (551KB) and icudt_no_CJK.dat (1.1MB). Safe
+         because nothing under site/BlazorCompose.Site is culture-sensitive: no CultureInfo, no
+         ToUpper/ToLower, no OrderBy/Sort, no String.Compare/CompareTo, no ToString(format).
+         SiteNav.CurrentPath uses IndexOfAny(char[]) plus TrimEnd, every comparison here is
+         OrdinalIgnoreCase, and Markdown conversion and syntax highlighting run at authoring time in
+         the DocGen tool, which is a separate project unaffected by this flag. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>

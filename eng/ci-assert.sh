@@ -107,6 +107,33 @@ assert_count() {
   fi
 }
 
+# No entry matching the glob may exist directly under the directory.
+#
+# The directory-existence check is the point of this helper, not a nicety: `find` exits 0 and prints
+# nothing both when the glob matches nothing AND (with the check omitted) when the whole directory is
+# gone. A missing _framework/ would then read as "no ICU data, as expected" -- the same class of
+# defect as a zero-count assertion against a missing file.
+assert_no_glob() {
+  local matches rc prev=$-
+  _assert_argc assert_no_glob 3 "$#"
+  if [ ! -d "$1" ]; then
+    fail "expected directory does not exist: $1"
+  fi
+
+  set +e
+  matches=$(find "$1" -maxdepth 1 -name "$2" -print)
+  rc=$?
+  case $prev in *e*) set -e ;; esac
+
+  if [ "$rc" -ne 0 ]; then
+    fail "the glob check for '$2' could not run (find exited $rc) in $1"
+  fi
+
+  if [ -n "$matches" ]; then
+    fail "$3 (directory: $1, forbidden glob: $2, matched: $(printf '%s' "$matches" | tr '\n' ' '))"
+  fi
+}
+
 # The file must exist.
 assert_file() {
   _assert_argc assert_file 2 "$#"

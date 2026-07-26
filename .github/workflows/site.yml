@@ -192,6 +192,17 @@ jobs:
 
           P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
 
+          # Every prerendered ROUTE, relative to $P. These carry the shell, exactly one <title>, and
+          # exactly one active nav link.
+          ROUTES="index.html counter/index.html docs/index.html"
+          for slug in getting-started elements-and-decorations control-flow; do
+            ROUTES="$ROUTES docs/$slug/index.html"
+          done
+          # Every prerendered HTML document. Identical to ROUTES today; 404.html joins this list once
+          # the real 404 lands, and only this list, because no nav link points at /404 and so its
+          # active-link expectation is zero rather than one.
+          ALL_HTML="$ROUTES"
+
           # Attribute order in the generated HTML is class-before-href today; match either order so
           # a future emitter change cannot silently turn this guard into a no-op.
           assert_active_link() {
@@ -200,24 +211,30 @@ jobs:
               "$1" "the nav link for '$2' is not marked active"
           }
 
-          # The shell must be present on every prerendered route.
-          for f in index.html counter/index.html docs/index.html; do
+          for f in $ROUTES; do
+            assert_file "$P/$f" "this route was not prerendered"
             assert_grep 'class="site-nav"' "$P/$f" "the site shell (nav) is missing from this route"
+            assert_count 'nav-link active' "$P/$f" 1 "exactly one nav link must be active on a prerendered route"
+            assert_count '<title>' "$P/$f" 1 "a prerendered route must render exactly one title element"
           done
+
+          # The prerendering wrappers must be gone. While they shipped, the prerendered markup was
+          # inert and hidden under an opaque loader until WASM started, so it reached crawlers only.
+          for f in $ALL_HTML; do
+            assert_not_grep 'b-prerendering' "$P/$f" "a prerendering wrapper div survived into the published HTML, which hides the prerendered content from humans until WASM starts"
+          done
+
+          # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
+          assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
 
           assert_active_link "$P/index.html" "/"
           assert_active_link "$P/counter/index.html" "/counter"
 
-          # Each document route is prerendered with the shell, exactly one title, its own nav link
-          # marked active, and no leftover .md link. The per-route active check is the real guard: if
-          # path normalization is wrong, every route renders the same active link.
+          # The per-route active check is the real guard: if path normalization is wrong, every route
+          # renders the same active link.
           for slug in getting-started elements-and-decorations control-flow; do
             f="$P/docs/$slug/index.html"
-            assert_file "$f" "the document route /docs/$slug was not prerendered"
-            assert_grep 'class="site-nav"' "$f" "the site shell (nav) is missing from this document route"
             assert_active_link "$f" "/docs/$slug"
-            assert_count 'nav-link active' "$f" 1 "exactly one nav link must be active on a document route"
-            assert_count '<title>' "$f" 1 "a document route must render exactly one title element"
             assert_not_grep 'href="[^"]*\.md("|#|\?)' "$f" "an un-rewritten .md link survived into the prerendered HTML"
           done
 
