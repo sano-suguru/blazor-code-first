@@ -284,6 +284,9 @@ public sealed class GeneratorTests
     public void Generator_AutoPropertyOverride_ReportsNoBlazorComposeDiagnostic()
     {
         // An auto-property override with an initializer is legal and has no getter body (spec F2).
+        // Nothing is generated for this shape (FindDesignTimeExpression returns Absent), so the author
+        // is left with a bare CS0534 about RenderView rather than a BlazorCompose diagnostic that would
+        // point at the real cause — a known, recorded residual hole (see the final review's Minor #4).
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -297,6 +300,11 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.Empty(result.GeneratedSources);
+
+        var diagnostic = Assert.Single(
+            result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS0534");
+        Assert.Contains("Counter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
     [Fact]
@@ -818,6 +826,37 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.AddContent(2, __bc_arg_1_0)", generated);
         Assert.Contains("__builder.OpenElement(3, \"span\")", generated);
         Assert.DoesNotContain("Label(", generated);
+    }
+
+    [Fact]
+    public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBC1003()
+    {
+        // Sibling of the Html factory path's FactoryArgumentBindingTests.
+        // Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource: CreateInvocationArguments
+        // used the same fragile `(argument.Syntax as ArgumentSyntax)?.Expression` cast the Html factory
+        // path used to use. For a bare null-forgiving argument with nothing else to convert (Roslyn
+        // elides the `!` from the operation tree), the cast failed, the method returned null, and the
+        // call fell through to BC1003 instead of translating.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private static string? NullText => null;
+
+                [Composable]
+                private static View Label(string value) => Span(value);
+
+                protected override View Body => Label(NullText!);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("NullText!", generated);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
@@ -62,7 +63,9 @@ internal readonly struct FactoryArguments
     /// optional) or when <paramref name="index"/> is out of range.
     /// </summary>
     internal ArgumentSyntax? At(int index) =>
-        (uint)index < (uint)_byDeclaredParameter.Length ? _byDeclaredParameter[index] : null;
+        !_byDeclaredParameter.IsDefaultOrEmpty && (uint)index < (uint)_byDeclaredParameter.Length
+            ? _byDeclaredParameter[index]
+            : null;
 
     /// <summary>
     /// Binds <paramref name="invocation"/>'s arguments, or returns <see langword="null"/> when the
@@ -99,6 +102,13 @@ internal readonly struct FactoryArguments
             if (index < 0)
                 continue;                                  // the extension receiver
 
+            // The FirstAncestorOrSelf<ArgumentSyntax>() walk in the default arm below is only safe
+            // because DefaultValue continues here first and ParamCollection/ParamArray divert to
+            // ExtractParamsElements before the cast — so only Explicit ever reaches the default arm,
+            // and an explicit argument's Syntax is always nested inside its own call's ArgumentSyntax.
+            // If a future edit let DefaultValue (whose Syntax is the invocation node itself) fall
+            // through, the walk would climb to an *enclosing* call's argument and silently bind an
+            // unrelated expression. Keep DefaultValue/ParamCollection/ParamArray diverting first.
             switch (argument.ArgumentKind)
             {
                 case ArgumentKind.DefaultValue:
@@ -106,7 +116,10 @@ internal readonly struct FactoryArguments
 
                 case ArgumentKind.ParamCollection:
                 case ArgumentKind.ParamArray:
-                    paramsElements = ExtractParamsElements(argument);
+                    if (ExtractParamsElements(argument) is not { } elements)
+                        return null;
+
+                    paramsElements = elements;
                     continue;
 
                 default:
@@ -133,11 +146,13 @@ internal readonly struct FactoryArguments
 
     /// <summary>
     /// Unwraps the synthesized collection an expanded <c>params</c> bucket is modelled as, returning each
-    /// child's own syntax.  A <c>params ReadOnlySpan&lt;View&gt;</c> is a collection expression; a
-    /// <c>params T[]</c> is an array creation.  Anything else yields no children, which callers surface
-    /// as a translation failure rather than as a wrong child list.
+    /// child's own written expression, or <see langword="null"/> when the shape is unrecognized or an
+    /// element's written expression cannot be recovered.  A <c>params ReadOnlySpan&lt;View&gt;</c> is a
+    /// collection expression; a <c>params T[]</c> is an array creation.  <see cref="Bind"/> propagates a
+    /// <see langword="null"/> result to its own <see langword="null"/> return, so callers land on BC1003
+    /// rather than silently emitting a childless element.
     /// </summary>
-    private static ImmutableArray<ExpressionSyntax> ExtractParamsElements(IArgumentOperation argument)
+    private static ImmutableArray<ExpressionSyntax>? ExtractParamsElements(IArgumentOperation argument)
     {
         var builder = ImmutableArray.CreateBuilder<ExpressionSyntax>();
 
@@ -146,8 +161,8 @@ internal readonly struct FactoryArguments
             case ICollectionExpressionOperation collection:
                 foreach (var element in collection.Elements)
                 {
-                    if (element.Syntax is not ExpressionSyntax syntax)
-                        return [];
+                    if (!TryRecoverElementExpression(element, out var syntax))
+                        return null;
 
                     builder.Add(syntax);
                 }
@@ -157,8 +172,8 @@ internal readonly struct FactoryArguments
             case IArrayCreationOperation { Initializer: { } initializer }:
                 foreach (var element in initializer.ElementValues)
                 {
-                    if (element.Syntax is not ExpressionSyntax syntax)
-                        return [];
+                    if (!TryRecoverElementExpression(element, out var syntax))
+                        return null;
 
                     builder.Add(syntax);
                 }
@@ -166,9 +181,24 @@ internal readonly struct FactoryArguments
                 break;
 
             default:
-                return [];
+                return null;
         }
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// Recovers the expression the author actually wrote for one element of an expanded <c>params</c>
+    /// bucket.  Mirrors <see cref="Bind"/>'s default arm: a bare null-forgiving element with nothing else
+    /// to convert (e.g. the <c>NullText!</c> in <c>Div(NullText!)</c>) has its <c>!</c> elided from the
+    /// operation tree, so <paramref name="element"/>'s <c>Syntax</c> points at the inner operand instead
+    /// of the written argument expression.  Walk out to the enclosing <see cref="ArgumentSyntax"/> and
+    /// take its <c>Expression</c> instead of trusting <c>Syntax</c> directly.
+    /// </summary>
+    private static bool TryRecoverElementExpression(
+        IOperation element, [MaybeNullWhen(false)] out ExpressionSyntax syntax)
+    {
+        syntax = element.Syntax.FirstAncestorOrSelf<ArgumentSyntax>()?.Expression;
+        return syntax is not null;
     }
 }

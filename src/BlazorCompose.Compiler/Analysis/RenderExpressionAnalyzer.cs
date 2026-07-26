@@ -525,7 +525,13 @@ internal static class RenderExpressionAnalyzer
             }
             else
             {
-                var argumentExpression = (argument.Syntax as ArgumentSyntax)?.Expression;
+                // Ordinarily argument.Syntax IS the ArgumentSyntax. But when the argument expression is
+                // a bare null-forgiving suppression with nothing else to convert (e.g. `Target(value!)`),
+                // Roslyn elides the suppression operator from the operation tree and Syntax points at the
+                // innermost operand instead — so look for the enclosing ArgumentSyntax rather than
+                // requiring an exact cast. Mirrors FactoryArguments.Bind's default arm, which the Html
+                // factory path already uses for the same elision.
+                var argumentExpression = argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>()?.Expression;
                 if (argumentExpression is null)
                     return null;
 

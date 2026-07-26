@@ -225,6 +225,11 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
         foreach (var operationArgument in operation.Arguments)
         {
+            // Reference equality is safe here even though FactoryArguments.Bind's default arm cannot
+            // rely on it (see the comment there): the elision that defeats a raw Syntax comparison only
+            // strips a bare null-forgiving suppression from the operation tree, and `argument` here is
+            // always a lambda literal — never a suppressed identifier — so operationArgument.Syntax
+            // always points back at the same ArgumentSyntax the caller matched on.
             if (operationArgument.Syntax != argument)
                 continue;
 

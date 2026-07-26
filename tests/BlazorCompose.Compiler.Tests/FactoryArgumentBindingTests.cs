@@ -240,4 +240,53 @@ public sealed class FactoryArgumentBindingTests
         Assert.Empty(result.GeneratedSources);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
     }
+
+    [Fact]
+    public void Fragment_ExplicitChildrenCollection_RemainsUnsupported()
+    {
+        // Same guard as Element_ExplicitChildrenCollection_RemainsUnsupported, pinned on Fragment's own
+        // HasExplicitParamsArgument check so that copy keeps its only test once the pair is duplicated.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private static View[] Kids() => new View[] { Span("a") };
+
+                protected override View Body => Fragment(children: Kids());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource()
+    {
+        // Mirrors the decoration-side fixture (NullClassComponent's `Class(NullClass!)`): a bare
+        // null-forgiving child with nothing else to convert has its `!` elided from the operation
+        // tree by Roslyn, so a naive read of the params element's Syntax silently drops the
+        // suppression the author wrote. Assert it survives into the generated child expression.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private static string? NullText => null;
+
+                protected override View Body => Div(NullText!);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        CompilationTestHost.AssertOutputCompiles(result);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("NullText!", generated);
+    }
 }
