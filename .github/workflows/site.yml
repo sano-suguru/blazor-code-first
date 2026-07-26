@@ -260,6 +260,19 @@ jobs:
             assert_grep 'href="css/app\.css"' "$P/$f" "the published HTML no longer links css/app.css, so the page ships unstyled"
             assert_grep 'href="css/highlight\.css"' "$P/$f" "the published HTML no longer links css/highlight.css, so code blocks ship unhighlighted"
             assert_grep 'src="_framework/blazor\.webassembly[^"]*\.js"' "$P/$f" "the published HTML no longer loads the Blazor script, so nothing hydrates"
+
+            # Half of the public switch. A `<meta name="robots" content="noindex, nofollow">` in
+            # wwwroot/index.html is what kept this site out of search results before it was
+            # published, and restoring that single line would deindex every page again with nothing
+            # else in this workflow noticing. The pattern is quote-agnostic and attribute-order
+            # agnostic on purpose: for an absence check, matching too much is safe and matching too
+            # little is the failure mode.
+            #
+            # Correct on preview runs too, because preview deindexing does not use this tag: it is an
+            # X-Robots-Tag response header injected into _headers further down. That also means this
+            # guard must stay a check of the HTML head only -- a `grep -r` over the publish output
+            # would hit the injected header on every preview run.
+            assert_not_grep '<meta[^>]*name=.?robots' "$P/$f" "the published HTML carries a meta robots tag, which would keep this page out of search results"
           done
 
           # The guard above is only correct while NO scoped CSS exists. The SDK does NOT inject the
@@ -353,6 +366,22 @@ jobs:
           # doubled slash. An unanchored or unescaped pattern catches only the scheme.
           assert_every_line_matches '<loc>[^<]*</loc>' "^<loc>$ORIGIN_ERE/[^/]" "$P/sitemap.xml" "every sitemap URL must be the production origin followed by exactly one slash"
 
+          # The other half of the public switch, checked here because this is where ORIGIN lives.
+          # robots.txt is an ordinary wwwroot file, so neither its disappearance from the publish
+          # output nor a regression to the `Disallow: /` it carried while the site was unlisted would
+          # fail anything else in this workflow. The Sitemap line is matched against ORIGIN rather
+          # than as free text because that origin is now written twice -- here and in the committed
+          # file -- and a drift between them publishes a pointer to a sitemap nothing serves.
+          assert_file "$P/robots.txt" "the publish output has no robots.txt"
+          assert_grep "^Sitemap: $ORIGIN_ERE/sitemap\.xml\$" "$P/robots.txt" "robots.txt does not point at the sitemap this workflow generates"
+          # Case-folded because RFC 9309 makes rule names case-insensitive and crawlers honour that,
+          # so a lowercase `disallow: /` is a fully effective site-wide block. The helpers always run
+          # grep without -i, so the folding has to be in the pattern. Deliberately broad: it forbids
+          # ANY Disallow, not just the `/` that this change removes, because an over-broad or
+          # mistyped path is the more likely future mistake and is exactly what should be caught. A
+          # legitimate per-path Disallow later is not forbidden, only made to cost one edit here.
+          assert_not_grep '^[[:space:]]*[Dd][Ii][Ss][Aa][Ll][Ll][Oo][Ww]:' "$P/robots.txt" "robots.txt carries a Disallow rule, and this site is meant to be fully crawlable: preview deployments are deindexed with an X-Robots-Tag header instead, which a Disallow would prevent the crawler from ever reading"
+
       - name: Verify the published _headers
         run: |
           set -euo pipefail
@@ -370,6 +399,16 @@ jobs:
           assert_grep '^  Cache-Control: public, max-age=31536000, immutable$' "$P/_headers" "the immutable cache directive is missing from the /_framework/* rule"
           assert_grep '^/404$' "$P/_headers" "the /404 rule is missing from _headers"
           assert_grep '^  X-Robots-Tag: noindex$' "$P/_headers" "the /404 noindex directive is missing from _headers"
+          # _headers is the third way to deindex production, and the only one the two guards added
+          # with the public switch do not cover: adding a "/*" X-Robots-Tag rule to the COMMITTED
+          # file would deindex every page while satisfying every presence assertion here. Counting
+          # instead of matching is what closes that, and this step is the right home for it because
+          # it runs on production and preview alike -- the post-injection assertions cannot do this
+          # job, since by then a second rule is legitimately present on previews.
+          #
+          # Anchored to rule lines: the file explains this rule in prose, so an unanchored
+          # 'X-Robots-Tag' counts the comment mentions too and can never equal 1.
+          assert_count '^[[:space:]]*X-Robots-Tag:' "$P/_headers" 1 "the committed _headers must declare exactly one X-Robots-Tag rule (the /404 one); a second rule would deindex production"
 
       - name: Inject the preview noindex header
         if: steps.target.outputs.environment == 'preview'
