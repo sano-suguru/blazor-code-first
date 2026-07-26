@@ -9,17 +9,17 @@ namespace BlazorCompose.Compiler.Diagnostics;
 internal static class DiagnosticDescriptors
 {
     /// <summary>
-    /// BC1001: A class deriving from <c>ComposeComponentBase</c> must be declared <c>partial</c>
-    /// so the source generator can emit the <c>RenderView</c> override.
+    /// BC1001: A class deriving from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>)
+    /// must be declared <c>partial</c> so the source generator can emit the <c>RenderView</c> override.
     /// </summary>
     public static readonly DiagnosticDescriptor BC1001 = new(
         id: "BC1001",
-        title: "ComposeComponentBase subclass must be partial",
-        messageFormat: "'{0}' derives from ComposeComponentBase but is not declared partial; add the partial modifier",
+        title: "Compose base subclass must be partial",
+        messageFormat: "'{0}' derives from {1} but is not declared partial; add the partial modifier",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Classes that derive from ComposeComponentBase must be declared partial so the source generator can emit the RenderView override.");
+        description: "Classes that derive from a Compose base (ComposeComponentBase or ComposeLayoutBase) must be declared partial so the source generator can emit the RenderView override.");
 
     /// <summary>
     /// BC1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
@@ -36,7 +36,8 @@ internal static class DiagnosticDescriptors
             "A method marked Composable must satisfy the compiler's supported static expansion contract.");
 
     /// <summary>
-    /// BC3001: A <c>Body</c> getter must not mutate component state (single-direction
+    /// BC3001: A Compose base's design-time expression getter (<c>Body</c> on <c>ComposeComponentBase</c>,
+    /// <c>Chrome</c> on <c>ComposeLayoutBase</c>) must not mutate component state (single-direction
     /// data-flow violation).
     /// The initial detectable boundary covers statically identifiable direct writes (field assignments,
     /// property assignments, and increment/decrement operators) whose target is an instance member of
@@ -45,14 +46,14 @@ internal static class DiagnosticDescriptors
     /// </summary>
     public static readonly DiagnosticDescriptor BC3001 = new(
         id: "BC3001",
-        title: "State mutation inside Body violates single-direction data flow",
-        messageFormat: "'{0}' is mutated inside Body; move state changes to event handlers to preserve single-direction data flow",
+        title: "State mutation inside the design-time expression violates single-direction data flow",
+        messageFormat: "'{0}' is mutated inside {1}; move state changes to event handlers to preserve single-direction data flow",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The Body getter must be a pure projection of state to UI. " +
-            "Mutating component state inside Body causes render-time side effects that can corrupt " +
+            "The design-time expression getter (Body or Chrome) must be a pure projection of state to UI. " +
+            "Mutating component state inside it causes render-time side effects that can corrupt " +
             "the rendering pipeline. Move the mutation to an event handler.");
 
     /// <summary>
@@ -90,9 +91,9 @@ internal static class DiagnosticDescriptors
             "A ForEach key is applied to the content's root element or component frame. When the content " +
             "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
             "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
-            "required key cannot be applied. A Fragment (wrapper-less grouping) and Raw (raw markup) also " +
-            "open no single keyable frame; make the content a single element or component. Wrap the content " +
-            "in a container element such as Html.Div(...).");
+            "required key cannot be applied. A Fragment (wrapper-less grouping), Raw (raw markup), and an " +
+            "externally supplied RenderFragment placed as content also open no single keyable frame. Wrap " +
+            "the content in a container element such as Html.Div(...).");
 
     /// <summary>
     /// BC1003: A component <c>Body</c> reached the model stage but could not be translated to a RenderView

@@ -22,12 +22,23 @@ internal static class RenderExpressionAnalyzer
     {
         context.CancellationToken.ThrowIfCancellationRequested();
 
+        var expressionType = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
+
         // Mixed content: a string-typed expression in any position (child, If branch, ForEach content)
         // becomes a bare text node. The pre-conversion Type is String even though it converts to View.
-        if (context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type
-                is { SpecialType: SpecialType.System_String })
+        if (expressionType is { SpecialType: SpecialType.System_String })
         {
             return new TextContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
+        }
+
+        // Same shape for an externally supplied RenderFragment: the pre-conversion Type is RenderFragment
+        // even though it converts to View, and it lowers to the sibling AddContent overload. This must
+        // stay ahead of the invocation guard below: a method call returning RenderFragment is neither an
+        // Html factory nor a [Composable] call, so falling through would report BC1003.
+        if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType &&
+            SymbolEqualityComparer.Default.Equals(expressionType, renderFragmentType))
+        {
+            return new RenderFragmentContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
         }
 
         if (expression is not InvocationExpressionSyntax invocation)

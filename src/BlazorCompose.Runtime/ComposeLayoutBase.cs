@@ -1,0 +1,54 @@
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Rendering;
+
+namespace BlazorCompose;
+
+/// <summary>
+/// Base class for BlazorCompose layouts. Derived types describe the chrome they draw through a
+/// design-time <see cref="Chrome"/> expression and place the routed page with
+/// <see cref="LayoutComponentBase.Body"/>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The design-time expression is named <c>Chrome</c> here rather than <c>Body</c> because Blazor
+/// requires a layout to expose the routed content under a parameter named exactly <c>Body</c>
+/// (<c>LayoutComponentBase.BodyPropertyName</c>, which <c>LayoutView</c> passes by name), and C# cannot
+/// declare two members with the same name on one type. So in a layout <c>Body</c> keeps the meaning it
+/// has in Razor — the page being wrapped — and <c>Chrome</c> names what the layout itself draws.
+/// </para>
+/// <para>
+/// Deriving from <see cref="LayoutComponentBase"/> is not required by Blazor (any <c>IComponent</c>
+/// with a <c>Body</c> parameter works), but it inherits the parameter under the right name together
+/// with the <c>[DynamicDependency]</c> trimmer hint on its <c>SetParametersAsync</c>, so no parameter
+/// plumbing of our own is needed.
+/// </para>
+/// <para>
+/// Layouts deriving from this type must be declared <c>partial</c> so the generator can emit the
+/// <see cref="RenderView"/> implementation into the same class; a non-partial layout reports BC1001.
+/// </para>
+/// </remarks>
+public abstract class ComposeLayoutBase : LayoutComponentBase
+{
+    /// <summary>
+    /// The design-time-only UI expression describing the chrome this layout draws around
+    /// <see cref="LayoutComponentBase.Body"/>.
+    /// </summary>
+    /// <value>Inert design-time syntax analyzed by the source generator.</value>
+    /// <remarks>
+    /// <see cref="Chrome"/> is never evaluated at runtime. It may read component state — including
+    /// <see cref="LayoutComponentBase.Body"/> — but must not mutate it; state mutation inside it
+    /// reports BC3001.
+    /// </remarks>
+    protected abstract View Chrome { get; }
+
+    /// <summary>
+    /// Renders the layout's content. This method is emitted by the source generator from the
+    /// <see cref="Chrome"/> expression and is not written by hand.
+    /// </summary>
+    /// <param name="builder">The render-tree builder that receives the generated rendering instructions.</param>
+    protected abstract void RenderView(RenderTreeBuilder builder);
+
+    /// <summary>Delegates Blazor's render-tree construction to the generator-emitted <see cref="RenderView"/>.</summary>
+    /// <param name="builder">The render-tree builder supplied by Blazor.</param>
+    protected sealed override void BuildRenderTree(RenderTreeBuilder builder) => RenderView(builder);
+}

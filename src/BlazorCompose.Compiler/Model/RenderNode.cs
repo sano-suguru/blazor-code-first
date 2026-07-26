@@ -61,3 +61,11 @@ internal sealed record FragmentNode(EquatableArray<RenderNode> Children = defaul
 
 /// <summary>Trusted raw HTML emitted with AddMarkupContent (no wrapping element).</summary>
 internal sealed record RawMarkupNode(ExpressionTemplate Content) : RenderNode;
+
+/// <summary>
+/// An externally supplied <c>RenderFragment</c> placed with AddContent (no wrapping element). Blazor
+/// wraps the fragment in a region so its internal sequence numbers stay isolated from ours; that region
+/// frame is emitted only when the fragment is non-null, but the AddContent call itself is unconditional,
+/// so the width is always 1.
+/// </summary>
+internal sealed record RenderFragmentContentNode(ExpressionTemplate Content) : RenderNode;

@@ -20,9 +20,10 @@ public abstract class ComposeComponentBase : ComponentBase
     /// </summary>
     /// <value>Inert design-time syntax analyzed by the source generator.</value>
     /// <remarks>
-    /// <see cref="Body"/> is never evaluated at runtime and must not read or mutate component state;
-    /// state mutation inside it reports BC3001. The generator analyzes the expression statically and
-    /// emits the corresponding rendering into <see cref="RenderView"/>.
+    /// <see cref="Body"/> is never evaluated at runtime. It may read component state — that is how a
+    /// component projects state to UI — but must not mutate it; state mutation inside it reports BC3001.
+    /// The generator analyzes the expression statically and emits the corresponding rendering into
+    /// <see cref="RenderView"/>.
     /// </remarks>
     protected abstract View Body { get; }
 

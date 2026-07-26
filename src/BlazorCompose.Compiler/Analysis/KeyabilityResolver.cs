@@ -37,7 +37,8 @@ internal static class KeyabilityResolver
         {
             ComponentTemplateNode or ElementTemplateNode => ContentRootKind.Element,
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
-                or FragmentTemplateNode or RawMarkupTemplateNode => ContentRootKind.Region,
+                or FragmentTemplateNode or RawMarkupTemplateNode
+                or RenderFragmentContentTemplateNode => ContentRootKind.Region,
             ComposableCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
                 $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRootKind case for it."),
@@ -103,9 +104,9 @@ internal static class KeyabilityResolver
                 break;
 
                 // ComponentTemplateNode/TextContentTemplateNode/ComposableCallTemplateNode/
-                // RawMarkupTemplateNode have no nested template children to walk. A composable call's own
-                // body is walked once from the registry pass (CollectComposableForEachDiagnostics), not
-                // re-walked at every call site.
+                // RawMarkupTemplateNode/RenderFragmentContentTemplateNode have no nested template children
+                // to walk. A composable call's own body is walked once from the registry pass
+                // (CollectComposableForEachDiagnostics), not re-walked at every call site.
         }
     }
 

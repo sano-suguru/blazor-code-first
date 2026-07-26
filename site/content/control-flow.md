@@ -35,7 +35,8 @@ protected override View Body =>
 
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
 key defeats the diff — reordering the list would make Blazor reuse the wrong element state. The
-content root must be a single element or component, so a `Fragment` or `Raw` root reports BC3003.
+content root must be a single element or component, so a `Fragment` or `Raw` root, or a
+`RenderFragment` placed as content, reports BC3003.
 
 ## Fragment
 

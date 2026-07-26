@@ -8,7 +8,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace BlazorCompose.Compiler.Diagnostics;
 
 /// <summary>
-/// Reports BC1001 when a class that inherits from <c>ComposeComponentBase</c> is not declared <c>partial</c>.
+/// Reports BC1001 when a class that inherits from a Compose base (<c>ComposeComponentBase</c> or
+/// <c>ComposeLayoutBase</c>) is not declared <c>partial</c>.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class PartialComponentAnalyzer : DiagnosticAnalyzer
@@ -33,7 +34,7 @@ public sealed class PartialComponentAnalyzer : DiagnosticAnalyzer
         if (symbol.TypeKind != TypeKind.Class)
             return;
 
-        if (!ComposeComponentBaseFacts.InheritsFromComposeComponentBase(symbol))
+        if (ComposeComponentBaseFacts.FindComposeBase(symbol) is not { } composeBase)
             return;
 
         ClassDeclarationSyntax? firstDeclaration = null;
@@ -54,7 +55,8 @@ public sealed class PartialComponentAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.BC1001,
                 firstDeclaration.Identifier.GetLocation(),
-                symbol.Name));
+                symbol.Name,
+                composeBase.Name));
         }
     }
 }

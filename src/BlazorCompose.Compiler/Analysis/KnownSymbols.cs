@@ -30,6 +30,14 @@ internal sealed class KnownSymbols
     /// <summary>Resolved <c>Microsoft.AspNetCore.Components.ParameterAttribute</c>, or null.</summary>
     public INamedTypeSymbol? ParameterAttributeType { get; }
 
+    /// <summary>Resolved symbol for <c>Microsoft.AspNetCore.Components.RenderFragment</c>, or null.</summary>
+    /// <remarks>
+    /// The non-generic delegate only. <c>RenderFragment&lt;T&gt;</c> has metadata name
+    /// <c>RenderFragment`1</c> and has no conversion to View, so it is rejected by the C# compiler
+    /// (CS1503) and never reaches the analyzer.
+    /// </remarks>
+    public INamedTypeSymbol? RenderFragmentType { get; }
+
     /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.Class(this View, string)</c>, or null.</summary>
     public IMethodSymbol? ClassMethod { get; }
 
@@ -118,6 +126,8 @@ internal sealed class KnownSymbols
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComponentView`1");
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
+        RenderFragmentType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderFragment");
 
         if (ComponentViewType is not null)
         {

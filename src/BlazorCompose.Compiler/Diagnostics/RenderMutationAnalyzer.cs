@@ -8,8 +8,9 @@ using Microsoft.CodeAnalysis.Operations;
 namespace BlazorCompose.Compiler.Diagnostics;
 
 /// <summary>
-/// Reports BC3001 when a <c>Body</c> getter directly mutates instance state of the
-/// containing component during rendering.
+/// Reports BC3001 when a Compose base's design-time expression getter (<c>Body</c> on
+/// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) directly mutates instance
+/// state of the containing component during rendering.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -59,12 +60,16 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var targetSymbol = GetInstanceMemberTarget(ctx.Operation);
         if (targetSymbol is null) return;
 
-        // Condition 2: The operation is syntactically inside the Body getter of a
-        // ComposeComponentBase subclass.
+        // Condition 2: The operation is syntactically inside the design-time expression getter
+        // (Body or Chrome) of a Compose base subclass.
         var semanticModel = ctx.Operation.SemanticModel;
         if (semanticModel is null) return;
 
-        if (!TryGetBodyOwnerType(ctx.Operation.Syntax, semanticModel, out var ownerType)) return;
+        if (!TryGetDesignTimeExpressionOwnerType(
+                ctx.Operation.Syntax, semanticModel, out var ownerType, out var expressionName))
+        {
+            return;
+        }
 
         // The target must belong to the same component (not a field on a nested type, etc.).
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
@@ -77,7 +82,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         ctx.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.BC3001,
             ctx.Operation.Syntax.GetLocation(),
-            targetSymbol.Name));
+            targetSymbol.Name,
+            expressionName));
     }
 
     // ---------------------------------------------------------------------------
@@ -113,28 +119,31 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Walks the syntax ancestors of <paramref name="operationSyntax"/> to find an
-    /// <c>override Body</c> property declaration and verifies via the semantic model
-    /// that it belongs to a <c>ComposeComponentBase</c> subclass.
+    /// Walks the syntax ancestors of <paramref name="operationSyntax"/> to find an <c>override</c>
+    /// property declaration and verifies via the semantic model that it is the design-time expression
+    /// (<c>Body</c> or <c>Chrome</c>, resolved semantically) of a Compose base subclass.
     /// </summary>
-    private static bool TryGetBodyOwnerType(
+    private static bool TryGetDesignTimeExpressionOwnerType(
         SyntaxNode operationSyntax,
         SemanticModel semanticModel,
-        out INamedTypeSymbol? ownerType)
+        out INamedTypeSymbol? ownerType,
+        out string? expressionName)
     {
         ownerType = null;
+        expressionName = null;
         var node = operationSyntax.Parent;
         while (node is not null)
         {
             if (node is PropertyDeclarationSyntax propDecl &&
-                propDecl.Identifier.Text == "Body" &&
                 propDecl.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
             {
                 if (semanticModel.GetDeclaredSymbol(propDecl) is IPropertySymbol prop &&
                     prop.ContainingType is INamedTypeSymbol type &&
-                    ComposeComponentBaseFacts.InheritsFromComposeComponentBase(type))
+                    ComposeComponentBaseFacts.FindDesignTimeExpressionName(type) is { } name &&
+                    prop.Name == name)
                 {
                     ownerType = type;
+                    expressionName = name;
                     return true;
                 }
                 return false;

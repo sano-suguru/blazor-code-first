@@ -1,8 +1,8 @@
 namespace BlazorCompose;
 
 /// <summary>
-/// Design-time decoration syntax applied to a <see cref="View"/> in a
-/// <see cref="ComposeComponentBase.Body"/> expression.
+/// Design-time decoration syntax applied to a <see cref="View"/> in a Compose design-time expression
+/// (<see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>).
 /// </summary>
 /// <remarks>
 /// Like the <see cref="Html"/> factories, every member here is inert design-time syntax: the

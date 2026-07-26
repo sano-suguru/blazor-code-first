@@ -19,10 +19,11 @@ internal static class ComponentModelFactory
 {
     /// <summary>
     /// Analyzes <paramref name="syntaxContext"/> when it represents a partial class that directly or
-    /// indirectly inherits from <c>BlazorCompose.ComposeComponentBase</c>, resolving all symbols from the
-    /// context's own compilation and classifying the <c>Body</c> expression into a template.  Returns a
-    /// symbol-free <see cref="ComponentAnalysis"/> for every component candidate, or <see langword="null"/>
-    /// for a node that is not a generatable component (non-partial, nested, non-inheriting, or bodyless).
+    /// indirectly inherits from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>),
+    /// resolving all symbols from the context's own compilation and classifying its design-time expression
+    /// (<c>Body</c> or <c>Chrome</c>) into a template.  Returns a symbol-free <see cref="ComponentAnalysis"/>
+    /// for every component candidate, or <see langword="null"/> for a node that is not a generatable
+    /// component (non-partial, nested, non-inheriting, or missing the design-time expression).
     /// </summary>
     /// <remarks>
     /// This method must run inside the syntax-provider transform, where the <see cref="SemanticModel"/> and
@@ -48,7 +49,12 @@ internal static class ComponentModelFactory
         if (symbol.ContainingType is not null)
             return null;
 
-        if (!ComposeComponentBaseFacts.InheritsFromComposeComponentBase(symbol))
+        if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
+            return null;
+
+        // Body on a component, Chrome on a layout. Resolved from the base symbol so no name is hard-coded.
+        var expressionName = ComposeComponentBaseFacts.FindDesignTimeExpressionName(symbol);
+        if (expressionName is null)
             return null;
 
         // Resolve the BlazorCompose.Html factory symbols only once the candidate is confirmed to be a
@@ -58,7 +64,7 @@ internal static class ComponentModelFactory
         if (knownSymbols is null)
             return null;
 
-        var bodyExpression = TryFindBodyExpression(classDeclaration);
+        var bodyExpression = TryFindDesignTimeExpression(classDeclaration, expressionName);
         if (bodyExpression is null)
             return null;
 
@@ -69,7 +75,7 @@ internal static class ComponentModelFactory
         var bodyContext = new ComposableBodyContext(
             syntaxContext.SemanticModel,
             symbol,
-            "Body",
+            expressionName,
             knownSymbols,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
             cancellationToken);
@@ -160,18 +166,19 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Returns the expression of the component's expression-bodied <c>Body</c> override
-    /// (<c>protected override View Body =&gt; expr;</c>), or <see langword="null"/> when no such property
-    /// is present.  Block-bodied getters are intentionally unsupported.
+    /// Returns the expression of the component's expression-bodied design-time expression override
+    /// (<c>protected override View {expressionName} =&gt; expr;</c>), or <see langword="null"/> when no
+    /// such property is present.  Block-bodied getters are intentionally unsupported.
     /// </summary>
-    private static ExpressionSyntax? TryFindBodyExpression(ClassDeclarationSyntax classDecl)
+    private static ExpressionSyntax? TryFindDesignTimeExpression(
+        ClassDeclarationSyntax classDecl, string expressionName)
     {
         foreach (var member in classDecl.Members)
         {
             if (member is not PropertyDeclarationSyntax prop)
                 continue;
 
-            if (prop.Identifier.Text != "Body")
+            if (prop.Identifier.Text != expressionName)
                 continue;
 
             if (!prop.Modifiers.Any(SyntaxKind.OverrideKeyword))

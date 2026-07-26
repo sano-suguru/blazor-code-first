@@ -197,7 +197,7 @@ jobs:
           # The published document slugs. Defined once and reused below so the three loops over this
           # same set (building ROUTES, the active-link/.md check, and the /docs index count check)
           # cannot drift from each other. (#46 tracks deriving this from the publish output instead.)
-          SLUGS="getting-started elements-and-decorations control-flow"
+          SLUGS="getting-started elements-and-decorations control-flow layouts"
 
           # Every prerendered ROUTE, relative to $P. These carry the shell, exactly one <title>, and
           # exactly one active nav link.
