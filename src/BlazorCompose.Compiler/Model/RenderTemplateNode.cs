@@ -72,3 +72,6 @@ internal sealed record FragmentTemplateNode(
 
 /// <summary>Trusted raw HTML injected verbatim via AddMarkupContent (MarkupString-equivalent).</summary>
 internal sealed record RawMarkupTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;
+
+/// <summary>An externally supplied RenderFragment placed as content via AddContent (no wrapping element).</summary>
+internal sealed record RenderFragmentContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

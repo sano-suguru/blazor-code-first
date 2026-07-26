@@ -2370,6 +2370,140 @@ public sealed class GeneratorTests
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
     }
 
+    [Fact]
+    public void Generator_RenderFragmentParameterAsChild_EmitsAddContent()
+    {
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Card : ComposeComponentBase
+            {
+                [Parameter] public RenderFragment? ChildContent { get; set; }
+                protected override View Body => Div(ChildContent);
+            }
+            """;
+
+        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenElement(0, \"div\");", generated);
+        Assert.Contains("__builder.AddContent(1, ChildContent);", generated);
+    }
+
+    [Fact]
+    public void Generator_RenderFragmentReturningMethodCall_EmitsAddContent()
+    {
+        // Regression guard for branch placement: the RenderFragment check must run BEFORE the
+        // `is not InvocationExpressionSyntax` guard, otherwise a method call returning RenderFragment
+        // is neither an Html factory nor a [Composable] call and falls through to BC1003.
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private RenderFragment MakeHeader() => b => b.AddContent(0, "h");
+                protected override View Body => Div(MakeHeader());
+            }
+            """;
+
+        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.AddContent(1, MakeHeader());", generated);
+        // and: no BC1003 reported
+    }
+
+    [Fact]
+    public void Generator_RenderFragmentMixedWithText_EmitsBothAsContent()
+    {
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Mixed : ComposeComponentBase
+            {
+                [Parameter] public RenderFragment? Slot { get; set; }
+                protected override View Body => Div("before", Slot, "after");
+            }
+            """;
+
+        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.AddContent(1, \"before\");", generated);
+        Assert.Contains("__builder.AddContent(2, Slot);", generated);
+        Assert.Contains("__builder.AddContent(3, \"after\");", generated);
+    }
+
+    [Fact]
+    public void Generator_RenderFragmentInIfBranch_EmitsAddContent()
+    {
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Conditional : ComposeComponentBase
+            {
+                [Parameter] public RenderFragment? Slot { get; set; }
+                private bool _show;
+                protected override View Body => Div(If(_show, () => Slot));
+            }
+            """;
+
+        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("Slot", generated);
+    }
+
+    [Fact]
+    public void Generator_RenderFragmentAsForEachContentRoot_ReportsBC3003()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Listing : ComposeComponentBase
+            {
+                [Parameter] public RenderFragment? Slot { get; set; }
+                private static readonly List<int> Items = [1, 2];
+                protected override View Body => Div(ForEach(Items, key: i => i, content: i => Slot));
+            }
+            """;
+
+        var diagnostics = CompilationTestHost.RunGenerator(source).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BC3003");
+    }
+
+    [Fact]
+    public void Generator_RenderFragmentAsComposableParameter_SubstitutesHole()
+    {
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            public partial class Panel : ComposeComponentBase
+            {
+                [Composable]
+                private static View Framed(RenderFragment? inner) => Div(inner);
+
+                [Parameter] public RenderFragment? Slot { get; set; }
+                protected override View Body => Framed(Slot);
+            }
+            """;
+
+        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenElement(0, \"div\");", generated);
+        Assert.Contains("Slot", generated);
+    }
+
     /// <summary>
     /// Asserts that both <paramref name="first"/> and <paramref name="second"/> occur in
     /// <paramref name="source"/> and that <paramref name="first"/> appears before <paramref name="second"/>.

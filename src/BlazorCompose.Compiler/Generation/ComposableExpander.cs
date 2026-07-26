@@ -173,6 +173,9 @@ internal static class ComposableExpander
             case RawMarkupTemplateNode raw:
                 return new RawMarkupNode(raw.Content.Substitute(substitution));
 
+            case RenderFragmentContentTemplateNode fragmentContent:
+                return new RenderFragmentContentNode(fragmentContent.Content.Substitute(substitution));
+
             case FragmentTemplateNode fragment:
                 {
                     var children = ImmutableArray.CreateBuilder<RenderNode>(fragment.Children.Length);
