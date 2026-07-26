@@ -222,7 +222,14 @@ jobs:
           # inert and hidden under an opaque loader until WASM started, so it reached crawlers only.
           for f in $ALL_HTML; do
             assert_not_grep 'b-prerendering' "$P/$f" "a prerendering wrapper div survived into the published HTML, which hides the prerendered content from humans until WASM starts"
+            assert_not_grep 'BlazorCompose\.Site\.styles\.css' "$P/$f" "the published HTML links the scoped-CSS bundle, which this project does not produce"
           done
+
+          # The guard above is only correct while NO scoped CSS exists. The SDK does NOT inject the
+          # <link> for the bundle -- that line is hand-written in index.html -- so if someone adds a
+          # .razor.css, the bundle appears in the publish output and silently has no effect. Catch the
+          # premise breaking rather than letting the guard above quietly enforce the wrong thing.
+          assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish output, so a .razor.css was added: restore the <link href=\"BlazorCompose.Site.styles.css\"> line in wwwroot/index.html and drop the guard that forbids it"
 
           # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
           assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
