@@ -7,7 +7,7 @@ namespace BlazorCompose.Compiler;
 
 /// <summary>
 /// Incremental source generator entry point.  Discovers <c>ComposeComponentBase</c> subclasses and
-/// emits a <c>RenderBody</c> override into the same partial class, and discovers <c>[Composable]</c>
+/// emits a <c>RenderView</c> override into the same partial class, and discovers <c>[Composable]</c>
 /// definitions into a value-equal registry while reporting declaration-time BC1002 diagnostics.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
@@ -100,6 +100,6 @@ public sealed class BlazorComposeGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(
             components,
             static (productionContext, model) =>
-                productionContext.AddSource(model!.HintName, RenderBodyEmitter.Emit(model)));
+                productionContext.AddSource(model!.HintName, RenderViewEmitter.Emit(model)));
     }
 }

@@ -6,7 +6,7 @@ namespace BlazorCompose.TrimTests;
 /// <summary>
 /// Inspects the trimmed output of <c>BlazorCompose.TrimTestApp</c> using System.Reflection.Metadata
 /// to verify that the trimmer behaves according to the architecture's expectations:
-/// - Generated <c>RenderBody</c> must be retained (it is rooted by <c>BuildRenderTree</c>).
+/// - Generated <c>RenderView</c> must be retained (it is rooted by <c>BuildRenderTree</c>).
 /// - The <c>Body</c> getter should be trimmed from both derived and base types (no runtime caller).
 /// - All unreferenced inert factory methods in <c>BlazorCompose.Html</c> should be trimmed.
 /// </summary>
@@ -19,12 +19,12 @@ public sealed class TrimmedOutputTests
         Environment.GetEnvironmentVariable("BLAZORCOMPOSE_TRIM_OUTPUT");
 
     [Fact]
-    public void TrimmedApp_AfterPublish_RetainsRenderBodyMethod()
+    public void TrimmedApp_AfterPublish_RetainsRenderViewMethod()
     {
         var appAssemblyPath = ResolvePublishedAssembly(AppAssemblyFileName);
 
         var methods = GetMethodNames(appAssemblyPath, "TrimCounter", expectedNamespace: "");
-        Assert.Contains("RenderBody", methods);
+        Assert.Contains("RenderView", methods);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class TrimmedOutputTests
 
         var methods = GetMethodNames(appAssemblyPath, "TrimCounter", expectedNamespace: "");
 
-        // The Body getter should be trimmed since RenderBody (generated) doesn't call it
+        // The Body getter should be trimmed since RenderView (generated) doesn't call it
         // and no other code in the app invokes it.
         Assert.DoesNotContain("get_Body", methods);
     }
@@ -71,7 +71,7 @@ public sealed class TrimmedOutputTests
         var methods = GetMethodNames(runtimeAssemblyPath, "Html", expectedNamespace: "BlazorCompose");
 
         // All inert factories are unreachable at runtime — the source generator inlines their
-        // semantics into RenderBody via direct RenderTreeBuilder calls.
+        // semantics into RenderView via direct RenderTreeBuilder calls.
         Assert.DoesNotContain("Div", methods);
         Assert.DoesNotContain("Span", methods);
         Assert.DoesNotContain("Button", methods);

@@ -14,7 +14,7 @@
          the clean state and fail fast if a future change introduces one. -->
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
     <!-- M0b spike: BlazorWasmPreRendering.Build config. Static mode crawls/fetches routes at
-         publish time and bakes the compose-generated RenderBody output into each route's
+         publish time and bakes the compose-generated RenderView output into each route's
          index.html as plain HTML, before any WASM/JS executes. -->
     <BlazorWasmPrerenderingMode>Static</BlazorWasmPrerenderingMode>
     <BlazorWasmPrerenderingKeepServer>false</BlazorWasmPrerenderingKeepServer>

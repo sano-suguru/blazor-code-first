@@ -81,7 +81,7 @@ public static class CompilationTestHost
 
     /// <summary>
     /// Asserts that the post-generation <see cref="GeneratorRunResult.OutputCompilation"/> contains no C#
-    /// error diagnostics, so a supported component's generated <c>RenderBody</c> is verified to actually
+    /// error diagnostics, so a supported component's generated <c>RenderView</c> is verified to actually
     /// compile rather than only inspected as text.  On failure every error is included in the message to
     /// make the emitted mistake (for example a CS0103 out-of-scope name or a CS0664 mistyped literal)
     /// immediately visible.

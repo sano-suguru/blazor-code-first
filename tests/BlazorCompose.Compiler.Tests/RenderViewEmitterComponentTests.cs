@@ -3,7 +3,7 @@ using BlazorCompose.Compiler;
 
 namespace BlazorCompose.Compiler.Tests;
 
-public sealed class RenderBodyEmitterComponentTests
+public sealed class RenderViewEmitterComponentTests
 {
     [Fact]
     public void Emit_ComponentWithParameters_EmitsOpenComponentAddParametersAndClose()
@@ -16,7 +16,7 @@ public sealed class RenderBodyEmitterComponentTests
 
         var model = new ComponentModel("T.g.cs", "T", null, node);
 
-        var generated = RenderBodyEmitter.Emit(model).ToString();
+        var generated = RenderViewEmitter.Emit(model).ToString();
 
         Assert.Contains("__builder.OpenComponent<global::MyApp.Counter>(0);", generated);
         Assert.Contains("__builder.AddComponentParameter(1, \"Start\", 5);", generated);
@@ -30,7 +30,7 @@ public sealed class RenderBodyEmitterComponentTests
         var node = new ComponentNode("global::MyApp.Widget", ImmutableArray<ComponentParameter>.Empty);
         var model = new ComponentModel("T.g.cs", "T", null, node);
 
-        var generated = RenderBodyEmitter.Emit(model).ToString();
+        var generated = RenderViewEmitter.Emit(model).ToString();
 
         Assert.Contains("__builder.OpenComponent<global::MyApp.Widget>(0);", generated);
         Assert.Contains("__builder.CloseComponent();", generated);

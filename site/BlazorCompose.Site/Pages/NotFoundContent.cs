@@ -15,7 +15,7 @@ namespace BlazorCompose.Site.Pages;
 /// the two differed, the page would visibly swap content on hydration.
 ///
 /// A <c>[Composable]</c> is what makes sharing possible without a wrapper component: the generator
-/// expands this body statically into every caller's RenderBody, so both components emit the same
+/// expands this body statically into every caller's RenderView, so both components emit the same
 /// RenderTreeBuilder sequence with no runtime indirection. It takes no parameters and touches no
 /// private or protected member, so no accessibility requirement restricts where it may expand.
 /// </remarks>

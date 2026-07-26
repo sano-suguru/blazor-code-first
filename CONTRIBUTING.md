@@ -83,7 +83,7 @@ Enable the shared pre-push hook once per clone so this runs automatically:
 - **`ForEach` requires a key that represents item identity.** Sequence numbers
   identify template positions; keys identify data instances.
 - Components deriving from `ComposeComponentBase` must be `partial` so the
-  generator can emit `RenderBody` (otherwise `BC1001`).
+  generator can emit `RenderView` (otherwise `BC1001`).
 - `Body`, factory APIs, and decorators are inert design-time constructs. `Body`
   must not be evaluated at runtime or mutate state; state mutation in `Body` is
   reported as `BC3001`.

@@ -302,7 +302,7 @@ public sealed class IncrementalGeneratorTests
         // Regression guard for symbol provenance: editing an unrelated tree produces a new compilation.
         // The component's Body analysis must re-resolve BlazorCompose.Html from that new compilation rather
         // than reusing symbols from the previous one; otherwise a cross-compilation symbol comparison would
-        // silently stop recognizing Div/Span/Button/If and drop the generated RenderBody on every
+        // silently stop recognizing Div/Span/Button/If and drop the generated RenderView on every
         // incremental edit (visible under dotnet watch / the IDE, not a single-shot build).
         const string componentSource = """
             using BlazorCompose;
