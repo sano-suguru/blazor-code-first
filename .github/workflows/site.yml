@@ -245,14 +245,16 @@ jobs:
             assert_not_grep 'href="[^"]*\.md("|#|\?)' "$f" "an un-rewritten .md link survived into the prerendered HTML"
           done
 
-          # "/docs" activates the default (lowest order) document.
-          assert_active_link "$P/docs/index.html" "/docs/getting-started"
+          # "/docs" is its own index page now, not a second copy of the lowest-order document.
+          assert_active_link "$P/docs/index.html" "/docs"
+          assert_grep '<h1>Documentation</h1>' "$P/docs/index.html" "/docs did not render the index page's h1"
 
-          # "/docs" must render the default document's BODY, not just mark its nav link active:
-          # the nav check passes even when the page renders "Not found", so without this a broken
-          # default-document resolution would ship on the one URL the spec promises to preserve.
-          assert_grep '<h1>Getting Started</h1>' "$P/docs/index.html" "/docs did not render the default document's h1"
-          assert_grep 'id="installation"' "$P/docs/index.html" "/docs did not render the default document's body"
+          # The index must enumerate EVERY document. Count 2 per slug, not 1: the nav contributes one
+          # href per document on every page, so a "contains this href" check would pass even if the
+          # index body rendered nothing at all. The second occurrence is the index list item.
+          for slug in getting-started elements-and-decorations control-flow; do
+            assert_count "href=\"/docs/$slug\"" "$P/docs/index.html" 2 "the /docs index does not list this document (expected the nav link plus one index entry)"
+          done
 
           # Content conversion survived the AST pass.
           assert_grep 'id="installation"' "$P/docs/getting-started/index.html" "heading ids are missing"
