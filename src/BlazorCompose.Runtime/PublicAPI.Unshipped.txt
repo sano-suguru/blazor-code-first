@@ -6,6 +6,11 @@ BlazorCompose.ComposeComponentBase.ComposeComponentBase() -> void
 abstract BlazorCompose.ComposeComponentBase.Body.get -> BlazorCompose.View
 override sealed BlazorCompose.ComposeComponentBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
 abstract BlazorCompose.ComposeComponentBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+BlazorCompose.ComposeLayoutBase
+BlazorCompose.ComposeLayoutBase.ComposeLayoutBase() -> void
+override sealed BlazorCompose.ComposeLayoutBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+abstract BlazorCompose.ComposeLayoutBase.Chrome.get -> BlazorCompose.View
+abstract BlazorCompose.ComposeLayoutBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
 BlazorCompose.View
 BlazorCompose.View.View() -> void
 static BlazorCompose.View.implicit operator BlazorCompose.View(string! text) -> BlazorCompose.View
