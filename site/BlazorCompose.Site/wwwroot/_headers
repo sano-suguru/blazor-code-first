@@ -1,8 +1,10 @@
 # Cloudflare Pages response headers.
 #
 # ONE rule per concern, never two rules setting the same header name. Pages MERGES the headers of
-# every matching rule and COMMA-JOINS duplicate names, so adding a catch-all "/*" Cache-Control rule
-# alongside the one below would produce a nonsense joined value rather than an override.
+# every matching rule, and (measured on a preview deployment) a duplicate header name arrives as
+# SEPARATE header lines rather than one comma-joined value -- so adding a catch-all "/*"
+# Cache-Control rule alongside the one below would produce a second, conflicting header line rather
+# than an override.
 #
 # HTML is deliberately left on the Cloudflare default (public, max-age=0, must-revalidate): every
 # route's index.html is regenerated on each deploy behind an unchanged URL, so it must revalidate.
@@ -21,7 +23,8 @@
 # preview deployment, see the PR that added this file. The rule is harmless either way.
 #
 # CI appends a "/*" noindex rule to preview deploys. Rules MERGE rather than override, so /404 on a
-# preview receives both directives comma-joined; the joined order is not documented, only the
-# presence of both.
+# preview receives both directives as separate X-Robots-Tag header lines (measured on a preview
+# deployment, see the PR that added this file), not one comma-joined value; the order between the
+# two lines is not documented, only the presence of both.
 /404
   X-Robots-Tag: noindex

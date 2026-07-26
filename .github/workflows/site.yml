@@ -29,11 +29,8 @@ concurrency:
   # Never cancel an in-flight PRODUCTION deploy: `wrangler pages deploy` uploads incrementally, and a
   # cancelled upload would leave the live site as whatever partial state had been committed. This
   # keys on the REF rather than on the production/preview decision, so a workflow_dispatch from main
-  # (a preview) is also protected from cancellation -- the safe direction.
-  #
-  # After this change workflow_dispatch can no longer produce a production deploy; it always deploys
-  # to a "dispatch-<branch>" preview. To redeploy production without a new commit, re-run the push
-  # workflow run: `gh run rerun <run-id>`.
+  # (a preview, see the target-resolution step below) is also protected from cancellation -- the safe
+  # direction.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -60,6 +57,11 @@ jobs:
           #     alias at all.
           # Context values arrive through env, not GitHub Actions expression interpolation directly
           # into the script, so a branch name cannot inject shell.
+          #
+          # A consequence of this decision: workflow_dispatch can no longer produce a production
+          # deploy, from any ref including main; it always deploys to a "dispatch-<branch>" preview.
+          # To redeploy production without a new commit, re-run the push workflow run instead:
+          # `gh run rerun <run-id>`.
           if [ "$EVENT_NAME" = "push" ] && [ "$REF_NAME" = "main" ]; then
             environment=production
             branch=main
@@ -192,10 +194,15 @@ jobs:
 
           P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
 
+          # The published document slugs. Defined once and reused below so the three loops over this
+          # same set (building ROUTES, the active-link/.md check, and the /docs index count check)
+          # cannot drift from each other. (#46 tracks deriving this from the publish output instead.)
+          SLUGS="getting-started elements-and-decorations control-flow"
+
           # Every prerendered ROUTE, relative to $P. These carry the shell, exactly one <title>, and
           # exactly one active nav link.
           ROUTES="index.html counter/index.html docs/index.html"
-          for slug in getting-started elements-and-decorations control-flow; do
+          for slug in $SLUGS; do
             ROUTES="$ROUTES docs/$slug/index.html"
           done
           # Every prerendered HTML document. 404.html is in this list but not in ROUTES, because no
@@ -245,6 +252,14 @@ jobs:
           for f in $ALL_HTML; do
             assert_not_grep 'b-prerendering' "$P/$f" "a prerendering wrapper div survived into the published HTML, which hides the prerendered content from humans until WASM starts"
             assert_not_grep 'BlazorCompose\.Site\.styles\.css' "$P/$f" "the published HTML links the scoped-CSS bundle, which this project does not produce"
+
+            # Both stylesheet links and the boot script are hand-maintained lines in
+            # wwwroot/index.html, not SDK-injected. Every guard above them is an ABSENCE check, so
+            # deleting or mistyping one of these three lines would leave every existing assertion
+            # green while the deployment ships unstyled, unhighlighted, or fully inert.
+            assert_grep 'href="css/app\.css"' "$P/$f" "the published HTML no longer links css/app.css, so the page ships unstyled"
+            assert_grep 'href="css/highlight\.css"' "$P/$f" "the published HTML no longer links css/highlight.css, so code blocks ship unhighlighted"
+            assert_grep 'src="_framework/blazor\.webassembly[^"]*\.js"' "$P/$f" "the published HTML no longer loads the Blazor script, so nothing hydrates"
           done
 
           # The guard above is only correct while NO scoped CSS exists. The SDK does NOT inject the
@@ -261,7 +276,7 @@ jobs:
 
           # The per-route active check is the real guard: if path normalization is wrong, every route
           # renders the same active link.
-          for slug in getting-started elements-and-decorations control-flow; do
+          for slug in $SLUGS; do
             f="$P/docs/$slug/index.html"
             assert_active_link "$f" "/docs/$slug"
             assert_not_grep 'href="[^"]*\.md("|#|\?)' "$f" "an un-rewritten .md link survived into the prerendered HTML"
@@ -270,11 +285,14 @@ jobs:
           # "/docs" is its own index page now, not a second copy of the lowest-order document.
           assert_active_link "$P/docs/index.html" "/docs"
           assert_grep '<h1>Documentation</h1>' "$P/docs/index.html" "/docs did not render the index page's h1"
+          # /docs is the only route whose <title> content was otherwise unasserted: the count guard
+          # above catches a MISSING title, not a WRONG one.
+          assert_grep '<title>Documentation</title>' "$P/docs/index.html" "the /docs index has the wrong page title"
 
           # The index must enumerate EVERY document. Count 2 per slug, not 1: the nav contributes one
           # href per document on every page, so a "contains this href" check would pass even if the
           # index body rendered nothing at all. The second occurrence is the index list item.
-          for slug in getting-started elements-and-decorations control-flow; do
+          for slug in $SLUGS; do
             assert_count "href=\"/docs/$slug\"" "$P/docs/index.html" 2 "the /docs index does not list this document (expected the nav link plus one index entry)"
           done
 
@@ -372,6 +390,14 @@ jobs:
 
           assert_grep '^/\*$' "$P/_headers" "the injected preview rule has no /* path line"
           assert_grep '^  X-Robots-Tag: noindex, nofollow$' "$P/_headers" "the injected preview noindex directive is missing"
+
+          # Re-assert the /_framework/* rule survived the append above. The step before this one
+          # already proved the rule was present before the append; the only thing left to prove is
+          # that ">>" stayed ">>" -- a future edit turning it into ">" would truncate the file to just
+          # the preview rule while leaving the two assertions above (which only look at what THIS step
+          # just wrote) passing.
+          assert_grep '^/_framework/\*$' "$P/_headers" "the /_framework/* rule did not survive the preview append -- _headers was truncated instead of extended"
+          assert_grep '^  Cache-Control: public, max-age=31536000, immutable$' "$P/_headers" "the immutable cache directive did not survive the preview append -- _headers was truncated instead of extended"
 
           echo "--- published _headers ---"
           cat "$P/_headers"
