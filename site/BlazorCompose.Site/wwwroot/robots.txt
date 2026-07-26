@@ -1,2 +1,14 @@
+# This site is public: indexing is allowed everywhere. `Allow: /` is redundant with an empty rule
+# set, but states that intent explicitly rather than by omission.
+#
+# Deliberately no `Disallow`. Preview deployments are kept out of the index with an X-Robots-Tag
+# response header that CI appends to the published _headers, not with a rule here, because
+# robots.txt controls CRAWLING while X-Robots-Tag controls INDEXING: a `Disallow: /` would stop the
+# crawl before the noindex could be read, so the two directives cancel rather than add.
 User-agent: *
-Disallow: /
+Allow: /
+
+# Must be an absolute URL -- a Sitemap directive is not resolved relative to the host serving this
+# file. CI asserts this origin against the one it generates sitemap.xml with, since it is written in
+# both places.
+Sitemap: https://blazor-compose-site.pages.dev/sitemap.xml
