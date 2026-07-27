@@ -307,6 +307,41 @@ internal static class DiagnosticDescriptors
             "typo-checkable and is the prerequisite for class folding and duplicate-binding detection.");
 
     /// <summary>
+    /// BC3012: The type argument of <c>Component&lt;T&gt;()</c> did not resolve to a type while the
+    /// generator ran. The dominant cause is a <c>.razor</c> component declared in the same project: the
+    /// Razor compiler is itself a source generator, and source generators cannot observe each other's
+    /// output, so the type is unresolved here even though it exists in the final compilation. The same
+    /// component in a referenced project or NuGet package resolves normally, as does a hand-authored C#
+    /// component.
+    /// </summary>
+    /// <remarks>
+    /// An error rather than a pass-through because both alternatives are worse, and both were measured.
+    /// An unresolved type argument is emitted as the written name with no qualification, and the
+    /// generated file carries no <c>using</c> directives, so the emitted <c>OpenComponent&lt;T&gt;</c>
+    /// either fails with a CS0246 inside generated code — which the author cannot fix from their own
+    /// file — or binds silently to a different same-named type that happens to be reachable from the
+    /// generated file's namespace, rendering the wrong component with no diagnostic at all.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BC3012 = new(
+        id: "BC3012",
+        title: "Component type argument could not be resolved",
+        messageFormat: "'{0}' could not be resolved when the BlazorCompose generator ran; a .razor " +
+            "component declared in this project is invisible to it because source generators cannot " +
+            "observe each other's output. Move it to a referenced project, write it as a hand-authored " +
+            // The trailing period is required: RS1032 rejects a multi-sentence message without one.
+            "C# component, or fix the name.",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Component<T>() lowers its type argument to a literal OpenComponent<T> call, so the type must " +
+            "resolve while the generator runs. A .razor component declared in the same project does not: " +
+            "the Razor compiler is a source generator too, and source generators cannot observe each " +
+            "other's output. The same component in a referenced project or NuGet package resolves " +
+            "normally, as does one written by hand in C#. When the cause is instead a typo or a missing " +
+            "using directive, CS0246 is also reported at the same position.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static
