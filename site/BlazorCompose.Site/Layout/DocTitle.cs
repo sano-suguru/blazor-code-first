@@ -8,11 +8,10 @@ namespace BlazorCompose.Site.Layout;
 /// Sets the document title from a Compose <c>Body</c>.
 /// </summary>
 /// <remarks>
-/// Written in C# rather than Razor on purpose: <c>Component&lt;T&gt;()</c> cannot reference a
-/// Razor-generated type, because the Razor compiler is itself a source generator and generators
-/// cannot see each other's output — the type argument would be an error type when BlazorCompose's
-/// generator runs. Wrapping PageTitle at all is necessary because Component&lt;T&gt;() also cannot
-/// supply the RenderFragment ChildContent that PageTitle requires.
+/// Written in C# rather than Razor because <c>Component&lt;T&gt;()</c> cannot supply the
+/// <c>RenderFragment ChildContent</c> that <c>PageTitle</c> requires. Note that
+/// <c>Component&lt;PageTitle&gt;()</c> resolves correctly here — the same-compilation constraint
+/// applies only to <c>.razor</c> components declared in this project, not to referenced packages.
 /// </remarks>
 public sealed class DocTitle : ComponentBase
 {

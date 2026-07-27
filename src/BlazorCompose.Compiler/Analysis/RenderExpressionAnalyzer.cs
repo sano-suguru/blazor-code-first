@@ -204,6 +204,15 @@ internal static class RenderExpressionAnalyzer
 
         if (Is(method, symbols.HtmlComponent))
         {
+            // An unresolved type argument cannot be emitted: the display string of an unresolved type is
+            // the written name with no qualification, and the generated file has no using directives, so
+            // OpenComponent<T> would either fail with a CS0246 the author cannot reach or bind silently
+            // to a different same-named type. Fail translation instead; the failure-path sweep in
+            // ComponentModelFactory/ComposableDefinitionFactory then reports BC3012 once. Returning null
+            // here also stops the Param branch from drawing a spurious BC3005 on the selector.
+            if (UnresolvedComponentTypeScanner.ContainsUnresolvedType(method.TypeArguments[0]))
+                return null;
+
             // Base case: Html.Component<T>() with no .Param yet.
             var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);

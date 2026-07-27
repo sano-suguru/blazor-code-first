@@ -102,7 +102,10 @@ Enable the shared pre-push hook once per clone so this runs automatically:
   than introducing wrapper nodes or extra frame widths.
 - Preserve bidirectional Razor compatibility: generate `...AsFragment` siblings
   for `[Composable]` methods, and support existing Razor components through
-  `Component<T>()`.
+  `Component<T>()`. A `Component<T>()` type argument must resolve while the
+  generator runs, so a `.razor` component declared in the same project cannot be
+  named (`BC3012`) — source generators cannot observe each other's output. The
+  same component in a referenced project or package resolves normally.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts — do not repurpose or remove them. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
