@@ -114,4 +114,47 @@ public sealed class EquatableArrayTests
         Assert.Equal(left, right);
         Assert.Equal(left.GetHashCode(), right.GetHashCode());
     }
+
+    [Fact]
+    public void ComponentSlot_WithStructurallyEqualContent_IsValueEqual()
+    {
+        // Slots ride the incremental pipeline inside EquatableArray, so they must compare structurally.
+        // A reference-equality slip here silently recomputes every component with child content.
+        var left = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            new[]
+            {
+                new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\""))),
+            }.ToImmutableArray());
+
+        var right = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            new[]
+            {
+                new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\""))),
+            }.ToImmutableArray());
+
+        Assert.Equal(left, right);
+        Assert.Equal(left.GetHashCode(), right.GetHashCode());
+    }
+
+    [Fact]
+    public void ComponentSlot_WithDifferentContent_IsNotEqual()
+    {
+        var left = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            new[] { new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\""))) }
+                .ToImmutableArray());
+
+        var right = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            new[] { new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"y\""))) }
+                .ToImmutableArray());
+
+        Assert.NotEqual(left, right);
+    }
 }

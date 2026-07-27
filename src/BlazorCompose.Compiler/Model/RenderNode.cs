@@ -37,14 +37,21 @@ internal sealed record ForEachNode(
 /// (holes substituted). Symbol-free and value-equal.</remarks>
 internal sealed record ComponentParameter(string Name, ExpressionTemplate Value);
 
+/// <summary>A RenderFragment-typed component parameter whose content is an expanded node subtree.</summary>
+/// <remarks>Expanded counterpart of <see cref="ComponentSlot"/> (holes substituted).</remarks>
+internal sealed record ComponentSlotNode(string Name, RenderNode Content);
+
 /// <summary>
 /// Represents a <c>Component&lt;T&gt;().Param(...)</c> call. Emits <c>OpenComponent&lt;T&gt;</c> followed by
-/// one <c>AddComponentParameter</c> per parameter (in source order) and <c>CloseComponent</c>.
+/// one <c>AddComponentParameter</c> per scalar parameter (in source order), then one
+/// <c>AddComponentParameter</c> per fragment slot carrying a statically sequenced lambda, and
+/// <c>CloseComponent</c>.
 /// <see cref="TypeName"/> is the fully qualified component type (already prefixed with <c>global::</c>).
 /// </summary>
 internal sealed record ComponentNode(
     string TypeName,
-    EquatableArray<ComponentParameter> Parameters) : RenderNode;
+    EquatableArray<ComponentParameter> Parameters,
+    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode;
 
 /// <summary>An HTML element: tag, folded class channel, attributes, event list, and mixed children.</summary>
 internal sealed record ElementNode(
