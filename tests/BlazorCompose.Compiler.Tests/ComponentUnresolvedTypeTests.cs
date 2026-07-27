@@ -428,4 +428,45 @@ public sealed class ComponentUnresolvedTypeTests
         var text = SourceText.From(source);
         Assert.Equal("Probe", text.ToString(diagnostic.Location.SourceSpan));
     }
+
+    [Fact]
+    public void ComponentWithChildren_UnresolvedType_ReportsBC3012AndNotBC1003()
+    {
+        // Probe is never declared: the same shape the parameterless overload already covers, but the
+        // scanner compares against a single symbol, so the params form would fall through to BC1003.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Probe>(Div("x"));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void ComponentWithChildren_UnresolvedTypeInsideIf_ReportsBC3012Once()
+    {
+        // A lambda argument degrades GetSymbolInfo to a non-method symbol, so only the failure-path
+        // sweep sees this. Exactly one report, not one per enclosing invocation.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => If(true, () => Component<Probe>(Div("x")));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(1, CountBC3012(result));
+    }
 }
