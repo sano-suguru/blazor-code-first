@@ -273,10 +273,12 @@ internal static class ComponentModelFactory
     /// Classifies the elected design-time expression declaration.  Three getter spellings reduce to a
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
     /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
-    /// expression (<c>get { return e; }</c>).  A declaration with no getter body at all — an auto
-    /// property, or a partial property whose implementation is missing — is
-    /// <see cref="DesignTimeExpressionShape.Absent"/>.  Anything else is
-    /// <see cref="DesignTimeExpressionShape.NotSingleExpression"/> and earns BC1004.
+    /// expression (<c>get { return e; }</c>).  An auto property (no getter body and no <c>partial</c>
+    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BC1004.  A partial
+    /// property with no implementation part (<c>partial</c> modifier and no getter body) is
+    /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
+    /// property itself.  Any other getter shape (a statement-bearing getter body) is also
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BC1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,
@@ -297,7 +299,11 @@ internal static class ComponentModelFactory
 
         // No getter body at all. An auto property is a concrete override the generator was expected to
         // translate, so it earns BC1004; a partial declaration part with no implementation is left to
-        // CS9248, which names the property itself.
+        // CS9248, which names the property itself. The partial check is sound: a partial property's
+        // implementation part always has a getter body (CS9250: "A partial property cannot be an
+        // auto-property"), so reaching here with `partial` means the definition part with no
+        // implementation (left to CS9248), while reaching here without `partial` means an auto property
+        // (earns BC1004).
         if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
         {
             location = prop.Identifier.GetLocation();

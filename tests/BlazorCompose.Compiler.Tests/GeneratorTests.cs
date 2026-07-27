@@ -402,10 +402,10 @@ public sealed class GeneratorTests
     [Fact]
     public async Task Generator_NonPartialAutoPropertyOverride_ReportsBC1001()
     {
-        // Two independent requirements are unmet here: the class is not partial (BC1001, from the
-        // analyzer) and the getter cannot be translated (BC1004, from the generator). BC1001 is what the
-        // author sees first, and unlike before this PR, following it now leads somewhere — after adding
-        // `partial` the author gets BC1004 naming the auto property instead of a bare CS0534.
+        // A non-partial class with an auto property override earns BC1001 from the analyzer; the
+        // generator bails at the partial check and produces no BC1004. BC1001 is what the author sees
+        // first, and unlike before this PR, following it now leads somewhere — after adding `partial`
+        // the author gets BC1004 naming the auto property instead of a bare CS0534.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
