@@ -116,4 +116,19 @@ public static class Html
     /// </remarks>
     public static ComponentView<TComponent> Component<TComponent>()
         where TComponent : Microsoft.AspNetCore.Components.IComponent => default;
+
+    /// <summary>
+    /// Design-time syntax for embedding an existing Blazor component together with its child content.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="children"/> is bound to the component's <c>ChildContent</c> parameter, mirroring
+    /// how Razor binds nested content. <typeparamref name="TComponent"/> must therefore declare a
+    /// settable <c>[Parameter]</c> named <c>ChildContent</c> of type
+    /// <see cref="Microsoft.AspNetCore.Components.RenderFragment"/>; otherwise BC3013 is reported. Use
+    /// <see cref="ComponentView{TComponent}.Param(System.Func{TComponent, Microsoft.AspNetCore.Components.RenderFragment?}, View)"/>
+    /// for any other fragment-typed parameter. The same type-resolution rule as
+    /// <see cref="Component{TComponent}()"/> applies (BC3012).
+    /// </remarks>
+    public static ComponentView<TComponent> Component<TComponent>(params System.ReadOnlySpan<View> children)
+        where TComponent : Microsoft.AspNetCore.Components.IComponent => default;
 }

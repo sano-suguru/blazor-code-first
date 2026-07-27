@@ -62,3 +62,5 @@ static BlazorCompose.Html.Raw(string! rawHtml) -> BlazorCompose.View
 static BlazorCompose.Html.If(bool condition, System.Func<BlazorCompose.View>! then, System.Func<BlazorCompose.View>? otherwise = null) -> BlazorCompose.View
 static BlazorCompose.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCompose.View>! content) -> BlazorCompose.View
 static BlazorCompose.Html.Component<TComponent>() -> BlazorCompose.ComponentView<TComponent>
+BlazorCompose.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCompose.View content) -> BlazorCompose.ComponentView<TComponent>
+static BlazorCompose.Html.Component<TComponent>(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.ComponentView<TComponent>
