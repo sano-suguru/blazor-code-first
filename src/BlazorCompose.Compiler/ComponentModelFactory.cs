@@ -80,13 +80,13 @@ internal static class ComponentModelFactory
         var shape = FindDesignTimeExpression(
             elected, out var bodyExpression, out var getterLocation);
 
-        if (shape == DesignTimeExpressionShape.Absent)
+        if (shape == DesignTimeExpressionShape.NoDeclaration)
             return null;
 
         // A getter that exists but is not a single expression is reported here rather than left to the
         // bare CS0534 the un-emitted RenderView would raise. Returning an analysis with a null template
         // routes it through Expand's existing dedup, which suppresses BC1003 when an error is present.
-        if (shape == DesignTimeExpressionShape.NotSingleExpression)
+        if (shape == DesignTimeExpressionShape.NotTranslatable)
         {
             return new ComponentAnalysis(
                 HintName: hintName,
@@ -250,17 +250,23 @@ internal static class ComponentModelFactory
         return null;
     }
 
-    /// <summary>The outcome of looking for the component's design-time expression override.</summary>
+    /// <summary>The outcome of classifying the component's elected design-time expression declaration.</summary>
     private enum DesignTimeExpressionShape
     {
-        /// <summary>No override with a getter body: not a generation candidate, and nothing to report.</summary>
-        Absent,
+        /// <summary>
+        /// No getter body, and the type is abstract enough that nothing was expected: a re-abstraction
+        /// (<c>abstract override</c>). Nothing to translate and nothing to report.
+        /// </summary>
+        NoDeclaration,
 
         /// <summary>An override whose getter reduces to a single expression.</summary>
         SingleExpression,
 
-        /// <summary>An override with a getter body that does not reduce to a single expression.</summary>
-        NotSingleExpression,
+        /// <summary>
+        /// A concrete override the generator cannot translate: a getter body that is not a single
+        /// expression, or no getter body at all on a type that needs one (an auto property). Earns BC1004.
+        /// </summary>
+        NotTranslatable,
     }
 
     /// <summary>
@@ -289,9 +295,16 @@ internal static class ComponentModelFactory
 
         var getter = FindGetAccessor(prop);
 
-        // No getter, or a getter with no body: auto property, partial declaration part, extern.
+        // No getter body at all. An auto property is a concrete override the generator was expected to
+        // translate, so it earns BC1004; a partial declaration part with no implementation is left to
+        // CS9248, which names the property itself.
         if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
-            return DesignTimeExpressionShape.Absent;
+        {
+            location = prop.Identifier.GetLocation();
+            return prop.Modifiers.Any(SyntaxKind.PartialKeyword)
+                ? DesignTimeExpressionShape.NoDeclaration
+                : DesignTimeExpressionShape.NotTranslatable;
+        }
 
         location = prop.Identifier.GetLocation();
 
@@ -311,7 +324,7 @@ internal static class ComponentModelFactory
             return DesignTimeExpressionShape.SingleExpression;
         }
 
-        return DesignTimeExpressionShape.NotSingleExpression;
+        return DesignTimeExpressionShape.NotTranslatable;
     }
 
     private static AccessorDeclarationSyntax? FindGetAccessor(PropertyDeclarationSyntax prop)

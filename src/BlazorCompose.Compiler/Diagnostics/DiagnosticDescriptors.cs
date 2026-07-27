@@ -123,11 +123,14 @@ internal static class DiagnosticDescriptors
             "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
 
     /// <summary>
-    /// BC1004: A design-time expression override declares a getter whose body does not reduce to a
-    /// single expression, so there is nothing for the generator to translate. Distinct from BC1003: the
-    /// getter's shape is the problem, not the constructs used inside it, and the fix is to rewrite the
-    /// getter rather than to change which factories are called. Reported at the property identifier,
-    /// where BC1003 is location-less.
+    /// BC1004: A design-time expression override declares a getter the generator cannot translate —
+    /// either a getter body that does not reduce to a single expression, or an auto property, which
+    /// declares no getter body at all. Distinct from BC1003: the getter's shape is the problem, not the
+    /// constructs used inside it, and the fix is to rewrite the getter rather than to change which
+    /// factories are called. Reported at the property identifier, where BC1003 is location-less. Not
+    /// reported when the component overrides <c>RenderView</c> by hand (the design-time expression is
+    /// then unused and the code is correct), nor for a partial property with no implementation part
+    /// (CS9248 already names it).
     /// </summary>
     public static readonly DiagnosticDescriptor BC1004 = new(
         id: "BC1004",
@@ -140,7 +143,9 @@ internal static class DiagnosticDescriptors
             "A design-time expression is an inert projection of state to UI that the generator translates " +
             "statically; it is never evaluated at runtime. Its getter must therefore reduce to a single " +
             "expression. A getter that contains statements — for example a local variable declared before " +
-            "the return — would require the Transplantable path, which is not implemented.");
+            "the return — would require the Transplantable path, which is not implemented. An auto " +
+            "property declares no getter to translate at all. Supply RenderView by hand if the body " +
+            "cannot be expressed as a single expression.");
 
     /// <summary>
     /// BC3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied

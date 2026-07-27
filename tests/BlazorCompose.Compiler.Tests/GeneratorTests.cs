@@ -348,12 +348,12 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_AutoPropertyOverride_ReportsNoBlazorComposeDiagnostic()
+    public void Generator_AutoPropertyOverride_ReportsBC1004()
     {
-        // An auto-property override with an initializer is legal and has no getter body (spec F2).
-        // Nothing is generated for this shape (FindDesignTimeExpression returns Absent), so the author
-        // is left with a bare CS0534 about RenderView rather than a BlazorCompose diagnostic that would
-        // point at the real cause — a known, recorded residual hole (see the final review's Minor #4).
+        // An auto-property override is legal C# and has no getter body, so nothing can be translated.
+        // CS0534 names RenderView and never mentions the auto-property that caused it, so the author has
+        // no way to reach the real cause from the compiler's own error — which is exactly the asymmetry
+        // BC1004 exists for. Adding `partial` (BC1001's remedy) does not help this shape.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -366,12 +366,118 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
         Assert.Empty(result.GeneratedSources);
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1004");
+        Assert.Contains("Body", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+    }
 
-        var diagnostic = Assert.Single(
-            result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS0534");
-        Assert.Contains("Counter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+    [Fact]
+    public void Generator_AutoPropertyOverrideWithHandWrittenRenderView_ReportsNothing()
+    {
+        // The same auto-property shape is CORRECT code when the author supplies RenderView themselves:
+        // the design-time expression is unused, nothing needs translating, and C# reports no error at
+        // all. BC1004 here would be a false positive on working code.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            using Microsoft.AspNetCore.Components.Rendering;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body { get; } = default;
+
+                protected override void RenderView(RenderTreeBuilder builder)
+                    => builder.AddContent(0, "hand-written");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public async Task Generator_NonPartialAutoPropertyOverride_ReportsBC1001()
+    {
+        // Two independent requirements are unmet here: the class is not partial (BC1001, from the
+        // analyzer) and the getter cannot be translated (BC1004, from the generator). BC1001 is what the
+        // author sees first, and unlike before this PR, following it now leads somewhere — after adding
+        // `partial` the author gets BC1004 naming the auto property instead of a bare CS0534.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public class Counter : ComposeComponentBase
+            {
+                protected override View Body { get; } = default;
+            }
+            """;
+
+        var analyzerDiagnostics =
+            await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(source);
+
+        Assert.Contains(analyzerDiagnostics, d => d.Id == "BC1001");
+    }
+
+    [Fact]
+    public void Generator_PartialPropertyWithoutImplementation_ReportsNoBlazorComposeDiagnostic()
+    {
+        // A partial property with no implementation part earns CS9248, which names the property
+        // precisely ("Partial property 'Counter.Body' must have an implementation part"). BlazorCompose
+        // adds a diagnostic only when the compiler's own error does not name the real cause, so this
+        // shape is deliberately left to CS9248 rather than double-reported as BC1004.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override partial View Body { get; }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS9248");
+    }
+
+    [Fact]
+    public void Generator_PartialPropertyWithStatementBodyImplementation_ReportsBC1004()
+    {
+        // A partial property's implementation part can carry a statement-bearing getter, which is legal
+        // C# and still untranslatable. The classification must reach the IMPLEMENTATION part to see it —
+        // reading the definition part would find `{ get; }`, classify it as NoDeclaration, and report
+        // nothing at all.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override partial View Body { get; }
+            }
+            public partial class Counter
+            {
+                protected override partial View Body
+                {
+                    get
+                    {
+                        var label = "Count";
+                        return Span(label);
+                    }
+                }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC1004");
     }
 
     [Fact]
