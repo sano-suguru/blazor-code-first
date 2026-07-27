@@ -338,8 +338,9 @@ internal static class DiagnosticDescriptors
             "resolve while the generator runs. A .razor component declared in the same project does not: " +
             "the Razor compiler is a source generator too, and source generators cannot observe each " +
             "other's output. The same component in a referenced project or NuGet package resolves " +
-            "normally, as does one written by hand in C#. When the cause is instead a typo or a missing " +
-            "using directive, CS0246 is also reported at the same position.");
+            "normally, as does one written by hand in C#. When the cause is instead a typo, an inaccessible " +
+            "type, an ambiguous name, or a missing using directive, a C# resolution error is also reported " +
+            "at the same position.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

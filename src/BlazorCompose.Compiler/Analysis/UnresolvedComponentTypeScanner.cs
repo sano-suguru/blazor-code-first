@@ -34,9 +34,9 @@ internal static class UnresolvedComponentTypeScanner
             context.CancellationToken.ThrowIfCancellationRequested();
 
             // The inner Component<T>() call resolves cleanly even when the enclosing call does not, so
-            // Symbol is normally present here; CandidateSymbols is the fallback for a Component call
-            // that is itself the unresolvable one. Pattern-matched rather than `as` + null check: the
-            // latter is IDE0019, an error in this repo.
+            // Symbol is present in every currently-known shape; CandidateSymbols is defensive with no
+            // shape known to reach it. Pattern-matched rather than `as` + null check: the latter is
+            // IDE0019, an error in this repo.
             var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
             if ((symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault()) is not IMethodSymbol method ||
                 !SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, componentMethod))

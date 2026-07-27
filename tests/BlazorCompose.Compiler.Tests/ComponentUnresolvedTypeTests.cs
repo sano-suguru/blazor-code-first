@@ -189,12 +189,32 @@ public sealed class ComponentUnresolvedTypeTests
     }
 
     [Fact]
+    public void Component_TwoDistinctUnresolvedTypes_ReportsBC3012ForEach()
+    {
+        // Guards against a future dedup-by-type-name regression that would pass the same-type test
+        // above. Measured behavior: two diagnostics at distinct locations.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Div(Component<Alpha>(), Component<Beta>());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(2, CountBC3012(result));
+    }
+
+    [Fact]
     public void Component_WithUnresolvedContainingType_ReportsBC3012()
     {
         // The type argument itself is a resolved TypeKind.Class with an EMPTY TypeArguments list; the
-        // unresolved type is only reachable through its ContainingType. This shape needs the bail below
-        // even with a .Param, because `Inner.Label` is a real settable [Parameter] — the selector binds,
-        // translation would otherwise succeed, and the generator would emit
+        // unresolved type is only reachable through its ContainingType. This shape needs the analyzer's
+        // bail even with a .Param, because `Inner.Label` is a real settable [Parameter] — the selector
+        // binds, translation would otherwise succeed, and the generator would emit
         // OpenComponent<global::T.Outer<Missing>.Inner>, failing with CS0246 in generated code.
         const string source = """
             using BlazorCompose;
