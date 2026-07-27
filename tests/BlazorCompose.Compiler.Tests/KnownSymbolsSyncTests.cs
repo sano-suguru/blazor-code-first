@@ -63,6 +63,31 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotNull(symbols.HtmlFragment);
     }
 
+    [Fact]
+    public void Component_BothOverloads_AreResolvedSeparately()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.NotNull(symbols.HtmlComponent);
+        Assert.NotNull(symbols.HtmlComponentWithChildren);
+        Assert.Empty(symbols.HtmlComponent!.Parameters);
+        Assert.Single(symbols.HtmlComponentWithChildren!.Parameters);
+        Assert.True(symbols.HtmlComponentWithChildren.Parameters[0].IsParams);
+    }
+
+    [Fact]
+    public void Param_BothOverloads_AreResolvedSeparately()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.NotNull(symbols.ParamMethod);
+        Assert.NotNull(symbols.FragmentParamMethod);
+
+        // The generic overload has a type parameter; the fragment overload does not.
+        Assert.Equal(1, symbols.ParamMethod!.Arity);
+        Assert.Equal(0, symbols.FragmentParamMethod!.Arity);
+    }
+
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()
     {
         var compilation = CompilationTestHost.CreateCompilation("");

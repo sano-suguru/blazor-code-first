@@ -27,6 +27,11 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>ComponentView&lt;T&gt;.Param&lt;TValue&gt;(...)</c>, or null.</summary>
     public IMethodSymbol? ParamMethod { get; }
 
+    /// <summary>
+    /// Resolved symbol for <c>ComponentView&lt;T&gt;.Param(Func&lt;T, RenderFragment?&gt;, View)</c>, or null.
+    /// </summary>
+    public IMethodSymbol? FragmentParamMethod { get; }
+
     /// <summary>Resolved <c>Microsoft.AspNetCore.Components.ParameterAttribute</c>, or null.</summary>
     public INamedTypeSymbol? ParameterAttributeType { get; }
 
@@ -112,6 +117,15 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, or null.</summary>
     public IMethodSymbol? HtmlComponent { get; }
 
+    /// <summary>
+    /// Resolved symbol for <c>Html.Component&lt;T&gt;(params ReadOnlySpan&lt;View&gt;)</c>, or null.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a separate field from <see cref="HtmlComponent"/>: every consumer must OR-match both,
+    /// or the params form falls through analysis to BC1003 and its BC3012 sweep goes silent.
+    /// </remarks>
+    public IMethodSymbol? HtmlComponentWithChildren { get; }
+
     /// <summary>Resolved symbol for <c>BlazorCompose.Html.Raw(string)</c>, or null.</summary>
     public IMethodSymbol? HtmlRaw { get; }
 
@@ -133,11 +147,15 @@ internal sealed class KnownSymbols
         {
             foreach (var member in ComponentViewType.GetMembers("Param"))
             {
-                if (member is IMethodSymbol { Arity: 1, Parameters.Length: 2 } paramMethod)
-                {
+                if (member is not IMethodSymbol { Parameters.Length: 2 } paramMethod)
+                    continue;
+
+                // Arity discriminates the two overloads: the scalar one is Param<TValue>, the fragment
+                // one is non-generic. Do not break early — both must be captured.
+                if (paramMethod.Arity == 1)
                     ParamMethod = paramMethod;
-                    break;
-                }
+                else if (paramMethod.Arity == 0)
+                    FragmentParamMethod = paramMethod;
             }
         }
 
@@ -187,7 +205,14 @@ internal sealed class KnownSymbols
                 case "Element" when method.Parameters.Length == 2: HtmlElement = method; break;
                 case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
                 case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
-                case "Component" when method.Arity == 1 && method.Parameters.Length == 0: HtmlComponent = method; break;
+                case "Component" when method.Arity == 1 && method.Parameters.Length == 0:
+                    HtmlComponent = method;
+                    break;
+                case "Component" when method.Arity == 1
+                        && method.Parameters.Length == 1
+                        && method.Parameters[0].IsParams:
+                    HtmlComponentWithChildren = method;
+                    break;
                 case "Raw" when method.Parameters.Length == 1: HtmlRaw = method; break;
                 case "Fragment" when method.Parameters.Length == 1: HtmlFragment = method; break;
                 default:
