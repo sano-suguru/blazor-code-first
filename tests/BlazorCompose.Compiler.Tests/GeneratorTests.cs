@@ -88,6 +88,32 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_DesignTimeExpressionInDeclarationWithoutBaseList_Generates()
+    {
+        // A component split across declarations may put the design-time expression in the declaration
+        // that carries no base list. The syntax predicate used to require a base list, so this
+        // declaration was never offered to the transform and the author got a bare CS0534.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+            }
+            public partial class Counter
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void Generator_DivWithSpanAndButton_EmitsLinearSscRenderView()
     {
         var result = CompilationTestHost.RunGenerator(DivCounterSource);

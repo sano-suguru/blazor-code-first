@@ -1,6 +1,7 @@
 using BlazorCompose.Compiler.Analysis;
 using BlazorCompose.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BlazorCompose.Compiler;
@@ -22,7 +23,12 @@ public sealed class BlazorComposeGenerator : IIncrementalGenerator
         // SemanticModel/ISymbol/Compilation ever flows into the cached pipeline.
         var analyses = context.SyntaxProvider
             .CreateSyntaxProvider(
-                static (node, _) => node is ClassDeclarationSyntax { BaseList: not null },
+                // A base list is not required: inheritance is judged from the symbol, and a component
+                // split across declarations may declare its design-time expression in the part that
+                // carries no base list. `partial` IS required — the generated RenderView joins this
+                // class — and testing it here keeps non-partial classes out of the semantic transform.
+                static (node, _) => node is ClassDeclarationSyntax declaration &&
+                    declaration.Modifiers.Any(SyntaxKind.PartialKeyword),
                 static (ctx, cancellationToken) => ComponentModelFactory.Analyze(ctx, cancellationToken))
             .Where(static analysis => analysis is not null)
             .WithTrackingName("ComponentAnalysis");
