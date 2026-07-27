@@ -25,7 +25,8 @@ namespace BlazorCompose;
 /// <para>
 /// Layouts that declare the <see cref="Chrome"/> override must be declared <c>partial</c> so the
 /// generator can emit the <see cref="RenderView"/> implementation into the same class; a non-partial
-/// layout reports BC1001.
+/// layout reports BC1001. The layout must also be a top-level type; a nested class is reported as
+/// BC1005.
 /// </para>
 /// </remarks>
 public abstract class ComposeLayoutBase : LayoutComponentBase
@@ -43,8 +44,9 @@ public abstract class ComposeLayoutBase : LayoutComponentBase
     protected abstract View Chrome { get; }
 
     /// <summary>
-    /// Renders the layout's content. This method is emitted by the source generator from the
-    /// <see cref="Chrome"/> expression and is not written by hand.
+    /// Renders the layout's content. The source generator normally emits this method from the
+    /// <see cref="Chrome"/> expression. A layout may override it by hand instead, in which case
+    /// the generator emits nothing for that type.
     /// </summary>
     /// <param name="builder">The render-tree builder that receives the generated rendering instructions.</param>
     protected abstract void RenderView(RenderTreeBuilder builder);

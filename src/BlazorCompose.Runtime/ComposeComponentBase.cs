@@ -11,7 +11,8 @@ namespace BlazorCompose;
 /// <remarks>
 /// Components that declare the <see cref="Body"/> override must be declared <c>partial</c> so the
 /// generator can emit the <see cref="RenderView"/> implementation into the same class; a non-partial
-/// component reports BC1001.
+/// component reports BC1001. The component must also be a top-level type; a nested class is reported
+/// as BC1005.
 /// The component otherwise behaves as a standard Blazor <see cref="ComponentBase"/>.
 /// </remarks>
 public abstract class ComposeComponentBase : ComponentBase
@@ -29,8 +30,9 @@ public abstract class ComposeComponentBase : ComponentBase
     protected abstract View Body { get; }
 
     /// <summary>
-    /// Renders the component's content. This method is emitted by the source generator from the
-    /// <see cref="Body"/> expression and is not written by hand.
+    /// Renders the component's content. The source generator normally emits this method from the
+    /// <see cref="Body"/> expression. A component may override it by hand instead, in which case
+    /// the generator emits nothing for that type.
     /// </summary>
     /// <param name="builder">The render-tree builder that receives the generated rendering instructions.</param>
     protected abstract void RenderView(RenderTreeBuilder builder);
