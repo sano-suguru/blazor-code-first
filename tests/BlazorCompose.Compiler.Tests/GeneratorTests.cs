@@ -172,20 +172,55 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public async Task Generator_NestedPartialComponent_EmitsNoSourceAndReportsCS0534()
+    public async Task Generator_NestedPartialComponent_ReportsBC1005()
     {
+        // Generating into a nested type means reproducing the enclosing type chain, which is not
+        // supported. Before BC1005 the author got zero BlazorCompose diagnostics and a bare CS0534 that
+        // names RenderView without ever mentioning that nesting is the cause.
         var result = CompilationTestHost.RunGenerator(NestedPartialCounterSource);
 
         Assert.Empty(result.GeneratedSources);
 
-        var analyzerDiagnostics = await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(NestedPartialCounterSource);
-        Assert.DoesNotContain(analyzerDiagnostics, static diagnostic => diagnostic.Id == "BC1001");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1005");
+        var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("Counter", message, StringComparison.Ordinal);
+        Assert.Contains("Body", message, StringComparison.Ordinal);
 
-        var diagnostic = Assert.Single(
-            result.OutputCompilation.GetDiagnostics(), static diagnostic => diagnostic.Id == "CS0534");
+        // BC1003 is about constructs inside the expression; conflating the two would send the author
+        // looking at their factories instead of at the nesting.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
 
-        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("Outer.Counter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+        // BC1001 stays silent: the class already is partial, and partial is not the problem.
+        var analyzerDiagnostics =
+            await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(NestedPartialCounterSource);
+        Assert.DoesNotContain(analyzerDiagnostics, static d => d.Id == "BC1001");
+    }
+
+    [Fact]
+    public void Generator_NestedClassInheritingWithoutDeclaringExpression_ReportsNothing()
+    {
+        // A nested type that merely inherits a Compose base declares nothing to generate, so it must not
+        // be told that nesting is a problem — same narrowing principle as BC1001 in PR #59.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Base : ComposeComponentBase
+            {
+                protected override View Body => Span("base");
+            }
+
+            public partial class Outer
+            {
+                public partial class Leaf : Base
+                {
+                }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1005");
     }
 
     [Fact]

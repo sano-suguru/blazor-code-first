@@ -43,12 +43,6 @@ internal static class ComponentModelFactory
         if (symbol is null)
             return null;
 
-        // Nested classes require wrapping the generated code inside the outer class hierarchy;
-        // that complexity is out of scope for this task.  Skip them so the generator does not
-        // emit a structurally incorrect top-level partial class.
-        if (symbol.ContainingType is not null)
-            return null;
-
         if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
             return null;
 
@@ -76,6 +70,25 @@ internal static class ComponentModelFactory
         var elected = FindDesignTimeExpressionDeclaration(symbol, expressionName, cancellationToken);
         if (elected is null || elected.Parent != classDeclaration)
             return null;
+
+        // Emitting into a nested type would mean reproducing the enclosing type chain; unsupported.
+        // Reported here rather than at the top of the method so a nested class that merely inherits a
+        // Compose base without declaring the expression is not told that nesting is its problem.
+        if (symbol.ContainingType is not null)
+        {
+            return new ComponentAnalysis(
+                HintName: hintName,
+                ClassName: symbol.Name,
+                Namespace: namespaceName,
+                DesignTimeExpressionName: expressionName,
+                InheritanceKeys: BuildInheritanceKeys(symbol),
+                Template: null,
+                BodyDiagnostics: ImmutableArray.Create(
+                    DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC1005,
+                        elected.Identifier.GetLocation(),
+                        [symbol.Name, expressionName])));
+        }
 
         var shape = FindDesignTimeExpression(
             elected, out var bodyExpression, out var getterLocation);

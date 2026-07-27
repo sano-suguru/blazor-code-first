@@ -148,6 +148,25 @@ internal static class DiagnosticDescriptors
             "cannot be expressed as a single expression.");
 
     /// <summary>
+    /// BC1005: A nested class declares a design-time expression. Emitting <c>RenderView</c> into it would
+    /// require reproducing the enclosing type chain (including any enclosing type's type parameters),
+    /// which is not supported, so nothing is generated. Explains the CS0534 that the abstract RenderView
+    /// would otherwise raise on its own, which names only RenderView and never mentions the nesting.
+    /// Transitional: its firing condition disappears if nested components become supported.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC1005 = new(
+        id: "BC1005",
+        title: "Nested class cannot declare a design-time expression",
+        messageFormat: "'{0}' declares the {1} design-time expression but is a nested type; move it to a top-level type",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The generated RenderView is emitted into a top-level partial class. A nested component would " +
+            "require the generated code to reproduce every enclosing type declaration, which is not " +
+            "supported. Move the component to a top-level type.");
+
+    /// <summary>
     /// BC3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
     /// lambda or a method group), so it cannot be statically analyzed. Transitional: narrows once the
     /// Transplantable/Opaque paths support such content.
