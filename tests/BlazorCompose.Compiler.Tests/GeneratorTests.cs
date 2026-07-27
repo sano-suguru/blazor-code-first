@@ -114,6 +114,29 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_RecordDerivingFromComposeBase_IsRejectedByTheLanguage()
+    {
+        // Widening the syntax predicate to TypeDeclarationSyntax so records are analyzed would be a dead
+        // branch: a record may only inherit from object or another record (CS8864), and
+        // ComposeComponentBase is a class, so this shape can never compile. CS8864 names the real cause,
+        // so BlazorCompose deliberately adds no diagnostic of its own here.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial record Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS8864");
+        Assert.Empty(result.GeneratedSources);
+    }
+
+    [Fact]
     public void Generator_DivWithSpanAndButton_EmitsLinearSscRenderView()
     {
         var result = CompilationTestHost.RunGenerator(DivCounterSource);
