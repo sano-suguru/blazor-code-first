@@ -17,6 +17,7 @@ namespace BlazorCompose.Compiler;
 internal sealed record ComponentModel(
     string HintName,
     string ClassName,
+    EquatableArray<string> TypeParameters,
     string? Namespace,
     RenderNode RootNode);
 

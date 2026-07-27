@@ -8,7 +8,7 @@ public sealed class RenderViewEmitterRawFragmentTests
 {
     private static string EmitRoot(RenderNode root) =>
         RenderViewEmitter.Emit(new ComponentModel(
-            HintName: "T.g.cs", ClassName: "T", Namespace: null, RootNode: root)).ToString();
+            HintName: "T.g.cs", ClassName: "T", TypeParameters: default, Namespace: null, RootNode: root)).ToString();
 
     private static ElementNode Span(ExpressionTemplate content) =>
         new("span", default, default, default,

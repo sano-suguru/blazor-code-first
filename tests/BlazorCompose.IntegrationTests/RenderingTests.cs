@@ -5,6 +5,8 @@ namespace BlazorCompose.IntegrationTests;
 
 public sealed class RenderingTests : BunitContext
 {
+    private static readonly string[] GenericItems = ["alpha", "beta"];
+
     [Fact]
     public void Counter_WhenIncrementButtonClicked_RerendersWithIncrementedCount()
     {
@@ -165,5 +167,17 @@ public sealed class RenderingTests : BunitContext
         var cut = Render<SemanticShellComponent>();
         cut.Find("nav").MouseEnter();     // bUnit strongly-typed trigger for the onmouseenter attribute
         Assert.Equal(1, cut.Instance.Hovered);
+    }
+
+    [Fact]
+    public void GenericComponent_RendersItemsThroughItsTypeParameter()
+    {
+        var cut = Render<GenericListComponent<string>>(parameters => parameters
+            .Add(p => p.Items, GenericItems));
+
+        var items = cut.FindAll("ul li");
+        Assert.Equal(2, items.Count);
+        Assert.Equal("alpha", items[0].TextContent);
+        Assert.Equal("beta", items[1].TextContent);
     }
 }

@@ -3097,6 +3097,94 @@ public sealed class GeneratorTests
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS0115");
     }
 
+    [Fact]
+    public void Generator_GenericComponent_EmitsTypeParametersInTheClassHeader()
+    {
+        // The generated part must be the SAME type as the user's declaration. Emitting `partial class
+        // Gen` for `Gen<T>` declares a different, non-generic type, so the user's class keeps the
+        // abstract RenderView (CS0534) and the generated override has nothing to override (CS0115).
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Gen<TItem> : ComposeComponentBase where TItem : notnull
+            {
+                protected override View Body => Span("generic");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
+        // Constraints belong to the type parameter, not to the declaration: repeating them is optional
+        // and getting them wrong (notnull, unmanaged, ordering) would break correct user code, so the
+        // emitter deliberately omits them.
+        Assert.DoesNotContain("where", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_GenericComponentWithTwoTypeParameters_SeparatesThemWithCommas()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Pair<TKey, TValue> : ComposeComponentBase
+            {
+                protected override View Body => Span("pair");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Pair<TKey, TValue>", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_GenericComponentCallingComposable_ExpandsAndAccessesItsOwnMembers()
+    {
+        // The expander validates protected/private-protected access with InheritanceKeys, built from
+        // ToDisplayString(FullyQualifiedFormat). For a generic component those keys carry the type
+        // parameters, so this pins that expansion still works rather than leaving it to coincidence.
+        //
+        // The [Composable] lives on a separate non-generic static class on purpose: a [Composable]
+        // declared INSIDE a generic type is rejected with BC1002 ("containing type must be non-generic"),
+        // measured against this generator. That limitation is out of scope here — a generic component
+        // calling a composable from elsewhere is the supported combination.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Gen<TItem> : ComposeComponentBase
+            {
+                private string _label = "label";
+
+                protected override View Body => Div(Widgets.Label(_label));
+            }
+
+            public static class Widgets
+            {
+                [Composable]
+                public static View Label(string text) => Span(text);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1002");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
+        // The composable's body is expanded inline (no runtime dispatch), and `_label` — a private member
+        // of the generic component — is read from inside the generated part, which only compiles because
+        // the generated part joins the same generic type.
+        Assert.Contains("_label", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     /// <summary>
     /// Asserts that both <paramref name="first"/> and <paramref name="second"/> occur in
     /// <paramref name="source"/> and that <paramref name="first"/> appears before <paramref name="second"/>.

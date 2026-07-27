@@ -20,6 +20,7 @@ public sealed class RenderViewEmitterForEachTests
         var model = new ComponentModel(
             HintName: "T.g.cs",
             ClassName: "T",
+            TypeParameters: default,
             Namespace: null,
             RootNode: node);
 
@@ -49,6 +50,7 @@ public sealed class RenderViewEmitterForEachTests
         var model = new ComponentModel(
             HintName: "T.g.cs",
             ClassName: "T",
+            TypeParameters: default,
             Namespace: null,
             RootNode: node);
 

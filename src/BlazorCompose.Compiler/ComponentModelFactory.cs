@@ -79,6 +79,7 @@ internal static class ComponentModelFactory
             return new ComponentAnalysis(
                 HintName: hintName,
                 ClassName: symbol.Name,
+                TypeParameters: BuildTypeParameters(symbol),
                 Namespace: namespaceName,
                 DesignTimeExpressionName: expressionName,
                 InheritanceKeys: BuildInheritanceKeys(symbol),
@@ -104,6 +105,7 @@ internal static class ComponentModelFactory
             return new ComponentAnalysis(
                 HintName: hintName,
                 ClassName: symbol.Name,
+                TypeParameters: BuildTypeParameters(symbol),
                 Namespace: namespaceName,
                 DesignTimeExpressionName: expressionName,
                 InheritanceKeys: BuildInheritanceKeys(symbol),
@@ -144,6 +146,7 @@ internal static class ComponentModelFactory
         return new ComponentAnalysis(
             HintName: hintName,
             ClassName: symbol.Name,
+            TypeParameters: BuildTypeParameters(symbol),
             Namespace: namespaceName,
             DesignTimeExpressionName: expressionName,
             InheritanceKeys: BuildInheritanceKeys(symbol),
@@ -194,6 +197,7 @@ internal static class ComponentModelFactory
         var model = new ComponentModel(
             HintName: analysis.HintName,
             ClassName: analysis.ClassName,
+            TypeParameters: analysis.TypeParameters,
             Namespace: analysis.Namespace,
             RootNode: expansion.Node);
 
@@ -212,6 +216,25 @@ internal static class ComponentModelFactory
             builder.Add(current.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
         return builder.ToImmutable();
+    }
+
+    /// <summary>
+    /// The component's own type-parameter names in declaration order.  Names come from the symbol because
+    /// CS0264 requires every partial declaration to use the same names in the same order, so the generated
+    /// part must not invent its own.  Constraints are deliberately not collected: a constraint belongs to
+    /// the type parameter rather than to a declaration, so the generated part may omit the clause
+    /// entirely, and reproducing it wrongly would reject correct user code.
+    /// </summary>
+    private static ImmutableArray<string> BuildTypeParameters(INamedTypeSymbol symbol)
+    {
+        if (symbol.TypeParameters.Length == 0)
+            return [];
+
+        var builder = ImmutableArray.CreateBuilder<string>(symbol.TypeParameters.Length);
+        foreach (var typeParameter in symbol.TypeParameters)
+            builder.Add(typeParameter.Name);
+
+        return builder.MoveToImmutable();
     }
 
     /// <summary>

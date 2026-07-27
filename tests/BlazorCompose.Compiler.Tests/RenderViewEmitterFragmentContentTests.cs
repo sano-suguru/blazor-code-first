@@ -8,7 +8,7 @@ public sealed class RenderViewEmitterFragmentContentTests
 {
     private static string EmitRoot(RenderNode root) =>
         RenderViewEmitter.Emit(new ComponentModel(
-            HintName: "T.g.cs", ClassName: "T", Namespace: null, RootNode: root)).ToString();
+            HintName: "T.g.cs", ClassName: "T", TypeParameters: default, Namespace: null, RootNode: root)).ToString();
 
     [Fact]
     public void EmitFragmentContent_EmitsAddContentAtSeq()
