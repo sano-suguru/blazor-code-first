@@ -14,7 +14,7 @@ public sealed class RenderViewEmitterComponentTests
                 new ComponentParameter("Start", ExpressionTemplate.Literal("5")),
                 new ComponentParameter("Label", ExpressionTemplate.Literal("\"hi\""))));
 
-        var model = new ComponentModel("T.g.cs", "T", null, node);
+        var model = new ComponentModel("T.g.cs", "T", default, null, node);
 
         var generated = RenderViewEmitter.Emit(model).ToString();
 
@@ -28,7 +28,7 @@ public sealed class RenderViewEmitterComponentTests
     public void Emit_ComponentWithNoParameters_EmitsOpenAndCloseOnly()
     {
         var node = new ComponentNode("global::MyApp.Widget", ImmutableArray<ComponentParameter>.Empty);
-        var model = new ComponentModel("T.g.cs", "T", null, node);
+        var model = new ComponentModel("T.g.cs", "T", default, null, node);
 
         var generated = RenderViewEmitter.Emit(model).ToString();
 

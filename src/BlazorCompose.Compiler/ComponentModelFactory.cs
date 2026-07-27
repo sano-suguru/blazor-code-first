@@ -43,13 +43,10 @@ internal static class ComponentModelFactory
         if (symbol is null)
             return null;
 
-        // Nested classes require wrapping the generated code inside the outer class hierarchy;
-        // that complexity is out of scope for this task.  Skip them so the generator does not
-        // emit a structurally incorrect top-level partial class.
-        if (symbol.ContainingType is not null)
+        if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
             return null;
 
-        if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
+        if (DeclaresRenderViewOverride(symbol))
             return null;
 
         // Body on a component, Chrome on a layout. Resolved from the base symbol so no name is hard-coded.
@@ -67,20 +64,48 @@ internal static class ComponentModelFactory
             ? $"{namespaceName}.{symbol.MetadataName}.g.cs"
             : $"{symbol.MetadataName}.g.cs";
 
-        var shape = FindDesignTimeExpression(
-            classDeclaration, expressionName, out var bodyExpression, out var getterLocation);
+        // One declaration per type owns the generated RenderView. Electing it from the symbol (rather
+        // than accepting whichever candidate declaration the syntax provider offered) is what keeps the
+        // hint name unique — see FindDesignTimeExpressionDeclaration.
+        var elected = FindDesignTimeExpressionDeclaration(symbol, expressionName, cancellationToken);
+        if (elected is null || elected.Parent != classDeclaration)
+            return null;
 
-        if (shape == DesignTimeExpressionShape.Absent)
+        // Emitting into a nested type would mean reproducing the enclosing type chain; unsupported.
+        // Reported here rather than at the top of the method so a nested class that merely inherits a
+        // Compose base without declaring the expression is not told that nesting is its problem.
+        if (symbol.ContainingType is not null)
+        {
+            return new ComponentAnalysis(
+                HintName: hintName,
+                ClassName: symbol.Name,
+                TypeParameters: BuildTypeParameters(symbol),
+                Namespace: namespaceName,
+                DesignTimeExpressionName: expressionName,
+                InheritanceKeys: BuildInheritanceKeys(symbol),
+                Template: null,
+                BodyDiagnostics: ImmutableArray.Create(
+                    DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC1005,
+                        elected.Identifier.GetLocation(),
+                        [symbol.Name, expressionName])));
+        }
+
+        var shape = FindDesignTimeExpression(
+            elected, out var bodyExpression, out var getterLocation);
+
+        if (shape == DesignTimeExpressionShape.NoDeclaration)
             return null;
 
         // A getter that exists but is not a single expression is reported here rather than left to the
         // bare CS0534 the un-emitted RenderView would raise. Returning an analysis with a null template
         // routes it through Expand's existing dedup, which suppresses BC1003 when an error is present.
-        if (shape == DesignTimeExpressionShape.NotSingleExpression)
+        if (shape == DesignTimeExpressionShape.NotTranslatable)
         {
             return new ComponentAnalysis(
                 HintName: hintName,
                 ClassName: symbol.Name,
+                TypeParameters: BuildTypeParameters(symbol),
                 Namespace: namespaceName,
                 DesignTimeExpressionName: expressionName,
                 InheritanceKeys: BuildInheritanceKeys(symbol),
@@ -121,6 +146,7 @@ internal static class ComponentModelFactory
         return new ComponentAnalysis(
             HintName: hintName,
             ClassName: symbol.Name,
+            TypeParameters: BuildTypeParameters(symbol),
             Namespace: namespaceName,
             DesignTimeExpressionName: expressionName,
             InheritanceKeys: BuildInheritanceKeys(symbol),
@@ -171,6 +197,7 @@ internal static class ComponentModelFactory
         var model = new ComponentModel(
             HintName: analysis.HintName,
             ClassName: analysis.ClassName,
+            TypeParameters: analysis.TypeParameters,
             Namespace: analysis.Namespace,
             RootNode: expansion.Node);
 
@@ -191,83 +218,155 @@ internal static class ComponentModelFactory
         return builder.ToImmutable();
     }
 
-    /// <summary>The outcome of looking for the component's design-time expression override.</summary>
+    /// <summary>
+    /// The component's own type-parameter names in declaration order.  Names come from the symbol because
+    /// CS0264 requires every partial declaration to use the same names in the same order, so the generated
+    /// part must not invent its own.  Constraints are deliberately not collected: a constraint belongs to
+    /// the type parameter rather than to a declaration, so the generated part may omit the clause
+    /// entirely, and reproducing it wrongly would reject correct user code.
+    /// </summary>
+    private static ImmutableArray<string> BuildTypeParameters(INamedTypeSymbol symbol)
+    {
+        if (symbol.TypeParameters.Length == 0)
+            return [];
+
+        var builder = ImmutableArray.CreateBuilder<string>(symbol.TypeParameters.Length);
+        foreach (var typeParameter in symbol.TypeParameters)
+            builder.Add(typeParameter.Name);
+
+        return builder.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// Returns the single property declaration that carries the type's design-time expression, or
+    /// <see langword="null"/> when the type declares none.  Resolved from the symbol rather than from one
+    /// candidate declaration for two reasons: a type split across several partial declarations must be
+    /// judged once (otherwise two candidates emit the same hint name, which throws inside AddSource and
+    /// takes the whole generator down with it), and a partial property's getter lives in its
+    /// implementation part while <c>GetMembers</c> returns the definition part.
+    /// </summary>
+    internal static PropertyDeclarationSyntax? FindDesignTimeExpressionDeclaration(
+        INamedTypeSymbol symbol,
+        string expressionName,
+        CancellationToken cancellationToken)
+    {
+        if (FindDesignTimeExpressionProperty(symbol, expressionName) is not { } property)
+            return null;
+
+        // A partial property's definition part declares `{ get; }` with no body; the getter to translate
+        // is in the implementation part. GetMembers only ever returns the definition part.
+        var target = property.IsPartialDefinition && property.PartialImplementationPart is { } implementation
+            ? implementation
+            : property;
+
+        foreach (var syntaxRef in target.DeclaringSyntaxReferences)
+        {
+            if (syntaxRef.GetSyntax(cancellationToken) is PropertyDeclarationSyntax declaration)
+                return declaration;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The concrete design-time expression override this type declares itself, or <see langword="null"/>.
+    /// Mirrors the predicate <c>PartialComponentAnalyzer</c> uses for BC1001: a re-abstraction
+    /// (<c>abstract override</c>) declares no getter to translate and is therefore not a declaration.
+    /// </summary>
+    private static IPropertySymbol? FindDesignTimeExpressionProperty(
+        INamedTypeSymbol symbol,
+        string expressionName)
+    {
+        foreach (var member in symbol.GetMembers(expressionName))
+        {
+            if (member is IPropertySymbol { IsOverride: true, IsAbstract: false } property)
+                return property;
+        }
+
+        return null;
+    }
+
+    /// <summary>The outcome of classifying the component's elected design-time expression declaration.</summary>
     private enum DesignTimeExpressionShape
     {
-        /// <summary>No override with a getter body: not a generation candidate, and nothing to report.</summary>
-        Absent,
+        /// <summary>
+        /// No getter body, and the type is abstract enough that nothing was expected: a re-abstraction
+        /// (<c>abstract override</c>). Nothing to translate and nothing to report.
+        /// </summary>
+        NoDeclaration,
 
         /// <summary>An override whose getter reduces to a single expression.</summary>
         SingleExpression,
 
-        /// <summary>An override with a getter body that does not reduce to a single expression.</summary>
-        NotSingleExpression,
+        /// <summary>
+        /// A concrete override the generator cannot translate: a getter body that is not a single
+        /// expression, or no getter body at all on a type that needs one (an auto property). Earns BC1004.
+        /// </summary>
+        NotTranslatable,
     }
 
     /// <summary>
-    /// Classifies the component's design-time expression override.  Three getter spellings reduce to a
+    /// Classifies the elected design-time expression declaration.  Three getter spellings reduce to a
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
     /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
-    /// expression (<c>get { return e; }</c>).  A getter with no body at all — re-abstraction, an auto
-    /// property, a partial or extern declaration — is <see cref="DesignTimeExpressionShape.Absent"/>:
-    /// there is nothing to translate and nothing to diagnose.  Anything else is
-    /// <see cref="DesignTimeExpressionShape.NotSingleExpression"/> and earns BC1004.
+    /// expression (<c>get { return e; }</c>).  An auto property (no getter body and no <c>partial</c>
+    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BC1004.  A partial
+    /// property with no implementation part (<c>partial</c> modifier and no getter body) is
+    /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
+    /// property itself.  Any other getter shape (a statement-bearing getter body) is also
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BC1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
-        ClassDeclarationSyntax classDecl,
-        string expressionName,
+        PropertyDeclarationSyntax prop,
         out ExpressionSyntax? expression,
         out Location? location)
     {
         expression = null;
         location = null;
 
-        foreach (var member in classDecl.Members)
+        // `=> e;`
+        if (prop.ExpressionBody is { Expression: var propertyBody })
         {
-            if (member is not PropertyDeclarationSyntax prop)
-                continue;
-
-            if (prop.Identifier.Text != expressionName)
-                continue;
-
-            if (!prop.Modifiers.Any(SyntaxKind.OverrideKeyword))
-                continue;
-
-            // `=> e;`
-            if (prop.ExpressionBody is { Expression: var propertyBody })
-            {
-                expression = propertyBody;
-                return DesignTimeExpressionShape.SingleExpression;
-            }
-
-            var getter = FindGetAccessor(prop);
-
-            // No getter, or a getter with no body: abstract override, auto property, partial, extern.
-            if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
-                continue;
-
-            location = prop.Identifier.GetLocation();
-
-            // `get => e;`
-            if (getter.ExpressionBody is { Expression: var accessorBody })
-            {
-                expression = accessorBody;
-                return DesignTimeExpressionShape.SingleExpression;
-            }
-
-            // `get { return e; }`
-            if (getter.Body is { } getterBody
-                && getterBody.Statements.Count == 1
-                && getterBody.Statements[0] is ReturnStatementSyntax { Expression: { } returned })
-            {
-                expression = returned;
-                return DesignTimeExpressionShape.SingleExpression;
-            }
-
-            return DesignTimeExpressionShape.NotSingleExpression;
+            expression = propertyBody;
+            return DesignTimeExpressionShape.SingleExpression;
         }
 
-        return DesignTimeExpressionShape.Absent;
+        var getter = FindGetAccessor(prop);
+
+        // No getter body at all. An auto property is a concrete override the generator was expected to
+        // translate, so it earns BC1004; a partial declaration part with no implementation is left to
+        // CS9248, which names the property itself. The partial check is sound: a partial property's
+        // implementation part always has a getter body (CS9250: "A partial property cannot be an
+        // auto-property"), so reaching here with `partial` means the definition part with no
+        // implementation (left to CS9248), while reaching here without `partial` means an auto property
+        // (earns BC1004).
+        if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
+        {
+            location = prop.Identifier.GetLocation();
+            return prop.Modifiers.Any(SyntaxKind.PartialKeyword)
+                ? DesignTimeExpressionShape.NoDeclaration
+                : DesignTimeExpressionShape.NotTranslatable;
+        }
+
+        location = prop.Identifier.GetLocation();
+
+        // `get => e;`
+        if (getter.ExpressionBody is { Expression: var accessorBody })
+        {
+            expression = accessorBody;
+            return DesignTimeExpressionShape.SingleExpression;
+        }
+
+        // `get { return e; }`
+        if (getter.Body is { } getterBody
+            && getterBody.Statements.Count == 1
+            && getterBody.Statements[0] is ReturnStatementSyntax { Expression: { } returned })
+        {
+            expression = returned;
+            return DesignTimeExpressionShape.SingleExpression;
+        }
+
+        return DesignTimeExpressionShape.NotTranslatable;
     }
 
     private static AccessorDeclarationSyntax? FindGetAccessor(PropertyDeclarationSyntax prop)
@@ -283,4 +382,34 @@ internal static class ComponentModelFactory
 
         return null;
     }
+
+    /// <summary>
+    /// True when the component overrides <c>RenderView</c> by hand.  Hand-writing it is legal and is the
+    /// escape hatch for a body the statically sequenceable subset cannot express, so the generator must
+    /// contribute nothing: a second RenderView would be CS0111 raised inside generated code, which the
+    /// author cannot fix from their own file.  No diagnostic — this is a deliberate choice, not a mistake.
+    /// </summary>
+    private static bool DeclaresRenderViewOverride(INamedTypeSymbol symbol)
+    {
+        foreach (var member in symbol.GetMembers("RenderView"))
+        {
+            if (member is IMethodSymbol { IsOverride: true, IsAbstract: false, Parameters.Length: 1 } method &&
+                IsRenderTreeBuilder(method.Parameters[0].Type))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True for <c>Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder</c>.  Matched by name
+    /// rather than by symbol comparison so no compilation lookup is needed here, following
+    /// <see cref="ComposeComponentBaseFacts"/>'s approach for the Compose base types.
+    /// </summary>
+    private static bool IsRenderTreeBuilder(ITypeSymbol type) =>
+        type is INamedTypeSymbol { Name: "RenderTreeBuilder" } named &&
+        named.ContainingNamespace.ToDisplayString() ==
+            "Microsoft.AspNetCore.Components.Rendering";
 }

@@ -8,15 +8,22 @@ namespace BlazorCompose.Compiler;
 /// render-node tree extracted from its design-time expression (<c>Body</c> or <c>Chrome</c>).
 /// </summary>
 /// <remarks>
-/// All fields contain only strings, primitive values, and nested <see cref="RenderNode"/> instances
-/// so that the record can participate in Roslyn's incremental generator equality checks without
-/// holding references to syntax nodes, symbols, semantic models, or compilations.
+/// All fields contain only strings, primitive values, <see cref="EquatableArray{T}"/> wrappers,
+/// and nested <see cref="RenderNode"/> instances so that the record can participate in Roslyn's
+/// incremental generator equality checks without holding references to syntax nodes, symbols,
+/// semantic models, or compilations.
 /// <c>ComponentModel</c> instances are only created when the design-time expression is fully
 /// SSC-analyzable; a null <c>RootNode</c> is therefore not representable.
 /// </remarks>
+/// <param name="TypeParameters">
+/// The component's own type-parameter names in declaration order, empty for a non-generic component.
+/// Names are taken verbatim from the symbol because every partial declaration of a generic type must use
+/// the same type-parameter names in the same order (CS0264), so the generated part cannot rename them.
+/// </param>
 internal sealed record ComponentModel(
     string HintName,
     string ClassName,
+    EquatableArray<string> TypeParameters,
     string? Namespace,
     RenderNode RootNode);
 

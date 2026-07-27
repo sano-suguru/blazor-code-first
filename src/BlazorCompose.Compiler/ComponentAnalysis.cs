@@ -23,9 +23,15 @@ namespace BlazorCompose.Compiler;
 /// <c>Chrome</c> on a layout. Carried as a value so diagnostics raised after the semantic stage can
 /// name the real expression instead of hardcoding one of them.
 /// </param>
+/// <param name="TypeParameters">
+/// The component's own type-parameter names in declaration order, empty for a non-generic component.
+/// Names are taken verbatim from the symbol because every partial declaration of a generic type must use
+/// the same type-parameter names in the same order (CS0264), so the generated part cannot rename them.
+/// </param>
 internal sealed record ComponentAnalysis(
     string HintName,
     string ClassName,
+    EquatableArray<string> TypeParameters,
     string? Namespace,
     string DesignTimeExpressionName,
     EquatableArray<string> InheritanceKeys,

@@ -82,8 +82,20 @@ ComposeComponentBase                 ② SSC分類(§2.3)
 設計時表現のゲッターは**単一の式に還元できなければなりません**。`=> expr` / `get => expr` /
 `get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。文を含む
 ゲッター(例: return の前のローカル変数宣言)は Transplantable 経路の領域であり未実装のため、BC1004 と
-して報告されます。設計時表現は実行時に評価されない不活性な構文であり、この制約は「式を静的に翻訳する」
+して報告されます。自動プロパティは翻訳対象となるゲッター本体を宣言しないため、これも BC1004 となります
+(再abstract化 `abstract override` および実装部を持たない partial プロパティは対象外、後者は CS9248 が
+原因を名指します)。設計時表現は実行時に評価されない不活性な構文であり、この制約は「式を静的に翻訳する」
 という前提そのものです。
+
+設計時表現の代わりに `RenderView` を手書きでオーバーライドすることは合法であり、SSC部分集合で表現できない
+ボディのためのエスケープハッチです。この場合ジェネレータは何も生成しません(生成すると同名メンバーの重複で
+CS0111 になり、著者は自分のコードを消すしか手がなくなります)。設計時表現は未使用となり、BC1004 も報告され
+ません。
+
+Composeコンポーネントとして認識される宣言形状は、トップレベルの `partial class` です。ジェネリック
+(`partial class Foo<T>`)はサポートされ、生成部は同じ型パラメータ名を再掲します(制約句は再掲しません。
+制約は型パラメータに属するため一方の宣言にあれば十分です)。ネストした型は BC1005 で拒否されます。
+`record` は `object` または別の `record` しか継承できないため(CS8864)、Composeコンポーネントにはできません。
 
 ### 2.2 シーケンス割当
 
@@ -403,7 +415,8 @@ public closed union ViewNode
 | BC1001 | Error   | 設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)は対象外  |
 | BC1002 | Error   | `[Composable]` メソッドがSource Generatorのサポートする静的展開契約を満たさない(`View` 型パラメータ等)                                     |
 | BC1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
-| BC1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、単一の式に還元できないゲッターを宣言している(文を含むゲッター)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直す。ゲッター本体を持たない形(再abstract化・自動プロパティ)は対象外 |
+| BC1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
+| BC1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
 | BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装) |
 | BC3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |

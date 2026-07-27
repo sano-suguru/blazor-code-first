@@ -30,7 +30,16 @@ internal static class RenderViewEmitter
             writer.AppendLine();
         }
 
-        writer.AppendLine($"partial class {model.ClassName}");
+        // A generic component's generated part must repeat the type-parameter list, or it declares a
+        // different type and the override does not join the user's class (CS0115 + CS0534). Constraints
+        // are omitted deliberately: they belong to the type parameter, so one declaration carrying them
+        // is enough (verified), and reproducing them wrongly would reject correct user code.
+        var typeParameters = model.TypeParameters.AsImmutableArray();
+        var typeParameterList = typeParameters.Length == 0
+            ? string.Empty
+            : "<" + string.Join(", ", typeParameters) + ">";
+
+        writer.AppendLine($"partial class {model.ClassName}{typeParameterList}");
         writer.AppendLine("{");
         writer.Indent++;
         writer.AppendLine($"protected override void RenderView({RtbType} __builder)");

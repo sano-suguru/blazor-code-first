@@ -88,6 +88,88 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_DesignTimeExpressionInDeclarationWithoutBaseList_Generates()
+    {
+        // A component split across declarations may put the design-time expression in the declaration
+        // that carries no base list. The syntax predicate used to require a base list, so this
+        // declaration was never offered to the transform and the author got a bare CS0534.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+            }
+            public partial class Counter
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_ComponentSplitAcrossFiles_ExpressionInBaseListLessFile_Generates()
+    {
+        // The base-list-less declaration test above uses two declarations in one file. This confirms the
+        // same shape across files: the declaration with the base list goes in one file, the one with the
+        // expression in another. CompilationTestHost's multi-file RunGenerator makes this a trivial
+        // addition, and it pins the cross-file behaviour that users actually hit.
+        const string file1 = """
+            using BlazorCompose;
+
+            public partial class SplitFiles : ComposeComponentBase
+            {
+            }
+            """;
+        const string file2 = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class SplitFiles
+            {
+                protected override View Body => Span("split");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("File1.cs", file1),
+            ("File2.cs", file2));
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_RecordDerivingFromComposeBase_IsRejectedByTheLanguage()
+    {
+        // Widening the syntax predicate to TypeDeclarationSyntax so records are analyzed would be a dead
+        // branch: a record may only inherit from object or another record (CS8864), and
+        // ComposeComponentBase is a class, so this shape can never compile. CS8864 names the real cause,
+        // so BlazorCompose deliberately adds no diagnostic of its own here.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial record Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS8864");
+        Assert.Empty(result.GeneratedSources);
+    }
+
+    [Fact]
     public void Generator_DivWithSpanAndButton_EmitsLinearSscRenderView()
     {
         var result = CompilationTestHost.RunGenerator(DivCounterSource);
@@ -146,20 +228,55 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public async Task Generator_NestedPartialComponent_EmitsNoSourceAndReportsCS0534()
+    public async Task Generator_NestedPartialComponent_ReportsBC1005()
     {
+        // Generating into a nested type means reproducing the enclosing type chain, which is not
+        // supported. Before BC1005 the author got zero BlazorCompose diagnostics and a bare CS0534 that
+        // names RenderView without ever mentioning that nesting is the cause.
         var result = CompilationTestHost.RunGenerator(NestedPartialCounterSource);
 
         Assert.Empty(result.GeneratedSources);
 
-        var analyzerDiagnostics = await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(NestedPartialCounterSource);
-        Assert.DoesNotContain(analyzerDiagnostics, static diagnostic => diagnostic.Id == "BC1001");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1005");
+        var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("Counter", message, StringComparison.Ordinal);
+        Assert.Contains("Body", message, StringComparison.Ordinal);
 
-        var diagnostic = Assert.Single(
-            result.OutputCompilation.GetDiagnostics(), static diagnostic => diagnostic.Id == "CS0534");
+        // BC1003 is about constructs inside the expression; conflating the two would send the author
+        // looking at their factories instead of at the nesting.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
 
-        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
-        Assert.Contains("Outer.Counter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+        // BC1001 stays silent: the class already is partial, and partial is not the problem.
+        var analyzerDiagnostics =
+            await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(NestedPartialCounterSource);
+        Assert.DoesNotContain(analyzerDiagnostics, static d => d.Id == "BC1001");
+    }
+
+    [Fact]
+    public void Generator_NestedClassInheritingWithoutDeclaringExpression_ReportsNothing()
+    {
+        // A nested type that merely inherits a Compose base declares nothing to generate, so it must not
+        // be told that nesting is a problem — same narrowing principle as BC1001 in PR #59.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Base : ComposeComponentBase
+            {
+                protected override View Body => Span("base");
+            }
+
+            public partial class Outer
+            {
+                public partial class Leaf : Base
+                {
+                }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1005");
     }
 
     [Fact]
@@ -217,6 +334,47 @@ public sealed class GeneratorTests
             .SourceText.ToString();
 
         Assert.Equal(expressionBody, accessorBody);
+    }
+
+    [Fact]
+    public void Generator_PartialPropertyBody_GeneratesSameSourceAsExpressionBody()
+    {
+        // A partial property splits the design-time expression across two declarations: the definition
+        // part has no getter body, the implementation part has the expression. GetMembers returns only
+        // the definition part, so electing the declaration without following PartialImplementationPart
+        // would classify this as Absent and silently generate nothing.
+        const string partialPropertySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter
+            {
+                protected override partial View Body { get; }
+            }
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override partial View Body => Span("Count");
+            }
+            """;
+
+        const string expressionBodySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var partialProperty = CompilationTestHost.RunGenerator(partialPropertySource);
+        CompilationTestHost.AssertOutputCompiles(partialProperty);
+
+        var expressionBody = Assert.Single(
+                CompilationTestHost.RunGenerator(expressionBodySource).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Equal(expressionBody, Assert.Single(partialProperty.GeneratedSources).SourceText.ToString());
     }
 
     [Fact]
@@ -281,12 +439,12 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_AutoPropertyOverride_ReportsNoBlazorComposeDiagnostic()
+    public void Generator_AutoPropertyOverride_ReportsBC1004()
     {
-        // An auto-property override with an initializer is legal and has no getter body (spec F2).
-        // Nothing is generated for this shape (FindDesignTimeExpression returns Absent), so the author
-        // is left with a bare CS0534 about RenderView rather than a BlazorCompose diagnostic that would
-        // point at the real cause — a known, recorded residual hole (see the final review's Minor #4).
+        // An auto-property override is legal C# and has no getter body, so nothing can be translated.
+        // CS0534 names RenderView and never mentions the auto-property that caused it, so the author has
+        // no way to reach the real cause from the compiler's own error — which is exactly the asymmetry
+        // BC1004 exists for. Adding `partial` (BC1001's remedy) does not help this shape.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -299,12 +457,118 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
         Assert.Empty(result.GeneratedSources);
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1004");
+        Assert.Contains("Body", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+    }
 
-        var diagnostic = Assert.Single(
-            result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS0534");
-        Assert.Contains("Counter", diagnostic.GetMessage(CultureInfo.InvariantCulture));
+    [Fact]
+    public void Generator_AutoPropertyOverrideWithHandWrittenRenderView_ReportsNothing()
+    {
+        // The same auto-property shape is CORRECT code when the author supplies RenderView themselves:
+        // the design-time expression is unused, nothing needs translating, and C# reports no error at
+        // all. BC1004 here would be a false positive on working code.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            using Microsoft.AspNetCore.Components.Rendering;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body { get; } = default;
+
+                protected override void RenderView(RenderTreeBuilder builder)
+                    => builder.AddContent(0, "hand-written");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public async Task Generator_NonPartialAutoPropertyOverride_ReportsBC1001()
+    {
+        // A non-partial class with an auto property override earns BC1001 from the analyzer; the
+        // generator bails at the partial check and produces no BC1004. BC1001 is what the author sees
+        // first, and unlike before this PR, following it now leads somewhere — after adding `partial`
+        // the author gets BC1004 naming the auto property instead of a bare CS0534.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public class Counter : ComposeComponentBase
+            {
+                protected override View Body { get; } = default;
+            }
+            """;
+
+        var analyzerDiagnostics =
+            await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(source);
+
+        Assert.Contains(analyzerDiagnostics, d => d.Id == "BC1001");
+    }
+
+    [Fact]
+    public void Generator_PartialPropertyWithoutImplementation_ReportsNoBlazorComposeDiagnostic()
+    {
+        // A partial property with no implementation part earns CS9248, which names the property
+        // precisely ("Partial property 'Counter.Body' must have an implementation part"). BlazorCompose
+        // adds a diagnostic only when the compiler's own error does not name the real cause, so this
+        // shape is deliberately left to CS9248 rather than double-reported as BC1004.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override partial View Body { get; }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS9248");
+    }
+
+    [Fact]
+    public void Generator_PartialPropertyWithStatementBodyImplementation_ReportsBC1004()
+    {
+        // A partial property's implementation part can carry a statement-bearing getter, which is legal
+        // C# and still untranslatable. The classification must reach the IMPLEMENTATION part to see it —
+        // reading the definition part would find `{ get; }`, classify it as NoDeclaration, and report
+        // nothing at all.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override partial View Body { get; }
+            }
+            public partial class Counter
+            {
+                protected override partial View Body
+                {
+                    get
+                    {
+                        var label = "Count";
+                        return Span(label);
+                    }
+                }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC1004");
     }
 
     [Fact]
@@ -2755,6 +3019,228 @@ public sealed class GeneratorTests
             generated);
         Assert.Contains("__builder.OpenElement(0, \"div\");", generated);
         Assert.Contains("__builder.AddContent(1, __bc_arg_0_0);", generated);
+    }
+
+    [Fact]
+    public void Generator_TwoDeclarationsBothDeclaringBody_DoesNotKillTheGenerator()
+    {
+        // Two declarations that each carry a Body getter body is CS0102 (broken user code), but the
+        // generator must still contribute source for every OTHER component in the compilation. Before
+        // the declaration-election fix, both declarations produced hintName "Dup.g.cs", the second
+        // AddSource threw ArgumentException, and Roslyn reported CS8785 — at which point the generator
+        // contributes NOTHING, so the unrelated and perfectly valid Healthy lost its RenderView too.
+        // An exception from AddSource discards the generator's entire contribution for that run, which
+        // is why the blast radius is every component in the compilation rather than just the colliding
+        // one. The assertion that Healthy generates holds regardless of which declaration is processed
+        // first, because Roslyn discards ALL sources on the throw (measured on main: GeneratedSources
+        // is empty even when Healthy would have been emitted before the collision).
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("a");
+            }
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("b");
+            }
+            public partial class Healthy : ComposeComponentBase
+            {
+                protected override View Body => Span("h");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        // CS8785 is a generator-level failure, not a component diagnostic: it arrives in the driver's
+        // own diagnostics as a Warning.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CS8785");
+
+        // The blast radius is what matters: Healthy is untouched by the user's mistake.
+        Assert.Contains(result.GeneratedSources, g => g.HintName == "Healthy.g.cs");
+        Assert.DoesNotContain(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Id == "CS0534" && d.GetMessage(CultureInfo.InvariantCulture).Contains("Healthy", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generator_TwoDeclarationsBothDeclaringBody_HealthyFirst_DoesNotKillTheGenerator()
+    {
+        // Same as the previous test but with Healthy declared before the colliding Dup pair, pinning
+        // order-independence by construction. An exception from AddSource discards the generator's
+        // entire contribution, so the outcome is identical regardless of which declaration is processed
+        // first: no CS8785, and Healthy still generates.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Healthy : ComposeComponentBase
+            {
+                protected override View Body => Span("h");
+            }
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("a");
+            }
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("b");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CS8785");
+        Assert.Contains(result.GeneratedSources, g => g.HintName == "Healthy.g.cs");
+        Assert.DoesNotContain(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Id == "CS0534" && d.GetMessage(CultureInfo.InvariantCulture).Contains("Healthy", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generator_HandWrittenRenderView_GeneratesNothingAndDoesNotConflict()
+    {
+        // Overriding RenderView by hand is legal and is the documented escape hatch for a body the SSC
+        // path cannot express. The generator must then stay out of the way: emitting its own RenderView
+        // next to the author's produces CS0111 from inside generated code, which the author cannot fix
+        // without deleting their own method.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            using Microsoft.AspNetCore.Components.Rendering;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+
+                protected override void RenderView(RenderTreeBuilder builder)
+                    => builder.AddContent(0, "hand-written");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_RenderViewOverrideWithWrongParameterType_StillGenerates()
+    {
+        // Roslyn reports IsOverride=true even for an erroneous override, so a gate keyed only on
+        // "declares an override named RenderView with one parameter" would be tripped by this shape,
+        // suppress generation, and leave the author with CS0115 plus a bare CS0534 — the dead end this
+        // PR exists to remove. The generator must still emit, so the author's only error is the CS0115
+        // that names their own mistake.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+
+                protected override void RenderView(string builder) { }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Single(result.GeneratedSources);
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS0115");
+    }
+
+    [Fact]
+    public void Generator_GenericComponent_EmitsTypeParametersInTheClassHeader()
+    {
+        // The generated part must be the SAME type as the user's declaration. Emitting `partial class
+        // Gen` for `Gen<T>` declares a different, non-generic type, so the user's class keeps the
+        // abstract RenderView (CS0534) and the generated override has nothing to override (CS0115).
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Gen<TItem> : ComposeComponentBase where TItem : notnull
+            {
+                protected override View Body => Span("generic");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
+        // Constraints belong to the type parameter, not to the declaration: repeating them is optional
+        // and getting them wrong (notnull, unmanaged, ordering) would break correct user code, so the
+        // emitter deliberately omits them.
+        Assert.DoesNotContain("where", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_GenericComponentWithTwoTypeParameters_SeparatesThemWithCommas()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Pair<TKey, TValue> : ComposeComponentBase
+            {
+                protected override View Body => Span("pair");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Pair<TKey, TValue>", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_GenericComponentCallingComposable_ExpandsAndAccessesItsOwnMembers()
+    {
+        // A generic component must expand a [Composable] and still name its own private member from the
+        // generated part, which only compiles because that part joins the same generic type. The composable
+        // itself references nothing non-public, so this does not exercise ComposableExpander's
+        // access-requirement path (`_label` is read from Body, not from the composable body); the non-generic
+        // Generator_ProtectedBaseMemberReferencedFromHelperType_* tests cover that.
+        //
+        // The [Composable] lives on a separate non-generic static class on purpose: a [Composable]
+        // declared INSIDE a generic type is rejected with BC1002 ("containing type must be non-generic"),
+        // measured against this generator. That limitation is out of scope here — a generic component
+        // calling a composable from elsewhere is the supported combination.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Gen<TItem> : ComposeComponentBase
+            {
+                private string _label = "label";
+
+                protected override View Body => Div(Widgets.Label(_label));
+            }
+
+            public static class Widgets
+            {
+                [Composable]
+                public static View Label(string text) => Span(text);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1002");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
+        // The composable's body is expanded inline (no runtime dispatch), and `_label` — a private member
+        // of the generic component — is read from inside the generated part, which only compiles because
+        // the generated part joins the same generic type.
+        Assert.Contains("_label", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     /// <summary>
