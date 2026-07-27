@@ -52,6 +52,9 @@ internal static class ComponentModelFactory
         if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
             return null;
 
+        if (DeclaresRenderViewOverride(symbol))
+            return null;
+
         // Body on a component, Chrome on a layout. Resolved from the base symbol so no name is hard-coded.
         var expressionName = ComposeComponentBaseFacts.FindDesignTimeExpressionName(symbol);
         if (expressionName is null)
@@ -324,4 +327,34 @@ internal static class ComponentModelFactory
 
         return null;
     }
+
+    /// <summary>
+    /// True when the component overrides <c>RenderView</c> by hand.  Hand-writing it is legal and is the
+    /// escape hatch for a body the statically sequenceable subset cannot express, so the generator must
+    /// contribute nothing: a second RenderView would be CS0111 raised inside generated code, which the
+    /// author cannot fix from their own file.  No diagnostic — this is a deliberate choice, not a mistake.
+    /// </summary>
+    private static bool DeclaresRenderViewOverride(INamedTypeSymbol symbol)
+    {
+        foreach (var member in symbol.GetMembers("RenderView"))
+        {
+            if (member is IMethodSymbol { IsOverride: true, IsAbstract: false, Parameters.Length: 1 } method &&
+                IsRenderTreeBuilder(method.Parameters[0].Type))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True for <c>Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder</c>.  Matched by name
+    /// rather than by symbol comparison so no compilation lookup is needed here, following
+    /// <see cref="ComposeComponentBaseFacts"/>'s approach for the Compose base types.
+    /// </summary>
+    private static bool IsRenderTreeBuilder(ITypeSymbol type) =>
+        type is INamedTypeSymbol { Name: "RenderTreeBuilder" } named &&
+        named.ContainingNamespace.ToDisplayString() ==
+            "Microsoft.AspNetCore.Components.Rendering";
 }

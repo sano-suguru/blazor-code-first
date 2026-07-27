@@ -2876,6 +2876,60 @@ public sealed class GeneratorTests
             d => d.Id == "CS0534" && d.GetMessage(CultureInfo.InvariantCulture).Contains("Healthy", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Generator_HandWrittenRenderView_GeneratesNothingAndDoesNotConflict()
+    {
+        // Overriding RenderView by hand is legal and is the documented escape hatch for a body the SSC
+        // path cannot express. The generator must then stay out of the way: emitting its own RenderView
+        // next to the author's produces CS0111 from inside generated code, which the author cannot fix
+        // without deleting their own method.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            using Microsoft.AspNetCore.Components.Rendering;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+
+                protected override void RenderView(RenderTreeBuilder builder)
+                    => builder.AddContent(0, "hand-written");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_RenderViewOverrideWithWrongParameterType_StillGenerates()
+    {
+        // Roslyn reports IsOverride=true even for an erroneous override, so a gate keyed only on
+        // "declares an override named RenderView with one parameter" would be tripped by this shape,
+        // suppress generation, and leave the author with CS0115 plus a bare CS0534 — the dead end this
+        // PR exists to remove. The generator must still emit, so the author's only error is the CS0115
+        // that names their own mistake.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+
+                protected override void RenderView(string builder) { }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Single(result.GeneratedSources);
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS0115");
+    }
+
     /// <summary>
     /// Asserts that both <paramref name="first"/> and <paramref name="second"/> occur in
     /// <paramref name="source"/> and that <paramref name="first"/> appears before <paramref name="second"/>.
