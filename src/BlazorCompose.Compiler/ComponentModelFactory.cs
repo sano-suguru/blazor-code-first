@@ -67,8 +67,15 @@ internal static class ComponentModelFactory
             ? $"{namespaceName}.{symbol.MetadataName}.g.cs"
             : $"{symbol.MetadataName}.g.cs";
 
+        // One declaration per type owns the generated RenderView. Electing it from the symbol (rather
+        // than accepting whichever candidate declaration the syntax provider offered) is what keeps the
+        // hint name unique — see FindDesignTimeExpressionDeclaration.
+        var elected = FindDesignTimeExpressionDeclaration(symbol, expressionName, cancellationToken);
+        if (elected is null || elected.Parent != classDeclaration)
+            return null;
+
         var shape = FindDesignTimeExpression(
-            classDeclaration, expressionName, out var bodyExpression, out var getterLocation);
+            elected, out var bodyExpression, out var getterLocation);
 
         if (shape == DesignTimeExpressionShape.Absent)
             return null;
@@ -191,6 +198,55 @@ internal static class ComponentModelFactory
         return builder.ToImmutable();
     }
 
+    /// <summary>
+    /// Returns the single property declaration that carries the type's design-time expression, or
+    /// <see langword="null"/> when the type declares none.  Resolved from the symbol rather than from one
+    /// candidate declaration for two reasons: a type split across several partial declarations must be
+    /// judged once (otherwise two candidates emit the same hint name, which throws inside AddSource and
+    /// takes the whole generator down with it), and a partial property's getter lives in its
+    /// implementation part while <c>GetMembers</c> returns the definition part.
+    /// </summary>
+    internal static PropertyDeclarationSyntax? FindDesignTimeExpressionDeclaration(
+        INamedTypeSymbol symbol,
+        string expressionName,
+        CancellationToken cancellationToken)
+    {
+        if (FindDesignTimeExpressionProperty(symbol, expressionName) is not { } property)
+            return null;
+
+        // A partial property's definition part declares `{ get; }` with no body; the getter to translate
+        // is in the implementation part. GetMembers only ever returns the definition part.
+        var target = property.IsPartialDefinition && property.PartialImplementationPart is { } implementation
+            ? implementation
+            : property;
+
+        foreach (var syntaxRef in target.DeclaringSyntaxReferences)
+        {
+            if (syntaxRef.GetSyntax(cancellationToken) is PropertyDeclarationSyntax declaration)
+                return declaration;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The concrete design-time expression override this type declares itself, or <see langword="null"/>.
+    /// Mirrors the predicate <c>PartialComponentAnalyzer</c> uses for BC1001: a re-abstraction
+    /// (<c>abstract override</c>) declares no getter to translate and is therefore not a declaration.
+    /// </summary>
+    private static IPropertySymbol? FindDesignTimeExpressionProperty(
+        INamedTypeSymbol symbol,
+        string expressionName)
+    {
+        foreach (var member in symbol.GetMembers(expressionName))
+        {
+            if (member is IPropertySymbol { IsOverride: true, IsAbstract: false } property)
+                return property;
+        }
+
+        return null;
+    }
+
     /// <summary>The outcome of looking for the component's design-time expression override.</summary>
     private enum DesignTimeExpressionShape
     {
@@ -205,69 +261,54 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Classifies the component's design-time expression override.  Three getter spellings reduce to a
+    /// Classifies the elected design-time expression declaration.  Three getter spellings reduce to a
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
     /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
-    /// expression (<c>get { return e; }</c>).  A getter with no body at all — re-abstraction, an auto
-    /// property, a partial or extern declaration — is <see cref="DesignTimeExpressionShape.Absent"/>:
-    /// there is nothing to translate and nothing to diagnose.  Anything else is
+    /// expression (<c>get { return e; }</c>).  A declaration with no getter body at all — an auto
+    /// property, or a partial property whose implementation is missing — is
+    /// <see cref="DesignTimeExpressionShape.Absent"/>.  Anything else is
     /// <see cref="DesignTimeExpressionShape.NotSingleExpression"/> and earns BC1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
-        ClassDeclarationSyntax classDecl,
-        string expressionName,
+        PropertyDeclarationSyntax prop,
         out ExpressionSyntax? expression,
         out Location? location)
     {
         expression = null;
         location = null;
 
-        foreach (var member in classDecl.Members)
+        // `=> e;`
+        if (prop.ExpressionBody is { Expression: var propertyBody })
         {
-            if (member is not PropertyDeclarationSyntax prop)
-                continue;
-
-            if (prop.Identifier.Text != expressionName)
-                continue;
-
-            if (!prop.Modifiers.Any(SyntaxKind.OverrideKeyword))
-                continue;
-
-            // `=> e;`
-            if (prop.ExpressionBody is { Expression: var propertyBody })
-            {
-                expression = propertyBody;
-                return DesignTimeExpressionShape.SingleExpression;
-            }
-
-            var getter = FindGetAccessor(prop);
-
-            // No getter, or a getter with no body: abstract override, auto property, partial, extern.
-            if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
-                continue;
-
-            location = prop.Identifier.GetLocation();
-
-            // `get => e;`
-            if (getter.ExpressionBody is { Expression: var accessorBody })
-            {
-                expression = accessorBody;
-                return DesignTimeExpressionShape.SingleExpression;
-            }
-
-            // `get { return e; }`
-            if (getter.Body is { } getterBody
-                && getterBody.Statements.Count == 1
-                && getterBody.Statements[0] is ReturnStatementSyntax { Expression: { } returned })
-            {
-                expression = returned;
-                return DesignTimeExpressionShape.SingleExpression;
-            }
-
-            return DesignTimeExpressionShape.NotSingleExpression;
+            expression = propertyBody;
+            return DesignTimeExpressionShape.SingleExpression;
         }
 
-        return DesignTimeExpressionShape.Absent;
+        var getter = FindGetAccessor(prop);
+
+        // No getter, or a getter with no body: auto property, partial declaration part, extern.
+        if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
+            return DesignTimeExpressionShape.Absent;
+
+        location = prop.Identifier.GetLocation();
+
+        // `get => e;`
+        if (getter.ExpressionBody is { Expression: var accessorBody })
+        {
+            expression = accessorBody;
+            return DesignTimeExpressionShape.SingleExpression;
+        }
+
+        // `get { return e; }`
+        if (getter.Body is { } getterBody
+            && getterBody.Statements.Count == 1
+            && getterBody.Statements[0] is ReturnStatementSyntax { Expression: { } returned })
+        {
+            expression = returned;
+            return DesignTimeExpressionShape.SingleExpression;
+        }
+
+        return DesignTimeExpressionShape.NotSingleExpression;
     }
 
     private static AccessorDeclarationSyntax? FindGetAccessor(PropertyDeclarationSyntax prop)

@@ -2757,6 +2757,45 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.AddContent(1, __bc_arg_0_0);", generated);
     }
 
+    [Fact]
+    public void Generator_TwoDeclarationsBothDeclaringBody_DoesNotKillTheGenerator()
+    {
+        // Two declarations that each carry a Body getter body is CS0102 (broken user code), but the
+        // generator must still contribute source for every OTHER component in the compilation. Before
+        // the declaration-election fix, both declarations produced hintName "Dup.g.cs", the second
+        // AddSource threw ArgumentException, and Roslyn reported CS8785 — at which point the generator
+        // contributes NOTHING, so the unrelated and perfectly valid Healthy lost its RenderView too.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("a");
+            }
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("b");
+            }
+            public partial class Healthy : ComposeComponentBase
+            {
+                protected override View Body => Span("h");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        // CS8785 is a generator-level failure, not a component diagnostic: it arrives in the driver's
+        // own diagnostics as a Warning.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CS8785");
+
+        // The blast radius is what matters: Healthy is untouched by the user's mistake.
+        Assert.Contains(result.GeneratedSources, g => g.HintName == "Healthy.g.cs");
+        Assert.DoesNotContain(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Id == "CS0534" && d.GetMessage(CultureInfo.InvariantCulture).Contains("Healthy", StringComparison.Ordinal));
+    }
+
     /// <summary>
     /// Asserts that both <paramref name="first"/> and <paramref name="second"/> occur in
     /// <paramref name="source"/> and that <paramref name="first"/> appears before <paramref name="second"/>.
