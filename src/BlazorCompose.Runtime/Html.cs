@@ -106,6 +106,14 @@ public static class Html
         System.Func<T, View> content) => default;
 
     /// <summary>Design-time syntax for embedding an existing Blazor component into the compose tree.</summary>
+    /// <remarks>
+    /// <typeparamref name="TComponent"/> must resolve while the source generator runs, because it is
+    /// lowered to a literal <c>OpenComponent&lt;TComponent&gt;</c> call. A <c>.razor</c> component
+    /// declared in the <em>same project</em> does not: the Razor compiler is itself a source generator,
+    /// and source generators cannot observe each other's output, so such a type is reported as BC3012.
+    /// The same component in a referenced project or NuGet package resolves normally, as does a
+    /// hand-authored C# component.
+    /// </remarks>
     public static ComponentView<TComponent> Component<TComponent>()
         where TComponent : Microsoft.AspNetCore.Components.IComponent => default;
 }
