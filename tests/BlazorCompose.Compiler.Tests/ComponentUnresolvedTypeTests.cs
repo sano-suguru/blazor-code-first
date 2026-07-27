@@ -149,4 +149,93 @@ public sealed class ComponentUnresolvedTypeTests
         Assert.Equal(1, CountBC3012(result));
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
     }
+
+    [Fact]
+    public void Component_WithoutParam_ReportsBC3012AndNoSource()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Probe>();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.GeneratedSources, static s => s.HintName.Contains("Host"));
+    }
+
+    [Fact]
+    public void Component_TwiceInOneBody_ReportsBC3012PerInvocation()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Div(Component<Probe>(), Component<Probe>());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(2, CountBC3012(result));
+    }
+
+    [Fact]
+    public void Component_WithUnresolvedContainingType_ReportsBC3012()
+    {
+        // The type argument itself is a resolved TypeKind.Class with an EMPTY TypeArguments list; the
+        // unresolved type is only reachable through its ContainingType. This shape needs the bail below
+        // even with a .Param, because `Inner.Label` is a real settable [Parameter] — the selector binds,
+        // translation would otherwise succeed, and the generator would emit
+        // OpenComponent<global::T.Outer<Missing>.Inner>, failing with CS0246 in generated code.
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+            namespace T;
+            public class Outer<TX>
+            {
+                public class Inner : ComponentBase
+                {
+                    [Parameter] public string Label { get; set; } = "";
+                }
+            }
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Outer<Missing>.Inner>().Param(i => i.Label, "x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(1, CountBC3012(result));
+    }
+
+    [Fact]
+    public void Component_WithExplicitParamTypeArgument_ReportsBC3012AndNotBC3005()
+    {
+        // An explicit TValue makes the outer .Param call resolve, so it reaches the Param branch and
+        // would otherwise draw a spurious BC3005 about a selector that cannot bind to an unresolved type.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Probe>().Param<string>(p => p.Label, "x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3005");
+    }
 }
