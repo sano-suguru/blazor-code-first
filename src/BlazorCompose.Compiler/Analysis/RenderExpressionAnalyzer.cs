@@ -18,6 +18,11 @@ namespace BlazorCompose.Compiler.Analysis;
 /// </summary>
 internal static class RenderExpressionAnalyzer
 {
+    /// <summary>
+    /// The parameter name <c>Component&lt;T&gt;(children)</c> binds to, matching Razor's rule that nested
+    /// content becomes <c>ChildContent</c> and nothing else.
+    /// </summary>
+    private const string ChildContentParameterName = "ChildContent";
     public static RenderTemplateNode? Analyze(ExpressionSyntax expression, ComposableBodyContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
@@ -202,7 +207,9 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        if (Is(method, symbols.HtmlComponent))
+        bool isComponent = Is(method, symbols.HtmlComponent);
+        bool isComponentWithChildren = Is(method, symbols.HtmlComponentWithChildren);
+        if (isComponent || isComponentWithChildren)
         {
             // An unresolved type argument cannot be emitted: the display string of an unresolved type is
             // the written name with no qualification, and the generated file has no using directives, so
@@ -213,9 +220,40 @@ internal static class RenderExpressionAnalyzer
             if (UnresolvedComponentTypeScanner.ContainsUnresolvedType(method.TypeArguments[0]))
                 return null;
 
-            // Base case: Html.Component<T>() with no .Param yet.
             var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);
+
+            if (!isComponentWithChildren)
+            {
+                // Base case: Html.Component<T>() with no children and no .Param yet.
+                return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);
+            }
+
+            if (FactoryArguments.Bind(invocation, context) is not { } componentArgs)
+                return null;
+
+            // One whole collection passed to the params parameter (Component<T>(children: arr)) is not a
+            // list of children; leave it unanalyzable so it lands on BC1003 instead of being mis-split.
+            if (componentArgs.HasExplicitParamsArgument)
+                return null;
+
+            var childNodes = AnalyzeChildren(componentArgs.ParamsElements, context);
+            if (childNodes is null)
+                return null;
+
+            var slots = EquatableArray<ComponentSlot>.Empty;
+            if (childNodes.Value.Length > 0)
+            {
+                // All children share the single ChildContent fragment; a Fragment node groups them
+                // without emitting a wrapper element, matching how Razor lowers multiple nested children.
+                RenderTemplateNode content = childNodes.Value.Length == 1
+                    ? childNodes.Value[0]
+                    : new FragmentTemplateNode(childNodes.Value);
+
+                slots = ImmutableArray.Create(new ComponentSlot(ChildContentParameterName, content));
+            }
+
+            return new ComponentTemplateNode(
+                typeName, EquatableArray<ComponentParameter>.Empty, slots);
         }
 
         if (Is(method, symbols.HtmlRaw))
@@ -245,7 +283,11 @@ internal static class RenderExpressionAnalyzer
             return new FragmentTemplateNode(children.Value);
         }
 
-        if (SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod))
+        bool isScalarParam =
+            SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod);
+        bool isFragmentParam = symbols.FragmentParamMethod is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.FragmentParamMethod);
+        if (isScalarParam || isFragmentParam)
         {
             // Chained: <ComponentView<T> receiver>.Param(selector, value). Recurse into the receiver to
             // reach the base Component<T>() (or an inner .Param), then append this parameter in source order.
@@ -280,19 +322,30 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            foreach (var existing in inner.Parameters.AsImmutableArray())
+            // Duplicate detection spans BOTH channels and both directions: `null` binds to the scalar
+            // overload (View is a struct, so `View v = null` is CS0037), so Component<T>(x) followed by
+            // .Param(c => c.ChildContent, null) really can put one name in each channel.
+            if (HasBinding(inner, property.Name))
             {
-                if (string.Equals(existing.Name, property.Name, System.StringComparison.Ordinal))
-                {
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3007, selector.GetLocation(), [property.Name]));
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BC3007, selector.GetLocation(), [property.Name]));
+                return null;
+            }
+
+            if (isFragmentParam)
+            {
+                var slotContent = Analyze(valueExpression, context);
+                if (slotContent is null)
                     return null;
-                }
+
+                var appendedSlots = inner.Slots.AsImmutableArray()
+                    .Add(new ComponentSlot(property.Name, slotContent));
+                return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
             }
 
             var value = ExpressionTemplateFactory.Create(valueExpression, context);
             var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
-            return new ComponentTemplateNode(inner.TypeName, appended);
+            return new ComponentTemplateNode(inner.TypeName, appended, inner.Slots);
         }
 
         // --- Decoration chain: class fold / attribute shortcut / generic .Attr / event shortcut / .On ---
@@ -446,6 +499,27 @@ internal static class RenderExpressionAnalyzer
             if (SymbolEqualityComparer.Default.Equals(s, symbol))
                 return true;
         }
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> already binds <paramref name="name"/> in either channel. Blazor
+    /// applies the last write, so a duplicate across channels is as dead as one within a channel.
+    /// </summary>
+    private static bool HasBinding(ComponentTemplateNode node, string name)
+    {
+        foreach (var parameter in node.Parameters.AsImmutableArray())
+        {
+            if (string.Equals(parameter.Name, name, System.StringComparison.Ordinal))
+                return true;
+        }
+
+        foreach (var slot in node.Slots.AsImmutableArray())
+        {
+            if (string.Equals(slot.Name, name, System.StringComparison.Ordinal))
+                return true;
+        }
+
         return false;
     }
 
