@@ -2765,6 +2765,11 @@ public sealed class GeneratorTests
         // the declaration-election fix, both declarations produced hintName "Dup.g.cs", the second
         // AddSource threw ArgumentException, and Roslyn reported CS8785 — at which point the generator
         // contributes NOTHING, so the unrelated and perfectly valid Healthy lost its RenderView too.
+        // An exception from AddSource discards the generator's entire contribution for that run, which
+        // is why the blast radius is every component in the compilation rather than just the colliding
+        // one. The assertion that Healthy generates holds regardless of which declaration is processed
+        // first, because Roslyn discards ALL sources on the throw (measured on main: GeneratedSources
+        // is empty even when Healthy would have been emitted before the collision).
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -2790,6 +2795,40 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CS8785");
 
         // The blast radius is what matters: Healthy is untouched by the user's mistake.
+        Assert.Contains(result.GeneratedSources, g => g.HintName == "Healthy.g.cs");
+        Assert.DoesNotContain(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Id == "CS0534" && d.GetMessage(CultureInfo.InvariantCulture).Contains("Healthy", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Generator_TwoDeclarationsBothDeclaringBody_HealthyFirst_DoesNotKillTheGenerator()
+    {
+        // Same as the previous test but with Healthy declared before the colliding Dup pair, pinning
+        // order-independence by construction. An exception from AddSource discards the generator's
+        // entire contribution, so the outcome is identical regardless of which declaration is processed
+        // first: no CS8785, and Healthy still generates.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Healthy : ComposeComponentBase
+            {
+                protected override View Body => Span("h");
+            }
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("a");
+            }
+            public partial class Dup : ComposeComponentBase
+            {
+                protected override View Body => Span("b");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "CS8785");
         Assert.Contains(result.GeneratedSources, g => g.HintName == "Healthy.g.cs");
         Assert.DoesNotContain(
             result.OutputCompilation.GetDiagnostics(),
