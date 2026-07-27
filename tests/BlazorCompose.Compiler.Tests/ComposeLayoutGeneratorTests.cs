@@ -193,4 +193,28 @@ public sealed class ComposeLayoutGeneratorTests
         Assert.Contains("Body", diagnostic.GetMessage());
         Assert.DoesNotContain("Chrome", diagnostic.GetMessage());
     }
+
+    [Fact]
+    public void Generator_GenericLayout_EmitsTypeParametersInTheClassHeader()
+    {
+        // Generic layouts are supported. The generated part must repeat the type-parameter list so it
+        // joins the same generic type. This is the layout counterpart to the generic component test
+        // Generator_GenericComponent_EmitsTypeParametersInTheClassHeader; both pin that the Chrome
+        // and Body paths carry type parameters through the pipeline and into the emitted header.
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class GenLayout<TItem> : ComposeLayoutBase
+            {
+                protected override View Chrome => Main(Body);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class GenLayout<TItem>", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
 }

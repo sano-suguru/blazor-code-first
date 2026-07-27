@@ -26,7 +26,7 @@ namespace BlazorCompose;
 /// Layouts that declare the <see cref="Chrome"/> override must be declared <c>partial</c> so the
 /// generator can emit the <see cref="RenderView"/> implementation into the same class; a non-partial
 /// layout reports BC1001. The layout must also be a top-level type; a nested class is reported as
-/// BC1005.
+/// BC1005. A generic layout is supported: the generated part repeats the same type parameters.
 /// </para>
 /// </remarks>
 public abstract class ComposeLayoutBase : LayoutComponentBase

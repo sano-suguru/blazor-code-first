@@ -685,6 +685,51 @@ public sealed class IncrementalGeneratorTests
             $"Expected Component<T> host model reuse but got {host.Reason}");
     }
 
+    /// <summary>
+    /// A generic component's model must be reused across identical reruns.  This guards
+    /// <c>ComponentAnalysis.TypeParameters</c> / <c>ComponentModel.TypeParameters</c> being an
+    /// <see cref="EquatableArray{T}"/>: as a raw <see cref="ImmutableArray{T}"/> the record's synthesized
+    /// equality would compare the type-parameter names by underlying-array reference, so every generic
+    /// component would recompute as Modified on every incremental run.  Every other incrementality test
+    /// uses a non-generic component, where the array is empty and the defect is invisible.
+    /// </summary>
+    [Fact]
+    public void IncrementalGenerator_OnIdenticalRerun_CachesGenericComponentModel()
+    {
+        const string genericSource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace TestNs;
+
+            public partial class Gen<TItem> : ComposeComponentBase
+            {
+                protected override View Body => Span("g");
+            }
+            """;
+
+        var compilation = CreateCompilation(ParseTree(genericSource, "Gen.cs"));
+        GeneratorDriver driver = CreateDriver();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        var run2 = driver.GetRunResult();
+
+        var outputs = run2.Results[0].TrackedSteps["ComponentModeling"]
+            .SelectMany(s => s.Outputs).ToImmutableArray();
+
+        // Sanity check: the step must have produced the GENERIC model, otherwise the assertion below
+        // would pass without ever exercising the type-parameter equality path.
+        Assert.Contains(outputs, output =>
+            output.Value is ComponentModelResult { Model: { } model } &&
+            model.TypeParameters.Length == 1);
+
+        Assert.All(outputs, output =>
+            Assert.True(
+                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"Expected generic component model reuse but got {output.Reason}"));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------

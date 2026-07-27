@@ -114,6 +114,39 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_ComponentSplitAcrossFiles_ExpressionInBaseListLessFile_Generates()
+    {
+        // The base-list-less declaration test above uses two declarations in one file. This confirms the
+        // same shape across files: the declaration with the base list goes in one file, the one with the
+        // expression in another. CompilationTestHost's multi-file RunGenerator makes this a trivial
+        // addition, and it pins the cross-file behaviour that users actually hit.
+        const string file1 = """
+            using BlazorCompose;
+
+            public partial class SplitFiles : ComposeComponentBase
+            {
+            }
+            """;
+        const string file2 = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class SplitFiles
+            {
+                protected override View Body => Span("split");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("File1.cs", file1),
+            ("File2.cs", file2));
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void Generator_RecordDerivingFromComposeBase_IsRejectedByTheLanguage()
     {
         // Widening the syntax predicate to TypeDeclarationSyntax so records are analyzed would be a dead
@@ -3170,9 +3203,11 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_GenericComponentCallingComposable_ExpandsAndAccessesItsOwnMembers()
     {
-        // The expander validates protected/private-protected access with InheritanceKeys, built from
-        // ToDisplayString(FullyQualifiedFormat). For a generic component those keys carry the type
-        // parameters, so this pins that expansion still works rather than leaving it to coincidence.
+        // A generic component must expand a [Composable] and still name its own private member from the
+        // generated part, which only compiles because that part joins the same generic type. The composable
+        // itself references nothing non-public, so this does not exercise ComposableExpander's
+        // access-requirement path (`_label` is read from Body, not from the composable body); the non-generic
+        // Generator_ProtectedBaseMemberReferencedFromHelperType_* tests cover that.
         //
         // The [Composable] lives on a separate non-generic static class on purpose: a [Composable]
         // declared INSIDE a generic type is rejected with BC1002 ("containing type must be non-generic"),

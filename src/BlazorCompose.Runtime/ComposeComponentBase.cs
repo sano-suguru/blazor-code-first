@@ -12,7 +12,7 @@ namespace BlazorCompose;
 /// Components that declare the <see cref="Body"/> override must be declared <c>partial</c> so the
 /// generator can emit the <see cref="RenderView"/> implementation into the same class; a non-partial
 /// component reports BC1001. The component must also be a top-level type; a nested class is reported
-/// as BC1005.
+/// as BC1005. A generic component is supported: the generated part repeats the same type parameters.
 /// The component otherwise behaves as a standard Blazor <see cref="ComponentBase"/>.
 /// </remarks>
 public abstract class ComposeComponentBase : ComponentBase
