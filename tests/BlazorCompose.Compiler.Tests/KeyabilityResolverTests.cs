@@ -125,4 +125,42 @@ public sealed class KeyabilityResolverTests
 
         Assert.Contains(sink, d => d.Id == "BC3003");
     }
+
+    [Fact]
+    public void CollectForEachContentDiagnostics_WalksIntoComponentSlots()
+    {
+        var forEach = new ForEachTemplateNode(
+            Lit("_items"),
+            Lit("__bc_item_0"),
+            new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null),   // region-rooted content
+                                                                         // Not `default`: a default TemplateLocation has a null FilePath, and reporting BC3003 calls
+                                                                         // ToLocation() -> Location.Create(filePath: null, …) which throws ArgumentNullException.
+                                                                         // Every existing case in this file uses this same spelling.
+            new TemplateLocation("f", default, default));
+
+        var node = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            ImmutableArray.Create(new ComponentSlot("ChildContent", forEach)));
+
+        var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
+        KeyabilityResolver.CollectForEachContentDiagnostics(node, ComposableRegistry.Empty, sink);
+
+        Assert.Single(sink);
+        // DiagnosticInfo is symbol-free and stores only the Id string — it has no Descriptor property.
+        Assert.Equal("BC3003", sink[0].Id);
+    }
+
+    [Fact]
+    public void ResolveRootKind_ComponentWithSlots_IsStillElement()
+    {
+        // SetKey lands right after OpenComponent, before any parameter, so slots do not affect keyability.
+        var node = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            ImmutableArray.Create(
+                new ComponentSlot("ChildContent", new TextContentTemplateNode(Lit("\"x\"")))));
+
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+    }
 }

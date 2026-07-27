@@ -243,6 +243,15 @@ internal static class RenderExpressionAnalyzer
             var slots = EquatableArray<ComponentSlot>.Empty;
             if (childNodes.Value.Length > 0)
             {
+                if (!HasUsableChildContent(method.TypeArguments[0], context))
+                {
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3013,
+                        invocation.GetLocation(),
+                        [method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
+                    return null;
+                }
+
                 // All children share the single ChildContent fragment; a Fragment node groups them
                 // without emitting a wrapper element, matching how Razor lowers multiple nested children.
                 RenderTemplateNode content = childNodes.Value.Length == 1
@@ -341,6 +350,17 @@ internal static class RenderExpressionAnalyzer
                 var appendedSlots = inner.Slots.AsImmutableArray()
                     .Add(new ComponentSlot(property.Name, slotContent));
                 return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+            }
+
+            if (isScalarParam && IsInertDesignTimeType(
+                    context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
+                    context))
+            {
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BC3014,
+                    valueExpression.GetLocation(),
+                    [valueExpression.ToString()]));
+                return null;
             }
 
             var value = ExpressionTemplateFactory.Create(valueExpression, context);
@@ -739,5 +759,54 @@ internal static class RenderExpressionAnalyzer
         }
 
         return hasParameterAttribute && property.SetMethod is { DeclaredAccessibility: Accessibility.Public };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="componentType"/> declares a <c>ChildContent</c> member that can receive
+    /// child content: a settable <c>[Parameter]</c> whose type is exactly the non-generic
+    /// <c>RenderFragment</c>. A <c>RenderFragment&lt;TContext&gt;</c> is excluded deliberately — the
+    /// generated lambda is non-generic and would fail an invalid cast at runtime.
+    /// </summary>
+    private static bool HasUsableChildContent(ITypeSymbol componentType, ComposableBodyContext context)
+    {
+        if (context.KnownSymbols.RenderFragmentType is not { } renderFragmentType)
+            return false;
+
+        for (var current = componentType; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers(ChildContentParameterName))
+            {
+                if (member is not IPropertySymbol property)
+                    continue;
+
+                if (!SymbolEqualityComparer.Default.Equals(property.Type, renderFragmentType))
+                    continue;
+
+                if (IsSettableParameter(property, context))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c> or a
+    /// <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its value verbatim, so such a
+    /// value would bind the empty marker instead of content.
+    /// </summary>
+    private static bool IsInertDesignTimeType(ITypeSymbol? type, ComposableBodyContext context)
+    {
+        if (type is null)
+            return false;
+
+        var symbols = context.KnownSymbols;
+
+        if (symbols.ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType))
+            return true;
+
+        return symbols.ComponentViewType is { } componentViewType
+            && type is INamedTypeSymbol named
+            && SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, componentViewType);
     }
 }

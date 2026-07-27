@@ -103,9 +103,14 @@ internal static class KeyabilityResolver
                     CollectForEachContentDiagnostics(child, registry, sink);
                 break;
 
-                // ComponentTemplateNode/TextContentTemplateNode/ComposableCallTemplateNode/
-                // RawMarkupTemplateNode/RenderFragmentContentTemplateNode have no nested template children
-                // to walk. A composable call's own body is walked once from the registry pass
+            case ComponentTemplateNode component:
+                foreach (var slot in component.Slots.AsImmutableArray())
+                    CollectForEachContentDiagnostics(slot.Content, registry, sink);
+                break;
+
+                // TextContentTemplateNode/ComposableCallTemplateNode/RawMarkupTemplateNode/
+                // RenderFragmentContentTemplateNode have no nested template children to walk. A
+                // composable call's own body is walked once from the registry pass
                 // (CollectComposableForEachDiagnostics), not re-walked at every call site.
         }
     }
