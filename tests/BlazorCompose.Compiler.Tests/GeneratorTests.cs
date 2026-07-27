@@ -220,6 +220,47 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_PartialPropertyBody_GeneratesSameSourceAsExpressionBody()
+    {
+        // A partial property splits the design-time expression across two declarations: the definition
+        // part has no getter body, the implementation part has the expression. GetMembers returns only
+        // the definition part, so electing the declaration without following PartialImplementationPart
+        // would classify this as Absent and silently generate nothing.
+        const string partialPropertySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter
+            {
+                protected override partial View Body { get; }
+            }
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override partial View Body => Span("Count");
+            }
+            """;
+
+        const string expressionBodySource = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                protected override View Body => Span("Count");
+            }
+            """;
+
+        var partialProperty = CompilationTestHost.RunGenerator(partialPropertySource);
+        CompilationTestHost.AssertOutputCompiles(partialProperty);
+
+        var expressionBody = Assert.Single(
+                CompilationTestHost.RunGenerator(expressionBodySource).GeneratedSources)
+            .SourceText.ToString();
+
+        Assert.Equal(expressionBody, Assert.Single(partialProperty.GeneratedSources).SourceText.ToString());
+    }
+
+    [Fact]
     public void Generator_MultiStatementGetter_ReportsBC1004AtTheProperty()
     {
         // A getter with statements would need the Transplantable path, which is not implemented. The
