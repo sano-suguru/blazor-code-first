@@ -16,6 +16,9 @@ internal static class RenderViewEmitter
     private const string EventCallbackFactory =
         "global::Microsoft.AspNetCore.Components.EventCallback.Factory";
 
+    private const string RenderFragmentType =
+        "global::Microsoft.AspNetCore.Components.RenderFragment";
+
     public static SourceText Emit(ComponentModel model)
     {
         var writer = new IndentedWriter();
@@ -191,6 +194,27 @@ internal static class RenderViewEmitter
                 $"__builder.AddComponentParameter({next}, \"{parameter.Name}\", {parameter.Value.ToCode()});");
             next++;
         }
+
+        foreach (var slot in node.Slots)
+        {
+            // The lambda parameter deliberately SHADOWS the enclosing __builder. Every Emit* method
+            // writes to the identifier `__builder`, so a distinct name (Razor uses __builder2/3) would
+            // mean threading a builder name through all of them. Shadowing is legal and warning-free to
+            // arbitrary depth, verified with nested slots, generated foreach loops, and local
+            // declarations, on every LangVersion from 8 to 14. Do not "fix" it.
+            writer.AppendLine(
+                $"__builder.AddComponentParameter({next}, \"{slot.Name}\", "
+                    + $"({RenderFragmentType})((__builder) =>");
+            writer.AppendLine("{");
+            writer.Indent++;
+            // Sequence numbering continues flatly from `next + 1` — see SequenceAllocator's ComponentNode
+            // case for why a slot must not restart its own sequence space.
+            EmitNode(writer, slot.Content, next + 1);
+            writer.Indent--;
+            writer.AppendLine("}));");
+            next += 1 + SequenceAllocator.Width(slot.Content);
+        }
+
         writer.AppendLine("__builder.CloseComponent();");
         return seq + SequenceAllocator.Width(node);
     }

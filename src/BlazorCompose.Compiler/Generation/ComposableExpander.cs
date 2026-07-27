@@ -135,7 +135,28 @@ internal static class ComposableExpander
                     var parameters = ImmutableArray.CreateBuilder<ComponentParameter>(component.Parameters.Length);
                     foreach (var parameter in component.Parameters)
                         parameters.Add(new ComponentParameter(parameter.Name, parameter.Value.Substitute(substitution)));
-                    return new ComponentNode(component.TypeName, parameters.ToImmutable());
+
+                    var slots = ImmutableArray.CreateBuilder<ComponentSlotNode>(component.Slots.Length);
+                    foreach (var slot in component.Slots)
+                    {
+                        // Slot content is a real subtree: it consumes preorder ordinals and may itself
+                        // contain ForEach/[Composable] calls, so it expands through the same recursion.
+                        var content = ExpandNode(
+                            slot.Content,
+                            substitution,
+                            ref nextLogicalPreorderOrdinal,
+                            activeMethodStack,
+                            registry,
+                            generatedTypeInheritanceKeys,
+                            diagnostics);
+                        if (content is null)
+                            return null;
+
+                        slots.Add(new ComponentSlotNode(slot.Name, content));
+                    }
+
+                    return new ComponentNode(
+                        component.TypeName, parameters.ToImmutable(), slots.ToImmutable());
                 }
 
             case TextContentTemplateNode text:

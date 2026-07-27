@@ -242,4 +242,41 @@ public sealed class SequenceAllocatorTests
             Span(ExpressionTemplate.Literal("\"b\""))));
         Assert.Equal(4, SequenceAllocator.Width(node));
     }
+
+    [Fact]
+    public void SequenceAllocator_ComponentWithOneSlot_CountsSlotParameterPlusContent()
+    {
+        // 1 OpenComponent + 1 scalar parameter + 1 slot AddComponentParameter + span (OpenElement+AddContent = 2).
+        var node = new ComponentNode(
+            "global::X.C",
+            ImmutableArray.Create(new ComponentParameter("Title", ExpressionTemplate.Literal("\"t\""))),
+            ImmutableArray.Create(
+                new ComponentSlotNode("ChildContent", Span(ExpressionTemplate.Literal("\"x\"")))));
+
+        Assert.Equal(5, SequenceAllocator.Width(node));
+    }
+
+    [Fact]
+    public void SequenceAllocator_ComponentWithTwoSlots_CountsBoth()
+    {
+        var node = new ComponentNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            ImmutableArray.Create(
+                new ComponentSlotNode("ChildContent", new TextContentNode(ExpressionTemplate.Literal("\"a\""))),
+                new ComponentSlotNode("Footer", new TextContentNode(ExpressionTemplate.Literal("\"b\"")))));
+
+        // 1 OpenComponent + (1 + 1) + (1 + 1)
+        Assert.Equal(5, SequenceAllocator.Width(node));
+    }
+
+    [Fact]
+    public void SequenceAllocator_ComponentWithNoSlots_IsUnchanged()
+    {
+        var node = new ComponentNode(
+            "global::X.C",
+            ImmutableArray.Create(new ComponentParameter("Title", ExpressionTemplate.Literal("\"t\""))));
+
+        Assert.Equal(2, SequenceAllocator.Width(node));
+    }
 }
