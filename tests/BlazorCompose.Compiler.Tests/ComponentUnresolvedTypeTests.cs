@@ -125,4 +125,28 @@ public sealed class ComponentUnresolvedTypeTests
 
         Assert.Equal(1, CountBC3012(result));
     }
+
+    [Fact]
+    public void Component_InsideComposableBody_ReportsBC3012NotGenericBC1002()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public static class Frags
+            {
+                [Composable]
+                public static View Card() => Div(Component<Probe>().Param(p => p.Label, "x"));
+            }
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Frags.Card();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+    }
 }

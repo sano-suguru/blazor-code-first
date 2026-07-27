@@ -141,6 +141,13 @@ internal static class ComponentModelFactory
 
         var template = RenderExpressionAnalyzer.Analyze(bodyExpression, bodyContext);
 
+        // Translation failed. Sweep the whole expression for an unresolved Component<T>() type argument
+        // — the shape a same-project .razor component always produces — so the author is told the real
+        // cause instead of BC1003's "not statically analyzable". Only on the failure path, so a healthy
+        // body pays nothing. BC1003 is then suppressed automatically by Expand's error dedup.
+        if (template is null)
+            UnresolvedComponentTypeScanner.Report(bodyExpression, bodyContext);
+
         // Capture the inheritance chain (self first, then base types) as symbol-free keys so the expander
         // can validate DerivedContainingType access requirements against real inheritance.
         return new ComponentAnalysis(
