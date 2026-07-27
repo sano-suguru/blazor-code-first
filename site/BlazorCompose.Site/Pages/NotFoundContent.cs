@@ -1,5 +1,5 @@
 using BlazorCompose;
-using BlazorCompose.Site.Layout;
+using Microsoft.AspNetCore.Components.Web;
 using static BlazorCompose.Html;
 
 namespace BlazorCompose.Site.Pages;
@@ -24,7 +24,7 @@ public static class NotFoundContent
     [Composable]
     public static View NotFound() =>
         Section(
-            Component<DocTitle>().Param(t => t.Title, "Not found"),
+            Component<PageTitle>("Not found"),
             H1("Page not found"),
             P("The requested page does not exist."),
             P(A("Browse the documentation").Href("/docs"), " or ", A("go to the home page").Href("/")))

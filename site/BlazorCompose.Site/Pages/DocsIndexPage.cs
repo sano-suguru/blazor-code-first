@@ -1,7 +1,7 @@
 using BlazorCompose;
 using BlazorCompose.Site.Content;
-using BlazorCompose.Site.Layout;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using static BlazorCompose.Html;
 
 namespace BlazorCompose.Site.Pages;
@@ -16,7 +16,7 @@ public sealed partial class DocsIndexPage : ComposeComponentBase
 {
     protected override View Body =>
         Section(
-            Component<DocTitle>().Param(t => t.Title, "Documentation"),
+            Component<PageTitle>("Documentation"),
             H1("Documentation"),
             P("Every document in the guide, in reading order."),
             Ul(
