@@ -298,6 +298,24 @@ protected override View Body =>
     );
 ```
 
+子コンテンツは入れ子で与えます。`Component<T>(children)` は Razor が入れ子コンテンツを
+`ChildContent` に束縛するのと同じ規則で、children を `ChildContent` パラメータへ渡します。
+`ChildContent` 以外の `RenderFragment` パラメータ(`Footer` 等)は `.Param(c => c.Footer, content)`
+で名前を指して束縛します。`ChildContent` を `.Param` で名指しすることもできます(Razor の属性形と同じ)。
+
+```csharp
+protected override View Body =>
+    Component<Card>(
+            H2("見出し"),
+            P("本文"))
+        .Param(c => c.Title, "タイトル")
+        .Param(c => c.Footer, Span("脚注"));
+```
+
+`T` が `ChildContent`(settable な `[Parameter]`、型は非ジェネリックの `RenderFragment`)を持たない場合は
+BC3013 です。`RenderFragment<TContext>` は受け取れません — 生成されるラムダは非ジェネリックであり、
+実行時にキャスト失敗となるためです。同じパラメータを children と `.Param` の両方で与えると BC3007 です。
+
 ---
 
 ## 7. パフォーマンス特性と予測

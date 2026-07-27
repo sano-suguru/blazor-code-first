@@ -283,6 +283,19 @@ __b.CloseElement();
 
 `[Composable]` 呼び出しは、その本体を呼び出しサイトへ直接書いた場合と同じフレーム列・シーケンス区間を生みます。実行時ディスパッチもリージョン分離も介在しません。対照的に、`[Composable]` の付かない `View` 返却メソッドはOpaque(§2.3)として扱われ、リージョンで包まれ実行時に `RenderFragment` として描画され、診断BC2001の対象となります。属性付与の有無ではなく、この静的展開可能性が部品再利用の速度・トリミング特性を分けます。
 
+**コンポーネントの fragment スロット** — `RenderFragment` 型のパラメータは、値ではなくノードツリーを
+持つため `ComponentParameter`(スカラー)とは別チャンネル(`ComponentSlot` / `ComponentSlotNode`)に
+格納します。幅は `1 + Parameters.Length + Σ(1 + Width(slot.Content))` で、スロット1つが
+`AddComponentParameter` 1回とその内容の幅を消費します。
+
+ラムダ内部のシーケンス番号は外側の平坦なカウンタを継続し、独立したシーケンス空間を作りません。
+スロットのフレームは呼び出し元ではなく**子コンポーネントのフレーム列**に属します。ホストが
+`AddContent(seq, ChildContent)` でスロットを描画する場合は Blazor のリージョンが隔離しますが、
+ホストが fragment を直接 invoke する場合はリージョンが張られず、我々の番号がホスト自身のフレームと
+隣接します。0 から振り直すとホストの低い番号と衝突してコンポーネントが再生成され状態が失われるため
+(実測)、平坦継続が厳密に安全側です。これは Razor と同一の挙動で、リージョンで包んでも解決しません
+(リージョンはホストのフレーム列における隣接関係を変えないため)。
+
 ---
 
 ## 3. メモリレイアウト
@@ -419,7 +432,7 @@ public closed union ViewNode
 | BC1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
 | BC1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
 | BC1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
-| BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装) |
+| BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BC2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→Compose 方向)とは逆向きの構文である) |
 | BC3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
 | BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div(...)`)必要がある |
@@ -432,6 +445,8 @@ public closed union ViewNode
 | BC3010 | Error   | 同一要素上で属性またはイベントが複数回バインドされている(Blazorは後勝ちで前を黙って捨てるため重複を拒否)。畳み込まれる `class` のみ例外 |
 | BC3011 | Error   | `.Attr` の名前 / `.On` のイベント名が非空のコンパイル時定数文字列でない(宣言性・タイポ検査・class畳み込み判定・重複検出の前提) |
 | BC3012 | Error   | `Component<T>()` の型引数がジェネレータ実行時に解決できない。同一プロジェクト内の `.razor` コンポーネントはRazorコンパイラ自身がソースジェネレータであるため相互に出力が見えず、常にこの状態になる。参照先プロジェクト/NuGetパッケージの `.razor` と手書きC#コンポーネントは正常に解決する。タイポや `using` 漏れの場合は同じ位置に CS0246 も報告される |
+| BC3013 | Error   | `Component<T>(children)` の `T` が子コンテンツを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
+| BC3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>`)がジェネリック `.Param` の値位置に渡された |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 
