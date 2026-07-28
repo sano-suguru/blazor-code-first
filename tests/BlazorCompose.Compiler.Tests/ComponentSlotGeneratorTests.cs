@@ -319,7 +319,6 @@ public sealed class ComponentSlotGeneratorTests
         int foreachIdx = code.IndexOf("foreach (", System.StringComparison.Ordinal);
         int liIdx = code.IndexOf("OpenElement(", System.StringComparison.Ordinal);
         int keyIdx = code.IndexOf("SetKey(", System.StringComparison.Ordinal);
-        Assert.Fail(code);
 
         Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
         Assert.True(lambdaIdx < regionIdx, "the ForEach region must be emitted inside the fragment lambda");
