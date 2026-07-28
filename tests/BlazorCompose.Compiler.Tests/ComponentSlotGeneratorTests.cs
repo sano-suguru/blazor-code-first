@@ -221,4 +221,181 @@ public sealed class ComponentSlotGeneratorTests
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
     }
+
+    private const string InheritedChildContentSource = """
+        using Microsoft.AspNetCore.Components;
+        namespace T;
+        public class BaseCard : ComponentBase
+        {
+            [Parameter] public RenderFragment? ChildContent { get; set; }
+        }
+        public class DerivedCard : BaseCard
+        {
+        }
+        """;
+
+    [Fact]
+    public void ComponentWithChildren_ChildContentInheritedFromBaseClass_IsAccepted()
+    {
+        // Regression guard: HasUsableChildContent must walk the base-type chain (Roslyn's GetMembers on
+        // the derived type alone would not see a ChildContent property declared only on the base class).
+        // Without that walk, a component that inherits ChildContent instead of redeclaring it would be
+        // rejected with a false BC3013 even though Blazor itself accepts it at runtime.
+        const string host = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<DerivedCard>(Div("x"));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("DerivedCard.cs", InheritedChildContentSource), ("Host.cs", host));
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3013");
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("\"ChildContent\"", GeneratedHost(result));
+    }
+
+    private const string GridSource = """
+        using Microsoft.AspNetCore.Components;
+        namespace T;
+        public class Grid<TItem> : ComponentBase
+        {
+            [Parameter] public RenderFragment? ChildContent { get; set; }
+        }
+        """;
+
+    [Fact]
+    public void ComponentWithChildren_GenericComponent_EmitsFullyQualifiedOpenComponent()
+    {
+        // Guards against the generator losing or mis-qualifying the type argument on OpenComponent<T>
+        // when the component is both generic and receives slotted children.
+        const string host = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Grid<int>>(Div("g"));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Grid.cs", GridSource), ("Host.cs", host));
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains("__builder.OpenComponent<global::T.Grid<int>>(0);", GeneratedHost(result));
+    }
+
+    [Fact]
+    public void ComponentWithChildren_KeyedForEachInsideSlot_EmitsRegionAndSetKeyInsideTheLambda()
+    {
+        // Guards against a keyed ForEach nested inside a slot's fragment losing its OpenRegion/SetKey
+        // wrapping, or that wrapping being emitted outside the fragment lambda where it would run
+        // against the host's own builder instead of the slot's.
+        const string host = """
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly List<int> _items = new();
+                protected override View Body =>
+                    Component<Card>(ForEach(_items, key: i => i, content: i => Li(i.ToString())));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Card.cs", CardSource), ("Host.cs", host));
+        var code = GeneratedHost(result);
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        int lambdaIdx = code.IndexOf(
+            "AddComponentParameter(1, \"ChildContent\",", System.StringComparison.Ordinal);
+        int regionIdx = code.IndexOf("OpenRegion(", System.StringComparison.Ordinal);
+        int foreachIdx = code.IndexOf("foreach (", System.StringComparison.Ordinal);
+        int liIdx = code.IndexOf("OpenElement(", System.StringComparison.Ordinal);
+        int keyIdx = code.IndexOf("SetKey(", System.StringComparison.Ordinal);
+        Assert.Fail(code);
+
+        Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
+        Assert.True(lambdaIdx < regionIdx, "the ForEach region must be emitted inside the fragment lambda");
+        Assert.True(regionIdx < foreachIdx, "OpenRegion must precede the transplanted foreach loop");
+        Assert.True(foreachIdx < liIdx, "the foreach loop must precede the li content root's OpenElement");
+        Assert.True(liIdx < keyIdx, "SetKey must follow the content root's OpenElement");
+    }
+
+    [Fact]
+    public void ForEach_WithSlotContent_EmitsSetKeyBeforeTheSlotParameter()
+    {
+        // Regression guard mirroring the Task-9 SetKey defect, but for a slot instead of a plain
+        // element: SetKey applies to whichever frame is currently open, so it must be emitted right
+        // after OpenComponent and before the slot's AddComponentParameter opens the fragment. Emitting
+        // it after the slot parameter would try to key a frame that is no longer the component frame
+        // and throw at render time.
+        const string host = """
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly List<int> _items = new();
+                protected override View Body =>
+                    ForEach(_items, key: i => i, content: i => Component<Card>(Span(i.ToString())));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Card.cs", CardSource), ("Host.cs", host));
+        var code = GeneratedHost(result);
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+
+        int openIdx = code.IndexOf("OpenComponent<global::T.Card>", System.StringComparison.Ordinal);
+        int keyIdx = code.IndexOf("SetKey(", System.StringComparison.Ordinal);
+        int paramIdx = code.IndexOf("AddComponentParameter(", System.StringComparison.Ordinal);
+
+        Assert.True(openIdx >= 0, "the component should be opened");
+        Assert.True(openIdx < keyIdx, "SetKey must be emitted after OpenComponent");
+        Assert.True(keyIdx < paramIdx, "SetKey must be emitted before the slot's AddComponentParameter");
+    }
+
+    [Fact]
+    public void ComponentWithChildren_ComposableCallInsideSlot_ExpandsInsideTheLambda()
+    {
+        // Guards against a [Composable] call nested inside a slot either failing to expand statically
+        // (falling back to an opaque runtime call) or having its argument local hoisted outside the
+        // fragment lambda, where it would be out of scope for the generated fragment delegate.
+        const string host = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                [Composable]
+                private static View Badge(string label) => Span(label).Class("badge");
+
+                protected override View Body => Component<Card>(Badge("new"));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Card.cs", CardSource), ("Host.cs", host));
+        var code = GeneratedHost(result);
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        // The call must be statically expanded, not left as a runtime method invocation.
+        Assert.DoesNotContain("Badge(", code);
+
+        int lambdaIdx = code.IndexOf(
+            "AddComponentParameter(1, \"ChildContent\",", System.StringComparison.Ordinal);
+        int localIdx = code.IndexOf("__bc_arg_", System.StringComparison.Ordinal);
+
+        Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
+        Assert.True(
+            lambdaIdx < localIdx,
+            "the composable's argument local must be declared inside the fragment lambda");
+    }
 }
