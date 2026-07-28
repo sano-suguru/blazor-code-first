@@ -343,6 +343,50 @@ internal static class DiagnosticDescriptors
             "at the same position.");
 
     /// <summary>
+    /// BC3013: <c>Component&lt;T&gt;(children)</c> was given child content but <c>T</c> has no parameter
+    /// that can receive it — no <c>ChildContent</c> at all, one that is not a settable
+    /// <c>[Parameter]</c>, or one typed <c>RenderFragment&lt;TContext&gt;</c> rather than the non-generic
+    /// <c>RenderFragment</c>. Blazor would throw while applying parameters.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3013 = new(
+        id: "BC3013",
+        title: "Component cannot receive child content",
+        messageFormat:
+            "'{0}' has no settable [Parameter] named 'ChildContent' of type RenderFragment, so it cannot "
+                + "receive child content; bind a fragment parameter with .Param(c => c.Name, content) instead",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Component<T>(children) binds child content to a parameter named ChildContent, mirroring how "
+                + "Razor lowers nested content. The parameter must be a settable [Parameter] whose type is "
+                + "the non-generic RenderFragment; a RenderFragment<TContext> cannot receive it. Without "
+                + "such a parameter Blazor throws while applying parameters, so it is rejected at compile "
+                + "time.");
+
+    /// <summary>
+    /// BC3014: an inert design-time value (<c>View</c> or <c>ComponentView&lt;T&gt;</c>) was passed to the
+    /// generic <c>Param</c>, whose value is emitted verbatim. Such a value binds the empty design-time
+    /// marker rather than any content: an <c>object</c>-typed parameter accepts it with no exception at
+    /// all and renders wrong output, and a typed parameter throws an invalid cast at runtime.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3014 = new(
+        id: "BC3014",
+        title: "Design-time value bound as a component parameter value",
+        messageFormat:
+            "'{0}' is inert design-time syntax and cannot be bound as a parameter value; use "
+                + ".Param(c => c.Name, content) on a RenderFragment parameter to pass content",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "View and ComponentView<T> are inert markers read by the source generator, not runtime "
+                + "values. The generic Param emits its value expression verbatim, so binding one of them "
+                + "assigns the empty marker: an object-typed parameter silently receives it and renders "
+                + "wrong output, while a typed parameter throws an invalid cast when Blazor applies "
+                + "parameters. Bind content through the RenderFragment overload of Param instead.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

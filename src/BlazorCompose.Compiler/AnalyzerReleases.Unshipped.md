@@ -19,3 +19,5 @@ BC3009 | BlazorCompose | Error | BlazorComposeGenerator
 BC3010 | BlazorCompose | Error | BlazorComposeGenerator
 BC3011 | BlazorCompose | Error | BlazorComposeGenerator
 BC3012 | BlazorCompose | Error | BlazorComposeGenerator
+BC3013 | BlazorCompose | Error | BlazorComposeGenerator
+BC3014 | BlazorCompose | Error | BlazorComposeGenerator

@@ -86,6 +86,46 @@ public partial class Card : ComposeComponentBase
 }
 ```
 
+## Passing child content to components
+
+The direction above — Razor passing content into a Compose component — uses the implicit
+`RenderFragment?` conversion. The opposite direction — Compose code passing content to a Razor or
+hand-written Blazor component — uses `Component<T>()` with nested children or the `.Param` overload
+for `RenderFragment` parameters.
+
+Nested children bind to `ChildContent`, mirroring Razor's rule that nested content becomes
+`ChildContent` and nothing else:
+
+```csharp
+protected override View Body =>
+    Component<Card>(
+        H2("Heading"),
+        P("Body text"));
+```
+
+This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`; otherwise
+BC3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children — the
+generated lambda is non-generic and would fail an invalid cast at runtime.
+
+Other `RenderFragment` parameters (such as `Footer` or `Header`) bind through
+`.Param(c => c.Footer, content)`, naming the parameter explicitly:
+
+```csharp
+protected override View Body =>
+    Component<Card>(
+            H2("Heading"),
+            P("Body text"))
+        .Param(c => c.Title, "Card title")
+        .Param(c => c.Footer, Span("Footer note"));
+```
+
+It is also legal to name `ChildContent` through `.Param` — this is verbose but matches Razor's
+attribute form (`<Card><ChildContent>...</ChildContent></Card>`). Binding the same parameter through
+both channels reports BC3007.
+
+A real `RenderFragment` value (as opposed to a BlazorCompose `View` expression) still binds through
+the generic `.Param<TValue>` overload and is emitted verbatim.
+
 ## Reads are allowed, mutation is not
 
 Both `Chrome` and `Body` (the `ComposeComponentBase` one, not the layout's routed-content

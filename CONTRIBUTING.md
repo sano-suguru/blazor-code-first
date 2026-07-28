@@ -106,6 +106,14 @@ Enable the shared pre-push hook once per clone so this runs automatically:
   generator runs, so a `.razor` component declared in the same project cannot be
   named (`BC3012`) — source generators cannot observe each other's output. The
   same component in a referenced project or package resolves normally.
+  `Component<T>(children)` binds children to `ChildContent`, mirroring Razor's
+  rule that nested content becomes `ChildContent`. The target must have a
+  settable `[Parameter] ChildContent` of type non-generic `RenderFragment`;
+  otherwise BC3013 is reported. A `RenderFragment<TContext>` cannot receive the
+  children — the generated lambda is non-generic and would fail an invalid cast
+  at runtime. Other `RenderFragment` parameters bind through
+  `.Param(c => c.Name, content)`. BC3014 prevents design-time inert types
+  (`View` / `ComponentView<T>`) from being passed to the generic `.Param`.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts — do not repurpose or remove them. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or

@@ -32,9 +32,14 @@ internal static class SequenceAllocator
         // The content template occupies one static sequence space reused each iteration.
         ForEachNode { Content: var content } => 1 + Width(content),
 
-        // OpenComponent(k) = 1 call, plus one AddComponentParameter per parameter.
-        // SetKey/CloseComponent consume no sequence number.
-        ComponentNode { Parameters: var parameters } => 1 + parameters.Length,
+        // OpenComponent(k) = 1 call, plus one AddComponentParameter per scalar parameter, plus per slot
+        // one AddComponentParameter for the fragment itself and the whole width of its content. The
+        // lambda continues this same flat counter rather than opening a new sequence space: a slot's
+        // frames belong to the *child* component's frame list, and a host that invokes the fragment
+        // directly (instead of AddContent) gets no isolating region, so restarting at 0 collides with the
+        // host's own low numbers and remounts components. SetKey/CloseComponent consume no sequence number.
+        ComponentNode { Parameters: var parameters, Slots: var slots } =>
+            1 + parameters.Length + slots.Sum(static slot => 1 + Width(slot.Content)),
 
         // OpenElement(tag) = 1 call, +1 if class-decorated, +1 per attribute, +1 per event, plus the sum
         // of all children. Must branch on the identical conditions and order as

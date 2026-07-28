@@ -26,7 +26,8 @@ internal static class UnresolvedComponentTypeScanner
     public static void Report(ExpressionSyntax root, ComposableBodyContext context)
     {
         var componentMethod = context.KnownSymbols.HtmlComponent;
-        if (componentMethod is null)
+        var componentWithChildrenMethod = context.KnownSymbols.HtmlComponentWithChildren;
+        if (componentMethod is null && componentWithChildrenMethod is null)
             return;
 
         foreach (var invocation in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
@@ -38,8 +39,8 @@ internal static class UnresolvedComponentTypeScanner
             // shape known to reach it. Pattern-matched rather than `as` + null check: the latter is
             // IDE0019, an error in this repo.
             var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
-            if ((symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault()) is not IMethodSymbol method ||
-                !SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, componentMethod))
+            if ((symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault()) is not IMethodSymbol method
+                || !IsComponentFactory(method, componentMethod, componentWithChildrenMethod))
             {
                 continue;
             }
@@ -104,6 +105,18 @@ internal static class UnresolvedComponentTypeScanner
                 return false;
         }
     }
+
+    /// <summary>
+    /// Whether <paramref name="method"/> is either <c>Html.Component&lt;T&gt;()</c> overload. Both must be
+    /// matched: the params form is a distinct symbol, and missing it would report BC1003 for an
+    /// unresolved type argument instead of BC3012.
+    /// </summary>
+    private static bool IsComponentFactory(
+        IMethodSymbol method, IMethodSymbol? parameterless, IMethodSymbol? withChildren) =>
+        (parameterless is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless))
+        || (withChildren is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, withChildren));
 
     /// <summary>
     /// The written type-argument syntax of a <c>Component&lt;T&gt;()</c> invocation: the generic name is

@@ -1,7 +1,7 @@
 using BlazorCompose;
 using BlazorCompose.Site.Content;
-using BlazorCompose.Site.Layout;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using static BlazorCompose.Html;
 
 namespace BlazorCompose.Site.Pages;
@@ -40,7 +40,7 @@ public sealed partial class DocsPage : ComposeComponentBase
     protected override View Body =>
         If(_found,
             () => Article(
-                    Component<DocTitle>().Param(t => t.Title, _title),
+                    Component<PageTitle>(_title),
                     H1(_title),
                     Raw(_html))
                 .Class("prose"),

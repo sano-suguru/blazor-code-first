@@ -730,6 +730,54 @@ public sealed class IncrementalGeneratorTests
                 $"Expected generic component model reuse but got {output.Reason}"));
     }
 
+    /// <summary>
+    /// A component with slot children must be reused across identical reruns.  This guards the nested node
+    /// tree inside <c>EquatableArray</c> on the slot channel path (ComponentNode.Children, ComponentSlot):
+    /// if any layer of that tree compared by reference instead of structurally, every component with child
+    /// content would recompute as Modified on every generator run, and that would be invisible to every
+    /// other test in the suite.
+    /// </summary>
+    [Fact]
+    public void IncrementalGenerator_OnIdenticalRerun_CachesComponentSlotModel()
+    {
+        // A slot carries a nested node tree inside EquatableArray. If any layer of that tree compared by
+        // reference, every component with child content would recompute as Modified on each run.
+        const string card = """
+            using Microsoft.AspNetCore.Components;
+            namespace T;
+            public class Card : ComponentBase
+            {
+                [Parameter] public RenderFragment? ChildContent { get; set; }
+            }
+            """;
+        const string host = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+            namespace T;
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Card>(Div("x"), "text");
+            }
+            """;
+
+        var compilation = CreateCompilation(
+            ParseTree(card, "Card.cs"),
+            ParseTree(host, "Host.cs"));
+        GeneratorDriver driver = CreateDriver();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        var run2 = driver.GetRunResult();
+
+        var outputs = run2.Results[0].TrackedSteps["ComponentModeling"]
+            .SelectMany(s => s.Outputs).ToImmutableArray();
+
+        Assert.All(outputs, output =>
+            Assert.True(
+                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"Expected Cached or Unchanged but got {output.Reason}"));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
