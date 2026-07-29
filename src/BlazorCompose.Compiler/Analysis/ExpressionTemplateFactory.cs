@@ -71,6 +71,12 @@ internal static class ExpressionTemplateFactory
             if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is IMethodSymbol { MethodKind: MethodKind.ReducedExtension } extensionMethod)
             {
+                if (ReportUnresolvedExtensionTypeArguments(invocation, context))
+                {
+                    replacedSpans.Add(invocation.Span);
+                    continue;
+                }
+
                 if (TryCreateExtensionMethodCall(invocation, extensionMethod, context, out var extensionSegments))
                     replacements.Add(new Replacement(invocation.Span, extensionSegments));
 
@@ -89,14 +95,17 @@ internal static class ExpressionTemplateFactory
             if (node is not SimpleNameSyntax name)
                 continue;
 
-            // A name inside a nameof(...) belongs to an invocation already collapsed above; it must never
-            // be rewritten on its own.
-            if (IsInsideNameof(name))
-                continue;
-
             // A receiver, method, or type-argument name inside an already-rewritten invocation (an
             // extension call, or a collapsed nameof) is owned by that whole-span replacement.
             if (IsNestedInReplaced(name.Span, replacedSpans))
+                continue;
+
+            if (TryReportUnresolvedType(name, context))
+                continue;
+
+            // A name inside a nameof(...) belongs to an invocation already collapsed above; it must never
+            // be rewritten on its own.
+            if (IsInsideNameof(name))
                 continue;
 
             // A member accessed through a receiver keeps its unqualified text (the receiver qualifies it),
@@ -167,6 +176,95 @@ internal static class ExpressionTemplateFactory
             ? ExpressionTemplate.Literal(expression.ToString())
             : Splice(expression, replacements);
     }
+
+    private static bool TryReportUnresolvedType(
+        SimpleNameSyntax name,
+        ComposableBodyContext context)
+    {
+        var alias = context.SemanticModel.GetAliasInfo(name, context.CancellationToken);
+        var type = GetReferencedType(name, context);
+        if (type is null
+            || !TypeSymbolFacts.ContainsUnresolvedType(type)
+            || (alias is null && type.TypeKind != TypeKind.Error)
+            || IsGlobalQualifiedTypeReference(name))
+        {
+            return false;
+        }
+
+        context.ReportUnresolvedType(name.Identifier.GetLocation(), name.Identifier.ValueText);
+        return true;
+    }
+
+    private static ITypeSymbol? GetReferencedType(
+        SimpleNameSyntax name,
+        ComposableBodyContext context)
+    {
+        if (context.SemanticModel.GetAliasInfo(name, context.CancellationToken)
+            is { Target: ITypeSymbol aliasType })
+        {
+            return aliasType;
+        }
+
+        if (context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol
+            is ITypeSymbol symbolType)
+        {
+            return symbolType;
+        }
+
+        if (FindTypeOnlySyntax(name) is not { } typeSyntax)
+            return null;
+
+        return context.SemanticModel.GetTypeInfo(name, context.CancellationToken).Type
+            ?? (typeSyntax.Parent is ObjectCreationExpressionSyntax creation
+                ? context.SemanticModel.GetTypeInfo(creation, context.CancellationToken).Type
+                : null);
+    }
+
+    private static TypeSyntax? FindTypeOnlySyntax(SimpleNameSyntax name)
+    {
+        TypeSyntax current = name;
+        while (current.Parent is TypeSyntax parent)
+            current = parent;
+
+        return current.Parent switch
+        {
+            TypeArgumentListSyntax arguments when arguments.Arguments.Contains(current) => current,
+            TypeOfExpressionSyntax typeOf when typeOf.Type == current => current,
+            DefaultExpressionSyntax defaultExpression when defaultExpression.Type == current => current,
+            CastExpressionSyntax cast when cast.Type == current => current,
+            ObjectCreationExpressionSyntax creation when creation.Type == current => current,
+            ArrayCreationExpressionSyntax arrayCreation when arrayCreation.Type == current => current,
+            BinaryExpressionSyntax binary
+                when binary.Right == current
+                    && (binary.IsKind(SyntaxKind.IsExpression)
+                        || binary.IsKind(SyntaxKind.AsExpression)) => current,
+            TupleElementSyntax element when element.Type == current => current,
+            ParameterSyntax parameter when parameter.Type == current => current,
+            VariableDeclarationSyntax declaration when declaration.Type == current => current,
+            _ => null,
+        };
+    }
+
+    private static bool IsGlobalQualifiedTypeReference(SimpleNameSyntax name)
+    {
+        NameSyntax current = name;
+        while (current.Parent is NameSyntax parent && OwnsName(parent, current))
+            current = parent;
+        while (current is QualifiedNameSyntax qualified)
+            current = qualified.Left;
+        return current is AliasQualifiedNameSyntax alias
+            && alias.Alias.Identifier.ValueText == "global";
+    }
+
+    private static bool OwnsName(NameSyntax parent, NameSyntax child) =>
+        parent switch
+        {
+            QualifiedNameSyntax qualified =>
+                qualified.Left == child || qualified.Right == child,
+            AliasQualifiedNameSyntax alias =>
+                alias.Alias == child || alias.Name == child,
+            _ => false,
+        };
 
     private static void AddReplacement(
         List<Replacement> replacements,
@@ -361,6 +459,33 @@ internal static class ExpressionTemplateFactory
             return null;
 
         return new LiteralExpressionSegment(SymbolDisplay.FormatLiteral(value, quote: true));
+    }
+
+    private static bool ReportUnresolvedExtensionTypeArguments(
+        InvocationExpressionSyntax invocation,
+        ComposableBodyContext context)
+    {
+        var generic = invocation.Expression switch
+        {
+            GenericNameSyntax direct => direct,
+            MemberAccessExpressionSyntax { Name: GenericNameSyntax member } => member,
+            _ => null,
+        };
+
+        if (generic is null)
+            return false;
+
+        var found = false;
+        foreach (var argument in generic.TypeArgumentList.Arguments)
+        {
+            foreach (var name in argument.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
+            {
+                if (TryReportUnresolvedType(name, context))
+                    found = true;
+            }
+        }
+
+        return found;
     }
 
     /// <summary>

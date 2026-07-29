@@ -121,4 +121,23 @@ internal sealed class ComposableBodyContext
             location,
             [MethodDisplayName, reason]));
     }
+
+    public void ReportUnresolvedType(Location location, string typeName)
+    {
+        var path = location.GetLineSpan().Path ?? string.Empty;
+        foreach (var existing in Diagnostics)
+        {
+            if (existing.Id == DiagnosticDescriptors.BC3015.Id
+                && existing.FilePath == path
+                && existing.Span == location.SourceSpan)
+            {
+                return;
+            }
+        }
+
+        Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BC3015,
+            location,
+            [typeName]));
+    }
 }

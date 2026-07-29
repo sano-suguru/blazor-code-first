@@ -217,7 +217,7 @@ internal static class RenderExpressionAnalyzer
             // to a different same-named type. Fail translation instead; the failure-path sweep in
             // ComponentModelFactory/ComposableDefinitionFactory then reports BC3012 once. Returning null
             // here also stops the Param branch from drawing a spurious BC3005 on the selector.
-            if (UnresolvedComponentTypeScanner.ContainsUnresolvedType(method.TypeArguments[0]))
+            if (TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
                 return null;
 
             var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
