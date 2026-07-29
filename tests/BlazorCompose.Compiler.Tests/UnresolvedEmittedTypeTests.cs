@@ -116,6 +116,30 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void ReorderedForEachKey_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly int[] _items = [1];
+
+                protected override View Body =>
+                    ForEach(content: i => Div(i.ToString()), source: _items, key: _ => typeof(Probe));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
     public void AttributeValue_UnresolvedType_ReportsBC3015()
     {
         const string source = """
@@ -135,6 +159,29 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
+    public void ReorderedAttrWithInvalidName_DoesNotReportValueTypeBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Div().Attr(value: typeof(Probe).Name, name: typeof(string).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
     }
 
     [Fact]
@@ -334,6 +381,28 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void LambdaParameterTypeInValue_DoesNotReportBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Div().Class((Probe value) => "x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
     public void PureOverloadFailure_UnresolvedType_DoesNotReportBC3015()
     {
         const string source = """
@@ -469,6 +538,28 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void ValueSiblingOfUnselectedInvocation_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Div().Class(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
