@@ -126,6 +126,9 @@ both channels reports BC3007.
 A real `RenderFragment` value (as opposed to a BlazorCompose `View` expression) still binds through
 the generic `.Param<TValue>` overload and is emitted verbatim.
 
+For unresolved type names inside parameter values, see
+[Values copied into generated code](./getting-started.md#values-copied-into-generated-code).
+
 ## Reads are allowed, mutation is not
 
 Both `Chrome` and `Body` (the `ComposeComponentBase` one, not the layout's routed-content

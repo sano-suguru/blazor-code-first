@@ -45,8 +45,11 @@ internal static class UnresolvedComponentTypeScanner
                 continue;
             }
 
-            if (method.TypeArguments.Length != 1 || !ContainsUnresolvedType(method.TypeArguments[0]))
+            if (method.TypeArguments.Length != 1
+                || !TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
+            {
                 continue;
+            }
 
             if (FindTypeArgumentSyntax(invocation) is not { } typeArgument)
                 continue;
@@ -60,58 +63,11 @@ internal static class UnresolvedComponentTypeScanner
     }
 
     /// <summary>
-    /// True when <paramref name="type"/> is, or structurally contains, a type that did not resolve.
-    /// </summary>
-    /// <remarks>
-    /// The <c>ContainingType</c> walk is load-bearing, not defensive: for
-    /// <c>Component&lt;Outer&lt;Missing&gt;.Inner&gt;()</c> the type argument is a resolved
-    /// <c>TypeKind.Class</c> whose <c>TypeArguments</c> is empty, and the unresolved type is only
-    /// reachable through <c>ContainingType</c>. <c>ComposableDefinitionFactory.IsUnnameableType</c>
-    /// walks it for the same class of reason. A type parameter is never unresolved — a generic
-    /// component's <c>Component&lt;TChild&gt;()</c> is supported and must not be reported.
-    /// </remarks>
-    public static bool ContainsUnresolvedType(ITypeSymbol type)
-    {
-        switch (type)
-        {
-            case { TypeKind: TypeKind.Error }:
-                return true;
-
-            case ITypeParameterSymbol:
-                return false;
-
-            // Unreachable today: Component<T>'s `where T : IComponent` constraint rejects an array, so
-            // Component<Missing[]>() fails overload resolution and never matches HtmlComponent at all
-            // (it lands on BC1003 — measured). Kept for structural completeness of the predicate.
-            case IArrayTypeSymbol array:
-                return ContainsUnresolvedType(array.ElementType);
-
-            case INamedTypeSymbol named:
-                for (var containing = named.ContainingType; containing is not null; containing = containing.ContainingType)
-                {
-                    if (ContainsUnresolvedType(containing))
-                        return true;
-                }
-
-                foreach (var argument in named.TypeArguments)
-                {
-                    if (ContainsUnresolvedType(argument))
-                        return true;
-                }
-
-                return false;
-
-            default:
-                return false;
-        }
-    }
-
-    /// <summary>
     /// Whether <paramref name="method"/> is either <c>Html.Component&lt;T&gt;()</c> overload. Both must be
     /// matched: the params form is a distinct symbol, and missing it would report BC1003 for an
     /// unresolved type argument instead of BC3012.
     /// </summary>
-    private static bool IsComponentFactory(
+    internal static bool IsComponentFactory(
         IMethodSymbol method, IMethodSymbol? parameterless, IMethodSymbol? withChildren) =>
         (parameterless is not null
             && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless))

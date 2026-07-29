@@ -2307,6 +2307,7 @@ public sealed class GeneratorTests
         // The reduced 'Select' fixes an anonymous type argument that cannot be named in generated component
         // code, so normalization is not semantics-preserving and a precise BC1002 is reported instead.
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("cannot be named", message);
         Assert.Empty(result.GeneratedSources);

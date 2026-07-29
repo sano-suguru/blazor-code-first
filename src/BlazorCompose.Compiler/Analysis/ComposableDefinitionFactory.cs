@@ -147,9 +147,11 @@ internal static class ComposableDefinitionFactory
         var body = RenderExpressionAnalyzer.Analyze(declaration.ExpressionBody!.Expression, context);
         if (body is null)
         {
-            // Same failure-path sweep as ComponentModelFactory: name an unresolved Component<T>() type
-            // argument rather than falling through to the generic "not statically sequenceable" text.
+            // Same failure-path sweep as ComponentModelFactory: report unresolved Component<T>() type
+            // arguments and value-position type references rather than falling through to the generic
+            // "not statically sequenceable" text.
             UnresolvedComponentTypeScanner.Report(declaration.ExpressionBody!.Expression, context);
+            UnresolvedValueTypeScanner.Report(declaration.ExpressionBody.Expression, context);
 
             // Prefer a specific recorded unsupported-reference diagnostic (for example a referenced local
             // that cannot exist in generated code) over the generic non-SSC message.

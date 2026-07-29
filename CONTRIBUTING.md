@@ -114,6 +114,11 @@ Enable the shared pre-push hook once per clone so this runs automatically:
   at runtime. Other `RenderFragment` parameters bind through
   `.Param(c => c.Name, content)`. BC3014 prevents design-time inert types
   (`View` / `ComponentView<T>`) from being passed to the generic `.Param`.
+- Value expressions copied into generated code must be lexical-context independent.
+  Resolved type names are normalized to `global::`-qualified names. An unresolved
+  type name that is not already rooted at `global::` reports `BC3015`; each generic
+  type argument is judged independently. Keep this separate from `BC3012`, which
+  is reserved for the render-node type argument of `Component<T>()`.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts — do not repurpose or remove them. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or

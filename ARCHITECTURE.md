@@ -125,6 +125,8 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
 
 `FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、文字列子を1つ持つ `Span`(`Span("...")`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
 
+値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBC3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
+
 `Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008、詳細は§2.7(B)と付録A)。
 
 ### 2.3 静的シーケンス可能サブセット(SSC)
@@ -448,6 +450,7 @@ public closed union ViewNode
 | BC3012 | Error   | `Component<T>()` の型引数がジェネレータ実行時に解決できない。同一プロジェクト内の `.razor` コンポーネントはRazorコンパイラ自身がソースジェネレータであるため相互に出力が見えず、常にこの状態になる。参照先プロジェクト/NuGetパッケージの `.razor` と手書きC#コンポーネントは正常に解決する。タイポや `using` 漏れの場合は同じ位置に CS0246 も報告される |
 | BC3013 | Error   | `Component<T>(children)` の `T` が子コンテンツを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
 | BC3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>`)がジェネリック `.Param` の値位置に渡された |
+| BC3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 

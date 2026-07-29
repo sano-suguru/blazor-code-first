@@ -387,6 +387,27 @@ internal static class DiagnosticDescriptors
                 + "parameters. Bind content through the RenderFragment overload of Param instead.");
 
     /// <summary>
+    /// BC3015: a type reference inside a design-time value expression could not be resolved while the
+    /// generator ran and its written form depends on lexical context absent from generated code.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BC3015 = new(
+        id: "BC3015",
+        title: "Type reference cannot be safely emitted",
+        messageFormat:
+            "'{0}' could not be resolved when the BlazorCompose generator ran and is not qualified with "
+                + "global::, so it cannot be safely emitted into generated code. Fully qualify the type, "
+                + "move a generated type to a referenced project, write it as hand-authored C#, or fix "
+                + "the name.",
+        category: "BlazorCompose",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Design-time value expressions are transplanted into a generated file with no using directives. "
+                + "Resolved type references are fully qualified, but an unresolved context-dependent name "
+                + "cannot be normalized safely. A reference rooted at global:: is already context-independent "
+                + "and remains subject to ordinary C# resolution.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static
