@@ -102,6 +102,12 @@ internal static class UnresolvedValueTypeScanner
         }
 
         var normalized = KnownSymbols.Normalize(method);
+        if (IsDecorationMethod(normalized, symbols)
+            && !IsFluentExtensionInvocation(invocation, method, context))
+        {
+            return;
+        }
+
         if (symbols.ClassMethod is not null
             && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod)))
         {
@@ -246,10 +252,75 @@ internal static class UnresolvedValueTypeScanner
         IMethodSymbol method,
         ComposableBodyContext context)
     {
+        if (!HasValidArgumentOrder(invocation, method, context))
+            return null;
+
         if (FactoryArguments.Bind(invocation, context) is { } factoryArguments)
             return BoundArguments.FromFactory(factoryArguments, method);
 
         return BoundArguments.TryBindFallback(invocation, method);
+    }
+
+    private static bool HasValidArgumentOrder(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol selectedMethod,
+        ComposableBodyContext context)
+    {
+        var method = selectedMethod.ReducedFrom ?? selectedMethod;
+        var offset = method.IsExtensionMethod
+            && IsFluentExtensionInvocation(invocation, selectedMethod, context)
+                ? 1
+                : 0;
+        var parameterCount = method.Parameters.Length - offset;
+        if (parameterCount < 0)
+            return false;
+
+        // C# allows a positional argument after a named argument only while each preceding name
+        // occupied the next positional slot. Once a name reorders the arguments, all later arguments
+        // must also be named.
+        var nextPositional = 0;
+        var hasOutOfPositionNamedArgument = false;
+
+        foreach (var argument in invocation.ArgumentList.Arguments)
+        {
+            if (argument.NameColon is { } nameColon)
+            {
+                var index = FindParameter(method, offset, nameColon.Name.Identifier.ValueText);
+                if (index < 0)
+                    return false;
+
+                if (index == nextPositional)
+                    nextPositional++;
+                else
+                    hasOutOfPositionNamedArgument = true;
+
+                continue;
+            }
+
+            if (hasOutOfPositionNamedArgument)
+                return false;
+
+            if ((uint)nextPositional < (uint)parameterCount
+                && method.Parameters[nextPositional + offset].IsParams)
+            {
+                continue;
+            }
+
+            nextPositional++;
+        }
+
+        return true;
+    }
+
+    private static int FindParameter(IMethodSymbol method, int offset, string name)
+    {
+        for (var ordinal = offset; ordinal < method.Parameters.Length; ordinal++)
+        {
+            if (method.Parameters[ordinal].Name == name)
+                return ordinal - offset;
+        }
+
+        return -1;
     }
 
     private static IMethodSymbol? TryGetRecognizedMethod(
@@ -391,6 +462,32 @@ internal static class UnresolvedValueTypeScanner
         return false;
     }
 
+    private static bool IsDecorationMethod(ISymbol method, KnownSymbols symbols) =>
+        (symbols.ClassMethod is not null
+            && SymbolEqualityComparer.Default.Equals(method, KnownSymbols.Normalize(symbols.ClassMethod)))
+        || symbols.AttributeShortcuts.ContainsKey(method)
+        || symbols.EventShortcuts.ContainsKey(method)
+        || Contains(symbols.AttrMethods, method)
+        || Contains(symbols.OnMethods, method);
+
+    private static bool IsFluentExtensionInvocation(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        ComposableBodyContext context)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax access)
+            return false;
+
+        if (method.ReducedFrom is not null)
+            return true;
+
+        // Failure recovery can return the known unreduced symbol even for fluent syntax. Distinguish
+        // that case from an unsupported static call by the receiver, not by ReducedFrom alone.
+        return context.SemanticModel.GetSymbolInfo(access.Expression, context.CancellationToken).Symbol
+                is not INamedTypeSymbol receiverType
+            || !SymbolEqualityComparer.Default.Equals(receiverType, method.ContainingType);
+    }
+
     private static ExpressionSyntax? Receiver(InvocationExpressionSyntax invocation) =>
         invocation.Expression is MemberAccessExpressionSyntax access ? access.Expression : null;
 
@@ -465,7 +562,10 @@ internal static class UnresolvedValueTypeScanner
                 int index;
                 if (argument.NameColon is { } nameColon)
                 {
-                    index = FindParameter(method, offset, nameColon.Name.Identifier.ValueText);
+                    index = UnresolvedValueTypeScanner.FindParameter(
+                        method,
+                        offset,
+                        nameColon.Name.Identifier.ValueText);
                     if (index < 0)
                         return null;
                 }
@@ -521,17 +621,6 @@ internal static class UnresolvedValueTypeScanner
         {
             method = method.ReducedFrom ?? method;
             return method.Parameters.Length - (method.IsExtensionMethod ? 1 : 0);
-        }
-
-        private static int FindParameter(IMethodSymbol method, int offset, string name)
-        {
-            for (var ordinal = offset; ordinal < method.Parameters.Length; ordinal++)
-            {
-                if (method.Parameters[ordinal].Name == name)
-                    return ordinal - offset;
-            }
-
-            return -1;
         }
     }
 }

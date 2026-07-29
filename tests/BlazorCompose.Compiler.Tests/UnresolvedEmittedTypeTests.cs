@@ -92,6 +92,57 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void OutOfPositionNamedThenUnresolvedPositional_RemainsLanguageAndBC1003Owned()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    If(then: () => Div(), Has<Probe>());
+
+                private static bool Has<T>() => true;
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS8323");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Theory]
+    [InlineData("""If(condition: typeof(Probe) == typeof(object), () => Div())""")]
+    [InlineData("""If(condition: typeof(Probe) == typeof(object), then: () => Div())""")]
+    [InlineData("""Element(tag: "section", typeof(Probe).Name)""")]
+    public void LegalNamedArgumentShapes_UnresolvedTypeStillReportsBC3015(string body)
+    {
+        var source = $$"""
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
     public void ForEachKey_UnresolvedType_ReportsBC3015()
     {
         const string source = """
@@ -159,6 +210,30 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
+    public void StaticDecorationValue_UnresolvedType_RemainsBC1003Only()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Decorations.Attr(Div(), "data-type", typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
     [Fact]
