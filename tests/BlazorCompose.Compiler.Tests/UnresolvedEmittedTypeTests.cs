@@ -69,6 +69,191 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
+    [Fact]
+    public void IfCondition_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    If(typeof(Probe) == typeof(object), () => Div());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
+    public void ForEachKey_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly int[] _items = [1];
+
+                protected override View Body =>
+                    ForEach(_items, key: _ => typeof(Probe), content: i => Div(i.ToString()));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
+    public void AttributeValue_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Div().Attr("data-type", typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
+    public void ComposableArgument_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                [Composable]
+                private static View Label(Type value) => Span(value.Name);
+
+                protected override View Body => Label(typeof(Probe));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+    }
+
+    [Fact]
+    public void LayoutChrome_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeLayoutBase
+            {
+                protected override View Chrome =>
+                    Div(Body).Class(typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+    }
+
+    [Fact]
+    public void ComposableBody_UnresolvedType_ReportsBC3015Once()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                [Composable]
+                private static View Card() => Div().Class(typeof(Probe).Name);
+
+                protected override View Body => Card();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBC3015(result, source);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+    }
+
+    [Fact]
+    public void DirectComponentUnresolvedType_RemainsBC3012Only()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Component<Probe>();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Single(result.Diagnostics, static d => d.Id == "BC3012");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void TwoLocations_ReportTwoBC3015Diagnostics()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Div().Class(typeof(Probe).Name + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var diagnostics = result.Diagnostics.Where(static d => d.Id == "BC3015").ToArray();
+
+        Assert.Equal(2, diagnostics.Length);
+        Assert.NotEqual(diagnostics[0].Location.SourceSpan, diagnostics[1].Location.SourceSpan);
+    }
+
     [Theory]
     [InlineData("typeof(Wrapper<Missing>)")]
     [InlineData("typeof(Outer<Missing>.Inner)")]
@@ -175,6 +360,16 @@ public sealed class UnresolvedEmittedTypeTests
         _ = ExpressionTemplateFactory.Create(result.Expression, context);
 
         Assert.Single(context.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    private static void AssertSingleBC3015(
+        GeneratorRunResult result,
+        string source)
+    {
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3012");
+        Assert.Empty(result.GeneratedSources);
+        Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
