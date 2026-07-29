@@ -67,7 +67,7 @@ internal static class UnresolvedComponentTypeScanner
     /// matched: the params form is a distinct symbol, and missing it would report BC1003 for an
     /// unresolved type argument instead of BC3012.
     /// </summary>
-    private static bool IsComponentFactory(
+    internal static bool IsComponentFactory(
         IMethodSymbol method, IMethodSymbol? parameterless, IMethodSymbol? withChildren) =>
         (parameterless is not null
             && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless))

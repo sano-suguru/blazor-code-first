@@ -177,7 +177,7 @@ internal static class ExpressionTemplateFactory
             : Splice(expression, replacements);
     }
 
-    private static bool TryReportUnresolvedType(
+    internal static bool TryReportUnresolvedType(
         SimpleNameSyntax name,
         ComposableBodyContext context)
     {

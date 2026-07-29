@@ -108,6 +108,7 @@ public sealed class ComponentUnresolvedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
     [Fact]
