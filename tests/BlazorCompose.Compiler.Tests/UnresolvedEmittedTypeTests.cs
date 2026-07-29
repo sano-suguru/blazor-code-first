@@ -92,6 +92,30 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void DeclarationPatternValue_UnresolvedType_ReportsBC3015AndEmitsNoSource()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Div().Class((new object() is Probe value).ToString());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC1003" or "BC3012");
+        Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
+    }
+
+    [Fact]
     public void OutOfPositionNamedThenUnresolvedPositional_RemainsLanguageAndBC1003Owned()
     {
         const string source = """
@@ -234,6 +258,30 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Empty(result.GeneratedSources);
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void RejectedDecorationValue_UnresolvedType_RemainsBC3008Owned()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Raw("<b>x</b>").Class(typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3008");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC1003" or "BC3015");
     }
 
     [Fact]
@@ -430,6 +478,51 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id is "BC1003" or "BC3005");
     }
 
+    [Theory]
+    [InlineData(
+        "Component<Real>().Param(r => _other.Kind, typeof(Probe))",
+        "BC3005")]
+    [InlineData(
+        "Component<Real>().Param(r => r.NotAParameter, typeof(Probe))",
+        "BC3006")]
+    [InlineData(
+        "Component<Real>().Param(r => r.Kind, typeof(string)).Param(r => r.Kind, typeof(Probe))",
+        "BC3007")]
+    public void RejectedParamValue_UnresolvedType_RemainsOwnedByExistingDiagnostic(
+        string body,
+        string expectedDiagnostic)
+    {
+        var source = $$"""
+            using System;
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public sealed class Real : ComponentBase
+            {
+                [Parameter]
+                public Type? Kind { get; set; }
+
+                public Type? NotAParameter { get; set; }
+            }
+
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly Real _other = new();
+
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, d => d.Id == expectedDiagnostic);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC1003" or "BC3015");
+    }
+
     [Fact]
     public void ForEachParameterDeclarationUnresolvedType_DoesNotReportBC3015()
     {
@@ -606,13 +699,12 @@ public sealed class UnresolvedEmittedTypeTests
                 private static string @nameof(Type value) => value.Name;
 
                 protected override View Body =>
-                    Div().Attr(typeof(string).Name, @nameof(typeof(Probe)));
+                    Div().Attr("data-x", @nameof(typeof(Probe)));
             }
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
@@ -648,6 +740,12 @@ public sealed class UnresolvedEmittedTypeTests
     [InlineData("new Missing()")]
     [InlineData("new object() is Missing")]
     [InlineData("new object() as Missing")]
+    [InlineData("new object() is Missing value")]
+    [InlineData("new object() switch { Missing value => value, _ => null }")]
+    [InlineData("new object() is Missing { }")]
+    [InlineData("sizeof(Missing)")]
+    [InlineData("stackalloc Missing[1]")]
+    [InlineData("default(delegate*<Missing, void>)")]
     public void ValueExpression_UnresolvedType_ReportsOnceAtSmallestName(string expression)
     {
         var result = AnalyzeValueExpression(expression);

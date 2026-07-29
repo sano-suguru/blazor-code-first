@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Threading;
 using BlazorCompose.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCompose.Compiler.Analysis;
 
@@ -16,6 +17,7 @@ internal sealed class ComposableBodyContext
     private readonly ImmutableDictionary<ISymbol, int> _parameterOrdinals;
     private readonly Dictionary<ISymbol, int> _iterationOverlay =
         new(SymbolEqualityComparer.Default);
+    private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
     private int _iterationDepth;
 
     public ComposableBodyContext(
@@ -99,6 +101,17 @@ internal sealed class ComposableBodyContext
 
         AccessRequirements.Add(requirement);
     }
+
+    /// <summary>
+    /// Records that normal route analysis reached an invocation but rejected it before its own dynamic
+    /// value was normalized. The failure scanner may still recurse into the receiver, whose diagnostics
+    /// are independent, but must not infer that the rejected invocation's value would be emitted.
+    /// </summary>
+    public void RejectUnresolvedValueRecovery(TextSpan invocationSpan) =>
+        _rejectedValueRouteSpans.Add(invocationSpan);
+
+    public bool ShouldRecoverUnresolvedValue(TextSpan invocationSpan) =>
+        !_rejectedValueRouteSpans.Contains(invocationSpan);
 
     /// <summary>
     /// Records a single declaration-time BC1002 for a body that references a symbol which cannot exist

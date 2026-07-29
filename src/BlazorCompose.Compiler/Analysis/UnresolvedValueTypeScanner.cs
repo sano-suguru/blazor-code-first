@@ -36,6 +36,7 @@ internal static class UnresolvedValueTypeScanner
             return;
 
         var symbols = context.KnownSymbols;
+        var recoverOwnValue = context.ShouldRecoverUnresolvedValue(invocation.Span);
         if (symbols.ElementTags.ContainsKey(KnownSymbols.Normalize(method)))
         {
             ScanChildren(args, context);
@@ -90,14 +91,16 @@ internal static class UnresolvedValueTypeScanner
         if (Is(method, symbols.ParamMethod))
         {
             ScanRenderExpression(Receiver(invocation), context);
-            ReportValue(args.At(1)?.Expression, context);
+            if (recoverOwnValue)
+                ReportValue(args.At(1)?.Expression, context);
             return;
         }
 
         if (Is(method, symbols.FragmentParamMethod))
         {
             ScanRenderExpression(Receiver(invocation), context);
-            ScanRenderExpression(args.At(1)?.Expression, context);
+            if (recoverOwnValue)
+                ScanRenderExpression(args.At(1)?.Expression, context);
             return;
         }
 
@@ -112,27 +115,33 @@ internal static class UnresolvedValueTypeScanner
             && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod)))
         {
             ScanRenderExpression(Receiver(invocation), context);
-            ReportValue(args.At(0)?.Expression, context);
+            if (recoverOwnValue)
+                ReportValue(args.At(0)?.Expression, context);
             return;
         }
 
         if (symbols.AttributeShortcuts.ContainsKey(normalized))
         {
             ScanRenderExpression(Receiver(invocation), context);
-            ReportValue(args.At(0)?.Expression, context);
+            if (recoverOwnValue)
+                ReportValue(args.At(0)?.Expression, context);
             return;
         }
 
         if (symbols.EventShortcuts.ContainsKey(normalized))
         {
             ScanRenderExpression(Receiver(invocation), context);
-            ReportValue(args.At(0)?.Expression, context);
+            if (recoverOwnValue)
+                ReportValue(args.At(0)?.Expression, context);
             return;
         }
 
         if (Contains(symbols.AttrMethods, normalized))
         {
             ScanRenderExpression(Receiver(invocation), context);
+            if (!recoverOwnValue)
+                return;
+
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);
             else
@@ -143,6 +152,9 @@ internal static class UnresolvedValueTypeScanner
         if (Contains(symbols.OnMethods, normalized))
         {
             ScanRenderExpression(Receiver(invocation), context);
+            if (!recoverOwnValue)
+                return;
+
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);
             else

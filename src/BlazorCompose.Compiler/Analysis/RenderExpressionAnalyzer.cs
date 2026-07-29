@@ -303,6 +303,7 @@ internal static class RenderExpressionAnalyzer
             if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
                 || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 return null;
             }
 
@@ -319,6 +320,7 @@ internal static class RenderExpressionAnalyzer
 
             if (!TryGetSelectorProperty(selector, context, out var property))
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3005, selector.GetLocation(), []));
                 return null;
@@ -326,6 +328,7 @@ internal static class RenderExpressionAnalyzer
 
             if (!IsSettableParameter(property, context))
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3006, selector.GetLocation(), [property.Name]));
                 return null;
@@ -336,6 +339,7 @@ internal static class RenderExpressionAnalyzer
             // .Param(c => c.ChildContent, null) really can put one name in each channel.
             if (HasBinding(inner, property.Name))
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3007, selector.GetLocation(), [property.Name]));
                 return null;
@@ -356,6 +360,7 @@ internal static class RenderExpressionAnalyzer
                     context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
                     context))
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3014,
                     valueExpression.GetLocation(),
@@ -385,10 +390,14 @@ internal static class RenderExpressionAnalyzer
             var inner = Analyze(decoAccess.Expression, context);
             // null: unanalyzable or already diagnosed — propagate silently (no double report).
             if (inner is null)
+            {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 return null;
+            }
 
             if (inner is not ElementTemplateNode element)
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
                 return null;
@@ -428,6 +437,7 @@ internal static class RenderExpressionAnalyzer
                 }
                 else
                 {
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
                     context.Diagnostics.Add(DiagnosticInfo.Create(
                         DiagnosticDescriptors.BC3011, firstArg.GetLocation(), []));
                     return null;
@@ -437,6 +447,7 @@ internal static class RenderExpressionAnalyzer
                 {
                     if (string.Equals(existing.Name, eventName, System.StringComparison.Ordinal))
                     {
+                        context.RejectUnresolvedValueRecovery(invocation.Span);
                         context.Diagnostics.Add(DiagnosticInfo.Create(
                             DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [eventName!]));
                         return null;
@@ -467,6 +478,7 @@ internal static class RenderExpressionAnalyzer
             }
             else
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC3011, firstArg.GetLocation(), []));
                 return null;

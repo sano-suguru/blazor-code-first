@@ -230,16 +230,23 @@ internal static class ExpressionTemplateFactory
         {
             TypeArgumentListSyntax arguments when arguments.Arguments.Contains(current) => current,
             TypeOfExpressionSyntax typeOf when typeOf.Type == current => current,
+            SizeOfExpressionSyntax sizeOf when sizeOf.Type == current => current,
             DefaultExpressionSyntax defaultExpression when defaultExpression.Type == current => current,
             CastExpressionSyntax cast when cast.Type == current => current,
             ObjectCreationExpressionSyntax creation when creation.Type == current => current,
             ArrayCreationExpressionSyntax arrayCreation when arrayCreation.Type == current => current,
+            StackAllocArrayCreationExpressionSyntax stackAlloc when stackAlloc.Type == current => current,
             BinaryExpressionSyntax binary
                 when binary.Right == current
                     && (binary.IsKind(SyntaxKind.IsExpression)
                         || binary.IsKind(SyntaxKind.AsExpression)) => current,
+            DeclarationPatternSyntax declarationPattern when declarationPattern.Type == current => current,
+            RecursivePatternSyntax recursivePattern when recursivePattern.Type == current => current,
+            TypePatternSyntax typePattern when typePattern.Type == current => current,
             TupleElementSyntax element when element.Type == current => current,
             ParameterSyntax parameter when parameter.Type == current => current,
+            FunctionPointerParameterSyntax functionPointerParameter
+                when functionPointerParameter.Type == current => current,
             VariableDeclarationSyntax declaration when declaration.Type == current => current,
             _ => null,
         };
