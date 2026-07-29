@@ -255,6 +255,224 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Theory]
+    [InlineData("Div().Attr(typeof(Probe).Name, \"value\")")]
+    [InlineData("Div().On(typeof(Probe).Name, () => { })")]
+    [InlineData("Element(typeof(Probe).Name)")]
+    public void CompileTimeOnlyFactoryArgument_UnresolvedType_DoesNotReportBC3015(string body)
+    {
+        var source = $$"""
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id is "BC3009" or "BC3011");
+    }
+
+    [Fact]
+    public void ParamSelectorUnresolvedType_DoesNotReportBC3015()
+    {
+        const string source = """
+            using BlazorCompose;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public sealed class Real : ComponentBase
+            {
+                [Parameter]
+                public string Name { get; set; } = "";
+            }
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Component<Real>().Param((Probe r) => r.Name, "value");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id is "BC1003" or "BC3005");
+    }
+
+    [Fact]
+    public void ForEachParameterDeclarationUnresolvedType_DoesNotReportBC3015()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly List<int> _items = [];
+
+                protected override View Body =>
+                    ForEach(_items, key: (Probe item) => item, content: item => Div());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void PureOverloadFailure_UnresolvedType_DoesNotReportBC3015()
+    {
+        const string source = """
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private static View Pick<T>(int value) => Div();
+
+                protected override View Body => Pick<Probe>("wrong");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void UserDefinedForEachOverloadFailure_DoesNotReportBC3015()
+    {
+        const string source = """
+            using System;
+            using System.Collections.Generic;
+            using BlazorCompose;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly List<int> _items = [];
+
+                private static View ForEach<T>(
+                    int source,
+                    Func<T, object?> key,
+                    Func<T, View> content) => Html.Div();
+
+                protected override View Body =>
+                    ForEach(_items, key: _ => typeof(Probe), content: item => Html.Div());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void QualifiedUserDefinedForEachOverloadFailure_DoesNotReportBC3015()
+    {
+        const string source = """
+            using System;
+            using System.Collections.Generic;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private readonly List<int> _items = [];
+
+                protected override View Body =>
+                    Helpers.ForEach(
+                        _items,
+                        key: _ => typeof(Probe),
+                        content: item => Div());
+
+                private static class Helpers
+                {
+                    public static View ForEach<T>(
+                        int source,
+                        Func<T, object?> key,
+                        Func<T, View> content) => Div();
+                }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Theory]
+    [InlineData("nameof(Probe)")]
+    [InlineData("typeof(global::Generated.Probe).Name")]
+    public void SelfContainedValueUnderFailingOuterRoute_DoesNotReportBC3015(string value)
+    {
+        var source = $$"""
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body => Div().Attr(typeof(string).Name, {{value}});
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
+    }
+
+    [Fact]
+    public void EscapedNameofMethod_UnresolvedType_ReportsBC3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                private static string @nameof(Type value) => value.Name;
+
+                protected override View Body =>
+                    Div().Attr(typeof(string).Name, @nameof(typeof(Probe)));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Theory]
     [InlineData("typeof(Wrapper<Missing>)")]
     [InlineData("typeof(Outer<Missing>.Inner)")]
     [InlineData("typeof(Missing[])")]

@@ -67,6 +67,7 @@ public sealed class ComponentUnresolvedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
     [Fact]
@@ -126,6 +127,7 @@ public sealed class ComponentUnresolvedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
     [Fact]
@@ -149,6 +151,7 @@ public sealed class ComponentUnresolvedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
     }
 
@@ -406,6 +409,7 @@ public sealed class ComponentUnresolvedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
     [Fact]
@@ -449,6 +453,7 @@ public sealed class ComponentUnresolvedTypeTests
 
         Assert.Equal(1, CountBC3012(result));
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 
     [Fact]
@@ -469,5 +474,6 @@ public sealed class ComponentUnresolvedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Equal(1, CountBC3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
     }
 }

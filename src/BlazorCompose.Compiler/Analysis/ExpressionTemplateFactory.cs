@@ -447,7 +447,7 @@ internal static class ExpressionTemplateFactory
     /// which is exactly what the C# compiler would have produced.  A method literally named <c>nameof</c>
     /// is not a constant, so the constant value doubles as a reliable operator check.
     /// </summary>
-    private static LiteralExpressionSegment? TryCreateNameofConstant(
+    internal static LiteralExpressionSegment? TryCreateNameofConstant(
         InvocationExpressionSyntax invocation,
         ComposableBodyContext context)
     {
