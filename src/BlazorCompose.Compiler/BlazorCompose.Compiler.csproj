@@ -15,9 +15,4 @@
                       IncludeAssets="compile; runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
 
-  <ItemGroup>
-    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
-    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-  </ItemGroup>
-
 </Project>
