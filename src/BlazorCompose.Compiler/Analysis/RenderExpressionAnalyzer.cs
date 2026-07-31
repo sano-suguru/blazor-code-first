@@ -1052,9 +1052,9 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c> or a
-    /// <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its value verbatim, so such a
-    /// value would bind the empty marker instead of content.
+    /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c>,
+    /// <c>ElementBuilder</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
+    /// value verbatim, so such a value would bind the empty marker instead of content.
     /// </summary>
     private static bool IsInertDesignTimeType(ITypeSymbol? type, ComposableBodyContext context)
     {
@@ -1065,6 +1065,14 @@ internal static class RenderExpressionAnalyzer
 
         if (symbols.ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType))
             return true;
+
+        // A childless element is an ElementBuilder rather than a View, so without this arm
+        // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
+        if (symbols.ElementBuilderType is { } elementBuilderType
+            && SymbolEqualityComparer.Default.Equals(type, elementBuilderType))
+        {
+            return true;
+        }
 
         return symbols.ComponentViewType is { } componentViewType
             && type is INamedTypeSymbol named

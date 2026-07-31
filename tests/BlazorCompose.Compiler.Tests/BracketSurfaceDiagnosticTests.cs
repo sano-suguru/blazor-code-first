@@ -22,6 +22,7 @@ public sealed class BracketSurfaceDiagnosticTests
             [Parameter] public string Title { get; set; } = "";
             [Parameter] public RenderFragment? ChildContent { get; set; }
             [Parameter] public RenderFragment? Footer { get; set; }
+            [Parameter] public object? Payload { get; set; }
         }
         """;
 
@@ -115,5 +116,83 @@ public sealed class BracketSurfaceDiagnosticTests
 
         Assert.Equal(1, diagnostics.Count(static d => d.Id == "BC3012"));
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void UnresolvedValueType_InsideABracketedElement_ReportsBC3015()
+    {
+        // The value sweep runs from the body's root. With the root an element access rather than an
+        // invocation it used to return immediately, taking the whole sweep with it.
+        var diagnostics = RunWithExpectedErrors(
+            """Div.Class(MissingMethod() + typeof(Probe).Name)["x"]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void UnresolvedValueType_InsideABracketedChild_ReportsBC3015()
+    {
+        var diagnostics = RunWithExpectedErrors(
+            """Div[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void NonConstantElementTag_WithBracketedChildren_ReportsBC3009AndNotBC3015()
+    {
+        // The pairing between the indexer arm's RejectUnresolvedValueRecovery and the sweep's
+        // ShouldRecoverUnresolvedValue: the construct already reported its own diagnostic, so sweeping it a
+        // second time would report BC3015 on the same expression.
+        var diagnostics = RunWithExpectedErrors("""Element(typeof(Probe).Name)["x"]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3009");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void ScalarParam_ElementBuilderValue_ReportsBC3014()
+    {
+        // ElementBuilder is as inert as View: the generic Param emits its value verbatim, so without this
+        // the marker binds in place of content and renders silently wrong.
+        var diagnostics = Run("""Component<Card>().Param(c => c.Payload, Div)""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3014" && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public void Composable_WithAnElementBuilderParameter_IsRejected()
+    {
+        var diagnostics = Run(
+            """Card(Span)""",
+            """
+            [Composable]
+            private static View Card(ElementBuilder slot) => Div[slot];
+            """);
+
+        var rejection = Assert.Single(diagnostics, static d => d.Id == "BC1002");
+        Assert.Contains(
+            "ElementBuilder parameters are unsupported",
+            rejection.GetMessage(System.Globalization.CultureInfo.InvariantCulture),
+            System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WholeCollectionPassedInBrackets_ReportsBC1003()
+    {
+        var diagnostics = Run("""Div[_children]""", """private readonly View[] _children = [];""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC1003");
+    }
+
+    [Fact]
+    public void CollectionExpressionLiteralInBrackets_ReportsBC1003()
+    {
+        // A nested collection-expression literal also binds non-expanded, so it is one whole collection
+        // rather than two children. Brackets make the typo easier to write than the method form did; the
+        // current behaviour is pinned here, not endorsed.
+        var diagnostics = Run("""Div[["a", "b"]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC1003");
     }
 }

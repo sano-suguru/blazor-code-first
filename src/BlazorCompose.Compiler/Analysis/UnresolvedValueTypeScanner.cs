@@ -26,6 +26,15 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
+        // Children written in brackets. This has to come before the invocation guard below, which used to
+        // be the first thing here: with children in brackets the body's own root is an element access, so
+        // returning at it took the entire sweep with it and every diagnostic below went silent.
+        if (expression is ElementAccessExpressionSyntax elementAccess)
+        {
+            ScanChildrenIndexer(elementAccess, context);
+            return;
+        }
+
         if (expression is not InvocationExpressionSyntax invocation
             || TryGetRecognizedMethod(invocation, context) is not { } method)
         {
@@ -169,6 +178,30 @@ internal static class UnresolvedValueTypeScanner
         }
     }
 
+    /// <summary>
+    /// Scans an element access whose indexer is one of the design-time surface's.  Both indexers —
+    /// <c>ElementBuilder</c>'s and <c>ComponentView&lt;T&gt;</c>'s — take the same route: the receiver carries
+    /// the tag, the decoration chain or the <c>.Param</c> chain and is scanned as an expression in its own
+    /// right, and the bracketed arguments are the children.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here is gated on <see cref="ComposableBodyContext.ShouldRecoverUnresolvedValue"/>.  That gate
+    /// exists so an arm does not re-report a value it already diagnosed, and this route has no value of its
+    /// own: the tag belongs to the receiver, which carries its own gate.  Gating the children on it would
+    /// silence expressions the rejection was never about.
+    /// </remarks>
+    private static void ScanChildrenIndexer(
+        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    {
+        if (TryGetRecognizedIndexer(elementAccess, context) is not { } indexer)
+            return;
+
+        ScanRenderExpression(elementAccess.Expression, context);
+
+        if (BindIndexerArguments(elementAccess, indexer, context) is { } args)
+            ScanChildren(args, context);
+    }
+
     private static bool IsTextOrRenderFragment(ExpressionSyntax expression, ComposableBodyContext context)
     {
         var type = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
@@ -224,10 +257,20 @@ internal static class UnresolvedValueTypeScanner
     private static bool IsLambdaParameterDeclaration(SimpleNameSyntax name) =>
         name.AncestorsAndSelf().OfType<ParameterSyntax>().Any(parameter => parameter.Type?.Span.Contains(name.Span) == true);
 
+    // An element access counts as much as an invocation: with children in brackets, an unresolvable call
+    // enclosing a name is as likely to be spelled Div[…] as Div(…), and a name inside one is emitted by
+    // neither.
     private static bool IsInsideUnselectedInvocation(SimpleNameSyntax name, ComposableBodyContext context) =>
-        name.Ancestors().OfType<InvocationExpressionSyntax>().Any(invocation =>
-            context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null
-                && TryGetRecognizedMethod(invocation, context) is null);
+        name.Ancestors().Any(ancestor => ancestor switch
+        {
+            InvocationExpressionSyntax invocation =>
+                context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null
+                    && TryGetRecognizedMethod(invocation, context) is null,
+            ElementAccessExpressionSyntax elementAccess =>
+                context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken).Symbol is null
+                    && TryGetRecognizedIndexer(elementAccess, context) is null,
+            _ => false,
+        });
 
     // The caller did not select a decoration route, but a deliberately invoked user method in its value
     // still has its own source expression and must retain diagnostics (notably an escaped @nameof method).
@@ -237,17 +280,34 @@ internal static class UnresolvedValueTypeScanner
         if (expression is null)
             return;
 
-        foreach (var invocation in expression.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+        foreach (var node in expression.DescendantNodesAndSelf())
         {
-            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is IMethodSymbol
-                && TryGetRecognizedMethod(invocation, context) is null)
+            // An indexer counts too, and its arguments are just as much its own source expressions: a
+            // View-valued _dict["k"] in a decoration value is the bracket-surface analogue of the call this
+            // was written for.
+            var arguments = node switch
             {
-                foreach (var argument in invocation.ArgumentList.Arguments)
-                    ReportValue(argument.Expression, context);
-            }
+                InvocationExpressionSyntax invocation
+                    when context.SemanticModel.GetSymbolInfo(
+                            invocation, context.CancellationToken).Symbol is IMethodSymbol
+                        && TryGetRecognizedMethod(invocation, context) is null =>
+                    invocation.ArgumentList.Arguments,
+                ElementAccessExpressionSyntax elementAccess
+                    when context.SemanticModel.GetSymbolInfo(
+                            elementAccess, context.CancellationToken).Symbol is IPropertySymbol
+                        && TryGetRecognizedIndexer(elementAccess, context) is null =>
+                    elementAccess.ArgumentList.Arguments,
+                _ => default,
+            };
+
+            foreach (var argument in arguments)
+                ReportValue(argument.Expression, context);
         }
     }
 
+    // Not extended to element access, unlike its neighbours: `nameof` is a contextual keyword invoked with
+    // parentheses, so a nameof constant is always an InvocationExpressionSyntax and TryCreateNameofConstant
+    // takes one.
     private static bool IsInsideNameofConstant(SimpleNameSyntax name, ComposableBodyContext context) =>
         name.Ancestors().OfType<InvocationExpressionSyntax>().Any(invocation =>
             ExpressionTemplateFactory.TryCreateNameofConstant(invocation, context) is not null
@@ -268,9 +328,31 @@ internal static class UnresolvedValueTypeScanner
             return null;
 
         if (FactoryArguments.Bind(invocation, context) is { } factoryArguments)
-            return BoundArguments.FromFactory(factoryArguments, method);
+            return BoundArguments.FromFactory(factoryArguments, WrittenParameterCount(method));
 
         return BoundArguments.TryBindFallback(invocation, method);
+    }
+
+    /// <summary>
+    /// Binds an indexer's bracketed arguments.  The fallback binder matters more here than anywhere else:
+    /// this scanner exists for compilations where symbol resolution failed, and the
+    /// <see cref="FactoryArguments"/> overload requires an <c>IPropertyReferenceOperation</c>, which is
+    /// exactly what is unavailable then.
+    /// </summary>
+    private static BoundArguments? BindIndexerArguments(
+        ElementAccessExpressionSyntax elementAccess,
+        IPropertySymbol indexer,
+        ComposableBodyContext context)
+    {
+        // An indexer is never an extension method, so the receiver offset is always 0.
+        var parameters = indexer.Parameters;
+        if (!HasValidArgumentOrder(elementAccess.ArgumentList, parameters, offset: 0))
+            return null;
+
+        if (FactoryArguments.Bind(elementAccess, context) is { } factoryArguments)
+            return BoundArguments.FromFactory(factoryArguments, parameters.Length);
+
+        return BoundArguments.TryBindFallback(elementAccess.ArgumentList, parameters, offset: 0);
     }
 
     private static bool HasValidArgumentOrder(
@@ -283,7 +365,16 @@ internal static class UnresolvedValueTypeScanner
             && IsFluentExtensionInvocation(invocation, selectedMethod, context)
                 ? 1
                 : 0;
-        var parameterCount = method.Parameters.Length - offset;
+
+        return HasValidArgumentOrder(invocation.ArgumentList, method.Parameters, offset);
+    }
+
+    private static bool HasValidArgumentOrder(
+        BaseArgumentListSyntax argumentList,
+        ImmutableArray<IParameterSymbol> parameters,
+        int offset)
+    {
+        var parameterCount = parameters.Length - offset;
         if (parameterCount < 0)
             return false;
 
@@ -293,11 +384,11 @@ internal static class UnresolvedValueTypeScanner
         var nextPositional = 0;
         var hasOutOfPositionNamedArgument = false;
 
-        foreach (var argument in invocation.ArgumentList.Arguments)
+        foreach (var argument in argumentList.Arguments)
         {
             if (argument.NameColon is { } nameColon)
             {
-                var index = FindParameter(method, offset, nameColon.Name.Identifier.ValueText);
+                var index = FindParameter(parameters, offset, nameColon.Name.Identifier.ValueText);
                 if (index < 0)
                     return false;
 
@@ -313,7 +404,7 @@ internal static class UnresolvedValueTypeScanner
                 return false;
 
             if ((uint)nextPositional < (uint)parameterCount
-                && method.Parameters[nextPositional + offset].IsParams)
+                && parameters[nextPositional + offset].IsParams)
             {
                 continue;
             }
@@ -324,15 +415,22 @@ internal static class UnresolvedValueTypeScanner
         return true;
     }
 
-    private static int FindParameter(IMethodSymbol method, int offset, string name)
+    private static int FindParameter(
+        ImmutableArray<IParameterSymbol> parameters, int offset, string name)
     {
-        for (var ordinal = offset; ordinal < method.Parameters.Length; ordinal++)
+        for (var ordinal = offset; ordinal < parameters.Length; ordinal++)
         {
-            if (method.Parameters[ordinal].Name == name)
+            if (parameters[ordinal].Name == name)
                 return ordinal - offset;
         }
 
         return -1;
+    }
+
+    private static int WrittenParameterCount(IMethodSymbol method)
+    {
+        method = method.ReducedFrom ?? method;
+        return method.Parameters.Length - (method.IsExtensionMethod ? 1 : 0);
     }
 
     private static IMethodSymbol? TryGetRecognizedMethod(
@@ -381,6 +479,79 @@ internal static class UnresolvedValueTypeScanner
             ? context.KnownSymbols.HtmlForEach
             : null;
     }
+
+    /// <summary>
+    /// The design-time indexer <paramref name="elementAccess"/> resolves to, or <see langword="null"/> for any
+    /// other indexer — an unrelated <c>_dict["k"]</c> must not be read as children.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <see cref="TryGetRecognizedMethod"/>'s failure recovery, for the same reason: this scanner runs
+    /// on compilations where resolution failed, so the selected symbol is often absent.  The last resort is
+    /// the receiver's type, which still resolves when the access itself does not.
+    /// </remarks>
+    private static IPropertySymbol? TryGetRecognizedIndexer(
+        ElementAccessExpressionSyntax elementAccess,
+        ComposableBodyContext context)
+    {
+        var symbolInfo = context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken);
+        if (symbolInfo.Symbol is IPropertySymbol { IsIndexer: true } selected
+            && IsRecognized(selected, context.KnownSymbols))
+        {
+            return selected;
+        }
+
+        foreach (var symbol in symbolInfo.CandidateSymbols)
+        {
+            if (symbol is IPropertySymbol { IsIndexer: true } candidate
+                && IsRecognized(candidate, context.KnownSymbols))
+            {
+                return candidate;
+            }
+        }
+
+        var receiverType = context.SemanticModel
+            .GetTypeInfo(elementAccess.Expression, context.CancellationToken).Type;
+
+        return FindIndexerByReceiverType(receiverType, context.KnownSymbols);
+    }
+
+    /// <summary>
+    /// The known indexer declared by <paramref name="receiverType"/>, matched through the type rather than
+    /// through the access's own symbol.  Guarded on each known type being present:
+    /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
+    /// <c>x</c>, so against a runtime without the bracket surface an unguarded comparison would match every
+    /// indexer whose receiver type failed to resolve.
+    /// </summary>
+    private static IPropertySymbol? FindIndexerByReceiverType(
+        ITypeSymbol? receiverType, KnownSymbols symbols)
+    {
+        if (receiverType is null)
+            return null;
+
+        var definition = receiverType.OriginalDefinition;
+
+        if (symbols.ElementIndexer is { } elementIndexer
+            && symbols.ElementBuilderType is { } elementBuilderType
+            && SymbolEqualityComparer.Default.Equals(definition, elementBuilderType))
+        {
+            return elementIndexer;
+        }
+
+        if (symbols.ComponentIndexer is { } componentIndexer
+            && symbols.ComponentViewType is { } componentViewType
+            && SymbolEqualityComparer.Default.Equals(definition, componentViewType))
+        {
+            return componentIndexer;
+        }
+
+        return null;
+    }
+
+    private static bool IsRecognized(IPropertySymbol indexer, KnownSymbols symbols) =>
+        (symbols.ElementIndexer is { } elementIndexer
+            && SymbolEqualityComparer.Default.Equals(indexer.OriginalDefinition, elementIndexer))
+        || (symbols.ComponentIndexer is { } componentIndexer
+            && SymbolEqualityComparer.Default.Equals(indexer.OriginalDefinition, componentIndexer));
 
     private static bool IsHtmlForEachInScope(
         InvocationExpressionSyntax invocation,
@@ -541,9 +712,8 @@ internal static class UnresolvedValueTypeScanner
                 ? expression.FirstAncestorOrSelf<ArgumentSyntax>()
                 : null;
 
-        public static BoundArguments FromFactory(FactoryArguments arguments, IMethodSymbol method)
+        public static BoundArguments FromFactory(FactoryArguments arguments, int declaredCount)
         {
-            var declaredCount = WrittenParameterCount(method);
             var byParameter = ImmutableArray.CreateBuilder<ExpressionSyntax?>(declaredCount);
             for (var index = 0; index < declaredCount; index++)
                 byParameter.Add(arguments.At(index)?.Expression);
@@ -559,8 +729,22 @@ internal static class UnresolvedValueTypeScanner
             IMethodSymbol selectedMethod)
         {
             var method = selectedMethod.ReducedFrom ?? selectedMethod;
-            var offset = method.IsExtensionMethod ? 1 : 0;
-            var declaredCount = method.Parameters.Length - offset;
+            return TryBindFallback(
+                invocation.ArgumentList, method.Parameters, method.IsExtensionMethod ? 1 : 0);
+        }
+
+        /// <summary>
+        /// Binds an argument list to declared parameters without asking Roslyn for an operation, for the
+        /// compilations this scanner exists for: where symbol resolution failed and
+        /// <c>GetOperation</c> is unusable.  A <see cref="BracketedArgumentListSyntax"/> binds through the
+        /// same code as a parenthesized one — the C# positional/named rules do not differ between them.
+        /// </summary>
+        public static BoundArguments? TryBindFallback(
+            BaseArgumentListSyntax argumentList,
+            ImmutableArray<IParameterSymbol> parameters,
+            int offset)
+        {
+            var declaredCount = parameters.Length - offset;
             if (declaredCount < 0)
                 return null;
 
@@ -569,13 +753,13 @@ internal static class UnresolvedValueTypeScanner
             var hasExplicitParams = false;
             var nextPositional = 0;
 
-            foreach (var argument in invocation.ArgumentList.Arguments)
+            foreach (var argument in argumentList.Arguments)
             {
                 int index;
                 if (argument.NameColon is { } nameColon)
                 {
                     index = UnresolvedValueTypeScanner.FindParameter(
-                        method,
+                        parameters,
                         offset,
                         nameColon.Name.Identifier.ValueText);
                     if (index < 0)
@@ -592,7 +776,7 @@ internal static class UnresolvedValueTypeScanner
                 if ((uint)index >= (uint)declaredCount)
                     return null;
 
-                var parameter = method.Parameters[index + offset];
+                var parameter = parameters[index + offset];
                 if (parameter.IsParams)
                 {
                     if (argument.NameColon is not null)
@@ -627,12 +811,6 @@ internal static class UnresolvedValueTypeScanner
                 ImmutableArray.Create(byParameter),
                 paramsElements.ToImmutable(),
                 hasExplicitParams);
-        }
-
-        private static int WrittenParameterCount(IMethodSymbol method)
-        {
-            method = method.ReducedFrom ?? method;
-            return method.Parameters.Length - (method.IsExtensionMethod ? 1 : 0);
         }
     }
 }
