@@ -64,6 +64,21 @@ A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
 listed there or excluded with a reason.
 
+`SnapshotCorpusTests` compares the generator's complete emitted source against
+baselines committed under `tests/BlazorCompose.Compiler.Tests/Snapshots`, which
+pins sequence numbers and frame order in a way the substring assertions
+elsewhere cannot. When a change to the emitter is intended, rewrite them:
+
+```bash
+BLAZORCOMPOSE_UPDATE_SNAPSHOTS=1 \
+  dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj \
+  --filter FullyQualifiedName~SnapshotCorpusTests
+```
+
+That still fails the run after writing, by design — review the resulting diff,
+then re-run without the variable. A baseline is only meaningful if changing it
+is a deliberate, reviewed act.
+
 Packaging and trimming:
 
 ```bash

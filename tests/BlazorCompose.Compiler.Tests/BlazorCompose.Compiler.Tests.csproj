@@ -20,6 +20,19 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!--
+    Snapshots/ holds committed baselines of generated source (see GeneratedSourceSnapshot). They are C#
+    by extension so a reviewer reads them with highlighting, but they must not be compiled: each declares
+    the same partial type as the test input that produced it, so the SDK's default glob would pull in
+    duplicate definitions. Keeping them out of Compile also keeps them out of `dotnet format`'s document
+    set, which is required — the emitter writes no final newline while .editorconfig asks for one.
+    Removing this exclusion produces duplicate-definition errors whose cause is not obvious from them.
+  -->
+  <ItemGroup>
+    <Compile Remove="Snapshots\**" />
+    <None Include="Snapshots\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\BlazorCompose.Compiler\BlazorCompose.Compiler.csproj" />
     <ProjectReference Include="..\..\src\BlazorCompose.Runtime\BlazorCompose.Runtime.csproj" />
