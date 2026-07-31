@@ -94,51 +94,62 @@ public sealed class DiagnosticPipelineTests
         Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
-    [Fact]
-    public void Bc1003_Location_PointsAtTheInnermostUntranslatableExpression()
+    /// <summary>
+    /// A component whose <c>Body</c> is <c>$BODY$</c>, with an untranslatable call available at every
+    /// position a recursive descent can reach.
+    /// </summary>
+    private const string InnermostFailureHost = """
+        using System.Collections.Generic;
+        using BlazorCompose;
+        using Microsoft.AspNetCore.Components;
+        using static BlazorCompose.Html;
+        namespace T;
+        public class Card : ComponentBase
+        {
+            [Parameter] public string Title { get; set; } = "";
+            [Parameter] public RenderFragment? ChildContent { get; set; }
+            [Parameter] public RenderFragment? Footer { get; set; }
+        }
+        public partial class Host : ComposeComponentBase
+        {
+            private readonly List<int> _xs = new();
+            private bool Flag => true;
+            protected override View Body => $BODY$;
+            private static View Opaque() => default;
+            private static ComponentView<Card> OpaqueComponent() => default;
+        }
+        """;
+
+    // One row per recursive descent in RenderExpressionAnalyzer, with the untranslatable call placed
+    // directly at that descent so the descent itself is load-bearing: route any one of them past the
+    // recording wrapper and the reported span moves out to the enclosing factory. The whole argument
+    // for blaming the innermost expression is that every descent goes through Analyze rather than
+    // Classify, and before this the only thing asserting that was a comment.
+    [Theory]
+    [InlineData("element children", """Div(Span("ok"), Opaque())""", "Opaque()")]
+    [InlineData("If then branch", """If(Flag, then: () => Opaque())""", "Opaque()")]
+    [InlineData(
+        "If otherwise branch",
+        """If(Flag, then: () => Span("ok"), otherwise: () => Opaque())""",
+        "Opaque()")]
+    [InlineData("ForEach content", """ForEach(_xs, key: x => x, content: x => Opaque())""", "Opaque()")]
+    [InlineData("Component<T> children", """Component<Card>(Opaque())""", "Opaque()")]
+    [InlineData("Fragment children", """Fragment(Span("ok"), Opaque())""", "Opaque()")]
+    [InlineData("Param receiver", """OpaqueComponent().Param(c => c.Title, "t")""", "OpaqueComponent()")]
+    [InlineData("fragment Param value", """Component<Card>().Param(c => c.Footer, Opaque())""", "Opaque()")]
+    [InlineData("decorator receiver", """Opaque().Class("c")""", "Opaque()")]
+    public void Bc1003_Location_BlamesTheInnermostFailure_OnEveryRecursiveDescent(
+        string descent, string body, string expectedAnchor)
     {
-        // The whole Body is untranslatable because one leaf is. Blaming the outermost factory would
-        // squiggle the entire expression and leave the author to find the leaf; the deepest expression
-        // that failed to translate is the one to click.
-        const string source = """
-            using static BlazorCompose.Html;
-            public partial class P : BlazorCompose.ComposeComponentBase
-            {
-                protected override BlazorCompose.View Body =>
-                    Div(
-                        Span("fine"),
-                        Section(Opaque()));
-                private static BlazorCompose.View Opaque() => default;
-            }
-            """;
+        var source = InnermostFailureHost.Replace("$BODY$", body);
 
         var result = CompilationTestHost.RunGenerator(source);
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var actual = SourceText.From(source).ToString(diagnostic.Location.SourceSpan);
 
-        Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
-    }
-
-    [Fact]
-    public void Bc1003_Location_ReachesInsideAForEachContentLambda()
-    {
-        // Control-flow factories analyze their content through the same recursive entry point, so the
-        // innermost-wins rule has to survive a lambda body rather than stopping at the ForEach call.
-        const string source = """
-            using System.Collections.Generic;
-            using static BlazorCompose.Html;
-            public partial class P : BlazorCompose.ComposeComponentBase
-            {
-                private readonly List<int> _xs = new();
-                protected override BlazorCompose.View Body =>
-                    ForEach(_xs, key: x => x, content: x => Div(Opaque()));
-                private static BlazorCompose.View Opaque() => default;
-            }
-            """;
-
-        var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
-
-        Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
+        Assert.True(
+            string.Equals(actual, expectedAnchor, System.StringComparison.Ordinal),
+            $"{descent}: expected BC1003 at `{expectedAnchor}`, got `{actual}`.");
     }
 
     [Fact]

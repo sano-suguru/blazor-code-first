@@ -65,6 +65,15 @@ internal sealed class ComposableBodyContext
     /// first failure recorded is the innermost one and every enclosing failure is a consequence of it.
     /// This is what gives BC1003 a location — it is raised after classification, where no syntax remains.
     /// </summary>
+    /// <remarks>
+    /// "First" resolves depth, not source order.  Between siblings at the same depth it is analysis order
+    /// that wins, and those differ where arguments are named: <c>If(c, otherwise: o, then: t)</c> analyzes
+    /// <c>then</c> first and never reaches <c>otherwise</c>, so <c>t</c> is blamed even though <c>o</c> is
+    /// written earlier.  Both are genuinely untranslatable, so this picks between real culprits rather
+    /// than mislocating one.  Note that ordering by source position instead would invert the rule this
+    /// exists for: recording runs bottom-up, and an enclosing factory always starts before the expression
+    /// nested in it, so the outermost failure would win every time.
+    /// </remarks>
     public Location? UntranslatableLocation { get; private set; }
 
     /// <summary>

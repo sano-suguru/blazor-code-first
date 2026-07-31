@@ -795,6 +795,50 @@ public sealed class IncrementalGeneratorTests
                 disabledOutputs: default,
                 trackIncrementalGeneratorSteps: true));
 
+    /// <summary>
+    /// A component that translates cleanly must stay cached when an edit shifts its absolute offsets
+    /// without changing it.  <see cref="ComponentAnalysis.FailureLocation"/> is the coordinate-bearing
+    /// field this could regress through: it exists to locate BC1003 (#77) and is populated only on the
+    /// failure path, so a healthy component must keep contributing nothing to the cache key.  Move that
+    /// assignment out of its <c>template is null</c> guard and every component in the compilation becomes
+    /// sensitive to a blank line inserted anywhere above it.
+    /// </summary>
+    [Fact]
+    public void IncrementalGenerator_WhenAnEditOnlyShiftsOffsets_CachesTheTranslatedComponent()
+    {
+        // Deliberately a body with no ForEach and no [Composable] call: those template nodes carry a
+        // TemplateLocation of their own, which is a separate and intended source of offset sensitivity.
+        var before = CSharpSyntaxTree.ParseText(
+            ComponentASource,
+            CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
+            path: "ComponentA.cs");
+
+        var after = CSharpSyntaxTree.ParseText(
+            "\n" + ComponentASource,
+            CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
+            path: "ComponentA.cs");
+
+        var compilation = CreateCompilation(before);
+
+        var driver = CreateDriver().RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation.ReplaceSyntaxTree(before, after), out _, out _);
+
+        // Asserted on ComponentAnalysis, not ComponentModeling: the edited tree forces the syntax
+        // transform to re-run either way, so what is being tested is whether the value it produces is
+        // equal. Downstream, an unequal ComponentAnalysis that still expands to an equal model reports
+        // Unchanged rather than Modified, which would hide exactly the regression this guards.
+        var outputs = driver.GetRunResult().Results[0].TrackedSteps["ComponentAnalysis"]
+            .SelectMany(static step => step.Outputs)
+            .ToImmutableArray();
+
+        Assert.NotEmpty(outputs);
+        Assert.All(outputs, output =>
+            Assert.True(
+                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"Expected Cached/Unchanged after an offset-only edit but got {output.Reason}"));
+    }
+
     private static ComposableRegistry ExtractRegistry(params SyntaxTree[] trees)
     {
         var compilation = CreateCompilation(trees);

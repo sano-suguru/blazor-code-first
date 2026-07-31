@@ -86,7 +86,10 @@ internal static class ComponentModelFactory
                     DiagnosticInfo.Create(
                         DiagnosticDescriptors.BC1005,
                         elected.Identifier.GetLocation(),
-                        [symbol.Name, expressionName])));
+                        [symbol.Name, expressionName])),
+                // Rejected before the design-time expression was classified, and BC1005 above is located,
+                // so Expand's BC1003 is suppressed rather than reported without one.
+                FailureLocation: null);
         }
 
         // The generated RenderView joins this class, which requires `partial`. Reported here, from the
@@ -109,7 +112,9 @@ internal static class ComponentModelFactory
                     DiagnosticInfo.Create(
                         DiagnosticDescriptors.BC1001,
                         classDeclaration.Identifier.GetLocation(),
-                        [symbol.Name, expressionName, composeBase.Name])));
+                        [symbol.Name, expressionName, composeBase.Name])),
+                // As above: BC1001 is located and suppresses BC1003.
+                FailureLocation: null);
         }
 
         var shape = FindDesignTimeExpression(
@@ -135,7 +140,10 @@ internal static class ComponentModelFactory
                     DiagnosticInfo.Create(
                         DiagnosticDescriptors.BC1004,
                         getterLocation ?? Location.None,
-                        [symbol.Name, expressionName])));
+                        [symbol.Name, expressionName])),
+                // As above: BC1004 is located and suppresses BC1003. There is also no expression to
+                // blame here — the getter never reduced to one, which is what BC1004 says.
+                FailureLocation: null);
         }
 
         // Resolve the BlazorCompose.Html factory symbols only once the candidate is confirmed to be a
