@@ -98,7 +98,8 @@ jobs:
         run: dotnet test site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj
 
       # site/ sits outside BlazorCompose.slnx, so it is outside the repository's main
-      # `dotnet format` gate (see AGENTS.md). This step closes that gap for the site projects.
+      # `dotnet format` gate (see CONTRIBUTING.md, "Code style"). This step closes that gap for
+      # the site projects.
       # `dotnet format` requires a restored project; restore is left implicit here (no
       # --no-restore) rather than adding a separate restore step, since each `dotnet format`
       # invocation below already restores its own project on demand.

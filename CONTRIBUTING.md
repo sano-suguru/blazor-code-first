@@ -200,8 +200,8 @@ milestone. That is a valid state rather than an oversight.
   specified ahead of its implementation. The 種別 column is checked against
   `DefaultSeverity`, so changing a diagnostic's severity is a change to the table
   as well. The other prose that states a
-  diagnostic's scope — this file, `AGENTS.md`, `DESIGN.md`, and the public XML
-  docs — cannot be checked mechanically, so update it in the same change.
+  diagnostic's scope — this file, `DESIGN.md`, and the public XML docs — cannot
+  be checked mechanically, so update it in the same change.
 
 ## Engineering standard
 
