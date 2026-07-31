@@ -200,5 +200,14 @@ isolated behind `#if NET11_0_OR_GREATER` with matching tests.
 
 Test behavior at the appropriate layer: runtime unit tests, generator/analyzer
 tests that inspect generated source and diagnostics, integration tests against
-Blazor rendering, and benchmarks only for performance claims. Documentation and
-source comments are written in English.
+Blazor rendering, and benchmarks only for performance claims. Test methods are
+named `SubjectOrMethod_Scenario_ExpectedBehavior`, and they prefer observable
+behavior with real, deterministic collaborators over interaction-based mocks —
+test doubles are reserved for boundaries such as remote services, wall-clock
+time, and randomness. Compiler tests are the exception that may reach past
+observable behavior into generated source, sequence numbers, incremental cache
+behavior, and diagnostic spans, because those are architectural contracts. Test
+files may correspond to production types, but a one-to-one file mapping is not
+required; group tests by cohesive capability.
+
+Documentation and source comments are written in English.
