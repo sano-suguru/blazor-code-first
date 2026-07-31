@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- See GeneratorDelivery.Package for why restore is isolated and the dev version is purged. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/nuget-packages</RestorePackagesPath>
+    <_BlazorComposeDevCachePath>$(RestorePackagesPath)/blazorcompose/0.1.0-dev</_BlazorComposeDevCachePath>
+  </PropertyGroup>
+
+  <!-- The analyzer-reported half of the package delivery path: the same source as
+       AnalyzerDelivery.ProjectReference, and the same rule that it must stay free of declaration
+       errors or the analyzer driver never runs. -->
+  <ItemGroup>
+    <Compile Include="../AnalyzerDelivery.ProjectReference/Mutating.cs" Link="Mutating.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BlazorCompose" />
+  </ItemGroup>
+
+  <Target Name="PurgeBlazorComposeDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <RemoveDir Directories="$(_BlazorComposeDevCachePath)" Condition="Exists('$(_BlazorComposeDevCachePath)')" />
+  </Target>
+
+</Project>

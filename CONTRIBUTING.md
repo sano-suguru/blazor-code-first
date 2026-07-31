@@ -13,7 +13,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 
 ## Solution layout
 
-`BlazorCompose.slnx` contains six projects:
+`BlazorCompose.slnx` contains seven projects:
 
 - `src/BlazorCompose.Runtime` — runtime types (`ComposeComponentBase`, the
   inert `View` factories and decorators, `Component<T>` interop).
@@ -21,7 +21,15 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 - `tests/BlazorCompose.Runtime.Tests`, `tests/BlazorCompose.Compiler.Tests`,
   `tests/BlazorCompose.IntegrationTests` — unit, generator/analyzer, and
   Blazor-rendering tests.
+- `tests/BlazorCompose.DiagnosticTests` — end-to-end diagnostic verification: it
+  builds the deliberately broken projects under `tests/diagnostic-fixtures` with
+  real MSBuild and asserts on what the compiler actually reported. The other
+  diagnostic tests drive the generator in-process and cannot see whether a
+  diagnostic reaches a build at all.
 - `samples/BlazorCompose.Samples.Counter` — a runnable sample.
+
+`tests/diagnostic-fixtures` is deliberately outside the solution: every project
+there fails to compile by design. See its README before adding one.
 
 `tests/BlazorCompose.TrimTests` and `tests/BlazorCompose.TrimTestApp` live in the
 repository but stay outside the solution until the package-based trimming
@@ -43,7 +51,14 @@ dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.cspr
 # One case
 dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj \
   --no-build --filter FullyQualifiedName~GeneratorTests
+
+# Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
+dotnet test tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj --no-build
 ```
+
+A new diagnostic needs a fixture shape and an entry in
+`DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
+listed there or excluded with a reason.
 
 Packaging and trimming:
 

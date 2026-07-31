@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Restore into an isolated folder so the fixed 0.1.0-dev version can never be served from the
+         developer's global package cache, and purge that version before every restore so a rebuilt
+         package is actually re-extracted. Same reasoning as BlazorCompose.TrimTestApp. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/nuget-packages</RestorePackagesPath>
+    <_BlazorComposeDevCachePath>$(RestorePackagesPath)/blazorcompose/0.1.0-dev</_BlazorComposeDevCachePath>
+  </PropertyGroup>
+
+  <!-- The same broken source as GeneratorDelivery.ProjectReference, compiled against the analyzer as
+       an external consumer receives it: analyzers/dotnet/cs/BlazorCompose.Compiler.dll inside the
+       package. Linking rather than copying is deliberate — one source of truth, two delivery paths. -->
+  <ItemGroup>
+    <Compile Include="../GeneratorDelivery.ProjectReference/Bc1001Bc1005.cs" Link="Bc1001Bc1005.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BlazorCompose" />
+  </ItemGroup>
+
+  <Target Name="PurgeBlazorComposeDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <RemoveDir Directories="$(_BlazorComposeDevCachePath)" Condition="Exists('$(_BlazorComposeDevCachePath)')" />
+  </Target>
+
+</Project>

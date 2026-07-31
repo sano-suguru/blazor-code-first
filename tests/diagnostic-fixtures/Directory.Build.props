@@ -1,0 +1,28 @@
+<Project>
+
+  <!-- Repository-wide settings still apply: these fixtures must be built the way a consumer's project
+       is built, not under a private configuration. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+
+    <!-- Every fixture here is deliberately broken, so the build is expected to fail. Warnings are left
+         as warnings: the harness reads severity from the log, and errors-as-warnings would only make
+         the failure output harder to read. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- The harness reads the compiler's own SARIF log instead of parsing console text: it carries
+         every reported diagnostic with its id, severity, and precise position, and is not localized.
+         BlazorCompose.DiagnosticTests passes DiagnosticSarifPath per build. -->
+    <ErrorLog Condition="'$(DiagnosticSarifPath)' != ''">$(DiagnosticSarifPath),version=2.1</ErrorLog>
+  </PropertyGroup>
+
+  <!-- The control, compiled into every fixture: an unrelated analyzer rule (CA1050) that must appear
+       wherever the analyzer driver runs and must vanish wherever a declaration-level error stops it. -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)GlobalNamespaceControl.cs" Link="GlobalNamespaceControl.cs" />
+  </ItemGroup>
+
+</Project>

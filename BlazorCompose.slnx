@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj" />
+    <Project Path="tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj" />
     <Project Path="tests/BlazorCompose.IntegrationTests/BlazorCompose.IntegrationTests.csproj" />
     <Project Path="tests/BlazorCompose.Runtime.Tests/BlazorCompose.Runtime.Tests.csproj" />
   </Folder>
