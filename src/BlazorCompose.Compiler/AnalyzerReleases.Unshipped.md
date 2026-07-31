@@ -2,7 +2,7 @@
 
 Rule ID | Category | Severity | Notes
 --------|----------|----------|---------------------
-BC1001 | BlazorCompose | Error | PartialComponentAnalyzer
+BC1001 | BlazorCompose | Error | BlazorComposeGenerator
 BC1002 | BlazorCompose | Error | BlazorComposeGenerator
 BC1003 | BlazorCompose | Error | BlazorComposeGenerator
 BC1004 | BlazorCompose | Error | BlazorComposeGenerator

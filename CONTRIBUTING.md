@@ -136,9 +136,9 @@ milestone. That is a valid state rather than an oversight.
   `Chrome`) must be `partial` so the generator can emit `RenderView`
   (otherwise `BC1001`), and must be top-level classes (nested classes are
   rejected with `BC1005`). Merely inheriting a Compose base does not require
-  it. A hand-written `RenderView` override suppresses generation entirely
-  (no generator diagnostic about the design-time expression is reported,
-  though `BC1001`'s partial requirement still applies to the class itself).
+  it. A hand-written `RenderView` override suppresses generation entirely, and
+  with it every diagnostic about the design-time expression including `BC1001`:
+  nothing is generated into that class, so `partial` would change nothing.
 - `Body`, `Chrome`, factory APIs, and decorators are inert design-time
   constructs. The design-time expression (`ComposeComponentBase.Body` or
   `ComposeLayoutBase.Chrome`) must not be evaluated at runtime or mutate

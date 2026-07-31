@@ -18,12 +18,13 @@ namespace BlazorCompose.Compiler;
 internal static class ComponentModelFactory
 {
     /// <summary>
-    /// Analyzes <paramref name="syntaxContext"/> when it represents a partial class that directly or
-    /// indirectly inherits from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>),
-    /// resolving all symbols from the context's own compilation and classifying its design-time expression
+    /// Analyzes <paramref name="syntaxContext"/> when it represents a class that directly or indirectly
+    /// inherits from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>), resolving
+    /// all symbols from the context's own compilation and classifying its design-time expression
     /// (<c>Body</c> or <c>Chrome</c>) into a template.  Returns a symbol-free <see cref="ComponentAnalysis"/>
-    /// for every component candidate, or <see langword="null"/> for a node that is not a generatable
-    /// component (non-partial, nested, non-inheriting, or missing the design-time expression).
+    /// for every component candidate — including the diagnostic-only shapes that cannot be generated into
+    /// (non-partial, nested) — or <see langword="null"/> for a node that is not a component at all
+    /// (non-inheriting, or declaring no design-time expression of its own).
     /// </summary>
     /// <remarks>
     /// This method must run inside the syntax-provider transform, where the <see cref="SemanticModel"/> and
@@ -36,14 +37,11 @@ internal static class ComponentModelFactory
     {
         var classDeclaration = (ClassDeclarationSyntax)syntaxContext.Node;
 
-        if (!classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
-            return null;
-
         var symbol = syntaxContext.SemanticModel.GetDeclaredSymbol(classDeclaration, cancellationToken);
         if (symbol is null)
             return null;
 
-        if (!ComposeComponentBaseFacts.InheritsFromComposeBase(symbol))
+        if (ComposeComponentBaseFacts.FindComposeBase(symbol) is not { } composeBase)
             return null;
 
         if (DeclaresRenderViewOverride(symbol))
@@ -89,6 +87,29 @@ internal static class ComponentModelFactory
                         DiagnosticDescriptors.BC1005,
                         elected.Identifier.GetLocation(),
                         [symbol.Name, expressionName])));
+        }
+
+        // The generated RenderView joins this class, which requires `partial`. Reported here, from the
+        // generator, because an analyzer cannot: no partial modifier means no RenderView, which means
+        // CS0534 — a declaration-level error, and csc does not run the analyzer driver on a compilation
+        // that has one. BC1001 would be suppressed by the very condition it diagnoses (issue #76).
+        // Checked after the election above so a class that declares nothing to generate is never told to
+        // add a modifier that would change nothing.
+        if (!IsDeclaredPartial(symbol, cancellationToken))
+        {
+            return new ComponentAnalysis(
+                HintName: hintName,
+                ClassName: symbol.Name,
+                TypeParameters: BuildTypeParameters(symbol),
+                Namespace: namespaceName,
+                DesignTimeExpressionName: expressionName,
+                InheritanceKeys: BuildInheritanceKeys(symbol),
+                Template: null,
+                BodyDiagnostics: ImmutableArray.Create(
+                    DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC1001,
+                        classDeclaration.Identifier.GetLocation(),
+                        [symbol.Name, expressionName, composeBase.Name])));
         }
 
         var shape = FindDesignTimeExpression(
@@ -279,9 +300,28 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
+    /// True when any of the type's declarations carries the <c>partial</c> modifier.  Judged across every
+    /// declaration rather than from the one the syntax provider offered, so a type split into a partial
+    /// part and a non-partial part (CS0260) is not also told to add a modifier it already has somewhere.
+    /// </summary>
+    private static bool IsDeclaredPartial(INamedTypeSymbol symbol, CancellationToken cancellationToken)
+    {
+        foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
+        {
+            if (syntaxRef.GetSyntax(cancellationToken) is ClassDeclarationSyntax declaration &&
+                declaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// The concrete design-time expression override this type declares itself, or <see langword="null"/>.
-    /// Mirrors the predicate <c>PartialComponentAnalyzer</c> uses for BC1001: a re-abstraction
-    /// (<c>abstract override</c>) declares no getter to translate and is therefore not a declaration.
+    /// A re-abstraction (<c>abstract override</c>) declares no getter to translate and is therefore not a
+    /// declaration, so it earns neither a generated <c>RenderView</c> nor BC1001.
     /// </summary>
     private static IPropertySymbol? FindDesignTimeExpressionProperty(
         INamedTypeSymbol symbol,
