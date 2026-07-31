@@ -861,7 +861,10 @@ public sealed class IncrementalGeneratorTests
 
     private static CSharpCompilation CreateCompilationWithoutRuntime(params SyntaxTree[] trees)
     {
-        // Only ComponentBase — NOT the BlazorCompose.Runtime assembly since we define it in-source.
+        // Only ComponentBase — NOT the BlazorCompose.Runtime assembly, since these trees declare the
+        // BlazorCompose types in-source. BuildMetadataReferences must filter the runtime out of the trusted
+        // platform assemblies to achieve that: this project references the runtime, so it is in TPA and an
+        // earlier version of this comment claimed an isolation the conditional Add alone never provided.
         var references = CompilationTestHost.BuildMetadataReferences(includeRuntime: false);
         return CSharpCompilation.Create(
             assemblyName: "IncrementalTestAssembly",
