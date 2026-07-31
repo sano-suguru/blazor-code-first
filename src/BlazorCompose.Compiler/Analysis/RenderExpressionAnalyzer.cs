@@ -459,15 +459,12 @@ internal static class RenderExpressionAnalyzer
                     return null;
                 }
 
-                foreach (var existing in element.Events.AsImmutableArray())
+                if (HasBinding(element, eventName!))
                 {
-                    if (string.Equals(existing.Name, eventName, System.StringComparison.Ordinal))
-                    {
-                        context.RejectUnresolvedValueRecovery(invocation.Span);
-                        context.Diagnostics.Add(DiagnosticInfo.Create(
-                            DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [eventName!]));
-                        return null;
-                    }
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [eventName!]));
+                    return null;
                 }
 
                 return element with
@@ -500,27 +497,30 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            var value = ExpressionTemplateFactory.Create(valueExpr, context);
-
             // 'class' folds (case-sensitive, ordinal) — same channel as .Class, may repeat.
             if (string.Equals(attrName, "class", System.StringComparison.Ordinal))
             {
-                return element with { Classes = element.Classes.AsImmutableArray().Add(value) };
+                return element with
+                {
+                    Classes = element.Classes.AsImmutableArray().Add(
+                        ExpressionTemplateFactory.Create(valueExpr, context)),
+                };
             }
 
-            foreach (var existing in element.Attributes.AsImmutableArray())
+            // Reject before normalizing the value, as the event channel does: normalization reports on the
+            // value's own types, and a rejected decoration's value never reaches generated code.
+            if (HasBinding(element, attrName!))
             {
-                if (string.Equals(existing.Name, attrName, System.StringComparison.Ordinal))
-                {
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [attrName!]));
-                    return null;
-                }
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [attrName!]));
+                return null;
             }
 
             return element with
             {
-                Attributes = element.Attributes.AsImmutableArray().Add(new AttributeTemplate(attrName!, value)),
+                Attributes = element.Attributes.AsImmutableArray().Add(
+                    new AttributeTemplate(attrName!, ExpressionTemplateFactory.Create(valueExpr, context))),
             };
         }
 
@@ -565,6 +565,32 @@ internal static class RenderExpressionAnalyzer
         foreach (var slot in node.Slots.AsImmutableArray())
         {
             if (string.Equals(slot.Name, name, System.StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> already binds <paramref name="name"/> in either channel. An
+    /// element's attributes and events share one name space once emitted — both become
+    /// <c>AddAttribute</c> frames, and Blazor resolves each name to a single value no matter which
+    /// channel produced it — so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
+    /// duplicate as two <c>.OnClick</c>. 'class' never reaches this check: both <c>.Class</c> and
+    /// <c>.Attr("class", …)</c> fold into <see cref="ElementTemplateNode.Classes"/> first, which is how
+    /// the one repeatable attribute stays legal.
+    /// </summary>
+    private static bool HasBinding(ElementTemplateNode node, string name)
+    {
+        foreach (var attribute in node.Attributes.AsImmutableArray())
+        {
+            if (string.Equals(attribute.Name, name, System.StringComparison.Ordinal))
+                return true;
+        }
+
+        foreach (var @event in node.Events.AsImmutableArray())
+        {
+            if (string.Equals(@event.Name, name, System.StringComparison.Ordinal))
                 return true;
         }
 
