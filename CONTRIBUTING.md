@@ -43,18 +43,22 @@ dotnet restore BlazorCompose.slnx
 dotnet build BlazorCompose.slnx --no-restore
 
 # Test everything
-dotnet test BlazorCompose.slnx --no-build
+dotnet test BlazorCompose.slnx
 
 # One project
-dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj --no-build
+dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj
 
 # One case
 dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj \
-  --no-build --filter FullyQualifiedName~GeneratorTests
+  --filter FullyQualifiedName~GeneratorTests
 
 # Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
-dotnet test tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj --no-build
+dotnet test tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj
 ```
+
+These deliberately omit `--no-build`, which reuses whatever was compiled last and
+so reports a pass for code that was never compiled. CI can pass it
+(`ci.yml` builds in the preceding step); a local edit-and-test loop cannot.
 
 A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
