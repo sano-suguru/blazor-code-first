@@ -90,4 +90,27 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.All(symbols.ElementTags.Keys, static key => Assert.IsAssignableFrom<IPropertySymbol>(key));
     }
 
+    [Fact]
+    public void StructuralAndIndexerSymbols_ResolveOnTheBracketSurface()
+    {
+        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
+            ("Empty.cs", ""), BracketSurfaceShim.ShimFile);
+
+        var symbols = KnownSymbols.TryCreate(compilation);
+
+        Assert.NotNull(symbols);
+        Assert.NotNull(symbols!.ElementBuilderType);
+        Assert.NotNull(symbols.ElementIndexer);
+        Assert.NotNull(symbols.ComponentIndexer);
+
+        // Element(string tag) has one parameter on this surface; the arity match must accept it or every
+        // Element(…) call site falls to BC1003.
+        Assert.NotNull(symbols.HtmlElement);
+        Assert.Single(symbols.HtmlElement!.Parameters);
+
+        // The params Component<T>(children) overload is gone — the indexer replaces it — so every consumer
+        // must tolerate a null HtmlComponentWithChildren rather than dereference it.
+        Assert.NotNull(symbols.HtmlComponent);
+        Assert.Null(symbols.HtmlComponentWithChildren);
+    }
 }

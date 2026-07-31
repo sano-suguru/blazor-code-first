@@ -9,22 +9,43 @@ public sealed class KnownSymbolsSyncTests
     // Structural Html members that are NOT curated element tags.
     private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component", "Fragment", "Raw"];
 
+    /// <summary>The number of curated element helpers <c>KnownSymbols</c> owns the table for.</summary>
+    private const int CuratedTagCount = 22;
+
     [Fact]
     public void ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural()
     {
         var (symbols, html) = ResolveHtml();
-        var tagged = symbols.ElementTags.Keys.OfType<IMethodSymbol>()
-            .Select(m => m.Name).ToHashSet(System.StringComparer.Ordinal);
+        var tagged = symbols.ElementTags.Keys
+            .Select(static key => key.Name).ToHashSet(System.StringComparer.Ordinal);
 
-        foreach (var member in html.GetMembers().OfType<IMethodSymbol>()
-                     .Where(m => m.MethodKind == MethodKind.Ordinary))
+        // Both spellings are enumerated on purpose. A curated helper is an ordinary method on the current
+        // surface and a property returning ElementBuilder on the bracket surface (#87); filtering either
+        // side to IMethodSymbol makes `tagged` empty after the flip, leaves every remaining ordinary Html
+        // method looking structural, and so never runs the Assert.Contains arm — the guard would go vacuous
+        // while staying green.
+        foreach (var member in html.GetMembers())
         {
-            bool structural = System.Array.IndexOf(StructuralHtml, member.Name) >= 0;
+            var name = member switch
+            {
+                IMethodSymbol { MethodKind: MethodKind.Ordinary } method => method.Name,
+                IPropertySymbol { IsIndexer: false } property => property.Name,
+                _ => null,
+            };
+
+            if (name is null)
+                continue;
+
+            bool structural = System.Array.IndexOf(StructuralHtml, name) >= 0;
             if (structural)
-                Assert.DoesNotContain(member.Name, tagged);
+                Assert.DoesNotContain(name, tagged);
             else
-                Assert.Contains(member.Name, tagged); // every non-structural Html helper is a curated tag
+                Assert.Contains(name, tagged); // every non-structural Html helper is a curated tag
         }
+
+        // The count is what makes deleting a curated helper from the runtime a failure. The loop above only
+        // checks the helpers that exist, so on its own it would pass a surface that had lost one.
+        Assert.Equal(CuratedTagCount, symbols.ElementTags.Count);
     }
 
     [Fact]

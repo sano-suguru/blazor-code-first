@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Resolved <see cref="IMethodSymbol"/> references for the <c>BlazorCompose.Html</c> factory methods so
+/// Resolved symbol references for the <c>BlazorCompose.Html</c> factories and their surrounding types so
 /// that expression analysis can compare symbols by identity rather than by name.
 /// </summary>
 /// <remarks>
@@ -23,6 +23,30 @@ internal sealed class KnownSymbols
 
     /// <summary>Resolved unbound generic <c>BlazorCompose.ComponentView&lt;T&gt;</c>, or null.</summary>
     public INamedTypeSymbol? ComponentViewType { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>BlazorCompose.ElementBuilder</c>, or <see langword="null"/> — which is the
+    /// normal case against a runtime that has not adopted the bracket surface.
+    /// </summary>
+    /// <remarks>
+    /// Every consumer must guard on this being non-null before comparing against it.
+    /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
+    /// <c>x</c>, so an unguarded comparison would classify an unrelated indexer — <c>_dict["k"]</c> — as an
+    /// element.
+    /// </remarks>
+    public INamedTypeSymbol? ElementBuilderType { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>ElementBuilder</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is
+    /// how children are written on the bracket surface, or null.
+    /// </summary>
+    public IPropertySymbol? ElementIndexer { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>ComponentView&lt;T&gt;</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer,
+    /// which replaces the <c>Component&lt;T&gt;(children)</c> overload on the bracket surface, or null.
+    /// </summary>
+    public IPropertySymbol? ComponentIndexer { get; }
 
     /// <summary>Resolved symbol for <c>ComponentView&lt;T&gt;.Param&lt;TValue&gt;(...)</c>, or null.</summary>
     public IMethodSymbol? ParamMethod { get; }
@@ -90,6 +114,18 @@ internal sealed class KnownSymbols
     /// (fluent decorations) are unreduced, then the original definition is taken.</summary>
     public static ISymbol Normalize(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
 
+    /// <summary>
+    /// Normalizes a property to the comparable key used in <see cref="ElementTags"/>: an element factory
+    /// spelled as a property has nothing to unreduce, so only the original definition is taken.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a second overload rather than one <c>Normalize(ISymbol)</c>: an
+    /// <see cref="ISymbol"/>-typed parameter would silently win overload resolution at the method call
+    /// sites, stop walking <see cref="IMethodSymbol.ReducedFrom"/>, and key every fluent decoration under
+    /// its reduced symbol — which no map contains.
+    /// </remarks>
+    public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
+
     /// <summary>Curated element helper method → HTML tag name.</summary>
     public IReadOnlyDictionary<ISymbol, string> ElementTags { get; }
 
@@ -138,6 +174,9 @@ internal sealed class KnownSymbols
         ComposableAttributeType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComponentView`1");
+        ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ElementBuilder");
+        ElementIndexer = FindChildrenIndexer(ElementBuilderType);
+        ComponentIndexer = FindChildrenIndexer(ComponentViewType);
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
@@ -198,11 +237,25 @@ internal sealed class KnownSymbols
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
         {
+            // A curated helper is a method on the current surface and a property returning ElementBuilder on
+            // the bracket surface. Both are matched so this map populates either way; #87 removes the method
+            // arm below once the properties ship.
+            if (member is IPropertySymbol { IsIndexer: false } elementProperty)
+            {
+                if (CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                    elementTags[Normalize(elementProperty)] = propertyTag;
+
+                continue;
+            }
+
             if (member is not IMethodSymbol method)
                 continue;
             switch (method.Name)
             {
-                case "Element" when method.Parameters.Length == 2: HtmlElement = method; break;
+                // One parameter is the bracket surface's Element(string tag) returning ElementBuilder; two
+                // is the current Element(string tag, params ReadOnlySpan<View>). Matching only two would
+                // stop HtmlElement resolving and drop every Element(…) call site to BC1003.
+                case "Element" when method.Parameters.Length is 1 or 2: HtmlElement = method; break;
                 case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
                 case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
                 case "Component" when method.Arity == 1 && method.Parameters.Length == 0:
@@ -222,6 +275,28 @@ internal sealed class KnownSymbols
             }
         }
         ElementTags = elementTags;
+    }
+
+    /// <summary>
+    /// The single-<c>params</c>-parameter indexer declared on <paramref name="type"/>, which is how children
+    /// are written on the bracket surface, or <see langword="null"/> when the type is absent or declares no
+    /// such indexer.
+    /// </summary>
+    private static IPropertySymbol? FindChildrenIndexer(INamedTypeSymbol? type)
+    {
+        if (type is null)
+            return null;
+
+        foreach (var member in type.GetMembers())
+        {
+            if (member is IPropertySymbol { IsIndexer: true, Parameters.Length: 1 } indexer
+                && indexer.Parameters[0].IsParams)
+            {
+                return indexer;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
