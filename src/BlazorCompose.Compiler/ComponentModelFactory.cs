@@ -166,10 +166,18 @@ internal static class ComponentModelFactory
         // value-position type references so the author is told the real cause instead of BC1003's "not
         // statically analyzable". Only on the failure path, so a healthy body pays nothing. BC1003 is then
         // suppressed automatically by Expand's error dedup.
+        TemplateLocation? failureLocation = null;
         if (template is null)
         {
             UnresolvedComponentTypeScanner.Report(bodyExpression, bodyContext);
             UnresolvedValueTypeScanner.Report(bodyExpression, bodyContext);
+
+            // Carry the innermost expression that failed to classify across the symbol-free boundary so
+            // Expand can locate BC1003. The analyzer records it on every failed classification, and the
+            // outermost call is this one, so a failure always leaves something behind; the coalesce is a
+            // guard against a future path that produces a null template without going through Analyze.
+            failureLocation = TemplateLocation.From(
+                bodyContext.UntranslatableLocation ?? bodyExpression.GetLocation());
         }
 
         // Capture the inheritance chain (self first, then base types) as symbol-free keys so the expander
@@ -182,7 +190,8 @@ internal static class ComponentModelFactory
             DesignTimeExpressionName: expressionName,
             InheritanceKeys: BuildInheritanceKeys(symbol),
             Template: template,
-            BodyDiagnostics: bodyContext.Diagnostics.ToImmutable());
+            BodyDiagnostics: bodyContext.Diagnostics.ToImmutable(),
+            FailureLocation: failureLocation);
     }
 
     /// <summary>
@@ -205,10 +214,14 @@ internal static class ComponentModelFactory
             // warning-only design-time expression with a null template still gets BC1003, so a null
             // template always yields at least one error diagnostic (the S4 invariant). Do NOT gate on
             // Count==0: a co-located BC3002 warning must not suppress BC1003.
+            // Located at the innermost expression that failed to classify, captured by Analyze. The
+            // shapes that reach here with no FailureLocation (non-partial, nested, untranslatable getter)
+            // all carry a located error of their own, so the null branch is unreachable rather than a
+            // silent fallback to the location-less report this diagnostic used to have (#77).
             if (!diagnostics.Any(static d => d.IsError))
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BC1003,
-                    Location.None,
+                    analysis.FailureLocation?.ToLocation() ?? Location.None,
                     [analysis.ClassName, analysis.DesignTimeExpressionName]));
             return new ComponentModelResult(null, diagnostics.ToImmutable());
         }

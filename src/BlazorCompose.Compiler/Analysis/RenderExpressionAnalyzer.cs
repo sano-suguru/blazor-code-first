@@ -23,7 +23,23 @@ internal static class RenderExpressionAnalyzer
     /// content becomes <c>ChildContent</c> and nothing else.
     /// </summary>
     private const string ChildContentParameterName = "ChildContent";
+
+    /// <summary>
+    /// Classifies <paramref name="expression"/>, recording it on <paramref name="context"/> when it cannot
+    /// be classified.  Every recursive descent goes through here rather than through
+    /// <see cref="Classify"/>, so the innermost failure is the one recorded and BC1003 can name the
+    /// construct the author actually wrote instead of the whole design-time expression.
+    /// </summary>
     public static RenderTemplateNode? Analyze(ExpressionSyntax expression, ComposableBodyContext context)
+    {
+        var node = Classify(expression, context);
+        if (node is null)
+            context.RecordUntranslatable(expression);
+
+        return node;
+    }
+
+    private static RenderTemplateNode? Classify(ExpressionSyntax expression, ComposableBodyContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
 
