@@ -195,4 +195,52 @@ public sealed class BracketSurfaceDiagnosticTests
 
         Assert.Contains(diagnostics, static d => d.Id == "BC1003");
     }
+
+    // ---------------------------------------------------------------------------
+    // BC3008's domain: decorating something that opens no element frame
+    // ---------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("""Fragment("a").Class("x")""")]
+    [InlineData("""Raw("<b/>").Class("x")""")]
+    [InlineData("""If(true, then: () => Span["y"]).Class("x")""")]
+    [InlineData("""Component<Card>().Class("x")""")]
+    [InlineData("""Div["y"].Class("x")""")]
+    public void DecoratingANonElement_IsCS1929AndBC1003_NotBC3008(string body)
+    {
+        // Every shape BC3008 was written for becomes a C# error once decorations take an ElementBuilder
+        // receiver: each of these expressions is a View or a ComponentView<T>, and neither has a Class.
+        AssertRetiredIntoCS1929(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, "")));
+    }
+
+    [Fact]
+    public void DecoratingAComposableResult_IsCS1929AndBC1003_NotBC3008()
+    {
+        // A [Composable] method returns View, which is precisely the domain BC3008 forbids decorating.
+        AssertRetiredIntoCS1929(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(
+            """Card().Class("x")""",
+            """
+            [Composable]
+            private static View Card() => Div["c"];
+            """)));
+    }
+
+    /// <summary>
+    /// Asserts the <em>full</em> diagnostic set for a retired BC3008 shape, not merely that CS1929 appears.
+    /// </summary>
+    /// <remarks>
+    /// One diagnostic becomes two, and the second is the generic BC1003: once the decoration is a C# error,
+    /// <c>GetSymbolInfo</c> on it yields no symbol, the analyzer's method arm returns null, and the failure is
+    /// recorded as untranslatable.  #73 recorded only that the message quality drops; the count change is
+    /// reported to #87, which is where the decision whether to suppress BC1003 there belongs.
+    /// </remarks>
+    private static void AssertRetiredIntoCS1929(GeneratorRunResult result)
+    {
+        Assert.Contains(BracketSurfaceShim.OutputErrors(result), static d => d.Id == "CS1929");
+
+        string[] expected = ["BC1003"];
+        Assert.Equal(
+            expected,
+            result.Diagnostics.Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());
+    }
 }
