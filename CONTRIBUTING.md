@@ -62,6 +62,15 @@ BLAZORCOMPOSE_TRIM_OUTPUT=$(pwd)/tests/BlazorCompose.TrimTestApp/bin/Release/net
 
 Hot Reload against the sample: `dotnet watch --project samples/BlazorCompose.Samples.Counter/BlazorCompose.Samples.Counter.csproj`.
 
+To read the `RenderView` the generator actually emitted for a project — the
+fastest way to confirm what a `Body` lowered to, and the only way to see
+emitted output a diagnostic does not describe:
+
+```bash
+dotnet build <project> -t:Rebuild \
+  -p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedFilesOutputPath=gen
+```
+
 ## Code style
 
 CI runs `dotnet format --verify-no-changes`, which is stricter than the build's
@@ -74,6 +83,47 @@ dotnet format BlazorCompose.slnx                                    # auto-fix
 
 Enable the shared pre-push hook once per clone so this runs automatically:
 `git config core.hooksPath eng/hooks`.
+
+## Issue tracker
+
+Issues carry the current state and the plan. `DESIGN.md` and `ARCHITECTURE.md`
+describe the intended finished design and deliberately do not track progress,
+so an Issue is the only place a gap, a defect, or a deferred decision is
+recorded.
+
+**Every issue gets exactly one `area:` label**, plus GitHub's default type
+labels (`bug`, `enhancement`, `documentation`, `question`, `invalid`) where the
+type is unambiguous:
+
+- `area: compiler` — source generator, analyzers, diagnostics.
+- `area: surface` — the public authoring API and how UI is written.
+- `area: site` — the documentation site and its CI.
+- `area: docs` — `README`, `DESIGN`, `ARCHITECTURE`, `CONTRIBUTING` prose.
+
+Two status labels carry process rather than subject:
+
+- `blocked` — has an unresolved prerequisite. **Always pair it with a comment
+  naming the blocker.** The label alone tells a reader to go hunting; the point
+  is that the dependency is readable from the blocked issue, not only from the
+  blocking one.
+- `decision` — the deliverable is a decision, not code. Implementation is a
+  separate issue that the decision unblocks.
+
+**Hierarchy uses sub-issues, not labels.** When an issue is genuinely a part of
+another rather than merely related, attach it as a sub-issue. A cross-reference
+in prose is for "these interact"; a sub-issue is for "this does not ship
+independently".
+
+**Milestones are named for the outcome they deliver, never numbered.** A
+milestone here is a bucket with a progress bar and nothing more. An earlier
+`M0`–`M6` chain was folded deliberately: that shape worked while every
+milestone was one step in a single backward chain toward publishing the docs
+site, and reusing it for gap-closing work turned acceptance criteria into
+prose. Numbered names drag the per-milestone spec-and-plan ritual back with
+them, so avoid `M7` / `RM4` and describe the outcome instead.
+
+An issue that is large and undated, or explicitly unscheduled, carries no
+milestone. That is a valid state rather than an oversight.
 
 ## Conventions the code must uphold
 
