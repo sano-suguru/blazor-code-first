@@ -200,12 +200,29 @@ internal static class BracketSurfaceShim
     /// Compiles <paramref name="sources"/> against the shim and runs the generator, first asserting that
     /// the shim is the only <c>BlazorCompose</c> surface in the compilation.
     /// </summary>
-    internal static GeneratorRunResult RunGenerator(params (string Path, string Source)[] sources)
+    internal static GeneratorRunResult RunGenerator(params (string Path, string Source)[] sources) =>
+        Run(sources, allowInputErrors: false);
+
+    /// <summary>
+    /// As <see cref="RunGenerator"/>, for inputs that are deliberately not valid C# — the shapes where a
+    /// diagnostic replaces a compiling body, and the shapes #87 retires <em>into</em> a C# error.
+    /// </summary>
+    /// <remarks>
+    /// The <c>CS0436</c> check still runs: it is a statement about the compilation's references, not about
+    /// the input.  The shim is still required to compile too — only errors located in the caller's own files
+    /// are tolerated — so a broken shim cannot hide behind a test that expects errors anyway.
+    /// </remarks>
+    internal static GeneratorRunResult RunGeneratorWithExpectedErrors(
+        params (string Path, string Source)[] sources) =>
+        Run(sources, allowInputErrors: true);
+
+    private static GeneratorRunResult Run(
+        (string Path, string Source)[] sources, bool allowInputErrors)
     {
         var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
             [(ShimPath, Source), .. sources]);
 
-        AssertShimIsTheOnlySurface(compilation);
+        AssertShimIsTheOnlySurface(compilation, allowInputErrors);
 
         return CompilationTestHost.RunGenerator(compilation);
     }
@@ -216,7 +233,7 @@ internal static class BracketSurfaceShim
     /// would otherwise make every path under test unreachable while its tests reported the absence of a
     /// diagnostic as a pass.
     /// </summary>
-    private static void AssertShimIsTheOnlySurface(Compilation compilation)
+    private static void AssertShimIsTheOnlySurface(Compilation compilation, bool allowInputErrors)
     {
         var diagnostics = compilation.GetDiagnostics();
 
@@ -229,11 +246,19 @@ internal static class BracketSurfaceShim
             $"only by source shadowing and nothing establishes which declarations were analyzed: {conflicts}");
 
         var errors = Describe(diagnostics.Where(
-            static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
-                && diagnostic.Id != MissingRenderViewOverride));
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+                && diagnostic.Id != MissingRenderViewOverride
+                && (!allowInputErrors || IsInTheShim(diagnostic))));
 
-        Assert.True(errors.Length == 0, $"The shim compilation does not compile: {errors}");
+        Assert.True(
+            errors.Length == 0,
+            allowInputErrors
+                ? $"The shim itself does not compile: {errors}"
+                : $"The shim compilation does not compile: {errors}");
     }
+
+    private static bool IsInTheShim(Diagnostic diagnostic) =>
+        diagnostic.Location.SourceTree?.FilePath == ShimPath;
 
     private static string Describe(System.Collections.Generic.IEnumerable<Diagnostic> diagnostics) =>
         string.Join("; ", diagnostics.Select(static diagnostic => diagnostic.ToString()));

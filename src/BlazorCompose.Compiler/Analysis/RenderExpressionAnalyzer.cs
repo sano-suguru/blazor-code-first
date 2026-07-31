@@ -286,25 +286,14 @@ internal static class RenderExpressionAnalyzer
             if (childNodes is null)
                 return null;
 
-            var slots = EquatableArray<ComponentSlot>.Empty;
-            if (childNodes.Value.Length > 0)
+            if (!TryBuildChildContentSlot(
+                    childNodes.Value,
+                    method.TypeArguments[0],
+                    invocation.GetLocation(),
+                    context,
+                    out var slots))
             {
-                if (!HasUsableChildContent(method.TypeArguments[0], context))
-                {
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3013,
-                        invocation.GetLocation(),
-                        [method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
-                    return null;
-                }
-
-                // All children share the single ChildContent fragment; a Fragment node groups them
-                // without emitting a wrapper element, matching how Razor lowers multiple nested children.
-                RenderTemplateNode content = childNodes.Value.Length == 1
-                    ? childNodes.Value[0]
-                    : new FragmentTemplateNode(childNodes.Value);
-
-                slots = ImmutableArray.Create(new ComponentSlot(ChildContentParameterName, content));
+                return null;
             }
 
             return new ComponentTemplateNode(
@@ -595,6 +584,12 @@ internal static class RenderExpressionAnalyzer
             return ClassifyElementIndexer(elementAccess, context);
         }
 
+        if (symbols.ComponentIndexer is { } componentIndexer
+            && SymbolEqualityComparer.Default.Equals(definition, componentIndexer))
+        {
+            return ClassifyComponentIndexer(elementAccess, indexer, context);
+        }
+
         return null;
     }
 
@@ -609,7 +604,7 @@ internal static class RenderExpressionAnalyzer
     /// already reported its own diagnostic — <c>Element(nonConstant)["x"]</c> reporting BC3009 — would be
     /// swept a second time and also report BC3015.  The span is the element access's, not an invocation's.
     /// </remarks>
-    private static RenderTemplateNode? ClassifyElementIndexer(
+    private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
     {
         // The receiver carries the tag and the decoration chain, so it is classified by the same arms that
@@ -636,6 +631,120 @@ internal static class RenderExpressionAnalyzer
         }
 
         return element with { Children = children.Value };
+    }
+
+    /// <summary>
+    /// Classifies <c>Component&lt;T&gt;()[…]</c> and <c>Component&lt;T&gt;().Param(…)[…]</c>: the target type
+    /// and any parameters come from the element access's own receiver, the child content from its bracketed
+    /// arguments.
+    /// </summary>
+    /// <remarks>
+    /// The duplicate check here is not a mirror of the one in the <c>.Param</c> arm but the other half of it.
+    /// The indexer returns <c>View</c>, so <c>.Param</c> cannot follow the brackets and children are written
+    /// last; that reverses which <c>ChildContent</c> channel is filled first.  On the method surface children
+    /// were always syntactically first, so the params arm could set the slot unconditionally and the
+    /// duplicate was caught later by the <c>.Param</c> arm's own check.  With <c>.Param</c> first, this arm
+    /// has to perform the check or BC3007 goes silent.
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentIndexer(
+        ElementAccessExpressionSyntax elementAccess,
+        IPropertySymbol indexer,
+        ComposableBodyContext context)
+    {
+        if (Analyze(elementAccess.Expression, context) is not ComponentTemplateNode component)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        // The node carries only the type's display name, so the symbol BC3013 and the ChildContent lookup
+        // need comes from the indexer's own containing type — ComponentView<T> for the T being configured.
+        if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        var children = AnalyzeChildren(args.ParamsElements, context);
+        if (children is null)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        if (children.Value.Length > 0 && HasBinding(component, ChildContentParameterName))
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BC3007,
+                elementAccess.ArgumentList.GetLocation(),
+                [ChildContentParameterName]));
+            return null;
+        }
+
+        if (!TryBuildChildContentSlot(
+                children.Value,
+                componentViewType.TypeArguments[0],
+                elementAccess.GetLocation(),
+                context,
+                out var slots))
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
+        // slot on the receiver, and it is not a duplicate of this one.
+        var appended = component.Slots.AsImmutableArray().AddRange(slots.AsImmutableArray());
+        return new ComponentTemplateNode(component.TypeName, component.Parameters, appended);
+    }
+
+    /// <summary>
+    /// Builds the single <c>ChildContent</c> slot children are bound to, reporting BC3013 at
+    /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them.  Yields an
+    /// empty slot list — and succeeds — when there are no children.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the <c>Component&lt;T&gt;(children)</c> params overload and <c>ComponentView&lt;T&gt;</c>'s
+    /// indexer, which are the same channel spelled two ways.  #87 deletes the overload, at which point the
+    /// indexer becomes the only caller.
+    /// </remarks>
+    private static bool TryBuildChildContentSlot(
+        ImmutableArray<RenderTemplateNode> children,
+        ITypeSymbol componentType,
+        Location location,
+        ComposableBodyContext context,
+        out EquatableArray<ComponentSlot> slots)
+    {
+        slots = EquatableArray<ComponentSlot>.Empty;
+        if (children.Length == 0)
+            return true;
+
+        if (!HasUsableChildContent(componentType, context))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BC3013,
+                location,
+                [componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
+            return false;
+        }
+
+        // All children share the single ChildContent fragment; a Fragment node groups them without emitting
+        // a wrapper element, matching how Razor lowers multiple nested children.
+        RenderTemplateNode content = children.Length == 1
+            ? children[0]
+            : new FragmentTemplateNode(children);
+
+        // ImmutableArray.Create, not a collection expression: the target type is EquatableArray<ComponentSlot>
+        // so IDE0303 does not apply, and spelling it [x] does not compile.
+        slots = ImmutableArray.Create(new ComponentSlot(ChildContentParameterName, content));
+        return true;
     }
 
     private static bool Contains(IReadOnlyCollection<ISymbol> set, ISymbol symbol)

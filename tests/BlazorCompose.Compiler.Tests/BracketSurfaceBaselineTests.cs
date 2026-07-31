@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace BlazorCompose.Compiler.Tests;
 
@@ -91,7 +92,13 @@ public sealed class BracketSurfaceBaselineTests
                 """Div.Attr("data-n", $"{_count}")[Span["a"]]""",
                 """private int _count;"""),
 
-            // --- Component<T>: the shapes that do not go through the component indexer -----------
+            // --- Component<T> -------------------------------------------------------------------
+            // The indexer returns View, so .Param cannot follow the brackets: children come last here,
+            // where on the method surface they came first. The baseline is unchanged because channel
+            // order is fixed by the allocator (Parameters before Slots), not by source order.
+            ["component-child-content"] = HostWithCard("""Component<Card>()[Div["x"]]"""),
+            ["component-child-content-and-parameter"] = HostWithCard(
+                """Component<Card>().Param(c => c.Title, "t")[Div["x"]]"""),
             ["component-fragment-slot"] = HostWithCard(
                 """Component<Card>().Param(c => c.Footer, Div["f"])"""),
             ["component-nested-in-element"] = HostWithCard(
@@ -172,6 +179,13 @@ public sealed class BracketSurfaceBaselineTests
                 """)],
         };
 
+    /// <summary>
+    /// The corpus cases whose spelling is identical on both surfaces, so re-running them here would compare
+    /// the same input against the same baseline twice.  Neither has children nor an element.
+    /// </summary>
+    private static readonly string[] SpellingUnchanged =
+        ["component-no-parameters", "component-scalar-parameter"];
+
     [Theory]
     [MemberData(nameof(CaseNames))]
     public void BracketFormGeneratedSource_MatchesTheSameBaseline(string caseName)
@@ -180,5 +194,21 @@ public sealed class BracketSurfaceBaselineTests
 
         CompilationTestHost.AssertOutputCompiles(result);
         GeneratedSourceSnapshot.Verify(caseName, result);
+    }
+
+    [Fact]
+    public void EveryCorpusCase_IsEitherRewrittenHere_OrDeclaredUnchanged()
+    {
+        // Without this, dropping a case from the dictionary above silently removes coverage: the theory
+        // would simply run one row fewer and still report a pass. Enumerating the committed baselines makes
+        // adding a corpus case a decision that has to be made here as well.
+        var accountedFor = Cases.Keys
+            .Concat(SpellingUnchanged)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToList();
+
+        var onDisk = GeneratedSourceSnapshot.EnumerateBaselineCaseNames().ToList();
+
+        Assert.Equal(onDisk, accountedFor);
     }
 }
