@@ -62,14 +62,44 @@ internal static class RenderExpressionAnalyzer
             return new RenderFragmentContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
         }
 
-        if (expression is not InvocationExpressionSyntax invocation)
+        // Prefilter on syntax kind before asking for a symbol, so a literal, a field reference or a lambda
+        // does not each pay a semantic query on the way to returning null.
+        if (expression is not (InvocationExpressionSyntax or ElementAccessExpressionSyntax
+                or IdentifierNameSyntax or MemberAccessExpressionSyntax))
+        {
             return null;
+        }
 
-        if (context.SemanticModel
-            .GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol method)
-            return null;
-
+        var symbol = context.SemanticModel.GetSymbolInfo(expression, context.CancellationToken).Symbol;
         var symbols = context.KnownSymbols;
+
+        // Dispatch on the resolved symbol rather than the syntax kind. A childless element written under
+        // `using static` is an IdentifierNameSyntax and the qualified escape hatch (Html.Img) is a
+        // MemberAccessExpressionSyntax; both resolve to the same property, so one arm serves both spellings
+        // and neither can be dropped by matching syntax.
+        if (symbol is IPropertySymbol resolvedProperty)
+        {
+            if (!resolvedProperty.IsIndexer)
+            {
+                // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
+                // element are unavoidable and this is the one that carries no children.
+                return symbols.ElementTags.TryGetValue(
+                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag)
+                    ? new ElementTemplateNode(propertyTag)
+                    : null;
+            }
+
+            return expression is ElementAccessExpressionSyntax elementAccess
+                ? ClassifyIndexer(elementAccess, resolvedProperty, context)
+                : null;
+        }
+
+        // The method arm still requires an invocation. The early return this replaced also filtered method
+        // groups (Body => SomeMethodReturningRenderFragment), whose GetTypeInfo().Type is null so the
+        // RenderFragment arm above does not catch them either; without this condition such a group would
+        // reach the arms below and have arguments read off a call that was never written.
+        if (expression is not InvocationExpressionSyntax invocation || symbol is not IMethodSymbol method)
+            return null;
 
         static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
             known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
@@ -538,6 +568,74 @@ internal static class RenderExpressionAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Classifies an element access whose resolved symbol is an indexer — children written in brackets —
+    /// returning <see langword="null"/> when the indexer is not one of the design-time surface's.
+    /// </summary>
+    /// <remarks>
+    /// Every comparison is guarded on the known symbol being present rather than made directly.
+    /// <c>ElementIndexer</c> and <c>ComponentIndexer</c> resolve to <see langword="null"/> against a runtime
+    /// without the bracket surface, and <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers
+    /// <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would classify any unrelated
+    /// indexer — <c>_dict["k"]</c> — as an element.
+    /// </remarks>
+    private static RenderTemplateNode? ClassifyIndexer(
+        ElementAccessExpressionSyntax elementAccess,
+        IPropertySymbol indexer,
+        ComposableBodyContext context)
+    {
+        var symbols = context.KnownSymbols;
+        var definition = indexer.OriginalDefinition;
+
+        if (symbols.ElementIndexer is { } elementIndexer
+            && SymbolEqualityComparer.Default.Equals(definition, elementIndexer))
+        {
+            return ClassifyElementIndexer(elementAccess, context);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Classifies <c>Div[…]</c> and <c>Div.Class("card")[…]</c>: the tag and any decorations come from the
+    /// element access's own receiver, the children from its bracketed arguments.
+    /// </summary>
+    /// <remarks>
+    /// Every failure path calls <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>, as the
+    /// decoration and <c>.Param</c> arms do.  It is the suppressor paired with
+    /// <c>UnresolvedValueTypeScanner</c>'s <c>ShouldRecoverUnresolvedValue</c>: without it a construct that
+    /// already reported its own diagnostic — <c>Element(nonConstant)["x"]</c> reporting BC3009 — would be
+    /// swept a second time and also report BC3015.  The span is the element access's, not an invocation's.
+    /// </remarks>
+    private static RenderTemplateNode? ClassifyElementIndexer(
+        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    {
+        // The receiver carries the tag and the decoration chain, so it is classified by the same arms that
+        // handle the childless and decorated forms rather than by a second copy of their rules.
+        if (Analyze(elementAccess.Expression, context) is not ElementTemplateNode element)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        // One whole collection passed to the params indexer (Div[arr]) is not a list of children; leave it
+        // unanalyzable so it lands on BC1003 instead of being mis-split.
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        var children = AnalyzeChildren(args.ParamsElements, context);
+        if (children is null)
+        {
+            context.RejectUnresolvedValueRecovery(elementAccess.Span);
+            return null;
+        }
+
+        return element with { Children = children.Value };
     }
 
     private static bool Contains(IReadOnlyCollection<ISymbol> set, ISymbol symbol)
