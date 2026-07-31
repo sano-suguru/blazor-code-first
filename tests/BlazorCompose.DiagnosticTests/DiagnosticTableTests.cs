@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Microsoft.CodeAnalysis;
 
 namespace BlazorCompose.DiagnosticTests;
 
@@ -78,10 +79,84 @@ public sealed class DiagnosticTableTests
     }
 
     [Fact]
+    public void AppendixA_StatesASeverityForEveryRow()
+    {
+        var unreadable = AppendixA.Rows
+            .Where(static row => !IsKnownKind(row.Kind))
+            .Select(static row => $"{row.Id} (種別 reads {Quote(row.Kind)})")
+            .Order(StringComparer.Ordinal)
+            .ToImmutableArray();
+
+        // A row whose 種別 cell holds something other than a severity has nothing to compare, and a
+        // guard that reports nothing to compare as agreement is worse than no guard.
+        Assert.True(
+            unreadable.IsEmpty,
+            $"付録A does not state a severity for these diagnostics: {string.Join(", ", unreadable)}. " +
+            $"It belongs in the second column and reads one of {string.Join(" / ", KnownKinds)}; if the columns " +
+            "were reordered, reorder them back or teach AppendixA the new layout.");
+    }
+
+    [Fact]
+    public void AppendixA_ClaimsTheSeverityEachDescriptorActuallyHas()
+    {
+        var pending = DiagnosticExpectations.DocumentedWithoutDescriptor
+            .Select(static entry => entry.Id)
+            .ToImmutableHashSet(StringComparer.Ordinal);
+
+        var wrong = AppendixA.Rows
+            .Where(row => IsKnownKind(row.Kind)
+                && !pending.Contains(row.Id) && DeclaredDescriptors.Ids.Contains(row.Id))
+            .Select(static row => (Row: row, Descriptor: DeclaredDescriptors.ById[row.Id]))
+            .Select(static pair => (pair.Row.Id, Documented: pair.Row.Kind!, Actual: DocumentedKindOf(pair.Descriptor)))
+            .Where(static pair => !string.Equals(pair.Documented, pair.Actual, StringComparison.OrdinalIgnoreCase))
+            .Select(static pair => $"{pair.Id} (付録A says {pair.Documented}, the descriptor is {pair.Actual})")
+            .Order(StringComparer.Ordinal)
+            .ToImmutableArray();
+
+        Assert.True(
+            wrong.IsEmpty,
+            $"付録A claims a severity the descriptor does not have: {string.Join(", ", wrong)}. " +
+            "Changing a diagnostic's severity is a change to the canonical table too.");
+    }
+
+    [Fact]
     public void AppendixA_IsParsedAsATable()
     {
         // Every other assertion here reads as a pass if the parser silently matched nothing, so prove
         // it found rows before trusting what it did not find.
-        Assert.NotEmpty(AppendixA.DocumentedIds);
+        Assert.NotEmpty(AppendixA.Rows);
     }
+
+    /// <summary>Every severity 付録A has a wording for, and the only cell values worth comparing.</summary>
+    private static ImmutableArray<string> KnownKinds { get; } = ["Error", "Warning", "Info"];
+
+    /// <summary>
+    /// Whether a 種別 cell states a severity at all.  Case is not the subject — the table is uniformly
+    /// title-cased, but a lowercase cell is a typography slip, not a wrong claim — so this and the
+    /// severity comparison ignore it, and both go through here so they cannot disagree about that.
+    /// </summary>
+    private static bool IsKnownKind(string? kind) =>
+        kind is not null && KnownKinds.Contains(kind, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Renders an offending cell short enough to read in a failure message.</summary>
+    private static string Quote(string? kind) =>
+        kind is null ? "empty" : $"'{(kind.Length > 40 ? kind[..40] + "…" : kind)}'";
+
+    /// <summary>
+    /// The severity as 付録A words it.  Deliberately not shared with
+    /// <c>DescriptorCoverageTests.ExpectedSeverity_MatchesTheDescriptor</c>: that one speaks SARIF, where
+    /// <see cref="DiagnosticSeverity.Info"/> is reported as <c>note</c>, while the table writes
+    /// <c>Info</c>.  Both derive from <see cref="DiagnosticSeverity"/> rather than from each other.
+    /// </summary>
+    private static string DocumentedKindOf(DiagnosticDescriptor descriptor) =>
+        descriptor.DefaultSeverity switch
+        {
+            DiagnosticSeverity.Error => "Error",
+            DiagnosticSeverity.Warning => "Warning",
+            DiagnosticSeverity.Info => "Info",
+            // 付録A has never had to word one of these, so there is no convention to check against yet.
+            // Whoever adds the first such descriptor decides what the table says, here and there.
+            _ => throw new InvalidOperationException(
+                $"{descriptor.Id} has severity {descriptor.DefaultSeverity}, which 付録A has no wording for."),
+        };
 }

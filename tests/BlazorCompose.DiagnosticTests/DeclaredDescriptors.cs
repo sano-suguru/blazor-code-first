@@ -19,4 +19,7 @@ internal static class DeclaredDescriptors
 
     public static ImmutableHashSet<string> Ids { get; } =
         All.Select(static descriptor => descriptor.Id).ToImmutableHashSet(StringComparer.Ordinal);
+
+    public static ImmutableDictionary<string, DiagnosticDescriptor> ById { get; } =
+        All.ToImmutableDictionary(static descriptor => descriptor.Id, StringComparer.Ordinal);
 }
