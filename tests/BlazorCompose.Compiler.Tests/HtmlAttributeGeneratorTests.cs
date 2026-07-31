@@ -91,6 +91,27 @@ public sealed class HtmlAttributeGeneratorTests
     }
 
     [Fact]
+    public void DuplicateAcrossAttributeAndEventChannels_ReportsBC3010()
+    {
+        // Both channels emit AddAttribute frames under one name, so a name bound once through each is
+        // the same dead duplicate as two bindings within a channel — in either decoration order.
+        Assert.Contains(Diags("""Html.Div().Attr("onclick", "alert(1)").OnClick(() => { })"""), d => d.Id == "BC3010");
+        Assert.Contains(Diags("""Html.Div().OnClick(() => { }).Attr("onclick", "alert(1)")"""), d => d.Id == "BC3010");
+        Assert.Contains(Diags("""Html.Div().Attr("onclick", "alert(1)").On("onclick", () => { })"""), d => d.Id == "BC3010");
+        Assert.Contains(Diags("""Html.Div().On("onclick", () => { }).Attr("onclick", "alert(1)")"""), d => d.Id == "BC3010");
+    }
+
+    [Fact]
+    public void ClassIsExemptFromTheCrossChannelCheck()
+    {
+        // 'class' is the one repeatable attribute: every spelling folds into the class channel before
+        // the duplicate check, in any order and any number of times.
+        Assert.DoesNotContain(Diags("""Html.Div().Class("a").Attr("class", "b")"""), d => d.Id == "BC3010");
+        Assert.DoesNotContain(Diags("""Html.Div().Attr("class", "a").Class("b")"""), d => d.Id == "BC3010");
+        Assert.DoesNotContain(Diags("""Html.Div().Attr("class", "a").Attr("class", "b").Class("c")"""), d => d.Id == "BC3010");
+    }
+
+    [Fact]
     public void NonConstantAttrName_ReportsBC3011()
     {
         Assert.Contains(

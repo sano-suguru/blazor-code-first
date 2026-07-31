@@ -308,6 +308,32 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void DuplicateAttribute_UnresolvedValueType_RemainsBC3010Owned()
+    {
+        // A duplicate binding is rejected before its value is normalized, so the value never becomes
+        // emitted code and its type is not the author's problem — the same ownership the event channel
+        // and both BC3011 paths already had.
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Div().Id("first").Attr("id", typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3010");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
     public void ComposableArgument_UnresolvedType_ReportsBC3015()
     {
         const string source = """
