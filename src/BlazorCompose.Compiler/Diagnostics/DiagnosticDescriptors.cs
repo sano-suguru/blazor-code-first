@@ -274,9 +274,11 @@ internal static class DiagnosticDescriptors
             "predictable, consistent with the design-time nature of the factories.");
 
     /// <summary>
-    /// BC3010: An attribute or event is bound more than once on the same element. Blazor applies the last
-    /// binding and silently drops earlier ones, so a duplicate is dead code. <c>class</c> is the sole
-    /// exception — multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute.
+    /// BC3010: An attribute or event is bound more than once on the same element. Neither outcome is what
+    /// the author wrote: two bindings in the attribute channel leave the earlier one dead (the last write
+    /// wins), while one name bound through the attribute channel and the event channel keeps both, so an
+    /// inline handler and a C# handler each fire on every event. <c>class</c> is the sole exception —
+    /// multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3010 = new(
         id: "BC3010",
@@ -286,9 +288,12 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Every attribute and event other than 'class' is single-binding. Binding one twice makes the " +
-            "earlier value dead — Blazor applies the last write — so the duplicate is reported at compile " +
-            "time. Multiple .Class or .Attr(\"class\", …) decorations fold into a single class attribute.");
+            "Every attribute and event other than 'class' is single-binding. Two bindings of one name in " +
+            "the attribute channel make the earlier value dead, because the last write wins; a name bound " +
+            "once through the attribute channel and once through the event channel keeps both, so an " +
+            "inline handler and a C# handler both fire. Neither is what the author asked for, so the " +
+            "duplicate is reported at compile time. Multiple .Class or .Attr(\"class\", …) decorations " +
+            "fold into a single class attribute.");
 
     /// <summary>
     /// BC3011: A <c>.Attr</c> name or <c>.On</c> event name is not a non-empty compile-time constant
