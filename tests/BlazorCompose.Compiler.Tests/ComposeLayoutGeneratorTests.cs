@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Threading.Tasks;
 using BlazorCompose.Compiler.Diagnostics;
 
@@ -26,7 +27,7 @@ public sealed class ComposeLayoutGeneratorTests
     }
 
     [Fact]
-    public async Task Generator_NonPartialComposeLayout_ReportsBC1001()
+    public void Generator_NonPartialComposeLayout_ReportsBC1001()
     {
         const string source = """
             using BlazorCompose;
@@ -38,17 +39,18 @@ public sealed class ComposeLayoutGeneratorTests
             }
             """;
 
-        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(source);
+        var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(diagnostics, d => d.Id == "BC1001");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1001");
         // The message must name the real base (ComposeLayoutBase), not the ComposeComponentBase literal
         // that a naive fix could leave baked into the message format.
-        Assert.Contains("ComposeLayoutBase", diagnostic.GetMessage());
-        Assert.DoesNotContain("ComposeComponentBase", diagnostic.GetMessage());
+        var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("ComposeLayoutBase", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("ComposeComponentBase", message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Generator_NonPartialComposeComponent_BC1001MessageNamesComposeComponentBase()
+    public void Generator_NonPartialComposeComponent_BC1001MessageNamesComposeComponentBase()
     {
         // Companion to the layout case above: a ComposeComponentBase subclass must still get its own
         // (correct) base name in the message, not a leftover "ComposeLayoutBase" from shared code.
@@ -62,11 +64,12 @@ public sealed class ComposeLayoutGeneratorTests
             }
             """;
 
-        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(source);
+        var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(diagnostics, d => d.Id == "BC1001");
-        Assert.Contains("ComposeComponentBase", diagnostic.GetMessage());
-        Assert.DoesNotContain("ComposeLayoutBase", diagnostic.GetMessage());
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1001");
+        var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("ComposeComponentBase", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("ComposeLayoutBase", message, StringComparison.Ordinal);
     }
 
     [Fact]

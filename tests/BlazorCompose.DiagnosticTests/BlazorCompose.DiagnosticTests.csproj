@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- For DiagnosticDescriptor itself; the coverage guard reads the descriptor set reflectively. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Referenced for DiagnosticDescriptors only, so the coverage guard enumerates the real descriptor
+       set. Deliberately NOT OutputItemType="Analyzer": this project asserts on what a separate,
+       real MSBuild build of the fixtures reports, never on an in-process run. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlazorCompose.Compiler\BlazorCompose.Compiler.csproj" />
+  </ItemGroup>
+</Project>

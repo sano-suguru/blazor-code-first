@@ -228,7 +228,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public async Task Generator_NestedPartialComponent_ReportsBC1005()
+    public void Generator_NestedPartialComponent_ReportsBC1005()
     {
         // Generating into a nested type means reproducing the enclosing type chain, which is not
         // supported. Before BC1005 the author got zero BlazorCompose diagnostics and a bare CS0534 that
@@ -247,9 +247,7 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
 
         // BC1001 stays silent: the class already is partial, and partial is not the problem.
-        var analyzerDiagnostics =
-            await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(NestedPartialCounterSource);
-        Assert.DoesNotContain(analyzerDiagnostics, static d => d.Id == "BC1001");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1001");
     }
 
     [Fact]
@@ -491,12 +489,11 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public async Task Generator_NonPartialAutoPropertyOverride_ReportsBC1001()
+    public void Generator_NonPartialAutoPropertyOverride_ReportsBC1001NotBC1004()
     {
-        // A non-partial class with an auto property override earns BC1001 from the analyzer; the
-        // generator bails at the partial check and produces no BC1004. BC1001 is what the author sees
-        // first, and unlike before this PR, following it now leads somewhere — after adding `partial`
-        // the author gets BC1004 naming the auto property instead of a bare CS0534.
+        // Two problems, reported one at a time: the partial check runs first, so the author sees BC1001
+        // and no BC1004. Following it leads somewhere — after adding `partial` the author gets BC1004
+        // naming the auto property instead of a bare CS0534.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -507,10 +504,10 @@ public sealed class GeneratorTests
             }
             """;
 
-        var analyzerDiagnostics =
-            await CompilationTestHost.RunAnalyzerAsync<PartialComponentAnalyzer>(source);
+        var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(analyzerDiagnostics, d => d.Id == "BC1001");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BC1001");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1004");
     }
 
     [Fact]
