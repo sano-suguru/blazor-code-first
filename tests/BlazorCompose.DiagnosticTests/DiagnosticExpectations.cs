@@ -51,9 +51,10 @@ public static class DiagnosticExpectations
             FixtureKind.GeneratorViaProjectReference,
             "error",
             "Bc1002Bc1003Bc1004.cs",
-            Anchor: null,
-            Note: "Reported with no location at all (#77). Pinned as-is so fixing #77 is a deliberate " +
-                "change here rather than a rediscovery: give it a location, then give it an anchor."),
+            "Make()",
+            Note: "Points at the innermost expression that failed to classify, not at the whole Body " +
+                "(#77). Anchoring on the call rather than the property is the contract: a file with " +
+                "several components and a deep Body is exactly where a coarser location stops helping."),
         new("BC1004", FixtureKind.GeneratorViaProjectReference, "error", "Bc1002Bc1003Bc1004.cs", "Body"),
         new("BC1005", FixtureKind.GeneratorViaProjectReference, "error", "Bc1001Bc1005.cs", "Body"),
         new("BC3001", FixtureKind.AnalyzerViaProjectReference, "error", "Mutating.cs", "_count++"),

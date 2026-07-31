@@ -14,11 +14,12 @@ public partial class Bc1002Host : ComposeComponentBase
 
 /// <summary>
 /// BC1003: the design-time expression calls a plain method returning <c>View</c>, which is not
-/// statically analyzable and has no runtime fallback yet.
+/// statically analyzable and has no runtime fallback yet.  Wrapped in translatable factories on
+/// purpose: the reported location must be the offending call, not the whole <c>Body</c> (#77).
 /// </summary>
 public partial class Bc1003Host : ComposeComponentBase
 {
-    protected override View Body => Make();
+    protected override View Body => Div(Span("bc1003"), Make());
 
     private static View Make() => Span("bc1003");
 }

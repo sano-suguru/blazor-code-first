@@ -28,6 +28,17 @@ namespace BlazorCompose.Compiler;
 /// Names are taken verbatim from the symbol because every partial declaration of a generic type must use
 /// the same type-parameter names in the same order (CS0264), so the generated part cannot rename them.
 /// </param>
+/// <param name="FailureLocation">
+/// Where to blame when <paramref name="Template"/> is <see langword="null"/> because classification
+/// failed: the innermost expression that could not be translated. Carried as symbol-free coordinates for
+/// the same reason <see cref="DiagnosticInfo"/> is — BC1003 is decided after the semantic stage, where no
+/// syntax survives, and without this it had no location at all (#77). <see langword="null"/> whenever a
+/// template was produced, so a healthy component contributes nothing new to the incremental cache key,
+/// and also on the shapes rejected before classification (non-partial, nested, untranslatable getter),
+/// which carry their own located error instead. Deliberately not defaulted: every construction site has
+/// to state which of those it is, so a fifth null-template shape cannot silently reintroduce the
+/// location-less report by forgetting the argument.
+/// </param>
 internal sealed record ComponentAnalysis(
     string HintName,
     string ClassName,
@@ -36,4 +47,5 @@ internal sealed record ComponentAnalysis(
     string DesignTimeExpressionName,
     EquatableArray<string> InheritanceKeys,
     RenderTemplateNode? Template,
-    EquatableArray<DiagnosticInfo> BodyDiagnostics);
+    EquatableArray<DiagnosticInfo> BodyDiagnostics,
+    TemplateLocation? FailureLocation);

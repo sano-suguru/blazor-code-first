@@ -58,6 +58,31 @@ internal sealed class ComposableBodyContext
     /// </summary>
     public ImmutableArray<DiagnosticInfo>.Builder Diagnostics { get; }
 
+    /// <summary>
+    /// The expression that failed to translate, or <see langword="null"/> if none did.  Set by
+    /// <see cref="RenderExpressionAnalyzer.Analyze"/> on every failed classification, keeping only the
+    /// first: recursion is depth-first and no caller recovers from a <see langword="null"/> child, so the
+    /// first failure recorded is the innermost one and every enclosing failure is a consequence of it.
+    /// This is what gives BC1003 a location — it is raised after classification, where no syntax remains.
+    /// </summary>
+    /// <remarks>
+    /// "First" resolves depth, not source order.  Between siblings at the same depth it is analysis order
+    /// that wins, and those differ where arguments are named: <c>If(c, otherwise: o, then: t)</c> analyzes
+    /// <c>then</c> first and never reaches <c>otherwise</c>, so <c>t</c> is blamed even though <c>o</c> is
+    /// written earlier.  Both are genuinely untranslatable, so this picks between real culprits rather
+    /// than mislocating one.  Note that ordering by source position instead would invert the rule this
+    /// exists for: recording runs bottom-up, and an enclosing factory always starts before the expression
+    /// nested in it, so the outermost failure would win every time.
+    /// </remarks>
+    public Location? UntranslatableLocation { get; private set; }
+
+    /// <summary>
+    /// Records <paramref name="expression"/> as the reason this body could not be translated, unless a
+    /// deeper expression already claimed that role.
+    /// </summary>
+    public void RecordUntranslatable(SyntaxNode expression) =>
+        UntranslatableLocation ??= expression.GetLocation();
+
     public bool TryGetParameterOrdinal(ISymbol symbol, out int ordinal)
     {
         if (_parameterOrdinals.TryGetValue(symbol, out ordinal))

@@ -127,7 +127,8 @@ internal static class DiagnosticDescriptors
     /// either a getter body that does not reduce to a single expression, or an auto property, which
     /// declares no getter body at all. Distinct from BC1003: the getter's shape is the problem, not the
     /// constructs used inside it, and the fix is to rewrite the getter rather than to change which
-    /// factories are called. Reported at the property identifier, where BC1003 is location-less. Not
+    /// factories are called. Reported at the property identifier rather than inside the getter, which is
+    /// the same distinction: BC1003 blames an expression, BC1004 blames the declaration around it. Not
     /// reported when the component overrides <c>RenderView</c> by hand (the design-time expression is
     /// then unused and the code is correct), nor for a partial property with no implementation part
     /// (CS9248 already names it).
