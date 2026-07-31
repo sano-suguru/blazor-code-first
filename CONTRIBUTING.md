@@ -192,6 +192,14 @@ milestone. That is a valid state rather than an oversight.
   specification contracts — do not repurpose or remove them. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
   the analyzer build gates (RS2000/RS0016) fail.
+- `ARCHITECTURE.md` 付録A is the canonical diagnostic table, and
+  `DiagnosticTableTests` checks it against `DiagnosticDescriptors` in both
+  directions: a descriptor with no row fails, and a row with no descriptor fails
+  unless the ID is recorded in
+  `DiagnosticExpectations.DocumentedWithoutDescriptor` with the reason it is
+  specified ahead of its implementation. The other prose that states a
+  diagnostic's scope — this file, `AGENTS.md`, `DESIGN.md`, and the public XML
+  docs — cannot be checked mechanically, so update it in the same change.
 
 ## Engineering standard
 

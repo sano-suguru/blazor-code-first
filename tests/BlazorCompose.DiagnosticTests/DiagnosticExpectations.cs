@@ -97,6 +97,20 @@ public static class DiagnosticExpectations
     /// </summary>
     public static ImmutableArray<(string Id, string Reason)> Excluded { get; } = [];
 
+    /// <summary>
+    /// IDs that <c>ARCHITECTURE.md</c> 付録A documents on purpose while no <c>DiagnosticDescriptor</c>
+    /// declares them yet, each with the reason.  This is the opposite axis from <see cref="Excluded"/>:
+    /// those are declared diagnostics not proven against a real build, these are specified diagnostics
+    /// not yet implemented.  Without the list, a deliberate row is indistinguishable from a row that
+    /// outlived its descriptor.
+    /// </summary>
+    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
+    [
+        ("BC2001",
+            "The 付録A row is intentional: the Opaque path is specified but unimplemented, so the " +
+            "descriptor lands with it (#57)."),
+    ];
+
     public static TheoryData<string> Ids
     {
         get

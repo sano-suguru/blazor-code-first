@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Reflection;
-using BlazorCompose.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 
 namespace BlazorCompose.DiagnosticTests;
@@ -12,12 +10,6 @@ namespace BlazorCompose.DiagnosticTests;
 /// </summary>
 public sealed class DescriptorCoverageTests
 {
-    private static readonly ImmutableArray<DiagnosticDescriptor> Declared =
-        [.. typeof(DiagnosticDescriptors)
-            .GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Where(static field => field.FieldType == typeof(DiagnosticDescriptor))
-            .Select(static field => (DiagnosticDescriptor)field.GetValue(null)!)];
-
     [Fact]
     public void EveryDeclaredDescriptor_IsExercisedOrExplicitlyExcluded()
     {
@@ -26,8 +18,7 @@ public sealed class DescriptorCoverageTests
             .Concat(DiagnosticExpectations.Excluded.Select(static excluded => excluded.Id))
             .ToImmutableHashSet(StringComparer.Ordinal);
 
-        var missing = Declared
-            .Select(static descriptor => descriptor.Id)
+        var missing = DeclaredDescriptors.Ids
             .Where(id => !covered.Contains(id))
             .Order(StringComparer.Ordinal)
             .ToImmutableArray();
@@ -42,12 +33,10 @@ public sealed class DescriptorCoverageTests
     [Fact]
     public void EveryExpectation_NamesADeclaredDescriptor()
     {
-        var declaredIds = Declared.Select(static descriptor => descriptor.Id).ToImmutableHashSet(StringComparer.Ordinal);
-
         var unknown = DiagnosticExpectations.All
             .Select(static expectation => expectation.Id)
             .Concat(DiagnosticExpectations.Excluded.Select(static excluded => excluded.Id))
-            .Where(id => !declaredIds.Contains(id))
+            .Where(id => !DeclaredDescriptors.Ids.Contains(id))
             .ToImmutableArray();
 
         Assert.True(unknown.IsEmpty, $"Expectations name diagnostics that no longer exist: {string.Join(", ", unknown)}.");
@@ -71,7 +60,7 @@ public sealed class DescriptorCoverageTests
         // The severity in the table is asserted against a real build, so it must be the descriptor's
         // own default rather than whatever the fixture happened to produce.
         var expected = DiagnosticExpectations.For(id);
-        var descriptor = Declared.Single(candidate => string.Equals(candidate.Id, id, StringComparison.Ordinal));
+        var descriptor = DeclaredDescriptors.All.Single(candidate => string.Equals(candidate.Id, id, StringComparison.Ordinal));
 
         var severity = descriptor.DefaultSeverity switch
         {
