@@ -180,6 +180,27 @@ public static class CompilationTestHost
         return CreateCompilation(syntaxTree);
     }
 
+    /// <summary>
+    /// Creates a compilation from raw <c>(Path, Source)</c> tuples that does <em>not</em> reference
+    /// <c>BlazorCompose.Runtime</c>, for tests that declare the <c>BlazorCompose</c> surface in-source.
+    /// </summary>
+    internal static CSharpCompilation CreateCompilationWithoutRuntime(
+        params (string Path, string Source)[] sources)
+    {
+        var syntaxTrees = sources
+            .Select(static source => CSharpSyntaxTree.ParseText(
+                source.Source,
+                CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
+                path: source.Path))
+            .ToArray();
+
+        return CSharpCompilation.Create(
+            assemblyName: "TestAssembly",
+            syntaxTrees: syntaxTrees,
+            references: BuildMetadataReferences(includeRuntime: false),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
     internal static CSharpCompilation CreateCompilation(params SyntaxTree[] syntaxTrees) =>
         CSharpCompilation.Create(
             assemblyName: "TestAssembly",
