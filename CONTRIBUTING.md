@@ -43,18 +43,22 @@ dotnet restore BlazorCompose.slnx
 dotnet build BlazorCompose.slnx --no-restore
 
 # Test everything
-dotnet test BlazorCompose.slnx --no-build
+dotnet test BlazorCompose.slnx
 
 # One project
-dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj --no-build
+dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj
 
 # One case
 dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj \
-  --no-build --filter FullyQualifiedName~GeneratorTests
+  --filter FullyQualifiedName~GeneratorTests
 
 # Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
-dotnet test tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj --no-build
+dotnet test tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj
 ```
+
+These deliberately omit `--no-build`, which reuses whatever was compiled last and
+so reports a pass for code that was never compiled. CI can pass it
+(`ci.yml` builds in the preceding step); a local edit-and-test loop cannot.
 
 A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
@@ -200,5 +204,14 @@ isolated behind `#if NET11_0_OR_GREATER` with matching tests.
 
 Test behavior at the appropriate layer: runtime unit tests, generator/analyzer
 tests that inspect generated source and diagnostics, integration tests against
-Blazor rendering, and benchmarks only for performance claims. Documentation and
-source comments are written in English.
+Blazor rendering, and benchmarks only for performance claims. Test methods are
+named `SubjectOrMethod_Scenario_ExpectedBehavior`, and they prefer observable
+behavior with real, deterministic collaborators over interaction-based mocks —
+test doubles are reserved for boundaries such as remote services, wall-clock
+time, and randomness. Compiler tests are the exception that may reach past
+observable behavior into generated source, sequence numbers, incremental cache
+behavior, and diagnostic spans, because those are architectural contracts. Test
+files may correspond to production types, but a one-to-one file mapping is not
+required; group tests by cohesive capability.
+
+Documentation and source comments are written in English.
