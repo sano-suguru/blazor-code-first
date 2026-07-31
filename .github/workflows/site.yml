@@ -120,7 +120,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Mechanical guards for issues that slipped past human review during M4: 21 Japanese
+          # Mechanical guards for issues that slipped past human review on an earlier branch: 21 Japanese
           # trailing comments in two committed test files were caught only by a whole-branch
           # review at the very end, and nothing here caught CRLF/missing-newline drift either.
           #

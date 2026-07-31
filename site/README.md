@@ -1,8 +1,8 @@
 # BlazorCompose docs site
 
 Dogfooding target: the documentation site built with BlazorCompose itself,
-hosted statically on Cloudflare Pages. See
-`docs/superpowers/specs/2026-07-24-dogfood-docs-site-roadmap-design.md`.
+hosted statically on Cloudflare Pages. Outstanding work on the site is tracked
+under the `area: site` label in Issues.
 
 This directory is intentionally **outside** `BlazorCompose.slnx` and manages
 its own package versions (`ManagePackageVersionsCentrally=false`).
@@ -27,7 +27,7 @@ CI deploys on push to `main` via `.github/workflows/site.yml`
 (`dotnet publish` on GitHub Actions -> `wrangler pages deploy` to Cloudflare Pages).
 Cloudflare Pages hosts static assets only; it does not build .NET.
 
-## Docs content pipeline (M3)
+## Docs content pipeline
 
 Markdown under `site/content/*.md` is converted to HTML at authoring time by the
 `DocGen` tool and committed as generated artifacts:

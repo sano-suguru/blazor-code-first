@@ -458,6 +458,8 @@ public closed union ViewNode
 
 **B.2 ランタイム `ref struct` ツリー方式** — 要素を `readonly ref struct` としてスタック上に構築し、実行時に `Render` を再帰呼び出しする方式。GC回避には有効だが、(a) 可変個の子要素を受け取る手段がない(`ref struct` は配列・`params` に格納不可、ジェネリックオーバーロードはアリティ上限を持つ)、(b) B.1と同じ戻り値型問題、(c) 静的サブツリーのキャッシュと両立しない(`ref struct` はフィールド格納不可)、により採用しませんでした。本方式(生成コードによる直接発行)は、同じゼロアロケーション特性を型システム上、無理なく達成します。
 
+**B.3 `ComposeLayoutBase` を `ComposeComponentBase` から派生させ `SetParametersAsync` で介入する方式** — レイアウトを通常のComposeコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ComposeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
+
 ## 付録C: 開発時フォールバック案 — 解釈モード(コンチネンシー)
 
 §2.6のツーリング検証で、特定環境においてSource Generatorの再実行がEnCに反映されないと判明した場合に限り、次のDEBUGビルド限定フォールバックを導入する余地を残します。
