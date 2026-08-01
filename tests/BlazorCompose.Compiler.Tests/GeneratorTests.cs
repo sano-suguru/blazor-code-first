@@ -16,7 +16,7 @@ public sealed class GeneratorTests
 
         public partial class Counter : ComposeComponentBase
         {
-            protected override View Body => Span("Count");
+            protected override View Body => Span["Count"];
         }
         """;
 
@@ -29,9 +29,9 @@ public sealed class GeneratorTests
             private int _count = 0;
 
             protected override View Body =>
-                Div(
-                    Span($"Count: {_count}"),
-                    Button("Increment").OnClick(() => _count++));
+                Div[
+                    Span[$"Count: {_count}"],
+                    Button.OnClick(() => _count++)["Increment"]];
         }
         """;
 
@@ -43,7 +43,7 @@ public sealed class GeneratorTests
         {
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
         }
         """;
@@ -56,7 +56,7 @@ public sealed class GeneratorTests
         {
             protected override View Body
             {
-                get { return Span("Count"); }
+                get { return Span["Count"]; }
             }
         }
         """;
@@ -67,10 +67,10 @@ public sealed class GeneratorTests
 
         public partial class Counter : ComposeComponentBase
         {
-            private View GetView() => Span("foo");
+            private View GetView() => Span["foo"];
 
             protected override View Body =>
-                Div(GetView());
+                Div[GetView()];
         }
         """;
 
@@ -102,7 +102,7 @@ public sealed class GeneratorTests
             }
             public partial class Counter
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
             """;
 
@@ -133,7 +133,7 @@ public sealed class GeneratorTests
 
             public partial class SplitFiles
             {
-                protected override View Body => Span("split");
+                protected override View Body => Span["split"];
             }
             """;
 
@@ -159,7 +159,7 @@ public sealed class GeneratorTests
 
             public partial record Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
             """;
 
@@ -261,7 +261,7 @@ public sealed class GeneratorTests
 
             public partial class Base : ComposeComponentBase
             {
-                protected override View Body => Span("base");
+                protected override View Body => Span["base"];
             }
 
             public partial class Outer
@@ -289,7 +289,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
             """;
 
@@ -311,7 +311,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body { get => Span("Count"); }
+                protected override View Body { get => Span["Count"]; }
             }
             """;
 
@@ -321,7 +321,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
             """;
 
@@ -351,7 +351,7 @@ public sealed class GeneratorTests
             }
             public partial class Counter : ComposeComponentBase
             {
-                protected override partial View Body => Span("Count");
+                protected override partial View Body => Span["Count"];
             }
             """;
 
@@ -361,7 +361,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
             """;
 
@@ -392,7 +392,7 @@ public sealed class GeneratorTests
                     get
                     {
                         var label = "Count";
-                        return Span(label);
+                        return Span[label];
                     }
                 }
             }
@@ -556,7 +556,7 @@ public sealed class GeneratorTests
                     get
                     {
                         var label = "Count";
-                        return Span(label);
+                        return Span[label];
                     }
                 }
             }
@@ -587,7 +587,7 @@ public sealed class GeneratorTests
                     get
                     {
                         _n++;
-                        return Span("x");
+                        return Span["x"];
                     }
                 }
             }
@@ -624,9 +624,9 @@ public sealed class GeneratorTests
             private bool _visible = true;
 
             protected override View Body =>
-                Div(
-                    If(_visible, () => Span("Yes"), () => Span("No")),
-                    Span("Always"));
+                Div[
+                    If(_visible, () => Span["Yes"], () => Span["No"]),
+                    Span["Always"]];
         }
         """;
 
@@ -642,18 +642,18 @@ public sealed class GeneratorTests
         // If region boundary at 1 (one literal sequence for the conditional region)
         Assert.Contains("__builder.OpenRegion(1)", generated);
 
-        // then branch: Span("Yes") uses [2, 3]
+        // then branch: Span["Yes"] uses [2, 3]
         Assert.Contains("__builder.OpenElement(2, \"span\")", generated);
         Assert.Contains("__builder.AddContent(3, \"Yes\")", generated);
 
-        // else branch: Span("No") uses [4, 5] — disjoint from then range [2, 3]
+        // else branch: Span["No"] uses [4, 5] — disjoint from then range [2, 3]
         Assert.Contains("__builder.OpenElement(4, \"span\")", generated);
         Assert.Contains("__builder.AddContent(5, \"No\")", generated);
 
         // Region close (no sequence argument)
         Assert.Contains("__builder.CloseRegion()", generated);
 
-        // Span("Always") starts at 6 — same sequence regardless of which branch ran
+        // Span["Always"] starts at 6 — same sequence regardless of which branch ran
         Assert.Contains("__builder.OpenElement(6, \"span\")", generated);
         Assert.Contains("__builder.AddContent(7, \"Always\")", generated);
 
@@ -671,7 +671,7 @@ public sealed class GeneratorTests
             private bool _show = true;
 
             protected override View Body =>
-                If(_show, () => Span("Visible"), null);
+                If(_show, () => Span["Visible"], null);
         }
         """;
 
@@ -699,9 +699,9 @@ public sealed class GeneratorTests
             private readonly List<Todo> _items = new();
 
             protected override BlazorCompose.View Body =>
-                Div(
-                    ForEach(_items, key: t => t.Id, content: item => Span(item.Title)),
-                    Span("footer"));
+                Div[
+                    ForEach(_items, key: t => t.Id, content: item => Span[item.Title]),
+                    Span["footer"]];
 
             private sealed record Todo(int Id, string Title);
         }
@@ -750,11 +750,11 @@ public sealed class GeneratorTests
 
             [BlazorCompose.Composable]
             private static BlazorCompose.View Section(string heading, List<Column> columns) =>
-                Div(
-                    Span(heading),
+                Div[
+                    Span[heading],
                     ForEach(columns, key: col => col.Id, content: col =>
-                        Div(ForEach(col.Cards, key: card => card.Id, content: card =>
-                            Span($"{heading}:{col.Name}:{card.Title}")))));
+                        Div[ForEach(col.Cards, key: card => card.Id, content: card =>
+                            Span[$"{heading}:{col.Name}:{card.Title}"])])];
 
             public sealed record Card(int Id, string Title);
             public sealed record Column(int Id, string Name, List<Card> Cards);
@@ -812,7 +812,7 @@ public sealed class GeneratorTests
                 private readonly List<Group> _groups = new();
                 protected override BlazorCompose.View Body =>
                     ForEach(_groups, key: g => g.Id, content: g =>
-                        ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name)));
+                        ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
                 private sealed record Item(int Id, string Name);
                 private sealed record Group(int Id, List<Item> Items);
             }
@@ -837,11 +837,11 @@ public sealed class GeneratorTests
                 private readonly List<Group> _a = new();
                 private readonly List<Group> _b = new();
                 protected override BlazorCompose.View Body =>
-                    Div(Widget(_a), Widget(_b));
+                    Div[Widget(_a), Widget(_b)];
                 [BlazorCompose.Composable]
                 private static BlazorCompose.View Widget(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
-                        ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name)));
+                        ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
                 private sealed record Item(int Id, string Name);
                 private sealed record Group(int Id, List<Item> Items);
             }
@@ -870,7 +870,7 @@ public sealed class GeneratorTests
                     ForEach(_groups, key: g => g.Id, content: g => Rows(g));
                 [BlazorCompose.Composable]
                 private static BlazorCompose.View Rows(Group g) =>
-                    ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name));
+                    ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]);
                 private sealed record Item(int Id, string Name);
                 private sealed record Group(int Id, List<Item> Items);
             }
@@ -893,7 +893,7 @@ public sealed class GeneratorTests
                 [BlazorCompose.Composable]
                 public static BlazorCompose.View Never(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
-                        ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name)));
+                        ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
                 public sealed record Item(int Id, string Name);
                 public sealed record Group(int Id, List<Item> Items);
             }
@@ -915,10 +915,10 @@ public sealed class GeneratorTests
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCompose.View Body =>
-                    Div(
-                        ForEach(_xs, key: x => x, content: x => Span(x.ToString())),
-                        ForEach(_xs, key: (x) => x, content: (x) => Span(x.ToString())),
-                        ForEach(_xs, key: (int x) => x, content: (int x) => Span(x.ToString())));
+                    Div[
+                        ForEach(_xs, key: x => x, content: x => Span[x.ToString()]),
+                        ForEach(_xs, key: (x) => x, content: (x) => Span[x.ToString()]),
+                        ForEach(_xs, key: (int x) => x, content: (int x) => Span[x.ToString()])];
             }
             """;
 
@@ -938,7 +938,7 @@ public sealed class GeneratorTests
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCompose.View Body =>
-                    ForEach(_xs, key: _ => 0, content: x => Span(x.ToString()));
+                    ForEach(_xs, key: _ => 0, content: x => Span[x.ToString()]);
             }
             """;
 
@@ -960,7 +960,7 @@ public sealed class GeneratorTests
             {
                 private readonly List<Row> _xs = new();
                 protected override BlazorCompose.View Body =>
-                    ForEach(_xs, key: r => r.Id, content: r => Span(r.Name));
+                    ForEach(_xs, key: r => r.Id, content: r => Span[r.Name]);
                 private sealed record Row(int Id, string Name);
             }
             """;
@@ -981,7 +981,7 @@ public sealed class GeneratorTests
                 private readonly List<Group> _groups = new();
                 protected override BlazorCompose.View Body =>
                     ForEach(_groups, key: g => g.Id, content: g =>
-                        Div(ForEach(g.Items, key: i => g.Id, content: i => Span(i.Name))));
+                        Div[ForEach(g.Items, key: i => g.Id, content: i => Span[i.Name])]);
                 private sealed record Item(int Id, string Name);
                 private sealed record Group(int Id, List<Item> Items);
             }
@@ -1002,10 +1002,10 @@ public sealed class GeneratorTests
             public partial class P : BlazorCompose.ComposeComponentBase
             {
                 private readonly List<int> _xs = new();
-                protected override BlazorCompose.View Body => Div(Widget(_xs), Widget(_xs));
+                protected override BlazorCompose.View Body => Div[Widget(_xs), Widget(_xs)];
                 [BlazorCompose.Composable]
                 private static BlazorCompose.View Widget(List<int> xs) =>
-                    ForEach(xs, key: _ => 0, content: x => Span(x.ToString()));
+                    ForEach(xs, key: _ => 0, content: x => Span[x.ToString()]);
             }
             """;
 
@@ -1024,7 +1024,7 @@ public sealed class GeneratorTests
             {
                 [BlazorCompose.Composable]
                 public static BlazorCompose.View Never(List<int> xs) =>
-                    ForEach(xs, key: _ => 0, content: x => Span(x.ToString()));
+                    ForEach(xs, key: _ => 0, content: x => Span[x.ToString()]);
             }
             """;
 
@@ -1045,7 +1045,7 @@ public sealed class GeneratorTests
                 private readonly List<int> _xs = new();
                 protected override BlazorCompose.View Body =>
                     ForEach(_xs, key: x => x, content: Render);
-                private static BlazorCompose.View Render(int x) => Span(x.ToString());
+                private static BlazorCompose.View Render(int x) => Span[x.ToString()];
             }
             """;
 
@@ -1070,12 +1070,12 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Label(string value) => Span(value);
+                private static View Label(string value) => Span[value];
 
                 private string Compute() => "Count";
 
                 protected override View Body =>
-                    Div(Label(Compute()), Span("After"));
+                    Div[Label(Compute()), Span["After"]];
             }
             """;
 
@@ -1107,7 +1107,7 @@ public sealed class GeneratorTests
                 private static string? NullText => null;
 
                 [Composable]
-                private static View Label(string value) => Span(value);
+                private static View Label(string value) => Span[value];
 
                 protected override View Body => Label(NullText!);
             }
@@ -1130,10 +1130,10 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Label(string value) => Span(value);
+                private static View Label(string value) => Span[value];
 
                 protected override View Body =>
-                    Div(Label("A"), Label("B"));
+                    Div[Label("A"), Label("B")];
             }
             """;
 
@@ -1163,7 +1163,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Pair(string first, string second) => Span(first + second);
+                private static View Pair(string first, string second) => Span[first + second];
 
                 private string A() => "a";
                 private string B() => "b";
@@ -1194,7 +1194,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Ignore(string used, string unused) => Span(used);
+                private static View Ignore(string used, string unused) => Span[used];
 
                 protected override View Body => Ignore("keep", "drop");
             }
@@ -1229,7 +1229,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Ignore(string used, string unused) => Span(used);
+                private static View Ignore(string used, string unused) => Span[used];
 
                 protected override View Body => Ignore("keep", "drop");
             }
@@ -1255,14 +1255,14 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Clickable(string label, System.Action onClick) => Button(label).OnClick(onClick);
+                private static View Clickable(string label, System.Action onClick) => Button.OnClick(onClick)[label];
 
                 private void Handle() { }
 
                 protected override View Body =>
-                    Div(
+                    Div[
                         Clickable("lambda", () => Handle()),
-                        Clickable("group", Handle));
+                        Clickable("group", Handle)];
             }
             """;
 
@@ -1286,7 +1286,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Sized(double width) => Span(width.ToString());
+                private static View Sized(double width) => Span[width.ToString()];
 
                 protected override View Body => Sized(5);
             }
@@ -1312,10 +1312,10 @@ public sealed class GeneratorTests
                 private bool _show = true;
 
                 [Composable]
-                private static View Label(string value) => Span(value);
+                private static View Label(string value) => Span[value];
 
                 protected override View Body =>
-                    If(_show, () => Label("in-branch"), () => Span("no"));
+                    If(_show, () => Label("in-branch"), () => Span["no"]);
             }
             """;
 
@@ -1366,7 +1366,7 @@ public sealed class GeneratorTests
                 // Invalid declaration: a composable must be static.  The call site must not add a
                 // duplicate BC1002.
                 [Composable]
-                private View Helper() => Span("x");
+                private View Helper() => Span["x"];
 
                 protected override View Body => Helper();
             }
@@ -1397,7 +1397,7 @@ public sealed class GeneratorTests
 
                     [Composable]
                     public static View Label(string value) =>
-                        Span(Prefix + value);
+                        Span[Prefix + value];
                 }
                 """),
             ("Counter.cs", """
@@ -1428,7 +1428,7 @@ public sealed class GeneratorTests
                     private static string Secret() => "s";
 
                     [Composable]
-                    public static View Label(string value) => Span(Secret() + value);
+                    public static View Label(string value) => Span[Secret() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -1461,7 +1461,7 @@ public sealed class GeneratorTests
                     protected static string Prefix() => "P:";
 
                     [Composable]
-                    protected static View Label(string value) => Span(Prefix() + value);
+                    protected static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -1495,7 +1495,7 @@ public sealed class GeneratorTests
                     protected static string Prefix() => "P:";
 
                     [Composable]
-                    public static View Label(string value) => Span(Prefix() + value);
+                    public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -1528,7 +1528,7 @@ public sealed class GeneratorTests
                     protected internal static string Prefix() => "P:";
 
                     [Composable]
-                    public static View Label(string value) => Span(Prefix() + value);
+                    public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -1560,7 +1560,7 @@ public sealed class GeneratorTests
                     private protected static string Prefix() => "P:";
 
                     [Composable]
-                    public static View Label(string value) => Span(Prefix() + value);
+                    public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -1590,7 +1590,7 @@ public sealed class GeneratorTests
             public static class ExternalWidgets
             {
                 [Composable]
-                public static View Badge(string text) => Span(text);
+                public static View Badge(string text) => Span[text];
             }
             """,
             "ExternalWidgets");
@@ -1628,7 +1628,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Show(Hidden h) => Span("x");
+                private static View Show(Hidden h) => Span["x"];
 
                 protected override View Body => Show(new Hidden());
             }
@@ -1651,10 +1651,10 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Inner(string value) => Span(value);
+                private static View Inner(string value) => Span[value];
 
                 [Composable]
-                private static View Outer(string value) => Div(Inner(value), Span("tail"));
+                private static View Outer(string value) => Div[Inner(value), Span["tail"]];
 
                 protected override View Body => Outer("hi");
             }
@@ -1732,7 +1732,7 @@ public sealed class GeneratorTests
             {
                 [Composable]
                 private static View Echo(string value) =>
-                    Span(((System.Func<string, string>)(value => value))(value));
+                    Span[((System.Func<string, string>)(value => value))(value)];
 
                 protected override View Body => Echo("hi");
             }
@@ -1758,7 +1758,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Named(string value) => Span(nameof(value));
+                private static View Named(string value) => Span[nameof(value)];
 
                 protected override View Body => Named("x");
             }
@@ -1784,7 +1784,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View NamedMember(string value) => Span(nameof(value.Length));
+                private static View NamedMember(string value) => Span[nameof(value.Length)];
 
                 protected override View Body => NamedMember("x");
             }
@@ -1809,7 +1809,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View NamedType(string value) => Span(nameof(System.String) + value);
+                private static View NamedType(string value) => Span[nameof(System.String) + value];
 
                 protected override View Body => NamedType("x");
             }
@@ -1835,7 +1835,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Named() => Span(nameof(StringBuilder));
+                private static View Named() => Span[nameof(StringBuilder)];
 
                 protected override View Body => Named();
             }
@@ -1868,7 +1868,7 @@ public sealed class GeneratorTests
                     public static string Reveal() => _secret;
 
                     [Composable]
-                    public static View Show() => Span(nameof(_secret));
+                    public static View Show() => Span[nameof(_secret)];
                 }
                 """),
             ("Counter.cs", """
@@ -1901,7 +1901,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Greet(string value) => Span($"Hi {value}!");
+                private static View Greet(string value) => Span[$"Hi {value}!"];
 
                 protected override View Body => Greet("x");
             }
@@ -1925,7 +1925,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Swatch(Color c = Color.Green) => Span(c.ToString());
+                private static View Swatch(Color c = Color.Green) => Span[c.ToString()];
 
                 protected override View Body => Swatch();
             }
@@ -1949,7 +1949,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Show(Box b = default) => Span(b.V.ToString());
+                private static View Show(Box b = default) => Span[b.V.ToString()];
 
                 protected override View Body => Show();
             }
@@ -1975,7 +1975,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Scaled(float scale = 1.5f) => Span(scale.ToString());
+                private static View Scaled(float scale = 1.5f) => Span[scale.ToString()];
 
                 protected override View Body => Scaled();
             }
@@ -2000,7 +2000,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Priced(decimal amount = 1.5m) => Span(amount.ToString());
+                private static View Priced(decimal amount = 1.5m) => Span[amount.ToString()];
 
                 protected override View Body => Priced();
             }
@@ -2029,7 +2029,7 @@ public sealed class GeneratorTests
                     float f = float.NaN,
                     double d = double.PositiveInfinity,
                     double n = double.NegativeInfinity) =>
-                    Span(f.ToString() + d.ToString() + n.ToString());
+                    Span[f.ToString() + d.ToString() + n.ToString()];
 
                 protected override View Body => Special();
             }
@@ -2063,7 +2063,7 @@ public sealed class GeneratorTests
                     // Qualified member access to a private member: legal here, but inaccessible once
                     // inlined into an unrelated component.
                     [Composable]
-                    public static View Label(string value) => Span(Widgets.Secret() + value);
+                    public static View Label(string value) => Span[Widgets.Secret() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -2096,7 +2096,7 @@ public sealed class GeneratorTests
                     protected static string Prefix() => "P:";
 
                     [Composable]
-                    public static View Label(string value) => Span(WidgetBase.Prefix() + value);
+                    public static View Label(string value) => Span[WidgetBase.Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -2128,7 +2128,7 @@ public sealed class GeneratorTests
                 private static string Secret() => "s";
 
                 [Composable]
-                private static View Label(string value) => Span(Widget.Secret() + value);
+                private static View Label(string value) => Span[Widget.Secret() + value];
 
                 protected override View Body => Label("x");
             }
@@ -2156,7 +2156,7 @@ public sealed class GeneratorTests
                     protected static string Prefix() => "P:";
 
                     [Composable]
-                    protected static View Label(string value) => Span(WidgetBase.Prefix() + value);
+                    protected static View Label(string value) => Span[WidgetBase.Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -2195,7 +2195,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Head(IEnumerable<string> items) => Span(items.First());
+                private static View Head(IEnumerable<string> items) => Span[items.First()];
 
                 protected override View Body => Head(new List<string> { "a" });
             }
@@ -2235,7 +2235,7 @@ public sealed class GeneratorTests
             {
                 [Composable]
                 private static View Head() =>
-                    Span(Make<string>() + new Dictionary<string, int>().Count.ToString());
+                    Span[Make<string>() + new Dictionary<string, int>().Count.ToString()];
 
                 protected override View Body => Head();
             }
@@ -2264,7 +2264,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span((new List<string> { "a" }).First());
+                protected override View Body => Span[(new List<string> { "a" }).First()];
             }
             """;
 
@@ -2293,7 +2293,7 @@ public sealed class GeneratorTests
             {
                 [Composable]
                 private static View Head(IEnumerable<string> items) =>
-                    Span(items.Select(x => new { N = x }).First().N);
+                    Span[items.Select(x => new { N = x }).First().N];
 
                 protected override View Body => Head(new List<string> { "a" });
             }
@@ -2328,9 +2328,9 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Helper({{parameter}}) => Span("x");
+                private static View Helper({{parameter}}) => Span["x"];
 
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -2384,7 +2384,7 @@ public sealed class GeneratorTests
                         // expansion while any written type arguments are preserved.
                         [Composable]
                         public static View Show() =>
-                            Span(Models.Widget.Label + typeof(Models.Widget).Name + Models.Box<int>.Describe);
+                            Span[Models.Widget.Label + typeof(Models.Widget).Name + Models.Box<int>.Describe];
                     }
                 }
                 """),
@@ -2430,7 +2430,7 @@ public sealed class GeneratorTests
 
                 // A null-conditional extension receiver cannot be rewritten to a static call without
                 // changing short-circuit semantics, so Body normalization reports BC1002.
-                protected override View Body => Span(_items?.First());
+                protected override View Body => Span[_items?.First()];
             }
             """;
 
@@ -2469,7 +2469,7 @@ public sealed class GeneratorTests
                     // parameter 'T' — here through the 'T value' parameter — into the using-less
                     // generated component, so the declaration is rejected up front.
                     [Composable]
-                    public static View Show(T value) => Span(value!.ToString());
+                    public static View Show(T value) => Span[value!.ToString()];
                 }
                 """),
             ("Counter.cs", """
@@ -2505,7 +2505,7 @@ public sealed class GeneratorTests
                     // Even a parameterless composable leaks 'T' through its body (typeof(T)); the
                     // generic containing type is rejected regardless of the parameter list.
                     [Composable]
-                    public static View Show() => Span(typeof(T).Name);
+                    public static View Show() => Span[typeof(T).Name];
                 }
                 """),
             ("Counter.cs", """
@@ -2540,7 +2540,7 @@ public sealed class GeneratorTests
                     public static class Inner
                     {
                         [Composable]
-                        public static View Show() => Span(typeof(T).Name);
+                        public static View Show() => Span[typeof(T).Name];
                     }
                 }
                 """),
@@ -2590,7 +2590,7 @@ public sealed class GeneratorTests
                 public abstract partial class Helper : WidgetBase
                 {
                     [Composable]
-                    public static View Label(string value) => Span(Prefix() + value);
+                    public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -2632,7 +2632,7 @@ public sealed class GeneratorTests
                 public abstract partial class Helper : WidgetBase
                 {
                     [Composable]
-                    public static View Label(string value) => Span(Prefix() + value);
+                    public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
             ("Counter.cs", """
@@ -2663,7 +2663,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Hi").Class("badge");
+                protected override View Body => Span.Class("badge")["Hi"];
             }
             """);
 
@@ -2683,7 +2683,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Hi").Class("a").Class("b");
+                protected override View Body => Span.Class("a").Class("b")["Hi"];
             }
             """);
 
@@ -2702,7 +2702,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 private bool _on;
-                protected override View Body => Button("OK").OnClick(() => _on = !_on).Class(_on ? "on" : "off");
+                protected override View Body => Button.OnClick(() => _on = !_on).Class(_on ? "on" : "off")["OK"];
             }
             """);
 
@@ -2724,7 +2724,7 @@ public sealed class GeneratorTests
             {
                 private readonly List<string> _rows = new();
                 protected override View Body =>
-                    ForEach(_rows, key: r => r, content: r => Span(r).Class(r));
+                    ForEach(_rows, key: r => r, content: r => Span.Class(r)[r]);
             }
             """);
 
@@ -2743,10 +2743,10 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Div(Chip("hot"));
+                protected override View Body => Div[Chip("hot")];
 
                 [Composable]
-                private static View Chip(string c) => Span("chip").Class(c);
+                private static View Chip(string c) => Span.Class(c)["chip"];
             }
             """);
 
@@ -2755,61 +2755,6 @@ public sealed class GeneratorTests
         // If the hole were not substituted, ToCode() would throw and generation would fail; a compiling
         // output proves the composable-argument class hole was bound.
         CompilationTestHost.AssertOutputCompiles(result);
-    }
-
-    [Fact]
-    public void Generator_ClassOnIf_ReportsBC3008()
-    {
-        var result = CompilationTestHost.RunGenerator("""
-            using BlazorCompose;
-            using static BlazorCompose.Html;
-
-            public partial class Counter : ComposeComponentBase
-            {
-                protected override View Body => If(true, () => Span("x")).Class("y");
-            }
-            """);
-
-        Assert.Contains(result.Diagnostics,
-            d => d.Id == "BC3008" && d.Severity == DiagnosticSeverity.Error);
-    }
-
-    [Fact]
-    public void Generator_ClassOnRegion_ReportsBC3008Once()
-    {
-        var result = CompilationTestHost.RunGenerator("""
-            using BlazorCompose;
-            using static BlazorCompose.Html;
-
-            public partial class Counter : ComposeComponentBase
-            {
-                protected override View Body => If(true, () => Span("x")).Class("a").Class("b");
-            }
-            """);
-
-        // The inner .Class reports BC3008 and returns null; the outer .Class propagates null silently.
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3008");
-    }
-
-    [Fact]
-    public void Generator_ClassOnForEachWithBadKey_ReportsBothBC3002AndBC3008()
-    {
-        var result = CompilationTestHost.RunGenerator("""
-            using System.Collections.Generic;
-            using BlazorCompose;
-            using static BlazorCompose.Html;
-
-            public partial class Counter : ComposeComponentBase
-            {
-                private readonly List<string> _rows = new();
-                protected override View Body =>
-                    ForEach(_rows, key: r => 0, content: r => Span(r)).Class("c");
-            }
-            """);
-
-        // The receiver's own defect (constant key) and the illegal decoration are independent problems.
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3002");
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3008");
     }
 
     [Fact]
@@ -2851,7 +2796,7 @@ public sealed class GeneratorTests
                 [Parameter]
                 public RenderFragment? ChildContent { get; set; }
 
-                protected override View Body => Div(ChildContent.Class("x"));
+                protected override View Body => Div[ChildContent.Class("x")];
             }
             """);
 
@@ -2874,7 +2819,7 @@ public sealed class GeneratorTests
                 [Parameter]
                 public RenderFragment<string>? Template { get; set; }
 
-                protected override View Body => Div(Template);
+                protected override View Body => Div[Template];
             }
             """);
 
@@ -2892,7 +2837,7 @@ public sealed class GeneratorTests
             public partial class Card : ComposeComponentBase
             {
                 [Parameter] public RenderFragment? ChildContent { get; set; }
-                protected override View Body => Div(ChildContent);
+                protected override View Body => Div[ChildContent];
             }
             """;
 
@@ -2916,7 +2861,7 @@ public sealed class GeneratorTests
             public partial class Host : ComposeComponentBase
             {
                 private RenderFragment MakeHeader() => b => b.AddContent(0, "h");
-                protected override View Body => Div(MakeHeader());
+                protected override View Body => Div[MakeHeader()];
             }
             """;
 
@@ -2938,7 +2883,7 @@ public sealed class GeneratorTests
             public partial class Mixed : ComposeComponentBase
             {
                 [Parameter] public RenderFragment? Slot { get; set; }
-                protected override View Body => Div("before", Slot, "after");
+                protected override View Body => Div["before", Slot, "after"];
             }
             """;
 
@@ -2961,7 +2906,7 @@ public sealed class GeneratorTests
             {
                 [Parameter] public RenderFragment? Slot { get; set; }
                 private bool _show;
-                protected override View Body => Div(If(_show, () => Slot));
+                protected override View Body => Div[If(_show, () => Slot)];
             }
             """;
 
@@ -2983,7 +2928,7 @@ public sealed class GeneratorTests
             {
                 [Parameter] public RenderFragment? Slot { get; set; }
                 private static readonly List<int> Items = [1, 2];
-                protected override View Body => Div(ForEach(Items, key: i => i, content: i => Slot));
+                protected override View Body => Div[ForEach(Items, key: i => i, content: i => Slot)];
             }
             """;
 
@@ -3003,7 +2948,7 @@ public sealed class GeneratorTests
             public partial class Panel : ComposeComponentBase
             {
                 [Composable]
-                private static View Framed(RenderFragment? inner) => Div(inner);
+                private static View Framed(RenderFragment? inner) => Div[inner];
 
                 [Parameter] public RenderFragment? Slot { get; set; }
                 protected override View Body => Framed(Slot);
@@ -3038,15 +2983,15 @@ public sealed class GeneratorTests
 
             public partial class Dup : ComposeComponentBase
             {
-                protected override View Body => Span("a");
+                protected override View Body => Span["a"];
             }
             public partial class Dup : ComposeComponentBase
             {
-                protected override View Body => Span("b");
+                protected override View Body => Span["b"];
             }
             public partial class Healthy : ComposeComponentBase
             {
-                protected override View Body => Span("h");
+                protected override View Body => Span["h"];
             }
             """;
 
@@ -3076,15 +3021,15 @@ public sealed class GeneratorTests
 
             public partial class Healthy : ComposeComponentBase
             {
-                protected override View Body => Span("h");
+                protected override View Body => Span["h"];
             }
             public partial class Dup : ComposeComponentBase
             {
-                protected override View Body => Span("a");
+                protected override View Body => Span["a"];
             }
             public partial class Dup : ComposeComponentBase
             {
-                protected override View Body => Span("b");
+                protected override View Body => Span["b"];
             }
             """;
 
@@ -3111,7 +3056,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
 
                 protected override void RenderView(RenderTreeBuilder builder)
                     => builder.AddContent(0, "hand-written");
@@ -3139,7 +3084,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
 
                 protected override void RenderView(string builder) { }
             }
@@ -3163,7 +3108,7 @@ public sealed class GeneratorTests
 
             public partial class Gen<TItem> : ComposeComponentBase where TItem : notnull
             {
-                protected override View Body => Span("generic");
+                protected override View Body => Span["generic"];
             }
             """;
 
@@ -3187,7 +3132,7 @@ public sealed class GeneratorTests
 
             public partial class Pair<TKey, TValue> : ComposeComponentBase
             {
-                protected override View Body => Span("pair");
+                protected override View Body => Span["pair"];
             }
             """;
 
@@ -3219,13 +3164,13 @@ public sealed class GeneratorTests
             {
                 private string _label = "label";
 
-                protected override View Body => Div(Widgets.Label(_label));
+                protected override View Body => Div[Widgets.Label(_label)];
             }
 
             public static class Widgets
             {
                 [Composable]
-                public static View Label(string text) => Span(text);
+                public static View Label(string text) => Span[text];
             }
             """;
 
