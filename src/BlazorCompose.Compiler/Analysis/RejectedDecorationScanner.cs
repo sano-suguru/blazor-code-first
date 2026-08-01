@@ -9,8 +9,8 @@ namespace BlazorCompose.Compiler.Analysis;
 /// Sweeps a design-time expression that failed to translate, reporting BC3008 when a decoration
 /// (<c>.Class</c>, a named attribute shortcut, an event shortcut, <c>.Attr</c> or <c>.On</c>) was written on
 /// a receiver that opens no element frame — <c>Fragment(…)</c>, <c>Raw(…)</c>, <c>If(…)</c>,
-/// <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[Composable]</c> result, or an element that has
-/// already taken its children.
+/// <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[Composable]</c> result, an externally supplied
+/// <c>RenderFragment</c>, or an element that has already taken its children.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -63,8 +63,10 @@ internal static class RejectedDecorationScanner
     /// </remarks>
     public static void Report(ExpressionSyntax root, ComposableBodyContext context)
     {
-        // Every clause below is a comparison against one of these three, so with the bracket surface absent
-        // from the referenced runtime there is nothing to compare and nothing to report.
+        // Every required clause below is a comparison against one of these three, so with the bracket surface
+        // absent from the referenced runtime there is nothing to compare and nothing to report.  The one
+        // optional receiver — RenderFragment — carries its own null guard at its use site instead, because a
+        // compilation can lack it while the bracket surface is present.
         var symbols = context.KnownSymbols;
         if (symbols.ElementBuilderType is null || symbols.ViewType is null || symbols.ComponentViewType is null)
             return;
@@ -102,13 +104,23 @@ internal static class RejectedDecorationScanner
     /// Three conjuncts, and none of them is sufficient alone.  The written name must be one the referenced
     /// runtime's <c>Decorations</c> type actually declares; the call must have reached for something that
     /// returns <em>our</em> <c>ElementBuilder</c>; and it must have been written on <em>our</em>
-    /// <c>View</c> or <c>ComponentView&lt;T&gt;</c>.  The two type tests are symbol identity.  The name test
-    /// is not, and is exactly why the other two are required: a spelling proves nothing on its own, since
-    /// any type may declare a <c>Class</c> or a <c>Title</c>.  Its own names come from symbols resolved out
-    /// of the referenced runtime assembly, so a user-defined <c>Some.BlazorCompose.Decorations</c>
-    /// contributes none of them — see <see cref="KnownSymbols.DeclaresDecorationNamed"/>, and compare
-    /// <c>RenderMutationAnalyzer</c>, which tests a name and then anchors it by resolving the containing
-    /// type's namespace.
+    /// <c>View</c> or <c>ComponentView&lt;T&gt;</c>, or on Blazor's <c>RenderFragment</c>.  The two type tests
+    /// are symbol identity.  The name test is not, and is exactly why the other two are required: a spelling
+    /// proves nothing on its own, since any type may declare a <c>Class</c> or a <c>Title</c>.  Its own names
+    /// come from symbols resolved out of the referenced runtime assembly, so a user-defined
+    /// <c>Some.BlazorCompose.Decorations</c> contributes none of them — see
+    /// <see cref="KnownSymbols.DeclaresDecorationNamed"/>, and compare <c>RenderMutationAnalyzer</c>, which
+    /// tests a name and then anchors it by resolving the containing type's namespace.
+    /// </para>
+    /// <para>
+    /// <c>RenderFragment</c> is named in the receiver test rather than covered by <c>View</c>, even though it
+    /// converts to <c>View</c> implicitly.  An extension-method receiver admits only identity, reference and
+    /// boxing conversions, never a user-defined one, so a <c>RenderFragment</c> never becomes a <c>View</c>
+    /// for the purpose of resolving <c>.Class</c> — which is exactly why the call fails, and also why testing
+    /// the receiver against <c>View</c> alone would never see it.  The author's mistake is the one BC3008
+    /// already names: <c>DESIGN.md</c> groups an externally supplied <c>RenderFragment</c> with
+    /// <c>Fragment(…)</c> and <c>Raw(…)</c> as content that opens no element frame, and decorating any of the
+    /// three is the same error.
     /// </para>
     /// <para>
     /// The name conjunct is load-bearing, not belt-and-braces.  The type tests describe a decoration's
@@ -167,6 +179,8 @@ internal static class RejectedDecorationScanner
 
         return SymbolEqualityComparer.Default.Equals(receiverType, symbols.ViewType)
             || SymbolEqualityComparer.Default.Equals(
-                receiverType.OriginalDefinition, symbols.ComponentViewType);
+                receiverType.OriginalDefinition, symbols.ComponentViewType)
+            || (symbols.RenderFragmentType is { } renderFragmentType
+                && SymbolEqualityComparer.Default.Equals(receiverType, renderFragmentType));
     }
 }

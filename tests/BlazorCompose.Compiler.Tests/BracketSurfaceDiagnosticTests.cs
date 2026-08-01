@@ -262,6 +262,29 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
+    /// An externally supplied <c>RenderFragment</c> is a receiver BC3008 covers, not a gap in it.
+    /// </summary>
+    /// <remarks>
+    /// The receiver has to be named explicitly in <c>RejectedDecorationScanner</c>, and this case is what
+    /// pins that: <c>RenderFragment</c> converts to <c>View</c>, but an extension-method receiver admits only
+    /// identity, reference and boxing conversions, so the conversion is not applied when resolving
+    /// <c>.Class</c> and a receiver test against <c>View</c> alone never matches.  Before that clause existed
+    /// this input reported BC1003 — the generic "not statically analyzable" fallback — while
+    /// <c>DESIGN.md</c> §4.1 stated it was BC3008, grouping a supplied <c>RenderFragment</c> with
+    /// <c>Fragment</c> and <c>Raw</c> as content that opens no element frame.
+    /// </remarks>
+    [Fact]
+    public void DecoratingASuppliedRenderFragment_ReportsBC3008()
+    {
+        AssertReportsBC3008(RunResult(
+            """Div[Slot.Class("x")]""",
+            """
+            [Microsoft.AspNetCore.Components.Parameter]
+            public Microsoft.AspNetCore.Components.RenderFragment? Slot { get; set; }
+            """));
+    }
+
+    /// <summary>
     /// The misplaced decoration is written <em>inside</em> a <c>[Composable]</c> body rather than in
     /// <c>Body</c>, so the sweep that finds it runs from the other design-time-expression host.
     /// </summary>
@@ -322,9 +345,15 @@ public sealed class BracketSurfaceDiagnosticTests
 
     /// <summary>
     /// An unrelated extension method that fails to bind is not BC3008, whichever part of the shape it
-    /// shares.  One case per conjunct, so each is pinned on its own.
+    /// shares.  One case per part of the shape a decoration has — name, receiver, whole signature.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Not one case per conjunct: the three cover the parts of the shape an unrelated method can borrow, and
+    /// only the last of them turns on the conjunct it borrows, as the second paragraph records.  No case here
+    /// pins the receiver conjunct on its own — the receiver clause could be widened without any of them
+    /// noticing, which is what happened when <c>RenderFragment</c> was added to it.
+    /// </para>
     /// <para>
     /// <c>Other.Make().Class(1)</c> borrows the <em>name</em>: someone else's <c>.Class</c>, on a receiver
     /// and with a return type of their own.  <c>Fragment("a").Describe("x")</c> borrows the
