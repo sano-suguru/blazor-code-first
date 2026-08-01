@@ -52,7 +52,7 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (Is(method, symbols.HtmlElement))
+        if (symbols.IsElementFactory(method))
         {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ScanChildren(args, context);
@@ -604,7 +604,7 @@ internal static class UnresolvedValueTypeScanner
         var symbols = context.KnownSymbols;
         var normalized = KnownSymbols.Normalize(method);
         return symbols.ElementTags.ContainsKey(normalized)
-            || Is(method, symbols.HtmlElement)
+            || symbols.IsElementFactory(method)
             || Is(method, symbols.HtmlIf)
             || Is(method, symbols.HtmlForEach)
             || UnresolvedComponentTypeScanner.IsComponentFactory(

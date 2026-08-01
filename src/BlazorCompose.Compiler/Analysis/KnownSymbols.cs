@@ -126,6 +126,16 @@ internal sealed class KnownSymbols
     /// </remarks>
     public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
 
+    /// <summary>
+    /// Whether <paramref name="method"/> is either <c>Html.Element</c> overload.  Both must be matched: the
+    /// arities are distinct symbols, and missing one drops every call site written that way to BC1003.
+    /// </summary>
+    public bool IsElementFactory(IMethodSymbol method) =>
+        (HtmlElement is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElement))
+        || (HtmlElementWithChildren is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElementWithChildren));
+
     /// <summary>Curated element helper method → HTML tag name.</summary>
     public IReadOnlyDictionary<ISymbol, string> ElementTags { get; }
 
@@ -141,8 +151,20 @@ internal sealed class KnownSymbols
     /// <summary>All <c>Decorations.On</c> overloads.</summary>
     public IReadOnlyCollection<ISymbol> OnMethods { get; }
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Element(string, params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Element(string)</c>, or null.</summary>
     public IMethodSymbol? HtmlElement { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>Html.Element(string, params ReadOnlySpan&lt;View&gt;)</c>, or null.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a separate field from <see cref="HtmlElement"/>, as
+    /// <see cref="HtmlComponentWithChildren"/> is from <see cref="HtmlComponent"/>.  One field matching both
+    /// arities cannot work: a runtime declaring both would let <c>GetMembers</c> order decide which overload
+    /// analysis recognizes, and the other would fall through to BC1003.  Match them through
+    /// <see cref="IsElementFactory"/> rather than by hand, so no consumer can OR only one.
+    /// </remarks>
+    public IMethodSymbol? HtmlElementWithChildren { get; }
 
     /// <summary>Resolved symbol for <c>BlazorCompose.Html.If(bool, Func&lt;View&gt;, Func&lt;View&gt;?)</c>, or null.</summary>
     public IMethodSymbol? HtmlIf { get; }
@@ -253,9 +275,10 @@ internal sealed class KnownSymbols
             switch (method.Name)
             {
                 // One parameter is the bracket surface's Element(string tag) returning ElementBuilder; two
-                // is the current Element(string tag, params ReadOnlySpan<View>). Matching only two would
-                // stop HtmlElement resolving and drop every Element(…) call site to BC1003.
-                case "Element" when method.Parameters.Length is 1 or 2: HtmlElement = method; break;
+                // is the current Element(string tag, params ReadOnlySpan<View>). Distinct fields, matched
+                // together by IsElementFactory; #87 removes the two-parameter arm once the properties ship.
+                case "Element" when method.Parameters.Length == 1: HtmlElement = method; break;
+                case "Element" when method.Parameters.Length == 2: HtmlElementWithChildren = method; break;
                 case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
                 case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
                 case "Component" when method.Arity == 1 && method.Parameters.Length == 0:

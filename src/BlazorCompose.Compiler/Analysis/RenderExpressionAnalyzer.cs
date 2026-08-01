@@ -108,7 +108,7 @@ internal static class RenderExpressionAnalyzer
             string? tag = symbols.ElementTags.TryGetValue(KnownSymbols.Normalize(method), out var mapped)
                 ? mapped
                 : null;
-            bool isElement = Is(method, symbols.HtmlElement);
+            bool isElement = symbols.IsElementFactory(method);
 
             if (tag is not null || isElement)
             {

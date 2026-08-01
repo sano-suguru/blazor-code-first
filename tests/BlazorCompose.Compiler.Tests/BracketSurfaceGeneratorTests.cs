@@ -103,10 +103,11 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.NotNull(symbols.ElementIndexer);
         Assert.NotNull(symbols.ComponentIndexer);
 
-        // Element(string tag) has one parameter on this surface; the arity match must accept it or every
-        // Element(…) call site falls to BC1003.
+        // Element(string tag) is the only arity on this surface. One field per arity, matched through
+        // IsElementFactory, is what keeps both spellings recognized when a runtime declares both.
         Assert.NotNull(symbols.HtmlElement);
         Assert.Single(symbols.HtmlElement!.Parameters);
+        Assert.Null(symbols.HtmlElementWithChildren);
 
         // The params Component<T>(children) overload is gone — the indexer replaces it — so every consumer
         // must tolerate a null HtmlComponentWithChildren rather than dereference it.

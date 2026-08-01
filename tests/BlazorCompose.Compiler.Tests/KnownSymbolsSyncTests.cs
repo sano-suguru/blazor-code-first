@@ -97,6 +97,20 @@ public sealed class KnownSymbolsSyncTests
     }
 
     [Fact]
+    public void Element_ResolvesOnlyTheChildrenOverload_OnTheShippedRuntime()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        // Pinned from the opposite side to the bracket-surface assertion in
+        // BracketSurfaceGeneratorTests: one field per arity, so a runtime declaring both cannot let
+        // GetMembers order decide which one analysis recognizes.
+        Assert.Null(symbols.HtmlElement);
+        Assert.NotNull(symbols.HtmlElementWithChildren);
+        Assert.Equal(2, symbols.HtmlElementWithChildren!.Parameters.Length);
+        Assert.True(symbols.HtmlElementWithChildren.Parameters[1].IsParams);
+    }
+
+    [Fact]
     public void Param_BothOverloads_AreResolvedSeparately()
     {
         var (symbols, _) = ResolveHtml();
