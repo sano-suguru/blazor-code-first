@@ -107,8 +107,9 @@ public sealed class BracketSurfaceGeneratorTests
 
     /// <summary>
     /// A surface whose members have the right names and shapes but the wrong declared types must not be
-    /// recognized.  This is the only test that exercises the type guards: the real shim declares everything
-    /// correctly, so it can only prove the positive side.
+    /// recognized.  This is the only test that exercises the type guards: the shipped runtime declares
+    /// everything correctly, so every other test can only prove the positive side.  Hence the compilation
+    /// built without it — the wrong surface has to be the only <c>BlazorCompose</c> in scope.
     /// </summary>
     [Fact]
     public void MembersWithTheWrongDeclaredTypes_AreNotRecognized()
@@ -141,7 +142,7 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.Null(symbols!.ElementIndexer);
 
         // Declared as a local, not spelled inline in the call: a collection expression has no target type
-        // in an Assert.Equal argument position. This is the pattern AssertRetiredIntoCS1929 already uses.
+        // in an Assert.Equal argument position. BracketSurfaceDiagnosticTests uses the same pattern.
         string[] expected = ["Span"];
         Assert.Equal(expected, symbols.ElementTags.Keys.Select(static key => key.Name).ToList());
     }

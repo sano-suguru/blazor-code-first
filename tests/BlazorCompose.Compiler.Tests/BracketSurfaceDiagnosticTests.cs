@@ -38,11 +38,20 @@ public sealed class BracketSurfaceDiagnosticTests
 
     /// <summary>Runs the generator over <paramref name="body"/> and returns its diagnostics.</summary>
     /// <remarks>
+    /// <para>
     /// Bodies that are deliberately not valid C# need no separate entry point.  They did while these tests
     /// ran against an in-source shim, whose own health had to be asserted before an input error could be
     /// tolerated; against the shipped runtime the compilation is built the ordinary way, and an input error
-    /// is just an input error.  Nothing here can pass vacuously as a result: every test below either asserts
-    /// a diagnostic is present, or — for the two accepted shapes — asserts the generated output compiles.
+    /// is just an input error.
+    /// </para>
+    /// <para>
+    /// What the shim's gate did carry is that no test here passes vacuously, and that is held by assertion
+    /// rather than by this remark.  Each test below does one of three things: asserts a diagnostic that
+    /// names a specific mistake, which cannot appear unless the analyzer reached the shape under test;
+    /// asserts through <c>AssertOutputCompiles</c> that the generated output compiles, for the two accepted
+    /// shapes; or, where the asserted diagnostic is the generic BC1003 fallback, asserts through
+    /// <see cref="AssertOnlyRenderViewIsMissing"/> that nothing else about the input is broken.
+    /// </para>
     /// </remarks>
     private static ImmutableArray<Diagnostic> Run(string body, string members = "") =>
         RunResult(body, members).Diagnostics;
@@ -206,9 +215,10 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void WholeCollectionPassedInBrackets_ReportsBC1003()
     {
-        var diagnostics = Run("""Div[_children]""", """private readonly View[] _children = [];""");
+        var result = RunResult("""Div[_children]""", """private readonly View[] _children = [];""");
 
-        Assert.Contains(diagnostics, static d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
     }
 
     [Fact]
@@ -217,9 +227,10 @@ public sealed class BracketSurfaceDiagnosticTests
         // A nested collection-expression literal also binds non-expanded, so it is one whole collection
         // rather than two children. Brackets make the typo easier to write than the method form did; the
         // current behaviour is pinned here, not endorsed.
-        var diagnostics = Run("""Div[["a", "b"]]""");
+        var result = RunResult("""Div[["a", "b"]]""");
 
-        Assert.Contains(diagnostics, static d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
     }
 
     // ---------------------------------------------------------------------------
@@ -376,6 +387,33 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.Equal(
             expected,
             result.Diagnostics.Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());
+    }
+
+    /// <summary>
+    /// Asserts that the only thing wrong with <paramref name="result"/>'s compilation is the missing
+    /// <c>RenderView</c>, so a BC1003 reported against it is about the body under test.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other diagnostic asserted in this file names a specific mistake, so asserting its presence
+    /// establishes that the analyzer reached the shape under test.  BC1003 does not: it is the generic
+    /// "uses a construct that is not statically analyzable" fallback, and an input that stopped binding for
+    /// some entirely unrelated reason produces it too.  A bare <c>Assert.Contains(… BC1003)</c> would
+    /// therefore keep passing on a host template that no longer says what the test means it to say.  The
+    /// shim's own input gate used to rule that out; this is what replaces it.
+    /// </para>
+    /// <para>
+    /// CS0534 is the one error left standing, and it is expected rather than tolerated: the generator is
+    /// what supplies <c>RenderView</c>, and here it declined to for exactly the reason under test.  Any
+    /// <em>other</em> C# error means the body failed to bind before the analyzer had an opinion about it.
+    /// </para>
+    /// </remarks>
+    private static void AssertOnlyRenderViewIsMissing(GeneratorRunResult result)
+    {
+        string[] expected = ["CS0534"];
+        Assert.Equal(
+            expected,
+            OutputErrors(result).Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());
     }
 
     /// <summary>Every error diagnostic the generator's output compilation reports, for assertion.</summary>
