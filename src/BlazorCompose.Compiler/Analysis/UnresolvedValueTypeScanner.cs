@@ -261,7 +261,7 @@ internal static class UnresolvedValueTypeScanner
 
     private static void ScanChildren(BoundArguments args, ComposableBodyContext context)
     {
-        if (args.HasExplicitParamsArgument)
+        if (args.HasUnanalyzableParamsArgument)
             return;
 
         foreach (var child in args.ParamsElements)
@@ -729,16 +729,16 @@ internal static class UnresolvedValueTypeScanner
         private BoundArguments(
             ImmutableArray<ExpressionSyntax?> byDeclaredParameter,
             ImmutableArray<ExpressionSyntax> paramsElements,
-            bool hasExplicitParamsArgument)
+            bool hasUnanalyzableParamsArgument)
         {
             _byDeclaredParameter = byDeclaredParameter;
             ParamsElements = paramsElements;
-            HasExplicitParamsArgument = hasExplicitParamsArgument;
+            HasUnanalyzableParamsArgument = hasUnanalyzableParamsArgument;
         }
 
         public ImmutableArray<ExpressionSyntax> ParamsElements { get; }
 
-        public bool HasExplicitParamsArgument { get; }
+        public bool HasUnanalyzableParamsArgument { get; }
 
         public IEnumerable<ExpressionSyntax> ExplicitArguments
         {
@@ -769,7 +769,7 @@ internal static class UnresolvedValueTypeScanner
             return new BoundArguments(
                 byParameter.MoveToImmutable(),
                 arguments.ParamsElements,
-                arguments.HasExplicitParamsArgument);
+                arguments.HasUnanalyzableParamsArgument);
         }
 
         public static BoundArguments? TryBindFallback(
@@ -798,7 +798,7 @@ internal static class UnresolvedValueTypeScanner
 
             var byParameter = new ExpressionSyntax?[declaredCount];
             var paramsElements = ImmutableArray.CreateBuilder<ExpressionSyntax>();
-            var hasExplicitParams = false;
+            var hasUnanalyzableParams = false;
             var nextPositional = 0;
 
             foreach (var argument in argumentList.Arguments)
@@ -829,12 +829,12 @@ internal static class UnresolvedValueTypeScanner
                 {
                     if (argument.NameColon is not null)
                     {
-                        if (hasExplicitParams || paramsElements.Count != 0)
+                        if (hasUnanalyzableParams || paramsElements.Count != 0)
                             return null;
 
-                        hasExplicitParams = true;
+                        hasUnanalyzableParams = true;
                     }
-                    else if (hasExplicitParams)
+                    else if (hasUnanalyzableParams)
                     {
                         return null;
                     }
@@ -858,7 +858,7 @@ internal static class UnresolvedValueTypeScanner
             return new BoundArguments(
                 ImmutableArray.Create(byParameter),
                 paramsElements.ToImmutable(),
-                hasExplicitParams);
+                hasUnanalyzableParams);
         }
     }
 }

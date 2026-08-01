@@ -37,25 +37,29 @@ internal readonly struct FactoryArguments
     private FactoryArguments(
         ImmutableArray<ArgumentSyntax?> byDeclaredParameter,
         ImmutableArray<ExpressionSyntax> paramsElements,
-        bool hasExplicitParamsArgument)
+        bool hasUnanalyzableParamsArgument)
     {
         _byDeclaredParameter = byDeclaredParameter;
         ParamsElements = paramsElements;
-        HasExplicitParamsArgument = hasExplicitParamsArgument;
+        HasUnanalyzableParamsArgument = hasUnanalyzableParamsArgument;
     }
 
     /// <summary>
-    /// The children written into a <c>params</c> parameter in expanded form, in source order.  Empty when
-    /// the callee has no <c>params</c> parameter or it received no elements.
+    /// The children written into a <c>params</c> parameter, in source order — from the expanded form
+    /// (<c>Div["a", "b"]</c>) or from a collection-expression literal (<c>Div[["a", "b"]]</c>), which are
+    /// the same call.  Empty when the callee has no <c>params</c> parameter or it received no elements.
     /// </summary>
     internal ImmutableArray<ExpressionSyntax> ParamsElements { get; }
 
     /// <summary>
-    /// True when the <c>params</c> parameter received one whole collection (<c>Div(children: arr)</c>)
-    /// instead of expanded elements.  Such an argument is a collection expression, not a list of
-    /// children, so callers must reject it rather than mis-split it.
+    /// True when the <c>params</c> parameter received one whole collection whose children are not visible
+    /// to the generator — a variable or method result (<c>Div[_kids]</c>, <c>Div[children: Kids()]</c>), a
+    /// written array creation, or anything containing a spread.  Callers must reject such an argument
+    /// rather than mis-split it.  A collection-expression literal (<c>Div[["a", "b"]]</c>) is <em>not</em>
+    /// such an argument: its children are recovered into <see cref="ParamsElements"/> like an expanded
+    /// bucket's, because it is the same call (#75).
     /// </summary>
-    internal bool HasExplicitParamsArgument { get; }
+    internal bool HasUnanalyzableParamsArgument { get; }
 
     /// <summary>
     /// The argument bound to the declared parameter at <paramref name="index"/>, ignoring an extension
@@ -126,7 +130,7 @@ internal readonly struct FactoryArguments
 
         var byParameter = new ArgumentSyntax?[declaredCount];
         var paramsElements = ImmutableArray<ExpressionSyntax>.Empty;
-        var hasExplicitParams = false;
+        var hasUnanalyzableParams = false;
 
         foreach (var argument in arguments)
         {
@@ -170,7 +174,7 @@ internal readonly struct FactoryArguments
                         if (TryExtractLiteralElements(argument) is { } literalElements)
                             paramsElements = literalElements;
                         else
-                            hasExplicitParams = true;
+                            hasUnanalyzableParams = true;
 
                         continue;
                     }
@@ -189,7 +193,7 @@ internal readonly struct FactoryArguments
         }
 
         return new FactoryArguments(
-            ImmutableArray.Create(byParameter), paramsElements, hasExplicitParams);
+            ImmutableArray.Create(byParameter), paramsElements, hasUnanalyzableParams);
     }
 
     /// <summary>

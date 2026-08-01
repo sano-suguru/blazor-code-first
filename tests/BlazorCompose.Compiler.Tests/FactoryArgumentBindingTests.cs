@@ -245,7 +245,7 @@ public sealed class FactoryArgumentBindingTests
     public void Fragment_ExplicitChildrenCollection_RemainsUnsupported()
     {
         // Same guard as Element_ExplicitChildrenCollection_RemainsUnsupported, pinned on Fragment's own
-        // HasExplicitParamsArgument check so that copy keeps its only test once the pair is duplicated.
+        // HasUnanalyzableParamsArgument check so that copy keeps its only test once the pair is duplicated.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
