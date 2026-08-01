@@ -173,7 +173,9 @@ internal static class ComponentModelFactory
         // Translation failed. Sweep the whole expression for unresolved Component<T>() type arguments,
         // value-position type references and misplaced decorations so the author is told the real cause
         // instead of BC1003's "not statically analyzable". Only on the failure path, so a healthy body pays
-        // nothing. BC1003 is then suppressed automatically by Expand's error dedup.
+        // nothing. BC1003 is then suppressed automatically by Expand's error dedup. ComposableDefinitionFactory
+        // runs the same three for the [Composable] host, and FailurePathScannerParityTests holds the two
+        // lists equal — a sweep wired into one host only loses coverage silently for the other.
         TemplateLocation? failureLocation = null;
         if (template is null)
         {

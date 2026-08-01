@@ -100,8 +100,10 @@ public static class GeneratedSourceSnapshot
     /// checkout path locally.  Every case would pass locally and fail on CI with a misleading "baseline
     /// missing".  <c>BlazorCompose.DiagnosticTests.RepoLayout</c> does the same walk for the same reason;
     /// it is not shared because coupling the two test projects for fifteen lines costs more than it saves.
+    /// Within this project it is shared: <c>FailurePathScannerParityTests</c> reads compiler sources through
+    /// it.
     /// </remarks>
-    private static string FindRepositoryRoot()
+    internal static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
              directory is not null;

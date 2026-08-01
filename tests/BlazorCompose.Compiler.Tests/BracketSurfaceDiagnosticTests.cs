@@ -261,6 +261,39 @@ public sealed class BracketSurfaceDiagnosticTests
             """));
     }
 
+    /// <summary>
+    /// The misplaced decoration is written <em>inside</em> a <c>[Composable]</c> body rather than in
+    /// <c>Body</c>, so the sweep that finds it runs from the other design-time-expression host.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Distinct from <see cref="DecoratingAComposableResult_ReportsBC3008"/>, which decorates what a
+    /// composable <em>returns</em> and is written in <c>Body</c> like every other case in this group.  Here
+    /// the composable's own body is the broken expression, and <c>Body</c> is healthy.
+    /// </para>
+    /// <para>
+    /// Kept as its own case because the shape is not covered by any other: a design-time expression has two
+    /// hosts — <c>ComponentModelFactory</c> for <c>Body</c> and <c>ComposableDefinitionFactory</c> for
+    /// <c>[Composable]</c> — and each wires its own failure-path sweeps.  BC3008 was reported from inside
+    /// <c>RenderExpressionAnalyzer.Classify</c>, which both hosts route through, until it moved to a
+    /// caller-invoked scanner; the composable host was then left without it, and every existing case here
+    /// shares the <c>Body</c> host template and so kept passing.  Measured on that state, this input reported
+    /// BC1002 alone — "body must be a statically sequenceable expression", the generic text BC3008 exists to
+    /// displace.  <c>FailurePathScannerParityTests</c> guards the wiring; this guards the author-facing
+    /// result.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DecoratingANonElement_InsideAComposableBody_ReportsBC3008()
+    {
+        AssertReportsBC3008(RunResult(
+            """Div["ok"]""",
+            """
+            [Composable]
+            private static View Card() => Fragment("a").Class("x");
+            """));
+    }
+
     [Fact]
     public void DecoratingANonElement_ReportsBC3008_AtTheDecorationName()
     {
