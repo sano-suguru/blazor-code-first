@@ -598,11 +598,12 @@ internal static class RenderExpressionAnalyzer
     /// element access's own receiver, the children from its bracketed arguments.
     /// </summary>
     /// <remarks>
-    /// Every failure path calls <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>, as the
-    /// decoration and <c>.Param</c> arms do.  It is the suppressor paired with
-    /// <c>UnresolvedValueTypeScanner</c>'s <c>ShouldRecoverUnresolvedValue</c>: without it a construct that
-    /// already reported its own diagnostic — <c>Element(nonConstant)["x"]</c> reporting BC3009 — would be
-    /// swept a second time and also report BC3015.  The span is the element access's, not an invocation's.
+    /// No failure path here registers a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>
+    /// span, and none needs to.  That suppressor is keyed on an <c>InvocationExpressionSyntax</c> span —
+    /// <c>UnresolvedValueTypeScanner</c>'s only reader passes one — so a rejection keyed on this element
+    /// access could never be read.  Suppression still works on this surface because it is registered by the
+    /// receiver: <c>Element(nonConstant)["x"]</c> and <c>Div.Attr(nonConstant)["x"]</c> both fail inside an
+    /// invocation, and the <c>Element</c> and decoration arms register that invocation's own span.
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
@@ -610,25 +611,16 @@ internal static class RenderExpressionAnalyzer
         // The receiver carries the tag and the decoration chain, so it is classified by the same arms that
         // handle the childless and decorated forms rather than by a second copy of their rules.
         if (Analyze(elementAccess.Expression, context) is not ElementTemplateNode element)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         // One whole collection passed to the params indexer (Div[arr]) is not a list of children; leave it
         // unanalyzable so it lands on BC1003 instead of being mis-split.
         if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         var children = AnalyzeChildren(args.ParamsElements, context);
         if (children is null)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         return element with { Children = children.Value };
     }
@@ -652,35 +644,22 @@ internal static class RenderExpressionAnalyzer
         ComposableBodyContext context)
     {
         if (Analyze(elementAccess.Expression, context) is not ComponentTemplateNode component)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         // The node carries only the type's display name, so the symbol BC3013 and the ChildContent lookup
         // need comes from the indexer's own containing type — ComponentView<T> for the T being configured.
         if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         var children = AnalyzeChildren(args.ParamsElements, context);
         if (children is null)
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         if (children.Value.Length > 0 && HasBinding(component, ChildContentParameterName))
         {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BC3007,
                 elementAccess.ArgumentList.GetLocation(),
@@ -694,10 +673,7 @@ internal static class RenderExpressionAnalyzer
                 elementAccess.GetLocation(),
                 context,
                 out var slots))
-        {
-            context.RejectUnresolvedValueRecovery(elementAccess.Span);
             return null;
-        }
 
         // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
         // slot on the receiver, and it is not a duplicate of this one.
