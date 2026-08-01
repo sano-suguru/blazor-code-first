@@ -371,10 +371,11 @@ internal static class DiagnosticDescriptors
                 + "time.");
 
     /// <summary>
-    /// BC3014: an inert design-time value (<c>View</c> or <c>ComponentView&lt;T&gt;</c>) was passed to the
-    /// generic <c>Param</c>, whose value is emitted verbatim. Such a value binds the empty design-time
-    /// marker rather than any content: an <c>object</c>-typed parameter accepts it with no exception at
-    /// all and renders wrong output, and a typed parameter throws an invalid cast at runtime.
+    /// BC3014: an inert design-time value (<c>View</c>, <c>ElementBuilder</c>, or
+    /// <c>ComponentView&lt;T&gt;</c>) was passed to the generic <c>Param</c>, whose value is emitted
+    /// verbatim. Such a value binds the empty design-time marker rather than any content: an
+    /// <c>object</c>-typed parameter accepts it with no exception at all and renders wrong output, and a
+    /// typed parameter throws an invalid cast at runtime.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3014 = new(
         id: "BC3014",

@@ -10,7 +10,7 @@ public sealed class KnownSymbolsSyncTests
     private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component", "Fragment", "Raw"];
 
     /// <summary>The number of curated element helpers <c>KnownSymbols</c> owns the table for.</summary>
-    private const int CuratedTagCount = 22;
+    internal const int CuratedTagCount = 22;
 
     [Fact]
     public void ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural()

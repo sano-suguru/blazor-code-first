@@ -85,7 +85,7 @@ public sealed class BracketSurfaceGeneratorTests
         var symbols = KnownSymbols.TryCreate(compilation);
 
         Assert.NotNull(symbols);
-        Assert.Equal(22, symbols!.ElementTags.Count);
+        Assert.Equal(KnownSymbolsSyncTests.CuratedTagCount, symbols!.ElementTags.Count);
         Assert.DoesNotContain(symbols.ElementTags.Keys, static key => key is IPropertySymbol { IsIndexer: true });
         Assert.All(symbols.ElementTags.Keys, static key => Assert.IsAssignableFrom<IPropertySymbol>(key));
     }
