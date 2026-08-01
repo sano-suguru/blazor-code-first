@@ -64,3 +64,8 @@ static BlazorCompose.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! 
 static BlazorCompose.Html.Component<TComponent>() -> BlazorCompose.ComponentView<TComponent>
 BlazorCompose.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCompose.View content) -> BlazorCompose.ComponentView<TComponent>
 static BlazorCompose.Html.Component<TComponent>(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.ComponentView<TComponent>
+BlazorCompose.ElementBuilder
+BlazorCompose.ElementBuilder.ElementBuilder() -> void
+BlazorCompose.ElementBuilder.this[params System.ReadOnlySpan<BlazorCompose.View> children].get -> BlazorCompose.View
+static BlazorCompose.ElementBuilder.implicit operator BlazorCompose.View(BlazorCompose.ElementBuilder builder) -> BlazorCompose.View
+BlazorCompose.ComponentView<TComponent>.this[params System.ReadOnlySpan<BlazorCompose.View> children].get -> BlazorCompose.View
