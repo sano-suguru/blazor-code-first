@@ -16,54 +16,53 @@ BlazorCompose.View.View() -> void
 static BlazorCompose.View.implicit operator BlazorCompose.View(string! text) -> BlazorCompose.View
 static BlazorCompose.View.implicit operator BlazorCompose.View(Microsoft.AspNetCore.Components.RenderFragment? fragment) -> BlazorCompose.View
 BlazorCompose.Decorations
-static BlazorCompose.Decorations.Class(this BlazorCompose.View view, string! class) -> BlazorCompose.View
-static BlazorCompose.Decorations.OnClick(this BlazorCompose.View view, System.Action! handler) -> BlazorCompose.View
-static BlazorCompose.Decorations.Href(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Src(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Alt(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Id(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Type(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Title(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Role(this BlazorCompose.View view, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.Attr(this BlazorCompose.View view, string! name, string! value) -> BlazorCompose.View
-static BlazorCompose.Decorations.On(this BlazorCompose.View view, string! eventName, System.Action! handler) -> BlazorCompose.View
-static BlazorCompose.Decorations.On(this BlazorCompose.View view, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCompose.View
-static BlazorCompose.Decorations.OnClick(this BlazorCompose.View view, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCompose.View
+static BlazorCompose.Decorations.Class(this BlazorCompose.ElementBuilder element, string! class) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.OnClick(this BlazorCompose.ElementBuilder element, System.Action! handler) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Href(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Src(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Alt(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Id(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Type(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Title(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Role(this BlazorCompose.ElementBuilder element, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.Attr(this BlazorCompose.ElementBuilder element, string! name, string! value) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.On(this BlazorCompose.ElementBuilder element, string! eventName, System.Action! handler) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.On(this BlazorCompose.ElementBuilder element, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCompose.ElementBuilder
+static BlazorCompose.Decorations.OnClick(this BlazorCompose.ElementBuilder element, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCompose.ElementBuilder
 BlazorCompose.ComponentView<TComponent>
 BlazorCompose.ComponentView<TComponent>.ComponentView() -> void
 BlazorCompose.ComponentView<TComponent>.Param<TValue>(System.Func<TComponent, TValue>! selector, TValue value) -> BlazorCompose.ComponentView<TComponent>
 static BlazorCompose.ComponentView<TComponent>.implicit operator BlazorCompose.View(BlazorCompose.ComponentView<TComponent> _) -> BlazorCompose.View
 BlazorCompose.Html
-static BlazorCompose.Html.Div(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Span(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Button(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Nav(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Header(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Main(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Aside(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Footer(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Section(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Article(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.P(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.H1(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.H2(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.H3(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.H4(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.H5(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.H6(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Ul(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Ol(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Li(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.A(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Img(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
-static BlazorCompose.Html.Element(string! tag, params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
+static BlazorCompose.Html.Div.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Span.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Button.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Nav.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Header.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Main.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Aside.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Footer.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Section.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Article.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.P.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.H1.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.H2.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.H3.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.H4.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.H5.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.H6.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Ul.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Ol.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Li.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.A.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Img.get -> BlazorCompose.ElementBuilder
+static BlazorCompose.Html.Element(string! tag) -> BlazorCompose.ElementBuilder
 static BlazorCompose.Html.Fragment(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.View
 static BlazorCompose.Html.Raw(string! rawHtml) -> BlazorCompose.View
 static BlazorCompose.Html.If(bool condition, System.Func<BlazorCompose.View>! then, System.Func<BlazorCompose.View>? otherwise = null) -> BlazorCompose.View
 static BlazorCompose.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCompose.View>! content) -> BlazorCompose.View
 static BlazorCompose.Html.Component<TComponent>() -> BlazorCompose.ComponentView<TComponent>
 BlazorCompose.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCompose.View content) -> BlazorCompose.ComponentView<TComponent>
-static BlazorCompose.Html.Component<TComponent>(params System.ReadOnlySpan<BlazorCompose.View> children) -> BlazorCompose.ComponentView<TComponent>
 BlazorCompose.ElementBuilder
 BlazorCompose.ElementBuilder.ElementBuilder() -> void
 BlazorCompose.ElementBuilder.this[params System.ReadOnlySpan<BlazorCompose.View> children].get -> BlazorCompose.View

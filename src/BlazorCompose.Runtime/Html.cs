@@ -7,93 +7,100 @@ namespace BlazorCompose;
 /// members and emits the equivalent <c>RenderTreeBuilder</c> instructions into the component's generated
 /// <c>RenderView</c>. They are never meant to run — at runtime they perform no work and return only a
 /// default value, so they must not be invoked directly. Add <c>using static BlazorCompose.Html;</c> and
-/// call factories unqualified (<c>Div(...)</c>); this is the recommended terse authoring form. The
-/// qualified form (<c>Html.Div(...)</c>) remains available as an escape hatch for the rare file where an
-/// imported factory name collides with a local identifier (for example, a domain type named <c>Component</c>).
+/// write factories unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended
+/// terse authoring form. The qualified form (<c>Html.Div["text"]</c>) remains available as an escape
+/// hatch for the rare file where an imported factory name collides with a local identifier (for example,
+/// a domain type named <c>Component</c>).
 /// </summary>
 public static class Html
 {
-    /// <summary>Design-time syntax for an HTML <c>div</c> element with mixed string/element children.</summary>
-    public static View Div(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>div</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Div => default;
 
-    /// <summary>Design-time syntax for an HTML <c>span</c> element with mixed string/element children.</summary>
-    public static View Span(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>span</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Span => default;
 
-    /// <summary>Design-time syntax for an HTML <c>button</c> element; attach a handler with <c>.OnClick</c>.</summary>
-    public static View Button(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>button</c> element; attach a handler with <c>.OnClick</c>
+    /// and supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Button => default;
 
-    /// <summary>Design-time syntax for an HTML <c>nav</c> element.</summary>
-    public static View Nav(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>nav</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Nav => default;
 
-    /// <summary>Design-time syntax for an HTML <c>header</c> element.</summary>
-    public static View Header(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>header</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Header => default;
 
-    /// <summary>Design-time syntax for an HTML <c>main</c> element.</summary>
-    public static View Main(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>main</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Main => default;
 
-    /// <summary>Design-time syntax for an HTML <c>aside</c> element.</summary>
-    public static View Aside(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>aside</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Aside => default;
 
-    /// <summary>Design-time syntax for an HTML <c>footer</c> element.</summary>
-    public static View Footer(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>footer</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Footer => default;
 
-    /// <summary>Design-time syntax for an HTML <c>section</c> element.</summary>
-    public static View Section(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>section</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Section => default;
 
-    /// <summary>Design-time syntax for an HTML <c>article</c> element.</summary>
-    public static View Article(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>article</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Article => default;
 
-    /// <summary>Design-time syntax for an HTML <c>p</c> element.</summary>
-    public static View P(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>p</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder P => default;
 
-    /// <summary>Design-time syntax for an HTML <c>h1</c> element.</summary>
-    public static View H1(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>h1</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder H1 => default;
 
-    /// <summary>Design-time syntax for an HTML <c>h2</c> element.</summary>
-    public static View H2(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>h2</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder H2 => default;
 
-    /// <summary>Design-time syntax for an HTML <c>h3</c> element.</summary>
-    public static View H3(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>h3</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder H3 => default;
 
-    /// <summary>Design-time syntax for an HTML <c>h4</c> element.</summary>
-    public static View H4(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>h4</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder H4 => default;
 
-    /// <summary>Design-time syntax for an HTML <c>h5</c> element.</summary>
-    public static View H5(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>h5</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder H5 => default;
 
-    /// <summary>Design-time syntax for an HTML <c>h6</c> element.</summary>
-    public static View H6(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>h6</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder H6 => default;
 
-    /// <summary>Design-time syntax for an HTML <c>ul</c> element.</summary>
-    public static View Ul(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>ul</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Ul => default;
 
-    /// <summary>Design-time syntax for an HTML <c>ol</c> element.</summary>
-    public static View Ol(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>ol</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Ol => default;
 
-    /// <summary>Design-time syntax for an HTML <c>li</c> element.</summary>
-    public static View Li(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>li</c> element; supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Li => default;
 
-    /// <summary>Design-time syntax for an HTML <c>a</c> element; set the target with <c>.Href</c>.</summary>
-    public static View A(params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an HTML <c>a</c> element; set the target with <c>.Href</c> and
+    /// supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder A => default;
 
     /// <summary>Design-time syntax for an HTML <c>img</c> element; set <c>.Src</c>/<c>.Alt</c>. This is a
-    /// void element — passing children produces invalid HTML and is not prevented by the type system.</summary>
-    public static View Img(params System.ReadOnlySpan<View> children) => default;
+    /// void element — supplying children with <c>[…]</c> produces invalid HTML and is not prevented by the
+    /// type system.</summary>
+    public static ElementBuilder Img => default;
 
-    /// <summary>Design-time syntax for an arbitrary HTML element; <paramref name="tag"/> must be a compile-time constant.</summary>
-    public static View Element(string tag, params System.ReadOnlySpan<View> children) => default;
+    /// <summary>Design-time syntax for an arbitrary HTML element; <paramref name="tag"/> must be a
+    /// compile-time constant. Supply children with <c>[…]</c>.</summary>
+    public static ElementBuilder Element(string tag) => default;
 
     /// <summary>Design-time syntax for wrapper-less grouping: emits the children in sequence with no
-    /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no single frame, so it is
-    /// non-keyable — it cannot be a ForEach content root (BC3003) — and cannot be decorated (BC3008).
-    /// Children may be zero or more mixed string/element values.</summary>
+    /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no element, so it is
+    /// non-keyable — it cannot be a ForEach content root (BC3003) — and cannot be decorated: decorations
+    /// apply to <see cref="ElementBuilder"/>, and a fragment is a <see cref="View"/>. Children may be zero
+    /// or more mixed string/element values.</summary>
     public static View Fragment(params System.ReadOnlySpan<View> children) => default;
 
     /// <summary>Design-time syntax for injecting a trusted HTML string verbatim via AddMarkupContent
     /// (the MarkupString equivalent). TRUSTED CONTENT ONLY: the string is written to the DOM without
     /// escaping, so flowing untrusted data (user input, external responses) through here is an XSS vector.
     /// The value may be a string literal or a field/const reference (delivery-mechanism independent). Raw
-    /// opens no element, so it cannot be decorated (BC3008) or be a ForEach content root (BC3003).</summary>
+    /// opens no element, so it cannot be a ForEach content root (BC3003) and cannot be decorated:
+    /// decorations apply to <see cref="ElementBuilder"/>, and Raw is a <see cref="View"/>.</summary>
     public static View Raw(string rawHtml) => default;
 
     /// <summary>Design-time syntax for conditional rendering with an optional else branch.</summary>
@@ -112,23 +119,9 @@ public static class Html
     /// declared in the <em>same project</em> does not: the Razor compiler is itself a source generator,
     /// and source generators cannot observe each other's output, so such a type is reported as BC3012.
     /// The same component in a referenced project or NuGet package resolves normally, as does a
-    /// hand-authored C# component.
+    /// hand-authored C# component. Supply children through <see cref="ComponentView{TComponent}"/>'s
+    /// indexer, which binds them to the component's <c>ChildContent</c> parameter.
     /// </remarks>
     public static ComponentView<TComponent> Component<TComponent>()
-        where TComponent : Microsoft.AspNetCore.Components.IComponent => default;
-
-    /// <summary>
-    /// Design-time syntax for embedding an existing Blazor component together with its child content.
-    /// </summary>
-    /// <remarks>
-    /// <paramref name="children"/> is bound to the component's <c>ChildContent</c> parameter, mirroring
-    /// how Razor binds nested content. <typeparamref name="TComponent"/> must therefore declare a
-    /// settable <c>[Parameter]</c> named <c>ChildContent</c> of type
-    /// <see cref="Microsoft.AspNetCore.Components.RenderFragment"/>; otherwise BC3013 is reported. Use
-    /// <see cref="ComponentView{TComponent}.Param(System.Func{TComponent, Microsoft.AspNetCore.Components.RenderFragment?}, View)"/>
-    /// for any other fragment-typed parameter. The same type-resolution rule as
-    /// <see cref="Component{TComponent}()"/> applies (BC3012).
-    /// </remarks>
-    public static ComponentView<TComponent> Component<TComponent>(params System.ReadOnlySpan<View> children)
         where TComponent : Microsoft.AspNetCore.Components.IComponent => default;
 }
