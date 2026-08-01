@@ -77,8 +77,9 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void CuratedTags_ResolveFromPropertiesOnTheBracketSurface()
     {
-        // KnownSymbolsSyncTests reads the shipped runtime, where the curated helpers are still methods, so
-        // this is the only assertion that exercises KnownSymbols' property arm at all.
+        // Runs against the shim rather than the shipped runtime, which KnownSymbolsSyncTests already covers.
+        // Kept separate only until the shim goes: this pins that the property arm reads a surface the
+        // compiler has never seen the source of.
         var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
             ("Empty.cs", ""), BracketSurfaceShim.ShimFile);
 
@@ -88,31 +89,6 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.Equal(KnownSymbolsSyncTests.CuratedTagCount, symbols!.ElementTags.Count);
         Assert.DoesNotContain(symbols.ElementTags.Keys, static key => key is IPropertySymbol { IsIndexer: true });
         Assert.All(symbols.ElementTags.Keys, static key => Assert.IsAssignableFrom<IPropertySymbol>(key));
-    }
-
-    [Fact]
-    public void StructuralAndIndexerSymbols_ResolveOnTheBracketSurface()
-    {
-        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
-            ("Empty.cs", ""), BracketSurfaceShim.ShimFile);
-
-        var symbols = KnownSymbols.TryCreate(compilation);
-
-        Assert.NotNull(symbols);
-        Assert.NotNull(symbols!.ElementBuilderType);
-        Assert.NotNull(symbols.ElementIndexer);
-        Assert.NotNull(symbols.ComponentIndexer);
-
-        // Element(string tag) is the only arity on this surface. One field per arity, matched through
-        // IsElementFactory, is what keeps both spellings recognized when a runtime declares both.
-        Assert.NotNull(symbols.HtmlElement);
-        Assert.Single(symbols.HtmlElement!.Parameters);
-        Assert.Null(symbols.HtmlElementWithChildren);
-
-        // The params Component<T>(children) overload is gone — the indexer replaces it — so every consumer
-        // must tolerate a null HtmlComponentWithChildren rather than dereference it.
-        Assert.NotNull(symbols.HtmlComponent);
-        Assert.Null(symbols.HtmlComponentWithChildren);
     }
 
     /// <summary>

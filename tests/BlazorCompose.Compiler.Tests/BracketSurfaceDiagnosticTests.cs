@@ -141,9 +141,9 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void NonConstantElementTag_WithBracketedChildren_ReportsBC3009AndNotBC3015()
     {
-        // Nothing is suppressed here, despite how this reads. The scanner's Element arm only recurses into
-        // children when the tag is a non-empty constant string, and it never reports on the tag argument in
-        // either branch — so BC3015 has no route to the tag, independently of any recovery gate.
+        // Nothing is suppressed here, despite how this reads. The scanner's Element arm never reports on
+        // the tag argument at all, so BC3015 has no route to it, independently of any recovery gate — and
+        // independently of the constant-tag gate the sibling test below covers.
         var diagnostics = RunWithExpectedErrors("""Element(typeof(Probe).Name)["x"]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3009");
@@ -244,8 +244,10 @@ public sealed class BracketSurfaceDiagnosticTests
     /// <remarks>
     /// One diagnostic becomes two, and the second is the generic BC1003: once the decoration is a C# error,
     /// <c>GetSymbolInfo</c> on it yields no symbol, the analyzer's method arm returns null, and the failure is
-    /// recorded as untranslatable.  #73 recorded only that the message quality drops; the count change is
-    /// reported to #87, which is where the decision whether to suppress BC1003 there belongs.
+    /// recorded as untranslatable.  BC1003 is deliberately not suppressed here: it is the only diagnostic that
+    /// explains the CS0534 a missing <c>RenderView</c> raises, and exactly one BlazorCompose diagnostic has to
+    /// do that.  Its <c>description</c> carries the sentence that tells the author the decoration's position,
+    /// not the construct, is the problem.
     /// </remarks>
     private static void AssertRetiredIntoCS1929(GeneratorRunResult result)
     {

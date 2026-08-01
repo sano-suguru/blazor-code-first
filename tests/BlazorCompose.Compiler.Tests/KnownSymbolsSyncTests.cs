@@ -19,11 +19,11 @@ public sealed class KnownSymbolsSyncTests
         var tagged = symbols.ElementTags.Keys
             .Select(static key => key.Name).ToHashSet(System.StringComparer.Ordinal);
 
-        // Both spellings are enumerated on purpose. A curated helper is an ordinary method on the current
-        // surface and a property returning ElementBuilder on the bracket surface (#87); filtering either
-        // side to IMethodSymbol makes `tagged` empty after the flip, leaves every remaining ordinary Html
-        // method looking structural, and so never runs the Assert.Contains arm — the guard would go vacuous
-        // while staying green.
+        // Both member kinds are enumerated on purpose, and the split is not accidental: the structural
+        // members (Element, If, ForEach, Component, Fragment, Raw) are methods, while every curated tag is
+        // a property returning ElementBuilder. Filtering to IMethodSymbol would make `tagged` empty, leave
+        // every remaining ordinary Html method looking structural, and so never run the Assert.Contains
+        // arm — the guard would go vacuous while staying green.
         foreach (var member in html.GetMembers())
         {
             var name = member switch
@@ -85,29 +85,27 @@ public sealed class KnownSymbolsSyncTests
     }
 
     [Fact]
-    public void Component_BothOverloads_AreResolvedSeparately()
+    public void Element_ResolvesTheSingleTagOverload()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.NotNull(symbols.HtmlElement);
+        Assert.Single(symbols.HtmlElement!.Parameters);
+        Assert.Equal(SpecialType.System_String, symbols.HtmlElement.Parameters[0].Type.SpecialType);
+    }
+
+    [Fact]
+    public void Component_ResolvesTheParameterlessFactory_AndTheChildrenIndexer()
     {
         var (symbols, _) = ResolveHtml();
 
         Assert.NotNull(symbols.HtmlComponent);
-        Assert.NotNull(symbols.HtmlComponentWithChildren);
         Assert.Empty(symbols.HtmlComponent!.Parameters);
-        Assert.Single(symbols.HtmlComponentWithChildren!.Parameters);
-        Assert.True(symbols.HtmlComponentWithChildren.Parameters[0].IsParams);
-    }
 
-    [Fact]
-    public void Element_ResolvesOnlyTheChildrenOverload_OnTheShippedRuntime()
-    {
-        var (symbols, _) = ResolveHtml();
-
-        // Pinned from the opposite side to the bracket-surface assertion in
-        // BracketSurfaceGeneratorTests: one field per arity, so a runtime declaring both cannot let
-        // GetMembers order decide which one analysis recognizes.
-        Assert.Null(symbols.HtmlElement);
-        Assert.NotNull(symbols.HtmlElementWithChildren);
-        Assert.Equal(2, symbols.HtmlElementWithChildren!.Parameters.Length);
-        Assert.True(symbols.HtmlElementWithChildren.Parameters[1].IsParams);
+        // Children arrive through the indexer now, not an overload.
+        Assert.NotNull(symbols.ComponentIndexer);
+        Assert.NotNull(symbols.ElementIndexer);
+        Assert.NotNull(symbols.ElementBuilderType);
     }
 
     [Fact]

@@ -86,12 +86,12 @@ internal static class DiagnosticDescriptors
     /// has no frame to attach to (Blazor's <c>SetKey</c> keys the currently open element/component frame).
     /// The required-key contract cannot be honored, so emission is suppressed. Mirrors Razor, where
     /// <c>@key</c> cannot be applied to an <c>@if</c>; wrap the content in an element such as
-    /// <c>Html.Div(...)</c> instead.
+    /// <c>Html.Div[...]</c> instead.
     /// </summary>
     public static readonly DiagnosticDescriptor BC3003 = new(
         id: "BC3003",
         title: "ForEach content must be a single element or component",
-        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as Html.Div(...)",
+        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as Html.Div[...]",
         category: "BlazorCompose",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -101,7 +101,7 @@ internal static class DiagnosticDescriptors
             "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
             "required key cannot be applied. A Fragment (wrapper-less grouping), Raw (raw markup), and an " +
             "externally supplied RenderFragment placed as content also open no single keyable frame. Wrap " +
-            "the content in a container element such as Html.Div(...).");
+            "the content in a container element such as Html.Div[...].");
 
     /// <summary>
     /// BC1003: A component's design-time expression (<c>Body</c> or <c>Chrome</c>) reached the model
@@ -120,7 +120,10 @@ internal static class DiagnosticDescriptors
         description:
             "The design-time expression could not be classified into the statically sequenceable subset " +
             "and no runtime fallback exists yet, so no RenderView is generated. Use the supported " +
-            "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
+            "factories and combinators, or an inline expression lambda, so the expression can be analyzed. " +
+            "When the expression also carries a CS1929 on a decoration, the cause is the decoration's " +
+            "position, not an unsupported construct: attributes belong before the children, as in " +
+            "Div.Class(\"x\")[\"child\"].");
 
     /// <summary>
     /// BC1004: A design-time expression override declares a getter the generator cannot translate —
@@ -349,7 +352,7 @@ internal static class DiagnosticDescriptors
             "at the same position.");
 
     /// <summary>
-    /// BC3013: <c>Component&lt;T&gt;(children)</c> was given child content but <c>T</c> has no parameter
+    /// BC3013: <c>Component&lt;T&gt;()[children]</c> was given child content but <c>T</c> has no parameter
     /// that can receive it — no <c>ChildContent</c> at all, one that is not a settable
     /// <c>[Parameter]</c>, or one typed <c>RenderFragment&lt;TContext&gt;</c> rather than the non-generic
     /// <c>RenderFragment</c>. Blazor would throw while applying parameters.
@@ -364,7 +367,7 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Component<T>(children) binds child content to a parameter named ChildContent, mirroring how "
+            "Component<T>()[children] binds child content to a parameter named ChildContent, mirroring how "
                 + "Razor lowers nested content. The parameter must be a settable [Parameter] whose type is "
                 + "the non-generic RenderFragment; a RenderFragment<TContext> cannot receive it. Without "
                 + "such a parameter Blazor throws while applying parameters, so it is rejected at compile "

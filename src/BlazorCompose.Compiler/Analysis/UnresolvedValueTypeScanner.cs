@@ -46,18 +46,12 @@ internal static class UnresolvedValueTypeScanner
 
         var symbols = context.KnownSymbols;
         var recoverOwnValue = context.ShouldRecoverUnresolvedValue(invocation.Span);
-        if (symbols.ElementTags.ContainsKey(KnownSymbols.Normalize(method)))
-        {
-            ScanChildren(args, context);
-            return;
-        }
 
+        // Element(tag) carries no children on this surface — they are written in brackets on the
+        // ElementBuilder it returns, and ScanChildrenIndexer handles that — and the tag itself is never
+        // reported on, whether or not it is constant.
         if (symbols.IsElementFactory(method))
-        {
-            if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
-                ScanChildren(args, context);
             return;
-        }
 
         if (Is(method, symbols.HtmlIf))
         {
@@ -75,15 +69,10 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (UnresolvedComponentTypeScanner.IsComponentFactory(
-                method,
-                symbols.HtmlComponent,
-                symbols.HtmlComponentWithChildren))
-        {
-            if (Is(method, symbols.HtmlComponentWithChildren))
-                ScanChildren(args, context);
+        // As with Element(tag): Component<T>() takes no arguments at all, and its children arrive on the
+        // ComponentView<T> indexer, which ScanChildrenIndexer handles.
+        if (UnresolvedComponentTypeScanner.IsComponentFactory(method, symbols.HtmlComponent))
             return;
-        }
 
         if (Is(method, symbols.HtmlRaw))
         {
@@ -654,14 +643,13 @@ internal static class UnresolvedValueTypeScanner
     {
         var symbols = context.KnownSymbols;
         var normalized = KnownSymbols.Normalize(method);
-        return symbols.ElementTags.ContainsKey(normalized)
-            || symbols.IsElementFactory(method)
+
+        // No ElementTags lookup here, unlike the property route: every curated key is an IPropertySymbol and
+        // `normalized` is keyed from an IMethodSymbol, so the lookup could only ever answer false.
+        return symbols.IsElementFactory(method)
             || Is(method, symbols.HtmlIf)
             || Is(method, symbols.HtmlForEach)
-            || UnresolvedComponentTypeScanner.IsComponentFactory(
-                method,
-                symbols.HtmlComponent,
-                symbols.HtmlComponentWithChildren)
+            || UnresolvedComponentTypeScanner.IsComponentFactory(method, symbols.HtmlComponent)
             || Is(method, symbols.HtmlRaw)
             || Is(method, symbols.HtmlFragment)
             || Is(method, symbols.ParamMethod)
