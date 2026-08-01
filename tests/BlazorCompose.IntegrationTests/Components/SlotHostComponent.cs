@@ -10,8 +10,8 @@ namespace BlazorCompose.IntegrationTests.Components;
 // now precedes the indexer that supplies ChildContent. Slots are numbered in source order, so this swaps
 // which channel comes first: Footer's sequence number is now lower than ChildContent's, the opposite of
 // the pre-flip ordering. The rendered DOM is unaffected — bUnit selects by CSS class, not slot order —
-// but the generated RenderView's AddAttribute(seq, "Footer", ...) / AddAttribute(seq, "ChildContent", ...)
-// pair swapped places accordingly.
+// but the generated RenderView's AddComponentParameter(seq, "Footer", ...) /
+// AddComponentParameter(seq, "ChildContent", ...) pair swapped places accordingly.
 public partial class SlotHostComponent : ComposeComponentBase
 {
     private int _count;
