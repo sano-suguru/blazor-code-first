@@ -67,7 +67,9 @@ internal sealed class KnownSymbols
     /// </remarks>
     public INamedTypeSymbol? RenderFragmentType { get; }
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Decorations.Class(this View, string)</c>, or null.</summary>
+    /// <summary>
+    /// Resolved symbol for <c>BlazorCompose.Decorations.Class(this ElementBuilder, string)</c>, or null.
+    /// </summary>
     public IMethodSymbol? ClassMethod { get; }
 
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
@@ -141,6 +143,31 @@ internal sealed class KnownSymbols
     public bool IsElementFactory(IMethodSymbol method) =>
         HtmlElement is not null
         && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElement);
+
+    /// <summary>
+    /// The names of every decoration the referenced runtime declares, for
+    /// <see cref="DeclaresDecorationNamed"/>.
+    /// </summary>
+    private readonly HashSet<string> _decorationNames;
+
+    /// <summary>
+    /// Whether the referenced runtime's <c>Decorations</c> type declares a decoration spelled
+    /// <paramref name="name"/>: <c>Class</c>, a named attribute shortcut, an event shortcut, <c>Attr</c> or
+    /// <c>On</c>.
+    /// </summary>
+    /// <remarks>
+    /// The names are read off the symbols resolved out of the referenced runtime assembly rather than from
+    /// a literal table, so a user-defined <c>Some.BlazorCompose.Decorations</c> contributes none of them and
+    /// a runtime that renames a decoration cannot leave a stale spelling behind here.
+    /// <para>
+    /// It is nevertheless only a name test, and is <em>never</em> sufficient on its own — any type may
+    /// declare a <c>Class</c> or a <c>Title</c>.  Every caller must pair it with symbol-identity checks on
+    /// the types involved; it exists to narrow those, not to replace them.  Compare
+    /// <c>RenderMutationAnalyzer</c>, which likewise tests a name and then anchors it by resolving the
+    /// containing type and its namespace.
+    /// </para>
+    /// </remarks>
+    public bool DeclaresDecorationNamed(string name) => _decorationNames.Contains(name);
 
     /// <summary>
     /// Curated element helper property → HTML tag name.  Keyed by <see cref="ISymbol"/> rather than
@@ -256,6 +283,18 @@ internal sealed class KnownSymbols
         EventShortcuts = eventShortcuts;
         AttrMethods = attrMethods;
         OnMethods = onMethods;
+
+        _decorationNames = new HashSet<string>(System.StringComparer.Ordinal);
+        if (ClassMethod is not null)
+            _decorationNames.Add(ClassMethod.Name);
+        foreach (var shortcut in attributeShortcuts.Keys)
+            _decorationNames.Add(shortcut.Name);
+        foreach (var shortcut in eventShortcuts.Keys)
+            _decorationNames.Add(shortcut.Name);
+        foreach (var attr in attrMethods)
+            _decorationNames.Add(attr.Name);
+        foreach (var on in onMethods)
+            _decorationNames.Add(on.Name);
 
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())

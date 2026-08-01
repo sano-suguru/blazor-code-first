@@ -97,13 +97,25 @@ internal static class RejectedDecorationScanner
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Nothing here is matched by name.  <c>Class</c>, <c>Id</c> and <c>Title</c> are ordinary names any type
-    /// may declare, and a user-defined <c>Some.BlazorCompose.Decorations</c> must not be read as ours —
-    /// <c>RenderMutationAnalyzer</c> anchors its own namespace by hand for the same reason.  Both halves of
-    /// the shape are instead anchored to resolved symbols: the call must have reached for something that
-    /// returns <em>our</em> <c>ElementBuilder</c>, and it must have been written on <em>our</em> <c>View</c>
-    /// or <c>ComponentView&lt;T&gt;</c>.  Someone else's <c>.Class</c> returns their own type and matches
-    /// neither.
+    /// Three conjuncts, and none of them is sufficient alone.  The written name must be one the referenced
+    /// runtime's <c>Decorations</c> type actually declares; the call must have reached for something that
+    /// returns <em>our</em> <c>ElementBuilder</c>; and it must have been written on <em>our</em>
+    /// <c>View</c> or <c>ComponentView&lt;T&gt;</c>.  The two type tests are symbol identity.  The name test
+    /// is not, and is exactly why the other two are required: a spelling proves nothing on its own, since
+    /// any type may declare a <c>Class</c> or a <c>Title</c>.  Its own names come from symbols resolved out
+    /// of the referenced runtime assembly, so a user-defined <c>Some.BlazorCompose.Decorations</c>
+    /// contributes none of them — see <see cref="KnownSymbols.DeclaresDecorationNamed"/>, and compare
+    /// <c>RenderMutationAnalyzer</c>, which tests a name and then anchors it by resolving the containing
+    /// type's namespace.
+    /// </para>
+    /// <para>
+    /// The name conjunct is load-bearing, not belt-and-braces.  The type tests describe a decoration's
+    /// <em>signature</em>, not a decoration: a third-party or user-declared
+    /// <c>static ElementBuilder Wrap(this View content, string tag)</c> has exactly that signature, and
+    /// without the name test a wrong-argument call to it was reported as a misplaced decoration — measured,
+    /// not hypothesized.  What remains after the narrowing is a method that shares a decoration's signature
+    /// <em>and</em> its name; such a method is a decoration in all but declaration site, so BC3008's advice
+    /// still fits it, but that is the residual boundary rather than an absence of one.
     /// </para>
     /// <para>
     /// The failed call's type comes from Roslyn's error recovery, which gives an unresolved invocation the
@@ -119,7 +131,8 @@ internal static class RejectedDecorationScanner
     /// <c>View</c> returning an <c>ElementBuilder</c> is legal, compiles, and must not be blamed for a
     /// failure elsewhere in the body.  Only a conversion is discounted, because that is what
     /// <c>GetSymbolInfo</c> reports in place of a call that did not bind; a call that did bind keeps its own
-    /// symbol even where a conversion is applied on top of it.
+    /// symbol even where a conversion is applied on top of it.  The <em>unresolved</em> branch of that same
+    /// shape is what the name conjunct above covers.
     /// </para>
     /// </remarks>
     private static bool IsMisplacedDecoration(
@@ -129,6 +142,10 @@ internal static class RejectedDecorationScanner
             return false;
 
         var symbols = context.KnownSymbols;
+
+        // First because it is the only conjunct that asks nothing of the semantic model.
+        if (!symbols.DeclaresDecorationNamed(memberAccess.Name.Identifier.ValueText))
+            return false;
 
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is IMethodSymbol bound

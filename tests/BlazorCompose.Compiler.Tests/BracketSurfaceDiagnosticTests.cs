@@ -264,28 +264,35 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// An unrelated extension method that fails to bind is not BC3008, whichever half of the shape it
-    /// shares.
+    /// An unrelated extension method that fails to bind is not BC3008, whichever part of the shape it
+    /// shares.  One case per conjunct, so each is pinned on its own.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The first call borrows the name: someone else's <c>.Class</c>, on a receiver of their own.  The
-    /// second borrows the receiver: a method on <em>our</em> <c>View</c> that returns something other than
-    /// an <c>ElementBuilder</c>.  Neither is a misplaced decoration, and reporting one as such would send
-    /// the author to rewrite an expression that has a different problem.  This is what makes the match
-    /// symbol identity rather than spelling: <c>Class</c>, <c>Id</c> and <c>Title</c> are ordinary names,
-    /// and only <em>our</em> <c>ElementBuilder</c> reached from <em>our</em> <c>View</c> is this diagnostic.
+    /// <c>Other.Make().Class(1)</c> borrows the <em>name</em>: someone else's <c>.Class</c>, on a receiver
+    /// and with a return type of their own.  <c>Fragment("a").Describe("x")</c> borrows the
+    /// <em>receiver</em>: a method on our <c>View</c>, returning <c>string</c>.
+    /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> — our <c>View</c> in, our
+    /// <c>ElementBuilder</c> out — and differs only in what it is called.
+    /// </para>
+    /// <para>
+    /// That last case is the one that matters, and it was measured failing before the name conjunct existed:
+    /// the two type tests describe a decoration's signature rather than a decoration, so a wrong-argument
+    /// call to a user-declared <c>Wrap</c> was reported as a misplaced decoration, anchored at <c>Wrap</c>.
+    /// An author would have been told to move attributes they never wrote.  Keep this case: it is the only
+    /// one that fails if the name conjunct is dropped, the other two turning on the return type alone.
     /// </para>
     /// <para>
     /// The whole collection in brackets is what makes the body untranslatable, and it is load-bearing: the
-    /// scanner runs only when translation failed, so without it neither call would be swept at all and the
-    /// test would pass on a path it never took.  Both failed calls recover to <c>string</c>, which converts
-    /// to <c>View</c>, so on their own they translate.
+    /// scanner runs only when translation failed, so without it none of these calls would be swept at all
+    /// and the test would pass on a path it never took.  Each failed call on its own recovers to a type that
+    /// converts to <c>View</c>, so each translates.
     /// </para>
     /// </remarks>
     [Theory]
     [InlineData("""Div[_children, Other.Make().Class(1)]""")]
     [InlineData("""Div[_children, Fragment("a").Describe("x")]""")]
+    [InlineData("""Div[_children, Fragment("a").Wrap(1)]""")]
     public void UnrelatedFailedExtension_IsNotBC3008(string body)
     {
         var result = BracketSurfaceShim.RunGeneratorWithExpectedErrors(
@@ -300,6 +307,7 @@ public sealed class BracketSurfaceDiagnosticTests
                     public static Box Make() => new();
                     public static string Class(this Box box, string value) => value;
                     public static string Describe(this View view, int value) => value.ToString();
+                    public static ElementBuilder Wrap(this View content, string tag) => Html.Div;
                 }
                 """),
         ]);
