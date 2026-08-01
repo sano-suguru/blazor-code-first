@@ -20,7 +20,9 @@ namespace BlazorCompose.Compiler.Analysis;
 /// necessarily carries CS0534 — a declaration-stage error — and <c>csc</c> stops after the declaration stage
 /// without binding method bodies.  CS1929 is a body-binding diagnostic, so in the one shape that matters it
 /// is only ever computed for a build that has already been abandoned.  Measured against a real MSBuild
-/// build: the fixture reported CS0534 and BC1003, and no CS1929.
+/// build, before this scanner existed: the fixture <c>Bc3008Host</c> reported CS0534 and BC1003, and no
+/// CS1929.  That same fixture reports BC3008 today — this scanner is why — but the diagnostic that never
+/// appeared is the one the argument rests on.
 /// </para>
 /// <para>
 /// A generator diagnostic does survive that cutoff — BC1003 was delivered in the very same build — so a
