@@ -322,6 +322,19 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.Contains(diagnostics, static d => d.Id == "BC3015");
     }
 
+    [Fact]
+    public void UnresolvedValueType_BesideAnUnboundSpreadInALiteral_ReportsBC3015()
+    {
+        // Reaches the scanner's syntactic binder rather than its operation-based one: an unbound spread
+        // makes the whole element access an IInvalidOperation, so FactoryArguments.Bind returns null and
+        // BindIndexerArguments falls back to TryBindFallback. That binder sees one argument, not two
+        // children, so without the literal being unwrapped there too the sibling's unresolved type is
+        // never visited and the author is left with a bare BC1003.
+        var diagnostics = Run("""Div[[Span[typeof(Probe).Name], ..MissingMethod()]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
+    }
+
     // ---------------------------------------------------------------------------
     // BC3008's domain: decorating something that opens no element frame
     // ---------------------------------------------------------------------------
