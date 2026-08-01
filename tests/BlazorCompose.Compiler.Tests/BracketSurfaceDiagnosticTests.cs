@@ -219,18 +219,17 @@ public sealed class BracketSurfaceDiagnosticTests
     [InlineData("""If(true, then: () => Span["y"]).Class("x")""")]
     [InlineData("""Component<Card>().Class("x")""")]
     [InlineData("""Div["y"].Class("x")""")]
-    public void DecoratingANonElement_IsCS1929AndBC1003_NotBC3008(string body)
+    public void DecoratingANonElement_ReportsBC3008(string body)
     {
-        // Every shape BC3008 was written for becomes a C# error once decorations take an ElementBuilder
-        // receiver: each of these expressions is a View or a ComponentView<T>, and neither has a Class.
-        AssertRetiredIntoCS1929(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, "")));
+        // Each of these receivers is a View or a ComponentView<T>, and neither has a Class.
+        AssertReportsBC3008(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, "")));
     }
 
     [Fact]
-    public void DecoratingAComposableResult_IsCS1929AndBC1003_NotBC3008()
+    public void DecoratingAComposableResult_ReportsBC3008()
     {
         // A [Composable] method returns View, which is precisely the domain BC3008 forbids decorating.
-        AssertRetiredIntoCS1929(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(
+        AssertReportsBC3008(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(
             """Card().Class("x")""",
             """
             [Composable]
@@ -238,22 +237,76 @@ public sealed class BracketSurfaceDiagnosticTests
             """)));
     }
 
+    [Fact]
+    public void DecoratingANonElement_ReportsBC3008_AtTheDecorationName()
+    {
+        // The C# error (CS1929) that would otherwise name this cannot reach the author: the host class
+        // always carries CS0534 because no RenderView is generated, and csc stops after the declaration
+        // stage without binding method bodies. A BlazorCompose diagnostic does get through — BC1003 did —
+        // so BC3008 is what carries the explanation.
+        var diagnostics = RunWithExpectedErrors("""Fragment("a").Class("x")""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BC3008");
+        Assert.Equal(DiagnosticSeverity.Error, report.Severity);
+        Assert.Equal("Class", HostSpanText(report, """Fragment("a").Class("x")"""));
+    }
+
+    [Fact]
+    public void DecorationChainOnANonElement_ReportsBC3008_OnceAtTheInnermost()
+    {
+        // One mistake, not three. The innermost decoration is the one whose receiver is the non-element,
+        // so its span is where the chain first went wrong; everything outside it is written on the
+        // ElementBuilder that Roslyn's error recovery gave the failed call, and binds cleanly.
+        var diagnostics = RunWithExpectedErrors("""Fragment("a").Class("x").Id("y").Title("z")""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BC3008");
+        Assert.Equal("Class", HostSpanText(report, """Fragment("a").Class("x").Id("y").Title("z")"""));
+    }
+
     /// <summary>
-    /// Asserts the <em>full</em> diagnostic set for a retired BC3008 shape, not merely that CS1929 appears.
+    /// The <c>Host.cs</c> source text <paramref name="diagnostic"/> is located on, which is its report anchor.
     /// </summary>
     /// <remarks>
-    /// One diagnostic becomes two, and the second is the generic BC1003: once the decoration is a C# error,
-    /// <c>GetSymbolInfo</c> on it yields no symbol, the analyzer's method arm returns null, and the failure is
-    /// recorded as untranslatable.  BC1003 is deliberately not suppressed here: it is the only diagnostic that
-    /// explains the CS0534 a missing <c>RenderView</c> raises, and exactly one BlazorCompose diagnostic has to
-    /// do that.  Its <c>description</c> carries the sentence that tells the author the decoration's position,
-    /// not the construct, is the problem.
+    /// Sliced out of the source the test supplied rather than read back through
+    /// <c>Location.SourceTree</c>: a generator diagnostic crosses the symbol-free pipeline boundary as a
+    /// file path and a span, so it is rebuilt as an external location and carries no tree.
     /// </remarks>
-    private static void AssertRetiredIntoCS1929(GeneratorRunResult result)
+    private static string HostSpanText(Diagnostic diagnostic, string body, string members = "")
+    {
+        var span = diagnostic.Location.SourceSpan;
+
+        Assert.Equal("Host.cs", diagnostic.Location.GetLineSpan().Path);
+
+        return HostFiles(body, members)[0].Source.Substring(span.Start, span.Length);
+    }
+
+    /// <summary>
+    /// Asserts the <em>full</em> diagnostic set for a misplaced decoration, not merely that BC3008 appears.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// BC3008 is the only one: <c>Expand</c>'s dedup drops BC1003 once a more specific error has been
+    /// recorded for the component, and BC1003 is the wrong explanation here anyway — it says the expression
+    /// "uses a construct that is not statically analyzable", when the construct is analyzable and only the
+    /// attributes' position is wrong.
+    /// </para>
+    /// <para>
+    /// The CS1929 assertion is kept because it is true, and worth pinning: the type system really does reject
+    /// a decoration on a <c>View</c>.  It is not evidence that the author is told so.
+    /// <c>Compilation.GetDiagnostics()</c>, which is what this assertion calls, binds method bodies
+    /// unconditionally; <c>csc</c> does not, and stops after the declaration stage on a compilation that has
+    /// a declaration error.  A component whose design-time expression fails to translate always has one — the
+    /// CS0534 from the <c>RenderView</c> that was never generated — so in a real build the CS1929 below is
+    /// never computed.  That is why the in-process assertion and the fixture check different things, and why
+    /// BC3008 exists rather than the C# error being left to speak: see
+    /// <c>tests/diagnostic-fixtures/README.md</c>, and <c>RejectedDecorationScanner</c>'s remarks.
+    /// </para>
+    /// </remarks>
+    private static void AssertReportsBC3008(GeneratorRunResult result)
     {
         Assert.Contains(BracketSurfaceShim.OutputErrors(result), static d => d.Id == "CS1929");
 
-        string[] expected = ["BC1003"];
+        string[] expected = ["BC3008"];
         Assert.Equal(
             expected,
             result.Diagnostics.Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());

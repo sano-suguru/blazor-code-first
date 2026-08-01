@@ -120,10 +120,7 @@ internal static class DiagnosticDescriptors
         description:
             "The design-time expression could not be classified into the statically sequenceable subset " +
             "and no runtime fallback exists yet, so no RenderView is generated. Use the supported " +
-            "factories and combinators, or an inline expression lambda, so the expression can be analyzed. " +
-            "When the expression also carries a CS1929 on a decoration, the cause is the decoration's " +
-            "position, not an unsupported construct: attributes belong before the children, as in " +
-            "Div.Class(\"x\")[\"child\"].");
+            "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
 
     /// <summary>
     /// BC1004: A design-time expression override declares a getter the generator cannot translate —
