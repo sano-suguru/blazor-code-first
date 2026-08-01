@@ -32,14 +32,14 @@ public sealed class ComposeComponentBaseTests
     {
         var onClickCalled = false;
 
-        _ = Html.Span("Hello");
-        _ = Html.Button("Increment").OnClick(() => onClickCalled = true);
-        _ = Html.Div(
-            Html.Span("Child"),
+        _ = Html.Span["Hello"];
+        _ = Html.Button.OnClick(() => onClickCalled = true)["Increment"];
+        _ = Html.Div[
+            Html.Span["Child"],
             Html.If(
                 condition: true,
                 then: static () => throw new InvalidOperationException("Then branch should not run."),
-                otherwise: static () => throw new InvalidOperationException("Else branch should not run.")));
+                otherwise: static () => throw new InvalidOperationException("Else branch should not run."))];
 
         Assert.False(onClickCalled);
     }
