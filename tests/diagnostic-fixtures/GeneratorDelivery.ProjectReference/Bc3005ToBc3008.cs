@@ -25,10 +25,12 @@ public partial class Bc3007Host : ComposeComponentBase
 }
 
 /// <summary>
-/// BC3008: a decoration applied to something that is not a single element. Detection is now driven by
-/// failed overload resolution against <c>Decorations</c> — the receiver (<c>View</c>, from <c>If</c>)
-/// has no <c>ElementBuilder</c> to bind <c>.Class</c> to — rather than by classifying the shape of the
-/// decorated node.
+/// BC3008: a decoration applied to something that is not a single element. Detection is being moved to
+/// failed overload resolution against <c>Decorations</c> — the receiver here is a <c>View</c> (from
+/// <c>If</c>), which has no <c>.Class</c> to bind — because the C# error that would otherwise report it
+/// (CS1929) is masked in a real build: this class necessarily carries CS0534, and <c>csc</c> stops after
+/// the declaration stage without binding method bodies. Until that detection lands, this shape falls
+/// through to the generic BC1003.
 /// </summary>
 public partial class Bc3008Host : ComposeComponentBase
 {
