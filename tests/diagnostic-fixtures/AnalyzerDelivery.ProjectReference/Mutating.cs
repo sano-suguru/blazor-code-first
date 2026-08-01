@@ -13,5 +13,5 @@ public partial class Mutating : ComposeComponentBase
 {
     private int _count;
 
-    protected override View Body => Span($"{_count++}");
+    protected override View Body => Span[$"{_count++}"];
 }

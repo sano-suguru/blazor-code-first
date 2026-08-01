@@ -36,12 +36,29 @@ public sealed class BracketSurfaceDiagnosticTests
         }
         """;
 
+    /// <summary>Runs the generator over <paramref name="body"/> and returns its diagnostics.</summary>
+    /// <remarks>
+    /// <para>
+    /// Bodies that are deliberately not valid C# need no separate entry point.  They did while these tests
+    /// ran against an in-source shim, whose own health had to be asserted before an input error could be
+    /// tolerated; against the shipped runtime the compilation is built the ordinary way, and an input error
+    /// is just an input error.
+    /// </para>
+    /// <para>
+    /// What the shim's gate did carry is that no test here passes vacuously, and that is held by assertion
+    /// rather than by this remark.  Each test below does one of three things: asserts a diagnostic that
+    /// names a specific mistake, which cannot appear unless the analyzer reached the shape under test;
+    /// asserts through <c>AssertOutputCompiles</c> that the generated output compiles, for the two accepted
+    /// shapes; or, where the asserted diagnostic is the generic BC1003 fallback, asserts through
+    /// <see cref="AssertOnlyRenderViewIsMissing"/> that nothing else about the input is broken.
+    /// </para>
+    /// </remarks>
     private static ImmutableArray<Diagnostic> Run(string body, string members = "") =>
-        BracketSurfaceShim.RunGenerator(HostFiles(body, members)).Diagnostics;
+        RunResult(body, members).Diagnostics;
 
-    /// <summary>As <see cref="Run"/>, for a body that is deliberately not valid C#.</summary>
-    private static ImmutableArray<Diagnostic> RunWithExpectedErrors(string body, string members = "") =>
-        BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, members)).Diagnostics;
+    /// <summary>As <see cref="Run"/>, for the tests that need the output compilation as well.</summary>
+    private static GeneratorRunResult RunResult(string body, string members = "") =>
+        CompilationTestHost.RunGenerator(HostFiles(body, members));
 
     private static (string Path, string Source)[] HostFiles(string body, string members) =>
         [
@@ -73,9 +90,13 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void ComponentIndexer_TargetWithChildContent_IsAccepted()
     {
-        var diagnostics = Run("""Component<Card>()["x"]""");
+        // The output compilation is asserted as well as the diagnostics: "no error was reported" is a claim
+        // that would hold just as well if the body had never been analyzed at all, so on its own this test
+        // could pass on an input that does not compile. The shim's own gate used to rule that out.
+        var result = RunResult("""Component<Card>()["x"]""");
 
-        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
@@ -104,15 +125,16 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // A different slot is not a duplicate: the indexer arm must append to the existing slots, not
         // reject them or replace them.
-        var diagnostics = Run("""Component<Card>().Param(c => c.Footer, Div["f"])["x"]""");
+        var result = RunResult("""Component<Card>().Param(c => c.Footer, Div["f"])["x"]""");
 
-        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
     public void ComponentIndexer_UnresolvedTypeArgument_ReportsBC3012Once()
     {
-        var diagnostics = RunWithExpectedErrors("""Component<Missing>()["x"]""");
+        var diagnostics = Run("""Component<Missing>()["x"]""");
 
         Assert.Equal(1, diagnostics.Count(static d => d.Id == "BC3012"));
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BC1003");
@@ -123,7 +145,7 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // The value sweep runs from the body's root. With the root an element access rather than an
         // invocation it used to return immediately, taking the whole sweep with it.
-        var diagnostics = RunWithExpectedErrors(
+        var diagnostics = Run(
             """Div.Class(MissingMethod() + typeof(Probe).Name)["x"]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3015");
@@ -132,7 +154,7 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void UnresolvedValueType_InsideABracketedChild_ReportsBC3015()
     {
-        var diagnostics = RunWithExpectedErrors(
+        var diagnostics = Run(
             """Div[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3015");
@@ -141,10 +163,23 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void NonConstantElementTag_WithBracketedChildren_ReportsBC3009AndNotBC3015()
     {
-        // Nothing is suppressed here, despite how this reads. The scanner's Element arm only recurses into
-        // children when the tag is a non-empty constant string, and it never reports on the tag argument in
-        // either branch — so BC3015 has no route to the tag, independently of any recovery gate.
-        var diagnostics = RunWithExpectedErrors("""Element(typeof(Probe).Name)["x"]""");
+        // Nothing is suppressed here, despite how this reads. The scanner's Element arm never reports on
+        // the tag argument at all, so BC3015 has no route to it, independently of any recovery gate — and
+        // independently of the constant-tag gate the sibling test below covers.
+        var diagnostics = Run("""Element(typeof(Probe).Name)["x"]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3009");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void NonConstantElementTag_WithAnUnresolvedValueInAChild_ReportsBC3009Only()
+    {
+        // BC3009 has already rejected the element, so the child never reaches generated code and a report
+        // about it is noise. The method surface gated its child sweep on the tag being a non-empty constant;
+        // deleting that arm in #87 leaves this route as the only one, so the gate moves here.
+        var diagnostics = Run(
+            """Element(typeof(Probe).Name)[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3009");
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3015");
@@ -180,9 +215,10 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void WholeCollectionPassedInBrackets_ReportsBC1003()
     {
-        var diagnostics = Run("""Div[_children]""", """private readonly View[] _children = [];""");
+        var result = RunResult("""Div[_children]""", """private readonly View[] _children = [];""");
 
-        Assert.Contains(diagnostics, static d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
     }
 
     [Fact]
@@ -191,9 +227,10 @@ public sealed class BracketSurfaceDiagnosticTests
         // A nested collection-expression literal also binds non-expanded, so it is one whole collection
         // rather than two children. Brackets make the typo easier to write than the method form did; the
         // current behaviour is pinned here, not endorsed.
-        var diagnostics = Run("""Div[["a", "b"]]""");
+        var result = RunResult("""Div[["a", "b"]]""");
 
-        Assert.Contains(diagnostics, static d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
     }
 
     // ---------------------------------------------------------------------------
@@ -206,41 +243,261 @@ public sealed class BracketSurfaceDiagnosticTests
     [InlineData("""If(true, then: () => Span["y"]).Class("x")""")]
     [InlineData("""Component<Card>().Class("x")""")]
     [InlineData("""Div["y"].Class("x")""")]
-    public void DecoratingANonElement_IsCS1929AndBC1003_NotBC3008(string body)
+    public void DecoratingANonElement_ReportsBC3008(string body)
     {
-        // Every shape BC3008 was written for becomes a C# error once decorations take an ElementBuilder
-        // receiver: each of these expressions is a View or a ComponentView<T>, and neither has a Class.
-        AssertRetiredIntoCS1929(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, "")));
+        // Each of these receivers is a View or a ComponentView<T>, and neither has a Class.
+        AssertReportsBC3008(RunResult(body));
     }
 
     [Fact]
-    public void DecoratingAComposableResult_IsCS1929AndBC1003_NotBC3008()
+    public void DecoratingAComposableResult_ReportsBC3008()
     {
         // A [Composable] method returns View, which is precisely the domain BC3008 forbids decorating.
-        AssertRetiredIntoCS1929(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(
+        AssertReportsBC3008(RunResult(
             """Card().Class("x")""",
             """
             [Composable]
             private static View Card() => Div["c"];
-            """)));
+            """));
     }
 
     /// <summary>
-    /// Asserts the <em>full</em> diagnostic set for a retired BC3008 shape, not merely that CS1929 appears.
+    /// An externally supplied <c>RenderFragment</c> is a receiver BC3008 covers, not a gap in it.
     /// </summary>
     /// <remarks>
-    /// One diagnostic becomes two, and the second is the generic BC1003: once the decoration is a C# error,
-    /// <c>GetSymbolInfo</c> on it yields no symbol, the analyzer's method arm returns null, and the failure is
-    /// recorded as untranslatable.  #73 recorded only that the message quality drops; the count change is
-    /// reported to #87, which is where the decision whether to suppress BC1003 there belongs.
+    /// The receiver has to be named explicitly in <c>RejectedDecorationScanner</c>, and this case is what
+    /// pins that: <c>RenderFragment</c> converts to <c>View</c>, but an extension-method receiver admits only
+    /// identity, reference and boxing conversions, so the conversion is not applied when resolving
+    /// <c>.Class</c> and a receiver test against <c>View</c> alone never matches.  Before that clause existed
+    /// this input reported BC1003 — the generic "not statically analyzable" fallback — while
+    /// <c>DESIGN.md</c> §4.1 stated it was BC3008, grouping a supplied <c>RenderFragment</c> with
+    /// <c>Fragment</c> and <c>Raw</c> as content that opens no element frame.
     /// </remarks>
-    private static void AssertRetiredIntoCS1929(GeneratorRunResult result)
+    [Fact]
+    public void DecoratingASuppliedRenderFragment_ReportsBC3008()
     {
-        Assert.Contains(BracketSurfaceShim.OutputErrors(result), static d => d.Id == "CS1929");
+        AssertReportsBC3008(RunResult(
+            """Div[Slot.Class("x")]""",
+            """
+            [Microsoft.AspNetCore.Components.Parameter]
+            public Microsoft.AspNetCore.Components.RenderFragment? Slot { get; set; }
+            """));
+    }
 
-        string[] expected = ["BC1003"];
+    /// <summary>
+    /// The misplaced decoration is written <em>inside</em> a <c>[Composable]</c> body rather than in
+    /// <c>Body</c>, so the sweep that finds it runs from the other design-time-expression host.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Distinct from <see cref="DecoratingAComposableResult_ReportsBC3008"/>, which decorates what a
+    /// composable <em>returns</em> and is written in <c>Body</c> like every other case in this group.  Here
+    /// the composable's own body is the broken expression, and <c>Body</c> is healthy.
+    /// </para>
+    /// <para>
+    /// Kept as its own case because the shape is not covered by any other: a design-time expression has two
+    /// hosts — <c>ComponentModelFactory</c> for <c>Body</c> and <c>ComposableDefinitionFactory</c> for
+    /// <c>[Composable]</c> — and each wires its own failure-path sweeps.  BC3008 was reported from inside
+    /// <c>RenderExpressionAnalyzer.Classify</c>, which both hosts route through, until it moved to a
+    /// caller-invoked scanner; the composable host was then left without it, and every existing case here
+    /// shares the <c>Body</c> host template and so kept passing.  Measured on that state, this input reported
+    /// BC1002 alone — "body must be a statically sequenceable expression", the generic text BC3008 exists to
+    /// displace.  <c>FailurePathScannerParityTests</c> guards the wiring; this guards the author-facing
+    /// result.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DecoratingANonElement_InsideAComposableBody_ReportsBC3008()
+    {
+        AssertReportsBC3008(RunResult(
+            """Div["ok"]""",
+            """
+            [Composable]
+            private static View Card() => Fragment("a").Class("x");
+            """));
+    }
+
+    [Fact]
+    public void DecoratingANonElement_ReportsBC3008_AtTheDecorationName()
+    {
+        // The C# error (CS1929) that would otherwise name this cannot reach the author: the host class
+        // always carries CS0534 because no RenderView is generated, and csc stops after the declaration
+        // stage without binding method bodies. A BlazorCompose diagnostic does get through — BC1003 did —
+        // so BC3008 is what carries the explanation.
+        var diagnostics = Run("""Fragment("a").Class("x")""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BC3008");
+        Assert.Equal(DiagnosticSeverity.Error, report.Severity);
+        Assert.Equal("Class", HostSpanText(report, """Fragment("a").Class("x")"""));
+    }
+
+    [Fact]
+    public void DecorationChainOnANonElement_ReportsBC3008_OnceAtTheInnermost()
+    {
+        // One mistake, not three. The innermost decoration is the one whose receiver is the non-element,
+        // so its span is where the chain first went wrong; everything outside it is written on the
+        // ElementBuilder that Roslyn's error recovery gave the failed call, and binds cleanly.
+        var diagnostics = Run("""Fragment("a").Class("x").Id("y").Title("z")""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BC3008");
+        Assert.Equal("Class", HostSpanText(report, """Fragment("a").Class("x").Id("y").Title("z")"""));
+    }
+
+    /// <summary>
+    /// An unrelated extension method that fails to bind is not BC3008, whichever part of the shape it
+    /// shares.  Four cases, one per part of the shape a decoration has that an unrelated method can borrow
+    /// on its own — name, receiver, and each of the two ways of borrowing every part but one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not one case per conjunct: the four cover the parts of the shape an unrelated method can borrow, and
+    /// only the last two turn on the conjunct each of them borrows, as the second paragraph records.  The
+    /// name conjunct is pinned by <c>Fragment("a").Wrap(1)</c>; the receiver conjunct, by
+    /// <c>Other.MakeBin().Id(1)</c> below — the receiver clause could otherwise be widened without any case
+    /// here noticing, which is what happened when <c>RenderFragment</c> was added to it.  The return type
+    /// conjunct has no case that pins it the same way; nothing here claims otherwise.
+    /// </para>
+    /// <para>
+    /// <c>Other.Make().Class(1)</c> borrows the <em>name</em>: someone else's <c>.Class</c>, on a receiver
+    /// and with a return type of their own.  <c>Fragment("a").Describe("x")</c> borrows the
+    /// <em>receiver</em>: a method on our <c>View</c>, returning <c>string</c>.
+    /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> but the name — our <c>View</c> in,
+    /// our <c>ElementBuilder</c> out — and differs only in what it is called.
+    /// <c>Other.MakeBin().Id(1)</c> borrows the whole signature but the <em>receiver</em> — a genuine
+    /// decoration name, returning our <c>ElementBuilder</c> — and differs only in what it is written on.  It
+    /// is deliberately named <c>.Id</c> rather than <c>.Class</c>: a second unrelated <c>.Class</c> extension
+    /// in the same compilation collides with <c>Other.Make().Class(1)</c>'s own, and Roslyn's error recovery
+    /// stops offering a candidate return type for either call once the name is ambiguous — which would have
+    /// made this case indistinguishable from a return-type failure instead of a receiver-only one.  No other
+    /// case here declares an <c>.Id</c>, so recovery stays exact.
+    /// </para>
+    /// <para>
+    /// The last two cases are the ones that matter, and the first of them — <c>Wrap</c> — was measured
+    /// failing before the name conjunct existed: the two type tests describe a decoration's signature rather
+    /// than a decoration, so a wrong-argument call to a user-declared <c>Wrap</c> was reported as a misplaced
+    /// decoration, anchored at <c>Wrap</c>.  An author would have been told to move attributes they never
+    /// wrote.  Keep this case: it is the only one that fails if the name conjunct is dropped, the other three
+    /// turning on the return type or the receiver instead.  <c>Other.MakeBin().Id(1)</c> is its mirror for
+    /// the receiver conjunct: it is the only one that fails if the receiver conjunct is dropped, and its
+    /// removal was verified to flip this case to BC3008 while every other case here is unaffected.
+    /// </para>
+    /// <para>
+    /// The whole collection in brackets is what makes the body untranslatable, and it is load-bearing: the
+    /// scanner runs only when translation failed, so without it none of these calls would be swept at all
+    /// and the test would pass on a path it never took.  Each failed call on its own recovers to a type that
+    /// converts to <c>View</c>, so each translates.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("""Div[_children, Other.Make().Class(1)]""")]
+    [InlineData("""Div[_children, Fragment("a").Describe("x")]""")]
+    [InlineData("""Div[_children, Fragment("a").Wrap(1)]""")]
+    [InlineData("""Div[_children, Other.MakeBin().Id(1)]""")]
+    public void UnrelatedFailedExtension_IsNotBC3008(string body)
+    {
+        var result = CompilationTestHost.RunGenerator(
+        [
+            .. HostFiles(body, """private readonly View[] _children = [];"""),
+            ("Other.cs", """
+                using BlazorCompose;
+                namespace T;
+                public static class Other
+                {
+                    public sealed class Box;
+                    public static Box Make() => new();
+                    public static string Class(this Box box, string value) => value;
+                    public static string Describe(this View view, int value) => value.ToString();
+                    public static ElementBuilder Wrap(this View content, string tag) => Html.Div;
+
+                    public sealed class Bin;
+                    public static Bin MakeBin() => new();
+                    public static ElementBuilder Id(this Bin bin, string value) => Html.Div;
+                }
+                """),
+        ]);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3008");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    /// <summary>
+    /// The <c>Host.cs</c> source text <paramref name="diagnostic"/> is located on, which is its report anchor.
+    /// </summary>
+    /// <remarks>
+    /// Sliced out of the source the test supplied rather than read back through
+    /// <c>Location.SourceTree</c>: a generator diagnostic crosses the symbol-free pipeline boundary as a
+    /// file path and a span, so it is rebuilt as an external location and carries no tree.
+    /// </remarks>
+    private static string HostSpanText(Diagnostic diagnostic, string body, string members = "")
+    {
+        var span = diagnostic.Location.SourceSpan;
+
+        Assert.Equal("Host.cs", diagnostic.Location.GetLineSpan().Path);
+
+        return HostFiles(body, members)[0].Source.Substring(span.Start, span.Length);
+    }
+
+    /// <summary>
+    /// Asserts the <em>full</em> diagnostic set for a misplaced decoration, not merely that BC3008 appears.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// BC3008 is the only one: <c>Expand</c>'s dedup drops BC1003 once a more specific error has been
+    /// recorded for the component, and BC1003 is the wrong explanation here anyway — it says the expression
+    /// "uses a construct that is not statically analyzable", when the construct is analyzable and only the
+    /// attributes' position is wrong.
+    /// </para>
+    /// <para>
+    /// The CS1929 assertion is kept because it is true, and worth pinning: the type system really does reject
+    /// a decoration on a <c>View</c>.  It is not evidence that the author is told so.
+    /// <c>Compilation.GetDiagnostics()</c>, which is what this assertion calls, binds method bodies
+    /// unconditionally; <c>csc</c> does not, and stops after the declaration stage on a compilation that has
+    /// a declaration error.  A component whose design-time expression fails to translate always has one — the
+    /// CS0534 from the <c>RenderView</c> that was never generated — so in a real build the CS1929 below is
+    /// never computed.  That is why the in-process assertion and the fixture check different things, and why
+    /// BC3008 exists rather than the C# error being left to speak: see
+    /// <c>tests/diagnostic-fixtures/README.md</c>, and <c>RejectedDecorationScanner</c>'s remarks.
+    /// </para>
+    /// </remarks>
+    private static void AssertReportsBC3008(GeneratorRunResult result)
+    {
+        Assert.Contains(OutputErrors(result), static d => d.Id == "CS1929");
+
+        string[] expected = ["BC3008"];
         Assert.Equal(
             expected,
             result.Diagnostics.Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());
     }
+
+    /// <summary>
+    /// Asserts that the only thing wrong with <paramref name="result"/>'s compilation is the missing
+    /// <c>RenderView</c>, so a BC1003 reported against it is about the body under test.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other diagnostic asserted in this file names a specific mistake, so asserting its presence
+    /// establishes that the analyzer reached the shape under test.  BC1003 does not: it is the generic
+    /// "uses a construct that is not statically analyzable" fallback, and an input that stopped binding for
+    /// some entirely unrelated reason produces it too.  A bare <c>Assert.Contains(… BC1003)</c> would
+    /// therefore keep passing on a host template that no longer says what the test means it to say.  The
+    /// shim's own input gate used to rule that out; this is what replaces it.
+    /// </para>
+    /// <para>
+    /// CS0534 is the one error left standing, and it is expected rather than tolerated: the generator is
+    /// what supplies <c>RenderView</c>, and here it declined to for exactly the reason under test.  Any
+    /// <em>other</em> C# error means the body failed to bind before the analyzer had an opinion about it.
+    /// </para>
+    /// </remarks>
+    private static void AssertOnlyRenderViewIsMissing(GeneratorRunResult result)
+    {
+        string[] expected = ["CS0534"];
+        Assert.Equal(
+            expected,
+            OutputErrors(result).Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());
+    }
+
+    /// <summary>Every error diagnostic the generator's output compilation reports, for assertion.</summary>
+    private static ImmutableArray<Diagnostic> OutputErrors(GeneratorRunResult result) =>
+        [.. result.OutputCompilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
 }

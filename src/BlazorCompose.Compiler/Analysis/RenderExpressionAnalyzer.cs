@@ -19,7 +19,7 @@ namespace BlazorCompose.Compiler.Analysis;
 internal static class RenderExpressionAnalyzer
 {
     /// <summary>
-    /// The parameter name <c>Component&lt;T&gt;(children)</c> binds to, matching Razor's rule that nested
+    /// The parameter name <c>Component&lt;T&gt;()[children]</c> binds to, matching Razor's rule that nested
     /// content becomes <c>ChildContent</c> and nothing else.
     /// </summary>
     private const string ChildContentParameterName = "ChildContent";
@@ -104,48 +104,28 @@ internal static class RenderExpressionAnalyzer
         static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
             known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
 
+        // Element(tag) is the escape hatch for a tag outside the curated table. It carries no children of
+        // its own — those are written in brackets on the ElementBuilder it returns, which arrives here as
+        // an element access, not an invocation — so this arm only has to resolve the tag.
+        if (symbols.IsElementFactory(method))
         {
-            string? tag = symbols.ElementTags.TryGetValue(KnownSymbols.Normalize(method), out var mapped)
-                ? mapped
-                : null;
-            bool isElement = symbols.IsElementFactory(method);
-
-            if (tag is not null || isElement)
+            if (FactoryArguments.Bind(invocation, context) is not { } args
+                || args.At(0) is not { } tagArgument)
             {
-                if (FactoryArguments.Bind(invocation, context) is not { } args)
-                    return null;
-
-                if (isElement)
-                {
-                    if (args.At(0) is not { } tagArgument)
-                        return null;
-
-                    var tagArg = tagArgument.Expression;
-                    var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
-                    if (constant is { HasValue: true, Value: string tagValue } &&
-                        !string.IsNullOrWhiteSpace(tagValue))
-                    {
-                        tag = tagValue;
-                    }
-                    else
-                    {
-                        context.Diagnostics.Add(DiagnosticInfo.Create(
-                            DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
-                        return null;
-                    }
-                }
-
-                // One whole collection passed to the params parameter (Div(children: arr)) is not a list
-                // of children; leave it unanalyzable so it lands on BC1003 instead of being mis-split.
-                if (args.HasExplicitParamsArgument)
-                    return null;
-
-                var kids = AnalyzeChildren(args.ParamsElements, context);
-                if (kids is null)
-                    return null;
-
-                return new ElementTemplateNode(tag!, default, default, default, kids.Value);
+                return null;
             }
+
+            var tagArg = tagArgument.Expression;
+            var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
+            if (constant is not { HasValue: true, Value: string tagValue }
+                || string.IsNullOrWhiteSpace(tagValue))
+            {
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
+                return null;
+            }
+
+            return new ElementTemplateNode(tagValue);
         }
 
         if (Is(method, symbols.HtmlIf))
@@ -253,9 +233,7 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        bool isComponent = Is(method, symbols.HtmlComponent);
-        bool isComponentWithChildren = Is(method, symbols.HtmlComponentWithChildren);
-        if (isComponent || isComponentWithChildren)
+        if (Is(method, symbols.HtmlComponent))
         {
             // An unresolved type argument cannot be emitted: the display string of an unresolved type is
             // the written name with no qualification, and the generated file has no using directives, so
@@ -266,38 +244,12 @@ internal static class RenderExpressionAnalyzer
             if (TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
                 return null;
 
-            var typeName = method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-
-            if (!isComponentWithChildren)
-            {
-                // Base case: Html.Component<T>() with no children and no .Param yet.
-                return new ComponentTemplateNode(typeName, EquatableArray<ComponentParameter>.Empty);
-            }
-
-            if (FactoryArguments.Bind(invocation, context) is not { } componentArgs)
-                return null;
-
-            // One whole collection passed to the params parameter (Component<T>(children: arr)) is not a
-            // list of children; leave it unanalyzable so it lands on BC1003 instead of being mis-split.
-            if (componentArgs.HasExplicitParamsArgument)
-                return null;
-
-            var childNodes = AnalyzeChildren(componentArgs.ParamsElements, context);
-            if (childNodes is null)
-                return null;
-
-            if (!TryBuildChildContentSlot(
-                    childNodes.Value,
-                    method.TypeArguments[0],
-                    invocation.GetLocation(),
-                    context,
-                    out var slots))
-            {
-                return null;
-            }
-
+            // Base case: Html.Component<T>() with no children and no .Param yet. Children and parameters
+            // both arrive on the ComponentView<T> this returns — through its indexer and .Param — so this
+            // arm never sees either.
             return new ComponentTemplateNode(
-                typeName, EquatableArray<ComponentParameter>.Empty, slots);
+                method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                EquatableArray<ComponentParameter>.Empty);
         }
 
         if (Is(method, symbols.HtmlRaw))
@@ -369,9 +321,11 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            // Duplicate detection spans BOTH channels and both directions: `null` binds to the scalar
-            // overload (View is a struct, so `View v = null` is CS0037), so Component<T>(x) followed by
-            // .Param(c => c.ChildContent, null) really can put one name in each channel.
+            // Duplicate detection spans BOTH channels, not just the parameter one: `null` binds to the
+            // scalar overload (View is a struct, so `View v = null` is CS0037), so
+            // .Param(c => c.ChildContent, Div["y"]).Param(c => c.ChildContent, null) really can put one
+            // name in each channel. The children-then-.Param direction cannot reach here — the indexer
+            // returns View, so nothing follows the brackets — and is checked by ClassifyComponentIndexer.
             if (HasBinding(inner, property.Name))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
@@ -430,11 +384,12 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
+            // Unreachable: a decoration takes an ElementBuilder receiver, so anything that opens no element
+            // frame is a CS1929 and never resolves to a decoration here. Kept so that if some route ever does
+            // arrive, translation fails safely instead of decorating a node that cannot carry attributes.
             if (inner is not ElementTemplateNode element)
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3008, decoAccess.Name.GetLocation(), []));
                 return null;
             }
 
@@ -604,8 +559,9 @@ internal static class RenderExpressionAnalyzer
     /// span, so a rejection keyed on this element access could never be read.  Where suppression is
     /// genuinely needed it is registered by a receiver that is an invocation: the decoration and
     /// <c>.Param</c> arms reject their own spans.  The construct that looks like it needs one here does not
-    /// — <c>Element(nonConstant)["x"]</c> reports BC3009 and no BC3015 because the scanner's <c>Element</c>
-    /// arm never reports on the tag argument at all, whether or not the tag is constant.
+    /// — <c>Element(nonConstant)["x"]</c> reports BC3009 and no BC3015, because the scanner's <c>Element</c>
+    /// arm never reports on the tag argument at all, and its own constant-tag gate keeps it out of the
+    /// children of an element BC3009 has already rejected.
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
@@ -635,20 +591,17 @@ internal static class RenderExpressionAnalyzer
     /// <remarks>
     /// <para>
     /// The duplicate check here is not a mirror of the one in the <c>.Param</c> arm but the other half of it.
-    /// The indexer returns <c>View</c>, so <c>.Param</c> cannot follow the brackets and children are written
-    /// last; that reverses which <c>ChildContent</c> channel is filled first.  On the method surface children
-    /// were always syntactically first, so the params arm could set the slot unconditionally and the
-    /// duplicate was caught later by the <c>.Param</c> arm's own check.  With <c>.Param</c> first, this arm
-    /// has to perform the check or BC3007 goes silent.
+    /// The indexer returns <c>View</c>, so nothing can follow the brackets: children are always written last,
+    /// and a <c>.Param</c> on <c>ChildContent</c> is therefore always the binding that came first.  The
+    /// <c>.Param</c> arm only ever sees a receiver written before it, so it cannot see these children; this
+    /// arm has to perform the check or BC3007 goes silent for the whole combination.
     /// </para>
     /// <para>
     /// The same property fixes the slot order: children cannot be followed by anything, so
     /// <c>ChildContent</c> is invariably the last slot and appending is the only order this surface can
     /// produce.  It is also the correct one — sequence numbers represent source syntax positions, so a slot
-    /// written last is numbered last.  A component with a fragment <c>.Param</c> beside children therefore
-    /// emits its slots in the opposite order to the method spelling, where children came first; both are
-    /// faithful to their own source.  <c>BracketSurfaceSlotOrderTests</c> pins it, because no corpus baseline
-    /// covers that combination.
+    /// written last is numbered last.  <c>BracketSurfaceSlotOrderTests</c> pins it, because no corpus baseline
+    /// covers a fragment <c>.Param</c> beside children.
     /// </para>
     /// </remarks>
     private static ComponentTemplateNode? ClassifyComponentIndexer(
@@ -701,9 +654,10 @@ internal static class RenderExpressionAnalyzer
     /// empty slot list — and succeeds — when there are no children.
     /// </summary>
     /// <remarks>
-    /// Shared by the <c>Component&lt;T&gt;(children)</c> params overload and <c>ComponentView&lt;T&gt;</c>'s
-    /// indexer, which are the same channel spelled two ways.  #87 deletes the overload, at which point the
-    /// indexer becomes the only caller.
+    /// Called only from <see cref="ClassifyComponentIndexer"/>: <c>ComponentView&lt;T&gt;</c>'s indexer is the
+    /// one channel children reach a component through.  Kept as its own method rather than inlined because
+    /// the BC3013 rule — which components can receive children, and where the report lands — is worth
+    /// naming separately from the indexer's argument handling.
     /// </remarks>
     private static bool TryBuildChildContentSlot(
         ImmutableArray<RenderTemplateNode> children,

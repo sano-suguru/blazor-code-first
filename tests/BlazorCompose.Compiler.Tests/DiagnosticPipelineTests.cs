@@ -19,10 +19,10 @@ public sealed class DiagnosticPipelineTests
                 private readonly List<int> _xs = new();
                 private readonly List<Group> _groups = new();
                 protected override BlazorCompose.View Body =>
-                    Div(
-                        ForEach(_xs, key: _ => 0, content: x => Span(x.ToString())),
+                    Div[
+                        ForEach(_xs, key: _ => 0, content: x => Span[x.ToString()]),
                         ForEach(_groups, key: g => g.Id, content: g =>
-                            ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name))));
+                            ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]))];
                 private sealed record Item(int Id, string Name);
                 private sealed record Group(int Id, List<Item> Items);
             }
@@ -63,7 +63,7 @@ public sealed class DiagnosticPipelineTests
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCompose.View Body => ForEach(_xs, key: x => x, content: Render);
-                private static BlazorCompose.View Render(int x) => Span(x.ToString());
+                private static BlazorCompose.View Render(int x) => Span[x.ToString()];
             }
             """;
 
@@ -117,6 +117,12 @@ public sealed class DiagnosticPipelineTests
             protected override View Body => $BODY$;
             private static View Opaque() => default;
             private static ComponentView<Card> OpaqueComponent() => default;
+
+            // Decorations bind to ElementBuilder, not View, so an opaque View-returning receiver no
+            // longer compiles here (CS1929) — a decoration on Opaque() would never reach Analyze at
+            // all. This one exercises the same "unrecognized receiver" descent with a shape that still
+            // compiles.
+            private static ElementBuilder OpaqueElementBuilder() => default;
         }
         """;
 
@@ -126,18 +132,21 @@ public sealed class DiagnosticPipelineTests
     // for blaming the innermost expression is that every descent goes through Analyze rather than
     // Classify, and before this the only thing asserting that was a comment.
     [Theory]
-    [InlineData("element children", """Div(Span("ok"), Opaque())""", "Opaque()")]
+    [InlineData("element children", """Div[Span["ok"], Opaque()]""", "Opaque()")]
     [InlineData("If then branch", """If(Flag, then: () => Opaque())""", "Opaque()")]
     [InlineData(
         "If otherwise branch",
-        """If(Flag, then: () => Span("ok"), otherwise: () => Opaque())""",
+        """If(Flag, then: () => Span["ok"], otherwise: () => Opaque())""",
         "Opaque()")]
     [InlineData("ForEach content", """ForEach(_xs, key: x => x, content: x => Opaque())""", "Opaque()")]
-    [InlineData("Component<T> children", """Component<Card>(Opaque())""", "Opaque()")]
-    [InlineData("Fragment children", """Fragment(Span("ok"), Opaque())""", "Opaque()")]
+    [InlineData("Component<T> children", """Component<Card>()[Opaque()]""", "Opaque()")]
+    [InlineData("Fragment children", """Fragment(Span["ok"], Opaque())""", "Opaque()")]
     [InlineData("Param receiver", """OpaqueComponent().Param(c => c.Title, "t")""", "OpaqueComponent()")]
     [InlineData("fragment Param value", """Component<Card>().Param(c => c.Footer, Opaque())""", "Opaque()")]
-    [InlineData("decorator receiver", """Opaque().Class("c")""", "Opaque()")]
+    [InlineData(
+        "decorator receiver",
+        """OpaqueElementBuilder().Class("c")""",
+        "OpaqueElementBuilder()")]
     public void Bc1003_Location_BlamesTheInnermostFailure_OnEveryRecursiveDescent(
         string descent, string body, string expectedAnchor)
     {
@@ -161,7 +170,7 @@ public sealed class DiagnosticPipelineTests
             using static BlazorCompose.Html;
             public partial class First : BlazorCompose.ComposeComponentBase
             {
-                protected override BlazorCompose.View Body => Div("fine");
+                protected override BlazorCompose.View Body => Div["fine"];
             }
             public partial class Second : BlazorCompose.ComposeComponentBase
             {
@@ -186,7 +195,7 @@ public sealed class DiagnosticPipelineTests
             using static BlazorCompose.Html;
             public partial class Shell : BlazorCompose.ComposeLayoutBase
             {
-                protected override BlazorCompose.View Chrome => Main(Opaque());
+                protected override BlazorCompose.View Chrome => Main[Opaque()];
                 private static BlazorCompose.View Opaque() => default;
             }
             """;

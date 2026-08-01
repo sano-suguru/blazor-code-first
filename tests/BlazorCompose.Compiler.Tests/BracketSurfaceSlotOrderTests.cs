@@ -25,7 +25,7 @@ public sealed class BracketSurfaceSlotOrderTests
         // the only order this surface can produce. AGENTS.md's rule, that sequence numbers represent source
         // syntax positions, is what makes it the correct one. The method form writes children first and so
         // emits ChildContent first; each spelling is faithful to its own source.
-        var result = BracketSurfaceShim.RunGenerator(
+        var result = CompilationTestHost.RunGenerator(
             ("Host.cs", """
                 using BlazorCompose;
                 using static BlazorCompose.Html;

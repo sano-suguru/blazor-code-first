@@ -123,11 +123,11 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
     return code
 ```
 
-`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、文字列子を1つ持つ `Span`(`Span("...")`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
+`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、文字列子を1つ持つ `Span`(`Span["..."]`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
 
 値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBC3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
 
-`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008、詳細は§2.7(B)と付録A)。
+`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008、詳細は§2.7(B)と付録A)。この装飾不可は型システムでも表現されています — 装飾は `ElementBuilder` の拡張であり、`Fragment`/`Raw` は `View` なのでCS1929です — が、その上でBC3008も報告します。設計時表現が翻訳できないコンポーネントには `RenderView` が生成されず、クラスは必ず宣言段階エラーのCS0534を負うため、`csc` はメソッド本体の束縛へ進まずCS1929を作者へ届けません(実MSBuildでの測定値 — 本節のBC3008を戻す前の時点: フィクスチャ `Bc3008Host` が報告したのはCS0534とBC1003だけで、CS1929は現れませんでした。BC3008を報告するようになった現在は、同じフィクスチャがそれも報告します)。同じビルドでBC1003が届いていることが示すとおり、この打ち切りを越えられるのは生成器の診断だけであり、何が間違っているかを名指せる診断はBC3008です。
 
 ### 2.3 静的シーケンス可能サブセット(SSC)
 
@@ -209,10 +209,10 @@ Blazorのリージョンはシーケンス空間を分離するため、`D` 内�
 
 ```csharp
 // 入力(設計時のC#式)
-Button("Save")
+Button
     .Class("btn")
     .Class("btn-primary")
-    .OnClick(() => Save())
+    .OnClick(() => Save())["Save"]
 ```
 
 ```csharp
@@ -233,7 +233,7 @@ __b.CloseElement();
 ```csharp
 // 入力
 ForEach(_items, key: t => t.Id, content: item =>
-    Div(Span(item.Title)).Class(item.Done ? "task done" : "task"))
+    Div.Class(item.Done ? "task done" : "task")[Span[item.Title]])
 ```
 
 ```csharp
@@ -250,7 +250,7 @@ foreach (var item in _items)
 __b.CloseRegion();
 ```
 
-`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BC3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div(ForEach(o.Items, …))`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
+`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BC3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div[ForEach(o.Items, …)]`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
 
 この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` / `RenderFragmentContentTemplateNode`(外部由来の `RenderFragment?` を `AddContent(seq, RenderFragment?)` としてそのまま発行するノード)をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。この網羅契約により、展開後ノード `RenderFragmentContentNode`(`SequenceAllocator.Width` では常に1 — シーケンス引数を消費する `AddContent` 呼び出しが `RenderFragment?` の非nullを問わず不可欠であるため)を追加した際も、`SequenceAllocator.Width` と `RenderViewEmitter.EmitNode` の両方にケースを足す必要があり、片方だけの更新は例外で検出されます。
 
@@ -263,11 +263,11 @@ __b.CloseRegion();
 ```csharp
 // 入力
 protected override View Body =>
-    Div(Toolbar("My App"), Span("Body"));
+    Div[Toolbar("My App"), Span["Body"]];
 
 [Composable]
 private static View Toolbar(string title) =>
-    Div(Span(title)).Class("toolbar");
+    Div.Class("toolbar")[Span[title]];
 ```
 
 ```csharp
@@ -458,18 +458,18 @@ BC1001 はこの規則に違反していました(#76)。`partial` の欠落は 
 | BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BC2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→Compose 方向)とは逆向きの構文である) |
 | BC3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
-| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div(...)`)必要がある |
+| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div[...]`)必要がある |
 | BC3004 | Error   | `ForEach` の `content`/`key` がインライン式ラムダでない(ブロック本体ラムダ/メソッドグループ等)ため静的解析できない |
 | BC3005 | Error   | `Component<T>().Param` のセレクタが単純なプロパティ選択(`c => c.Prop`)でない(キャスト/メソッド呼び出し/捕捉変数のメンバー等) |
 | BC3006 | Error   | `Component<T>().Param` の対象が settable な `[Parameter]` プロパティでない(実行時 throw を防ぐためコンパイル時に拒否) |
 | BC3007 | Error   | `Component<T>().Param` のチェーンが同一プロパティを複数回バインドしている(Blazorは最後の値のみ適用するため重複はコンパイル時に拒否) |
-| BC3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`)に適用されている |
+| BC3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外に書かれている。装飾は `ElementBuilder` の拡張であるため、レシーバが `View`/`ComponentView<T>`(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`、および子を与え終えた要素)の場合は `Decorations` に対するオーバーロード解決が失敗する。外部から渡された `RenderFragment` もレシーバとして受理する — `View` へ暗黙変換されるものの、拡張メソッドのレシーバは恒等/参照/ボクシング変換しか取らずユーザー定義変換を適用しないため、同じく解決に失敗し、作者の誤りは `Fragment`/`Raw` を装飾した場合と同一である(DESIGN.md §4.1)。翻訳に失敗した設計時表現を掃引し、この失敗したチェーンを検出して報告する(型システムが挙げるCS1929は宣言段階の打ち切りにより作者へ届かないため。§2.2) |
 | BC3009 | Error   | `Element` のタグ引数が非空のコンパイル時定数文字列でない(宣言性・予測可能性のため) |
 | BC3010 | Error   | 同一要素上で属性またはイベントが複数回バインドされている(属性チャネル内の重複は後勝ちで前が死に、属性チャネルとイベントチャネルにまたがる同名バインディングは両方が生き残って二重発火する。いずれも書いたとおりにならないため拒否)。畳み込まれる `class` のみ例外 |
 | BC3011 | Error   | `.Attr` の名前 / `.On` のイベント名が非空のコンパイル時定数文字列でない(宣言性・タイポ検査・class畳み込み判定・重複検出の前提) |
 | BC3012 | Error   | `Component<T>()` の型引数がジェネレータ実行時に解決できない。同一プロジェクト内の `.razor` コンポーネントはRazorコンパイラ自身がソースジェネレータであるため相互に出力が見えず、常にこの状態になる。参照先プロジェクト/NuGetパッケージの `.razor` と手書きC#コンポーネントは正常に解決する。タイポや `using` 漏れの場合は同じ位置に CS0246 も報告される |
-| BC3013 | Error   | `Component<T>(children)` の `T` が子コンテンツを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
-| BC3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>`)がジェネリック `.Param` の値位置に渡された |
+| BC3013 | Error   | `Component<T>()[…]` で子コンテンツが与えられているが、`T` がそれを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
+| BC3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>` / `ElementBuilder`)がジェネリック `.Param` の値位置に渡された |
 | BC3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由

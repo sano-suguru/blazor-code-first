@@ -7,8 +7,9 @@ namespace BlazorCompose.Compiler.Tests;
 /// <summary>
 /// Shape-level coverage of the bracket surface: that the compiler recognizes an element written as a
 /// property reference or an element access at all.  The proof that it produces the <em>same</em> code as the
-/// method surface is <see cref="BracketSurfaceBaselineTests"/>; these tests exist to localize a failure to
-/// the dispatch head before a whole-file comparison is consulted.
+/// method surface that preceded it is <see cref="SnapshotCorpusTests"/>, whose baselines were captured before
+/// the migration; these tests exist to localize a failure to the dispatch head before a whole-file comparison
+/// is consulted.
 /// </summary>
 public sealed class BracketSurfaceGeneratorTests
 {
@@ -32,7 +33,7 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void ElementWithChildren_WrittenAsAnElementAccess_OpensTheElement()
     {
-        var result = BracketSurfaceShim.RunGenerator(Host("""Div["a"]"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Div["a"]"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
@@ -43,7 +44,7 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void ChildlessElement_WrittenAsABarePropertyReference_OpensTheElement()
     {
-        var result = BracketSurfaceShim.RunGenerator(Host("""Img"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Img"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"img\")", generated);
@@ -55,7 +56,7 @@ public sealed class BracketSurfaceGeneratorTests
     {
         // The qualified escape hatch is a MemberAccessExpressionSyntax rather than the IdentifierNameSyntax
         // the unqualified form produces. Dispatching on the resolved symbol is what makes one arm serve both.
-        var result = BracketSurfaceShim.RunGenerator(Host("""Html.Img"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Html.Img"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"img\")", generated);
@@ -65,7 +66,7 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void DecoratedElementWithChildren_FoldsTheDecorationIntoTheElement()
     {
-        var result = BracketSurfaceShim.RunGenerator(Host("""Div.Class("card")["a"]"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Div.Class("card")["a"]"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
@@ -77,10 +78,10 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void CuratedTags_ResolveFromPropertiesOnTheBracketSurface()
     {
-        // KnownSymbolsSyncTests reads the shipped runtime, where the curated helpers are still methods, so
-        // this is the only assertion that exercises KnownSymbols' property arm at all.
-        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
-            ("Empty.cs", ""), BracketSurfaceShim.ShimFile);
+        // KnownSymbolsSyncTests pins which names the table holds; this pins the member *kind* every key has.
+        // Nothing there would fail if a curated tag resolved to a method or to an indexer, and the dispatch
+        // head reads the table through the property arm alone.
+        var compilation = CompilationTestHost.CreateCompilation("");
 
         var symbols = KnownSymbols.TryCreate(compilation);
 
@@ -91,34 +92,24 @@ public sealed class BracketSurfaceGeneratorTests
     }
 
     [Fact]
-    public void StructuralAndIndexerSymbols_ResolveOnTheBracketSurface()
+    public void ChildlessElement_AsAChildOfAnotherElement_OpensBothElements()
     {
-        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
-            ("Empty.cs", ""), BracketSurfaceShim.ShimFile);
+        // element-childless covers a bare property reference at the body root only. As a child it converts
+        // to View through the implicit operator inside a collection expression, which is a different
+        // binding.
+        var result = CompilationTestHost.RunGenerator(Host("""Div[Img]"""));
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        var symbols = KnownSymbols.TryCreate(compilation);
-
-        Assert.NotNull(symbols);
-        Assert.NotNull(symbols!.ElementBuilderType);
-        Assert.NotNull(symbols.ElementIndexer);
-        Assert.NotNull(symbols.ComponentIndexer);
-
-        // Element(string tag) is the only arity on this surface. One field per arity, matched through
-        // IsElementFactory, is what keeps both spellings recognized when a runtime declares both.
-        Assert.NotNull(symbols.HtmlElement);
-        Assert.Single(symbols.HtmlElement!.Parameters);
-        Assert.Null(symbols.HtmlElementWithChildren);
-
-        // The params Component<T>(children) overload is gone — the indexer replaces it — so every consumer
-        // must tolerate a null HtmlComponentWithChildren rather than dereference it.
-        Assert.NotNull(symbols.HtmlComponent);
-        Assert.Null(symbols.HtmlComponentWithChildren);
+        Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
+        Assert.Contains("__builder.OpenElement(1, \"img\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     /// <summary>
     /// A surface whose members have the right names and shapes but the wrong declared types must not be
-    /// recognized.  This is the only test that exercises the type guards: the real shim declares everything
-    /// correctly, so it can only prove the positive side.
+    /// recognized.  This is the only test that exercises the type guards: the shipped runtime declares
+    /// everything correctly, so every other test can only prove the positive side.  Hence the compilation
+    /// built without it — the wrong surface has to be the only <c>BlazorCompose</c> in scope.
     /// </summary>
     [Fact]
     public void MembersWithTheWrongDeclaredTypes_AreNotRecognized()
@@ -151,7 +142,7 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.Null(symbols!.ElementIndexer);
 
         // Declared as a local, not spelled inline in the call: a collection expression has no target type
-        // in an Assert.Equal argument position. This is the pattern AssertRetiredIntoCS1929 already uses.
+        // in an Assert.Equal argument position. BracketSurfaceDiagnosticTests uses the same pattern.
         string[] expected = ["Span"];
         Assert.Equal(expected, symbols.ElementTags.Keys.Select(static key => key.Name).ToList());
     }

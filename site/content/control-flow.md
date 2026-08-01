@@ -12,10 +12,10 @@ compile-time sequence numbers to every position in the template.
 
 ```csharp
 protected override View Body =>
-    Div(
+    Div[
         If(_items.Count == 0,
-            () => P("Nothing here yet."),
-            () => Span($"{_items.Count} items")));
+            () => P["Nothing here yet."],
+            () => Span[$"{_items.Count} items"])];
 ```
 
 Mutually exclusive branches get disjoint sequence ranges, so switching branches never disturbs the
@@ -27,10 +27,10 @@ sibling positions around them.
 
 ```csharp
 protected override View Body =>
-    Ul(
+    Ul[
         ForEach(_items,
             key: item => item.Id,
-            content: item => Li(item.Name)));
+            content: item => Li[item.Name])];
 ```
 
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
@@ -43,7 +43,7 @@ content root must be a single element or component, so a `Fragment` or `Raw` roo
 `Fragment` groups children without emitting a wrapper element, the equivalent of `<>...</>`:
 
 ```csharp
-Fragment(H2("Title"), P("Body"))
+Fragment(H2["Title"], P["Body"])
 ```
 
 Because it opens no element it cannot be decorated (BC3008) and cannot be a `ForEach` content root
@@ -55,7 +55,7 @@ Because it opens no element it cannot be decorated (BC3008) and cannot be a `For
 rendered that way — its Markdown is converted to HTML at build time and passed to `Raw`.
 
 ```csharp
-Article(Raw(entry.Html)).Class("prose")
+Article.Class("prose")[Raw(entry.Html)]
 ```
 
 `Raw` writes to the DOM without escaping, so it accepts trusted content only. Never flow user input

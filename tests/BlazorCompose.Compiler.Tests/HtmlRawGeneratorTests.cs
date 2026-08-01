@@ -7,7 +7,7 @@ public sealed class HtmlRawGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Main(Html.Raw("<em>hi</em>"));
+            protected override View Body => Html.Main[Html.Raw("<em>hi</em>")];
         }
         """;
 
@@ -30,15 +30,6 @@ public sealed class HtmlRawGeneratorTests
             private List<string> _xs = new();
             protected override View Body =>
                 Html.ForEach(_xs, x => x, x => Html.Raw(x));
-        }
-        """;
-
-    private const string RawDecoratedSource = """
-        using BlazorCompose;
-
-        public partial class C : ComposeComponentBase
-        {
-            protected override View Body => Html.Raw("<b>x</b>").Class("c");
         }
         """;
 
@@ -70,12 +61,5 @@ public sealed class HtmlRawGeneratorTests
     {
         var result = CompilationTestHost.RunGenerator(RawAsForEachContentSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC3003");
-    }
-
-    [Fact]
-    public void Raw_Decorated_ReportsBC3008()
-    {
-        var result = CompilationTestHost.RunGenerator(RawDecoratedSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3008");
     }
 }

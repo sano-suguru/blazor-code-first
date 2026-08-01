@@ -9,9 +9,9 @@ public partial class KeyedListComponent : ComposeComponentBase
     private readonly List<Row> _items = [new(1, "one"), new(2, "two"), new(3, "three")];
 
     protected override View Body =>
-        Div(
-            ForEach(_items, key: r => r.Id, content: r => Span(r.Label)),
-            Button("Rotate").OnClick(Rotate));
+        Div[
+            ForEach(_items, key: r => r.Id, content: r => Span[r.Label]),
+            Button.OnClick(Rotate)["Rotate"]];
 
     private void Rotate()
     {

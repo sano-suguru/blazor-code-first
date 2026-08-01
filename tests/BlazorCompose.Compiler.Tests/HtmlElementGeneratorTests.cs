@@ -7,7 +7,7 @@ public sealed class HtmlElementGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Div("hello");
+            protected override View Body => Html.Div["hello"];
         }
         """;
 
@@ -18,7 +18,7 @@ public sealed class HtmlElementGeneratorTests
         {
             private int _n = 0;
             protected override View Body =>
-                Html.Div("Count: ", Html.Span("x"), "tail");
+                Html.Div["Count: ", Html.Span["x"], "tail"];
         }
         """;
 

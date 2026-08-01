@@ -140,7 +140,7 @@ public sealed class ComponentUnresolvedTypeTests
             public static class Frags
             {
                 [Composable]
-                public static View Card() => Div(Component<Probe>().Param(p => p.Label, "x"));
+                public static View Card() => Div[Component<Probe>().Param(p => p.Label, "x")];
             }
             public partial class Host : ComposeComponentBase
             {
@@ -183,7 +183,7 @@ public sealed class ComponentUnresolvedTypeTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Div(Component<Probe>(), Component<Probe>());
+                protected override View Body => Div[Component<Probe>(), Component<Probe>()];
             }
             """;
 
@@ -203,7 +203,7 @@ public sealed class ComponentUnresolvedTypeTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Div(Component<Alpha>(), Component<Beta>());
+                protected override View Body => Div[Component<Alpha>(), Component<Beta>()];
             }
             """;
 
@@ -402,7 +402,7 @@ public sealed class ComponentUnresolvedTypeTests
             namespace T;
             public partial class Shell : ComposeLayoutBase
             {
-                protected override View Chrome => Div(Component<Probe>());
+                protected override View Chrome => Div[Component<Probe>()];
             }
             """;
 
@@ -445,7 +445,7 @@ public sealed class ComponentUnresolvedTypeTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Probe>(Div("x"));
+                protected override View Body => Component<Probe>()[Div["x"]];
             }
             """;
 
@@ -467,7 +467,7 @@ public sealed class ComponentUnresolvedTypeTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => If(true, () => Component<Probe>(Div("x")));
+                protected override View Body => If(true, () => Component<Probe>()[Div["x"]]);
             }
             """;
 

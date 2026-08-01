@@ -11,12 +11,12 @@ public partial class ComposableCounterComponent : ComposeComponentBase
     public int ArgumentEvaluations => _argumentEvaluations;
 
     protected override View Body =>
-        Div(
+        Div[
             CounterLabel(GetCountLabel()),
-            Button("Increment").OnClick(() => _count++));
+            Button.OnClick(() => _count++)["Increment"]];
 
     [Composable]
-    private static View CounterLabel(string value) => Span(value);
+    private static View CounterLabel(string value) => Span[value];
 
     private string GetCountLabel()
     {

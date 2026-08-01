@@ -9,11 +9,11 @@ sequence numbers. The generated component is an ordinary `ComponentBase` descend
 Razor's proven diffing performance and stays trimming/AOT-safe, with no runtime UI tree, reflection,
 or expression compilation.
 
-The vocabulary mirrors HTML: elements are C# factories, attributes and events are a postfix
-decoration chain, and layout is left entirely to CSS. This puts BlazorCompose in the lineage of
-kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`, and hiccup (Clojure) rather than
-of SwiftUI or Jetpack Compose — there are no `VStack` / `HStack` / `Grid` containers and no typed
-`.Padding()` / `.FontSize()` decorations.
+The vocabulary mirrors HTML: elements are C# factories, attributes and events sit next to the tag in
+a decoration chain, children follow in brackets, and layout is left entirely to CSS. This puts
+BlazorCompose in the lineage of kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`,
+and hiccup (Clojure) rather than of SwiftUI or Jetpack Compose — there are no `VStack` / `HStack` /
+`Grid` containers and no typed `.Padding()` / `.FontSize()` decorations.
 
 ```csharp
 using BlazorCompose;
@@ -29,12 +29,14 @@ public partial class CounterPage : ComposeComponentBase
     private int _count;
 
     protected override View Body =>
-        Div(
-            Span($"Count: {_count}"),
-            If(_count >= 3, () => Span("Milestone reached")),
-            Button("Increment").OnClick(() => _count++),
-            ForEach(Steps, key: step => step.Id, content: step => Button($"+{step.Amount}").OnClick(() => _count += step.Amount)))
-        .Class("bc-counter");
+        Div.Class("bc-counter")[
+            Span[$"Count: {_count}"],
+            If(_count >= 3, () => Span["Milestone reached"]),
+            Button.OnClick(() => _count++)["Increment"],
+            ForEach(
+                Steps,
+                key: step => step.Id,
+                content: step => Button.OnClick(() => _count += step.Amount)[$"+{step.Amount}"])];
 
     private sealed record IncrementStep(int Id, int Amount);
 }
@@ -50,7 +52,7 @@ written for the README. Run it with
 `Body` is an ordinary typed C# expression, so names and types are checked by the compiler and
 refactorings propagate through it like any other code. It is **not** compile-time validation of
 HTML: every element is one unified node type carrying a string tag — hiccup / ScalaTags style, not
-kotlinx.html style — so `Img("child")` accepts children and `.Href(…)` chains onto a `Div`. That is
+kotlinx.html style — so `Img["child"]` accepts children and `.Href(…)` chains onto a `Div`. That is
 the chosen position, recorded in `DESIGN.md` §4.1, not a gap to be closed.
 
 What C# cannot check is the *shape* of a `Body`: a component that forgets `partial`, state mutated
@@ -67,10 +69,11 @@ issue.
 Available today:
 
 - 22 curated element helpers (`Div` `Span` `Button` `Nav` `Header` `Main` `Aside` `Footer`
-  `Section` `Article` `P` `H1`–`H6` `Ul` `Ol` `Li` `A` `Img`), plus `Element(tag, …)` for any other
+  `Section` `Article` `P` `H1`–`H6` `Ul` `Ol` `Li` `A` `Img`), plus `Element(tag)` for any other
   tag, `Fragment(…)`, and `Raw(html)` for trusted HTML.
-- Mixed children: bare strings and `View`s in the same list; a Blazor `RenderFragment` is also a
-  child, which is how Razor-supplied content flows in.
+- Mixed children, supplied in brackets after the tag and its attributes (`Div.Class("card")[…]`):
+  bare strings and `View`s in the same list; a Blazor `RenderFragment` is also a child, which is how
+  Razor-supplied content flows in.
 - Decorations: `.Class` (folding), the `.Href` `.Src` `.Alt` `.Id` `.Type` `.Title` `.Role`
   shortcuts, generic `.Attr(name, value)`, and `.OnClick` / `.On(eventName, …)` with `Action` or
   `Func<Task>` handlers.
@@ -86,8 +89,9 @@ Not covered yet — tracked as a single surface-area inventory in
 `stopPropagation`, attribute splatting, `@ref` for elements and components, form helpers, and the
 elements outside the curated 22 (tables, form controls, `Strong` / `Em` / `Pre` / `Code`, …).
 
-One surface question is open rather than merely unimplemented: whether attributes should stay
-postfix or move ahead of children — [#73](https://github.com/sano-suguru/blazor-compose/issues/73).
+One surface question is open rather than merely unimplemented: how wide the curated tag set should
+be. Twenty-two tags are properties and every other tag goes through `Element("…")` — a split HTML
+does not have — [#99](https://github.com/sano-suguru/blazor-compose/issues/99).
 
 ## Installation
 

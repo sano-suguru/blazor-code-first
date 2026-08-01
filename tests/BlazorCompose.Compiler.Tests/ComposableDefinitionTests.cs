@@ -13,16 +13,16 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class ComposableDefinitionTests
 {
     [Theory]
-    [InlineData("[Composable] private View Helper() => Span(\"x\");", "must be static")]
-    [InlineData("[Composable] private static View Helper<T>() => Span(\"x\");", "must be non-generic")]
-    [InlineData("[Composable] private static View Helper() { return Span(\"x\"); }", "must be expression-bodied")]
+    [InlineData("[Composable] private View Helper() => Span[\"x\"];", "must be static")]
+    [InlineData("[Composable] private static View Helper<T>() => Span[\"x\"];", "must be non-generic")]
+    [InlineData("[Composable] private static View Helper() { return Span[\"x\"]; }", "must be expression-bodied")]
     [InlineData("[Composable] private static string Helper() => \"x\";", "must return BlazorCompose.View")]
-    [InlineData("[Composable] private static View Helper(params string[] values) => Span(values[0]);", "params parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(params string[] values) => Span[values[0]];", "params parameters are unsupported")]
     [InlineData("[Composable] private static View Helper(View content) => content;", "View parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(ref int value) => Span(\"x\");", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(out int value) => Span(\"x\");", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(in int value) => Span(\"x\");", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(ref readonly int value) => Span(\"x\");", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(ref int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(out int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(in int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    [InlineData("[Composable] private static View Helper(ref readonly int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
     public void ComposableDefinition_UnsupportedDeclaration_ReportsBC1002(string declaration, string message)
     {
         var source = $$"""
@@ -32,7 +32,7 @@ public sealed class ComposableDefinitionTests
             public partial class Counter : ComposeComponentBase
             {
                 {{declaration}}
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -53,9 +53,9 @@ public sealed class ComposableDefinitionTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Greeting(string name) => Span(name);
+                private static View Greeting(string name) => Span[name];
 
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -107,12 +107,12 @@ public sealed class ComposableDefinitionTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Target(string a, int b = 1, int c = 2) => Span(a);
+                private static View Target(string a, int b = 1, int c = 2) => Span[a];
 
                 [Composable]
                 private static View Caller() => Target("supplied");
 
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -153,11 +153,11 @@ public sealed class ComposableDefinitionTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Helper(string s) => Div(
-                    Span(int.TryParse(s, out var parsed) ? s : s),
-                    Span(parsed.ToString()));
+                private static View Helper(string s) => Div[
+                    Span[int.TryParse(s, out var parsed) ? s : s],
+                    Span[parsed.ToString()]];
 
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -178,9 +178,9 @@ public sealed class ComposableDefinitionTests
             {
                 [Composable]
                 private static View Helper(string s) =>
-                    Span(int.TryParse(s, out var parsed) ? parsed.ToString() : "0");
+                    Span[int.TryParse(s, out var parsed) ? parsed.ToString() : "0"];
 
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -199,9 +199,9 @@ public sealed class ComposableDefinitionTests
             public partial class Counter : ComposeComponentBase
             {
                 [Composable]
-                private static View Greeting(string name) => Span(nameof(name) + name);
+                private static View Greeting(string name) => Span[nameof(name) + name];
 
-                protected override View Body => Span("Body");
+                protected override View Body => Span["Body"];
             }
             """;
 
@@ -215,8 +215,8 @@ public sealed class ComposableDefinitionTests
             .Single(static m => m.Identifier.Text == "Greeting");
         var methodSymbol = model.GetDeclaredSymbol(method)!;
 
-        var textInvocation = (InvocationExpressionSyntax)method.ExpressionBody!.Expression;
-        var argument = textInvocation.ArgumentList.Arguments[0].Expression;
+        var elementAccess = (ElementAccessExpressionSyntax)method.ExpressionBody!.Expression;
+        var argument = elementAccess.ArgumentList.Arguments[0].Expression;
 
         var knownSymbols = KnownSymbols.TryCreate(compilation)!;
         var ordinals = methodSymbol.Parameters.ToImmutableDictionary(

@@ -21,6 +21,17 @@ analyzer diagnostic can only be asserted in a compilation that has none. That is
 the shapes from `GeneratorDelivery.*` would suppress the diagnostic under test for reasons that
 have nothing to do with it. See `ARCHITECTURE.md` 付録A.0.
 
+The same cutoff also disqualifies C# errors as a way to state a BlazorCompose constraint. csc stops
+after the declaration stage when the compilation has a declaration-level error, so it never binds
+method bodies — and a component whose design-time expression fails to translate always has one, the
+CS0534 from the `RenderView` that was never generated. Any body-binding error inside that expression
+is therefore computed for a build that has already been abandoned, and never reaches the author.
+`Compilation.GetDiagnostics()`, which every in-process test calls, binds bodies unconditionally and
+does not reproduce the cutoff, so an in-process test that observes a C# error is not evidence that
+the error is delivered. BC3008 is the case that proved it: its retirement in favour of the CS1929
+that the type system genuinely raises was measured here and found to leave the author with nothing
+but CS0534 and a generic BC1003, so the detection was restored as a generator diagnostic.
+
 **Delivery path.** `ProjectReference … OutputItemType="Analyzer"` (what `samples/` and `site/` use)
 and the packed `analyzers/dotnet/cs/` layout (what an external consumer gets) are different paths
 to the same DLL, and `eng/verify-package.sh` only asserts that the file is *in* the package.

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using BlazorCompose.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
@@ -19,11 +20,11 @@ public sealed class KnownSymbolsSyncTests
         var tagged = symbols.ElementTags.Keys
             .Select(static key => key.Name).ToHashSet(System.StringComparer.Ordinal);
 
-        // Both spellings are enumerated on purpose. A curated helper is an ordinary method on the current
-        // surface and a property returning ElementBuilder on the bracket surface (#87); filtering either
-        // side to IMethodSymbol makes `tagged` empty after the flip, leaves every remaining ordinary Html
-        // method looking structural, and so never runs the Assert.Contains arm — the guard would go vacuous
-        // while staying green.
+        // Both member kinds are enumerated on purpose, and the split is not accidental: the structural
+        // members (Element, If, ForEach, Component, Fragment, Raw) are methods, while every curated tag is
+        // a property returning ElementBuilder. Filtering to IMethodSymbol would make `tagged` empty, leave
+        // every remaining ordinary Html method looking structural, and so never run the Assert.Contains
+        // arm — the guard would go vacuous while staying green.
         foreach (var member in html.GetMembers())
         {
             var name = member switch
@@ -60,6 +61,72 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotEmpty(symbols.OnMethods);
     }
 
+    /// <summary>
+    /// Every decoration <c>Decorations</c> declares is a name <c>DeclaresDecorationNamed</c> answers to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>RejectedDecorationScanner</c> decides whether a failed call is a misplaced decoration partly by
+    /// that name test, and the set behind it is a function of what the constructor's member switch
+    /// <em>captures</em> — not of what <c>Decorations</c> <em>declares</em>.  A runtime that added, say, a
+    /// <c>.Style(…)</c> shortcut without also adding it to <c>AttributeShortcutNames</c> would leave it out
+    /// of the set, and a misplaced <c>.Style(…)</c> would be reported as BC1003 — "not statically
+    /// analyzable" — instead of BC3008.  That fails in the safe direction, which is exactly why nothing else
+    /// would notice.
+    /// </para>
+    /// <para>
+    /// Name by name rather than by count alone: the failure mode is one <em>specific</em> name going
+    /// missing, and a count would also be satisfied by a swap.  The count is asserted as well, for the same
+    /// reason <see cref="CuratedTagCount"/> is — the loop only visits the decorations that exist, so on its
+    /// own it would pass a runtime that had dropped one.  The converse direction needs no assertion: every
+    /// name in the set is read off a symbol resolved out of <c>Decorations</c>, so the set cannot hold a name
+    /// that type does not declare.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DecorationNames_CoverEveryDecorationTheRuntimeDeclares()
+    {
+        var (symbols, _) = ResolveHtml();
+        var declared = DeclaredDecorationNames();
+
+        foreach (var name in declared)
+        {
+            Assert.True(
+                symbols.DeclaresDecorationNamed(name),
+                $"Decorations declares '{name}', but KnownSymbols does not capture it, so a misplaced " +
+                $".{name}(…) falls through to BC1003 instead of BC3008.");
+        }
+
+        Assert.Equal(DecorationNameCount, declared.Count);
+    }
+
+    /// <summary>The number of distinct decoration names <c>BlazorCompose.Decorations</c> declares.</summary>
+    private const int DecorationNameCount = 11;
+
+    /// <summary>
+    /// The distinct names of the public static extension methods <c>BlazorCompose.Decorations</c> declares,
+    /// in a stable order so a failure names the same decoration every run.
+    /// </summary>
+    private static List<string> DeclaredDecorationNames()
+    {
+        var compilation = CompilationTestHost.CreateCompilation("");
+        var decorations = compilation.GetTypeByMetadataName("BlazorCompose.Decorations");
+        Assert.NotNull(decorations);
+
+        var names = decorations!.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(static method =>
+                method is { IsExtensionMethod: true, IsStatic: true, DeclaredAccessibility: Accessibility.Public })
+            .Select(static method => method.Name)
+            .Distinct(System.StringComparer.Ordinal)
+            .OrderBy(static name => name, System.StringComparer.Ordinal)
+            .ToList();
+
+        // A resolution failure would otherwise make the whole guard vacuous rather than red.
+        Assert.NotEmpty(names);
+        return names;
+    }
+
     [Fact]
     public void OnAndOnClick_RegisterAllOverloads()
     {
@@ -85,29 +152,27 @@ public sealed class KnownSymbolsSyncTests
     }
 
     [Fact]
-    public void Component_BothOverloads_AreResolvedSeparately()
+    public void Element_ResolvesTheSingleTagOverload()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.NotNull(symbols.HtmlElement);
+        Assert.Single(symbols.HtmlElement!.Parameters);
+        Assert.Equal(SpecialType.System_String, symbols.HtmlElement.Parameters[0].Type.SpecialType);
+    }
+
+    [Fact]
+    public void Component_ResolvesTheParameterlessFactory_AndTheChildrenIndexer()
     {
         var (symbols, _) = ResolveHtml();
 
         Assert.NotNull(symbols.HtmlComponent);
-        Assert.NotNull(symbols.HtmlComponentWithChildren);
         Assert.Empty(symbols.HtmlComponent!.Parameters);
-        Assert.Single(symbols.HtmlComponentWithChildren!.Parameters);
-        Assert.True(symbols.HtmlComponentWithChildren.Parameters[0].IsParams);
-    }
 
-    [Fact]
-    public void Element_ResolvesOnlyTheChildrenOverload_OnTheShippedRuntime()
-    {
-        var (symbols, _) = ResolveHtml();
-
-        // Pinned from the opposite side to the bracket-surface assertion in
-        // BracketSurfaceGeneratorTests: one field per arity, so a runtime declaring both cannot let
-        // GetMembers order decide which one analysis recognizes.
-        Assert.Null(symbols.HtmlElement);
-        Assert.NotNull(symbols.HtmlElementWithChildren);
-        Assert.Equal(2, symbols.HtmlElementWithChildren!.Parameters.Length);
-        Assert.True(symbols.HtmlElementWithChildren.Parameters[1].IsParams);
+        // Children arrive through the indexer now, not an overload.
+        Assert.NotNull(symbols.ComponentIndexer);
+        Assert.NotNull(symbols.ElementIndexer);
+        Assert.NotNull(symbols.ElementBuilderType);
     }
 
     [Fact]

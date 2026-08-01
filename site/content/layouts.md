@@ -20,15 +20,14 @@ using static BlazorCompose.Html;
 public partial class MainLayout : ComposeLayoutBase
 {
     protected override View Chrome =>
-        Div(
-            Header(H1("My App")),
-            Main(Body).Class("content"),
-            Footer("© 2026"))
-        .Class("shell");
+        Div.Class("shell")[
+            Header[H1["My App"]],
+            Main.Class("content")[Body],
+            Footer["© 2026"]];
 }
 ```
 
-`Main(Body)` here is exactly `<main>@Body</main>` in Razor — the routed page dropped in as
+`Main[Body]` here is exactly `<main>@Body</main>` in Razor — the routed page dropped in as
 element content.
 
 ## Why Chrome, not Body
@@ -51,7 +50,7 @@ using static BlazorCompose.Html;
 [Layout(typeof(SiteLayout))]
 public partial class DocsLayout : ComposeLayoutBase
 {
-    protected override View Chrome => Div(Aside(TableOfContents()), Main(Body)).Class("docs");
+    protected override View Chrome => Div.Class("docs")[Aside[TableOfContents()], Main[Body]];
 }
 ```
 
@@ -62,7 +61,7 @@ descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Bod
 
 ## RenderFragment becomes content directly
 
-`Body` is a plain Blazor `RenderFragment?`, not a BlazorCompose type, yet `Main(Body)` above
+`Body` is a plain Blazor `RenderFragment?`, not a BlazorCompose type, yet `Main[Body]` above
 compiles without a dedicated factory: `View` has an implicit conversion from `RenderFragment?`,
 so any fragment can appear wherever element content is expected. The conversion is from the
 non-generic `RenderFragment` only — a `RenderFragment<T>` does not convert. And like `Fragment`
@@ -82,7 +81,7 @@ public partial class Card : ComposeComponentBase
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
-    protected override View Body => Div(ChildContent).Class("card");
+    protected override View Body => Div.Class("card")[ChildContent];
 }
 ```
 
@@ -98,9 +97,9 @@ Nested children bind to `ChildContent`, mirroring Razor's rule that nested conte
 
 ```csharp
 protected override View Body =>
-    Component<Card>(
-        H2("Heading"),
-        P("Body text"));
+    Component<Card>()[
+        H2["Heading"],
+        P["Body text"]];
 ```
 
 This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`; otherwise
@@ -112,11 +111,11 @@ Other `RenderFragment` parameters (such as `Footer` or `Header`) bind through
 
 ```csharp
 protected override View Body =>
-    Component<Card>(
-            H2("Heading"),
-            P("Body text"))
+    Component<Card>()
         .Param(c => c.Title, "Card title")
-        .Param(c => c.Footer, Span("Footer note"));
+        .Param(c => c.Footer, Span["Footer note"])[
+            H2["Heading"],
+            P["Body text"]];
 ```
 
 It is also legal to name `ChildContent` through `.Param` — this is verbose but matches Razor's

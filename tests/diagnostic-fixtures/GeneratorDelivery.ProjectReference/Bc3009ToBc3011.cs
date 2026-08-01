@@ -10,13 +10,13 @@ namespace Fixtures.GeneratorDelivery;
 /// </summary>
 public partial class Bc3009Host : ComposeComponentBase
 {
-    protected override View Body => Element("", Span("bc3009"));
+    protected override View Body => Element("")[Span["bc3009"]];
 }
 
 /// <summary>BC3010: the same attribute bound twice on one element.</summary>
 public partial class Bc3010Host : ComposeComponentBase
 {
-    protected override View Body => Div(Span("bc3010")).Id("first").Id("second");
+    protected override View Body => Div.Id("first").Id("second")[Span["bc3010"]];
 }
 
 /// <summary>BC3011: an attribute name that is not a compile-time constant.</summary>
@@ -24,5 +24,5 @@ public partial class Bc3011Host : ComposeComponentBase
 {
     private readonly string _name = "data-bc3011";
 
-    protected override View Body => Div(Span("bc3011")).Attr(_name, "value");
+    protected override View Body => Div.Attr(_name, "value")[Span["bc3011"]];
 }

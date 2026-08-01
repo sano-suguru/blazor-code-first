@@ -34,17 +34,15 @@ public sealed partial class SiteNav : ComposeComponentBase, IDisposable
     public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 
     protected override View Body =>
-        Nav(
-            Ul(
-                Li(A("Home").Href("/").Class(LinkClass("/"))),
-                Li(A("Counter").Href("/counter").Class(LinkClass("/counter"))),
-                Li(A("Docs").Href("/docs").Class(LinkClass("/docs"))),
+        Nav.Class("site-nav")[
+            Ul.Class("nav-list")[
+                Li[A.Href("/").Class(LinkClass("/"))["Home"]],
+                Li[A.Href("/counter").Class(LinkClass("/counter"))["Counter"]],
+                Li[A.Href("/docs").Class(LinkClass("/docs"))["Docs"]],
                 ForEach(
                     Docs.All,
                     key: d => d.Slug,
-                    content: d => Li(A(d.Title).Href($"/docs/{d.Slug}").Class(LinkClass($"/docs/{d.Slug}")))))
-            .Class("nav-list"))
-        .Class("site-nav");
+                    content: d => Li[A.Href($"/docs/{d.Slug}").Class(LinkClass($"/docs/{d.Slug}"))[d.Title]])]];
 
     /// <summary>The current route as a normalized absolute path ("/", "/counter", "/docs/x").</summary>
     /// <remarks>

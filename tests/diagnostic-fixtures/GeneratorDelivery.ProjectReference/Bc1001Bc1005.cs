@@ -10,7 +10,7 @@ namespace Fixtures.GeneratorDelivery;
 /// </summary>
 public class Bc1001NonPartial : ComposeComponentBase
 {
-    protected override View Body => Span("bc1001");
+    protected override View Body => Span["bc1001"];
 }
 
 /// <summary>BC1005: a nested type cannot be generated into.</summary>
@@ -18,6 +18,6 @@ public partial class Bc1005Outer
 {
     public partial class Nested : ComposeComponentBase
     {
-        protected override View Body => Span("bc1005");
+        protected override View Body => Span["bc1005"];
     }
 }

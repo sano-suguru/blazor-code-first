@@ -16,7 +16,8 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 `BlazorCompose.slnx` contains seven projects:
 
 - `src/BlazorCompose.Runtime` — runtime types (`ComposeComponentBase`, the
-  inert `View` factories and decorators, `Component<T>` interop).
+  inert element factories, the `ElementBuilder` decorators and child-list
+  indexer that `View` results come from, `Component<T>` interop).
 - `src/BlazorCompose.Compiler` — the Roslyn source generator and analyzers.
 - `tests/BlazorCompose.Runtime.Tests`, `tests/BlazorCompose.Compiler.Tests`,
   `tests/BlazorCompose.IntegrationTests` — unit, generator/analyzer, and
@@ -190,14 +191,15 @@ milestone. That is a valid state rather than an oversight.
   generator runs, so a `.razor` component declared in the same project cannot be
   named (`BC3012`) — source generators cannot observe each other's output. The
   same component in a referenced project or package resolves normally.
-  `Component<T>(children)` binds children to `ChildContent`, mirroring Razor's
+  `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. The target must have a
   settable `[Parameter] ChildContent` of type non-generic `RenderFragment`;
   otherwise BC3013 is reported. A `RenderFragment<TContext>` cannot receive the
   children — the generated lambda is non-generic and would fail an invalid cast
   at runtime. Other `RenderFragment` parameters bind through
   `.Param(c => c.Name, content)`. BC3014 prevents design-time inert types
-  (`View` / `ComponentView<T>`) from being passed to the generic `.Param`.
+  (`View` / `ComponentView<T>` / `ElementBuilder`) from being passed to the
+  generic `.Param`.
 - Value expressions copied into generated code must be lexical-context independent.
   Resolved type names are normalized to `global::`-qualified names. An unresolved
   type name that is not already rooted at `global::` reports `BC3015`; each generic

@@ -1,5 +1,3 @@
-using System;
-
 namespace BlazorCompose.Compiler.Tests;
 
 public sealed class HtmlDecorationGeneratorTests
@@ -10,7 +8,7 @@ public sealed class HtmlDecorationGeneratorTests
         public partial class C : ComposeComponentBase
         {
             private int _n = 0;
-            protected override View Body => Html.Button("OK").OnClick(() => _n++);
+            protected override View Body => Html.Button.OnClick(() => _n++)["OK"];
         }
         """;
 
@@ -19,29 +17,7 @@ public sealed class HtmlDecorationGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Div(Html.Span("x")).Class("panel");
-        }
-        """;
-
-    private const string ClassOnIfSource = """
-        using BlazorCompose;
-
-        public partial class C : ComposeComponentBase
-        {
-            private bool _b = true;
-            protected override View Body =>
-                Html.If(_b, () => Html.Span("y")).Class("bad");
-        }
-        """;
-
-    private const string ChainedDecorationsOnIfSource = """
-        using BlazorCompose;
-
-        public partial class C : ComposeComponentBase
-        {
-            private bool _b = true;
-            protected override View Body =>
-                Html.If(_b, () => Html.Span("y")).Class("bad").Attr("id", "x").OnClick(() => { });
+            protected override View Body => Html.Div.Class("panel")[Html.Span["x"]];
         }
         """;
 
@@ -68,22 +44,5 @@ public sealed class HtmlDecorationGeneratorTests
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
         Assert.Contains("__builder.AddAttribute(1, \"class\", \"panel\")", generated);
         CompilationTestHost.AssertOutputCompiles(result);
-    }
-
-    [Fact]
-    public void Class_OnIf_ReportsBC3008()
-    {
-        var result = CompilationTestHost.RunGenerator(ClassOnIfSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3008");
-    }
-
-    [Fact]
-    public void ChainedDecorationsOnIf_ReportsBC3008Once()
-    {
-        // A chain of decorations on a non-element root (.Class, then .Attr, then .OnClick) must not
-        // pile up BC3008 once per decoration: only the innermost receiver (.Class, the first decoration
-        // applied to the If result) is diagnosed; the outer decorations propagate the null silently.
-        var result = CompilationTestHost.RunGenerator(ChainedDecorationsOnIfSource);
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3008");
     }
 }

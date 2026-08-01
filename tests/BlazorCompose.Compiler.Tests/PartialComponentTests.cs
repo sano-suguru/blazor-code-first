@@ -21,7 +21,7 @@ public sealed class PartialComponentTests
 
         public class Counter : ComposeComponentBase
         {
-            protected override View Body => Span("Count");
+            protected override View Body => Span["Count"];
         }
         """;
 
@@ -69,7 +69,7 @@ public sealed class PartialComponentTests
 
             public partial class Shell : LabeledLayoutBase
             {
-                protected override View Chrome => Main(Body);
+                protected override View Chrome => Main[Body];
             }
             """;
 
@@ -89,7 +89,7 @@ public sealed class PartialComponentTests
 
             public partial class ShellBase : ComposeLayoutBase
             {
-                protected override View Chrome => Main(Body);
+                protected override View Chrome => Main[Body];
             }
 
             public class Special : ShellBase
@@ -134,12 +134,12 @@ public sealed class PartialComponentTests
 
             public abstract partial class ShellBase : ComposeLayoutBase
             {
-                protected override View Chrome => Div("base");
+                protected override View Chrome => Div["base"];
             }
 
             public class Special : ShellBase
             {
-                protected override View Chrome => Div("special");
+                protected override View Chrome => Div["special"];
             }
             """;
 
@@ -167,7 +167,7 @@ public sealed class PartialComponentTests
 
             public class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
 
                 protected override void RenderView(RenderTreeBuilder builder)
                 {
@@ -197,7 +197,7 @@ public sealed class PartialComponentTests
             {
                 public class Counter : ComposeComponentBase
                 {
-                    protected override View Body => Span("Count");
+                    protected override View Body => Span["Count"];
                 }
             }
             """;

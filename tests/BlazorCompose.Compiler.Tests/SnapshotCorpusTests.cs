@@ -9,10 +9,12 @@ namespace BlazorCompose.Compiler.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The case <em>names</em> are the stable identity here, not the input text.  #87 rewrites every input in
-/// this file from <c>Div(children).Class("x")</c> to <c>Div.Class("x")[children]</c>; the baseline a case
-/// points at must not change when that happens.  That is the whole safety net, so a case's input may be
-/// re-spelled but a case must never be renamed or dropped to make a baseline agree.
+/// These 26 baselines were captured on the pre-#87 method surface and reproduced unchanged when every input
+/// here was re-spelled to the bracket form.  That is what makes them a safety net rather than a restatement
+/// of current behaviour: a baseline is evidence about a surface that no longer exists in the tree.  Re-record
+/// them only with a reason written down; <c>BLAZORCOMPOSE_UPDATE_SNAPSHOTS</c> will overwrite that evidence in
+/// one run.  The case <em>names</em> are the stable identity here, not the input text: a case's input may be
+/// re-spelled again in the future, but a case must never be renamed or dropped to make a baseline agree.
 /// </para>
 /// <para>
 /// Coverage is chosen for what the migration can break, not for what the emitter can emit: every element
@@ -64,55 +66,55 @@ public sealed class SnapshotCorpusTests
             // --- elements: the constructs that gain brackets ------------------------------------
             // Void element, no children and no decoration: the case #87 turns into a bare property
             // reference, and the one whose spelling changes most.
-            ["element-childless"] = Host("""Img()"""),
-            ["element-single-text-child"] = Host("""H1("Title")"""),
-            ["element-several-children"] = Host("""Div(Span("a"), Span("b"), Span("c"))"""),
-            ["element-class"] = Host("""Div(Span("a")).Class("card")"""),
+            ["element-childless"] = Host("""Img"""),
+            ["element-single-text-child"] = Host("""H1["Title"]"""),
+            ["element-several-children"] = Host("""Div[Span["a"], Span["b"], Span["c"]]"""),
+            ["element-class"] = Host("""Div.Class("card")[Span["a"]]"""),
             ["element-class-folds-repeated"] = Host(
-                """Div(Span("a")).Class("card").Attr("class", "wide").Class(_extra)""",
+                """Div.Class("card").Attr("class", "wide").Class(_extra)[Span["a"]]""",
                 """private string _extra = "x";"""),
-            ["element-attribute-shortcuts"] = Host("""A("Home").Href("/").Title("home")"""),
-            ["element-generic-attribute"] = Host("""Div(Span("a")).Attr("data-x", "1")"""),
+            ["element-attribute-shortcuts"] = Host("""A.Href("/").Title("home")["Home"]"""),
+            ["element-generic-attribute"] = Host("""Div.Attr("data-x", "1")[Span["a"]]"""),
             ["element-event-shortcut"] = Host(
-                """Button("Increment").OnClick(() => _count++)""",
+                """Button.OnClick(() => _count++)["Increment"]""",
                 """private int _count;"""),
             ["element-generic-event"] = Host(
-                """Div(Span("a")).On("onmouseenter", () => _count++)""",
+                """Div.On("onmouseenter", () => _count++)[Span["a"]]""",
                 """private int _count;"""),
-            ["element-custom-tag"] = Host("""Element("custom-tag", "slotted")"""),
+            ["element-custom-tag"] = Host("""Element("custom-tag")["slotted"]"""),
             ["element-nested-mixed-content"] = Host(
-                """Div(Span($"Count: {_count}"), "bare text", Button("Go").OnClick(() => _count++)).Class("shell")""",
+                """Div.Class("shell")[Span[$"Count: {_count}"], "bare text", Button.OnClick(() => _count++)["Go"]]""",
                 """private int _count;"""),
             ["element-interpolated-attribute-value"] = Host(
-                """Div(Span("a")).Attr("data-n", $"{_count}")""",
+                """Div.Attr("data-n", $"{_count}")[Span["a"]]""",
                 """private int _count;"""),
 
             // --- Component<T>: also gains brackets ----------------------------------------------
             ["component-no-parameters"] = HostWithCard("""Component<Card>()"""),
             ["component-scalar-parameter"] = HostWithCard("""Component<Card>().Param(c => c.Title, "t")"""),
-            ["component-child-content"] = HostWithCard("""Component<Card>(Div("x"))"""),
+            ["component-child-content"] = HostWithCard("""Component<Card>()[Div["x"]]"""),
             ["component-child-content-and-parameter"] = HostWithCard(
-                """Component<Card>(Div("x")).Param(c => c.Title, "t")"""),
+                """Component<Card>().Param(c => c.Title, "t")[Div["x"]]"""),
             ["component-fragment-slot"] = HostWithCard(
-                """Component<Card>().Param(c => c.Footer, Div("f"))"""),
+                """Component<Card>().Param(c => c.Footer, Div["f"])"""),
             ["component-nested-in-element"] = HostWithCard(
-                """Div(Component<Card>().Param(c => c.Title, "t")).Class("shell")"""),
+                """Div.Class("shell")[Component<Card>().Param(c => c.Title, "t")]"""),
 
             // --- constructs nested inside an element: their surroundings change -----------------
             ["if-with-else-inside-element"] = Host(
-                """Div(If(_on, then: () => Span("Yes"), otherwise: () => Span("No"))).Class("shell")""",
+                """Div.Class("shell")[If(_on, then: () => Span["Yes"], otherwise: () => Span["No"])]""",
                 """private bool _on;"""),
             ["if-without-else-inside-element"] = Host(
-                """Div(If(_on, then: () => Span("Yes")))""",
+                """Div[If(_on, then: () => Span["Yes"])]""",
                 """private bool _on;"""),
             ["foreach-keyed-inside-element"] = Host(
-                """Ul(ForEach(_items, key: i => i, content: i => Li(i))).Class("nav-list")""",
+                """Ul.Class("nav-list")[ForEach(_items, key: i => i, content: i => Li[i])]""",
                 """private readonly List<string> _items = new();"""),
             ["foreach-nested-element-content"] = Host(
-                """Ul(ForEach(_items, key: i => i, content: i => Li(A(i).Href($"/{i}"))))""",
+                """Ul[ForEach(_items, key: i => i, content: i => Li[A.Href($"/{i}")[i]])]""",
                 """private readonly List<string> _items = new();"""),
             ["fragment-and-raw-inside-element"] = Host(
-                """Div(Fragment(P("a"), P("b")), Raw("<em>trusted</em>"))"""),
+                """Div[Fragment(P["a"], P["b"]), Raw("<em>trusted</em>")]"""),
 
             // --- other emitter paths that must not shift ----------------------------------------
             ["composable-expansion"] = [("Host.cs", """
@@ -130,10 +132,10 @@ public sealed class SnapshotCorpusTests
 
                     [BlazorCompose.Composable]
                     private static BlazorCompose.View Panel(string heading, List<string> items) =>
-                        Div(
-                            H2(heading),
-                            Ul(ForEach(items, key: i => i, content: i => Li($"{heading}:{i}")))
-                        ).Class("panel");
+                        Div.Class("panel")[
+                            H2[heading],
+                            Ul[ForEach(items, key: i => i, content: i => Li[$"{heading}:{i}"])]
+                        ];
                 }
                 """)],
             // Two components in one compilation: the only corpus case that emits more than one file, so
@@ -147,7 +149,7 @@ public sealed class SnapshotCorpusTests
 
                     public partial class First : ComposeComponentBase
                     {
-                        protected override View Body => Div(Span("first")).Class("a");
+                        protected override View Body => Div.Class("a")[Span["first"]];
                     }
                     """),
                 ("Second.cs", """
@@ -158,7 +160,7 @@ public sealed class SnapshotCorpusTests
 
                     public partial class Second : ComposeComponentBase
                     {
-                        protected override View Body => P("second");
+                        protected override View Body => P["second"];
                     }
                     """),
             ],
@@ -170,7 +172,7 @@ public sealed class SnapshotCorpusTests
 
                 public partial class Shell : ComposeLayoutBase
                 {
-                    protected override View Chrome => Main(Body).Class("shell");
+                    protected override View Chrome => Main.Class("shell")[Body];
                 }
                 """)],
         };

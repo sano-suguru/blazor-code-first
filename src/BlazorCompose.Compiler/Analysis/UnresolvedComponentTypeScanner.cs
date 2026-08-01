@@ -26,8 +26,7 @@ internal static class UnresolvedComponentTypeScanner
     public static void Report(ExpressionSyntax root, ComposableBodyContext context)
     {
         var componentMethod = context.KnownSymbols.HtmlComponent;
-        var componentWithChildrenMethod = context.KnownSymbols.HtmlComponentWithChildren;
-        if (componentMethod is null && componentWithChildrenMethod is null)
+        if (componentMethod is null)
             return;
 
         foreach (var invocation in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
@@ -40,7 +39,7 @@ internal static class UnresolvedComponentTypeScanner
             // IDE0019, an error in this repo.
             var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
             if ((symbolInfo.Symbol ?? symbolInfo.CandidateSymbols.FirstOrDefault()) is not IMethodSymbol method
-                || !IsComponentFactory(method, componentMethod, componentWithChildrenMethod))
+                || !IsComponentFactory(method, componentMethod))
             {
                 continue;
             }
@@ -63,16 +62,19 @@ internal static class UnresolvedComponentTypeScanner
     }
 
     /// <summary>
-    /// Whether <paramref name="method"/> is either <c>Html.Component&lt;T&gt;()</c> overload. Both must be
-    /// matched: the params form is a distinct symbol, and missing it would report BC1003 for an
-    /// unresolved type argument instead of BC3012.
+    /// Whether <paramref name="method"/> is <c>Html.Component&lt;T&gt;()</c>, the sole component factory —
+    /// children arrive through <c>ComponentView&lt;T&gt;</c>'s indexer, which is not an invocation and so
+    /// never reaches this sweep.
     /// </summary>
-    internal static bool IsComponentFactory(
-        IMethodSymbol method, IMethodSymbol? parameterless, IMethodSymbol? withChildren) =>
-        (parameterless is not null
-            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless))
-        || (withChildren is not null
-            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, withChildren));
+    /// <remarks>
+    /// The <paramref name="parameterless"/> null guard is defensive consistency rather than a correctness
+    /// requirement: <c>OriginalDefinition</c> is never null, so an unguarded comparison against a null known
+    /// symbol already answers <see langword="false"/>, and <c>Report</c> returns before its loop when the
+    /// symbol is absent. It is kept so callers other than <c>Report</c> cannot depend on that early exit.
+    /// </remarks>
+    internal static bool IsComponentFactory(IMethodSymbol method, IMethodSymbol? parameterless) =>
+        parameterless is not null
+        && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless);
 
     /// <summary>
     /// The written type-argument syntax of a <c>Component&lt;T&gt;()</c> invocation: the generic name is

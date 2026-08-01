@@ -8,7 +8,7 @@ public sealed class HtmlFragmentGeneratorTests
         public partial class C : ComposeComponentBase
         {
             protected override View Body =>
-                Html.Div(Html.Fragment(Html.Span("a"), Html.Span("b")), Html.Span("c"));
+                Html.Div[Html.Fragment(Html.Span["a"], Html.Span["b"]), Html.Span["c"]];
         }
         """;
 
@@ -17,7 +17,7 @@ public sealed class HtmlFragmentGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Div(Html.Fragment(), Html.Span("after"));
+            protected override View Body => Html.Div[Html.Fragment(), Html.Span["after"]];
         }
         """;
 
@@ -27,7 +27,7 @@ public sealed class HtmlFragmentGeneratorTests
         public partial class C : ComposeComponentBase
         {
             protected override View Body =>
-                Html.Fragment("head", Html.Raw("<hr/>"), Html.Span("tail"));
+                Html.Fragment("head", Html.Raw("<hr/>"), Html.Span["tail"]);
         }
         """;
 
@@ -39,7 +39,7 @@ public sealed class HtmlFragmentGeneratorTests
         {
             private List<string> _xs = new();
             protected override View Body =>
-                Html.ForEach(_xs, x => x, x => Html.Fragment(Html.Span(x)));
+                Html.ForEach(_xs, x => x, x => Html.Fragment(Html.Span[x]));
         }
         """;
 
@@ -50,18 +50,9 @@ public sealed class HtmlFragmentGeneratorTests
         public partial class C : ComposeComponentBase
         {
             private List<string> _xs = new();
-            [Composable] private static View Row(string x) => Html.Fragment(Html.Span(x));
+            [Composable] private static View Row(string x) => Html.Fragment(Html.Span[x]);
             protected override View Body =>
                 Html.ForEach(_xs, x => x, x => Row(x));
-        }
-        """;
-
-    private const string FragmentDecoratedSource = """
-        using BlazorCompose;
-
-        public partial class C : ComposeComponentBase
-        {
-            protected override View Body => Html.Fragment(Html.Span("a")).Class("c");
         }
         """;
 
@@ -82,7 +73,7 @@ public sealed class HtmlFragmentGeneratorTests
         public partial class C : ComposeComponentBase
         {
             protected override View Body =>
-                Html.Fragment(Html.Fragment(Html.Span("a")), Html.Span("b"));
+                Html.Fragment(Html.Fragment(Html.Span["a"]), Html.Span["b"]);
         }
         """;
 
@@ -93,7 +84,7 @@ public sealed class HtmlFragmentGeneratorTests
         {
             private bool _flag = true;
             protected override View Body =>
-                Html.Div(Html.If(_flag, () => Html.Fragment()), Html.Span("after"));
+                Html.Div[Html.If(_flag, () => Html.Fragment()), Html.Span["after"]];
         }
         """;
 
@@ -153,13 +144,6 @@ public sealed class HtmlFragmentGeneratorTests
     {
         var result = CompilationTestHost.RunGenerator(FragmentViaComposableAsForEachContentSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC3003");
-    }
-
-    [Fact]
-    public void Fragment_Decorated_ReportsBC3008()
-    {
-        var result = CompilationTestHost.RunGenerator(FragmentDecoratedSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3008");
     }
 
     [Fact]

@@ -10,12 +10,10 @@ namespace BlazorCompose.Site.Layout;
 public sealed partial class MainLayout : ComposeLayoutBase
 {
     protected override View Chrome =>
-        Div(
+        Div.Class("site-shell")[
             Component<SiteHeader>(),
-            Div(
+            Div.Class("site-body")[
                 Component<SiteNav>(),
-                Main(Body).Class("site-main"))
-            .Class("site-body"),
-            Component<SiteFooter>())
-        .Class("site-shell");
+                Main.Class("site-main")[Body]],
+            Component<SiteFooter>()];
 }

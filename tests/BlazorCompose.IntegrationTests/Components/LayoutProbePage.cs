@@ -10,5 +10,5 @@ namespace BlazorCompose.IntegrationTests.Components;
 [Layout(typeof(ProbeLayout))]
 public partial class LayoutProbePage : ComposeComponentBase
 {
-    protected override View Body => P("page content").Class("page-content");
+    protected override View Body => P.Class("page-content")["page content"];
 }

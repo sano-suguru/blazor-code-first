@@ -39,11 +39,10 @@ public sealed partial class DocsPage : ComposeComponentBase
     // _html is build-time converted, repository-owned Markdown: the Html.Raw trust boundary.
     protected override View Body =>
         If(_found,
-            () => Article(
-                    Component<PageTitle>(_title),
-                    H1(_title),
-                    Raw(_html))
-                .Class("prose"),
+            () => Article.Class("prose")[
+                    Component<PageTitle>()[_title],
+                    H1[_title],
+                    Raw(_html)],
             // Shared with the "/404" route: after the SPA catch-all was removed, an unknown slug is
             // served as 404.html and then re-rendered here on hydration, so the two must match.
             () => NotFoundContent.NotFound());

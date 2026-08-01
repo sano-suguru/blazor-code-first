@@ -22,9 +22,9 @@ using static BlazorCompose.Html;
 public partial class Home : ComposeComponentBase
 {
     protected override View Body =>
-        Div(
-            H1("Hello"),
-            Span("Welcome to BlazorCompose."));
+        Div[
+            H1["Hello"],
+            Span["Welcome to BlazorCompose."]];
 }
 ```
 

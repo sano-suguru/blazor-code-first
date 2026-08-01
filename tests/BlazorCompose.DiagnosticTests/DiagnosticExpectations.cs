@@ -64,7 +64,7 @@ public static class DiagnosticExpectations
             FixtureKind.GeneratorViaProjectReference,
             "error",
             "Bc3002Bc3003Bc3004.cs",
-            "ForEach(_items, item => item, item => Fragment(Div(item)))"),
+            "ForEach(_items, item => item, item => Fragment(Div[item]))"),
         new(
             "BC3004",
             FixtureKind.GeneratorViaProjectReference,
@@ -86,8 +86,8 @@ public static class DiagnosticExpectations
             FixtureKind.GeneratorViaProjectReference,
             "error",
             "Bc3012ToBc3015.cs",
-            "Component<ChildlessWidget>(Span(\"bc3013\"))"),
-        new("BC3014", FixtureKind.GeneratorViaProjectReference, "error", "Bc3012ToBc3015.cs", "Span(\"bc3014\")"),
+            "Component<ChildlessWidget>()[Span[\"bc3013\"]]"),
+        new("BC3014", FixtureKind.GeneratorViaProjectReference, "error", "Bc3012ToBc3015.cs", "Span[\"bc3014\"]"),
         new("BC3015", FixtureKind.GeneratorViaProjectReference, "error", "Bc3012ToBc3015.cs", "MissingProbe"),
     ];
 
