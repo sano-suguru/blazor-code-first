@@ -599,11 +599,13 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// No failure path here registers a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>
-    /// span, and none needs to.  That suppressor is keyed on an <c>InvocationExpressionSyntax</c> span —
-    /// <c>UnresolvedValueTypeScanner</c>'s only reader passes one — so a rejection keyed on this element
-    /// access could never be read.  Suppression still works on this surface because it is registered by the
-    /// receiver: <c>Element(nonConstant)["x"]</c> and <c>Div.Attr(nonConstant)["x"]</c> both fail inside an
-    /// invocation, and the <c>Element</c> and decoration arms register that invocation's own span.
+    /// span, and none usefully could: that suppressor is matched as an exact <c>TextSpan</c>, and its only
+    /// reader — <c>UnresolvedValueTypeScanner</c> — always looks up an <c>InvocationExpressionSyntax</c>
+    /// span, so a rejection keyed on this element access could never be read.  Where suppression is
+    /// genuinely needed it is registered by a receiver that is an invocation: the decoration and
+    /// <c>.Param</c> arms reject their own spans.  The construct that looks like it needs one here does not
+    /// — <c>Element(nonConstant)["x"]</c> reports BC3009 and no BC3015 because the scanner's <c>Element</c>
+    /// arm never reports on the tag argument at all, whether or not the tag is constant.
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
