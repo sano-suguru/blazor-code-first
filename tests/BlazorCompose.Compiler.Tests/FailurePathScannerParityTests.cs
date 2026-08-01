@@ -24,8 +24,14 @@ namespace BlazorCompose.Compiler.Tests;
 /// until it moved to <c>RejectedDecorationScanner</c>; the move wired it into the component host only, and
 /// a misplaced decoration inside a <c>[Composable]</c> body silently degraded to the generic BC1002 for the
 /// life of the branch.  Every BC3008 test hosted its expression in <c>Body</c>, so nothing failed.  This
-/// test is the guard that was missing: it fails if a scanner is wired into one host and not the other, and
-/// it fails on the state that shipped that regression.
+/// test is the guard that was missing, and its guarantee has a condition attached: it fails if a scanner
+/// named <c>SomethingScanner</c>, declared as its own file under <c>src/BlazorCompose.Compiler/Analysis</c>
+/// and invoked as <c>SomethingScanner.Report(…)</c>, is wired into one host and not the other, and it fails
+/// on the state that shipped that regression.  The <c>Scanner</c> suffix is load-bearing on both sides of
+/// that comparison — <see cref="DeclaredScanners"/> finds a declared scanner by filename and
+/// <see cref="ScannersInvokedBy"/> finds an invoked one by identifier, both keyed on the same suffix — so a
+/// sweep renamed off that convention (say, <c>RejectedDecorationSweep</c>) drops out of both sets at once,
+/// and a one-host wiring under that name would pass here silently.
 /// </para>
 /// <para>
 /// It reads the two factories' source text rather than their behaviour, which is the only way to see a

@@ -345,28 +345,41 @@ public sealed class BracketSurfaceDiagnosticTests
 
     /// <summary>
     /// An unrelated extension method that fails to bind is not BC3008, whichever part of the shape it
-    /// shares.  One case per part of the shape a decoration has — name, receiver, whole signature.
+    /// shares.  Four cases, one per part of the shape a decoration has that an unrelated method can borrow
+    /// on its own — name, receiver, and each of the two ways of borrowing every part but one.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Not one case per conjunct: the three cover the parts of the shape an unrelated method can borrow, and
-    /// only the last of them turns on the conjunct it borrows, as the second paragraph records.  No case here
-    /// pins the receiver conjunct on its own — the receiver clause could be widened without any of them
-    /// noticing, which is what happened when <c>RenderFragment</c> was added to it.
+    /// Not one case per conjunct: the four cover the parts of the shape an unrelated method can borrow, and
+    /// only the last two turn on the conjunct each of them borrows, as the second paragraph records.  The
+    /// name conjunct is pinned by <c>Fragment("a").Wrap(1)</c>; the receiver conjunct, by
+    /// <c>Other.MakeBin().Id(1)</c> below — the receiver clause could otherwise be widened without any case
+    /// here noticing, which is what happened when <c>RenderFragment</c> was added to it.  The return type
+    /// conjunct has no case that pins it the same way; nothing here claims otherwise.
     /// </para>
     /// <para>
     /// <c>Other.Make().Class(1)</c> borrows the <em>name</em>: someone else's <c>.Class</c>, on a receiver
     /// and with a return type of their own.  <c>Fragment("a").Describe("x")</c> borrows the
     /// <em>receiver</em>: a method on our <c>View</c>, returning <c>string</c>.
-    /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> — our <c>View</c> in, our
-    /// <c>ElementBuilder</c> out — and differs only in what it is called.
+    /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> but the name — our <c>View</c> in,
+    /// our <c>ElementBuilder</c> out — and differs only in what it is called.
+    /// <c>Other.MakeBin().Id(1)</c> borrows the whole signature but the <em>receiver</em> — a genuine
+    /// decoration name, returning our <c>ElementBuilder</c> — and differs only in what it is written on.  It
+    /// is deliberately named <c>.Id</c> rather than <c>.Class</c>: a second unrelated <c>.Class</c> extension
+    /// in the same compilation collides with <c>Other.Make().Class(1)</c>'s own, and Roslyn's error recovery
+    /// stops offering a candidate return type for either call once the name is ambiguous — which would have
+    /// made this case indistinguishable from a return-type failure instead of a receiver-only one.  No other
+    /// case here declares an <c>.Id</c>, so recovery stays exact.
     /// </para>
     /// <para>
-    /// That last case is the one that matters, and it was measured failing before the name conjunct existed:
-    /// the two type tests describe a decoration's signature rather than a decoration, so a wrong-argument
-    /// call to a user-declared <c>Wrap</c> was reported as a misplaced decoration, anchored at <c>Wrap</c>.
-    /// An author would have been told to move attributes they never wrote.  Keep this case: it is the only
-    /// one that fails if the name conjunct is dropped, the other two turning on the return type alone.
+    /// The last two cases are the ones that matter, and the first of them — <c>Wrap</c> — was measured
+    /// failing before the name conjunct existed: the two type tests describe a decoration's signature rather
+    /// than a decoration, so a wrong-argument call to a user-declared <c>Wrap</c> was reported as a misplaced
+    /// decoration, anchored at <c>Wrap</c>.  An author would have been told to move attributes they never
+    /// wrote.  Keep this case: it is the only one that fails if the name conjunct is dropped, the other three
+    /// turning on the return type or the receiver instead.  <c>Other.MakeBin().Id(1)</c> is its mirror for
+    /// the receiver conjunct: it is the only one that fails if the receiver conjunct is dropped, and its
+    /// removal was verified to flip this case to BC3008 while every other case here is unaffected.
     /// </para>
     /// <para>
     /// The whole collection in brackets is what makes the body untranslatable, and it is load-bearing: the
@@ -379,6 +392,7 @@ public sealed class BracketSurfaceDiagnosticTests
     [InlineData("""Div[_children, Other.Make().Class(1)]""")]
     [InlineData("""Div[_children, Fragment("a").Describe("x")]""")]
     [InlineData("""Div[_children, Fragment("a").Wrap(1)]""")]
+    [InlineData("""Div[_children, Other.MakeBin().Id(1)]""")]
     public void UnrelatedFailedExtension_IsNotBC3008(string body)
     {
         var result = CompilationTestHost.RunGenerator(
@@ -394,6 +408,10 @@ public sealed class BracketSurfaceDiagnosticTests
                     public static string Class(this Box box, string value) => value;
                     public static string Describe(this View view, int value) => value.ToString();
                     public static ElementBuilder Wrap(this View content, string tag) => Html.Div;
+
+                    public sealed class Bin;
+                    public static Bin MakeBin() => new();
+                    public static ElementBuilder Id(this Bin bin, string value) => Html.Div;
                 }
                 """),
         ]);
