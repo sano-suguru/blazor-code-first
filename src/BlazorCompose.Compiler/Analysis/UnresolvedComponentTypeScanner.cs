@@ -64,10 +64,14 @@ internal static class UnresolvedComponentTypeScanner
     /// <summary>
     /// Whether <paramref name="method"/> is <c>Html.Component&lt;T&gt;()</c>, the sole component factory —
     /// children arrive through <c>ComponentView&lt;T&gt;</c>'s indexer, which is not an invocation and so
-    /// never reaches this sweep. Guarded on <paramref name="parameterless"/> being present:
-    /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
-    /// <c>x</c>, so an unguarded comparison would sweep every unresolvable call in the body.
+    /// never reaches this sweep.
     /// </summary>
+    /// <remarks>
+    /// The <paramref name="parameterless"/> null guard is defensive consistency rather than a correctness
+    /// requirement: <c>OriginalDefinition</c> is never null, so an unguarded comparison against a null known
+    /// symbol already answers <see langword="false"/>, and <c>Report</c> returns before its loop when the
+    /// symbol is absent. It is kept so callers other than <c>Report</c> cannot depend on that early exit.
+    /// </remarks>
     internal static bool IsComponentFactory(IMethodSymbol method, IMethodSymbol? parameterless) =>
         parameterless is not null
         && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless);

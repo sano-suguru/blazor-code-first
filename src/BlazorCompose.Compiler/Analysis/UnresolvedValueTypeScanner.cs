@@ -215,6 +215,12 @@ internal static class UnresolvedValueTypeScanner
     /// and the brackets: in <c>Element(t).Class("c")["x"]</c> the indexer's receiver is the <c>Class</c>
     /// invocation. A curated tag is a property reference and never reaches the loop's body, so it returns
     /// false and its children are scanned as before.
+    /// <para>
+    /// Every path fails open — an unresolved symbol, an unrecognized method, a missing receiver and a tag
+    /// that cannot be bound all answer false. This gate can only ever silence diagnostics, so a route it
+    /// could not analyze must leave the children scanned; the alternative is losing a report on evidence
+    /// that was never gathered.
+    /// </para>
     /// </remarks>
     private static bool HasRejectedElementTag(
         ExpressionSyntax? receiver, ComposableBodyContext context)
@@ -229,8 +235,11 @@ internal static class UnresolvedValueTypeScanner
 
             if (context.KnownSymbols.IsElementFactory(method))
             {
-                return !IsNonEmptyConstantString(
-                    BindArguments(invocation, method, context)?.At(0)?.Expression, context);
+                // The tag has to be reached before it can be called non-constant. A binding failure is not
+                // evidence of a rejected tag, and answering true on one would suppress the children's
+                // diagnostics on nothing.
+                return BindArguments(invocation, method, context)?.At(0)?.Expression is { } tag
+                    && !IsNonEmptyConstantString(tag, context);
             }
 
             if (!IsDecorationMethod(KnownSymbols.Normalize(method), context.KnownSymbols))

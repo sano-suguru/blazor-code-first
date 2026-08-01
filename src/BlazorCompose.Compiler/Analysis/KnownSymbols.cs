@@ -128,11 +128,16 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Whether <paramref name="method"/> is <see cref="HtmlElement"/>, the escape hatch for a tag outside the
-    /// curated table.  Guarded on the field being present:
-    /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
-    /// <c>x</c>, so an unguarded comparison would classify an unrelated method as an element factory
-    /// whenever <c>Element</c> failed to resolve.
+    /// curated table.
     /// </summary>
+    /// <remarks>
+    /// The null guard is defensive consistency, not a correctness requirement:
+    /// <see cref="ISymbol.OriginalDefinition"/> is never null, so an unguarded comparison against a null
+    /// <see cref="HtmlElement"/> would already answer <see langword="false"/>.  The guard is load-bearing
+    /// only where the <em>left</em> operand can be null — a receiver's unresolved <c>GetTypeInfo().Type</c>,
+    /// as <see cref="ElementBuilderType"/>'s remarks describe — and the two shapes are kept alike so neither
+    /// is read as the other's rule.
+    /// </remarks>
     public bool IsElementFactory(IMethodSymbol method) =>
         HtmlElement is not null
         && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElement);
