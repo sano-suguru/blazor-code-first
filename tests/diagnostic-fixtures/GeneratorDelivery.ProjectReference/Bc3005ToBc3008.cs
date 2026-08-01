@@ -24,8 +24,13 @@ public partial class Bc3007Host : ComposeComponentBase
         Component<Widget>().Param(w => w.Label, "first").Param(w => w.Label, "second");
 }
 
-/// <summary>BC3008: a decoration applied to something that is not a single element.</summary>
+/// <summary>
+/// BC3008: a decoration applied to something that is not a single element. Detection is now driven by
+/// failed overload resolution against <c>Decorations</c> — the receiver (<c>View</c>, from <c>If</c>)
+/// has no <c>ElementBuilder</c> to bind <c>.Class</c> to — rather than by classifying the shape of the
+/// decorated node.
+/// </summary>
 public partial class Bc3008Host : ComposeComponentBase
 {
-    protected override View Body => If(true, () => Div("bc3008")).Class("decorated");
+    protected override View Body => If(true, () => Div["bc3008"]).Class("decorated");
 }

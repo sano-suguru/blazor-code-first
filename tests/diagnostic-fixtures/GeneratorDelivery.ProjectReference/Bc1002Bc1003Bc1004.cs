@@ -6,10 +6,10 @@ namespace Fixtures.GeneratorDelivery;
 /// <summary>BC1002: a <c>[Composable]</c> method that is not static.</summary>
 public partial class Bc1002Host : ComposeComponentBase
 {
-    protected override View Body => Span("bc1002");
+    protected override View Body => Span["bc1002"];
 
     [Composable]
-    private View Helper() => Span("helper");
+    private View Helper() => Span["helper"];
 }
 
 /// <summary>
@@ -19,9 +19,9 @@ public partial class Bc1002Host : ComposeComponentBase
 /// </summary>
 public partial class Bc1003Host : ComposeComponentBase
 {
-    protected override View Body => Div(Span("bc1003"), Make());
+    protected override View Body => Div[Span["bc1003"], Make()];
 
-    private static View Make() => Span("bc1003");
+    private static View Make() => Span["bc1003"];
 }
 
 /// <summary>BC1004: a getter that does not reduce to a single expression.</summary>
@@ -32,7 +32,7 @@ public partial class Bc1004Host : ComposeComponentBase
         get
         {
             var label = "bc1004";
-            return Span(label);
+            return Span[label];
         }
     }
 }
