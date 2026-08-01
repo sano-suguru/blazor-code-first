@@ -197,8 +197,9 @@ internal sealed class KnownSymbols
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComponentView`1");
         ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ElementBuilder");
-        ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType);
-        ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType);
+        var readOnlySpanType = compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
+        ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType, readOnlySpanType);
+        ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType, readOnlySpanType);
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
@@ -313,11 +314,15 @@ internal sealed class KnownSymbols
     /// <remarks>
     /// The element type is checked, not just the <c>params</c> shape: an indexer over some other element
     /// type is not the children channel, and matching it would read unrelated arguments as children.
+    /// The span type is resolved by identity rather than matched by name, as this class exists to do: a
+    /// differently namespaced type also called <c>ReadOnlySpan&lt;T&gt;</c> must not be read as the children
+    /// channel.  Compare <c>RenderMutationAnalyzer</c>, which anchors <c>BlazorCompose.Decorations</c> to the
+    /// global namespace for the same reason.
     /// </remarks>
     private static IPropertySymbol? FindChildrenIndexer(
-        INamedTypeSymbol? type, INamedTypeSymbol? viewType)
+        INamedTypeSymbol? type, INamedTypeSymbol? viewType, INamedTypeSymbol? readOnlySpanType)
     {
-        if (type is null || viewType is null)
+        if (type is null || viewType is null || readOnlySpanType is null)
             return null;
 
         foreach (var member in type.GetMembers())
@@ -328,8 +333,8 @@ internal sealed class KnownSymbols
                 continue;
             }
 
-            if (indexer.Parameters[0].Type
-                    is INamedTypeSymbol { Name: "ReadOnlySpan", TypeArguments.Length: 1 } span
+            if (indexer.Parameters[0].Type is INamedTypeSymbol { TypeArguments.Length: 1 } span
+                && SymbolEqualityComparer.Default.Equals(span.OriginalDefinition, readOnlySpanType)
                 && SymbolEqualityComparer.Default.Equals(span.TypeArguments[0], viewType))
             {
                 return indexer;
