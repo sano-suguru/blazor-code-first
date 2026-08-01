@@ -23,7 +23,7 @@ public sealed class IncrementalGeneratorTests
 
         public partial class ComponentA : ComposeComponentBase
         {
-            protected override View Body => Span("Hello A");
+            protected override View Body => Span["Hello A"];
         }
         """;
 
@@ -35,7 +35,7 @@ public sealed class IncrementalGeneratorTests
 
         public partial class ComponentB : ComposeComponentBase
         {
-            protected override View Body => Span("Hello B");
+            protected override View Body => Span["Hello B"];
         }
         """;
 
@@ -47,7 +47,7 @@ public sealed class IncrementalGeneratorTests
 
         public partial class ComponentB : ComposeComponentBase
         {
-            protected override View Body => Span("Modified B");
+            protected override View Body => Span["Modified B"];
         }
         """;
 
@@ -185,14 +185,22 @@ public sealed class IncrementalGeneratorTests
         const string runtimeSourceV1 = """
             namespace BlazorCompose
             {
-                public struct View { }
+                public struct View
+                {
+                    public static implicit operator View(string text) => default;
+                }
+                public readonly struct ElementBuilder
+                {
+                    public View this[params System.ReadOnlySpan<View> children] => default;
+                    public static implicit operator View(ElementBuilder builder) => default;
+                }
                 public abstract class ComposeComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
                     protected abstract View Body { get; }
                 }
                 public static class Html
                 {
-                    public static View Span(string content) => default;
+                    public static ElementBuilder Span => default;
                 }
             }
             """;
@@ -200,14 +208,25 @@ public sealed class IncrementalGeneratorTests
         const string runtimeSourceV2 = """
             namespace BlazorCompose
             {
-                public struct View { }
+                public struct View
+                {
+                    public static implicit operator View(string text) => default;
+                }
+                public readonly struct ElementBuilder
+                {
+                    public View this[params System.ReadOnlySpan<View> children] => default;
+                    public static implicit operator View(ElementBuilder builder) => default;
+                }
                 public abstract class ComposeComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
                     protected abstract View Body { get; }
                 }
                 public static class Html
                 {
-                    public static View Span(string content, string style) => default;
+                    // The curated-tag match requires the property's type to be ElementBuilder (KnownSymbols
+                    // checks both the name and the type), so retyping it to View is a real signature change:
+                    // Span still exists, but no longer resolves as a curated element.
+                    public static View Span => default;
                 }
             }
             """;
@@ -220,7 +239,7 @@ public sealed class IncrementalGeneratorTests
 
             public partial class MyComponent : ComposeComponentBase
             {
-                protected override View Body => Span("Hello");
+                protected override View Body => Span["Hello"];
             }
             """;
 
@@ -246,12 +265,12 @@ public sealed class IncrementalGeneratorTests
             generators: [new BlazorComposeGenerator().AsSourceGenerator()],
             driverOptions: driverOptions);
 
-        // Run 1: Span(string) matches — component is generated
+        // Run 1: Span resolves as a curated ElementBuilder property — component is generated
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation1, out _, out _);
         var run1 = driver.GetRunResult();
         Assert.Single(run1.Results[0].GeneratedSources);
 
-        // Act: replace the runtime tree with V2 (Span now takes two parameters)
+        // Act: replace the runtime tree with V2 (Span is retyped from ElementBuilder to View)
         var runtimeTreeV2 = CSharpSyntaxTree.ParseText(
             runtimeSourceV2,
             CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
@@ -268,8 +287,8 @@ public sealed class IncrementalGeneratorTests
         // pipeline must NOT incorrectly cache the old component model.
         var trackedSteps = run2.Results[0].TrackedSteps;
 
-        // Verify the component analysis was recomputed (Modified or New): Span(string) no longer
-        // resolves, so the analyzed template changes to a model-less result.
+        // Verify the component analysis was recomputed (Modified or New): Span no longer resolves as
+        // a curated element, so the analyzed template changes to a model-less result.
         Assert.True(trackedSteps.ContainsKey("ComponentAnalysis"),
             "Expected tracked step 'ComponentAnalysis'");
         var analysisOutputs = trackedSteps["ComponentAnalysis"]
@@ -279,9 +298,9 @@ public sealed class IncrementalGeneratorTests
                 output.Reason is IncrementalStepRunReason.Modified or IncrementalStepRunReason.New,
                 $"Expected ComponentAnalysis Modified/New but got {output.Reason}"));
 
-        // The component model must NOT be reused (Cached) in Run 2 because Span(string) no longer
-        // matches (it now requires 2 params); the regression this guards against is a stale Cached
-        // reuse of the old model built against the previous Html API.
+        // The component model must NOT be reused (Cached) in Run 2 because Span no longer matches
+        // (its type changed from ElementBuilder to View); the regression this guards against is a
+        // stale Cached reuse of the old model built against the previous Html API.
         if (trackedSteps.TryGetValue("ComponentModeling", out var modelingSteps))
         {
             var modelOutputs = modelingSteps.SelectMany(s => s.Outputs).ToImmutableArray();
@@ -291,8 +310,8 @@ public sealed class IncrementalGeneratorTests
                     $"ComponentModel was incorrectly cached after Html API signature change (reason: {output.Reason})"));
         }
 
-        // The second run should produce NO generated sources because Span(string) no longer
-        // resolves to a known single-param method.
+        // The second run should produce NO generated sources because Span no longer resolves as a
+        // known curated element.
         Assert.Empty(run2.Results[0].GeneratedSources);
     }
 
@@ -312,7 +331,7 @@ public sealed class IncrementalGeneratorTests
 
             public partial class MyComponent : ComposeComponentBase
             {
-                protected override View Body => Span("Hello");
+                protected override View Body => Span["Hello"];
             }
             """;
 
@@ -337,14 +356,22 @@ public sealed class IncrementalGeneratorTests
         const string runtimeSource = """
             namespace BlazorCompose
             {
-                public struct View { }
+                public struct View
+                {
+                    public static implicit operator View(string text) => default;
+                }
+                public readonly struct ElementBuilder
+                {
+                    public View this[params System.ReadOnlySpan<View> children] => default;
+                    public static implicit operator View(ElementBuilder builder) => default;
+                }
                 public abstract class ComposeComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
                     protected abstract View Body { get; }
                 }
                 public static class Html
                 {
-                    public static View Span(string content) => default;
+                    public static ElementBuilder Span => default;
                 }
             }
             """;
@@ -414,7 +441,7 @@ public sealed class IncrementalGeneratorTests
         public static class Widgets
         {
             [Composable]
-            public static View Label(string value) => Span(value);
+            public static View Label(string value) => Span[value];
         }
         """;
 
@@ -427,7 +454,7 @@ public sealed class IncrementalGeneratorTests
         public static class Badges
         {
             [Composable]
-            public static View Badge(string value) => Span("[" + value + "]");
+            public static View Badge(string value) => Span["[" + value + "]"];
         }
         """;
 
@@ -440,7 +467,7 @@ public sealed class IncrementalGeneratorTests
         public static class Widgets
         {
             [Composable]
-            public static View Label(string value) => Span(value + "!");
+            public static View Label(string value) => Span[value + "!"];
         }
         """;
 
@@ -464,7 +491,7 @@ public sealed class IncrementalGeneratorTests
 
         public partial class Unrelated : ComposeComponentBase
         {
-            protected override View Body => Span("z");
+            protected override View Body => Span["z"];
         }
         """;
 
@@ -550,7 +577,7 @@ public sealed class IncrementalGeneratorTests
                 [BlazorCompose.Composable]
                 public static BlazorCompose.View Never(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
-                        ForEach(g.Items, key: i => i.Id, content: i => Span(i.Name)));
+                        ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
                 public sealed record Item(int Id, string Name);
                 public sealed record Group(int Id, List<Item> Items);
             }
@@ -704,7 +731,7 @@ public sealed class IncrementalGeneratorTests
 
             public partial class Gen<TItem> : ComposeComponentBase
             {
-                protected override View Body => Span("g");
+                protected override View Body => Span["g"];
             }
             """;
 
@@ -756,7 +783,7 @@ public sealed class IncrementalGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>(Div("x"), "text");
+                protected override View Body => Component<Card>()[Div["x"], "text"];
             }
             """;
 

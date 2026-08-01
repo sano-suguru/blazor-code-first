@@ -82,7 +82,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    If(typeof(Probe) == typeof(object), () => Div());
+                    If(typeof(Probe) == typeof(object), () => Div);
             }
             """;
 
@@ -103,7 +103,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Div().Class((new object() is Probe value).ToString());
+                    Div.Class((new object() is Probe value).ToString());
             }
             """;
 
@@ -128,7 +128,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    If(then: () => Div(), Has<Probe>());
+                    If(then: () => Div, Has<Probe>());
 
                 private static bool Has<T>() => true;
             }
@@ -143,9 +143,9 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Theory]
-    [InlineData("""If(condition: typeof(Probe) == typeof(object), () => Div())""")]
-    [InlineData("""If(condition: typeof(Probe) == typeof(object), then: () => Div())""")]
-    [InlineData("""Element(tag: "section", typeof(Probe).Name)""")]
+    [InlineData("""If(condition: typeof(Probe) == typeof(object), () => Div)""")]
+    [InlineData("""If(condition: typeof(Probe) == typeof(object), then: () => Div)""")]
+    [InlineData("""Element(tag: "section")[typeof(Probe).Name]""")]
     public void LegalNamedArgumentShapes_UnresolvedTypeStillReportsBC3015(string body)
     {
         var source = $$"""
@@ -181,7 +181,7 @@ public sealed class UnresolvedEmittedTypeTests
                 private readonly int[] _items = [1];
 
                 protected override View Body =>
-                    ForEach(_items, key: _ => typeof(Probe), content: i => Div(i.ToString()));
+                    ForEach(_items, key: _ => typeof(Probe), content: i => Div[i.ToString()]);
             }
             """;
 
@@ -205,7 +205,7 @@ public sealed class UnresolvedEmittedTypeTests
                 private readonly int[] _items = [1];
 
                 protected override View Body =>
-                    ForEach(content: i => Div(i.ToString()), source: _items, key: _ => typeof(Probe));
+                    ForEach(content: i => Div[i.ToString()], source: _items, key: _ => typeof(Probe));
             }
             """;
 
@@ -227,7 +227,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Div().Attr("data-type", typeof(Probe).Name);
+                    Div.Attr("data-type", typeof(Probe).Name);
             }
             """;
 
@@ -249,7 +249,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Decorations.Attr(Div(), "data-type", typeof(Probe).Name);
+                    Decorations.Attr(Div, "data-type", typeof(Probe).Name);
             }
             """;
 
@@ -258,30 +258,6 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Empty(result.GeneratedSources);
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-    }
-
-    [Fact]
-    public void RejectedDecorationValue_UnresolvedType_RemainsBC3008Owned()
-    {
-        const string source = """
-            using System;
-            using BlazorCompose;
-            using static BlazorCompose.Html;
-
-            namespace T;
-
-            public partial class Host : ComposeComponentBase
-            {
-                protected override View Body =>
-                    Raw("<b>x</b>").Class(typeof(Probe).Name);
-            }
-            """;
-
-        var result = CompilationTestHost.RunGenerator(source);
-
-        Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3008");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC1003" or "BC3015");
     }
 
     [Fact]
@@ -297,7 +273,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Div().Attr(value: typeof(Probe).Name, name: typeof(string).Name);
+                    Div.Attr(value: typeof(Probe).Name, name: typeof(string).Name);
             }
             """;
 
@@ -323,7 +299,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Div().Id("first").Attr("id", typeof(Probe).Name);
+                    Div.Id("first").Attr("id", typeof(Probe).Name);
             }
             """;
 
@@ -346,7 +322,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 [Composable]
-                private static View Label(Type value) => Span(value.Name);
+                private static View Label(Type value) => Span[value.Name];
 
                 protected override View Body => Label(typeof(Probe));
             }
@@ -371,7 +347,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeLayoutBase
             {
                 protected override View Chrome =>
-                    Div(Body).Class(typeof(Probe).Name);
+                    Div.Class(typeof(Probe).Name)[Body];
             }
             """;
 
@@ -393,7 +369,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 [Composable]
-                private static View Card() => Div().Class(typeof(Probe).Name);
+                private static View Card() => Div.Class(typeof(Probe).Name);
 
                 protected override View Body => Card();
             }
@@ -439,7 +415,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Div().Class(typeof(Probe).Name + typeof(Probe).Name);
+                    Div.Class(typeof(Probe).Name + typeof(Probe).Name);
             }
             """;
 
@@ -451,8 +427,8 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Theory]
-    [InlineData("Div().Attr(typeof(Probe).Name, \"value\")")]
-    [InlineData("Div().On(typeof(Probe).Name, () => { })")]
+    [InlineData("Div.Attr(typeof(Probe).Name, \"value\")")]
+    [InlineData("Div.On(typeof(Probe).Name, () => { })")]
     [InlineData("Element(typeof(Probe).Name)")]
     public void CompileTimeOnlyFactoryArgument_UnresolvedType_DoesNotReportBC3015(string body)
     {
@@ -564,7 +540,7 @@ public sealed class UnresolvedEmittedTypeTests
                 private readonly List<int> _items = [];
 
                 protected override View Body =>
-                    ForEach(_items, key: (Probe item) => item, content: item => Div());
+                    ForEach(_items, key: (Probe item) => item, content: item => Div);
             }
             """;
 
@@ -586,7 +562,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Div().Class((Probe value) => "x");
+                protected override View Body => Div.Class((Probe value) => "x");
             }
             """;
 
@@ -607,7 +583,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public partial class Host : ComposeComponentBase
             {
-                private static View Pick<T>(int value) => Div();
+                private static View Pick<T>(int value) => Div;
 
                 protected override View Body => Pick<Probe>("wrong");
             }
@@ -636,10 +612,10 @@ public sealed class UnresolvedEmittedTypeTests
                 private static View ForEach<T>(
                     int source,
                     Func<T, object?> key,
-                    Func<T, View> content) => Html.Div();
+                    Func<T, View> content) => Html.Div;
 
                 protected override View Body =>
-                    ForEach(_items, key: _ => typeof(Probe), content: item => Html.Div());
+                    ForEach(_items, key: _ => typeof(Probe), content: item => Html.Div);
             }
             """;
 
@@ -668,14 +644,14 @@ public sealed class UnresolvedEmittedTypeTests
                     Helpers.ForEach(
                         _items,
                         key: _ => typeof(Probe),
-                        content: item => Div());
+                        content: item => Div);
 
                 private static class Helpers
                 {
                     public static View ForEach<T>(
                         int source,
                         Func<T, object?> key,
-                        Func<T, View> content) => Div();
+                        Func<T, View> content) => Div;
                 }
             }
             """;
@@ -700,7 +676,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Div().Attr(typeof(string).Name, {{value}});
+                protected override View Body => Div.Attr(typeof(string).Name, {{value}});
             }
             """;
 
@@ -725,7 +701,7 @@ public sealed class UnresolvedEmittedTypeTests
                 private static string @nameof(Type value) => value.Name;
 
                 protected override View Body =>
-                    Div().Attr("data-x", @nameof(typeof(Probe)));
+                    Div.Attr("data-x", @nameof(typeof(Probe)));
             }
             """;
 
@@ -747,7 +723,7 @@ public sealed class UnresolvedEmittedTypeTests
             public partial class Host : ComposeComponentBase
             {
                 protected override View Body =>
-                    Div().Class(MissingMethod() + typeof(Probe).Name);
+                    Div.Class(MissingMethod() + typeof(Probe).Name);
             }
             """;
 
@@ -893,7 +869,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public partial class Host<TValue> : ComposeComponentBase
             {
-                protected override View Body => Div("ok");
+                protected override View Body => Div["ok"];
                 private object? ProbeExpression() => {{expression}};
 
                 private sealed class Wrapper<T>

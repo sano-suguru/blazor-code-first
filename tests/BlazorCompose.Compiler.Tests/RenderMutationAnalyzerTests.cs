@@ -22,7 +22,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Span($"{_count++}");
+            protected override View Body => Span[$"{_count++}"];
         }
         """;
 
@@ -33,7 +33,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Span($"{_count = 4}");
+            protected override View Body => Span[$"{_count = 4}"];
         }
         """;
 
@@ -44,7 +44,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Span($"{_count += 4}");
+            protected override View Body => Span[$"{_count += 4}"];
         }
         """;
 
@@ -55,7 +55,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Span($"{_count--}");
+            protected override View Body => Span[$"{_count--}"];
         }
         """;
 
@@ -66,7 +66,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int Count { get; set; }
-            protected override View Body => Span($"{Count = 4}");
+            protected override View Body => Span[$"{Count = 4}"];
         }
         """;
 
@@ -77,7 +77,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int Count { get; set; }
-            protected override View Body => Span($"{Count++}");
+            protected override View Body => Span[$"{Count++}"];
         }
         """;
 
@@ -92,7 +92,7 @@ public sealed class RenderMutationAnalyzerTests
         {
             private bool _flag = true;
             private int _count;
-            protected override View Body => Html.If(_flag, () => Html.Span((_count++).ToString()));
+            protected override View Body => Html.If(_flag, () => Html.Span[(_count++).ToString()]);
         }
         """;
 
@@ -111,7 +111,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int _count;
-            protected override View Body => Html.Button("Increment").OnClick(() => _count++);
+            protected override View Body => Html.Button.OnClick(() => _count++)["Increment"];
         }
         """;
 
@@ -122,7 +122,7 @@ public sealed class RenderMutationAnalyzerTests
         public partial class Counter : ComposeComponentBase
         {
             private int Count { get; set; }
-            protected override View Body => Html.Button("Increment").OnClick(() => Count++);
+            protected override View Body => Html.Button.OnClick(() => Count++)["Increment"];
         }
         """;
 
@@ -134,7 +134,7 @@ public sealed class RenderMutationAnalyzerTests
         {
             private int _count;
 
-            protected override View Body => Span(MutateAndReturnText());
+            protected override View Body => Span[MutateAndReturnText()];
 
             private string MutateAndReturnText()
             {
@@ -206,7 +206,7 @@ public sealed class RenderMutationAnalyzerTests
             public partial class C : ComposeComponentBase
             {
                 private int _n;
-                protected override View Body => Html.Div().On("onmouseenter", () => _n++);
+                protected override View Body => Html.Div.On("onmouseenter", () => _n++);
             }
             """;
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
@@ -226,7 +226,7 @@ public sealed class RenderMutationAnalyzerTests
                 private int total;
                 private List<int> items = new();
                 protected override View Body =>
-                    Html.Button("Sum").OnClick(async () => { await System.Threading.Tasks.Task.Yield(); items.ForEach(i => total += i); });
+                    Html.Button.OnClick(async () => { await System.Threading.Tasks.Task.Yield(); items.ForEach(i => total += i); })["Sum"];
             }
             """;
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
@@ -242,7 +242,7 @@ public sealed class RenderMutationAnalyzerTests
             public partial class C : ComposeComponentBase
             {
                 private int _n;
-                protected override View Body => Html.Div().Attr("data-n", (_n++).ToString());
+                protected override View Body => Html.Div.Attr("data-n", (_n++).ToString());
             }
             """;
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
@@ -263,7 +263,7 @@ public sealed class RenderMutationAnalyzerTests
                 private int _n;
 
                 protected override View Body =>
-                    Div().On(handler: () => _n++, eventName: "onclick");
+                    Div.On(handler: () => _n++, eventName: "onclick");
             }
             """;
 
@@ -283,7 +283,7 @@ public sealed class RenderMutationAnalyzerTests
             {
                 private int _n;
 
-                protected override View Body => Div().On("onclick", () => _n++);
+                protected override View Body => Div.On("onclick", () => _n++);
             }
             """;
 
@@ -305,7 +305,7 @@ public sealed class RenderMutationAnalyzerTests
             {
                 private int _n;
 
-                protected override View Body => Span($"{_n++}");
+                protected override View Body => Span[$"{_n++}"];
             }
             """;
 
@@ -337,7 +337,7 @@ public sealed class RenderMutationAnalyzerTests
                 private int _n;
 
                 protected override View Body =>
-                    Evil.BlazorCompose.Decorations.On(Div(), "onclick", () => _n++);
+                    Evil.BlazorCompose.Decorations.On(Div, "onclick", () => _n++);
             }
             """;
 

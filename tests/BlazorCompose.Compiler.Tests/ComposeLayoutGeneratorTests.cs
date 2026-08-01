@@ -15,7 +15,7 @@ public sealed class ComposeLayoutGeneratorTests
 
             public partial class Shell : ComposeLayoutBase
             {
-                protected override View Chrome => Main(Body);
+                protected override View Chrome => Main[Body];
             }
             """;
 
@@ -35,7 +35,7 @@ public sealed class ComposeLayoutGeneratorTests
 
             public class Shell : ComposeLayoutBase
             {
-                protected override View Chrome => Main(Body);
+                protected override View Chrome => Main[Body];
             }
             """;
 
@@ -60,7 +60,7 @@ public sealed class ComposeLayoutGeneratorTests
 
             public class Counter : ComposeComponentBase
             {
-                protected override View Body => Span("Count");
+                protected override View Body => Span["Count"];
             }
             """;
 
@@ -82,7 +82,7 @@ public sealed class ComposeLayoutGeneratorTests
             public partial class Shell : ComposeLayoutBase
             {
                 private int _n;
-                protected override View Chrome => Main(Span($"{_n++}"));
+                protected override View Chrome => Main[Span[$"{_n++}"]];
             }
             """;
 
@@ -105,7 +105,7 @@ public sealed class ComposeLayoutGeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 private int _n;
-                protected override View Body => Span($"{_n++}");
+                protected override View Body => Span[$"{_n++}"];
             }
             """;
 
@@ -138,7 +138,7 @@ public sealed class ComposeLayoutGeneratorTests
             public partial class Shell : LabeledLayoutBase
             {
                 private int _n;
-                protected override View Chrome => Main(Span("static"));
+                protected override View Chrome => Main[Span["static"]];
 
                 public override string Label => (_n++).ToString();
             }
@@ -161,9 +161,9 @@ public sealed class ComposeLayoutGeneratorTests
 
             public partial class Shell : ComposeLayoutBase
             {
-                private View GetView() => Span("x");
+                private View GetView() => Span["x"];
 
-                protected override View Chrome => Main(GetView());
+                protected override View Chrome => Main[GetView()];
             }
             """;
 
@@ -184,9 +184,9 @@ public sealed class ComposeLayoutGeneratorTests
 
             public partial class Counter : ComposeComponentBase
             {
-                private View GetView() => Span("x");
+                private View GetView() => Span["x"];
 
-                protected override View Body => Div(GetView());
+                protected override View Body => Div[GetView()];
             }
             """;
 
@@ -210,7 +210,7 @@ public sealed class ComposeLayoutGeneratorTests
 
             public partial class GenLayout<TItem> : ComposeLayoutBase
             {
-                protected override View Chrome => Main(Body);
+                protected override View Chrome => Main[Body];
             }
             """;
 

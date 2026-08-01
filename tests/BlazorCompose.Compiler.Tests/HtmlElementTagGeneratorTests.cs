@@ -7,7 +7,7 @@ public sealed class HtmlElementTagGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Element("nav", Html.Span("x"));
+            protected override View Body => Html.Element("nav")[Html.Span["x"]];
         }
         """;
 
@@ -17,7 +17,7 @@ public sealed class HtmlElementTagGeneratorTests
         public partial class C : ComposeComponentBase
         {
             private readonly string _tag = "nav";
-            protected override View Body => Html.Element(_tag, Html.Span("x"));
+            protected override View Body => Html.Element(_tag)[Html.Span["x"]];
         }
         """;
 
@@ -26,7 +26,7 @@ public sealed class HtmlElementTagGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Element("", Html.Span("x"));
+            protected override View Body => Html.Element("")[Html.Span["x"]];
         }
         """;
 
@@ -35,7 +35,7 @@ public sealed class HtmlElementTagGeneratorTests
 
         public partial class C : ComposeComponentBase
         {
-            protected override View Body => Html.Element("   ", Html.Span("x"));
+            protected override View Body => Html.Element("   ")[Html.Span["x"]];
         }
         """;
 
@@ -89,7 +89,7 @@ public sealed class HtmlElementTagGeneratorTests
             using BlazorCompose;
             public partial class C : ComposeComponentBase
             {
-                protected override View Body => Html.{{helper}}();
+                protected override View Body => Html.{{helper}};
             }
             """;
         var result = CompilationTestHost.RunGenerator(source);

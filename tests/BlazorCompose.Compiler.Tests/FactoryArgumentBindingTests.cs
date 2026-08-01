@@ -30,8 +30,8 @@ public sealed class FactoryArgumentBindingTests
     {
         // Before the fix this silently inverted the branches: Arguments[1] (otherwise) was read as
         // then, and Arguments[2] (then) as otherwise. Both are valid Func<View>, so nothing complained.
-        var named = GenerateBody("""If(_on, otherwise: () => Span("No"), then: () => Span("Yes"))""");
-        var positional = GenerateBody("""If(_on, () => Span("Yes"), () => Span("No"))""");
+        var named = GenerateBody("""If(_on, otherwise: () => Span["No"], then: () => Span["Yes"])""");
+        var positional = GenerateBody("""If(_on, () => Span["Yes"], () => Span["No"])""");
 
         Assert.Equal(positional, named);
     }
@@ -41,8 +41,8 @@ public sealed class FactoryArgumentBindingTests
     {
         // Before the fix TryGetConstantName(args[0]) succeeded on the VALUE, so the attribute name and
         // value were swapped in the emitted AddAttribute call.
-        var named = GenerateBody("""Div().Attr(value: "1", name: "data-x")""");
-        var positional = GenerateBody("""Div().Attr("data-x", "1")""");
+        var named = GenerateBody("""Div.Attr(value: "1", name: "data-x")""");
+        var positional = GenerateBody("""Div.Attr("data-x", "1")""");
 
         Assert.Equal(positional, named);
     }
@@ -50,8 +50,8 @@ public sealed class FactoryArgumentBindingTests
     [Fact]
     public void On_NamedArgumentsOutOfOrder_GeneratesSameSourceAsPositional()
     {
-        var named = GenerateBody("""Div().On(handler: () => { }, eventName: "onclick")""");
-        var positional = GenerateBody("""Div().On("onclick", () => { })""");
+        var named = GenerateBody("""Div.On(handler: () => { }, eventName: "onclick")""");
+        var positional = GenerateBody("""Div.On("onclick", () => { })""");
 
         Assert.Equal(positional, named);
     }
@@ -61,7 +61,7 @@ public sealed class FactoryArgumentBindingTests
     {
         // Regression guard: the presence of `otherwise` was decided by Arguments.Count >= 3 and is now
         // decided by whether an argument bound to that parameter, so the omitted case must still work.
-        var generated = GenerateBody("""If(_on, () => Span("Yes"))""");
+        var generated = GenerateBody("""If(_on, () => Span["Yes"])""");
 
         Assert.Contains("protected override void RenderView(", generated);
     }
@@ -69,7 +69,7 @@ public sealed class FactoryArgumentBindingTests
     [Fact]
     public void If_ExplicitNullOtherwise_StillGenerates()
     {
-        var generated = GenerateBody("""If(_on, () => Span("Yes"), null)""");
+        var generated = GenerateBody("""If(_on, () => Span["Yes"], null)""");
 
         Assert.Contains("protected override void RenderView(", generated);
     }
@@ -86,7 +86,7 @@ public sealed class FactoryArgumentBindingTests
 
             public partial class Counter : ComposeComponentBase
             {
-                protected override View Body => Decorations.Attr(Div(), "data-x", "1");
+                protected override View Body => Decorations.Attr(Div, "data-x", "1");
             }
             """;
 
@@ -110,7 +110,7 @@ public sealed class FactoryArgumentBindingTests
             {
                 private bool _on;
 
-                protected override View Body => If(then: () => Span("Yes"), _on);
+                protected override View Body => If(then: () => Span["Yes"], _on);
             }
             """;
 
@@ -134,7 +134,7 @@ public sealed class FactoryArgumentBindingTests
                 private List<string> _items = new();
 
                 protected override View Body =>
-                    Div(ForEach(_items, content: i => Li(i), key: i => i));
+                    Div[ForEach(_items, content: i => Li[i], key: i => i)];
             }
             """;
 
@@ -148,7 +148,7 @@ public sealed class FactoryArgumentBindingTests
                 private List<string> _items = new();
 
                 protected override View Body =>
-                    Div(ForEach(_items, i => i, i => Li(i)));
+                    Div[ForEach(_items, i => i, i => Li[i])];
             }
             """;
 
@@ -163,12 +163,10 @@ public sealed class FactoryArgumentBindingTests
     [Fact]
     public void Element_TagNamed_GeneratesSameSourceAsPositional()
     {
-        // `tag` can only be named in its natural first position: children bind to the expanded
-        // `params` parameter, and C# does not allow naming an expanded params argument. So there is
-        // no legal spelling that names `tag` after the children — this covers naming the first
-        // argument, not reordering past children.
-        var named = GenerateBody("""Element(tag: "section", "a", "b")""");
-        var positional = GenerateBody("""Element("section", "a", "b")""");
+        // `Element` now takes only `tag`; children bind separately through the indexer. `tag` has no
+        // other parameter to be reordered against, so this just pins that naming it changes nothing.
+        var named = GenerateBody("""Element(tag: "section")["a", "b"]""");
+        var positional = GenerateBody("""Element("section")["a", "b"]""");
 
         Assert.Equal(positional, named);
     }
@@ -221,7 +219,7 @@ public sealed class FactoryArgumentBindingTests
     [Fact]
     public void Element_ExplicitChildrenCollection_RemainsUnsupported()
     {
-        // `Div(children: arr)` is legal C# (View[] converts to ReadOnlySpan<View>) but the argument is
+        // `Div[children: arr]` is legal C# (View[] converts to ReadOnlySpan<View>) but the argument is
         // one whole collection, not a child list. It must land on BC1003 rather than be mis-split.
         const string source = """
             using BlazorCompose;
@@ -229,9 +227,9 @@ public sealed class FactoryArgumentBindingTests
 
             public partial class Counter : ComposeComponentBase
             {
-                private static View[] Kids() => new View[] { Span("a") };
+                private static View[] Kids() => new View[] { Span["a"] };
 
-                protected override View Body => Div(children: Kids());
+                protected override View Body => Div[children: Kids()];
             }
             """;
 
@@ -252,7 +250,7 @@ public sealed class FactoryArgumentBindingTests
 
             public partial class Counter : ComposeComponentBase
             {
-                private static View[] Kids() => new View[] { Span("a") };
+                private static View[] Kids() => new View[] { Span["a"] };
 
                 protected override View Body => Fragment(children: Kids());
             }
@@ -279,7 +277,7 @@ public sealed class FactoryArgumentBindingTests
             {
                 private static string? NullText => null;
 
-                protected override View Body => Div(NullText!);
+                protected override View Body => Div[NullText!];
             }
             """;
 

@@ -10,7 +10,7 @@ public sealed class HtmlForEachGeneratorTests
         {
             private readonly List<string> _items = new() { "a", "b" };
             protected override View Body =>
-                Html.Div(Html.ForEach(_items, x => x, x => Html.Span(x)));
+                Html.Div[Html.ForEach(_items, x => x, x => Html.Span[x])];
         }
         """;
 
@@ -22,7 +22,7 @@ public sealed class HtmlForEachGeneratorTests
         {
             private readonly List<string> _items = new() { "a", "b" };
             protected override View Body =>
-                Html.Div(Html.ForEach(_items, x => x, x => x));
+                Html.Div[Html.ForEach(_items, x => x, x => x)];
         }
         """;
 

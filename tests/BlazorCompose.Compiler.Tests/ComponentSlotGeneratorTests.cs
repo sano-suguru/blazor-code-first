@@ -25,7 +25,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>(Div("x")).Param(c => c.Title, "t");
+                protected override View Body => Component<Card>().Param(c => c.Title, "t")[Div["x"]];
             }
             """;
 
@@ -46,7 +46,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>().Param(c => c.Footer, Div("f"));
+                protected override View Body => Component<Card>().Param(c => c.Footer, Div["f"]);
             }
             """;
 
@@ -69,7 +69,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>(Div("x")).Param(c => c.Title, "t");
+                protected override View Body => Component<Card>().Param(c => c.Title, "t")[Div["x"]];
             }
             """;
 
@@ -96,7 +96,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>(Div("a"), "text");
+                protected override View Body => Component<Card>()[Div["a"], "text"];
             }
             """;
 
@@ -118,7 +118,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>().Param(c => c.Footer, Div("f"));
+                protected override View Body => Component<Card>().Param(c => c.Footer, Div["f"]);
             }
             """;
 
@@ -143,7 +143,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>().Param(c => c.ChildContent, Div("x"));
+                protected override View Body => Component<Card>().Param(c => c.ChildContent, Div["x"]);
             }
             """;
 
@@ -162,7 +162,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Card>(Component<Card>(Div("deep")));
+                protected override View Body => Component<Card>()[Component<Card>()[Div["deep"]]];
             }
             """;
 
@@ -205,7 +205,7 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ComponentWithChildren_ExplicitCollectionArgument_IsRejected()
     {
-        // One whole collection passed to the params parameter is not a child list; mirrors Div(children: arr).
+        // One whole collection passed to the params parameter is not a child list; mirrors Div[children: arr].
         const string host = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -213,7 +213,7 @@ public sealed class ComponentSlotGeneratorTests
             public partial class Host : ComposeComponentBase
             {
                 private static readonly View[] _kids = [];
-                protected override View Body => Component<Card>(children: _kids);
+                protected override View Body => Component<Card>()[children: _kids];
             }
             """;
 
@@ -247,7 +247,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<DerivedCard>(Div("x"));
+                protected override View Body => Component<DerivedCard>()[Div["x"]];
             }
             """;
 
@@ -279,7 +279,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : ComposeComponentBase
             {
-                protected override View Body => Component<Grid<int>>(Div("g"));
+                protected override View Body => Component<Grid<int>>()[Div["g"]];
             }
             """;
 
@@ -304,7 +304,7 @@ public sealed class ComponentSlotGeneratorTests
             {
                 private readonly List<int> _items = new();
                 protected override View Body =>
-                    Component<Card>(ForEach(_items, key: i => i, content: i => Li(i.ToString())));
+                    Component<Card>()[ForEach(_items, key: i => i, content: i => Li[i.ToString()])];
             }
             """;
 
@@ -344,7 +344,7 @@ public sealed class ComponentSlotGeneratorTests
             {
                 private readonly List<int> _items = new();
                 protected override View Body =>
-                    ForEach(_items, key: i => i, content: i => Component<Card>(Span(i.ToString())));
+                    ForEach(_items, key: i => i, content: i => Component<Card>()[Span[i.ToString()]]);
             }
             """;
 
@@ -375,9 +375,9 @@ public sealed class ComponentSlotGeneratorTests
             public partial class Host : ComposeComponentBase
             {
                 [Composable]
-                private static View Badge(string label) => Span(label).Class("badge");
+                private static View Badge(string label) => Span.Class("badge")[label];
 
-                protected override View Body => Component<Card>(Badge("new"));
+                protected override View Body => Component<Card>()[Badge("new")];
             }
             """;
 
