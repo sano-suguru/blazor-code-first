@@ -12,10 +12,16 @@ namespace BlazorCompose.Compiler.Tests;
 /// This is the verification that matters, and it is deliberately not a comparison of a method-form shim
 /// against a bracket-form shim: two shims degrading identically stay green, which is the same blind spot the
 /// relative-equality tests in <c>FactoryArgumentBindingTests</c> have.  Comparing against the baselines
-/// instead proves #87's central claim — that re-spelling the call sites does not change the generated code —
-/// before #87 is written, and it forces the shim's <c>View</c>, <c>ComposeComponentBase</c> and
-/// <c>Decorations</c> declarations to match the shipped ones, because any divergence that reaches emitted
-/// text surfaces here as a mismatch.
+/// instead proves #87's central claim — that re-spelling the call sites does not change the generated code
+/// for any shape in the corpus — before #87 is written, and it forces the shim's <c>View</c>,
+/// <c>ComposeComponentBase</c> and <c>Decorations</c> declarations to match the shipped ones, because any
+/// divergence that reaches emitted text surfaces here as a mismatch.
+/// </para>
+/// <para>
+/// The claim holds only for the corpus, and the qualifier is load-bearing.  A fragment-slot <c>.Param</c>
+/// beside bracketed children — a shape the corpus does not contain — emits its two slots in the opposite
+/// order, because the brackets push children last and slots are numbered in source order.
+/// <c>BracketSurfaceSlotOrderTests</c> covers it.
 /// </para>
 /// <para>
 /// The case names are #95's, and no baseline is added: a case whose bracket form needed its own baseline
@@ -94,8 +100,10 @@ public sealed class BracketSurfaceBaselineTests
 
             // --- Component<T> -------------------------------------------------------------------
             // The indexer returns View, so .Param cannot follow the brackets: children come last here,
-            // where on the method surface they came first. The baseline is unchanged because channel
-            // order is fixed by the allocator (Parameters before Slots), not by source order.
+            // where on the method surface they came first. These baselines are unchanged because the
+            // allocator fixes the order between channels (Parameters before Slots) and no case here pairs
+            // a fragment slot with children. Within the Slots channel the order is source order, so that
+            // pairing does differ between the surfaces — see BracketSurfaceSlotOrderTests.
             ["component-child-content"] = HostWithCard("""Component<Card>()[Div["x"]]"""),
             ["component-child-content-and-parameter"] = HostWithCard(
                 """Component<Card>().Param(c => c.Title, "t")[Div["x"]]"""),

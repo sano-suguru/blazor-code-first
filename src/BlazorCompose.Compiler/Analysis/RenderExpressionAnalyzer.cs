@@ -633,12 +633,23 @@ internal static class RenderExpressionAnalyzer
     /// arguments.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The duplicate check here is not a mirror of the one in the <c>.Param</c> arm but the other half of it.
     /// The indexer returns <c>View</c>, so <c>.Param</c> cannot follow the brackets and children are written
     /// last; that reverses which <c>ChildContent</c> channel is filled first.  On the method surface children
     /// were always syntactically first, so the params arm could set the slot unconditionally and the
     /// duplicate was caught later by the <c>.Param</c> arm's own check.  With <c>.Param</c> first, this arm
     /// has to perform the check or BC3007 goes silent.
+    /// </para>
+    /// <para>
+    /// The same property fixes the slot order: children cannot be followed by anything, so
+    /// <c>ChildContent</c> is invariably the last slot and appending is the only order this surface can
+    /// produce.  It is also the correct one — sequence numbers represent source syntax positions, so a slot
+    /// written last is numbered last.  A component with a fragment <c>.Param</c> beside children therefore
+    /// emits its slots in the opposite order to the method spelling, where children came first; both are
+    /// faithful to their own source.  <c>BracketSurfaceSlotOrderTests</c> pins it, because no corpus baseline
+    /// covers that combination.
+    /// </para>
     /// </remarks>
     private static ComponentTemplateNode? ClassifyComponentIndexer(
         ElementAccessExpressionSyntax elementAccess,
@@ -678,7 +689,8 @@ internal static class RenderExpressionAnalyzer
             return null;
 
         // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
-        // slot on the receiver, and it is not a duplicate of this one.
+        // slot on the receiver, and it is not a duplicate of this one. Appending is also the only order
+        // available — see the remarks on slot order.
         var appended = component.Slots.AsImmutableArray().AddRange(slots.AsImmutableArray());
         return new ComponentTemplateNode(component.TypeName, component.Parameters, appended);
     }

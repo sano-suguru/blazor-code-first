@@ -141,9 +141,9 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void NonConstantElementTag_WithBracketedChildren_ReportsBC3009AndNotBC3015()
     {
-        // The pairing between the indexer arm's RejectUnresolvedValueRecovery and the sweep's
-        // ShouldRecoverUnresolvedValue: the construct already reported its own diagnostic, so sweeping it a
-        // second time would report BC3015 on the same expression.
+        // Nothing is suppressed here, despite how this reads. The scanner's Element arm only recurses into
+        // children when the tag is a non-empty constant string, and it never reports on the tag argument in
+        // either branch — so BC3015 has no route to the tag, independently of any recovery gate.
         var diagnostics = RunWithExpectedErrors("""Element(typeof(Probe).Name)["x"]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3009");
