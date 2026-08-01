@@ -60,6 +60,18 @@ public sealed class BracketSurfaceDiagnosticTests
     private static GeneratorRunResult RunResult(string body, string members = "") =>
         CompilationTestHost.RunGenerator(HostFiles(body, members));
 
+    /// <summary>
+    /// The generated source for <paramref name="body"/>, for the cases asserted as source equality.
+    /// Only the Compose host produces output — <c>Card</c> and <c>Plain</c> are ordinary
+    /// <c>ComponentBase</c> classes — so a single generated source is the expected shape.
+    /// </summary>
+    private static string GenerateSource(string body)
+    {
+        var result = RunResult(body);
+        CompilationTestHost.AssertOutputCompiles(result);
+        return Assert.Single(result.GeneratedSources).SourceText.ToString();
+    }
+
     private static (string Path, string Source)[] HostFiles(string body, string members) =>
         [
             ("Host.cs", $$"""
@@ -222,15 +234,105 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void CollectionExpressionLiteralInBrackets_ReportsBC1003()
+    public void CollectionExpressionLiteralInBrackets_IsAcceptedAsChildren()
     {
-        // A nested collection-expression literal also binds non-expanded, so it is one whole collection
-        // rather than two children. Brackets make the typo easier to write than the method form did; the
-        // current behaviour is pinned here, not endorsed.
+        // Pinned as BC1003 by #100 — "the current behaviour is pinned here, not endorsed" — and changed
+        // deliberately by #75: the literal is the same call as Div["a", "b"] and its children are
+        // present in the operation tree, so refusing it was the one shape where BC1003's own claim of
+        // "not statically analyzable" did not hold. Equivalence with the expanded spelling is asserted
+        // as generated-source equality in FactoryArgumentBindingTests.
         var result = RunResult("""Div[["a", "b"]]""");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void SpreadInsideACollectionExpressionLiteral_ReportsBC1003()
+    {
+        // A spread's items are a runtime collection with no per-child written expression, so they are
+        // not statically sequenceable children — that is what ForEach is for. This is the same boundary
+        // Div[_children] sits on, and #75 does not move it.
+        var result = RunResult("""Div[[.._children]]""", """private readonly View[] _children = [];""");
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
         AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void SpreadBesideALiteralChild_ReportsBC1003()
+    {
+        // The only shape that depends on child recovery being all-or-nothing. If recovery ever degrades
+        // to skipping the elements it cannot resolve, the pure-spread test above keeps passing while
+        // this one silently emits a div with one child instead of reporting anything.
+        var result = RunResult("""Div[["a", .._children]]""", """private readonly View[] _children = [];""");
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void WrittenArrayCreationInBrackets_ReportsBC1003()
+    {
+        // #75 accepts the collection-expression literal only. An explicitly written array creation is a
+        // different shape: its elements' nearest container is the whole argument, so the recovery rule
+        // cannot attribute them to individual children and every child would come out as the entire
+        // array expression. It stays where it was.
+        var result = RunResult("""Div[new View[] { Span["a"] }]""");
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void Fragment_CollectionExpressionLiteralChildren_GeneratesSameSourceAsExpanded()
+    {
+        // Html.Fragment is the third params ReadOnlySpan<View> surface and reads the gate at
+        // RenderExpressionAnalyzer.cs:272. One shared fix has to reach it. Wrapped in a Div because
+        // Fragment opens no element frame, which keeps this about children rather than root shape.
+        var literal = GenerateSource("""Div[Fragment(["a", "b"])]""");
+        var expanded = GenerateSource("""Div[Fragment("a", "b")]""");
+
+        Assert.Equal(expanded, literal);
+        Assert.Contains("""AddContent(1, "a")""", literal);
+        Assert.Contains("""AddContent(2, "b")""", literal);
+    }
+
+    [Fact]
+    public void ComponentIndexer_CollectionExpressionLiteralChildren_GeneratesSameSourceAsExpanded()
+    {
+        // The component indexer reads the same gate at RenderExpressionAnalyzer.cs:620.
+        var literal = GenerateSource("""Component<Card>()[["a", "b"]]""");
+        var expanded = GenerateSource("""Component<Card>()["a", "b"]""");
+
+        Assert.Equal(expanded, literal);
+        Assert.Contains("AddContent", literal);
+    }
+
+    [Fact]
+    public void UnresolvedValueType_InsideACollectionExpressionLiteralChild_ReportsBC3015()
+    {
+        // The failure-path sweep skips children whenever the params argument is unanalyzable
+        // (UnresolvedValueTypeScanner.ScanChildren), so before #75 a nested literal hid everything
+        // inside it: the body reported only BC1003 and the author never learned which name could not be
+        // moved into generated code. Modelled on UnresolvedValueType_InsideABracketedChild_ReportsBC3015,
+        // one bracket pair deeper.
+        var diagnostics = Run("""Div[[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
+    public void UnresolvedValueType_BesideAnUnboundSpreadInALiteral_ReportsBC3015()
+    {
+        // Reaches the scanner's syntactic binder rather than its operation-based one: an unbound spread
+        // makes the whole element access an IInvalidOperation, so FactoryArguments.Bind returns null and
+        // BindIndexerArguments falls back to TryBindFallback. That binder sees one argument, not two
+        // children, so without the literal being unwrapped there too the sibling's unresolved type is
+        // never visited and the author is left with a bare BC1003.
+        var diagnostics = Run("""Div[[Span[typeof(Probe).Name], ..MissingMethod()]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
     }
 
     // ---------------------------------------------------------------------------

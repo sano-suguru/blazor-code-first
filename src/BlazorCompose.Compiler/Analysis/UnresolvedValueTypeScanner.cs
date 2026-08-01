@@ -261,7 +261,7 @@ internal static class UnresolvedValueTypeScanner
 
     private static void ScanChildren(BoundArguments args, ComposableBodyContext context)
     {
-        if (args.HasExplicitParamsArgument)
+        if (args.HasUnanalyzableParamsArgument)
             return;
 
         foreach (var child in args.ParamsElements)
@@ -729,16 +729,16 @@ internal static class UnresolvedValueTypeScanner
         private BoundArguments(
             ImmutableArray<ExpressionSyntax?> byDeclaredParameter,
             ImmutableArray<ExpressionSyntax> paramsElements,
-            bool hasExplicitParamsArgument)
+            bool hasUnanalyzableParamsArgument)
         {
             _byDeclaredParameter = byDeclaredParameter;
             ParamsElements = paramsElements;
-            HasExplicitParamsArgument = hasExplicitParamsArgument;
+            HasUnanalyzableParamsArgument = hasUnanalyzableParamsArgument;
         }
 
         public ImmutableArray<ExpressionSyntax> ParamsElements { get; }
 
-        public bool HasExplicitParamsArgument { get; }
+        public bool HasUnanalyzableParamsArgument { get; }
 
         public IEnumerable<ExpressionSyntax> ExplicitArguments
         {
@@ -769,7 +769,7 @@ internal static class UnresolvedValueTypeScanner
             return new BoundArguments(
                 byParameter.MoveToImmutable(),
                 arguments.ParamsElements,
-                arguments.HasExplicitParamsArgument);
+                arguments.HasUnanalyzableParamsArgument);
         }
 
         public static BoundArguments? TryBindFallback(
@@ -787,6 +787,15 @@ internal static class UnresolvedValueTypeScanner
         /// <c>GetOperation</c> is unusable.  A <see cref="BracketedArgumentListSyntax"/> binds through the
         /// same code as a parenthesized one — the C# positional/named rules do not differ between them.
         /// </summary>
+        /// <remarks>
+        /// A collection-expression literal passed whole (<c>Div[["a", "b"]]</c>) is unwrapped into its
+        /// elements here, mirroring <see cref="FactoryArguments"/>: it is the same call as the expanded
+        /// form, and leaving it whole made every name inside it invisible to the sweep, so such a body
+        /// reported a bare BC1003 and never named the value that could not be moved into generated code
+        /// (#75).  Reached when the element access itself has no operation — an unbound spread beside the
+        /// children is the measured route, since that makes the whole element access an invalid operation
+        /// and <see cref="FactoryArguments.Bind"/> returns before any element is examined.
+        /// </remarks>
         public static BoundArguments? TryBindFallback(
             BaseArgumentListSyntax argumentList,
             ImmutableArray<IParameterSymbol> parameters,
@@ -798,7 +807,7 @@ internal static class UnresolvedValueTypeScanner
 
             var byParameter = new ExpressionSyntax?[declaredCount];
             var paramsElements = ImmutableArray.CreateBuilder<ExpressionSyntax>();
-            var hasExplicitParams = false;
+            var hasUnanalyzableParams = false;
             var nextPositional = 0;
 
             foreach (var argument in argumentList.Arguments)
@@ -829,14 +838,18 @@ internal static class UnresolvedValueTypeScanner
                 {
                     if (argument.NameColon is not null)
                     {
-                        if (hasExplicitParams || paramsElements.Count != 0)
+                        if (hasUnanalyzableParams || paramsElements.Count != 0)
                             return null;
 
-                        hasExplicitParams = true;
+                        hasUnanalyzableParams = true;
                     }
-                    else if (hasExplicitParams)
+                    else if (hasUnanalyzableParams)
                     {
                         return null;
+                    }
+                    else if (TryGetLiteralChildren(argumentList, argument) is { } literalChildren)
+                    {
+                        paramsElements.AddRange(literalChildren);
                     }
                     else
                     {
@@ -858,7 +871,46 @@ internal static class UnresolvedValueTypeScanner
             return new BoundArguments(
                 ImmutableArray.Create(byParameter),
                 paramsElements.ToImmutable(),
-                hasExplicitParams);
+                hasUnanalyzableParams);
+        }
+
+        /// <summary>
+        /// The written children of <paramref name="argument"/> when it is a collection-expression literal
+        /// passed whole to the <c>params</c> parameter, or <see langword="null"/> when it is anything else.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Only a lone argument can be that literal: written beside other arguments it would be one element
+        /// of the bucket, not the whole bucket.
+        /// </para>
+        /// <para>
+        /// Spread elements are skipped rather than abandoning the whole literal, which is where this
+        /// deliberately parts from <c>FactoryArguments</c>.  There, a literal containing a spread is refused
+        /// outright, because emitting a partially recovered child list would drop children the author wrote.
+        /// Nothing is emitted from here — this binder feeds a diagnostic sweep — so the same caution would
+        /// only silence BC3015 on the children that <em>are</em> written out.  A spread's own operand is not
+        /// collected either: it would never have been emitted as a child, and this scanner reports only on
+        /// expressions the analyzer would emit.
+        /// </para>
+        /// </remarks>
+        private static List<ExpressionSyntax>? TryGetLiteralChildren(
+            BaseArgumentListSyntax argumentList, ArgumentSyntax argument)
+        {
+            if (argumentList.Arguments.Count != 1
+                || argument.Expression is not CollectionExpressionSyntax literal)
+            {
+                return null;
+            }
+
+            var children = new List<ExpressionSyntax>(literal.Elements.Count);
+
+            foreach (var element in literal.Elements)
+            {
+                if (element is ExpressionElementSyntax expressionElement)
+                    children.Add(expressionElement.Expression);
+            }
+
+            return children;
         }
     }
 }

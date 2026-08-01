@@ -269,7 +269,7 @@ internal static class RenderExpressionAnalyzer
             if (FactoryArguments.Bind(invocation, context) is not { } args)
                 return null;
 
-            if (args.HasExplicitParamsArgument)
+            if (args.HasUnanalyzableParamsArgument)
                 return null;
 
             var children = AnalyzeChildren(args.ParamsElements, context);
@@ -573,7 +573,7 @@ internal static class RenderExpressionAnalyzer
 
         // One whole collection passed to the params indexer (Div[arr]) is not a list of children; leave it
         // unanalyzable so it lands on BC1003 instead of being mis-split.
-        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
             return null;
 
         var children = AnalyzeChildren(args.ParamsElements, context);
@@ -617,7 +617,7 @@ internal static class RenderExpressionAnalyzer
         if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
             return null;
 
-        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
             return null;
 
         var children = AnalyzeChildren(args.ParamsElements, context);
