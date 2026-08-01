@@ -14,12 +14,12 @@ public sealed partial class CounterPage : ComposeComponentBase
     private int _count;
 
     protected override View Body =>
-        Div(
-            Component<PageTitle>("Counter"),
-            Span($"Count: {_count}"),
-            If(_count >= 3, () => Span("Milestone reached")),
-            Button("Increment").OnClick(() => _count++),
-            ForEach(Steps, key: step => step.Id, content: step => Button($"+{step.Amount}").OnClick(() => _count += step.Amount)));
+        Div[
+            Component<PageTitle>()["Counter"],
+            Span[$"Count: {_count}"],
+            If(_count >= 3, () => Span["Milestone reached"]),
+            Button.OnClick(() => _count++)["Increment"],
+            ForEach(Steps, key: step => step.Id, content: step => Button.OnClick(() => _count += step.Amount)[$"+{step.Amount}"])];
 
     private sealed record IncrementStep(int Id, int Amount);
 }

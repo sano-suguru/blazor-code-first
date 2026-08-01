@@ -15,14 +15,13 @@ namespace BlazorCompose.Site.Pages;
 public sealed partial class DocsIndexPage : ComposeComponentBase
 {
     protected override View Body =>
-        Section(
-            Component<PageTitle>("Documentation"),
-            H1("Documentation"),
-            P("Every document in the guide, in reading order."),
-            Ul(
+        Section.Class("prose")[
+            Component<PageTitle>()["Documentation"],
+            H1["Documentation"],
+            P["Every document in the guide, in reading order."],
+            Ul[
                 ForEach(
                     Docs.All,
                     key: d => d.Slug,
-                    content: d => Li(A(d.Title).Href($"/docs/{d.Slug}")))))
-        .Class("prose");
+                    content: d => Li[A.Href($"/docs/{d.Slug}")[d.Title]])]];
 }

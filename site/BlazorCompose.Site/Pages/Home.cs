@@ -10,20 +10,19 @@ namespace BlazorCompose.Site.Pages;
 public sealed partial class Home : ComposeComponentBase
 {
     protected override View Body =>
-        Section(
-            Component<PageTitle>("BlazorCompose"),
-            H1("Write Blazor UI as plain C#"),
-            P("BlazorCompose turns a design-time Body expression into a RenderTreeBuilder method at "
+        Section.Class("prose")[
+            Component<PageTitle>()["BlazorCompose"],
+            H1["Write Blazor UI as plain C#"],
+            P["BlazorCompose turns a design-time Body expression into a RenderTreeBuilder method at "
                 + "compile time. There is no runtime UI tree, no reflection, and no runtime expression "
-                + "compilation — the generated component is an ordinary Blazor component."),
-            P("This site is itself built with BlazorCompose and published as prerendered static HTML."),
-            H2("Documentation"),
-            Ul(
+                + "compilation — the generated component is an ordinary Blazor component."],
+            P["This site is itself built with BlazorCompose and published as prerendered static HTML."],
+            H2["Documentation"],
+            Ul[
                 ForEach(
                     Docs.All,
                     key: d => d.Slug,
-                    content: d => Li(A(d.Title).Href($"/docs/{d.Slug}")))),
-            H2("Live demo"),
-            P(A("Counter").Href("/counter"), " exercises events, If, and keyed ForEach."))
-        .Class("prose");
+                    content: d => Li[A.Href($"/docs/{d.Slug}")[d.Title]])],
+            H2["Live demo"],
+            P[A.Href("/counter")["Counter"], " exercises events, If, and keyed ForEach."]];
 }

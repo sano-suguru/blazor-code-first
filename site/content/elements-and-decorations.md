@@ -16,21 +16,21 @@ using BlazorCompose;
 using static BlazorCompose.Html;
 
 protected override View Body =>
-    Article(
-        H2("Elements"),
-        P("Text and ", A("links").Href("/docs"), " compose in one call."),
-        Ul(
-            Li("Structure: Div, Section, Article, Header, Footer, Main, Aside, Nav"),
-            Li("Text: Span, P, H1 through H6"),
-            Li("Lists: Ul, Ol, Li"),
-            Li("Interactive: Button"),
-            Li("Links and media: A, Img")));
+    Article[
+        H2["Elements"],
+        P["Text and ", A.Href("/docs")["links"], " compose in one call."],
+        Ul[
+            Li["Structure: Div, Section, Article, Header, Footer, Main, Aside, Nav"],
+            Li["Text: Span, P, H1 through H6"],
+            Li["Lists: Ul, Ol, Li"],
+            Li["Interactive: Button"],
+            Li["Links and media: A, Img"]]];
 ```
 
 For an element without a dedicated factory, use `Element` with a compile-time constant tag:
 
 ```csharp
-Element("figure", Img().Src("/diagram.png").Alt("Architecture"))
+Element("figure")[Img.Src("/diagram.png").Alt("Architecture")]
 ```
 
 ## Decorations
@@ -39,10 +39,10 @@ Decorations are chained onto the element they belong to. They collapse into the 
 attributes rather than introducing wrapper nodes:
 
 ```csharp
-Button("Save")
+Button
     .Class("btn btn-primary")
     .Title("Save the current document")
-    .OnClick(() => Save());
+    .OnClick(() => Save())["Save"];
 ```
 
 Available decorations are `.Class`, `.Id`, `.Href`, `.Src`, `.Alt`, `.Type`, `.Title`, `.Role`,

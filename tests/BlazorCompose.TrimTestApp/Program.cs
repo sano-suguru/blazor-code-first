@@ -13,13 +13,13 @@ public partial class TrimCounter : ComposeComponentBase
     private readonly List<Row> _rows = [new Row(1, "First")];
 
     protected override View Body =>
-        Div(
+        Div[
             CountLabel($"Count: {_count}"),
-            Button("Increment").OnClick(() => _count++),
-            ForEach(_rows, key: r => r.Id, content: r => Component<DummyRow>().Param(c => c.Text, r.Label)));
+            Button.OnClick(() => _count++)["Increment"],
+            ForEach(_rows, key: r => r.Id, content: r => Component<DummyRow>().Param(c => c.Text, r.Label))];
 
     [Composable]
-    private static View CountLabel(string value) => Span(value);
+    private static View CountLabel(string value) => Span[value];
 
     public void RenderForTrimTest(RenderTreeBuilder builder)
         => BuildRenderTree(builder);
