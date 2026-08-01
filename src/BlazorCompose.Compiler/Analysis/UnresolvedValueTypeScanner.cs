@@ -192,13 +192,11 @@ internal static class UnresolvedValueTypeScanner
     /// silence expressions the rejection was never about.
     /// </para>
     /// <para>
-    /// The children are scanned unconditionally, unlike the method-surface <c>Element</c> arm, which
-    /// recurses only when the tag is a non-empty constant string.  <c>Element(nonConstant)[child]</c>
-    /// therefore reports BC3009 for the tag and also BC3015 for an unresolvable value inside the child,
-    /// where the method form reports BC3009 alone.  The second report is spurious — BC3009 has already
-    /// rejected the element, so the child never reaches generated code — but it is a diagnostic asymmetry on
-    /// already-broken code, recorded here rather than fixed, because gating this route would restate the tag
-    /// rule the receiver arm already owns.  #87 should settle it once the method arm is deleted.
+    /// The children are scanned only when the receiver's tag survives BC3009.  A non-constant tag has
+    /// already rejected the whole element, so nothing inside the brackets reaches generated code and a
+    /// report about it would be noise on top of the real error.  The rule is not restated here: the gate
+    /// asks the receiver, through <see cref="HasRejectedElementTag"/>, because the receiver is what owns
+    /// the tag and what BC3009 is reported on.
     /// </para>
     /// </remarks>
     private static void ScanChildrenIndexer(
@@ -209,8 +207,50 @@ internal static class UnresolvedValueTypeScanner
 
         ScanRenderExpression(elementAccess.Expression, context);
 
+        // A non-constant tag has already been rejected by BC3009 on the receiver, so the children never
+        // reach generated code and reporting on them is noise. This is the gate the method-surface Element
+        // arm carried before #87 deleted it.
+        if (HasRejectedElementTag(elementAccess.Expression, context))
+            return;
+
         if (BindIndexerArguments(elementAccess, indexer, context) is { } args)
             ScanChildren(args, context);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="receiver"/> resolves through its decoration chain to an
+    /// <c>Element(tag)</c> call whose tag is not a non-empty constant string — the shape BC3009 rejects.
+    /// </summary>
+    /// <remarks>
+    /// The chain is unwound rather than inspected at the top, because decorations sit between the factory
+    /// and the brackets: in <c>Element(t).Class("c")["x"]</c> the indexer's receiver is the <c>Class</c>
+    /// invocation. A curated tag is a property reference and never reaches the loop's body, so it returns
+    /// false and its children are scanned as before.
+    /// </remarks>
+    private static bool HasRejectedElementTag(
+        ExpressionSyntax? receiver, ComposableBodyContext context)
+    {
+        while (receiver is InvocationExpressionSyntax invocation)
+        {
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is not IMethodSymbol method)
+            {
+                return false;
+            }
+
+            if (context.KnownSymbols.IsElementFactory(method))
+            {
+                return !IsNonEmptyConstantString(
+                    BindArguments(invocation, method, context)?.At(0)?.Expression, context);
+            }
+
+            if (!IsDecorationMethod(KnownSymbols.Normalize(method), context.KnownSymbols))
+                return false;
+
+            receiver = Receiver(invocation);
+        }
+
+        return false;
     }
 
     private static bool IsTextOrRenderFragment(ExpressionSyntax expression, ComposableBodyContext context)

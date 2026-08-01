@@ -151,6 +151,19 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
+    public void NonConstantElementTag_WithAnUnresolvedValueInAChild_ReportsBC3009Only()
+    {
+        // BC3009 has already rejected the element, so the child never reaches generated code and a report
+        // about it is noise. The method surface gated its child sweep on the tag being a non-empty constant;
+        // deleting that arm in #87 leaves this route as the only one, so the gate moves here.
+        var diagnostics = RunWithExpectedErrors(
+            """Element(typeof(Probe).Name)[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3009");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
     public void ScalarParam_ElementBuilderValue_ReportsBC3014()
     {
         // ElementBuilder is as inert as View: the generic Param emits its value verbatim, so without this
