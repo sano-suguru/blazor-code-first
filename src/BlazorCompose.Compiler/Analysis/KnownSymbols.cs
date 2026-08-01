@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Resolved <see cref="IMethodSymbol"/> references for the <c>BlazorCompose.Html</c> factory methods so
+/// Resolved symbol references for the <c>BlazorCompose.Html</c> factories and their surrounding types so
 /// that expression analysis can compare symbols by identity rather than by name.
 /// </summary>
 /// <remarks>
@@ -23,6 +23,30 @@ internal sealed class KnownSymbols
 
     /// <summary>Resolved unbound generic <c>BlazorCompose.ComponentView&lt;T&gt;</c>, or null.</summary>
     public INamedTypeSymbol? ComponentViewType { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>BlazorCompose.ElementBuilder</c>, or <see langword="null"/> — which is the
+    /// normal case against a runtime that has not adopted the bracket surface.
+    /// </summary>
+    /// <remarks>
+    /// Every consumer must guard on this being non-null before comparing against it.
+    /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
+    /// <c>x</c>, so an unguarded comparison would classify an unrelated indexer — <c>_dict["k"]</c> — as an
+    /// element.
+    /// </remarks>
+    public INamedTypeSymbol? ElementBuilderType { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>ElementBuilder</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is
+    /// how children are written on the bracket surface, or null.
+    /// </summary>
+    public IPropertySymbol? ElementIndexer { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>ComponentView&lt;T&gt;</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer,
+    /// which replaces the <c>Component&lt;T&gt;(children)</c> overload on the bracket surface, or null.
+    /// </summary>
+    public IPropertySymbol? ComponentIndexer { get; }
 
     /// <summary>Resolved symbol for <c>ComponentView&lt;T&gt;.Param&lt;TValue&gt;(...)</c>, or null.</summary>
     public IMethodSymbol? ParamMethod { get; }
@@ -90,6 +114,28 @@ internal sealed class KnownSymbols
     /// (fluent decorations) are unreduced, then the original definition is taken.</summary>
     public static ISymbol Normalize(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
 
+    /// <summary>
+    /// Normalizes a property to the comparable key used in <see cref="ElementTags"/>: an element factory
+    /// spelled as a property has nothing to unreduce, so only the original definition is taken.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a second overload rather than one <c>Normalize(ISymbol)</c>: an
+    /// <see cref="ISymbol"/>-typed parameter would silently win overload resolution at the method call
+    /// sites, stop walking <see cref="IMethodSymbol.ReducedFrom"/>, and key every fluent decoration under
+    /// its reduced symbol — which no map contains.
+    /// </remarks>
+    public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
+
+    /// <summary>
+    /// Whether <paramref name="method"/> is either <c>Html.Element</c> overload.  Both must be matched: the
+    /// arities are distinct symbols, and missing one drops every call site written that way to BC1003.
+    /// </summary>
+    public bool IsElementFactory(IMethodSymbol method) =>
+        (HtmlElement is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElement))
+        || (HtmlElementWithChildren is not null
+            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElementWithChildren));
+
     /// <summary>Curated element helper method → HTML tag name.</summary>
     public IReadOnlyDictionary<ISymbol, string> ElementTags { get; }
 
@@ -105,8 +151,20 @@ internal sealed class KnownSymbols
     /// <summary>All <c>Decorations.On</c> overloads.</summary>
     public IReadOnlyCollection<ISymbol> OnMethods { get; }
 
-    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Element(string, params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
+    /// <summary>Resolved symbol for <c>BlazorCompose.Html.Element(string)</c>, or null.</summary>
     public IMethodSymbol? HtmlElement { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>Html.Element(string, params ReadOnlySpan&lt;View&gt;)</c>, or null.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a separate field from <see cref="HtmlElement"/>, as
+    /// <see cref="HtmlComponentWithChildren"/> is from <see cref="HtmlComponent"/>.  One field matching both
+    /// arities cannot work: a runtime declaring both would let <c>GetMembers</c> order decide which overload
+    /// analysis recognizes, and the other would fall through to BC1003.  Match them through
+    /// <see cref="IsElementFactory"/> rather than by hand, so no consumer can OR only one.
+    /// </remarks>
+    public IMethodSymbol? HtmlElementWithChildren { get; }
 
     /// <summary>Resolved symbol for <c>BlazorCompose.Html.If(bool, Func&lt;View&gt;, Func&lt;View&gt;?)</c>, or null.</summary>
     public IMethodSymbol? HtmlIf { get; }
@@ -138,6 +196,10 @@ internal sealed class KnownSymbols
         ComposableAttributeType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComponentView`1");
+        ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ElementBuilder");
+        var readOnlySpanType = compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
+        ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType, readOnlySpanType);
+        ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType, readOnlySpanType);
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
@@ -198,11 +260,31 @@ internal sealed class KnownSymbols
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
         {
+            // A curated helper is a method on the current surface and a property returning ElementBuilder on
+            // the bracket surface. Both are matched so this map populates either way; #87 removes the method
+            // arm below once the properties ship. The return type is checked as well as the name: a property
+            // that merely shares a curated name is not an element factory.
+            if (member is IPropertySymbol { IsIndexer: false } elementProperty)
+            {
+                if (ElementBuilderType is not null
+                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementBuilderType)
+                    && CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                {
+                    elementTags[Normalize(elementProperty)] = propertyTag;
+                }
+
+                continue;
+            }
+
             if (member is not IMethodSymbol method)
                 continue;
             switch (method.Name)
             {
-                case "Element" when method.Parameters.Length == 2: HtmlElement = method; break;
+                // One parameter is the bracket surface's Element(string tag) returning ElementBuilder; two
+                // is the current Element(string tag, params ReadOnlySpan<View>). Distinct fields, matched
+                // together by IsElementFactory; #87 removes the two-parameter arm once the properties ship.
+                case "Element" when method.Parameters.Length == 1: HtmlElement = method; break;
+                case "Element" when method.Parameters.Length == 2: HtmlElementWithChildren = method; break;
                 case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
                 case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
                 case "Component" when method.Arity == 1 && method.Parameters.Length == 0:
@@ -222,6 +304,44 @@ internal sealed class KnownSymbols
             }
         }
         ElementTags = elementTags;
+    }
+
+    /// <summary>
+    /// The <c>params ReadOnlySpan&lt;View&gt;</c> indexer declared on <paramref name="type"/>, which is how
+    /// children are written on the bracket surface, or <see langword="null"/> when either type is absent or
+    /// no such indexer is declared.
+    /// </summary>
+    /// <remarks>
+    /// The element type is checked, not just the <c>params</c> shape: an indexer over some other element
+    /// type is not the children channel, and matching it would read unrelated arguments as children.
+    /// The span type is resolved by identity rather than matched by name, as this class exists to do: a
+    /// differently namespaced type also called <c>ReadOnlySpan&lt;T&gt;</c> must not be read as the children
+    /// channel.  Compare <c>RenderMutationAnalyzer</c>, which anchors <c>BlazorCompose.Decorations</c> to the
+    /// global namespace for the same reason.
+    /// </remarks>
+    private static IPropertySymbol? FindChildrenIndexer(
+        INamedTypeSymbol? type, INamedTypeSymbol? viewType, INamedTypeSymbol? readOnlySpanType)
+    {
+        if (type is null || viewType is null || readOnlySpanType is null)
+            return null;
+
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not IPropertySymbol { IsIndexer: true, Parameters.Length: 1 } indexer
+                || !indexer.Parameters[0].IsParams)
+            {
+                continue;
+            }
+
+            if (indexer.Parameters[0].Type is INamedTypeSymbol { TypeArguments.Length: 1 } span
+                && SymbolEqualityComparer.Default.Equals(span.OriginalDefinition, readOnlySpanType)
+                && SymbolEqualityComparer.Default.Equals(span.TypeArguments[0], viewType))
+            {
+                return indexer;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

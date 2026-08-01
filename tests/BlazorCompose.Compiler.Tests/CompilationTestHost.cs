@@ -180,6 +180,27 @@ public static class CompilationTestHost
         return CreateCompilation(syntaxTree);
     }
 
+    /// <summary>
+    /// Creates a compilation from raw <c>(Path, Source)</c> tuples that does <em>not</em> reference
+    /// <c>BlazorCompose.Runtime</c>, for tests that declare the <c>BlazorCompose</c> surface in-source.
+    /// </summary>
+    internal static CSharpCompilation CreateCompilationWithoutRuntime(
+        params (string Path, string Source)[] sources)
+    {
+        var syntaxTrees = sources
+            .Select(static source => CSharpSyntaxTree.ParseText(
+                source.Source,
+                CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
+                path: source.Path))
+            .ToArray();
+
+        return CSharpCompilation.Create(
+            assemblyName: "TestAssembly",
+            syntaxTrees: syntaxTrees,
+            references: BuildMetadataReferences(includeRuntime: false),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
     internal static CSharpCompilation CreateCompilation(params SyntaxTree[] syntaxTrees) =>
         CSharpCompilation.Create(
             assemblyName: "TestAssembly",
@@ -205,20 +226,39 @@ public static class CompilationTestHost
                 references.Add(MetadataReference.CreateFromFile(path));
         }
 
-        // BCL and shared-framework assemblies available to the host process
+        var runtimeAssemblyPath = typeof(BlazorCompose.ComposeComponentBase).Assembly.Location;
+
+        // BCL and shared-framework assemblies available to the host process.  The runtime is skipped here
+        // when it is not wanted: this test project references BlazorCompose.Runtime, so its own deps.json
+        // lists BlazorCompose.Runtime.dll as a runtime asset and the assembly is in TPA.  Without this
+        // filter the conditional Add below never excluded anything — the runtime came in through TPA either
+        // way, and an in-source shim only won by CS0436 source shadowing rather than by isolation.
         foreach (var path in ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
                      .Split(Path.PathSeparator))
         {
+            if (!includeRuntime && IsSameAssemblyFile(path, runtimeAssemblyPath))
+                continue;
+
             Add(path);
         }
 
         // BlazorCompose.Runtime (provides ComposeComponentBase, View, Html)
         if (includeRuntime)
-            Add(typeof(BlazorCompose.ComposeComponentBase).Assembly.Location);
+            Add(runtimeAssemblyPath);
 
         // Microsoft.AspNetCore.Components (provides ComponentBase, RenderTreeBuilder)
         Add(typeof(ComponentBase).Assembly.Location);
 
         return [.. references];
     }
+
+    /// <summary>
+    /// Whether two probe paths name the same assembly file.  Compared by file name rather than by full
+    /// path: TPA and <c>Assembly.Location</c> are the same string today, but they are produced by different
+    /// mechanisms (a build-time list versus the loaded assembly), and a filter that silently stops matching
+    /// would restore the isolation defect without failing anything.
+    /// </summary>
+    private static bool IsSameAssemblyFile(string path, string other) =>
+        string.Equals(
+            Path.GetFileName(path), Path.GetFileName(other), StringComparison.OrdinalIgnoreCase);
 }

@@ -94,6 +94,16 @@ internal static class ComposableDefinitionFactory
 
             if (SymbolEqualityComparer.Default.Equals(parameter.Type, viewType))
                 return "View parameters are unsupported";
+
+            // ElementBuilder is rejected symmetrically: a childless element is an ElementBuilder rather than
+            // a View, so accepting it would readmit exactly the case the View rejection exists for. Guarded
+            // on the type resolving, because it is absent from a runtime without the bracket surface and
+            // SymbolEqualityComparer.Default.Equals(x, null) answers true for a null x.
+            if (knownSymbols?.ElementBuilderType is { } elementBuilderType
+                && SymbolEqualityComparer.Default.Equals(parameter.Type, elementBuilderType))
+            {
+                return "ElementBuilder parameters are unsupported";
+            }
         }
 
         return null;

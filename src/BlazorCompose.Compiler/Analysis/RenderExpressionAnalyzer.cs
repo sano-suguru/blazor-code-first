@@ -62,14 +62,44 @@ internal static class RenderExpressionAnalyzer
             return new RenderFragmentContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
         }
 
-        if (expression is not InvocationExpressionSyntax invocation)
+        // Prefilter on syntax kind before asking for a symbol, so a literal, a field reference or a lambda
+        // does not each pay a semantic query on the way to returning null.
+        if (expression is not (InvocationExpressionSyntax or ElementAccessExpressionSyntax
+                or IdentifierNameSyntax or MemberAccessExpressionSyntax))
+        {
             return null;
+        }
 
-        if (context.SemanticModel
-            .GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol method)
-            return null;
-
+        var symbol = context.SemanticModel.GetSymbolInfo(expression, context.CancellationToken).Symbol;
         var symbols = context.KnownSymbols;
+
+        // Dispatch on the resolved symbol rather than the syntax kind. A childless element written under
+        // `using static` is an IdentifierNameSyntax and the qualified escape hatch (Html.Img) is a
+        // MemberAccessExpressionSyntax; both resolve to the same property, so one arm serves both spellings
+        // and neither can be dropped by matching syntax.
+        if (symbol is IPropertySymbol resolvedProperty)
+        {
+            if (!resolvedProperty.IsIndexer)
+            {
+                // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
+                // element are unavoidable and this is the one that carries no children.
+                return symbols.ElementTags.TryGetValue(
+                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag)
+                    ? new ElementTemplateNode(propertyTag)
+                    : null;
+            }
+
+            return expression is ElementAccessExpressionSyntax elementAccess
+                ? ClassifyIndexer(elementAccess, resolvedProperty, context)
+                : null;
+        }
+
+        // The method arm still requires an invocation. The early return this replaced also filtered method
+        // groups (Body => SomeMethodReturningRenderFragment), whose GetTypeInfo().Type is null so the
+        // RenderFragment arm above does not catch them either; without this condition such a group would
+        // reach the arms below and have arguments read off a call that was never written.
+        if (expression is not InvocationExpressionSyntax invocation || symbol is not IMethodSymbol method)
+            return null;
 
         static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
             known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
@@ -78,7 +108,7 @@ internal static class RenderExpressionAnalyzer
             string? tag = symbols.ElementTags.TryGetValue(KnownSymbols.Normalize(method), out var mapped)
                 ? mapped
                 : null;
-            bool isElement = Is(method, symbols.HtmlElement);
+            bool isElement = symbols.IsElementFactory(method);
 
             if (tag is not null || isElement)
             {
@@ -256,25 +286,14 @@ internal static class RenderExpressionAnalyzer
             if (childNodes is null)
                 return null;
 
-            var slots = EquatableArray<ComponentSlot>.Empty;
-            if (childNodes.Value.Length > 0)
+            if (!TryBuildChildContentSlot(
+                    childNodes.Value,
+                    method.TypeArguments[0],
+                    invocation.GetLocation(),
+                    context,
+                    out var slots))
             {
-                if (!HasUsableChildContent(method.TypeArguments[0], context))
-                {
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3013,
-                        invocation.GetLocation(),
-                        [method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
-                    return null;
-                }
-
-                // All children share the single ChildContent fragment; a Fragment node groups them
-                // without emitting a wrapper element, matching how Razor lowers multiple nested children.
-                RenderTemplateNode content = childNodes.Value.Length == 1
-                    ? childNodes.Value[0]
-                    : new FragmentTemplateNode(childNodes.Value);
-
-                slots = ImmutableArray.Create(new ComponentSlot(ChildContentParameterName, content));
+                return null;
             }
 
             return new ComponentTemplateNode(
@@ -538,6 +557,184 @@ internal static class RenderExpressionAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Classifies an element access whose resolved symbol is an indexer — children written in brackets —
+    /// returning <see langword="null"/> when the indexer is not one of the design-time surface's.
+    /// </summary>
+    /// <remarks>
+    /// Every comparison is guarded on the known symbol being present rather than made directly.
+    /// <c>ElementIndexer</c> and <c>ComponentIndexer</c> resolve to <see langword="null"/> against a runtime
+    /// without the bracket surface, and <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers
+    /// <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would classify any unrelated
+    /// indexer — <c>_dict["k"]</c> — as an element.
+    /// </remarks>
+    private static RenderTemplateNode? ClassifyIndexer(
+        ElementAccessExpressionSyntax elementAccess,
+        IPropertySymbol indexer,
+        ComposableBodyContext context)
+    {
+        var symbols = context.KnownSymbols;
+        var definition = indexer.OriginalDefinition;
+
+        if (symbols.ElementIndexer is { } elementIndexer
+            && SymbolEqualityComparer.Default.Equals(definition, elementIndexer))
+        {
+            return ClassifyElementIndexer(elementAccess, context);
+        }
+
+        if (symbols.ComponentIndexer is { } componentIndexer
+            && SymbolEqualityComparer.Default.Equals(definition, componentIndexer))
+        {
+            return ClassifyComponentIndexer(elementAccess, indexer, context);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Classifies <c>Div[…]</c> and <c>Div.Class("card")[…]</c>: the tag and any decorations come from the
+    /// element access's own receiver, the children from its bracketed arguments.
+    /// </summary>
+    /// <remarks>
+    /// No failure path here registers a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>
+    /// span, and none usefully could: that suppressor is matched as an exact <c>TextSpan</c>, and its only
+    /// reader — <c>UnresolvedValueTypeScanner</c> — always looks up an <c>InvocationExpressionSyntax</c>
+    /// span, so a rejection keyed on this element access could never be read.  Where suppression is
+    /// genuinely needed it is registered by a receiver that is an invocation: the decoration and
+    /// <c>.Param</c> arms reject their own spans.  The construct that looks like it needs one here does not
+    /// — <c>Element(nonConstant)["x"]</c> reports BC3009 and no BC3015 because the scanner's <c>Element</c>
+    /// arm never reports on the tag argument at all, whether or not the tag is constant.
+    /// </remarks>
+    private static ElementTemplateNode? ClassifyElementIndexer(
+        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    {
+        // The receiver carries the tag and the decoration chain, so it is classified by the same arms that
+        // handle the childless and decorated forms rather than by a second copy of their rules.
+        if (Analyze(elementAccess.Expression, context) is not ElementTemplateNode element)
+            return null;
+
+        // One whole collection passed to the params indexer (Div[arr]) is not a list of children; leave it
+        // unanalyzable so it lands on BC1003 instead of being mis-split.
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
+            return null;
+
+        var children = AnalyzeChildren(args.ParamsElements, context);
+        if (children is null)
+            return null;
+
+        return element with { Children = children.Value };
+    }
+
+    /// <summary>
+    /// Classifies <c>Component&lt;T&gt;()[…]</c> and <c>Component&lt;T&gt;().Param(…)[…]</c>: the target type
+    /// and any parameters come from the element access's own receiver, the child content from its bracketed
+    /// arguments.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The duplicate check here is not a mirror of the one in the <c>.Param</c> arm but the other half of it.
+    /// The indexer returns <c>View</c>, so <c>.Param</c> cannot follow the brackets and children are written
+    /// last; that reverses which <c>ChildContent</c> channel is filled first.  On the method surface children
+    /// were always syntactically first, so the params arm could set the slot unconditionally and the
+    /// duplicate was caught later by the <c>.Param</c> arm's own check.  With <c>.Param</c> first, this arm
+    /// has to perform the check or BC3007 goes silent.
+    /// </para>
+    /// <para>
+    /// The same property fixes the slot order: children cannot be followed by anything, so
+    /// <c>ChildContent</c> is invariably the last slot and appending is the only order this surface can
+    /// produce.  It is also the correct one — sequence numbers represent source syntax positions, so a slot
+    /// written last is numbered last.  A component with a fragment <c>.Param</c> beside children therefore
+    /// emits its slots in the opposite order to the method spelling, where children came first; both are
+    /// faithful to their own source.  <c>BracketSurfaceSlotOrderTests</c> pins it, because no corpus baseline
+    /// covers that combination.
+    /// </para>
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentIndexer(
+        ElementAccessExpressionSyntax elementAccess,
+        IPropertySymbol indexer,
+        ComposableBodyContext context)
+    {
+        if (Analyze(elementAccess.Expression, context) is not ComponentTemplateNode component)
+            return null;
+
+        // The node carries only the type's display name, so the symbol BC3013 and the ChildContent lookup
+        // need comes from the indexer's own containing type — ComponentView<T> for the T being configured.
+        if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
+            return null;
+
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasExplicitParamsArgument)
+            return null;
+
+        var children = AnalyzeChildren(args.ParamsElements, context);
+        if (children is null)
+            return null;
+
+        if (children.Value.Length > 0 && HasBinding(component, ChildContentParameterName))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BC3007,
+                elementAccess.ArgumentList.GetLocation(),
+                [ChildContentParameterName]));
+            return null;
+        }
+
+        if (!TryBuildChildContentSlot(
+                children.Value,
+                componentViewType.TypeArguments[0],
+                elementAccess.GetLocation(),
+                context,
+                out var slots))
+            return null;
+
+        // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
+        // slot on the receiver, and it is not a duplicate of this one. Appending is also the only order
+        // available — see the remarks on slot order.
+        var appended = component.Slots.AsImmutableArray().AddRange(slots.AsImmutableArray());
+        return new ComponentTemplateNode(component.TypeName, component.Parameters, appended);
+    }
+
+    /// <summary>
+    /// Builds the single <c>ChildContent</c> slot children are bound to, reporting BC3013 at
+    /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them.  Yields an
+    /// empty slot list — and succeeds — when there are no children.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the <c>Component&lt;T&gt;(children)</c> params overload and <c>ComponentView&lt;T&gt;</c>'s
+    /// indexer, which are the same channel spelled two ways.  #87 deletes the overload, at which point the
+    /// indexer becomes the only caller.
+    /// </remarks>
+    private static bool TryBuildChildContentSlot(
+        ImmutableArray<RenderTemplateNode> children,
+        ITypeSymbol componentType,
+        Location location,
+        ComposableBodyContext context,
+        out EquatableArray<ComponentSlot> slots)
+    {
+        slots = EquatableArray<ComponentSlot>.Empty;
+        if (children.Length == 0)
+            return true;
+
+        if (!HasUsableChildContent(componentType, context))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BC3013,
+                location,
+                [componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
+            return false;
+        }
+
+        // All children share the single ChildContent fragment; a Fragment node groups them without emitting
+        // a wrapper element, matching how Razor lowers multiple nested children.
+        RenderTemplateNode content = children.Length == 1
+            ? children[0]
+            : new FragmentTemplateNode(children);
+
+        // ImmutableArray.Create, not a collection expression: the target type is EquatableArray<ComponentSlot>
+        // so IDE0303 does not apply, and spelling it [x] does not compile.
+        slots = ImmutableArray.Create(new ComponentSlot(ChildContentParameterName, content));
+        return true;
     }
 
     private static bool Contains(IReadOnlyCollection<ISymbol> set, ISymbol symbol)
@@ -845,9 +1042,9 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c> or a
-    /// <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its value verbatim, so such a
-    /// value would bind the empty marker instead of content.
+    /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c>,
+    /// <c>ElementBuilder</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
+    /// value verbatim, so such a value would bind the empty marker instead of content.
     /// </summary>
     private static bool IsInertDesignTimeType(ITypeSymbol? type, ComposableBodyContext context)
     {
@@ -858,6 +1055,14 @@ internal static class RenderExpressionAnalyzer
 
         if (symbols.ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType))
             return true;
+
+        // A childless element is an ElementBuilder rather than a View, so without this arm
+        // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
+        if (symbols.ElementBuilderType is { } elementBuilderType
+            && SymbolEqualityComparer.Default.Equals(type, elementBuilderType))
+        {
+            return true;
+        }
 
         return symbols.ComponentViewType is { } componentViewType
             && type is INamedTypeSymbol named

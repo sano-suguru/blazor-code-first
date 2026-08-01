@@ -85,7 +85,42 @@ internal readonly struct FactoryArguments
         // TargetMethod is unreduced even for a fluent extension-method call, so parameter 0 is the
         // receiver. Skip it so callers index the parameters they actually wrote.
         var offset = method.IsExtensionMethod ? 1 : 0;
-        var declaredCount = method.Parameters.Length - offset;
+
+        return Bind(operation.Arguments, method.Parameters.Length, offset);
+    }
+
+    /// <summary>
+    /// Binds <paramref name="elementAccess"/>'s bracketed arguments, or returns <see langword="null"/> when
+    /// it has no property-reference operation or an argument cannot be attributed to a parameter.
+    /// </summary>
+    /// <remarks>
+    /// A <c>params ReadOnlySpan&lt;View&gt;</c> indexer is modelled exactly like a <c>params</c> method
+    /// parameter — <see cref="ArgumentKind.ParamCollection"/> carrying an
+    /// <see cref="ICollectionExpressionOperation"/> — and a <see cref="BracketedArgumentListSyntax"/>
+    /// contains <see cref="ArgumentSyntax"/> nodes, so the shared loop and its null-forgiving recovery both
+    /// apply unchanged.  An indexer can never be an extension method, so the receiver offset is always 0.
+    /// </remarks>
+    internal static FactoryArguments? Bind(
+        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    {
+        if (context.SemanticModel.GetOperation(elementAccess, context.CancellationToken)
+            is not IPropertyReferenceOperation operation)
+        {
+            return null;
+        }
+
+        return Bind(operation.Arguments, operation.Property.Parameters.Length, offset: 0);
+    }
+
+    /// <summary>
+    /// The binding itself, shared by the invocation and element-access overloads: an argument is attributed
+    /// to the declared parameter its <see cref="IArgumentOperation.Parameter"/> names, less
+    /// <paramref name="offset"/> for an extension method's receiver.
+    /// </summary>
+    private static FactoryArguments? Bind(
+        ImmutableArray<IArgumentOperation> arguments, int parameterCount, int offset)
+    {
+        var declaredCount = parameterCount - offset;
         if (declaredCount < 0)
             return null;
 
@@ -93,7 +128,7 @@ internal readonly struct FactoryArguments
         var paramsElements = ImmutableArray<ExpressionSyntax>.Empty;
         var hasExplicitParams = false;
 
-        foreach (var argument in operation.Arguments)
+        foreach (var argument in arguments)
         {
             if (argument.Parameter is not { } parameter)
                 return null;
