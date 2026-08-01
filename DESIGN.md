@@ -94,29 +94,28 @@ public partial class CounterPage : ComposeComponentBase
     private int _count;
 
     protected override View Body =>
-        Div(
-            Span($"Count: {_count}"),
-            Button("Increment").OnClick(() => _count++),
-            Button("Reset").OnClick(() => _count = 0)
-        )
-        .Class("bc-counter");
+        Div.Class("bc-counter")[
+            Span[$"Count: {_count}"],
+            Button.OnClick(() => _count++)["Increment"],
+            Button.OnClick(() => _count = 0)["Reset"]];
 }
 ```
 
-- ファクトリは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div(...)` のように**非修飾で呼び出す**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートしたファクトリ名が衝突する場合に限り、衝突する呼び出しだけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。`Nav` / `Header` / `Article` / `Section` のような短いタグ名ヘルパーを備えるため、ドメイン型やジェネリック引数との衝突可能性は広がりえます。
-- `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも任意タグ用の `Html.Element(string tag, ...)` の名前付き別名として実装され、同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBC3009で診断されます)。curatedヘルパーの集合は `Div` / `Span` / `Button` / `Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` です。この集合にない任意タグは `Element(tag, ...)` で表現します。
-- 要素は文字列と `View` を**混在**して子に取ります(`params ReadOnlySpan<View>`)。生の文字列引数は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` ファクトリは持ちません。テキストのみを明示的に囲みたい場合は `Span("...")` を使います。
-- 属性・イベントは要素本体への引数ではなく、**装飾チェーン**(postfix fluent)で与えます。名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`、値はいずれも `string`)が主要な書き方で、これ以外の属性は汎用 `.Attr(name, value)` で与えます。イベントは `.OnClick(Action)` / `.OnClick(Func<Task>)` に加え、汎用 `.On(fullEventName, Action)` / `.On(fullEventName, Func<Task>)` を持ちます。`.On` は `"onclick"` / `"onmouseenter"` のように**`on` プレフィックスを含むフルの属性名**を受け取り、暗黙のプレフィックス付与は行いません。`.Attr` の属性名と `.On` のイベント名はいずれもコンパイル時定数が必須で、非定数はBC3011で診断されます。`class` は唯一の畳み込み属性で、`.Class(string)`(または `.Attr("class", …)`)をチェーンで複数回指定すると単一の `class` 属性へ畳み込まれます。それ以外の属性・イベントはすべて単一バインディングで、同一属性/イベントの重複指定はBC3010で診断されます。`style` にショートカットはなく、外部CSSと `.Class` の併用を推奨します(明示的に `.Attr("style", …)` を書くことは可能です)。HTML自体の妥当性 — void要素(`Img` 等)が子を持てないこと、特定の属性が特定の要素にのみ許可されることなど、いわゆるcontent modelの検査は行いません。これはkotlinx.html流ではなくhiccup/ScalaTags流の型安全観(§4.1後段)どおりで、コンパイル時に検出されるのはC#レベルの名前・型の誤りに限られます。`Html.Fragment` と `Html.Raw` も備えます(下記)。将来にはフォーム関連ヘルパー、型付きイベント引数、`bool`/`object` 値属性、辞書から一括指定する `.Attrs(...)` 等の追加を検討していますが、現時点では未実装です。
-- Blazorの `RenderFragment?` はそのままコンテンツになります(`View` への暗黙変換)。専用のファクトリは不要で、`Div(fragment)` のように文字列や他の `View` と同じ位置に書けます。用途は主に2つです — `[Parameter] public RenderFragment? ChildContent` を持つコンポーネントがRazor側から渡された子孫を描画する場合と、レイアウト(後述)が `LayoutComponentBase.Body` を配置する場合です。変換は非ジェネリックの `RenderFragment` に限られ(`RenderFragment<T>` は変換されずCS1503)、`Fragment`/`Raw` と同様に単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008)。
+- ファクトリは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div[...]` のように**非修飾で書く**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートしたファクトリ名が衝突する場合に限り、衝突する箇所だけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。`Nav` / `Header` / `Article` / `Section` のような短いタグ名ヘルパーを備えるため、ドメイン型やジェネリック引数との衝突可能性は広がりえます。
+- `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも `ElementBuilder`(子をまだ与えていない要素)を返すプロパティです。任意タグ用の `Html.Element(string tag)` と同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBC3009で診断されます)。curatedヘルパーの集合は `Div` / `Span` / `Button` / `Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` の22個です。この集合にない任意タグは `Element(tag)[...]` で表現します。
+- 要素の子は、タグ(と装飾)に続く `[...]`(`ElementBuilder` のインデクサ、`params ReadOnlySpan<View>`)で与え、文字列と `View` を**混在**できます。生の文字列は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` ファクトリは持ちません。テキストのみを明示的に囲みたい場合は `Span["..."]` を使います。子を持たない要素は `[]` を省いてそのまま書けます(`ElementBuilder` から `View` への暗黙変換)。
+- 属性・イベントは子と並べるのではなく、タグ直後の**装飾チェーン**で与えます(`Div.Class("card")["text"]`)。名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`、値はいずれも `string`)が主要な書き方で、これ以外の属性は汎用 `.Attr(name, value)` で与えます。イベントは `.OnClick(Action)` / `.OnClick(Func<Task>)` に加え、汎用 `.On(fullEventName, Action)` / `.On(fullEventName, Func<Task>)` を持ちます。`.On` は `"onclick"` / `"onmouseenter"` のように**`on` プレフィックスを含むフルの属性名**を受け取り、暗黙のプレフィックス付与は行いません。`.Attr` の属性名と `.On` のイベント名はいずれもコンパイル時定数が必須で、非定数はBC3011で診断されます。`class` は唯一の畳み込み属性で、`.Class(string)`(または `.Attr("class", …)`)をチェーンで複数回指定すると単一の `class` 属性へ畳み込まれます。それ以外の属性・イベントはすべて単一バインディングで、同一属性/イベントの重複指定はBC3010で診断されます。`style` にショートカットはなく、外部CSSと `.Class` の併用を推奨します(明示的に `.Attr("style", …)` を書くことは可能です)。HTML自体の妥当性 — void要素(`Img` 等)が子を持てないこと、特定の属性が特定の要素にのみ許可されることなど、いわゆるcontent modelの検査は行いません。これはkotlinx.html流ではなくhiccup/ScalaTags流の型安全観(§4.1後段)どおりで、コンパイル時に検出されるのはC#レベルの名前・型の誤りに限られます。`Html.Fragment` と `Html.Raw` も備えます(下記)。将来にはフォーム関連ヘルパー、型付きイベント引数、`bool`/`object` 値属性、辞書から一括指定する `.Attrs(...)` 等の追加を検討していますが、現時点では未実装です。
+- Blazorの `RenderFragment?` はそのままコンテンツになります(`View` への暗黙変換)。専用のファクトリは不要で、`Div[fragment]` のように文字列や他の `View` と同じ位置に書けます。用途は主に2つです — `[Parameter] public RenderFragment? ChildContent` を持つコンポーネントがRazor側から渡された子孫を描画する場合と、レイアウト(後述)が `LayoutComponentBase.Body` を配置する場合です。変換は非ジェネリックの `RenderFragment` に限られ(`RenderFragment<T>` は変換されずCS1503)、`Fragment`/`Raw` と同様に単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008)。
 - `If` / `ForEach`(§4.2)・`Component<T>()`(§6.2)と同様、`Html.Fragment(params ReadOnlySpan<View> children)` と `Html.Raw(string rawHtml)` はいずれもHTML要素にマップしない構文です。`Fragment` はラッパー要素を持たないグルーピング(React `<>…</>` 相当)で、子は0個以上の文字列/`View` の混在を受け取ります。単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BC3003)、同じ理由で装飾もできません(BC3008)。`Raw` は信頼済みHTML文字列を `RenderTreeBuilder.AddMarkupContent` へ直接注入する構文で(`MarkupString` と同じ信頼境界)、**信頼済みコンテンツ専用**です — ユーザー入力や外部レスポンスなど非信頼な文字列を通すとXSSベクタになります。値は文字列リテラルでもフィールド/const参照でも構いません(配信経路に依存しない値スロットのため、`Html.Element` のタグ引数(BC3009)や `.Attr`/`.On` の名前引数(BC3011)のようなコンパイル時定数の制約はありません)。`Raw` も要素を開かないため非キー可能で、`ForEach` の `content` 根には使えず(BC3003)、装飾もできません(BC3008)。
-- 装飾チェーンがpostfix fluentである点は、同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)とは異なります。これは系譜への準拠を意図したものではなく、既存の `.Class` 機構の継続とC#のfluentイディオムを優先した意図的な選択です。
+- 属性を子より前に置くのは、HTMLがそう書くからです。本表層の原則は、HTMLの語彙をそのまま写し、**HTMLの上に覚え直しの語彙を一切載せない**ことにあります(後述の `VStack` / `.Padding()` 不採用、`Text()` の廃止、`style` ショートカットの不採用はいずれも同じ原則の帰結です)。HTMLでは属性はタグの内側にあって子より前に来るため、`Div.Class("card")["text"]` はその順序をC#の構文へ写したものです。属性を子の後ろへ置く形(子を与えた `Div[...]` に `.Class(...)` を後置するpostfix形式)は、この一点だけHTMLと違う形をつくり、作者に「BlazorComposeでは属性が後ろに来る」という、HTMLの知識に加えて保持しなければならない項目を課します。したがってこれは、fluentイディオムという好みが読みやすさという好みに負けた、という重み付けの結果ではありません。覚え直しを載せないという原則の適用であり、C#の書き味やfluentイディオムを理由に後置形へ戻すことはしません — 戻すには、本表層がHTMLミラーであるという原則自体を改訂する必要があります。同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)と一致するのはその帰結であって、系譜への準拠を目的としたものではありません。
+- ミラーはこれで完全になったわけではありません。残る破れは3点あり、いずれも属性の位置とは別の問題として残ります。(1) **casing**: `Div` は `<div>` と文字面で一致しません(本節末尾)。(2) **content model**: void要素が子を取れること、属性の適用可否など、HTML妥当性の検査は行いません(次項の型安全観)。(3) **curatedタグ集合**: 22個のタグだけがプロパティとして与えられ、それ以外は `Element("…")` を経由するという、HTMLには存在しない二分があります(#99で別途追跡)。属性の位置は、書き方の**形**としてHTML以外を覚えさせる最後の箇所であり、ここで解消されました。残る3点は形の覚え直しではなく、写像の粒度(casing・タグ集合)と検査範囲(content model)の限界です。
 - 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノード+文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、HTML妥当性レベル(void要素が子を持てない、属性が当該要素に適用可能か等)の検査は含みません。
-- `View` はすべてのファクトリ・装飾メソッドが返す軽量なマーカー型(空の `readonly struct`)です。式は通常のC#として型検査されますが、実行時に評価されることはなく、Source Generatorが式ツリーを直接レンダリングコードへ変換します。
+- 設計時表層の型はいずれも軽量なマーカー型(空の `readonly struct`)です。要素名は `ElementBuilder` を、`Component<T>()` は `ComponentView<T>` を返し、装飾は `ElementBuilder` を受けて `ElementBuilder` を返します。子を与えるインデクサ(`[...]`)とコンビネータが返すのが `View` で、`ElementBuilder` / `ComponentView<T>` はいずれも `View` へ暗黙変換されます。この型の並びが属性と子の順序を型システム上の要請にしており、逆順(`Div["text"].Class("card")`)は装飾の受け手が `View` になるため成立せず、BC3008で診断されます(`ARCHITECTURE.md` 付録A)。式は通常のC#として型検査されますが、実行時に評価されることはなく、Source Generatorが式ツリーを直接レンダリングコードへ変換します。
 - 状態(`_count`)への参照や補間文字列、イベントラムダは、生成コードへ構文ごと移植されます(同一partialクラス内のため、privateメンバーへのアクセスも保たれます)。
 - 値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBC3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
-- **casingの限界**: C#のメソッド名はPascalCase、HTMLタグ名は小文字であるため、`Div`(修飾形では `Html.Div`)は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
+- **casingの限界**: C#の識別子はPascalCase、HTMLタグ名は小文字であるため、`Div`(修飾形では `Html.Div`)は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
 
-かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorComposeにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div(...).Class("row")` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` を使えば `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、推奨は外部CSSと `.Class` の組み合わせであり、`style` に専用のショートカットは設けません。`Text()` ファクトリの廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#メソッドとして写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
+かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorComposeにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div.Class("row")[...]` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` を使えば `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、推奨は外部CSSと `.Class` の組み合わせであり、`style` に専用のショートカットは設けません。`Text()` ファクトリの廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#の式として写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
 
 ### 4.2 リストと条件分岐の表現
 
@@ -128,23 +127,20 @@ public partial class TaskListPage : ComposeComponentBase
     private readonly List<TaskItem> _items = [];
 
     protected override View Body =>
-        Div(
-            Span("Tasks"),
+        Div[
+            Span["Tasks"],
 
             If(_items.Count == 0,
-                then: () => Span("No tasks yet").Class("empty"),
+                then: () => Span.Class("empty")["No tasks yet"],
                 otherwise: () => ForEach(_items,
                     key: t => t.Id,
                     content: item =>
-                        Div(
-                            Span(item.Title)
-                        )
-                        .Class(item.Done ? "task done" : "task")
+                        Div.Class(item.Done ? "task done" : "task")[
+                            Span[item.Title]]
                 )
             ),
 
-            Button("Add Task").OnClick(AddItem)
-        );
+            Button.OnClick(AddItem)["Add Task"]];
 
     private void AddItem() => _items.Add(new TaskItem("New task"));
 }
@@ -160,17 +156,14 @@ UIの部分は `[Composable]` 属性を付与した静的メソッドに抽出�
 
 ```csharp
 protected override View Body =>
-    Div(
-        Header("My Application"),   // [Composable] メソッド — 静的展開の対象
-        BodyContent()
-    );
+    Div[
+        AppHeader("My Application"),   // [Composable] メソッド — 静的展開の対象
+        BodyContent()];
 
 [Composable]
-private static View Header(string title) =>
-    Div(
-        Span(title)
-    )
-    .Class("app-header");
+private static View AppHeader(string title) =>
+    Div.Class("app-header")[
+        Span[title]];
 ```
 
 `[Composable]` の付かないメソッドが `View` を返す場合、Source Generatorはその内部を解析できないため、当該メソッドは実行時に評価される動的コンテンツとして扱われます(戻り値の `View` に `RenderFragment` を内包させる形式。§5.3)。
@@ -226,7 +219,7 @@ public abstract class ComposeComponentBase : ComponentBase
 }
 ```
 
-`Body` は実行時に一度も呼び出されません。ファクトリ・装飾メソッドの実体はすべて `default(View)` を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
+`Body` は実行時に一度も呼び出されません。ファクトリ・装飾・子を与えるインデクサの実体はすべて既定値を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 ### 5.2 シーケンス番号の静的確定
 
@@ -278,8 +271,7 @@ public static partial class Widgets
 {
     [Composable]
     public static View StatusBadge(Status status) =>
-        Span(status.Label)
-            .Class(status.IsHealthy ? "badge badge-ok" : "badge badge-alert");
+        Span.Class(status.IsHealthy ? "badge badge-ok" : "badge badge-alert")[status.Label];
 }
 ```
 
@@ -291,26 +283,25 @@ public static partial class Widgets
 
 ```csharp
 protected override View Body =>
-    Div(
-        Span("Data Grid"),
+    Div[
+        Span["Data Grid"],
         Component<MudDataGrid<Order>>()
             .Param(g => g.Items, _orders)
-            .Param(g => g.Dense, true)
-    );
+            .Param(g => g.Dense, true)];
 ```
 
-子コンテンツは入れ子で与えます。`Component<T>(children)` は Razor が入れ子コンテンツを
+子コンテンツは要素と同じく `[...]` で与えます。`Component<T>()[children]` は Razor が入れ子コンテンツを
 `ChildContent` に束縛するのと同じ規則で、children を `ChildContent` パラメータへ渡します。
 `ChildContent` 以外の `RenderFragment` パラメータ(`Footer` 等)は `.Param(c => c.Footer, content)`
 で名前を指して束縛します。`ChildContent` を `.Param` で名指しすることもできます(Razor の属性形と同じ)。
 
 ```csharp
 protected override View Body =>
-    Component<Card>(
-            H2("見出し"),
-            P("本文"))
+    Component<Card>()
         .Param(c => c.Title, "タイトル")
-        .Param(c => c.Footer, Span("脚注"));
+        .Param(c => c.Footer, Span["脚注"])[
+            H2["見出し"],
+            P["本文"]];
 ```
 
 `T` が `ChildContent`(settable な `[Parameter]`、型は非ジェネリックの `RenderFragment`)を持たない場合は
@@ -365,7 +356,7 @@ C#によるコードファーストUIの試みは本ライブラリが最初で�
 
 ### 第1フェーズ: コアAPIとPoC
 
-コアAPIはHTMLミラー表層として実装します。常用タグの名前付きヘルパー(`Html.Div` / `Span` / `Button`)と任意タグ用の `Html.Element` を統一 `Element` ノードへ落とし、属性・イベントは装飾チェーン(`.Class` / `.OnClick`)で与えます(§4.1)。かつて本節が第1フェーズの語彙としていたSwiftUI/Compose風の `VStack` / `HStack` / `Grid` と型付き装飾(`.Padding()` / `.FontSize()` 等)は本方針により置き換えられ、新たな設計文書の改訂なしに復活しません。表層の内訳は、統合 `Element` ノード・mixed content・装飾チェーンの一般化を土台として、curatedタグ集合(`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img`)、名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`)、汎用 `.Attr` / `.On`、`Html.Fragment`(ラッパーレスなグルーピング)、`Html.Raw`(信頼済み生HTML注入)です。`class` は唯一の畳み込み属性で、それ以外の属性・イベントは単一バインディングです(重複はBC3010、非定数の名前はBC3011で診断)。フォーム関連ヘルパーや型付きイベント引数などの追加は次段階で検討します。レイアウトも `ComposeLayoutBase` によりコード化します。Blazorのレイアウトが要求する `Body` パラメータ(`LayoutComponentBase.Body`、型は `RenderFragment?`)は暗黙変換で `View` になるため、専用のファクトリなしに `Main(Body)` のようにそのまま要素の子として書けます。レイアウト自身が描く design-time 式は `Body` と名乗れない(Blazorが `Body` という名前を要求するため)ので `Chrome` と命名し、`Chrome` もコンポーネントの `Body` 同様に読み取り専用(state mutationはBC3001)です。Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインの実証は各マイルストーンを通じて継続します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
+コアAPIはHTMLミラー表層として実装します。常用タグの名前付きヘルパー(`Html.Div` / `Span` / `Button`)と任意タグ用の `Html.Element` を統一 `Element` ノードへ落とし、属性・イベントはタグ直後の装飾チェーン(`.Class` / `.OnClick`)で、子は続く `[...]` で与えます(§4.1)。かつて本節が第1フェーズの語彙としていたSwiftUI/Compose風の `VStack` / `HStack` / `Grid` と型付き装飾(`.Padding()` / `.FontSize()` 等)は本方針により置き換えられ、新たな設計文書の改訂なしに復活しません。表層の内訳は、統合 `Element` ノード・mixed content・装飾チェーンの一般化を土台として、curatedタグ集合(`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img`)、名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`)、汎用 `.Attr` / `.On`、`Html.Fragment`(ラッパーレスなグルーピング)、`Html.Raw`(信頼済み生HTML注入)です。`class` は唯一の畳み込み属性で、それ以外の属性・イベントは単一バインディングです(重複はBC3010、非定数の名前はBC3011で診断)。フォーム関連ヘルパーや型付きイベント引数などの追加は次段階で検討します。レイアウトも `ComposeLayoutBase` によりコード化します。Blazorのレイアウトが要求する `Body` パラメータ(`LayoutComponentBase.Body`、型は `RenderFragment?`)は暗黙変換で `View` になるため、専用のファクトリなしに `Main[Body]` のようにそのまま要素の子として書けます。レイアウト自身が描く design-time 式は `Body` と名乗れない(Blazorが `Body` という名前を要求するため)ので `Chrome` と命名し、`Chrome` もコンポーネントの `Body` 同様に読み取り専用(state mutationはBC3001)です。Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインの実証は各マイルストーンを通じて継続します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
 
 ### 第2フェーズ: 解析範囲の拡張と .NET 11 対応
 
