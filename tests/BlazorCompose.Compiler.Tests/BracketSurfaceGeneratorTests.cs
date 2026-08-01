@@ -114,4 +114,45 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.NotNull(symbols.HtmlComponent);
         Assert.Null(symbols.HtmlComponentWithChildren);
     }
+
+    /// <summary>
+    /// A surface whose members have the right names and shapes but the wrong declared types must not be
+    /// recognized.  This is the only test that exercises the type guards: the real shim declares everything
+    /// correctly, so it can only prove the positive side.
+    /// </summary>
+    [Fact]
+    public void MembersWithTheWrongDeclaredTypes_AreNotRecognized()
+    {
+        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(("Surface.cs", """
+            namespace BlazorCompose;
+
+            public readonly struct View { }
+
+            public readonly struct ElementBuilder
+            {
+                // A single params indexer, but over string rather than View: the shape matches and the
+                // channel does not, so reading its arguments as children would be wrong.
+                public View this[params System.ReadOnlySpan<string> items] => default;
+            }
+
+            public static class Html
+            {
+                // A curated name that is not an element factory.
+                public static int Div => 0;
+
+                // A curated name that is one.
+                public static ElementBuilder Span => default;
+            }
+            """));
+
+        var symbols = KnownSymbols.TryCreate(compilation);
+
+        Assert.NotNull(symbols);
+        Assert.Null(symbols!.ElementIndexer);
+
+        // Declared as a local, not spelled inline in the call: a collection expression has no target type
+        // in an Assert.Equal argument position. This is the pattern AssertRetiredIntoCS1929 already uses.
+        string[] expected = ["Span"];
+        Assert.Equal(expected, symbols.ElementTags.Keys.Select(static key => key.Name).ToList());
+    }
 }

@@ -197,8 +197,8 @@ internal sealed class KnownSymbols
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ComponentView`1");
         ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ElementBuilder");
-        ElementIndexer = FindChildrenIndexer(ElementBuilderType);
-        ComponentIndexer = FindChildrenIndexer(ComponentViewType);
+        ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType);
+        ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType);
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
@@ -261,11 +261,16 @@ internal sealed class KnownSymbols
         {
             // A curated helper is a method on the current surface and a property returning ElementBuilder on
             // the bracket surface. Both are matched so this map populates either way; #87 removes the method
-            // arm below once the properties ship.
+            // arm below once the properties ship. The return type is checked as well as the name: a property
+            // that merely shares a curated name is not an element factory.
             if (member is IPropertySymbol { IsIndexer: false } elementProperty)
             {
-                if (CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                if (ElementBuilderType is not null
+                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementBuilderType)
+                    && CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                {
                     elementTags[Normalize(elementProperty)] = propertyTag;
+                }
 
                 continue;
             }
@@ -301,19 +306,31 @@ internal sealed class KnownSymbols
     }
 
     /// <summary>
-    /// The single-<c>params</c>-parameter indexer declared on <paramref name="type"/>, which is how children
-    /// are written on the bracket surface, or <see langword="null"/> when the type is absent or declares no
-    /// such indexer.
+    /// The <c>params ReadOnlySpan&lt;View&gt;</c> indexer declared on <paramref name="type"/>, which is how
+    /// children are written on the bracket surface, or <see langword="null"/> when either type is absent or
+    /// no such indexer is declared.
     /// </summary>
-    private static IPropertySymbol? FindChildrenIndexer(INamedTypeSymbol? type)
+    /// <remarks>
+    /// The element type is checked, not just the <c>params</c> shape: an indexer over some other element
+    /// type is not the children channel, and matching it would read unrelated arguments as children.
+    /// </remarks>
+    private static IPropertySymbol? FindChildrenIndexer(
+        INamedTypeSymbol? type, INamedTypeSymbol? viewType)
     {
-        if (type is null)
+        if (type is null || viewType is null)
             return null;
 
         foreach (var member in type.GetMembers())
         {
-            if (member is IPropertySymbol { IsIndexer: true, Parameters.Length: 1 } indexer
-                && indexer.Parameters[0].IsParams)
+            if (member is not IPropertySymbol { IsIndexer: true, Parameters.Length: 1 } indexer
+                || !indexer.Parameters[0].IsParams)
+            {
+                continue;
+            }
+
+            if (indexer.Parameters[0].Type
+                    is INamedTypeSymbol { Name: "ReadOnlySpan", TypeArguments.Length: 1 } span
+                && SymbolEqualityComparer.Default.Equals(span.TypeArguments[0], viewType))
             {
                 return indexer;
             }
