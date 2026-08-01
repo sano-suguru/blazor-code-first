@@ -103,7 +103,7 @@ public sealed class RenderMutationAnalyzerTests
     /// <summary>
     /// Positive case for the Html.OnClick exemption (simple increment): the mutation's nearest
     /// enclosing lambda is the (reduced) sole argument of the Html-mirror
-    /// <c>View.OnClick(...)</c> extension call, so it must not report BC3001.
+    /// <c>ElementBuilder.OnClick(...)</c> extension call, so it must not report BC3001.
     /// </summary>
     private const string IncrementInHtmlOnClickHandlerSource = """
         using BlazorCompose;

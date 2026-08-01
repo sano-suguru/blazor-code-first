@@ -261,6 +261,34 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void NonElementDecorationValue_UnresolvedType_RemainsBC1003Only()
+    {
+        // Decorations now bind ElementBuilder, not View (Decorations.cs), so decorating Raw(...)'s
+        // View result is CS1929 rather than the BC3008 this used to be owned by. The report site moved,
+        // but the claim did not: an unresolved type inside a rejected decoration's value must not ALSO
+        // draw a BC3015 — the value sweep must not descend into a decoration that was already rejected.
+        const string source = """
+            using System;
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            namespace T;
+
+            public partial class Host : ComposeComponentBase
+            {
+                protected override View Body =>
+                    Raw("<b>x</b>").Class(typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+    }
+
+    [Fact]
     public void ReorderedAttrWithInvalidName_DoesNotReportValueTypeBC3015()
     {
         const string source = """
