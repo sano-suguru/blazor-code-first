@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace BlazorCompose.Compiler.Tests;
 
 // #36: the analyzer read factory arguments by syntactic position, so named arguments written out of
@@ -286,5 +288,93 @@ public sealed class FactoryArgumentBindingTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("NullText!", generated);
+    }
+
+    [Fact]
+    public void Element_CollectionExpressionLiteralChildren_GeneratesSameSourceAsExpanded()
+    {
+        // #75: a collection expression in the non-expanded position binds the literal to the params
+        // indexer as one whole collection rather than two children. Under the params-collections rules
+        // it is the same call as the expanded spelling and passes the same span, so it must emit the
+        // same code.
+        var literal = GenerateBody("""Div[[Span["a"], Span["b"]]]""");
+        var expanded = GenerateBody("""Div[Span["a"], Span["b"]]""");
+
+        Assert.Equal(expanded, literal);
+
+        // Equality alone would also hold for two childless divs, so pin that the children are really
+        // there: two spans, each with its own text at its own sequence number.
+        Assert.Equal(2, Regex.Count(literal, """OpenElement\(\d+, "span"\)"""));
+        Assert.Contains("""AddContent(2, "a")""", literal);
+        Assert.Contains("""AddContent(4, "b")""", literal);
+    }
+
+    [Fact]
+    public void Element_NamedCollectionExpressionLiteralChildren_GeneratesSameSourceAsPositional()
+    {
+        // The named spelling is this file's own subject (#36), and #75 makes a new combination legal:
+        // a literal passed by parameter name. It binds through the same params slot, so it must mean the
+        // same thing — pinned here so a future change that keys the literal on argument position rather
+        // than on the bound parameter cannot pass silently.
+        var named = GenerateBody("""Div[children: ["a", "b"]]""");
+        var positional = GenerateBody("""Div["a", "b"]""");
+
+        Assert.Equal(positional, named);
+        Assert.Contains("""AddContent(1, "a")""", named);
+        Assert.Contains("""AddContent(2, "b")""", named);
+    }
+
+    [Fact]
+    public void Element_EmptyCollectionExpressionLiteral_GeneratesAChildlessElement()
+    {
+        // `Div[[]]` passes an empty span, which is the same call as writing no children at all.
+        var literal = GenerateBody("""Div[[]]""");
+        var childless = GenerateBody("""Div""");
+
+        Assert.Equal(childless, literal);
+    }
+
+    [Fact]
+    public void Element_NullForgivingChildInALiteral_PreservesTheSuppressionInGeneratedSource()
+    {
+        // The nested counterpart of Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource:
+        // Roslyn elides a bare null-forgiving suppression from the operation tree, so the element's
+        // Syntax points at the inner operand. Recovery has to climb to the written expression — and in
+        // a literal that container is an ExpressionElementSyntax, not an ArgumentSyntax.
+        var literal = GenerateNullForgivingBody("""Div[[NullText!, "b"]]""");
+        var expanded = GenerateNullForgivingBody("""Div[NullText!, "b"]""");
+
+        Assert.Contains("NullText!", literal);
+
+        // Two elements, so a recovery rule that resolved every element to the whole outer argument would
+        // emit the literal twice instead of one child each — which equality against the expanded
+        // spelling catches, and the per-child assertions then name.
+        Assert.Equal(expanded, literal);
+        Assert.Contains("""AddContent(1, global::Counter.NullText!)""", literal);
+        Assert.Contains("""AddContent(2, "b")""", literal);
+    }
+
+    /// <summary>
+    /// As <see cref="GenerateBody"/>, for the bodies that need a nullable member to suppress.  Kept
+    /// separate rather than folded into that host: adding a member there would move every existing
+    /// baseline in this file.
+    /// </summary>
+    private static string GenerateNullForgivingBody(string bodyExpression)
+    {
+        var source = $$"""
+            using BlazorCompose;
+            using static BlazorCompose.Html;
+
+            public partial class Counter : ComposeComponentBase
+            {
+                private static string? NullText => null;
+
+                protected override View Body => {{bodyExpression}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        CompilationTestHost.AssertOutputCompiles(result);
+        return Assert.Single(result.GeneratedSources).SourceText.ToString();
     }
 }

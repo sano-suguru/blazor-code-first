@@ -222,15 +222,67 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void CollectionExpressionLiteralInBrackets_ReportsBC1003()
+    public void CollectionExpressionLiteralInBrackets_IsAcceptedAsChildren()
     {
-        // A nested collection-expression literal also binds non-expanded, so it is one whole collection
-        // rather than two children. Brackets make the typo easier to write than the method form did; the
-        // current behaviour is pinned here, not endorsed.
+        // Pinned as BC1003 by #100 — "the current behaviour is pinned here, not endorsed" — and changed
+        // deliberately by #75: the literal is the same call as Div["a", "b"] and its children are
+        // present in the operation tree, so refusing it was the one shape where BC1003's own claim of
+        // "not statically analyzable" did not hold. Equivalence with the expanded spelling is asserted
+        // as generated-source equality in FactoryArgumentBindingTests.
         var result = RunResult("""Div[["a", "b"]]""");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void SpreadInsideACollectionExpressionLiteral_ReportsBC1003()
+    {
+        // A spread's items are a runtime collection with no per-child written expression, so they are
+        // not statically sequenceable children — that is what ForEach is for. This is the same boundary
+        // Div[_children] sits on, and #75 does not move it.
+        var result = RunResult("""Div[[.._children]]""", """private readonly View[] _children = [];""");
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
         AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void SpreadBesideALiteralChild_ReportsBC1003()
+    {
+        // The only shape that depends on child recovery being all-or-nothing. If recovery ever degrades
+        // to skipping the elements it cannot resolve, the pure-spread test above keeps passing while
+        // this one silently emits a div with one child instead of reporting anything.
+        var result = RunResult("""Div[["a", .._children]]""", """private readonly View[] _children = [];""");
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void WrittenArrayCreationInBrackets_ReportsBC1003()
+    {
+        // #75 accepts the collection-expression literal only. An explicitly written array creation is a
+        // different shape: its elements' nearest container is the whole argument, so the recovery rule
+        // cannot attribute them to individual children and every child would come out as the entire
+        // array expression. It stays where it was.
+        var result = RunResult("""Div[new View[] { Span["a"] }]""");
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void UnresolvedValueType_InsideACollectionExpressionLiteralChild_ReportsBC3015()
+    {
+        // The failure-path sweep skips children whenever the params argument is unanalyzable
+        // (UnresolvedValueTypeScanner.ScanChildren), so before #75 a nested literal hid everything
+        // inside it: the body reported only BC1003 and the author never learned which name could not be
+        // moved into generated code. Modelled on UnresolvedValueType_InsideABracketedChild_ReportsBC3015,
+        // one bracket pair deeper.
+        var diagnostics = Run("""Div[[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
     }
 
     // ---------------------------------------------------------------------------
