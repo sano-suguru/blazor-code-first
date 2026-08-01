@@ -185,10 +185,21 @@ internal static class UnresolvedValueTypeScanner
     /// right, and the bracketed arguments are the children.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Nothing here is gated on <see cref="ComposableBodyContext.ShouldRecoverUnresolvedValue"/>.  That gate
     /// exists so an arm does not re-report a value it already diagnosed, and this route has no value of its
     /// own: the tag belongs to the receiver, which carries its own gate.  Gating the children on it would
     /// silence expressions the rejection was never about.
+    /// </para>
+    /// <para>
+    /// The children are scanned unconditionally, unlike the method-surface <c>Element</c> arm, which
+    /// recurses only when the tag is a non-empty constant string.  <c>Element(nonConstant)[child]</c>
+    /// therefore reports BC3009 for the tag and also BC3015 for an unresolvable value inside the child,
+    /// where the method form reports BC3009 alone.  The second report is spurious — BC3009 has already
+    /// rejected the element, so the child never reaches generated code — but it is a diagnostic asymmetry on
+    /// already-broken code, recorded here rather than fixed, because gating this route would restate the tag
+    /// rule the receiver arm already owns.  #87 should settle it once the method arm is deleted.
+    /// </para>
     /// </remarks>
     private static void ScanChildrenIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
