@@ -60,6 +60,18 @@ public sealed class BracketSurfaceDiagnosticTests
     private static GeneratorRunResult RunResult(string body, string members = "") =>
         CompilationTestHost.RunGenerator(HostFiles(body, members));
 
+    /// <summary>
+    /// The generated source for <paramref name="body"/>, for the cases asserted as source equality.
+    /// Only the Compose host produces output — <c>Card</c> and <c>Plain</c> are ordinary
+    /// <c>ComponentBase</c> classes — so a single generated source is the expected shape.
+    /// </summary>
+    private static string GenerateSource(string body)
+    {
+        var result = RunResult(body);
+        CompilationTestHost.AssertOutputCompiles(result);
+        return Assert.Single(result.GeneratedSources).SourceText.ToString();
+    }
+
     private static (string Path, string Source)[] HostFiles(string body, string members) =>
         [
             ("Host.cs", $$"""
@@ -270,6 +282,31 @@ public sealed class BracketSurfaceDiagnosticTests
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
         AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void Fragment_CollectionExpressionLiteralChildren_GeneratesSameSourceAsExpanded()
+    {
+        // Html.Fragment is the third params ReadOnlySpan<View> surface and reads the gate at
+        // RenderExpressionAnalyzer.cs:272. One shared fix has to reach it. Wrapped in a Div because
+        // Fragment opens no element frame, which keeps this about children rather than root shape.
+        var literal = GenerateSource("""Div[Fragment(["a", "b"])]""");
+        var expanded = GenerateSource("""Div[Fragment("a", "b")]""");
+
+        Assert.Equal(expanded, literal);
+        Assert.Contains("""AddContent(1, "a")""", literal);
+        Assert.Contains("""AddContent(2, "b")""", literal);
+    }
+
+    [Fact]
+    public void ComponentIndexer_CollectionExpressionLiteralChildren_GeneratesSameSourceAsExpanded()
+    {
+        // The component indexer reads the same gate at RenderExpressionAnalyzer.cs:620.
+        var literal = GenerateSource("""Component<Card>()[["a", "b"]]""");
+        var expanded = GenerateSource("""Component<Card>()["a", "b"]""");
+
+        Assert.Equal(expanded, literal);
+        Assert.Contains("AddContent", literal);
     }
 
     [Fact]
