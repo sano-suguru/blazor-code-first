@@ -264,6 +264,51 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
+    /// An unrelated extension method that fails to bind is not BC3008, whichever half of the shape it
+    /// shares.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The first call borrows the name: someone else's <c>.Class</c>, on a receiver of their own.  The
+    /// second borrows the receiver: a method on <em>our</em> <c>View</c> that returns something other than
+    /// an <c>ElementBuilder</c>.  Neither is a misplaced decoration, and reporting one as such would send
+    /// the author to rewrite an expression that has a different problem.  This is what makes the match
+    /// symbol identity rather than spelling: <c>Class</c>, <c>Id</c> and <c>Title</c> are ordinary names,
+    /// and only <em>our</em> <c>ElementBuilder</c> reached from <em>our</em> <c>View</c> is this diagnostic.
+    /// </para>
+    /// <para>
+    /// The whole collection in brackets is what makes the body untranslatable, and it is load-bearing: the
+    /// scanner runs only when translation failed, so without it neither call would be swept at all and the
+    /// test would pass on a path it never took.  Both failed calls recover to <c>string</c>, which converts
+    /// to <c>View</c>, so on their own they translate.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("""Div[_children, Other.Make().Class(1)]""")]
+    [InlineData("""Div[_children, Fragment("a").Describe("x")]""")]
+    public void UnrelatedFailedExtension_IsNotBC3008(string body)
+    {
+        var result = BracketSurfaceShim.RunGeneratorWithExpectedErrors(
+        [
+            .. HostFiles(body, """private readonly View[] _children = [];"""),
+            ("Other.cs", """
+                using BlazorCompose;
+                namespace T;
+                public static class Other
+                {
+                    public sealed class Box;
+                    public static Box Make() => new();
+                    public static string Class(this Box box, string value) => value;
+                    public static string Describe(this View view, int value) => value.ToString();
+                }
+                """),
+        ]);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3008");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+    }
+
+    /// <summary>
     /// The <c>Host.cs</c> source text <paramref name="diagnostic"/> is located on, which is its report anchor.
     /// </summary>
     /// <remarks>
