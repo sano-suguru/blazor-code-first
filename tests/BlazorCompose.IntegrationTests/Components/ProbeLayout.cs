@@ -16,8 +16,7 @@ public partial class ProbeLayout : ComposeLayoutBase
     public string Label { get; set; } = "";
 
     protected override View Chrome =>
-        Div(
-            Header(Span(Label).Class("label"), Span(Theme ?? "no-theme").Class("theme")),
-            Main(Body).Class("page"))
-        .Class("shell");
+        Div.Class("shell")[
+            Header[Span.Class("label")[Label], Span.Class("theme")[Theme ?? "no-theme"]],
+            Main.Class("page")[Body]];
 }

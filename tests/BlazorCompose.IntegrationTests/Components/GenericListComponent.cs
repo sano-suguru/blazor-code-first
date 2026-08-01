@@ -17,5 +17,5 @@ public partial class GenericListComponent<TItem> : ComposeComponentBase
     public IReadOnlyList<TItem> Items { get; set; } = [];
 
     protected override View Body =>
-        Ul(ForEach(Items, item => item, item => Li(item.ToString()!)));
+        Ul[ForEach(Items, item => item, item => Li[item.ToString()!])];
 }

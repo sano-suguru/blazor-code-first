@@ -9,16 +9,16 @@ namespace BlazorCompose.IntegrationTests.Components;
 // ComposeLayoutRenderingTests can pin the inheritance behaviour BC1001 protects.
 public abstract partial class ShellProbeBase : ComposeLayoutBase
 {
-    protected override View Chrome => Div(Span("base").Class("base-chrome"), Main(Body));
+    protected override View Chrome => Div[Span.Class("base-chrome")["base"], Main[Body]];
 }
 
 public partial class DerivedShellProbe : ShellProbeBase
 {
-    protected override View Chrome => Div(Span("derived").Class("derived-chrome"), Main(Body));
+    protected override View Chrome => Div[Span.Class("derived-chrome")["derived"], Main[Body]];
 }
 
 [Layout(typeof(DerivedShellProbe))]
 public partial class DerivedShellProbePage : ComposeComponentBase
 {
-    protected override View Body => P("page").Class("derived-page-content");
+    protected override View Body => P.Class("derived-page-content")["page"];
 }

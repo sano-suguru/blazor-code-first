@@ -8,9 +8,8 @@ public partial class ClassDecoratedComponent : ComposeComponentBase
     private readonly bool _active = true;
 
     protected override View Body =>
-        Div(
-            Span("Hi").Class("badge"),
-            Span("Multi").Class("a").Class("b"),
-            Span("Dyn").Class(_active ? "on" : "off"))
-        .Class("panel");
+        Div.Class("panel")[
+            Span.Class("badge")["Hi"],
+            Span.Class("a").Class("b")["Multi"],
+            Span.Class(_active ? "on" : "off")["Dyn"]];
 }

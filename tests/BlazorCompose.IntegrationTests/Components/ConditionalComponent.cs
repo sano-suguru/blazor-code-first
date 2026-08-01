@@ -8,8 +8,8 @@ public partial class ConditionalComponent : ComposeComponentBase
     private bool _showPrefix = true;
 
     protected override View Body =>
-        Div(
-            If(_showPrefix, () => Span("Prefix")),
-            Span("Always"),
-            Button("Toggle").OnClick(() => _showPrefix = !_showPrefix));
+        Div[
+            If(_showPrefix, () => Span["Prefix"]),
+            Span["Always"],
+            Button.OnClick(() => _showPrefix = !_showPrefix)["Toggle"]];
 }

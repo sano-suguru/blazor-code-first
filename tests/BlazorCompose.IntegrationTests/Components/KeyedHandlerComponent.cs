@@ -10,9 +10,9 @@ public partial class KeyedHandlerComponent : ComposeComponentBase
     private readonly List<Step> _steps = [new(1, 1), new(2, 5), new(3, 10)];
 
     protected override View Body =>
-        Div(
-            Span($"Total: {_total}"),
-            ForEach(_steps, key: s => s.Id, content: s => Button($"+{s.Amount}").OnClick(() => _total += s.Amount)));
+        Div[
+            Span[$"Total: {_total}"],
+            ForEach(_steps, key: s => s.Id, content: s => Button.OnClick(() => _total += s.Amount)[$"+{s.Amount}"])];
 
     private sealed record Step(int Id, int Amount);
 }

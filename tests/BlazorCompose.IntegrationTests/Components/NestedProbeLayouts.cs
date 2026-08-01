@@ -10,17 +10,17 @@ namespace BlazorCompose.IntegrationTests.Components;
 // checked during the #33 review but never exercised.
 public partial class OuterProbeLayout : ComposeLayoutBase
 {
-    protected override View Chrome => Div(Main(Body).Class("outer-slot")).Class("outer");
+    protected override View Chrome => Div.Class("outer")[Main.Class("outer-slot")[Body]];
 }
 
 [Layout(typeof(OuterProbeLayout))]
 public partial class InnerProbeLayout : ComposeLayoutBase
 {
-    protected override View Chrome => Div(Main(Body).Class("inner-slot")).Class("inner");
+    protected override View Chrome => Div.Class("inner")[Main.Class("inner-slot")[Body]];
 }
 
 [Layout(typeof(InnerProbeLayout))]
 public partial class NestedLayoutProbePage : ComposeComponentBase
 {
-    protected override View Body => P("nested page content").Class("nested-page-content");
+    protected override View Body => P.Class("nested-page-content")["nested page content"];
 }

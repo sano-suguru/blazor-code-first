@@ -17,10 +17,10 @@ public partial class ToggleableFragmentShellComponent : ComposeComponentBase
     private bool _show = true;
 
     protected override View Body =>
-        Div(
+        Div[
             _show ? Slot : null,
             Component<StatefulRowComponent>().Param(r => r.Label, "sibling"),
-            Button("Toggle").OnClick(Toggle));
+            Button.OnClick(Toggle)["Toggle"]];
 
     private void Toggle() => _show = !_show;
 }

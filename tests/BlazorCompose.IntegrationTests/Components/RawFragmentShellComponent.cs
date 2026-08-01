@@ -11,9 +11,9 @@ public partial class RawFragmentShellComponent : ComposeComponentBase
     private const string RenderedMarkdown = "<p>Hello <em>world</em></p>";
 
     protected override View Body =>
-        Html.Div(
-            Html.Nav(Html.A("Home").Href("/")),
-            Html.Header(Html.H1("Docs")),
-            Html.Main(Html.Raw(RenderedMarkdown)),
-            Html.Fragment(Html.H2("Section"), Html.P("Body")));
+        Html.Div[
+            Html.Nav[Html.A.Href("/")["Home"]],
+            Html.Header[Html.H1["Docs"]],
+            Html.Main[Html.Raw(RenderedMarkdown)],
+            Html.Fragment(Html.H2["Section"], Html.P["Body"])];
 }
