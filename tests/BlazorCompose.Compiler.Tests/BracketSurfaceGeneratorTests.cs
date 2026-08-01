@@ -7,8 +7,9 @@ namespace BlazorCompose.Compiler.Tests;
 /// <summary>
 /// Shape-level coverage of the bracket surface: that the compiler recognizes an element written as a
 /// property reference or an element access at all.  The proof that it produces the <em>same</em> code as the
-/// method surface is <see cref="BracketSurfaceBaselineTests"/>; these tests exist to localize a failure to
-/// the dispatch head before a whole-file comparison is consulted.
+/// method surface that preceded it is <see cref="SnapshotCorpusTests"/>, whose baselines were captured before
+/// the migration; these tests exist to localize a failure to the dispatch head before a whole-file comparison
+/// is consulted.
 /// </summary>
 public sealed class BracketSurfaceGeneratorTests
 {
@@ -32,7 +33,7 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void ElementWithChildren_WrittenAsAnElementAccess_OpensTheElement()
     {
-        var result = BracketSurfaceShim.RunGenerator(Host("""Div["a"]"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Div["a"]"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
@@ -43,7 +44,7 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void ChildlessElement_WrittenAsABarePropertyReference_OpensTheElement()
     {
-        var result = BracketSurfaceShim.RunGenerator(Host("""Img"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Img"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"img\")", generated);
@@ -55,7 +56,7 @@ public sealed class BracketSurfaceGeneratorTests
     {
         // The qualified escape hatch is a MemberAccessExpressionSyntax rather than the IdentifierNameSyntax
         // the unqualified form produces. Dispatching on the resolved symbol is what makes one arm serve both.
-        var result = BracketSurfaceShim.RunGenerator(Host("""Html.Img"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Html.Img"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"img\")", generated);
@@ -65,7 +66,7 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void DecoratedElementWithChildren_FoldsTheDecorationIntoTheElement()
     {
-        var result = BracketSurfaceShim.RunGenerator(Host("""Div.Class("card")["a"]"""));
+        var result = CompilationTestHost.RunGenerator(Host("""Div.Class("card")["a"]"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
@@ -77,11 +78,10 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void CuratedTags_ResolveFromPropertiesOnTheBracketSurface()
     {
-        // Runs against the shim rather than the shipped runtime, which KnownSymbolsSyncTests already covers.
-        // Kept separate only until the shim goes: this pins that the property arm reads a surface the
-        // compiler has never seen the source of.
-        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(
-            ("Empty.cs", ""), BracketSurfaceShim.ShimFile);
+        // KnownSymbolsSyncTests pins which names the table holds; this pins the member *kind* every key has.
+        // Nothing there would fail if a curated tag resolved to a method or to an indexer, and the dispatch
+        // head reads the table through the property arm alone.
+        var compilation = CompilationTestHost.CreateCompilation("");
 
         var symbols = KnownSymbols.TryCreate(compilation);
 
@@ -89,6 +89,20 @@ public sealed class BracketSurfaceGeneratorTests
         Assert.Equal(KnownSymbolsSyncTests.CuratedTagCount, symbols!.ElementTags.Count);
         Assert.DoesNotContain(symbols.ElementTags.Keys, static key => key is IPropertySymbol { IsIndexer: true });
         Assert.All(symbols.ElementTags.Keys, static key => Assert.IsAssignableFrom<IPropertySymbol>(key));
+    }
+
+    [Fact]
+    public void ChildlessElement_AsAChildOfAnotherElement_OpensBothElements()
+    {
+        // element-childless covers a bare property reference at the body root only. As a child it converts
+        // to View through the implicit operator inside a collection expression, which is a different
+        // binding.
+        var result = CompilationTestHost.RunGenerator(Host("""Div[Img]"""));
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
+        Assert.Contains("__builder.OpenElement(1, \"img\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     /// <summary>

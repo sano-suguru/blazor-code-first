@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using BlazorCompose.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
@@ -58,6 +59,72 @@ public sealed class KnownSymbolsSyncTests
         Assert.Contains("onclick", symbols.EventShortcuts.Values);
         Assert.NotEmpty(symbols.AttrMethods);
         Assert.NotEmpty(symbols.OnMethods);
+    }
+
+    /// <summary>
+    /// Every decoration <c>Decorations</c> declares is a name <c>DeclaresDecorationNamed</c> answers to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>RejectedDecorationScanner</c> decides whether a failed call is a misplaced decoration partly by
+    /// that name test, and the set behind it is a function of what the constructor's member switch
+    /// <em>captures</em> — not of what <c>Decorations</c> <em>declares</em>.  A runtime that added, say, a
+    /// <c>.Style(…)</c> shortcut without also adding it to <c>AttributeShortcutNames</c> would leave it out
+    /// of the set, and a misplaced <c>.Style(…)</c> would be reported as BC1003 — "not statically
+    /// analyzable" — instead of BC3008.  That fails in the safe direction, which is exactly why nothing else
+    /// would notice.
+    /// </para>
+    /// <para>
+    /// Name by name rather than by count alone: the failure mode is one <em>specific</em> name going
+    /// missing, and a count would also be satisfied by a swap.  The count is asserted as well, for the same
+    /// reason <see cref="CuratedTagCount"/> is — the loop only visits the decorations that exist, so on its
+    /// own it would pass a runtime that had dropped one.  The converse direction needs no assertion: every
+    /// name in the set is read off a symbol resolved out of <c>Decorations</c>, so the set cannot hold a name
+    /// that type does not declare.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DecorationNames_CoverEveryDecorationTheRuntimeDeclares()
+    {
+        var (symbols, _) = ResolveHtml();
+        var declared = DeclaredDecorationNames();
+
+        foreach (var name in declared)
+        {
+            Assert.True(
+                symbols.DeclaresDecorationNamed(name),
+                $"Decorations declares '{name}', but KnownSymbols does not capture it, so a misplaced " +
+                $".{name}(…) falls through to BC1003 instead of BC3008.");
+        }
+
+        Assert.Equal(DecorationNameCount, declared.Count);
+    }
+
+    /// <summary>The number of distinct decoration names <c>BlazorCompose.Decorations</c> declares.</summary>
+    private const int DecorationNameCount = 11;
+
+    /// <summary>
+    /// The distinct names of the public static extension methods <c>BlazorCompose.Decorations</c> declares,
+    /// in a stable order so a failure names the same decoration every run.
+    /// </summary>
+    private static List<string> DeclaredDecorationNames()
+    {
+        var compilation = CompilationTestHost.CreateCompilation("");
+        var decorations = compilation.GetTypeByMetadataName("BlazorCompose.Decorations");
+        Assert.NotNull(decorations);
+
+        var names = decorations!.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(static method =>
+                method is { IsExtensionMethod: true, IsStatic: true, DeclaredAccessibility: Accessibility.Public })
+            .Select(static method => method.Name)
+            .Distinct(System.StringComparer.Ordinal)
+            .OrderBy(static name => name, System.StringComparer.Ordinal)
+            .ToList();
+
+        // A resolution failure would otherwise make the whole guard vacuous rather than red.
+        Assert.NotEmpty(names);
+        return names;
     }
 
     [Fact]

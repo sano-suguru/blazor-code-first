@@ -36,12 +36,20 @@ public sealed class BracketSurfaceDiagnosticTests
         }
         """;
 
+    /// <summary>Runs the generator over <paramref name="body"/> and returns its diagnostics.</summary>
+    /// <remarks>
+    /// Bodies that are deliberately not valid C# need no separate entry point.  They did while these tests
+    /// ran against an in-source shim, whose own health had to be asserted before an input error could be
+    /// tolerated; against the shipped runtime the compilation is built the ordinary way, and an input error
+    /// is just an input error.  Nothing here can pass vacuously as a result: every test below either asserts
+    /// a diagnostic is present, or — for the two accepted shapes — asserts the generated output compiles.
+    /// </remarks>
     private static ImmutableArray<Diagnostic> Run(string body, string members = "") =>
-        BracketSurfaceShim.RunGenerator(HostFiles(body, members)).Diagnostics;
+        RunResult(body, members).Diagnostics;
 
-    /// <summary>As <see cref="Run"/>, for a body that is deliberately not valid C#.</summary>
-    private static ImmutableArray<Diagnostic> RunWithExpectedErrors(string body, string members = "") =>
-        BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, members)).Diagnostics;
+    /// <summary>As <see cref="Run"/>, for the tests that need the output compilation as well.</summary>
+    private static GeneratorRunResult RunResult(string body, string members = "") =>
+        CompilationTestHost.RunGenerator(HostFiles(body, members));
 
     private static (string Path, string Source)[] HostFiles(string body, string members) =>
         [
@@ -73,9 +81,13 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void ComponentIndexer_TargetWithChildContent_IsAccepted()
     {
-        var diagnostics = Run("""Component<Card>()["x"]""");
+        // The output compilation is asserted as well as the diagnostics: "no error was reported" is a claim
+        // that would hold just as well if the body had never been analyzed at all, so on its own this test
+        // could pass on an input that does not compile. The shim's own gate used to rule that out.
+        var result = RunResult("""Component<Card>()["x"]""");
 
-        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
@@ -104,15 +116,16 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // A different slot is not a duplicate: the indexer arm must append to the existing slots, not
         // reject them or replace them.
-        var diagnostics = Run("""Component<Card>().Param(c => c.Footer, Div["f"])["x"]""");
+        var result = RunResult("""Component<Card>().Param(c => c.Footer, Div["f"])["x"]""");
 
-        Assert.DoesNotContain(diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
     public void ComponentIndexer_UnresolvedTypeArgument_ReportsBC3012Once()
     {
-        var diagnostics = RunWithExpectedErrors("""Component<Missing>()["x"]""");
+        var diagnostics = Run("""Component<Missing>()["x"]""");
 
         Assert.Equal(1, diagnostics.Count(static d => d.Id == "BC3012"));
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BC1003");
@@ -123,7 +136,7 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // The value sweep runs from the body's root. With the root an element access rather than an
         // invocation it used to return immediately, taking the whole sweep with it.
-        var diagnostics = RunWithExpectedErrors(
+        var diagnostics = Run(
             """Div.Class(MissingMethod() + typeof(Probe).Name)["x"]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3015");
@@ -132,7 +145,7 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void UnresolvedValueType_InsideABracketedChild_ReportsBC3015()
     {
-        var diagnostics = RunWithExpectedErrors(
+        var diagnostics = Run(
             """Div[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3015");
@@ -144,7 +157,7 @@ public sealed class BracketSurfaceDiagnosticTests
         // Nothing is suppressed here, despite how this reads. The scanner's Element arm never reports on
         // the tag argument at all, so BC3015 has no route to it, independently of any recovery gate — and
         // independently of the constant-tag gate the sibling test below covers.
-        var diagnostics = RunWithExpectedErrors("""Element(typeof(Probe).Name)["x"]""");
+        var diagnostics = Run("""Element(typeof(Probe).Name)["x"]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3009");
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3015");
@@ -156,7 +169,7 @@ public sealed class BracketSurfaceDiagnosticTests
         // BC3009 has already rejected the element, so the child never reaches generated code and a report
         // about it is noise. The method surface gated its child sweep on the tag being a non-empty constant;
         // deleting that arm in #87 leaves this route as the only one, so the gate moves here.
-        var diagnostics = RunWithExpectedErrors(
+        var diagnostics = Run(
             """Element(typeof(Probe).Name)[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BC3009");
@@ -222,19 +235,19 @@ public sealed class BracketSurfaceDiagnosticTests
     public void DecoratingANonElement_ReportsBC3008(string body)
     {
         // Each of these receivers is a View or a ComponentView<T>, and neither has a Class.
-        AssertReportsBC3008(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(body, "")));
+        AssertReportsBC3008(RunResult(body));
     }
 
     [Fact]
     public void DecoratingAComposableResult_ReportsBC3008()
     {
         // A [Composable] method returns View, which is precisely the domain BC3008 forbids decorating.
-        AssertReportsBC3008(BracketSurfaceShim.RunGeneratorWithExpectedErrors(HostFiles(
+        AssertReportsBC3008(RunResult(
             """Card().Class("x")""",
             """
             [Composable]
             private static View Card() => Div["c"];
-            """)));
+            """));
     }
 
     [Fact]
@@ -244,7 +257,7 @@ public sealed class BracketSurfaceDiagnosticTests
         // always carries CS0534 because no RenderView is generated, and csc stops after the declaration
         // stage without binding method bodies. A BlazorCompose diagnostic does get through — BC1003 did —
         // so BC3008 is what carries the explanation.
-        var diagnostics = RunWithExpectedErrors("""Fragment("a").Class("x")""");
+        var diagnostics = Run("""Fragment("a").Class("x")""");
 
         var report = Assert.Single(diagnostics, static d => d.Id == "BC3008");
         Assert.Equal(DiagnosticSeverity.Error, report.Severity);
@@ -257,7 +270,7 @@ public sealed class BracketSurfaceDiagnosticTests
         // One mistake, not three. The innermost decoration is the one whose receiver is the non-element,
         // so its span is where the chain first went wrong; everything outside it is written on the
         // ElementBuilder that Roslyn's error recovery gave the failed call, and binds cleanly.
-        var diagnostics = RunWithExpectedErrors("""Fragment("a").Class("x").Id("y").Title("z")""");
+        var diagnostics = Run("""Fragment("a").Class("x").Id("y").Title("z")""");
 
         var report = Assert.Single(diagnostics, static d => d.Id == "BC3008");
         Assert.Equal("Class", HostSpanText(report, """Fragment("a").Class("x").Id("y").Title("z")"""));
@@ -295,7 +308,7 @@ public sealed class BracketSurfaceDiagnosticTests
     [InlineData("""Div[_children, Fragment("a").Wrap(1)]""")]
     public void UnrelatedFailedExtension_IsNotBC3008(string body)
     {
-        var result = BracketSurfaceShim.RunGeneratorWithExpectedErrors(
+        var result = CompilationTestHost.RunGenerator(
         [
             .. HostFiles(body, """private readonly View[] _children = [];"""),
             ("Other.cs", """
@@ -357,11 +370,16 @@ public sealed class BracketSurfaceDiagnosticTests
     /// </remarks>
     private static void AssertReportsBC3008(GeneratorRunResult result)
     {
-        Assert.Contains(BracketSurfaceShim.OutputErrors(result), static d => d.Id == "CS1929");
+        Assert.Contains(OutputErrors(result), static d => d.Id == "CS1929");
 
         string[] expected = ["BC3008"];
         Assert.Equal(
             expected,
             result.Diagnostics.Select(static d => d.Id).Distinct(StringComparer.Ordinal).ToList());
     }
+
+    /// <summary>Every error diagnostic the generator's output compilation reports, for assertion.</summary>
+    private static ImmutableArray<Diagnostic> OutputErrors(GeneratorRunResult result) =>
+        [.. result.OutputCompilation.GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
 }
