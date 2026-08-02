@@ -67,11 +67,17 @@ public sealed class KnownSymbolsSyncTests
     /// <remarks>
     /// <para>
     /// The sets are built by matching the method <em>name</em>, but what makes a method an element
-    /// decoration is its <em>receiver</em>.  Nothing in the loop said so, so a future
-    /// <c>Attr(this ComponentView&lt;T&gt;, string, string)</c> would be collected as an element
-    /// decoration and <c>UnresolvedValueTypeScanner.IsDecorationMethod</c> — pure set membership — would
-    /// agree, with nothing to notice.  <c>ClassMethod</c> showed the same defect more loudly, being a
-    /// single slot that took whichever two-parameter overload <c>GetMembers</c> returned last.
+    /// decoration is its <em>receiver</em>.  <c>KnownSymbols</c>'s constructor already filters on that
+    /// receiver when <c>ElementBuilderType</c> resolves, so neither half of the failure mode on its own
+    /// makes this test fail today: adding a future <c>Attr(this ComponentView&lt;T&gt;, string, string)</c>
+    /// to <c>Decorations</c> is excluded by that very filter before it reaches <c>captured</c>, and removing
+    /// the filter with no such overload declared yet has nothing new to admit, since every current
+    /// <c>Decorations</c> member already takes <c>this ElementBuilder</c>.  It fails only when both happen
+    /// together — the filter is gone and a decoration on another receiver exists — at which point
+    /// <c>UnresolvedValueTypeScanner.IsDecorationMethod</c> — pure set membership — would treat it as an
+    /// element decoration with nothing else to notice.  <c>ClassMethod</c> showed the same defect more
+    /// loudly before the filter existed, being a single slot that took whichever two-parameter overload
+    /// <c>GetMembers</c> returned last.
     /// </para>
     /// <para>
     /// Asserted over every captured symbol rather than over a count, because the failure is one specific
