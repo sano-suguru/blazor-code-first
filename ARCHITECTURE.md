@@ -77,7 +77,7 @@ BodyComponentBase                 ② SSC分類(§2.3)
                                         — [Composable] のインライン展開
 ```
 
-生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `BodyComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
+生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス(`BodyComponentBase` またはレイアウトの `ChromeLayoutBase`)の `BuildRenderTree` から呼び出されます。設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)および設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 設計時表現のゲッターは**単一の式に還元できなければなりません**。`=> expr` / `get => expr` /
 `get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。文を含む
@@ -377,7 +377,7 @@ net11.0ターゲットでは、Runtime Async(ランタイムネイティブ非�
 
 BlazorCodeFirstは実行時メタデータ分析・動的ディスパッチを排除します。全パラメータバインディング(`Component<T>().Param(...)` を含む)は、Source Generatorが生成する静的セッター経由で行われます。`Param` の式引数はSGが構文解析してセッター生成にのみ利用し、式木(`System.Linq.Expressions`)のランタイムコンパイルは行いません。`System.Reflection` / `System.Linq.Expressions` へのランタイム依存は0です。
 
-さらに、`Body` プロパティと設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であるため、ILトリマーはこれらを丸ごと除去できます。UI記述のソースコードはバイナリサイズに寄与しません。これは実行時評価を行うコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計です。
+さらに、設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)と設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であるため、ILトリマーはこれらを丸ごと除去できます。UI記述のソースコードはバイナリサイズに寄与しません。これは実行時評価を行うコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計であり、トリムテストはコンポーネントとレイアウトの双方(派生型の `Body`/`Chrome` と基底の抽象ゲッター)についてこれを検査します。
 
 リフレクションベースのバインディングを持つ同等構成との比較で、AOTコンパイル後のWasmペイロードサイズを約20〜30%削減(予測値)と見込みます。この予測値は、(a) BlazorCodeFirst構成、(b) リフレクションバインディング構成、(c) 素のRazor構成の3系統のベンチマークにより確定値へ置き換えられます。素のRazor構成との比較ではほぼ同等となる見込みです。
 

@@ -8,6 +8,8 @@ namespace BlazorCodeFirst.TrimTests;
 /// to verify that the trimmer behaves according to the architecture's expectations:
 /// - Generated <c>RenderView</c> must be retained (it is rooted by <c>BuildRenderTree</c>).
 /// - The <c>Body</c> getter should be trimmed from both derived and base types (no runtime caller).
+/// - The layout counterpart <c>Chrome</c> should be trimmed on the same terms — it is the same inert
+///   design-time getter, so the contract has to hold for <c>ChromeLayoutBase</c> too.
 /// - Unreferenced inert members of <c>BlazorCodeFirst.Html</c> and the <c>ComponentView&lt;T&gt;</c>
 ///   builder type should be trimmed.
 /// </summary>
@@ -51,6 +53,63 @@ public sealed class TrimmedOutputTests
             expectedNamespace: "");
 
         Assert.DoesNotContain("CountLabel", methods);
+    }
+
+    [Fact]
+    public void TrimmedApp_AfterPublish_RetainsLayoutRenderViewMethod()
+    {
+        var appAssemblyPath = ResolvePublishedAssembly(AppAssemblyFileName);
+
+        var methods = GetMethodNames(appAssemblyPath, "TrimLayout", expectedNamespace: "");
+        Assert.Contains("RenderView", methods);
+    }
+
+    [Fact]
+    public void TrimmedApp_AfterPublish_TrimsLayoutChromeGetter()
+    {
+        var appAssemblyPath = ResolvePublishedAssembly(AppAssemblyFileName);
+
+        var methods = GetMethodNames(appAssemblyPath, "TrimLayout", expectedNamespace: "");
+
+        // Chrome is the layout's design-time getter and has no runtime caller, exactly as Body has
+        // none on a component. RenderView above proves the type itself survived, so this absence is
+        // the trimmer removing the getter rather than the whole layout.
+        Assert.DoesNotContain("get_Chrome", methods);
+    }
+
+    [Fact]
+    public void TrimmedApp_AfterPublish_TrimsLayoutComposableMethod()
+    {
+        var appAssemblyPath = ResolvePublishedAssembly(AppAssemblyFileName);
+
+        var methods = GetMethodNames(appAssemblyPath, "TrimLayout", expectedNamespace: "");
+
+        // A [Composable] called from Chrome is statically expanded into RenderView, so the method
+        // itself is unreachable — the same result the component path asserts for CountLabel.
+        Assert.DoesNotContain("ChromeTitle", methods);
+    }
+
+    [Fact]
+    public void TrimmedRuntime_AfterPublish_TrimsBaseChromeGetter()
+    {
+        var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
+
+        var methods = GetMethodNames(runtimeAssemblyPath, "ChromeLayoutBase", expectedNamespace: "BlazorCodeFirst");
+
+        // The abstract Chrome getter in the layout base should be trimmed for the same reason as
+        // BodyComponentBase.Body: nothing calls it at runtime.
+        Assert.DoesNotContain("get_Chrome", methods);
+    }
+
+    [Fact]
+    public void TrimmedRuntime_AfterPublish_RetainsChromeLayoutBaseBuildRenderTree()
+    {
+        var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
+
+        var methods = GetMethodNames(runtimeAssemblyPath, "ChromeLayoutBase", expectedNamespace: "BlazorCodeFirst");
+
+        // BuildRenderTree is the root that keeps the layout's rendering chain alive.
+        Assert.Contains("BuildRenderTree", methods);
     }
 
     [Fact]

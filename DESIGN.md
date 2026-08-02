@@ -219,7 +219,7 @@ public abstract class BodyComponentBase : ComponentBase
 }
 ```
 
-`Body` は実行時に一度も呼び出されません。設計時APIの実体 — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(`ARCHITECTURE.md` 付録A、BCF3014)の全メンバー — はすべて既定値を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
+`Body` は実行時に一度も呼び出されません。レイアウトの `ChromeLayoutBase.Chrome` も同じ形の設計時ゲッターであり、同じ扱いを受けます。設計時APIの実体 — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(`ARCHITECTURE.md` 付録A、BCF3014)の全メンバー — はすべて既定値を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 ### 5.2 シーケンス番号の静的確定
 
@@ -324,7 +324,7 @@ BCF3013 です。`RenderFragment<TContext>` は受け取れません — 生成�
 
 ### 7.3 Wasmバイナリサイズ
 
-パラメータバインディングを含む全機構がリフレクション・フリー(`System.Reflection` / `System.Linq.Expressions` へのランタイム依存ゼロ)であるため、ILトリマーが未使用コードを削除できます。`TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`Body` ゲッターと未到達の設計時APIのMethodDefがメタデータレベルで除去される設計です。リフレクションベースのバインディングを持つ同等ライブラリ比で、AOTコンパイル後のWasmペイロードを約20〜30%削減(予測値)と見込みます。素のRazor構成との比較ではほぼ同等です。
+パラメータバインディングを含む全機構がリフレクション・フリー(`System.Reflection` / `System.Linq.Expressions` へのランタイム依存ゼロ)であるため、ILトリマーが未使用コードを削除できます。`TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、設計時ゲッター(`Body` / `Chrome`)と未到達の設計時APIのMethodDefがメタデータレベルで除去される設計です。リフレクションベースのバインディングを持つ同等ライブラリ比で、AOTコンパイル後のWasmペイロードを約20〜30%削減(予測値)と見込みます。素のRazor構成との比較ではほぼ同等です。
 
 ---
 
