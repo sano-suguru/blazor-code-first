@@ -170,18 +170,15 @@ internal static class ComponentModelFactory
 
         var template = RenderExpressionAnalyzer.Analyze(bodyExpression, bodyContext);
 
-        // Translation failed. Sweep the whole expression for unresolved Component<T>() type arguments,
-        // value-position type references and misplaced decorations so the author is told the real cause
-        // instead of BC1003's "not statically analyzable". Only on the failure path, so a healthy body pays
-        // nothing. BC1003 is then suppressed automatically by Expand's error dedup. ComposableDefinitionFactory
-        // runs the same three for the [Composable] host, and FailurePathScannerParityTests holds the two
-        // lists equal — a sweep wired into one host only loses coverage silently for the other.
+        // Translation failed. Sweep the whole expression for the specific cause — an unresolved
+        // Component<T>() type argument, a value-position type reference, a misplaced decoration — so the
+        // author is told it instead of BC1003's "not statically analyzable". Only on the failure path, so
+        // a healthy body pays nothing. BC1003 is then suppressed automatically by Expand's error dedup.
+        // FailurePathScanners owns the sweep list; both hosts run the same one by construction.
         TemplateLocation? failureLocation = null;
         if (template is null)
         {
-            UnresolvedComponentTypeScanner.Report(bodyExpression, bodyContext);
-            UnresolvedValueTypeScanner.Report(bodyExpression, bodyContext);
-            RejectedDecorationScanner.Report(bodyExpression, bodyContext);
+            FailurePathScanners.ReportAll(bodyExpression, bodyContext);
 
             // Carry the innermost expression that failed to classify across the symbol-free boundary so
             // Expand can locate BC1003. The analyzer records it on every failed classification, and the
