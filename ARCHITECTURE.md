@@ -134,7 +134,7 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
 任意のC#コードに対して条件(2)の `σ` を構成することはできません(呼び出しグラフが実行時にのみ確定するため)。解析の適用範囲を次の3階層に分類します:
 
 **SSC(完全静的)** — 静的シーケンス割当の対象:
-- SSC-1: `Body` 本体、および `[Composable]` メソッド本体における、要素ヘルパー/装飾の直接記述
+- SSC-1: `Body` 本体、および `[Composable]` メソッド本体における、要素ヘルパー/装飾の直接記述、および `Component<T>()`・`Fragment`・`Raw` の直接呼び出し
 - SSC-2: `If(cond, then, otherwise)` コンビネータ(両分岐がインラインラムダであること)
 - SSC-3: `ForEach(source, key, content)` コンビネータ(`content` がインラインラムダ、`key` は必須)
 - SSC-4: SSC-1〜3の任意のネスト、および `[Composable]` 呼び出しの静的インライン展開

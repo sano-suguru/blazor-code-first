@@ -120,8 +120,8 @@ internal static class DiagnosticDescriptors
         description:
             "The design-time expression could not be classified into the statically sequenceable subset " +
             "and no runtime fallback exists yet, so no RenderView is generated. Use the supported " +
-            "element helpers, combinators and component syntax, or an inline expression lambda, so the " +
-            "expression can be analyzed.");
+            "element helpers, combinators, Component<T>(), Fragment, Raw, or an inline expression " +
+            "lambda, so the expression can be analyzed.");
 
     /// <summary>
     /// BC1004: A design-time expression override declares a getter the generator cannot translate —

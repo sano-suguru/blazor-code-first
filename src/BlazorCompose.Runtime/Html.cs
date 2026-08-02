@@ -7,10 +7,11 @@ namespace BlazorCompose;
 /// members and emits the equivalent <c>RenderTreeBuilder</c> instructions into the component's generated
 /// <c>RenderView</c>. They are never meant to run — at runtime they perform no work and return only a
 /// default value, so they must not be invoked directly. Add <c>using static BlazorCompose.Html;</c> and
-/// write element helpers unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended
-/// terse authoring form. The qualified form (<c>Html.Div["text"]</c>) remains available as an escape
-/// hatch for the rare file where an imported helper name collides with a local identifier (for example,
-/// a domain type named <c>Component</c>).
+/// write the element helpers, <c>If</c>/<c>ForEach</c>, <c>Component&lt;T&gt;()</c>, <c>Fragment</c>, and
+/// <c>Raw</c> unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended terse
+/// authoring form. The qualified form (<c>Html.Div["text"]</c>) remains available as an escape hatch for
+/// the rare file where an imported name collides with a local identifier (for example, a domain type
+/// named <c>Component</c>).
 /// </summary>
 public static class Html
 {
