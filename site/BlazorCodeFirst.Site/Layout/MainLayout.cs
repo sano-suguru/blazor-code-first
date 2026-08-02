@@ -7,7 +7,7 @@ namespace BlazorCodeFirst.Site.Layout;
 /// The site shell. Written in Compose: the chrome is the design-time Chrome expression, and Body is
 /// Blazor's routed page content placed as element content.
 /// </summary>
-public sealed partial class MainLayout : ComposeLayoutBase
+public sealed partial class MainLayout : ChromeLayoutBase
 {
     protected override View Chrome =>
         Div.Class("site-shell")[

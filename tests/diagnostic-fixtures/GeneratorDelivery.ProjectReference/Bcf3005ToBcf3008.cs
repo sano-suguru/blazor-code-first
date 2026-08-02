@@ -4,21 +4,21 @@ using static BlazorCodeFirst.Html;
 namespace Fixtures.GeneratorDelivery;
 
 /// <summary>BCF3005: the parameter selector is not a plain property selection.</summary>
-public partial class Bcf3005Host : ComposeComponentBase
+public partial class Bcf3005Host : BodyComponentBase
 {
     protected override View Body =>
         Component<Widget>().Param(w => w.Label!.ToUpperInvariant(), "bcf3005");
 }
 
 /// <summary>BCF3006: the selected property is not a settable <c>[Parameter]</c>.</summary>
-public partial class Bcf3006Host : ComposeComponentBase
+public partial class Bcf3006Host : BodyComponentBase
 {
     protected override View Body =>
         Component<Widget>().Param(w => w.NotAParameter, "bcf3006");
 }
 
 /// <summary>BCF3007: the same parameter is bound twice.</summary>
-public partial class Bcf3007Host : ComposeComponentBase
+public partial class Bcf3007Host : BodyComponentBase
 {
     protected override View Body =>
         Component<Widget>().Param(w => w.Label, "first").Param(w => w.Label, "second");
@@ -32,7 +32,7 @@ public partial class Bcf3007Host : ComposeComponentBase
 /// declaration stage without binding method bodies, so the CS1929 is never computed. This fixture is what
 /// establishes that BCF3008 is delivered where CS1929 is not.
 /// </summary>
-public partial class Bcf3008Host : ComposeComponentBase
+public partial class Bcf3008Host : BodyComponentBase
 {
     protected override View Body => If(true, () => Div["bcf3008"]).Class("decorated");
 }

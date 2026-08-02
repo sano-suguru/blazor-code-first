@@ -58,7 +58,7 @@ public sealed class TrimmedOutputTests
     {
         var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
 
-        var methods = GetMethodNames(runtimeAssemblyPath, "ComposeComponentBase", expectedNamespace: "BlazorCodeFirst");
+        var methods = GetMethodNames(runtimeAssemblyPath, "BodyComponentBase", expectedNamespace: "BlazorCodeFirst");
 
         // The abstract Body getter in the base class should also be trimmed — no runtime call path.
         Assert.DoesNotContain("get_Body", methods);
@@ -99,11 +99,11 @@ public sealed class TrimmedOutputTests
     }
 
     [Fact]
-    public void TrimmedRuntime_AfterPublish_RetainsComposeComponentBaseBuildRenderTree()
+    public void TrimmedRuntime_AfterPublish_RetainsBodyComponentBaseBuildRenderTree()
     {
         var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
 
-        var methods = GetMethodNames(runtimeAssemblyPath, "ComposeComponentBase", expectedNamespace: "BlazorCodeFirst");
+        var methods = GetMethodNames(runtimeAssemblyPath, "BodyComponentBase", expectedNamespace: "BlazorCodeFirst");
 
         // BuildRenderTree is the root that keeps the rendering chain alive.
         Assert.Contains("BuildRenderTree", methods);

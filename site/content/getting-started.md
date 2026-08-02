@@ -9,7 +9,7 @@ from Markdown, converted at build time and injected through `Html.Raw`.
 ## Installation
 
 Add the runtime and the source generator to your project, then derive your
-components from `ComposeComponentBase`.
+components from `BodyComponentBase`.
 
 ## A first component
 
@@ -19,7 +19,7 @@ using BlazorCodeFirst;
 using static BlazorCodeFirst.Html;
 
 [Route("/")]
-public partial class Home : ComposeComponentBase
+public partial class Home : BodyComponentBase
 {
     protected override View Body =>
         Div[

@@ -16,7 +16,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>().Param(p => p.Label, "x");
             }
@@ -38,7 +38,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>().Param(p => p.Label, "x").Class("c");
             }
@@ -58,7 +58,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => If(true, () => Component<Probe>());
             }
@@ -78,7 +78,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<string> _items = [];
                 protected override View Body =>
@@ -100,7 +100,7 @@ public sealed class ComponentUnresolvedTypeTests
             using static BlazorCodeFirst.Html;
             namespace T;
             public class Wrapper<TRow> : ComponentBase { }
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Wrapper<Missing>>().Param(w => w.Label, "x");
             }
@@ -118,7 +118,7 @@ public sealed class ComponentUnresolvedTypeTests
         const string source = """
             using BlazorCodeFirst;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Html.Component<Probe>().Param(p => p.Label, "x");
             }
@@ -142,7 +142,7 @@ public sealed class ComponentUnresolvedTypeTests
                 [Composable]
                 public static View Card() => Div[Component<Probe>().Param(p => p.Label, "x")];
             }
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Frags.Card();
             }
@@ -162,7 +162,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>();
             }
@@ -181,7 +181,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Div[Component<Probe>(), Component<Probe>()];
             }
@@ -201,7 +201,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Div[Component<Alpha>(), Component<Beta>()];
             }
@@ -232,7 +232,7 @@ public sealed class ComponentUnresolvedTypeTests
                     [Parameter] public string Label { get; set; } = "";
                 }
             }
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Outer<Missing>.Inner>().Param(i => i.Label, "x");
             }
@@ -252,7 +252,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>().Param<string>(p => p.Label, "x");
             }
@@ -276,7 +276,7 @@ public sealed class ComponentUnresolvedTypeTests
             {
                 [Parameter] public string Label { get; set; } = "";
             }
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Real>().Param(r => r.Label, "x");
             }
@@ -298,7 +298,7 @@ public sealed class ComponentUnresolvedTypeTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host<TChild> : ComposeComponentBase where TChild : IComponent
+            public partial class Host<TChild> : BodyComponentBase where TChild : IComponent
             {
                 protected override View Body => Component<TChild>();
             }
@@ -332,7 +332,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Lib.LibProbe>().Param(p => p.Label, "x");
             }
@@ -356,7 +356,7 @@ public sealed class ComponentUnresolvedTypeTests
             using static BlazorCodeFirst.Html;
             using Aliased = T.Missing;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Aliased>();
             }
@@ -377,7 +377,7 @@ public sealed class ComponentUnresolvedTypeTests
             using static BlazorCodeFirst.Html;
             namespace T;
             public class Wrapper<TRow> : ComponentBase { }
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Wrapper<Missing>>();
             }
@@ -400,7 +400,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Shell : ComposeLayoutBase
+            public partial class Shell : ChromeLayoutBase
             {
                 protected override View Chrome => Div[Component<Probe>()];
             }
@@ -419,7 +419,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>();
             }
@@ -443,7 +443,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>()[Div["x"]];
             }
@@ -465,7 +465,7 @@ public sealed class ComponentUnresolvedTypeTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => If(true, () => Component<Probe>()[Div["x"]]);
             }

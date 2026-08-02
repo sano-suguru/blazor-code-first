@@ -4,7 +4,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class StatefulKeyedListComponent : ComposeComponentBase
+public partial class StatefulKeyedListComponent : BodyComponentBase
 {
     private readonly List<Row> _items = [new(1, "a"), new(2, "b"), new(3, "c")];
 

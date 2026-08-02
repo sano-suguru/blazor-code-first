@@ -19,7 +19,7 @@ internal static class ComponentModelFactory
 {
     /// <summary>
     /// Analyzes <paramref name="syntaxContext"/> when it represents a class that directly or indirectly
-    /// inherits from a Compose base (<c>ComposeComponentBase</c> or <c>ComposeLayoutBase</c>), resolving
+    /// inherits from a Compose base (<c>BodyComponentBase</c> or <c>ChromeLayoutBase</c>), resolving
     /// all symbols from the context's own compilation and classifying its design-time expression
     /// (<c>Body</c> or <c>Chrome</c>) into a template.  Returns a symbol-free <see cref="ComponentAnalysis"/>
     /// for every component candidate — including the diagnostic-only shapes that cannot be generated into
@@ -41,14 +41,14 @@ internal static class ComponentModelFactory
         if (symbol is null)
             return null;
 
-        if (ComposeComponentBaseFacts.FindComposeBase(symbol) is not { } composeBase)
+        if (DesignTimeBaseFacts.FindDesignTimeBase(symbol) is not { } designTimeBase)
             return null;
 
         if (DeclaresRenderViewOverride(symbol))
             return null;
 
         // Body on a component, Chrome on a layout. Resolved from the base symbol so no name is hard-coded.
-        var expressionName = ComposeComponentBaseFacts.FindDesignTimeExpressionName(symbol);
+        var expressionName = DesignTimeBaseFacts.FindDesignTimeExpressionName(symbol);
         if (expressionName is null)
             return null;
 
@@ -112,7 +112,7 @@ internal static class ComponentModelFactory
                     DiagnosticInfo.Create(
                         DiagnosticDescriptors.BCF1001,
                         classDeclaration.Identifier.GetLocation(),
-                        [symbol.Name, expressionName, composeBase.Name])),
+                        [symbol.Name, expressionName, designTimeBase.Name])),
                 // As above: BCF1001 is located and suppresses BCF1003.
                 FailureLocation: null);
         }
@@ -477,7 +477,7 @@ internal static class ComponentModelFactory
     /// <summary>
     /// True for <c>Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder</c>.  Matched by name
     /// rather than by symbol comparison so no compilation lookup is needed here, following
-    /// <see cref="ComposeComponentBaseFacts"/>'s approach for the Compose base types.
+    /// <see cref="DesignTimeBaseFacts"/>'s approach for the Compose base types.
     /// </summary>
     private static bool IsRenderTreeBuilder(ITypeSymbol type) =>
         type is INamedTypeSymbol { Name: "RenderTreeBuilder" } named &&

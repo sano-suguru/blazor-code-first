@@ -18,7 +18,7 @@ namespace BlazorCodeFirst.Site.Layout;
 /// This component lives in the persistent layout, so it is never re-mounted and is long-lived: the
 /// subscription MUST be released in Dispose or handlers accumulate and leak.
 /// </remarks>
-public sealed partial class SiteNav : ComposeComponentBase, IDisposable
+public sealed partial class SiteNav : BodyComponentBase, IDisposable
 {
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;

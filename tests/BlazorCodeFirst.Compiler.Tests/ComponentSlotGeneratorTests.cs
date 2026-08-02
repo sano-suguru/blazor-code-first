@@ -23,7 +23,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>().Param(c => c.Title, "t")[Div["x"]];
             }
@@ -44,7 +44,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>().Param(c => c.Footer, Div["f"]);
             }
@@ -67,7 +67,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>().Param(c => c.Title, "t")[Div["x"]];
             }
@@ -94,7 +94,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>()[Div["a"], "text"];
             }
@@ -116,7 +116,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>().Param(c => c.Footer, Div["f"]);
             }
@@ -141,7 +141,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>().Param(c => c.ChildContent, Div["x"]);
             }
@@ -160,7 +160,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>()[Component<Card>()[Div["deep"]]];
             }
@@ -187,7 +187,7 @@ public sealed class ComponentSlotGeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 [Parameter] public RenderFragment? Incoming { get; set; }
                 protected override View Body => Component<Card>().Param(c => c.ChildContent, Incoming);
@@ -210,7 +210,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private static readonly View[] _kids = [];
                 protected override View Body => Component<Card>()[children: _kids];
@@ -245,7 +245,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<DerivedCard>()[Div["x"]];
             }
@@ -277,7 +277,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Grid<int>>()[Div["g"]];
             }
@@ -300,7 +300,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<int> _items = new();
                 protected override View Body =>
@@ -340,7 +340,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<int> _items = new();
                 protected override View Body =>
@@ -372,7 +372,7 @@ public sealed class ComponentSlotGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 [Composable]
                 private static View Badge(string label) => Span.Class("badge")[label];

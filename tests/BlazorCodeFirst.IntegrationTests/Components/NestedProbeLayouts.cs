@@ -8,19 +8,19 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 // attribute on the layout TYPE, and a Compose layout is an ordinary LayoutComponentBase descendant
 // with an ordinary Body parameter, so no BlazorCodeFirst machinery is involved. That reasoning was
 // checked during the #33 review but never exercised.
-public partial class OuterProbeLayout : ComposeLayoutBase
+public partial class OuterProbeLayout : ChromeLayoutBase
 {
     protected override View Chrome => Div.Class("outer")[Main.Class("outer-slot")[Body]];
 }
 
 [Layout(typeof(OuterProbeLayout))]
-public partial class InnerProbeLayout : ComposeLayoutBase
+public partial class InnerProbeLayout : ChromeLayoutBase
 {
     protected override View Chrome => Div.Class("inner")[Main.Class("inner-slot")[Body]];
 }
 
 [Layout(typeof(InnerProbeLayout))]
-public partial class NestedLayoutProbePage : ComposeComponentBase
+public partial class NestedLayoutProbePage : BodyComponentBase
 {
     protected override View Body => P.Class("nested-page-content")["nested page content"];
 }

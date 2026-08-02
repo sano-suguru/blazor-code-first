@@ -29,7 +29,7 @@ namespace BlazorCodeFirst;
 /// BCF1005. A generic layout is supported: the generated part repeats the same type parameters.
 /// </para>
 /// </remarks>
-public abstract class ComposeLayoutBase : LayoutComponentBase
+public abstract class ChromeLayoutBase : LayoutComponentBase
 {
     /// <summary>
     /// The design-time-only UI expression describing the chrome this layout draws around

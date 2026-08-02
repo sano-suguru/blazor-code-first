@@ -20,7 +20,7 @@ public sealed class IncrementalGeneratorTests
 
         namespace TestNs;
 
-        public partial class ComponentA : ComposeComponentBase
+        public partial class ComponentA : BodyComponentBase
         {
             protected override View Body => Span["Hello A"];
         }
@@ -32,7 +32,7 @@ public sealed class IncrementalGeneratorTests
 
         namespace TestNs;
 
-        public partial class ComponentB : ComposeComponentBase
+        public partial class ComponentB : BodyComponentBase
         {
             protected override View Body => Span["Hello B"];
         }
@@ -44,7 +44,7 @@ public sealed class IncrementalGeneratorTests
 
         namespace TestNs;
 
-        public partial class ComponentB : ComposeComponentBase
+        public partial class ComponentB : BodyComponentBase
         {
             protected override View Body => Span["Modified B"];
         }
@@ -193,7 +193,7 @@ public sealed class IncrementalGeneratorTests
                     public View this[params System.ReadOnlySpan<View> children] => default;
                     public static implicit operator View(ElementBuilder builder) => default;
                 }
-                public abstract class ComposeComponentBase : Microsoft.AspNetCore.Components.ComponentBase
+                public abstract class BodyComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
                     protected abstract View Body { get; }
                 }
@@ -216,7 +216,7 @@ public sealed class IncrementalGeneratorTests
                     public View this[params System.ReadOnlySpan<View> children] => default;
                     public static implicit operator View(ElementBuilder builder) => default;
                 }
-                public abstract class ComposeComponentBase : Microsoft.AspNetCore.Components.ComponentBase
+                public abstract class BodyComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
                     protected abstract View Body { get; }
                 }
@@ -236,7 +236,7 @@ public sealed class IncrementalGeneratorTests
 
             namespace TestNs;
 
-            public partial class MyComponent : ComposeComponentBase
+            public partial class MyComponent : BodyComponentBase
             {
                 protected override View Body => Span["Hello"];
             }
@@ -328,7 +328,7 @@ public sealed class IncrementalGeneratorTests
 
             namespace TestNs;
 
-            public partial class MyComponent : ComposeComponentBase
+            public partial class MyComponent : BodyComponentBase
             {
                 protected override View Body => Span["Hello"];
             }
@@ -364,7 +364,7 @@ public sealed class IncrementalGeneratorTests
                     public View this[params System.ReadOnlySpan<View> children] => default;
                     public static implicit operator View(ElementBuilder builder) => default;
                 }
-                public abstract class ComposeComponentBase : Microsoft.AspNetCore.Components.ComponentBase
+                public abstract class BodyComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
                     protected abstract View Body { get; }
                 }
@@ -476,7 +476,7 @@ public sealed class IncrementalGeneratorTests
 
         namespace TestNs;
 
-        public partial class Caller : ComposeComponentBase
+        public partial class Caller : BodyComponentBase
         {
             protected override View Body => Widgets.Label("x");
         }
@@ -488,7 +488,7 @@ public sealed class IncrementalGeneratorTests
 
         namespace TestNs;
 
-        public partial class Unrelated : ComposeComponentBase
+        public partial class Unrelated : BodyComponentBase
         {
             protected override View Body => Span["z"];
         }
@@ -640,7 +640,7 @@ public sealed class IncrementalGeneratorTests
 
             namespace TestNs;
 
-            public partial class Cyclic : ComposeComponentBase
+            public partial class Cyclic : BodyComponentBase
             {
                 [Composable]
                 private static View Loop() => Loop();
@@ -686,7 +686,7 @@ public sealed class IncrementalGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace TestNs;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Child>().Param(c => c.Label, "hi");
             }
@@ -728,7 +728,7 @@ public sealed class IncrementalGeneratorTests
 
             namespace TestNs;
 
-            public partial class Gen<TItem> : ComposeComponentBase
+            public partial class Gen<TItem> : BodyComponentBase
             {
                 protected override View Body => Span["g"];
             }
@@ -780,7 +780,7 @@ public sealed class IncrementalGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Card>()[Div["x"], "text"];
             }

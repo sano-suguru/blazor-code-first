@@ -5,7 +5,7 @@ public sealed class HtmlFragmentGeneratorTests
     private const string FragmentInDivSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body =>
                 Html.Div[Html.Fragment(Html.Span["a"], Html.Span["b"]), Html.Span["c"]];
@@ -15,7 +15,7 @@ public sealed class HtmlFragmentGeneratorTests
     private const string EmptyFragmentSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Div[Html.Fragment(), Html.Span["after"]];
         }
@@ -24,7 +24,7 @@ public sealed class HtmlFragmentGeneratorTests
     private const string FragmentWithMixedAndRawSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body =>
                 Html.Fragment("head", Html.Raw("<hr/>"), Html.Span["tail"]);
@@ -35,7 +35,7 @@ public sealed class HtmlFragmentGeneratorTests
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private List<string> _xs = new();
             protected override View Body =>
@@ -47,7 +47,7 @@ public sealed class HtmlFragmentGeneratorTests
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private List<string> _xs = new();
             [Composable] private static View Row(string x) => Html.Fragment(Html.Span[x]);
@@ -60,7 +60,7 @@ public sealed class HtmlFragmentGeneratorTests
         using BlazorCodeFirst;
         using System;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private ReadOnlySpan<View> _kids => default;
             protected override View Body => Html.Fragment(_kids);
@@ -70,7 +70,7 @@ public sealed class HtmlFragmentGeneratorTests
     private const string FragmentInFragmentSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body =>
                 Html.Fragment(Html.Fragment(Html.Span["a"]), Html.Span["b"]);
@@ -80,7 +80,7 @@ public sealed class HtmlFragmentGeneratorTests
     private const string EmptyFragmentInIfSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private bool _flag = true;
             protected override View Body =>

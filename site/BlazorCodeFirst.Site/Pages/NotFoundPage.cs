@@ -18,7 +18,7 @@ namespace BlazorCodeFirst.Site.Pages;
 /// "/404" exists to keep that page out of search indexes if — as measured — it is a 200.
 /// </remarks>
 [Route("/404")]
-public sealed partial class NotFoundPage : ComposeComponentBase
+public sealed partial class NotFoundPage : BodyComponentBase
 {
     protected override View Body => NotFoundContent.NotFound();
 }

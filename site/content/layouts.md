@@ -4,12 +4,12 @@ order: 40
 ---
 
 A layout wraps the routed page with shared chrome — headers, navigation, footers. BlazorCodeFirst
-layouts are written the same way as components: derive from `ComposeLayoutBase`, declare a
+layouts are written the same way as components: derive from `ChromeLayoutBase`, declare a
 design-time UI expression, and let the source generator produce the rendering.
 
 ## Chrome and Body
 
-`ComposeLayoutBase` derives from Blazor's `LayoutComponentBase`, so it already has a `Body`
+`ChromeLayoutBase` derives from Blazor's `LayoutComponentBase`, so it already has a `Body`
 parameter holding the routed page. The chrome the layout itself draws goes in a separate
 overridden property, `Chrome`:
 
@@ -17,7 +17,7 @@ overridden property, `Chrome`:
 using BlazorCodeFirst;
 using static BlazorCodeFirst.Html;
 
-public partial class MainLayout : ComposeLayoutBase
+public partial class MainLayout : ChromeLayoutBase
 {
     protected override View Chrome =>
         Div.Class("shell")[
@@ -48,7 +48,7 @@ using Microsoft.AspNetCore.Components;
 using static BlazorCodeFirst.Html;
 
 [Layout(typeof(SiteLayout))]
-public partial class DocsLayout : ComposeLayoutBase
+public partial class DocsLayout : ChromeLayoutBase
 {
     protected override View Chrome => Div.Class("docs")[Aside[TableOfContents()], Main[Body]];
 }
@@ -76,7 +76,7 @@ using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
 using static BlazorCodeFirst.Html;
 
-public partial class Card : ComposeComponentBase
+public partial class Card : BodyComponentBase
 {
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
@@ -130,7 +130,7 @@ For unresolved type names inside parameter values, see
 
 ## Reads are allowed, mutation is not
 
-Both `Chrome` and `Body` (the `ComposeComponentBase` one, not the layout's routed-content
+Both `Chrome` and `Body` (the `BodyComponentBase` one, not the layout's routed-content
 parameter) may read component state — projecting state to UI is their whole purpose — but
 neither may mutate it. Mutating state inside either reports BCF3001, the same diagnostic that
 applies to a regular component's `Body`.

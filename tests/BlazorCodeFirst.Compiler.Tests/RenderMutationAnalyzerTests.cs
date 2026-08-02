@@ -19,7 +19,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count;
             protected override View Body => Span[$"{_count++}"];
@@ -30,7 +30,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count;
             protected override View Body => Span[$"{_count = 4}"];
@@ -41,7 +41,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count;
             protected override View Body => Span[$"{_count += 4}"];
@@ -52,7 +52,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count;
             protected override View Body => Span[$"{_count--}"];
@@ -63,7 +63,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int Count { get; set; }
             protected override View Body => Span[$"{Count = 4}"];
@@ -74,7 +74,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int Count { get; set; }
             protected override View Body => Span[$"{Count++}"];
@@ -88,7 +88,7 @@ public sealed class RenderMutationAnalyzerTests
     private const string IncrementInHtmlIfContentLambdaSource = """
         using BlazorCodeFirst;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private bool _flag = true;
             private int _count;
@@ -108,7 +108,7 @@ public sealed class RenderMutationAnalyzerTests
     private const string IncrementInHtmlOnClickHandlerSource = """
         using BlazorCodeFirst;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count;
             protected override View Body => Html.Button.OnClick(() => _count++)["Increment"];
@@ -119,7 +119,7 @@ public sealed class RenderMutationAnalyzerTests
     private const string PropertyIncrementInHtmlOnClickHandlerSource = """
         using BlazorCodeFirst;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int Count { get; set; }
             protected override View Body => Html.Button.OnClick(() => Count++)["Increment"];
@@ -130,7 +130,7 @@ public sealed class RenderMutationAnalyzerTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count;
 
@@ -203,7 +203,7 @@ public sealed class RenderMutationAnalyzerTests
     {
         const string source = """
             using BlazorCodeFirst;
-            public partial class C : ComposeComponentBase
+            public partial class C : BodyComponentBase
             {
                 private int _n;
                 protected override View Body => Html.Div.On("onmouseenter", () => _n++);
@@ -221,7 +221,7 @@ public sealed class RenderMutationAnalyzerTests
             using System.Collections.Generic;
             using System.Linq;
             using BlazorCodeFirst;
-            public partial class C : ComposeComponentBase
+            public partial class C : BodyComponentBase
             {
                 private int total;
                 private List<int> items = new();
@@ -239,7 +239,7 @@ public sealed class RenderMutationAnalyzerTests
         // .Attr value runs during render — a mutation there is a real BCF3001 (not a deferred handler).
         const string source = """
             using BlazorCodeFirst;
-            public partial class C : ComposeComponentBase
+            public partial class C : BodyComponentBase
             {
                 private int _n;
                 protected override View Body => Html.Div.Attr("data-n", (_n++).ToString());
@@ -258,7 +258,7 @@ public sealed class RenderMutationAnalyzerTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private int _n;
 
@@ -279,7 +279,7 @@ public sealed class RenderMutationAnalyzerTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private int _n;
 
@@ -301,7 +301,7 @@ public sealed class RenderMutationAnalyzerTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private int _n;
 
@@ -332,7 +332,7 @@ public sealed class RenderMutationAnalyzerTests
                 }
             }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private int _n;
 

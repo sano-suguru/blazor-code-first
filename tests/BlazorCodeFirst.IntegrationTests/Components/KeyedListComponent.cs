@@ -4,7 +4,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class KeyedListComponent : ComposeComponentBase
+public partial class KeyedListComponent : BodyComponentBase
 {
     private readonly List<Row> _items = [new(1, "one"), new(2, "two"), new(3, "three")];
 

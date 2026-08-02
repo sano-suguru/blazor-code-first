@@ -30,10 +30,10 @@ public readonly struct ComponentView<TComponent>
 
     /// <summary>
     /// Design-time syntax binding a <see cref="Microsoft.AspNetCore.Components.RenderFragment"/>-typed
-    /// parameter to Compose content, which the generator lowers to a statically sequenced fragment lambda.
+    /// parameter to BlazorCodeFirst content, which the generator lowers to a statically sequenced fragment lambda.
     /// </summary>
     /// <param name="selector">Selects the target fragment parameter, e.g. <c>c =&gt; c.ChildContent</c>.</param>
-    /// <param name="content">The Compose content rendered as that parameter's fragment.</param>
+    /// <param name="content">The BlazorCodeFirst content rendered as that parameter's fragment.</param>
     /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
     /// <remarks>
     /// Chosen over the generic <see cref="Param{TValue}"/> whenever the value is a <see cref="View"/>,

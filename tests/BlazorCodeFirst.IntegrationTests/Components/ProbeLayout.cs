@@ -7,7 +7,7 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 // Draws chrome around the routed page (Body), a plain [Parameter] (Label), and an unnamed
 // [CascadingParameter] (Theme) simultaneously, so the integration tests can prove all three arrive
 // together through real Blazor parameter binding.
-public partial class ProbeLayout : ComposeLayoutBase
+public partial class ProbeLayout : ChromeLayoutBase
 {
     [CascadingParameter]
     public string? Theme { get; set; }

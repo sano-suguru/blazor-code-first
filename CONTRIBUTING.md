@@ -15,7 +15,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 
 `BlazorCodeFirst.slnx` contains seven projects:
 
-- `src/BlazorCodeFirst.Runtime` — runtime types (`ComposeComponentBase`, the
+- `src/BlazorCodeFirst.Runtime` — runtime types (`BodyComponentBase`, the
   inert element helpers, the `ElementBuilder` decorators and child-list
   indexer that `View` results come from, `Component<T>` interop).
 - `src/BlazorCodeFirst.Compiler` — the Roslyn source generator and analyzers.
@@ -176,7 +176,7 @@ milestone. That is a valid state rather than an oversight.
   nothing is generated into that class, so `partial` would change nothing.
 - `Body`, `Chrome`, the element helpers, decorators, `Component<T>()`,
   `Fragment`, and `Raw` are inert design-time constructs. The design-time
-  expression (`ComposeComponentBase.Body` or `ComposeLayoutBase.Chrome`) must
+  expression (`BodyComponentBase.Body` or `ChromeLayoutBase.Chrome`) must
   not be evaluated at runtime or mutate state; state mutation inside it is
   reported as `BCF3001`.
 - Preserve one-way flow: event dispatch precedes state mutation, which precedes

@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 
 /// <summary>
 /// Reports BCF3001 when a Compose base's design-time expression getter (<c>Body</c> on
-/// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) directly mutates instance
+/// <c>BodyComponentBase</c>, <c>Chrome</c> on <c>ChromeLayoutBase</c>) directly mutates instance
 /// state of the containing component during rendering.
 /// </summary>
 /// <remarks>
@@ -139,7 +139,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             {
                 if (semanticModel.GetDeclaredSymbol(propDecl) is IPropertySymbol prop &&
                     prop.ContainingType is INamedTypeSymbol type &&
-                    ComposeComponentBaseFacts.FindDesignTimeExpressionName(type) is { } name &&
+                    DesignTimeBaseFacts.FindDesignTimeExpressionName(type) is { } name &&
                     prop.Name == name)
                 {
                     ownerType = type;

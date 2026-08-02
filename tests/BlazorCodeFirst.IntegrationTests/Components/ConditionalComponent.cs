@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class ConditionalComponent : ComposeComponentBase
+public partial class ConditionalComponent : BodyComponentBase
 {
     private bool _showPrefix = true;
 

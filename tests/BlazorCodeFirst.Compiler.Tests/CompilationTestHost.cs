@@ -226,7 +226,7 @@ public static class CompilationTestHost
                 references.Add(MetadataReference.CreateFromFile(path));
         }
 
-        var runtimeAssemblyPath = typeof(BlazorCodeFirst.ComposeComponentBase).Assembly.Location;
+        var runtimeAssemblyPath = typeof(BlazorCodeFirst.BodyComponentBase).Assembly.Location;
 
         // BCL and shared-framework assemblies available to the host process.  The runtime is skipped here
         // when it is not wanted: this test project references BlazorCodeFirst.Runtime, so its own deps.json
@@ -242,7 +242,7 @@ public static class CompilationTestHost
             Add(path);
         }
 
-        // BlazorCodeFirst.Runtime (provides ComposeComponentBase, View, Html)
+        // BlazorCodeFirst.Runtime (provides BodyComponentBase, View, Html)
         if (includeRuntime)
             Add(runtimeAssemblyPath);
 

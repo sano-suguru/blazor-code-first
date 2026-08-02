@@ -2,7 +2,7 @@ using BlazorCodeFirst;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class SemanticShellComponent : ComposeComponentBase
+public partial class SemanticShellComponent : BodyComponentBase
 {
     public int Hovered { get; private set; }
 

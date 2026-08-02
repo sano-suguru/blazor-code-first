@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace BlazorCodeFirst.Runtime.Tests;
 
-public sealed class ComposeComponentBaseTests
+public sealed class BodyComponentBaseTests
 {
     [Fact]
     public void BuildRenderTree_WhenRendered_DelegatesToGeneratedRenderView()
@@ -44,7 +44,7 @@ public sealed class ComposeComponentBaseTests
         Assert.False(onClickCalled);
     }
 
-    private sealed class TestComponent : ComposeComponentBase
+    private sealed class TestComponent : BodyComponentBase
     {
         public int RenderViewCalls { get; private set; }
 
@@ -55,7 +55,7 @@ public sealed class ComposeComponentBaseTests
         public void Render(RenderTreeBuilder builder) => BuildRenderTree(builder);
     }
 
-    private sealed class BodyThrowsComponent : ComposeComponentBase
+    private sealed class BodyThrowsComponent : BodyComponentBase
     {
         public int RenderViewCalls { get; private set; }
 

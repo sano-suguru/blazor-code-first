@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class ClassDecoratedComponent : ComposeComponentBase
+public partial class ClassDecoratedComponent : BodyComponentBase
 {
     private readonly bool _active = true;
 

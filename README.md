@@ -21,7 +21,7 @@ using Microsoft.AspNetCore.Components;
 using static BlazorCodeFirst.Html;
 
 [Route("/counter")]
-public partial class CounterPage : ComposeComponentBase
+public partial class CounterPage : BodyComponentBase
 {
     // Stable identity keys (not indices) so the generator can diff the list safely.
     private static readonly List<IncrementStep> Steps = [new(1, 1), new(2, 5), new(3, 10)];
@@ -80,7 +80,7 @@ Available today:
 - Control flow: `If(condition, then, otherwise)` and keyed `ForEach(source, key, content)`.
 - Razor interop in both directions: `Component<T>()` with `.Param(…)` and child content renders an
   existing Razor component, and a Compose component is an ordinary component that Razor can use.
-- Layouts: `ComposeLayoutBase` with a `Chrome` expression.
+- Layouts: `ChromeLayoutBase` with a `Chrome` expression.
 - Reusable `[Composable]` methods, expanded statically into the caller.
 
 Not covered yet — tracked as a single surface-area inventory in

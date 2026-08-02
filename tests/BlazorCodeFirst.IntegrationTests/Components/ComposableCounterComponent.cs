@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class ComposableCounterComponent : ComposeComponentBase
+public partial class ComposableCounterComponent : BodyComponentBase
 {
     private int _count;
     private int _argumentEvaluations;

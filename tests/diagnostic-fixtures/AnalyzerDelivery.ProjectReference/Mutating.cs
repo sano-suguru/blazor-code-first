@@ -9,7 +9,7 @@ namespace Fixtures.AnalyzerDelivery;
 /// driver runs. Nothing else broken may be added to this project: a single declaration error anywhere
 /// in the compilation would suppress BCF3001 along with every other analyzer diagnostic.
 /// </summary>
-public partial class Mutating : ComposeComponentBase
+public partial class Mutating : BodyComponentBase
 {
     private int _count;
 

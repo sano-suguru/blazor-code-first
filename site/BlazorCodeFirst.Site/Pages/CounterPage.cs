@@ -6,7 +6,7 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.Site.Pages;
 
 [Route("/counter")]
-public sealed partial class CounterPage : ComposeComponentBase
+public sealed partial class CounterPage : BodyComponentBase
 {
     // Stable identity keys (not indices) so the generator can diff the list safely.
     private static readonly List<IncrementStep> Steps = [new(1, 1), new(2, 5), new(3, 10)];

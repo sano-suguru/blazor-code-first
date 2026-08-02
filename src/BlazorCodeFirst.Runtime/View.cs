@@ -1,8 +1,8 @@
 namespace BlazorCodeFirst;
 
 /// <summary>
-/// A design-time-only marker for a node in a Compose design-time expression
-/// (<see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>).
+/// A design-time-only marker for a node in a BlazorCodeFirst design-time expression
+/// (<see cref="BodyComponentBase.Body"/> or <see cref="ChromeLayoutBase.Chrome"/>).
 /// </summary>
 /// <remarks>
 /// <see cref="View"/> is inert syntax analyzed by the BlazorCodeFirst source generator, not a runtime UI

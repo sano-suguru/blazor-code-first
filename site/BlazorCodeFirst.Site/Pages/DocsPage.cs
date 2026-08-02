@@ -11,7 +11,7 @@ namespace BlazorCodeFirst.Site.Pages;
 /// is the single source of truth for routes, navigation, and prerendered paths.
 /// </summary>
 [Route("/docs/{Slug}")]
-public sealed partial class DocsPage : ComposeComponentBase
+public sealed partial class DocsPage : BodyComponentBase
 {
     /// <summary>The requested document's slug, taken from the route.</summary>
     /// <remarks>

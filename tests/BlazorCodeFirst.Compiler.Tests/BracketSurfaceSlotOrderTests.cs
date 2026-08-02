@@ -32,7 +32,7 @@ public sealed class BracketSurfaceSlotOrderTests
 
                 namespace T;
 
-                public partial class Host : ComposeComponentBase
+                public partial class Host : BodyComponentBase
                 {
                     protected override View Body =>
                         Component<Panel>().Param(c => c.Footer, Div["f"])[Div["x"]];

@@ -4,16 +4,16 @@ using BlazorCodeFirst.Compiler.Diagnostics;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
-public sealed class ComposeLayoutGeneratorTests
+public sealed class ChromeLayoutGeneratorTests
 {
     [Fact]
-    public void Generator_ComposeLayout_EmitsRenderViewFromChrome()
+    public void Generator_ChromeLayout_EmitsRenderViewFromChrome()
     {
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Shell : ComposeLayoutBase
+            public partial class Shell : ChromeLayoutBase
             {
                 protected override View Chrome => Main[Body];
             }
@@ -27,13 +27,13 @@ public sealed class ComposeLayoutGeneratorTests
     }
 
     [Fact]
-    public void Generator_NonPartialComposeLayout_ReportsBCF1001()
+    public void Generator_NonPartialChromeLayout_ReportsBCF1001()
     {
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public class Shell : ComposeLayoutBase
+            public class Shell : ChromeLayoutBase
             {
                 protected override View Chrome => Main[Body];
             }
@@ -42,23 +42,23 @@ public sealed class ComposeLayoutGeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1001");
-        // The message must name the real base (ComposeLayoutBase), not the ComposeComponentBase literal
+        // The message must name the real base (ChromeLayoutBase), not the BodyComponentBase literal
         // that a naive fix could leave baked into the message format.
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
-        Assert.Contains("ComposeLayoutBase", message, StringComparison.Ordinal);
-        Assert.DoesNotContain("ComposeComponentBase", message, StringComparison.Ordinal);
+        Assert.Contains("ChromeLayoutBase", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("BodyComponentBase", message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Generator_NonPartialComposeComponent_BCF1001MessageNamesComposeComponentBase()
+    public void Generator_NonPartialBodyComponent_BCF1001MessageNamesBodyComponentBase()
     {
-        // Companion to the layout case above: a ComposeComponentBase subclass must still get its own
-        // (correct) base name in the message, not a leftover "ComposeLayoutBase" from shared code.
+        // Companion to the layout case above: a BodyComponentBase subclass must still get its own
+        // (correct) base name in the message, not a leftover "ChromeLayoutBase" from shared code.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public class Counter : ComposeComponentBase
+            public class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
             }
@@ -68,8 +68,8 @@ public sealed class ComposeLayoutGeneratorTests
 
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1001");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
-        Assert.Contains("ComposeComponentBase", message, StringComparison.Ordinal);
-        Assert.DoesNotContain("ComposeLayoutBase", message, StringComparison.Ordinal);
+        Assert.Contains("BodyComponentBase", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChromeLayoutBase", message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class ComposeLayoutGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Shell : ComposeLayoutBase
+            public partial class Shell : ChromeLayoutBase
             {
                 private int _n;
                 protected override View Chrome => Main[Span[$"{_n++}"]];
@@ -97,12 +97,12 @@ public sealed class ComposeLayoutGeneratorTests
     [Fact]
     public async Task Generator_MutationInsideComponentBody_BCF3001MessageNamesBody()
     {
-        // Companion to the Chrome case above: a ComposeComponentBase mutation must still say "Body".
+        // Companion to the Chrome case above: a BodyComponentBase mutation must still say "Body".
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private int _n;
                 protected override View Body => Span[$"{_n++}"];
@@ -122,7 +122,7 @@ public sealed class ComposeLayoutGeneratorTests
         // Regression guard for the semantic lookup replacing the "Body" literal: a mutation inside an
         // *override* property that is NOT the layout's design-time expression (Chrome) must not be
         // attributed to it. This exercises the exact branch that changed — TryGetDesignTimeExpressionOwnerType
-        // now compares the property's name against ComposeComponentBaseFacts.FindDesignTimeExpressionName(type)
+        // now compares the property's name against DesignTimeBaseFacts.FindDesignTimeExpressionName(type)
         // instead of the literal "Body" — so an unrelated override sharing neither name must still be
         // rejected. An intermediate class supplies the overridable "Label" property, since neither Compose
         // base declares any other overridable member for a leaf class to shadow.
@@ -130,7 +130,7 @@ public sealed class ComposeLayoutGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public abstract class LabeledLayoutBase : ComposeLayoutBase
+            public abstract class LabeledLayoutBase : ChromeLayoutBase
             {
                 public virtual string Label => "default";
             }
@@ -159,7 +159,7 @@ public sealed class ComposeLayoutGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Shell : ComposeLayoutBase
+            public partial class Shell : ChromeLayoutBase
             {
                 private View GetView() => Span["x"];
 
@@ -182,7 +182,7 @@ public sealed class ComposeLayoutGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private View GetView() => Span["x"];
 
@@ -208,7 +208,7 @@ public sealed class ComposeLayoutGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class GenLayout<TItem> : ComposeLayoutBase
+            public partial class GenLayout<TItem> : ChromeLayoutBase
             {
                 protected override View Chrome => Main[Body];
             }

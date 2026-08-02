@@ -22,7 +22,7 @@ public sealed class BracketSurfaceGeneratorTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 {{members}}
                 protected override View Body => {{body}};

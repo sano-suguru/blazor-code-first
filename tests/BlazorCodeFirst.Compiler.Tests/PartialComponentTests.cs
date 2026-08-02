@@ -19,7 +19,7 @@ public sealed class PartialComponentTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public class Counter : ComposeComponentBase
+        public class Counter : BodyComponentBase
         {
             protected override View Body => Span["Count"];
         }
@@ -38,7 +38,7 @@ public sealed class PartialComponentTests
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Counter", message, StringComparison.Ordinal);
         Assert.Contains("Body", message, StringComparison.Ordinal);
-        Assert.Contains("ComposeComponentBase", message, StringComparison.Ordinal);
+        Assert.Contains("BodyComponentBase", message, StringComparison.Ordinal);
 
         // Verify the squiggle lands on the class name token, not the whole declaration. The span is
         // resolved against the original source because a generator diagnostic carries an ExternalFile
@@ -57,12 +57,12 @@ public sealed class PartialComponentTests
     {
         // An abstract base that supplies helpers but leaves Chrome to each concrete layout has nothing
         // generated into it, so demanding `partial` on it would be a false positive. This shape appears
-        // verbatim in ComposeLayoutGeneratorTests (LabeledLayoutBase).
+        // verbatim in ChromeLayoutGeneratorTests (LabeledLayoutBase).
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public abstract class LabeledLayoutBase : ComposeLayoutBase
+            public abstract class LabeledLayoutBase : ChromeLayoutBase
             {
                 protected virtual string Label => "default";
             }
@@ -87,7 +87,7 @@ public sealed class PartialComponentTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class ShellBase : ComposeLayoutBase
+            public partial class ShellBase : ChromeLayoutBase
             {
                 protected override View Chrome => Main[Body];
             }
@@ -111,7 +111,7 @@ public sealed class PartialComponentTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public abstract class Half : ComposeComponentBase
+            public abstract class Half : BodyComponentBase
             {
                 protected abstract override View Body { get; }
             }
@@ -132,7 +132,7 @@ public sealed class PartialComponentTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public abstract partial class ShellBase : ComposeLayoutBase
+            public abstract partial class ShellBase : ChromeLayoutBase
             {
                 protected override View Chrome => Div["base"];
             }
@@ -165,7 +165,7 @@ public sealed class PartialComponentTests
             using Microsoft.AspNetCore.Components.Rendering;
             using static BlazorCodeFirst.Html;
 
-            public class Counter : ComposeComponentBase
+            public class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
 
@@ -195,7 +195,7 @@ public sealed class PartialComponentTests
 
             public partial class Outer
             {
-                public class Counter : ComposeComponentBase
+                public class Counter : BodyComponentBase
                 {
                     protected override View Body => Span["Count"];
                 }

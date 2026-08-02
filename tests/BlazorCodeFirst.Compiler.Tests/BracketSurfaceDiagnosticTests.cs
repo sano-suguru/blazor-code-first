@@ -81,7 +81,7 @@ public sealed class BracketSurfaceDiagnosticTests
 
                 namespace T;
 
-                public partial class Host : ComposeComponentBase
+                public partial class Host : BodyComponentBase
                 {
                     {{members}}
                     protected override View Body => {{body}};

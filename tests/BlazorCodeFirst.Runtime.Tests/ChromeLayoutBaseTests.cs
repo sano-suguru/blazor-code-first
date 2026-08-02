@@ -3,11 +3,11 @@ using Microsoft.AspNetCore.Components.Rendering;
 
 namespace BlazorCodeFirst.Runtime.Tests;
 
-public sealed class ComposeLayoutBaseTests
+public sealed class ChromeLayoutBaseTests
 {
-    // RenderView is hand-written here: the generator does not recognize ComposeLayoutBase until the
+    // RenderView is hand-written here: the generator does not recognize ChromeLayoutBase until the
     // compiler task lands, and this test is about the runtime contract, not code generation.
-    private sealed class ProbeLayout : ComposeLayoutBase
+    private sealed class ProbeLayout : ChromeLayoutBase
     {
         public int RenderViewCallCount { get; private set; }
 
@@ -23,12 +23,12 @@ public sealed class ComposeLayoutBaseTests
     }
 
     [Fact]
-    public void ComposeLayoutBase_DerivesFromLayoutComponentBase()
+    public void ChromeLayoutBase_DerivesFromLayoutComponentBase()
     {
         // Inheriting LayoutComponentBase gives us Blazor's Body parameter under the exact name
         // LayoutView passes (LayoutComponentBase.BodyPropertyName) plus its [DynamicDependency]
         // trimmer hint, with no parameter plumbing of our own.
-        Assert.True(typeof(LayoutComponentBase).IsAssignableFrom(typeof(ComposeLayoutBase)));
+        Assert.True(typeof(LayoutComponentBase).IsAssignableFrom(typeof(ChromeLayoutBase)));
     }
 
     [Fact]

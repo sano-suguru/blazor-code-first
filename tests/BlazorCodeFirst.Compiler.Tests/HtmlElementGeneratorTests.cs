@@ -5,7 +5,7 @@ public sealed class HtmlElementGeneratorTests
     private const string DivTextSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Div["hello"];
         }
@@ -14,7 +14,7 @@ public sealed class HtmlElementGeneratorTests
     private const string MixedContentSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private int _n = 0;
             protected override View Body =>

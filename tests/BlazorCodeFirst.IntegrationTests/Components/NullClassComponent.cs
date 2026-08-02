@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class NullClassComponent : ComposeComponentBase
+public partial class NullClassComponent : BodyComponentBase
 {
     // Yields null without tripping the null-forgiving-operator or nullable-reference-type analyzers:
     // the property's declared type is nullable, so `.Class(NullClass!)` documents intent explicitly

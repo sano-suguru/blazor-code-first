@@ -4,7 +4,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class KeyedHandlerComponent : ComposeComponentBase
+public partial class KeyedHandlerComponent : BodyComponentBase
 {
     private int _total;
     private readonly List<Step> _steps = [new(1, 1), new(2, 5), new(3, 10)];

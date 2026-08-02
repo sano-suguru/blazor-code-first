@@ -1,16 +1,16 @@
 #nullable enable
 BlazorCodeFirst.ComposableAttribute
 BlazorCodeFirst.ComposableAttribute.ComposableAttribute() -> void
-BlazorCodeFirst.ComposeComponentBase
-BlazorCodeFirst.ComposeComponentBase.ComposeComponentBase() -> void
-abstract BlazorCodeFirst.ComposeComponentBase.Body.get -> BlazorCodeFirst.View
-override sealed BlazorCodeFirst.ComposeComponentBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
-abstract BlazorCodeFirst.ComposeComponentBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
-BlazorCodeFirst.ComposeLayoutBase
-BlazorCodeFirst.ComposeLayoutBase.ComposeLayoutBase() -> void
-override sealed BlazorCodeFirst.ComposeLayoutBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
-abstract BlazorCodeFirst.ComposeLayoutBase.Chrome.get -> BlazorCodeFirst.View
-abstract BlazorCodeFirst.ComposeLayoutBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+BlazorCodeFirst.BodyComponentBase
+BlazorCodeFirst.BodyComponentBase.BodyComponentBase() -> void
+abstract BlazorCodeFirst.BodyComponentBase.Body.get -> BlazorCodeFirst.View
+override sealed BlazorCodeFirst.BodyComponentBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+abstract BlazorCodeFirst.BodyComponentBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+BlazorCodeFirst.ChromeLayoutBase
+BlazorCodeFirst.ChromeLayoutBase.ChromeLayoutBase() -> void
+override sealed BlazorCodeFirst.ChromeLayoutBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+abstract BlazorCodeFirst.ChromeLayoutBase.Chrome.get -> BlazorCodeFirst.View
+abstract BlazorCodeFirst.ChromeLayoutBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
 BlazorCodeFirst.View
 BlazorCodeFirst.View.View() -> void
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(string! text) -> BlazorCodeFirst.View
