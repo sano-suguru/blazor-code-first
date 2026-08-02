@@ -64,9 +64,9 @@ packaged_files=$(
 )
 
 expected_payload_files=$(printf '%s\n' \
-  'analyzers/dotnet/cs/BlazorCompose.Compiler.dll' \
-  'lib/net10.0/BlazorCompose.Runtime.dll' \
-  'lib/net10.0/BlazorCompose.Runtime.xml')
+  'analyzers/dotnet/cs/BlazorCodeFirst.Compiler.dll' \
+  'lib/net10.0/BlazorCodeFirst.Runtime.dll' \
+  'lib/net10.0/BlazorCodeFirst.Runtime.xml')
 
 payload_files=$(
   printf '%s\n' "$packaged_files" |
@@ -101,9 +101,9 @@ while IFS= read -r packaged_file; do
   [ -z "$packaged_file" ] && continue
 
   case "$packaged_file" in
-    '[Content_Types].xml' | '_rels/.rels' | 'BlazorCompose.nuspec' | 'README.md' | \
-    'analyzers/dotnet/cs/BlazorCompose.Compiler.dll' | 'lib/net10.0/BlazorCompose.Runtime.dll' | \
-    'lib/net10.0/BlazorCompose.Runtime.xml' )
+    '[Content_Types].xml' | '_rels/.rels' | 'BlazorCodeFirst.nuspec' | 'README.md' | \
+    'analyzers/dotnet/cs/BlazorCodeFirst.Compiler.dll' | 'lib/net10.0/BlazorCodeFirst.Runtime.dll' | \
+    'lib/net10.0/BlazorCodeFirst.Runtime.xml' )
       ;;
     package/services/metadata/core-properties/*.psmdcp)
       ;;
@@ -119,7 +119,7 @@ if [ "${#unexpected_files[@]}" -ne 0 ]; then
   exit 1
 fi
 
-python3 - "$workdir/BlazorCompose.nuspec" <<'PY'
+python3 - "$workdir/BlazorCodeFirst.nuspec" <<'PY'
 import sys
 import xml.etree.ElementTree as ET
 
@@ -136,7 +136,7 @@ if metadata is None:
     raise SystemExit("Package metadata element is missing from nuspec.")
 
 expected_values = {
-    "id": "BlazorCompose",
+    "id": "BlazorCodeFirst",
     "version": "0.1.0-dev",
     "readme": "README.md",
 }

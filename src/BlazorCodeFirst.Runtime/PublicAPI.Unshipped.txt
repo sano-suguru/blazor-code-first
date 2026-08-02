@@ -1,0 +1,70 @@
+#nullable enable
+BlazorCodeFirst.ComposableAttribute
+BlazorCodeFirst.ComposableAttribute.ComposableAttribute() -> void
+BlazorCodeFirst.ComposeComponentBase
+BlazorCodeFirst.ComposeComponentBase.ComposeComponentBase() -> void
+abstract BlazorCodeFirst.ComposeComponentBase.Body.get -> BlazorCodeFirst.View
+override sealed BlazorCodeFirst.ComposeComponentBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+abstract BlazorCodeFirst.ComposeComponentBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+BlazorCodeFirst.ComposeLayoutBase
+BlazorCodeFirst.ComposeLayoutBase.ComposeLayoutBase() -> void
+override sealed BlazorCodeFirst.ComposeLayoutBase.BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+abstract BlazorCodeFirst.ComposeLayoutBase.Chrome.get -> BlazorCodeFirst.View
+abstract BlazorCodeFirst.ComposeLayoutBase.RenderView(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder! builder) -> void
+BlazorCodeFirst.View
+BlazorCodeFirst.View.View() -> void
+static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(string! text) -> BlazorCodeFirst.View
+static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(Microsoft.AspNetCore.Components.RenderFragment? fragment) -> BlazorCodeFirst.View
+BlazorCodeFirst.Decorations
+static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementBuilder element, string! class) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Href(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Src(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Alt(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Id(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Type(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Title(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Role(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
+BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.ComponentView() -> void
+BlazorCodeFirst.ComponentView<TComponent>.Param<TValue>(System.Func<TComponent, TValue>! selector, TValue value) -> BlazorCodeFirst.ComponentView<TComponent>
+static BlazorCodeFirst.ComponentView<TComponent>.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ComponentView<TComponent> _) -> BlazorCodeFirst.View
+BlazorCodeFirst.Html
+static BlazorCodeFirst.Html.Div.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Span.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Button.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Nav.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Header.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Main.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Aside.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Footer.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Section.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Article.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.P.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.H1.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.H2.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.H3.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.H4.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.H5.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.H6.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Ul.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Ol.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Li.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.A.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Img.get -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Element(string! tag) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Fragment(params System.ReadOnlySpan<BlazorCodeFirst.View> children) -> BlazorCodeFirst.View
+static BlazorCodeFirst.Html.Raw(string! rawHtml) -> BlazorCodeFirst.View
+static BlazorCodeFirst.Html.If(bool condition, System.Func<BlazorCodeFirst.View>! then, System.Func<BlazorCodeFirst.View>? otherwise = null) -> BlazorCodeFirst.View
+static BlazorCodeFirst.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.View
+static BlazorCodeFirst.Html.Component<TComponent>() -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ElementBuilder
+BlazorCodeFirst.ElementBuilder.ElementBuilder() -> void
+BlazorCodeFirst.ElementBuilder.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
+static BlazorCodeFirst.ElementBuilder.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ElementBuilder builder) -> BlazorCodeFirst.View
+BlazorCodeFirst.ComponentView<TComponent>.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View

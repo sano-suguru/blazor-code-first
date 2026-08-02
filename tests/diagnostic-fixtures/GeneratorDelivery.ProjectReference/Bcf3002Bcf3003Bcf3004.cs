@@ -1,5 +1,5 @@
-using BlazorCompose;
-using static BlazorCompose.Html;
+using BlazorCodeFirst;
+using static BlazorCodeFirst.Html;
 
 namespace Fixtures.GeneratorDelivery;
 

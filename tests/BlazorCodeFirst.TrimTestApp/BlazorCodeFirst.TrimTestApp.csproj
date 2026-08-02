@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <RestorePackagesPath>../../artifacts/nuget-packages</RestorePackagesPath>
+    <!-- Top-level statements synthesize a Program class outside any namespace; CA1050 is irrelevant here. -->
+    <NoWarn>CA1050</NoWarn>
+    <!-- Computed path to the dev-version cache that must be cleared before restore. -->
+    <_BlazorCodeFirstDevCachePath>$(MSBuildThisFileDirectory)../../artifacts/nuget-packages/blazorcodefirst/0.1.0-dev</_BlazorCodeFirstDevCachePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="BlazorCodeFirst" />
+  </ItemGroup>
+
+  <!-- Scoped IL2072 suppression for the framework's reflection-based [Parameter] binder
+       (Microsoft.AspNetCore.Components.Reflection.ComponentProperties.SetProperties). See
+       ILLink.LinkAttributes.xml for the full rationale.
+
+       Embedding the file as an "ILLink.LinkAttributes.xml" resource does NOT work here: the
+       linker rejects (IL2101) an embedded LinkAttributes file whose assembly fullname element
+       targets an assembly other than the one embedding it; that mechanism is only for an
+       assembly to annotate itself, and we cannot embed anything into the framework's own DLL.
+       Instead, feed the file straight to the linker as an independent link attributes input,
+       via the _ILLinkSuppressions item, which Microsoft.NET.ILLink.targets turns into that
+       linker argument (see the PrepareForILLink target). This is the same plumbing runtime
+       packs use to ship their own cross-assembly trim-suppression profiles. -->
+  <ItemGroup>
+    <_ILLinkSuppressions Include="ILLink.LinkAttributes.xml" />
+  </ItemGroup>
+
+  <!-- Cross-platform cache purge: delete only the isolated 0.1.0-dev cache before restore
+       so NuGet cannot reuse stale package contents for the fixed development version.
+       Only fires during actual NuGet restore (MSBuildRestoreSessionId is set). -->
+  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+  </Target>
+</Project>

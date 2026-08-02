@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Scoped trim-warning suppression for the BlazorCodeFirst trim harness ONLY.
+
+  Rationale: Component<T>() compiles to reflection-free OpenComponent<T>/AddComponentParameter calls
+  (identical to what the Razor compiler emits for markup component usage). When a component's
+  [Parameter]s are applied at runtime, the ASP.NET Core Components FRAMEWORK uses its reflection-based
+  binder, ComponentProperties.SetProperties, which is not trim-annotation-clean (it calls GetType()).
+  In a real Blazor WASM app this framework path is handled by the Blazor SDK's trimming profile; this
+  bare console harness (TrimMode=full, self-contained, warnings-as-errors) lacks that profile, so the
+  framework's own IL2072 surfaces here. It is NOT a BlazorCodeFirst defect — BlazorCodeFirst emits no
+  reflection. Suppress ONLY these two framework call sites so the harness can still verify BlazorCodeFirst's
+  actual contract (its inert element helpers, Component<T>(), Fragment, Raw, and ComponentView builder are
+  trimmed). This file lives in the test harness and is never shipped to users.
+-->
+<linker>
+  <assembly fullname="Microsoft.AspNetCore.Components">
+    <type fullname="Microsoft.AspNetCore.Components.Reflection.ComponentProperties">
+      <method name="SetProperties">
+        <attribute fullname="System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessageAttribute">
+          <argument>Trimming</argument>
+          <argument>IL2072</argument>
+          <property name="Justification">Framework reflection-based [Parameter] binder; handled by the Blazor SDK trim profile in real apps. BlazorCodeFirst emits reflection-free component code. Scoped to the trim harness only.</property>
+        </attribute>
+      </method>
+    </type>
+  </assembly>
+</linker>

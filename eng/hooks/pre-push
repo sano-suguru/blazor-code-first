@@ -17,10 +17,10 @@ if ! command -v dotnet >/dev/null 2>&1; then
 fi
 
 echo "pre-push: verifying formatting (dotnet format --verify-no-changes)..." >&2
-if ! dotnet format BlazorCompose.slnx --verify-no-changes --no-restore; then
+if ! dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore; then
   echo >&2
   echo "pre-push: formatting check failed. Fix with:" >&2
-  echo "    dotnet format BlazorCompose.slnx" >&2
+  echo "    dotnet format BlazorCodeFirst.slnx" >&2
   echo "then re-commit and push again. (Bypass in an emergency with: git push --no-verify)" >&2
   exit 1
 fi

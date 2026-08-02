@@ -2,8 +2,8 @@
 
   <!-- The analyzer delivered exactly as samples/ and site/ deliver it. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\BlazorCompose.Runtime\BlazorCompose.Runtime.csproj" />
-    <ProjectReference Include="..\..\..\src\BlazorCompose.Compiler\BlazorCompose.Compiler.csproj"
+    <ProjectReference Include="..\..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
+    <ProjectReference Include="..\..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
   </ItemGroup>

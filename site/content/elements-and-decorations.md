@@ -3,7 +3,7 @@ title: Elements and Decorations
 order: 20
 ---
 
-BlazorCompose mirrors HTML directly: every element you write in a `Body` expression names the
+BlazorCodeFirst mirrors HTML directly: every element you write in a `Body` expression names the
 element it produces. There is no intermediate widget vocabulary to learn and no runtime UI tree —
 the source generator turns these calls into `RenderTreeBuilder` instructions at compile time.
 
@@ -12,8 +12,8 @@ the source generator turns these calls into `RenderTreeBuilder` instructions at 
 Element helpers take mixed string and element children in brackets:
 
 ```csharp
-using BlazorCompose;
-using static BlazorCompose.Html;
+using BlazorCodeFirst;
+using static BlazorCodeFirst.Html;
 
 protected override View Body =>
     Article[

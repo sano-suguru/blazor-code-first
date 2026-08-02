@@ -1,4 +1,4 @@
-# BlazorCompose: A Code-First Declarative UI Library for Blazor
+# BlazorCodeFirst: A Code-First Declarative UI Library for Blazor
 
 **Design Overview — 背景・目的・設計方針**
 
@@ -18,9 +18,9 @@
 
 ### 1.2 アプローチ
 
-BlazorCompose は、Blazor 上に型安全なコードファースト UI 構築を導入するライブラリです。
+BlazorCodeFirst は、Blazor 上に型安全なコードファースト UI 構築を導入するライブラリです。
 
-BlazorComposeの中核は、Razorコンパイラと同型のコンパイル戦略です。Razorコンパイラが `.razor` マークアップからC#のレンダリングメソッドを生成するのと同じように、BlazorComposeのSource Generatorは、開発者がC#で記述した宣言的な `Body` 式からレンダリングメソッドを生成します。マークアップの代わりにC#の式を「ソース・オブ・トゥルース」とすることで、Razorが実証済みの静的シーケンス割当・差分検知性能をそのまま継承しながら、SwiftUIやJetpack Composeと同等の記述体験を実現します。
+BlazorCodeFirstの中核は、Razorコンパイラと同型のコンパイル戦略です。Razorコンパイラが `.razor` マークアップからC#のレンダリングメソッドを生成するのと同じように、BlazorCodeFirstのSource Generatorは、開発者がC#で記述した宣言的な `Body` 式からレンダリングメソッドを生成します。マークアップの代わりにC#の式を「ソース・オブ・トゥルース」とすることで、Razorが実証済みの静的シーケンス割当・差分検知性能をそのまま継承しながら、SwiftUIやJetpack Composeと同等の記述体験を実現します。
 
 ### 1.3 技術的判断
 
@@ -56,11 +56,11 @@ HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止�
 
 ### 2.2 既存Blazorとのシームレスな統合
 
-既存のBlazorエコシステムと相互運用できます。BlazorComposeで構築したUIは標準の `RenderFragment` として公開できるため、既存の `.razor` コンポーネントの中から呼び出すことができ、逆もまた可能です(§6)。
+既存のBlazorエコシステムと相互運用できます。BlazorCodeFirstで構築したUIは標準の `RenderFragment` として公開できるため、既存の `.razor` コンポーネントの中から呼び出すことができ、逆もまた可能です(§6)。
 
 ### 2.3 Razorと同等のコンパイル
 
-`Body` に記述された宣言的な式は、Source Generatorによってビルド時にレンダリングメソッドへコンパイルされます。生成コードはRazorコンパイラの出力と同じ形式(静的シーケンス番号付きの `RenderTreeBuilder` 命令列)であるため、Blazorエンジンから見ればBlazorComposeコンポーネントと通常のRazorコンポーネントは区別がつきません。開発者が書くコードと実行される命令列の間に、ランタイムの動的解釈や中間ツリーは存在しません。
+`Body` に記述された宣言的な式は、Source Generatorによってビルド時にレンダリングメソッドへコンパイルされます。生成コードはRazorコンパイラの出力と同じ形式(静的シーケンス番号付きの `RenderTreeBuilder` 命令列)であるため、Blazorエンジンから見ればBlazorCodeFirstコンポーネントと通常のRazorコンポーネントは区別がつきません。開発者が書くコードと実行される命令列の間に、ランタイムの動的解釈や中間ツリーは存在しません。
 
 > 設計上の要件: 設計時表現(`Body` / `Chrome`)の override を宣言するコンポーネントクラスは `partial` として宣言する必要があります(Source Generatorがレンダリングメソッドを同一クラスへ生成するため)。非partialクラスはビルドエラー(BCF1001)となります。Composeベースを継承するだけで設計時表現を宣言しないクラスには不要です。ネストしたクラスはサポートされません(BCF1005)。ジェネリックコンポーネント(`partial class Foo<T>`)はサポートされます。
 
@@ -86,8 +86,8 @@ HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止�
 開発者は `ComposeComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。語彙はHTML要素をそのまま写す「HTMLミラー表層」を採ります。この表層は kotlinx.html(Kotlin) / ScalaTags(Scala) / Feliz(F#) / Elm html(Elm) / hiccup(Clojure) の系譜に連なります。いずれも独自のレイアウト語彙を発明せず、HTML要素と属性の語彙をそのまま言語機能として表現し、レイアウトは全面的にCSSへ委ねる点で共通しており、本節もその方針に従います(系譜内での正確な位置づけ — 型安全観と装飾チェーンの形式 — は本節後段に記します)。
 
 ```csharp
-using BlazorCompose;
-using static BlazorCompose.Html;
+using BlazorCodeFirst;
+using static BlazorCodeFirst.Html;
 
 public partial class CounterPage : ComposeComponentBase
 {
@@ -101,13 +101,13 @@ public partial class CounterPage : ComposeComponentBase
 }
 ```
 
-- 要素ヘルパーとコンビネータは静的クラス `Html` に集約します。推奨形は `using static BlazorCompose.Html;` を導入した上で `Div[...]` のように**非修飾で書く**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートした名前が衝突する場合に限り、衝突する箇所だけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。`Nav` / `Header` / `Article` / `Section` のような短いタグ名の要素ヘルパーを備えるため、ドメイン型やジェネリック引数との衝突可能性は広がりえます。
+- 要素ヘルパーとコンビネータは静的クラス `Html` に集約します。推奨形は `using static BlazorCodeFirst.Html;` を導入した上で `Div[...]` のように**非修飾で書く**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートした名前が衝突する場合に限り、衝突する箇所だけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。`Nav` / `Header` / `Article` / `Section` のような短いタグ名の要素ヘルパーを備えるため、ドメイン型やジェネリック引数との衝突可能性は広がりえます。
 - `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも `ElementBuilder`(子をまだ与えていない要素)を返すプロパティです。任意タグ用の `Html.Element(string tag)` と同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBCF3009で診断されます)。curatedヘルパーの集合は `Div` / `Span` / `Button` / `Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` の22個です。この集合にない任意タグは `Element(tag)[...]` で表現します。curatedな22個のプロパティと任意タグ用の `Html.Element(string)` をあわせて**要素ヘルパー**と呼びます(プロパティとメソッドの両方を含むため、C#のメンバー種別を含意しない語を用います)。`If` / `ForEach` はコンビネータ、`Component<T>()` はコンポーネント構文として個別に呼び分けます。
 - 要素の子は、タグ(と装飾)に続く `[...]`(`ElementBuilder` のインデクサ、`params ReadOnlySpan<View>`)で与え、文字列と `View` を**混在**できます。生の文字列は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` 構文は持ちません。テキストのみを明示的に囲みたい場合は `Span["..."]` を使います。子を持たない要素は `[]` を省いてそのまま書けます(`ElementBuilder` から `View` への暗黙変換)。子を入れ子のコレクション式リテラルで書いた形(`Div[["a", "b"]]`)も受理します。子が個々の式として静的に見えており、C#のparams collections規則でも展開形と同じ呼び出しになる(渡るスパンも同一)ため、表層がこれを区別する根拠がないからです。内側の括弧はグルーピングを作らず、子は展開形と同じく平坦に並びます。ただし推奨形は単一の括弧(`Div["a", "b"]`)です。子の実体が静的に見えない形 — 変数やメソッド結果を丸ごと渡す(`Div[_kids]` / `Div[children: Kids()]`)、明示的な配列生成(`Div[new View[] { ... }]`)、spreadを含む形(`Div[[..items]]` / `Div[["a", ..items]]`) — はいずれも静的にシーケンスできないためBCF1003で、繰り返しは `ForEach`(§4.2)で表現します。
 - 属性・イベントは子と並べるのではなく、タグ直後の**装飾チェーン**で与えます(`Div.Class("card")["text"]`)。名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`、値はいずれも `string`)が主要な書き方で、これ以外の属性は汎用 `.Attr(name, value)` で与えます。イベントは `.OnClick(Action)` / `.OnClick(Func<Task>)` に加え、汎用 `.On(fullEventName, Action)` / `.On(fullEventName, Func<Task>)` を持ちます。`.On` は `"onclick"` / `"onmouseenter"` のように**`on` プレフィックスを含むフルの属性名**を受け取り、暗黙のプレフィックス付与は行いません。`.Attr` の属性名と `.On` のイベント名はいずれもコンパイル時定数が必須で、非定数はBCF3011で診断されます。`class` は唯一の畳み込み属性で、`.Class(string)`(または `.Attr("class", …)`)をチェーンで複数回指定すると単一の `class` 属性へ畳み込まれます。それ以外の属性・イベントはすべて単一バインディングで、同一属性/イベントの重複指定はBCF3010で診断されます。`style` にショートカットはなく、外部CSSと `.Class` の併用を推奨します(明示的に `.Attr("style", …)` を書くことは可能です)。HTML自体の妥当性 — void要素(`Img` 等)が子を持てないこと、特定の属性が特定の要素にのみ許可されることなど、いわゆるcontent modelの検査は行いません。これはkotlinx.html流ではなくhiccup/ScalaTags流の型安全観(§4.1後段)どおりで、コンパイル時に検出されるのはC#レベルの名前・型の誤りに限られます。`Html.Fragment` と `Html.Raw` も備えます(下記)。将来にはフォーム関連ヘルパー、型付きイベント引数、`bool`/`object` 値属性、辞書から一括指定する `.Attrs(...)` 等の追加を検討していますが、現時点では未実装です。
 - Blazorの `RenderFragment?` はそのままコンテンツになります(`View` への暗黙変換)。専用の構文は不要で、`Div[fragment]` のように文字列や他の `View` と同じ位置に書けます。用途は主に2つです — `[Parameter] public RenderFragment? ChildContent` を持つコンポーネントがRazor側から渡された子孫を描画する場合と、レイアウト(後述)が `LayoutComponentBase.Body` を配置する場合です。変換は非ジェネリックの `RenderFragment` に限られ(`RenderFragment<T>` は変換されずCS1503)、`Fragment`/`Raw` と同様に単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BCF3003)、装飾もできません(BCF3008)。
 - `If` / `ForEach`(§4.2)・`Component<T>()`(§6.2)と同様、`Html.Fragment(params ReadOnlySpan<View> children)` と `Html.Raw(string rawHtml)` はいずれもHTML要素にマップしない構文です。`Fragment` はラッパー要素を持たないグルーピング(React `<>…</>` 相当)で、子は0個以上の文字列/`View` の混在を受け取ります。単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BCF3003)、同じ理由で装飾もできません(BCF3008)。`Raw` は信頼済みHTML文字列を `RenderTreeBuilder.AddMarkupContent` へ直接注入する構文で(`MarkupString` と同じ信頼境界)、**信頼済みコンテンツ専用**です — ユーザー入力や外部レスポンスなど非信頼な文字列を通すとXSSベクタになります。値は文字列リテラルでもフィールド/const参照でも構いません(配信経路に依存しない値スロットのため、`Html.Element` のタグ引数(BCF3009)や `.Attr`/`.On` の名前引数(BCF3011)のようなコンパイル時定数の制約はありません)。`Raw` も要素を開かないため非キー可能で、`ForEach` の `content` 根には使えず(BCF3003)、装飾もできません(BCF3008)。
-- 属性を子より前に置くのは、HTMLがそう書くからです。本表層の原則は、HTMLの語彙をそのまま写し、**HTMLの上に覚え直しの語彙を一切載せない**ことにあります(後述の `VStack` / `.Padding()` 不採用、`Text()` の廃止、`style` ショートカットの不採用はいずれも同じ原則の帰結です)。HTMLでは属性はタグの内側にあって子より前に来るため、`Div.Class("card")["text"]` はその順序をC#の構文へ写したものです。属性を子の後ろへ置く形(子を与えた `Div[...]` に `.Class(...)` を後置するpostfix形式)は、この一点だけHTMLと違う形をつくり、作者に「BlazorComposeでは属性が後ろに来る」という、HTMLの知識に加えて保持しなければならない項目を課します。したがってこれは、fluentイディオムという好みが読みやすさという好みに負けた、という重み付けの結果ではありません。覚え直しを載せないという原則の適用であり、C#の書き味やfluentイディオムを理由に後置形へ戻すことはしません — 戻すには、本表層がHTMLミラーであるという原則自体を改訂する必要があります。同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)と一致するのはその帰結であって、系譜への準拠を目的としたものではありません。
+- 属性を子より前に置くのは、HTMLがそう書くからです。本表層の原則は、HTMLの語彙をそのまま写し、**HTMLの上に覚え直しの語彙を一切載せない**ことにあります(後述の `VStack` / `.Padding()` 不採用、`Text()` の廃止、`style` ショートカットの不採用はいずれも同じ原則の帰結です)。HTMLでは属性はタグの内側にあって子より前に来るため、`Div.Class("card")["text"]` はその順序をC#の構文へ写したものです。属性を子の後ろへ置く形(子を与えた `Div[...]` に `.Class(...)` を後置するpostfix形式)は、この一点だけHTMLと違う形をつくり、作者に「BlazorCodeFirstでは属性が後ろに来る」という、HTMLの知識に加えて保持しなければならない項目を課します。したがってこれは、fluentイディオムという好みが読みやすさという好みに負けた、という重み付けの結果ではありません。覚え直しを載せないという原則の適用であり、C#の書き味やfluentイディオムを理由に後置形へ戻すことはしません — 戻すには、本表層がHTMLミラーであるという原則自体を改訂する必要があります。同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)と一致するのはその帰結であって、系譜への準拠を目的としたものではありません。
 - ミラーはこれで完全になったわけではありません。残る破れは3点あり、いずれも属性の位置とは別の問題として残ります。(1) **casing**: `Div` は `<div>` と文字面で一致しません(本節末尾)。(2) **content model**: void要素が子を取れること、属性の適用可否など、HTML妥当性の検査は行いません(次項の型安全観)。(3) **curatedタグ集合**: 22個のタグだけがプロパティとして与えられ、それ以外は `Element("…")` を経由するという、HTMLには存在しない二分があります(#99で別途追跡)。属性の位置は、**要素の書き順として**HTML以外を覚えさせる最後の箇所であり、ここで解消されました。残る3点は形の覚え直しではなく、写像の粒度(casing・タグ集合)と検査範囲(content model)の限界です。
 - 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノード+文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、HTML妥当性レベル(void要素が子を持てない、属性が当該要素に適用可能か等)の検査は含みません。
 - 設計時表層の型はいずれも軽量なマーカー型(空の `readonly struct`)です。要素名は `ElementBuilder` を、`Component<T>()` は `ComponentView<T>` を返し、装飾は `ElementBuilder` を受けて `ElementBuilder` を返します。子を与えるインデクサ(`[...]`)とコンビネータが返すのが `View` で、`ElementBuilder` / `ComponentView<T>` はいずれも `View` へ暗黙変換されます。この型の並びが属性と子の順序を型システム上の要請にしており、逆順(`Div["text"].Class("card")`)は装飾の受け手が `View` になるため成立せず、BCF3008で診断されます(`ARCHITECTURE.md` 付録A)。式は通常のC#として型検査されますが、実行時に評価されることはなく、Source Generatorが式ツリーを直接レンダリングコードへ変換します。
@@ -115,7 +115,7 @@ public partial class CounterPage : ComposeComponentBase
 - 値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBCF3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
 - **casingの限界**: C#の識別子はPascalCase、HTMLタグ名は小文字であるため、`Div`(修飾形では `Html.Div`)は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
 
-かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorComposeにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div.Class("row")[...]` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` を使えば `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、推奨は外部CSSと `.Class` の組み合わせであり、`style` に専用のショートカットは設けません。`Text()` の廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#の式として写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
+かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorCodeFirstにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div.Class("row")[...]` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` を使えば `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、推奨は外部CSSと `.Class` の組み合わせであり、`style` に専用のショートカットは設けません。`Text()` の廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#の式として写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
 
 ### 4.2 リストと条件分岐の表現
 
@@ -243,7 +243,7 @@ Blazorの差分検知は、シーケンス番号がコンパイル時に静的�
 
 ### 5.4 Hot Reload戦略
 
-`Body` 式の編集はSource Generatorが再生成する `RenderView` のメソッド本体の変更として現れますが、メソッド本体の差し替えは.NET Hot Reload(Edit and Continue)が安定してサポートする編集クラスです。`[Composable]` メソッドの追加も「既存型へのメンバー追加」であり、サポート範囲内です。さらにBlazorには既にRazor用の `MetadataUpdateHandler` によるコード更新後の再レンダリング経路が存在し、BlazorComposeのコンポーネントは通常の `ComponentBase` 派生+通常の生成メソッドであるため、この既存経路にそのまま乗ります。独自のリロード機構は必要ありません。
+`Body` 式の編集はSource Generatorが再生成する `RenderView` のメソッド本体の変更として現れますが、メソッド本体の差し替えは.NET Hot Reload(Edit and Continue)が安定してサポートする編集クラスです。`[Composable]` メソッドの追加も「既存型へのメンバー追加」であり、サポート範囲内です。さらにBlazorには既にRazor用の `MetadataUpdateHandler` によるコード更新後の再レンダリング経路が存在し、BlazorCodeFirstのコンポーネントは通常の `ComponentBase` 派生+通常の生成メソッドであるため、この既存経路にそのまま乗ります。独自のリロード機構は必要ありません。
 
 挙動は次のように仕様化します。要素を `Body` の途中へ挿入する編集では後続ノードのシーケンス番号が再割当されるため、リロード直後の初回レンダリングで当該コンポーネントのDOMサブツリーが再構築されます(コンポーネントのフィールド状態は保持され、入力中のフォーカス等のDOMローカル状態は失われえます)。これはRazorファイル編集時と同じ意味論です。
 
@@ -253,9 +253,9 @@ Blazorの差分検知は、シーケンス番号がコンパイル時に静的�
 
 ## 6. 既存Blazorエコシステムとの双方向互換性
 
-BlazorComposeは独自のシェルターを構築するのではなく、既存のRazorコンポーネント(`.razor`)やライブラリ(MudBlazor、QuickGrid等)をそのまま再利用できます。
+BlazorCodeFirstは独自のシェルターを構築するのではなく、既存のRazorコンポーネント(`.razor`)やライブラリ(MudBlazor、QuickGrid等)をそのまま再利用できます。
 
-### 6.1 Razorの中でBlazorComposeを使う
+### 6.1 Razorの中でBlazorCodeFirstを使う
 
 Source Generatorは各 `[Composable]` メソッドに対し、`RenderFragment` を返す兄弟メソッド(`〜AsFragment`)を併生成します。これにより既存の `.razor` ファイルへコードファーストUIを直接埋め込めます。
 
@@ -275,7 +275,7 @@ public static partial class Widgets
 }
 ```
 
-### 6.2 BlazorComposeの中で既存のRazorコンポーネントを使う
+### 6.2 BlazorCodeFirstの中で既存のRazorコンポーネントを使う
 
 `Component<T>()` で、サードパーティ製を含む既存のBlazorコンポーネントをコードファーストツリーへ組み込めます。パラメータはSource Generatorが生成する静的セッターでバインドされるため(式木のランタイムコンパイルなし)、AOT環境でも安全です。
 
@@ -332,7 +332,7 @@ BCF3013 です。`RenderFragment<TContext>` は受け取れません — 生成�
 
 C#によるコードファーストUIの試みは本ライブラリが最初ではありません。ただし、対象プラットフォームが異なるため直接の競合ではなく、本章は設計アプローチの対比です。
 
-|                  | BlazorCompose           | Comet                                           | Avalonia.Markup.Declarative               | CommunityToolkit.Maui.Markup     | 手書き RenderTreeBuilder   |
+|                  | BlazorCodeFirst           | Comet                                           | Avalonia.Markup.Declarative               | CommunityToolkit.Maui.Markup     | 手書き RenderTreeBuilder   |
 | ---------------- | ----------------------- | ----------------------------------------------- | ----------------------------------------- | -------------------------------- | -------------------------- |
 | レンダリング先   | 実DOM(Blazor)           | ネイティブ(MAUIハンドラ)                        | ネイティブ+ブラウザ(Skiaによるcanvas描画) | ネイティブ(MAUI)。ブラウザ非対応 | 実DOM                      |
 | プロジェクト状態 | 本提案                  | 2025年7月アーカイブ(概念実証・公式サポートなし) | 活発                                      | 活発                             | Blazor標準(手書きは非推奨) |
@@ -344,7 +344,7 @@ C#によるコードファーストUIの試みは本ライブラリが最初で�
 
 この対比から、本ライブラリの特徴は次の3点に整理できます。
 
-第一に、DOMネイティブであること。Avaloniaはブラウザ上でも動作しますが、それはSkiaによるcanvasへの描画であり、DOMを持ちません。SEO、アクセシビリティツリー、CSSエコシステム、SSR/プリレンダリングはcanvas描画には適用できません。BlazorComposeは実DOM/HTMLへ宣言的UIを射影するため、これらのWeb標準の資産をそのまま利用できます。
+第一に、DOMネイティブであること。Avaloniaはブラウザ上でも動作しますが、それはSkiaによるcanvasへの描画であり、DOMを持ちません。SEO、アクセシビリティツリー、CSSエコシステム、SSR/プリレンダリングはcanvas描画には適用できません。BlazorCodeFirstは実DOM/HTMLへ宣言的UIを射影するため、これらのWeb標準の資産をそのまま利用できます。
 
 第二に、Blazor差分検知との構造的整合。retained-mode系(Avalonia.Markup.Declarative、MAUI.Markup)はコントロール実体を保持・変異させるため、シーケンス番号問題自体を持ちません。一方、Blazor上でコードファーストを試みる場合この問題は不可避であり、本ライブラリはこれをRazorコンパイラと同型の方式で解決します。手書き `RenderTreeBuilder` や実行時ツリー方式では、この問題が正しさと性能の両面で破綻要因となります。
 

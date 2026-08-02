@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>BlazorCodeFirst</PackageId>
+    <Version>0.1.0-dev</Version>
+    <Authors>BlazorCodeFirst</Authors>
+    <Description>Prerelease runtime and compiler package for the current BlazorCodeFirst production-foundation vertical slice.</Description>
+    <IsPackable>true</IsPackable>
+    <IsTrimmable>true</IsTrimmable>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCompilerAnalyzer</TargetsForTfmSpecificContentInPackage>
+    <CompilerPackStagingDirectory>$(MSBuildThisFileDirectory)obj/compiler-pack/analyzers/dotnet/cs</CompilerPackStagingDirectory>
+    <CompilerPackAssemblyPath>$(CompilerPackStagingDirectory)/BlazorCodeFirst.Compiler.dll</CompilerPackAssemblyPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Granular package reference instead of <FrameworkReference Include="Microsoft.AspNetCore.App" />:
+         the shared-framework reference has no browser-wasm runtime pack, so it broke Blazor
+         WebAssembly consumers of the packaged library with NETSDK1082 (issue #23). Runtime only
+         uses ComponentBase, RenderTreeBuilder, EventCallback, and IComponent, all of which live in
+         Microsoft.AspNetCore.Components, so that single package is sufficient. -->
+    <PackageReference Include="Microsoft.AspNetCore.Components" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="README.md"
+          Pack="true"
+          PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../BlazorCodeFirst.Compiler/BlazorCodeFirst.Compiler.csproj"
+                      BuildReference="false"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="PackCompilerAnalyzer">
+    <MSBuild Projects="../BlazorCodeFirst.Compiler/BlazorCodeFirst.Compiler.csproj"
+             Targets="Rebuild"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0;NoBuild=false" />
+    <MakeDir Directories="$(CompilerPackStagingDirectory)" />
+    <Copy SourceFiles="../BlazorCodeFirst.Compiler/bin/$(Configuration)/netstandard2.0/BlazorCodeFirst.Compiler.dll"
+          DestinationFiles="$(CompilerPackAssemblyPath)" />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(CompilerPackAssemblyPath)">
+        <PackagePath>analyzers/dotnet/cs</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
+</Project>
