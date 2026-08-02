@@ -29,9 +29,13 @@ namespace BlazorCompose.Compiler.Analysis;
 /// syntax shapes — <see cref="UnresolvedValueTypeScanner"/> skips a <c>Component&lt;T&gt;()</c> call
 /// outright and leaves it to <see cref="UnresolvedComponentTypeScanner"/> — so no scanner here overrides
 /// another's finding.  The one dedup that does exist, <c>ComposableBodyContext.ReportUnresolvedType</c>
-/// dropping a repeat BC3015 at the same file span, only ever compares a BC3015 against an earlier BC3015;
-/// it is internal to <see cref="UnresolvedValueTypeScanner"/>'s own recursion and does not make the order
-/// between the three scanners load-bearing.
+/// dropping a repeat BC3015 at the same file span, is reached from more than this sweep:
+/// <c>ExpressionTemplateFactory.TryReportUnresolvedType</c> also calls it, both from
+/// <see cref="UnresolvedValueTypeScanner"/>'s own recursion and from the success path that
+/// <c>RenderExpressionAnalyzer.Classify</c> runs over the same <see cref="ComposableBodyContext"/> before
+/// <see cref="ReportAll"/> ever executes.  It still does not make the order between the three scanners
+/// load-bearing, because the dedup only ever compares a BC3015 against an earlier BC3015, and
+/// <see cref="UnresolvedValueTypeScanner"/> is the only one of the three that reports BC3015.
 /// </para>
 /// <para>
 /// A sweep that legitimately applies to one host only cannot be expressed through <see cref="ReportAll"/>,

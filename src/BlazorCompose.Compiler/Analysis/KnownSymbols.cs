@@ -265,10 +265,13 @@ internal sealed class KnownSymbols
             // notice. ClassMethod showed the same defect more loudly: a single slot taking whichever
             // two-parameter overload GetMembers returned last.
             //
-            // When ElementBuilderType is unavailable the test is skipped rather than failed. It is null
-            // for the ambiguous-type reason above, and rejecting every candidate would empty these sets
-            // and silently disable BC3008 for every decoration — a worse failure than the one prevented,
-            // and an invisible one, where the current degradation at least reports BC1003.
+            // When ElementBuilderType is unavailable the test is skipped rather than failed. Unlike the
+            // ambiguous-type scenario above, this lookup (htmlType.ContainingAssembly.GetTypeByMetadataName)
+            // is scoped to a single assembly, so null here means that assembly does not declare
+            // BlazorCompose.ElementBuilder under that name, not a cross-assembly ambiguity. Rejecting every
+            // candidate would still empty these sets and silently disable BC3008 for every decoration — a
+            // worse failure than the one prevented, and an invisible one, where the current degradation at
+            // least reports BC1003.
             foreach (var member in decorationsType.GetMembers())
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)
