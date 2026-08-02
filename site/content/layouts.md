@@ -55,7 +55,7 @@ public partial class DocsLayout : ChromeLayoutBase
 ```
 
 Nesting is resolved by Blazor, not by BlazorCodeFirst: `LayoutView` reads the attribute off the layout
-type and wraps it in its own layout, and a Compose layout is an ordinary `LayoutComponentBase`
+type and wraps it in its own layout, and a BlazorCodeFirst layout is an ordinary `LayoutComponentBase`
 descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Body` is the rendered
 `DocsLayout`, whose own `Body` is the routed page.
 
@@ -68,7 +68,7 @@ non-generic `RenderFragment` only — a `RenderFragment<T>` does not convert. An
 and `Raw`, a `RenderFragment` opens no keyable frame, so it cannot be a `ForEach` content root and
 cannot carry decorations.
 
-The same mechanism lets a Compose component render children passed in from Razor. A component
+The same mechanism lets a BlazorCodeFirst component render children passed in from Razor. A component
 with `[Parameter] public RenderFragment? ChildContent` uses it exactly like `Body`:
 
 ```csharp
@@ -87,8 +87,8 @@ public partial class Card : BodyComponentBase
 
 ## Passing child content to components
 
-The direction above — Razor passing content into a Compose component — uses the implicit
-`RenderFragment?` conversion. The opposite direction — Compose code passing content to a Razor or
+The direction above — Razor passing content into a BlazorCodeFirst component — uses the implicit
+`RenderFragment?` conversion. The opposite direction — BlazorCodeFirst code passing content to a Razor or
 hand-written Blazor component — uses `Component<T>()` with nested children or the `.Param` overload
 for `RenderFragment` parameters.
 

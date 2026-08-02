@@ -6,7 +6,7 @@
 [*.cs]
 dotnet_diagnostic.CA2007.severity = none
 
-# Compose page components under Pages/ carry [Route] and must stay public: Blazor's Router
+# Page components under Pages/ carry [Route] and must stay public: Blazor's Router
 # discovers routable components via Assembly.ExportedTypes(), which only returns public types.
 # Making these classes internal (as CA1515 suggests for application-only APIs) would silently
 # remove them from the route table instead of producing a build error, so the analyzer
