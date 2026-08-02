@@ -16,7 +16,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 `BlazorCompose.slnx` contains seven projects:
 
 - `src/BlazorCompose.Runtime` — runtime types (`ComposeComponentBase`, the
-  inert element factories, the `ElementBuilder` decorators and child-list
+  inert element helpers, the `ElementBuilder` decorators and child-list
   indexer that `View` results come from, `Component<T>` interop).
 - `src/BlazorCompose.Compiler` — the Roslyn source generator and analyzers.
 - `tests/BlazorCompose.Runtime.Tests`, `tests/BlazorCompose.Compiler.Tests`,
@@ -174,10 +174,11 @@ milestone. That is a valid state rather than an oversight.
   it. A hand-written `RenderView` override suppresses generation entirely, and
   with it every diagnostic about the design-time expression including `BC1001`:
   nothing is generated into that class, so `partial` would change nothing.
-- `Body`, `Chrome`, factory APIs, and decorators are inert design-time
-  constructs. The design-time expression (`ComposeComponentBase.Body` or
-  `ComposeLayoutBase.Chrome`) must not be evaluated at runtime or mutate
-  state; state mutation inside it is reported as `BC3001`.
+- `Body`, `Chrome`, the element helpers, decorators, `Component<T>()`,
+  `Fragment`, and `Raw` are inert design-time constructs. The design-time
+  expression (`ComposeComponentBase.Body` or `ComposeLayoutBase.Chrome`) must
+  not be evaluated at runtime or mutate state; state mutation inside it is
+  reported as `BC3001`.
 - Preserve one-way flow: event dispatch precedes state mutation, which precedes
   rendering and DOM diff application.
 - Keep the SSC path free of runtime UI trees, reflection, and runtime

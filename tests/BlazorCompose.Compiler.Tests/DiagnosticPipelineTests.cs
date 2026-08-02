@@ -37,7 +37,8 @@ public sealed class DiagnosticPipelineTests
     [Fact]
     public void ComponentBody_UnrecognizedConstruct_ReportsBc1003AndNoSource()
     {
-        // A non-factory, non-composable call returning View reaches the model stage with a null template.
+        // A call that is neither design-time syntax nor a [Composable] method, though it returns View,
+        // reaches the model stage with a null template.
         const string source = """
             using static BlazorCompose.Html;
             public partial class P : BlazorCompose.ComposeComponentBase
@@ -128,9 +129,9 @@ public sealed class DiagnosticPipelineTests
 
     // One row per recursive descent in RenderExpressionAnalyzer, with the untranslatable call placed
     // directly at that descent so the descent itself is load-bearing: route any one of them past the
-    // recording wrapper and the reported span moves out to the enclosing factory. The whole argument
-    // for blaming the innermost expression is that every descent goes through Analyze rather than
-    // Classify, and before this the only thing asserting that was a comment.
+    // recording wrapper and the reported span moves out to the enclosing design-time syntax call. The
+    // whole argument for blaming the innermost expression is that every descent goes through Analyze
+    // rather than Classify, and before this the only thing asserting that was a comment.
     [Theory]
     [InlineData("element children", """Div[Span["ok"], Opaque()]""", "Opaque()")]
     [InlineData("If then branch", """If(Flag, then: () => Opaque())""", "Opaque()")]

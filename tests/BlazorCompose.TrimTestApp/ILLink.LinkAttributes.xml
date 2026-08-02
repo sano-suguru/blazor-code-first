@@ -10,8 +10,8 @@
   bare console harness (TrimMode=full, self-contained, warnings-as-errors) lacks that profile, so the
   framework's own IL2072 surfaces here. It is NOT a BlazorCompose defect — BlazorCompose emits no
   reflection. Suppress ONLY these two framework call sites so the harness can still verify BlazorCompose's
-  actual contract (its inert factories and ComponentView builder are trimmed). This file lives in the
-  test harness and is never shipped to users.
+  actual contract (its inert element helpers, Component<T>(), Fragment, Raw, and ComponentView builder are
+  trimmed). This file lives in the test harness and is never shipped to users.
 -->
 <linker>
   <assembly fullname="Microsoft.AspNetCore.Components">

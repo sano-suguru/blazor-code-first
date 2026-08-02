@@ -62,7 +62,7 @@ descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Bod
 ## RenderFragment becomes content directly
 
 `Body` is a plain Blazor `RenderFragment?`, not a BlazorCompose type, yet `Main[Body]` above
-compiles without a dedicated factory: `View` has an implicit conversion from `RenderFragment?`,
+compiles without dedicated syntax: `View` has an implicit conversion from `RenderFragment?`,
 so any fragment can appear wherever element content is expected. The conversion is from the
 non-generic `RenderFragment` only — a `RenderFragment<T>` does not convert. And like `Fragment`
 and `Raw`, a `RenderFragment` opens no keyable frame, so it cannot be a `ForEach` content root and

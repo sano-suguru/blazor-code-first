@@ -8,7 +8,8 @@ namespace BlazorCompose.TrimTests;
 /// to verify that the trimmer behaves according to the architecture's expectations:
 /// - Generated <c>RenderView</c> must be retained (it is rooted by <c>BuildRenderTree</c>).
 /// - The <c>Body</c> getter should be trimmed from both derived and base types (no runtime caller).
-/// - All unreferenced inert factory methods in <c>BlazorCompose.Html</c> should be trimmed.
+/// - Unreferenced inert members of <c>BlazorCompose.Html</c> and the <c>ComponentView&lt;T&gt;</c>
+///   builder type should be trimmed.
 /// </summary>
 public sealed class TrimmedOutputTests
 {
@@ -64,17 +65,20 @@ public sealed class TrimmedOutputTests
     }
 
     [Fact]
-    public void TrimmedRuntime_AfterPublish_TrimsAllInertFactoryMethods()
+    public void TrimmedRuntime_AfterPublish_TrimsUnreferencedHtmlMembers()
     {
         var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
 
         var methods = GetMethodNames(runtimeAssemblyPath, "Html", expectedNamespace: "BlazorCompose");
 
-        // All inert factories are unreachable at runtime — the source generator inlines their
-        // semantics into RenderView via direct RenderTreeBuilder calls.
-        Assert.DoesNotContain("Div", methods);
-        Assert.DoesNotContain("Span", methods);
-        Assert.DoesNotContain("Button", methods);
+        // The tested Html members are unreachable at runtime — the source generator inlines their
+        // semantics into RenderView via direct RenderTreeBuilder calls. Div/Span/Button are properties
+        // since #100, so their MethodDef names are the compiler-generated getters (get_Div, etc.), not
+        // the bare property names — asserting the bare names would be vacuous, since those were never
+        // MethodDef names to begin with.
+        Assert.DoesNotContain("get_Div", methods);
+        Assert.DoesNotContain("get_Span", methods);
+        Assert.DoesNotContain("get_Button", methods);
         Assert.DoesNotContain("Element", methods);
         Assert.DoesNotContain("If", methods);
         Assert.DoesNotContain("ForEach", methods);

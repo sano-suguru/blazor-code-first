@@ -54,8 +54,8 @@ internal static class RenderExpressionAnalyzer
 
         // Same shape for an externally supplied RenderFragment: the pre-conversion Type is RenderFragment
         // even though it converts to View, and it lowers to the sibling AddContent overload. This must
-        // stay ahead of the invocation guard below: a method call returning RenderFragment is neither an
-        // Html factory nor a [Composable] call, so falling through would report BC1003.
+        // stay ahead of the invocation guard below: a method call returning RenderFragment is neither
+        // design-time syntax nor a [Composable] call, so falling through would report BC1003.
         if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType &&
             SymbolEqualityComparer.Default.Equals(expressionType, renderFragmentType))
         {
@@ -837,8 +837,8 @@ internal static class RenderExpressionAnalyzer
                 // a bare null-forgiving suppression with nothing else to convert (e.g. `Target(value!)`),
                 // Roslyn elides the suppression operator from the operation tree and Syntax points at the
                 // innermost operand instead — so look for the enclosing ArgumentSyntax rather than
-                // requiring an exact cast. Mirrors FactoryArguments.Bind's default arm, which the Html
-                // factory path already uses for the same elision.
+                // requiring an exact cast. Mirrors FactoryArguments.Bind's default arm, which the
+                // design-time syntax path already uses for the same elision.
                 var argumentExpression = argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>()?.Expression;
                 if (argumentExpression is null)
                     return null;

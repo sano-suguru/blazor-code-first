@@ -62,7 +62,7 @@ internal static class UnresolvedComponentTypeScanner
     }
 
     /// <summary>
-    /// Whether <paramref name="method"/> is <c>Html.Component&lt;T&gt;()</c>, the sole component factory —
+    /// Whether <paramref name="method"/> is <c>Html.Component&lt;T&gt;()</c>, the only component syntax —
     /// children arrive through <c>ComponentView&lt;T&gt;</c>'s indexer, which is not an invocation and so
     /// never reaches this sweep.
     /// </summary>

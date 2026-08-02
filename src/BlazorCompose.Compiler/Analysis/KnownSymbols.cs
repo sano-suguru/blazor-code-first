@@ -4,8 +4,8 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Resolved symbol references for the <c>BlazorCompose.Html</c> factories and their surrounding types so
-/// that expression analysis can compare symbols by identity rather than by name.
+/// Resolved symbol references for the <c>BlazorCompose.Html</c> design-time syntax and their surrounding
+/// types so that expression analysis can compare symbols by identity rather than by name.
 /// </summary>
 /// <remarks>
 /// Resolved transiently from a single <see cref="Compilation"/> inside the syntax-provider transforms
@@ -117,7 +117,7 @@ internal sealed class KnownSymbols
     public static ISymbol Normalize(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
 
     /// <summary>
-    /// Normalizes a property to the comparable key used in <see cref="ElementTags"/>: an element factory
+    /// Normalizes a property to the comparable key used in <see cref="ElementTags"/>: an element helper
     /// spelled as a property has nothing to unreduce, so only the original definition is taken.
     /// </summary>
     /// <remarks>
@@ -201,7 +201,7 @@ internal sealed class KnownSymbols
     public IMethodSymbol? HtmlForEach { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, the only component factory:
+    /// Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, the only component syntax:
     /// children arrive through <see cref="ComponentIndexer"/>, not through an overload.  Null if unavailable.
     /// </summary>
     public IMethodSymbol? HtmlComponent { get; }
@@ -257,14 +257,43 @@ internal sealed class KnownSymbols
         var onMethods = new List<ISymbol>();
         if (decorationsType is not null)
         {
+            // A decoration is defined by its receiver, not by its name: Decorations declares extension
+            // methods on ElementBuilder, and that is what makes .Class/.Attr/.On element decorations
+            // rather than members that merely share a name. Capturing by name alone would admit a future
+            // overload on another receiver — Attr(this ComponentView<T>, string, string), say — into these
+            // sets, where IsDecorationMethod would treat it as an element decoration with nothing to
+            // notice. ClassMethod showed the same defect more loudly: a single slot taking whichever
+            // two-parameter overload GetMembers returned last.
+            //
+            // When ElementBuilderType is unavailable the test is skipped rather than failed. Unlike the
+            // ambiguous-type scenario above, this lookup (htmlType.ContainingAssembly.GetTypeByMetadataName)
+            // is scoped to a single assembly, so null here means that assembly does not declare
+            // BlazorCompose.ElementBuilder under that name, not a cross-assembly ambiguity. Rejecting every
+            // candidate would still empty these sets and silently disable BC3008 for every decoration — a
+            // worse failure than the one prevented, and an invisible one, where the current degradation at
+            // least reports BC1003.
             foreach (var member in decorationsType.GetMembers())
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)
                     continue;
+                if (ElementBuilderType is not null
+                    && !(method.Parameters.Length > 0
+                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, ElementBuilderType)))
+                {
+                    continue;
+                }
+
                 var key = Normalize(method);
                 switch (method.Name)
                 {
-                    case "Class" when method.Parameters.Length == 2: ClassMethod = method; break;
+                    // Receiver plus second parameter fully determines (ElementBuilder, string), so this
+                    // single slot cannot take an arbitrary overload. Decorations declares exactly one.
+                    // Not a list pattern: this project targets netstandard2.0 without a System.Index/Range
+                    // polyfill, and the list-pattern lowering requires those types even without a slice.
+                    case "Class" when method.Parameters.Length == 2
+                        && method.Parameters[1].Type.SpecialType == SpecialType.System_String:
+                        ClassMethod = method;
+                        break;
                     case "OnClick":
                         // Both overloads map to "onclick"; the analyzer's decoration branch dispatches
                         // on EventShortcuts, so no separate first-overload symbol is retained.
@@ -301,7 +330,7 @@ internal sealed class KnownSymbols
         {
             // A curated helper is a property returning ElementBuilder; children are written in brackets on
             // the indexer that type declares. The return type is checked as well as the name: a property
-            // that merely shares a curated name is not an element factory.
+            // that merely shares a curated name is not an element helper.
             if (member is IPropertySymbol { IsIndexer: false } elementProperty)
             {
                 if (ElementBuilderType is not null

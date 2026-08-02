@@ -42,7 +42,9 @@ public sealed partial class SiteNav : ComposeComponentBase, IDisposable
                 ForEach(
                     Docs.All,
                     key: d => d.Slug,
-                    content: d => Li[A.Href($"/docs/{d.Slug}").Class(LinkClass($"/docs/{d.Slug}"))[d.Title]])]];
+                    content: d => Li[
+                        A.Href($"/docs/{d.Slug}")
+                            .Class(LinkClass($"/docs/{d.Slug}"))[d.Title]])]];
 
     /// <summary>The current route as a normalized absolute path ("/", "/counter", "/docs/x").</summary>
     /// <remarks>

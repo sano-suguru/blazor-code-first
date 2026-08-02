@@ -120,14 +120,15 @@ internal static class DiagnosticDescriptors
         description:
             "The design-time expression could not be classified into the statically sequenceable subset " +
             "and no runtime fallback exists yet, so no RenderView is generated. Use the supported " +
-            "factories and combinators, or an inline expression lambda, so the expression can be analyzed.");
+            "element helpers, combinators, Component<T>(), Fragment, Raw, or an inline expression " +
+            "lambda, so the expression can be analyzed.");
 
     /// <summary>
     /// BC1004: A design-time expression override declares a getter the generator cannot translate —
     /// either a getter body that does not reduce to a single expression, or an auto property, which
     /// declares no getter body at all. Distinct from BC1003: the getter's shape is the problem, not the
     /// constructs used inside it, and the fix is to rewrite the getter rather than to change which
-    /// factories are called. Reported at the property identifier rather than inside the getter, which is
+    /// element helpers are read. Reported at the property identifier rather than inside the getter, which is
     /// the same distinction: BC1003 blames an expression, BC1004 blames the declaration around it. Not
     /// reported when the component overrides <c>RenderView</c> by hand (the design-time expression is
     /// then unused and the code is correct), nor for a partial property with no implementation part
@@ -271,7 +272,7 @@ internal static class DiagnosticDescriptors
         description:
             "Html.Element(tag, ...) lowers the tag to a literal OpenElement call, so the tag must be a " +
             "non-empty compile-time constant string. This keeps the vocabulary declarative and " +
-            "predictable, consistent with the design-time nature of the factories.");
+            "predictable, consistent with the design-time nature of the surface.");
 
     /// <summary>
     /// BC3010: An attribute or event is bound more than once on the same element. Neither outcome is what

@@ -2,7 +2,7 @@ namespace BlazorCompose;
 
 /// <summary>
 /// Inert design-time syntax for an HTML element that has been named but not yet given children. Every
-/// <see cref="Html"/> element factory produces one; decorations (<see cref="Decorations.Class"/> and the
+/// <see cref="Html"/> element helper produces one; decorations (<see cref="Decorations.Class"/> and the
 /// rest) take and return one; the indexer supplies the children and completes the element.
 /// </summary>
 /// <remarks>
@@ -39,7 +39,7 @@ namespace BlazorCompose;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Usage",
     "CA2225:Operator overloads have named alternates",
-    Justification = "The conversion mirrors the Html factories: it is inert design-time syntax read by the " +
+    Justification = "The conversion mirrors the Html element helpers: it is inert design-time syntax read by the " +
         "source generator so a childless element can appear wherever a View is expected, and it always " +
         "yields the default View at runtime. A named alternate would imply it does work.")]
 public readonly struct ElementBuilder
