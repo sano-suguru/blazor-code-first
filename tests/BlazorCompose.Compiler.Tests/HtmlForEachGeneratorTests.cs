@@ -35,13 +35,13 @@ public sealed class HtmlForEachGeneratorTests
         Assert.Contains("foreach (var", generated);
         Assert.Contains("__builder.SetKey(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3003");
     }
 
     [Fact]
-    public void ForEach_WithBareTextContent_ReportsBC3003()
+    public void ForEach_WithBareTextContent_ReportsBCF3003()
     {
         var result = CompilationTestHost.RunGenerator(TextContentSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003");
     }
 }

@@ -2,7 +2,7 @@ namespace BlazorCompose.DiagnosticTests;
 
 /// <summary>
 /// Asserts that diagnostics reach an author building an ordinary project — the layer that did not
-/// exist when BC1001 spent its whole life unreportable behind a green test suite (#76, #80).
+/// exist when BCF1001 spent its whole life unreportable behind a green test suite (#76, #80).
 /// </summary>
 [Collection(RealBuildDiagnostics.Name)]
 public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
@@ -62,7 +62,7 @@ public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
     [Fact]
     public void AnalyzerFixture_ReportsAnUnrelatedAnalyzerRule()
     {
-        // The control. Without it, "BC3001 was reported" only proves BC3001 works in a compilation
+        // The control. Without it, "BCF3001 was reported" only proves BCF3001 works in a compilation
         // where analyzers happen to run; with it, the fixture itself is verified to be analyzer-eligible.
         var build = fixtures.AnalyzerViaProjectReference;
 
@@ -90,14 +90,14 @@ public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
     [Fact]
     public void GeneratorReportedDiagnostics_SurviveADeclarationError()
     {
-        // The other half of the same finding, and the reason BC1001 had to move: the generator driver
+        // The other half of the same finding, and the reason BCF1001 had to move: the generator driver
         // has no such gate, so its diagnostics are reported next to the CS0534 they explain.
         var build = fixtures.GeneratorViaProjectReference;
 
-        var bc1001 = SingleDiagnostic(build, "BC1001");
+        var bcf1001 = SingleDiagnostic(build, "BCF1001");
         var cs0534 = build.WithId("CS0534");
 
-        Assert.Contains(cs0534, error => error.FilePath == bc1001.FilePath && error.Line == bc1001.Line);
+        Assert.Contains(cs0534, error => error.FilePath == bcf1001.FilePath && error.Line == bcf1001.Line);
     }
 
     [Fact]
@@ -107,11 +107,11 @@ public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
         // there: same source, same diagnostics, delivered as an external consumer receives it.
         var build = fixtures.GeneratorViaPackage;
 
-        var bc1001 = SingleDiagnostic(build, "BC1001");
-        Assert.Equal("Bc1001Bc1005.cs", bc1001.FileName);
-        Assert.Equal("Bc1001NonPartial", build.AnchorTextOf(bc1001));
+        var bcf1001 = SingleDiagnostic(build, "BCF1001");
+        Assert.Equal("Bcf1001Bcf1005.cs", bcf1001.FileName);
+        Assert.Equal("Bcf1001NonPartial", build.AnchorTextOf(bcf1001));
 
-        Assert.True(build.Contains("BC1005"), build.Report());
+        Assert.True(build.Contains("BCF1005"), build.Report());
     }
 
     [Fact]
@@ -119,9 +119,9 @@ public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
     {
         var build = fixtures.AnalyzerViaPackage;
 
-        var bc3001 = SingleDiagnostic(build, "BC3001");
-        Assert.Equal("Mutating.cs", bc3001.FileName);
-        Assert.Equal("_count++", build.AnchorTextOf(bc3001));
+        var bcf3001 = SingleDiagnostic(build, "BCF3001");
+        Assert.Equal("Mutating.cs", bcf3001.FileName);
+        Assert.Equal("_count++", build.AnchorTextOf(bcf3001));
 
         Assert.True(build.Contains("CA1050"), build.Report());
     }

@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Sweeps a design-time expression that failed to translate, reporting BC3008 when a decoration
+/// Sweeps a design-time expression that failed to translate, reporting BCF3008 when a decoration
 /// (<c>.Class</c>, a named attribute shortcut, an event shortcut, <c>.Attr</c> or <c>.On</c>) was written on
 /// a receiver that opens no element frame — <c>Fragment(…)</c>, <c>Raw(…)</c>, <c>If(…)</c>,
 /// <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[Composable]</c> result, an externally supplied
@@ -20,13 +20,13 @@ namespace BlazorCompose.Compiler.Analysis;
 /// necessarily carries CS0534 — a declaration-stage error — and <c>csc</c> stops after the declaration stage
 /// without binding method bodies.  CS1929 is a body-binding diagnostic, so in the one shape that matters it
 /// is only ever computed for a build that has already been abandoned.  Measured against a real MSBuild
-/// build, before this scanner existed: the fixture <c>Bc3008Host</c> reported CS0534 and BC1003, and no
-/// CS1929.  That same fixture reports BC3008 today — this scanner is why — but the diagnostic that never
+/// build, before this scanner existed: the fixture <c>Bcf3008Host</c> reported CS0534 and BCF1003, and no
+/// CS1929.  That same fixture reports BCF3008 today — this scanner is why — but the diagnostic that never
 /// appeared is the one the argument rests on.
 /// </para>
 /// <para>
-/// A generator diagnostic does survive that cutoff — BC1003 was delivered in the very same build — so a
-/// BlazorCompose diagnostic is the only vehicle that reaches the author, and BC3008 is the one that says
+/// A generator diagnostic does survive that cutoff — BCF1003 was delivered in the very same build — so a
+/// BlazorCompose diagnostic is the only vehicle that reaches the author, and BCF3008 is the one that says
 /// what is actually wrong.  Without this scanner the author is told instead that the expression "uses a
 /// construct that is not statically analyzable", which is both generic and untrue: the construct is
 /// perfectly analyzable, and only the attributes' position is wrong.
@@ -48,7 +48,7 @@ namespace BlazorCompose.Compiler.Analysis;
 internal static class RejectedDecorationScanner
 {
     /// <summary>
-    /// Records at most one BC3008 into <paramref name="context"/> for the whole of <paramref name="root"/>,
+    /// Records at most one BCF3008 into <paramref name="context"/> for the whole of <paramref name="root"/>,
     /// at the member name of the innermost misplaced decoration.
     /// </summary>
     /// <remarks>
@@ -92,7 +92,7 @@ internal static class RejectedDecorationScanner
         // wrong place. A collection expression, not ImmutableArray.Create(): the latter is IDE0303, an
         // error in this repo.
         context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BC3008, memberAccess.Name.GetLocation(), []));
+            DiagnosticDescriptors.BCF3008, memberAccess.Name.GetLocation(), []));
     }
 
     /// <summary>
@@ -117,7 +117,7 @@ internal static class RejectedDecorationScanner
     /// converts to <c>View</c> implicitly.  An extension-method receiver admits only identity, reference and
     /// boxing conversions, never a user-defined one, so a <c>RenderFragment</c> never becomes a <c>View</c>
     /// for the purpose of resolving <c>.Class</c> — which is exactly why the call fails, and also why testing
-    /// the receiver against <c>View</c> alone would never see it.  The author's mistake is the one BC3008
+    /// the receiver against <c>View</c> alone would never see it.  The author's mistake is the one BCF3008
     /// already names: <c>DESIGN.md</c> groups an externally supplied <c>RenderFragment</c> with
     /// <c>Fragment(…)</c> and <c>Raw(…)</c> as content that opens no element frame, and decorating any of the
     /// three is the same error.
@@ -128,16 +128,16 @@ internal static class RejectedDecorationScanner
     /// <c>static ElementBuilder Wrap(this View content, string tag)</c> has exactly that signature, and
     /// without the name test a wrong-argument call to it was reported as a misplaced decoration — measured,
     /// not hypothesized.  What remains after the narrowing is a method that shares a decoration's signature
-    /// <em>and</em> its name; such a method is a decoration in all but declaration site, so BC3008's advice
+    /// <em>and</em> its name; such a method is a decoration in all but declaration site, so BCF3008's advice
     /// still fits it, but that is the residual boundary rather than an absence of one.
     /// </para>
     /// <para>
     /// The failed call's type comes from Roslyn's error recovery, which gives an unresolved invocation the
     /// return type of the best candidate it considered.  That is the only trace of the intended decoration
     /// the semantic model leaves: <c>GetSymbolInfo</c> reports no candidates at all for a receiver that an
-    /// extension method cannot take (measured on every shape BC3008 covers), and where a conversion applies
+    /// extension method cannot take (measured on every shape BCF3008 covers), and where a conversion applies
     /// to the failed call it reports that conversion instead.  Under-reporting is the failure mode — if
-    /// recovery ever picks some other candidate the shape simply falls through to BC1003 — which is the
+    /// recovery ever picks some other candidate the shape simply falls through to BCF1003 — which is the
     /// right way round for a diagnostic that names a specific mistake.
     /// </para>
     /// <para>

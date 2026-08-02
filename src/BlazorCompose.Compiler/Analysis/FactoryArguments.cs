@@ -201,7 +201,7 @@ internal readonly struct FactoryArguments
     /// child's own written expression, or <see langword="null"/> when the shape is unrecognized or an
     /// element's written expression cannot be recovered.  A <c>params ReadOnlySpan&lt;View&gt;</c> is a
     /// collection expression; a <c>params T[]</c> is an array creation.  <see cref="Bind"/> propagates a
-    /// <see langword="null"/> result to its own <see langword="null"/> return, so callers land on BC1003
+    /// <see langword="null"/> result to its own <see langword="null"/> return, so callers land on BCF1003
     /// rather than silently emitting a childless element.
     /// </summary>
     /// <remarks>
@@ -239,7 +239,7 @@ internal readonly struct FactoryArguments
     /// <c>Div[new View[] { … }]</c> reaches the same operation shape, but its elements' nearest container
     /// is the whole argument — measured — so <see cref="TryRecoverElementExpression"/> would hand back the
     /// entire array-creation expression for every child.  Accepting only the literal keeps that shape on
-    /// BC1003, where #75 left it.
+    /// BCF1003, where #75 left it.
     /// </para>
     /// </remarks>
     private static ImmutableArray<ExpressionSyntax>? TryExtractLiteralElements(IArgumentOperation argument)
@@ -307,7 +307,7 @@ internal readonly struct FactoryArguments
     /// measured for #75 one of the two child containers is reached first, so these arms are unreachable
     /// today.  They are here because the walk is otherwise unbounded: a shape whose element syntax sat
     /// outside its own container would climb to an <em>enclosing</em> call's argument and emit an
-    /// unrelated expression as a child.  Failing to BC1003 is the right answer for anything this method
+    /// unrelated expression as a child.  Failing to BCF1003 is the right answer for anything this method
     /// does not recognize.
     /// </para>
     /// </remarks>

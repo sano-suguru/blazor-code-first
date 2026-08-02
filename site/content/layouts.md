@@ -103,7 +103,7 @@ protected override View Body =>
 ```
 
 This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`; otherwise
-BC3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children — the
+BCF3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children — the
 generated lambda is non-generic and would fail an invalid cast at runtime.
 
 Other `RenderFragment` parameters (such as `Footer` or `Header`) bind through
@@ -120,7 +120,7 @@ protected override View Body =>
 
 It is also legal to name `ChildContent` through `.Param` — this is verbose but matches Razor's
 attribute form (`<Card><ChildContent>...</ChildContent></Card>`). Binding the same parameter through
-both channels reports BC3007.
+both channels reports BCF3007.
 
 A real `RenderFragment` value (as opposed to a BlazorCompose `View` expression) still binds through
 the generic `.Param<TValue>` overload and is emitted verbatim.
@@ -132,7 +132,7 @@ For unresolved type names inside parameter values, see
 
 Both `Chrome` and `Body` (the `ComposeComponentBase` one, not the layout's routed-content
 parameter) may read component state — projecting state to UI is their whole purpose — but
-neither may mutate it. Mutating state inside either reports BC3001, the same diagnostic that
+neither may mutate it. Mutating state inside either reports BCF3001, the same diagnostic that
 applies to a regular component's `Body`.
 
 ## Next

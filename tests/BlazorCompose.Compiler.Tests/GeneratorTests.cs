@@ -228,33 +228,33 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_NestedPartialComponent_ReportsBC1005()
+    public void Generator_NestedPartialComponent_ReportsBCF1005()
     {
         // Generating into a nested type means reproducing the enclosing type chain, which is not
-        // supported. Before BC1005 the author got zero BlazorCompose diagnostics and a bare CS0534 that
+        // supported. Before BCF1005 the author got zero BlazorCompose diagnostics and a bare CS0534 that
         // names RenderView without ever mentioning that nesting is the cause.
         var result = CompilationTestHost.RunGenerator(NestedPartialCounterSource);
 
         Assert.Empty(result.GeneratedSources);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1005");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1005");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Counter", message, StringComparison.Ordinal);
         Assert.Contains("Body", message, StringComparison.Ordinal);
 
-        // BC1003 is about constructs inside the expression; conflating the two would send the author
+        // BCF1003 is about constructs inside the expression; conflating the two would send the author
         // looking at their design-time syntax instead of at the nesting.
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
 
-        // BC1001 stays silent: the class already is partial, and partial is not the problem.
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1001");
+        // BCF1001 stays silent: the class already is partial, and partial is not the problem.
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1001");
     }
 
     [Fact]
     public void Generator_NestedClassInheritingWithoutDeclaringExpression_ReportsNothing()
     {
         // A nested type that merely inherits a Compose base declares nothing to generate, so it must not
-        // be told that nesting is a problem — same narrowing principle as BC1001 in PR #59.
+        // be told that nesting is a problem — same narrowing principle as BCF1001 in PR #59.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -274,7 +274,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1005");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1005");
     }
 
     [Fact]
@@ -376,10 +376,10 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_MultiStatementGetter_ReportsBC1004AtTheProperty()
+    public void Generator_MultiStatementGetter_ReportsBCF1004AtTheProperty()
     {
         // A getter with statements would need the Transplantable path, which is not implemented. The
-        // point of BC1004 is that the author is told THAT, instead of a bare CS0534 about RenderView
+        // point of BCF1004 is that the author is told THAT, instead of a bare CS0534 about RenderView
         // which says nothing about the getter.
         const string source = """
             using BlazorCompose;
@@ -401,11 +401,11 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1004");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1004");
         Assert.Contains("Body", diagnostic.GetMessage());
-        // BC1003 explains "the constructs inside are unanalyzable"; BC1004 explains "the getter shape
+        // BCF1003 explains "the constructs inside are unanalyzable"; BCF1004 explains "the getter shape
         // is wrong". Only one of them should fire, or the author gets two contradictory fixes.
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
 
         // Diagnostics that flow through the generator's ComponentAnalysis/DiagnosticInfo round trip
         // carry a file-path-and-span Location (DiagnosticInfo.ToDiagnostic), not a live SyntaxTree
@@ -433,16 +433,16 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
     }
 
     [Fact]
-    public void Generator_AutoPropertyOverride_ReportsBC1004()
+    public void Generator_AutoPropertyOverride_ReportsBCF1004()
     {
         // An auto-property override is legal C# and has no getter body, so nothing can be translated.
         // CS0534 names RenderView and never mentions the auto-property that caused it, so the author has
         // no way to reach the real cause from the compiler's own error — which is exactly the asymmetry
-        // BC1004 exists for. Adding `partial` (BC1001's remedy) does not help this shape.
+        // BCF1004 exists for. Adding `partial` (BCF1001's remedy) does not help this shape.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -456,9 +456,9 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1004");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1004");
         Assert.Contains("Body", diagnostic.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]
@@ -466,7 +466,7 @@ public sealed class GeneratorTests
     {
         // The same auto-property shape is CORRECT code when the author supplies RenderView themselves:
         // the design-time expression is unused, nothing needs translating, and C# reports no error at
-        // all. BC1004 here would be a false positive on working code.
+        // all. BCF1004 here would be a false positive on working code.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -484,15 +484,15 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
-    public void Generator_NonPartialAutoPropertyOverride_ReportsBC1001NotBC1004()
+    public void Generator_NonPartialAutoPropertyOverride_ReportsBCF1001NotBCF1004()
     {
-        // Two problems, reported one at a time: the partial check runs first, so the author sees BC1001
-        // and no BC1004. Following it leads somewhere — after adding `partial` the author gets BC1004
+        // Two problems, reported one at a time: the partial check runs first, so the author sees BCF1001
+        // and no BCF1004. Following it leads somewhere — after adding `partial` the author gets BCF1004
         // naming the auto property instead of a bare CS0534.
         const string source = """
             using BlazorCompose;
@@ -506,8 +506,8 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1001");
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1004");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1001");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1004");
     }
 
     [Fact]
@@ -516,7 +516,7 @@ public sealed class GeneratorTests
         // A partial property with no implementation part earns CS9248, which names the property
         // precisely ("Partial property 'Counter.Body' must have an implementation part"). BlazorCompose
         // adds a diagnostic only when the compiler's own error does not name the real cause, so this
-        // shape is deliberately left to CS9248 rather than double-reported as BC1004.
+        // shape is deliberately left to CS9248 rather than double-reported as BCF1004.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -530,12 +530,12 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS9248");
     }
 
     [Fact]
-    public void Generator_PartialPropertyWithStatementBodyImplementation_ReportsBC1004()
+    public void Generator_PartialPropertyWithStatementBodyImplementation_ReportsBCF1004()
     {
         // A partial property's implementation part can carry a statement-bearing getter, which is legal
         // C# and still untranslatable. The classification must reach the IMPLEMENTATION part to see it —
@@ -565,14 +565,14 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1004");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
     }
 
     [Fact]
-    public async Task Generator_MultiStatementGetterWithMutation_ReportsBothBC1004AndBC3001()
+    public async Task Generator_MultiStatementGetterWithMutation_ReportsBothBCF1004AndBCF3001()
     {
-        // Two analyzers, two separate dedup paths: the generator reports BC1004 and
-        // RenderMutationAnalyzer independently reports BC3001. Both are actionable, so both firing is
+        // Two analyzers, two separate dedup paths: the generator reports BCF1004 and
+        // RenderMutationAnalyzer independently reports BCF3001. Both are actionable, so both firing is
         // correct — pinned here so nobody "fixes" it into a single report.
         const string source = """
             using BlazorCompose;
@@ -594,21 +594,21 @@ public sealed class GeneratorTests
             """;
 
         var generatorResult = CompilationTestHost.RunGenerator(source);
-        Assert.Contains(generatorResult.Diagnostics, d => d.Id == "BC1004");
+        Assert.Contains(generatorResult.Diagnostics, d => d.Id == "BCF1004");
 
         var analyzerDiagnostics =
             await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
-        Assert.Contains(analyzerDiagnostics, d => d.Id == "BC3001");
+        Assert.Contains(analyzerDiagnostics, d => d.Id == "BCF3001");
     }
 
     [Fact]
-    public void Generator_UnrecognizedChild_ReportsBC1003AndCS0534AndNoSource()
+    public void Generator_UnrecognizedChild_ReportsBCF1003AndCS0534AndNoSource()
     {
         var result = CompilationTestHost.RunGenerator(UnrecognizedChildSource);
 
         Assert.Empty(result.GeneratedSources);
         Assert.Single(result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS0534");
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     // -----------------------------------------------------------------------
@@ -795,14 +795,14 @@ public sealed class GeneratorTests
         Assert.Contains(innerItemLocal, loopVars);
 
         CompilationTestHost.AssertOutputCompiles(result);
-        // No BC3002 (every key references its own item).
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3002");
-        // No BC3003: the outer content root is now a Div, a keyable element frame.
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3003");
+        // No BCF3002 (every key references its own item).
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3002");
+        // No BCF3003: the outer content root is now a Div, a keyable element frame.
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3003");
     }
 
     [Fact]
-    public void Generator_ForEachWithRegionRootedContent_ReportsBC3003()
+    public void Generator_ForEachWithRegionRootedContent_ReportsBCF3003()
     {
         const string source = """
             using System.Collections.Generic;
@@ -821,13 +821,13 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         // The outer content root is a bare nested ForEach (region-rooted) — its key has no frame to
-        // attach to, so BC3003 fires and emission is suppressed.
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003" && d.Severity == DiagnosticSeverity.Error);
+        // attach to, so BCF3003 fires and emission is suppressed.
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003" && d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedSources);
     }
 
     [Fact]
-    public void Generator_RegionRootedContentComposableCalledTwice_ReportsBC3003Once()
+    public void Generator_RegionRootedContentComposableCalledTwice_ReportsBCF3003Once()
     {
         const string source = """
             using System.Collections.Generic;
@@ -849,14 +849,14 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // Reported once (dedup across the two call sites), and both paths agree: BC3003 fires AND emission
+        // Reported once (dedup across the two call sites), and both paths agree: BCF3003 fires AND emission
         // is suppressed (guards resolver/expander keyability from drifting apart).
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF3003");
         Assert.Empty(result.GeneratedSources);
     }
 
     [Fact]
-    public void Generator_ComponentForEachContentIsRegionRootedComposableCall_ReportsBC3003()
+    public void Generator_ComponentForEachContentIsRegionRootedComposableCall_ReportsBCF3003()
     {
         // Case B: the bad ForEach is in the COMPONENT body; its content is a composable call whose body is
         // region-rooted. Transitive root-kind resolution (registry) must detect this from the component side.
@@ -878,12 +878,12 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003" && d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedSources);
     }
 
     [Fact]
-    public void Generator_RegionRootedContentInUncalledComposable_StillReportsBC3003()
+    public void Generator_RegionRootedContentInUncalledComposable_StillReportsBCF3003()
     {
         const string source = """
             using System.Collections.Generic;
@@ -901,7 +901,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF3003");
     }
 
     [Fact]
@@ -929,7 +929,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ForEachConstantKey_ReportsBC3002()
+    public void Generator_ForEachConstantKey_ReportsBCF3002()
     {
         const string source = """
             using System.Collections.Generic;
@@ -944,14 +944,14 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3002" && d.Severity == DiagnosticSeverity.Warning);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3002" && d.Severity == DiagnosticSeverity.Warning);
         // A warning must not suppress emission.
         Assert.Single(result.GeneratedSources);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
-    public void Generator_ForEachItemDerivedKey_DoesNotReportBC3002()
+    public void Generator_ForEachItemDerivedKey_DoesNotReportBCF3002()
     {
         const string source = """
             using System.Collections.Generic;
@@ -967,11 +967,11 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3002");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3002");
     }
 
     [Fact]
-    public void Generator_NestedForEachInnerKeyReferencesOnlyOuterItem_ReportsBC3002()
+    public void Generator_NestedForEachInnerKeyReferencesOnlyOuterItem_ReportsBCF3002()
     {
         const string source = """
             using System.Collections.Generic;
@@ -989,12 +989,12 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // Exactly one BC3002 — the inner key references only the outer item, not its own.
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3002");
+        // Exactly one BCF3002 — the inner key references only the outer item, not its own.
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF3002");
     }
 
     [Fact]
-    public void Generator_BadKeyForEachInComposableCalledTwice_ReportsBC3002Once()
+    public void Generator_BadKeyForEachInComposableCalledTwice_ReportsBCF3002Once()
     {
         const string source = """
             using System.Collections.Generic;
@@ -1011,11 +1011,11 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3002");
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF3002");
     }
 
     [Fact]
-    public void Generator_BadKeyForEachInUnreachableComposable_StillReportsBC3002()
+    public void Generator_BadKeyForEachInUnreachableComposable_StillReportsBCF3002()
     {
         const string source = """
             using System.Collections.Generic;
@@ -1031,11 +1031,11 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         // Reported at definition-discovery time, independent of any call site.
-        Assert.Single(result.Diagnostics, d => d.Id == "BC3002");
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF3002");
     }
 
     [Fact]
-    public void Generator_ForEachWithMethodGroupContent_ReportsBC3004AndProducesNoSource()
+    public void Generator_ForEachWithMethodGroupContent_ReportsBCF3004AndProducesNoSource()
     {
         const string source = """
             using System.Collections.Generic;
@@ -1052,7 +1052,7 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         // Non-SSC content (method group, not an inline lambda): recognized ForEach, unanalyzable content.
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3004" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004" && d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedSources);
     }
 
@@ -1090,14 +1090,14 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBC1003()
+    public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBCF1003()
     {
         // Sibling of the design-time syntax path's FactoryArgumentBindingTests.
         // Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource: CreateInvocationArguments
         // used the same fragile `(argument.Syntax as ArgumentSyntax)?.Expression` cast the design-time
         // syntax path used to use. For a bare null-forgiving argument with nothing else to convert (Roslyn
         // elides the `!` from the operation tree), the cast failed, the method returned null, and the
-        // call fell through to BC1003 instead of translating.
+        // call fell through to BCF1003 instead of translating.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -1115,7 +1115,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("NullText!", generated);
     }
@@ -1329,7 +1329,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RecursiveComposableCycle_ReportsBC1002AndEmitsNoSource()
+    public void Generator_RecursiveComposableCycle_ReportsBCF1002AndEmitsNoSource()
     {
         const string source = """
             using BlazorCompose;
@@ -1349,7 +1349,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("cycle", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.Empty(result.GeneratedSources);
     }
@@ -1364,7 +1364,7 @@ public sealed class GeneratorTests
             public partial class Counter : ComposeComponentBase
             {
                 // Invalid declaration: a composable must be static.  The call site must not add a
-                // duplicate BC1002.
+                // duplicate BCF1002.
                 [Composable]
                 private View Helper() => Span["x"];
 
@@ -1374,7 +1374,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("must be static", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.Empty(result.GeneratedSources);
     }
@@ -1416,7 +1416,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_PrivateCrossTypeMemberReference_ReportsBC1002AtCall()
+    public void Generator_PrivateCrossTypeMemberReference_ReportsBCF1002AtCall()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -1441,7 +1441,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Secret", message);
         Assert.Contains("not accessible", message);
@@ -1474,7 +1474,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var counter = Assert.Single(
             result.GeneratedSources, static s => s.HintName.Contains("Counter"));
         var generated = counter.SourceText.ToString();
@@ -1483,7 +1483,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ProtectedCrossTypeReferenceFromUnrelatedComponent_ReportsBC1002AtCall()
+    public void Generator_ProtectedCrossTypeReferenceFromUnrelatedComponent_ReportsBCF1002AtCall()
     {
         var result = CompilationTestHost.RunGenerator(
             ("WidgetBase.cs", """
@@ -1508,7 +1508,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Prefix", message);
         Assert.Contains("not accessible", message);
@@ -1541,14 +1541,14 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("global::WidgetBase.Prefix", generated);
         Assert.DoesNotContain("Label(", generated);
     }
 
     [Fact]
-    public void Generator_PrivateProtectedCrossTypeReferenceFromUnrelatedComponent_ReportsBC1002AtCall()
+    public void Generator_PrivateProtectedCrossTypeReferenceFromUnrelatedComponent_ReportsBCF1002AtCall()
     {
         var result = CompilationTestHost.RunGenerator(
             ("WidgetBase.cs", """
@@ -1573,7 +1573,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Prefix", message);
         Assert.Contains("not accessible", message);
@@ -1581,7 +1581,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_MetadataOnlyComposable_ReportsBC1002AtCall()
+    public void Generator_MetadataOnlyComposable_ReportsBCF1002AtCall()
     {
         var libraryReference = CompilationTestHost.CompileToMetadataReference("""
             using BlazorCompose;
@@ -1611,13 +1611,13 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(compilation);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("no source declaration", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.Empty(result.GeneratedSources);
     }
 
     [Fact]
-    public void Generator_UnnameableParameterType_ReportsBC1002AndEmitsNoSource()
+    public void Generator_UnnameableParameterType_ReportsBCF1002AndEmitsNoSource()
     {
         const string source = """
             using BlazorCompose;
@@ -1636,7 +1636,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("cannot be named", diagnostic.GetMessage(CultureInfo.InvariantCulture));
         Assert.Empty(result.GeneratedSources);
     }
@@ -1669,7 +1669,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_DirectRecursion_ReportsSingleBC1002()
+    public void Generator_DirectRecursion_ReportsSingleBCF1002()
     {
         const string source = """
             using BlazorCompose;
@@ -1686,7 +1686,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("cycle", message);
         Assert.Contains("Loop -> Loop", message);
@@ -1694,7 +1694,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_IndirectRecursion_ReportsSingleBC1002WithCallChain()
+    public void Generator_IndirectRecursion_ReportsSingleBCF1002WithCallChain()
     {
         const string source = """
             using BlazorCompose;
@@ -1714,7 +1714,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("cycle", message);
         Assert.Contains("Ping -> Pong -> Ping", message);
@@ -1881,7 +1881,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // '_secret' is a private field of Widgets and does not exist inside Counter's generated RenderView;
@@ -2049,7 +2049,7 @@ public sealed class GeneratorTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_PrivateMemberAccessReferenceFromUnrelatedComponent_ReportsBC1002AtCall()
+    public void Generator_PrivateMemberAccessReferenceFromUnrelatedComponent_ReportsBCF1002AtCall()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2076,7 +2076,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Secret", message);
         Assert.Contains("not accessible", message);
@@ -2084,7 +2084,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ProtectedMemberAccessReferenceFromUnrelatedComponent_ReportsBC1002AtCall()
+    public void Generator_ProtectedMemberAccessReferenceFromUnrelatedComponent_ReportsBCF1002AtCall()
     {
         var result = CompilationTestHost.RunGenerator(
             ("WidgetBase.cs", """
@@ -2109,7 +2109,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Prefix", message);
         Assert.Contains("not accessible", message);
@@ -2136,7 +2136,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("global::Widget.Secret()", generated);
         Assert.DoesNotContain("Label(", generated);
@@ -2169,7 +2169,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var counter = Assert.Single(
             result.GeneratedSources, static s => s.HintName.Contains("Counter"));
         var generated = counter.SourceText.ToString();
@@ -2203,7 +2203,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The 'items.First()' extension call, only in scope through 'using System.Linq;', normalizes to a
@@ -2243,7 +2243,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The unqualified generic static call and generic type reference — both in scope only through
@@ -2270,7 +2270,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The shared analyzer also serves component Body expressions, so the same using-dependent generic
@@ -2281,7 +2281,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableExtensionMethodWithUnnameableTypeArgument_ReportsBC1002()
+    public void Generator_ComposableExtensionMethodWithUnnameableTypeArgument_ReportsBCF1002()
     {
         const string source = """
             using BlazorCompose;
@@ -2302,9 +2302,9 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         // The reduced 'Select' fixes an anonymous type argument that cannot be named in generated component
-        // code, so normalization is not semantics-preserving and a precise BC1002 is reported instead.
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        // code, so normalization is not semantics-preserving and a precise BCF1002 is reported instead.
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("cannot be named", message);
         Assert.Empty(result.GeneratedSources);
@@ -2319,7 +2319,7 @@ public sealed class GeneratorTests
     [InlineData("out int value")]
     [InlineData("in int value")]
     [InlineData("ref readonly int value")]
-    public void Generator_ByReferenceComposableParameter_ReportsBC1002AndEmitsNoInvalidOutput(string parameter)
+    public void Generator_ByReferenceComposableParameter_ReportsBCF1002AndEmitsNoInvalidOutput(string parameter)
     {
         var source = $$"""
             using BlazorCompose;
@@ -2336,8 +2336,8 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // A by-reference parameter rejects the declaration with exactly one BC1002 and one reason.
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        // A by-reference parameter rejects the declaration with exactly one BCF1002 and one reason.
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains(
             "by-reference parameters are unsupported",
             diagnostic.GetMessage(CultureInfo.InvariantCulture));
@@ -2399,7 +2399,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The static-member access, the typeof type reference, and the generic type reference — all
@@ -2412,11 +2412,11 @@ public sealed class GeneratorTests
     }
 
     // -----------------------------------------------------------------------
-    // Component Body normalization diagnostics surface as BC1002
+    // Component Body normalization diagnostics surface as BCF1002
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_ComponentBodyWithUnnormalizableExtensionReceiver_ReportsBC1002AndEmitsNoSource()
+    public void Generator_ComponentBodyWithUnnormalizableExtensionReceiver_ReportsBCF1002AndEmitsNoSource()
     {
         const string source = """
             using BlazorCompose;
@@ -2429,15 +2429,15 @@ public sealed class GeneratorTests
                 private IEnumerable<string> _items = new List<string> { "a" };
 
                 // A null-conditional extension receiver cannot be rewritten to a static call without
-                // changing short-circuit semantics, so Body normalization reports BC1002.
+                // changing short-circuit semantics, so Body normalization reports BCF1002.
                 protected override View Body => Span[_items?.First()];
             }
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // The Body path surfaces exactly one BC1002 (previously the diagnostic was discarded).
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        // The Body path surfaces exactly one BCF1002 (previously the diagnostic was discarded).
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("cannot be normalized", diagnostic.GetMessage(CultureInfo.InvariantCulture));
 
         // Emission is suppressed rather than producing a broken RenderView.
@@ -2456,7 +2456,7 @@ public sealed class GeneratorTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_ComposableInGenericContainingTypeWithTypeParameter_ReportsBC1002AndEmitsNoSource()
+    public void Generator_ComposableInGenericContainingTypeWithTypeParameter_ReportsBCF1002AndEmitsNoSource()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2482,7 +2482,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Show", message);
         Assert.Contains("containing type must be non-generic", message);
@@ -2493,7 +2493,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableInGenericContainingTypeReferencingTypeParameter_ReportsBC1002AndEmitsNoSource()
+    public void Generator_ComposableInGenericContainingTypeReferencingTypeParameter_ReportsBCF1002AndEmitsNoSource()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2518,7 +2518,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Show", message);
         Assert.Contains("containing type must be non-generic", message);
@@ -2526,7 +2526,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableInGenericEnclosingType_ReportsBC1002AndEmitsNoSource()
+    public void Generator_ComposableInGenericEnclosingType_ReportsBCF1002AndEmitsNoSource()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2554,7 +2554,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Show", message);
         Assert.Contains("containing type must be non-generic", message);
@@ -2603,7 +2603,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var counter = Assert.Single(
             result.GeneratedSources, static s => s.HintName.Contains("Counter"));
         var generated = counter.SourceText.ToString();
@@ -2613,7 +2613,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ProtectedBaseMemberReferencedFromHelperTypeIntoUnrelatedComponent_ReportsBC1002()
+    public void Generator_ProtectedBaseMemberReferencedFromHelperTypeIntoUnrelatedComponent_ReportsBCF1002()
     {
         var result = CompilationTestHost.RunGenerator(
             ("WidgetBase.cs", """
@@ -2647,7 +2647,7 @@ public sealed class GeneratorTests
                 }
                 """));
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Prefix", message);
         Assert.Contains("not accessible", message);
@@ -2852,7 +2852,7 @@ public sealed class GeneratorTests
     {
         // Regression guard for branch placement: the RenderFragment check must run BEFORE the
         // `is not InvocationExpressionSyntax` guard, otherwise a method call returning RenderFragment
-        // is neither design-time syntax nor a [Composable] call and falls through to BC1003.
+        // is neither design-time syntax nor a [Composable] call and falls through to BCF1003.
         const string source = """
             using BlazorCompose;
             using Microsoft.AspNetCore.Components;
@@ -2869,7 +2869,7 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.AddContent(1, MakeHeader());", generated);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]
@@ -2916,7 +2916,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RenderFragmentAsForEachContentRoot_ReportsBC3003()
+    public void Generator_RenderFragmentAsForEachContentRoot_ReportsBCF3003()
     {
         const string source = """
             using System.Collections.Generic;
@@ -2934,7 +2934,7 @@ public sealed class GeneratorTests
 
         var diagnostics = CompilationTestHost.RunGenerator(source).Diagnostics;
 
-        Assert.Contains(diagnostics, d => d.Id == "BC3003");
+        Assert.Contains(diagnostics, d => d.Id == "BCF3003");
     }
 
     [Fact]
@@ -3066,7 +3066,7 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BC1003" or "BC1004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -3153,7 +3153,7 @@ public sealed class GeneratorTests
         // Generator_ProtectedBaseMemberReferencedFromHelperType_* tests cover that.
         //
         // The [Composable] lives on a separate non-generic static class on purpose: a [Composable]
-        // declared INSIDE a generic type is rejected with BC1002 ("containing type must be non-generic"),
+        // declared INSIDE a generic type is rejected with BCF1002 ("containing type must be non-generic"),
         // measured against this generator. That limitation is out of scope here — a generic component
         // calling a composable from elsewhere is the supported combination.
         const string source = """
@@ -3176,7 +3176,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
         // The composable's body is expanded inline (no runtime dispatch), and `_label` — a private member

@@ -47,7 +47,7 @@ public sealed class KeyabilityResolverTests
     }
 
     [Fact]
-    public void CollectForEachContentDiagnostics_RegionRootedContent_EmitsBc3003()
+    public void CollectForEachContentDiagnostics_RegionRootedContent_EmitsBcf3003()
     {
         // ForEach whose content root is a bare If (region).
         var forEach = new ForEachTemplateNode(
@@ -58,7 +58,7 @@ public sealed class KeyabilityResolverTests
 
         KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ComposableRegistry.Empty, sink);
 
-        Assert.Single(sink, d => d.Id == "BC3003");
+        Assert.Single(sink, d => d.Id == "BCF3003");
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class KeyabilityResolverTests
     }
 
     [Fact]
-    public void CollectForEachContentDiagnostics_FragmentContentRoot_EmitsBc3003()
+    public void CollectForEachContentDiagnostics_FragmentContentRoot_EmitsBcf3003()
     {
         // ForEach whose content root is a Fragment (non-keyable) — even wrapping a single Div.
         var forEach = new ForEachTemplateNode(
@@ -104,13 +104,13 @@ public sealed class KeyabilityResolverTests
         var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
         KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ComposableRegistry.Empty, sink);
 
-        Assert.Contains(sink, d => d.Id == "BC3003");
+        Assert.Contains(sink, d => d.Id == "BCF3003");
     }
 
     [Fact]
     public void CollectForEachContentDiagnostics_ForEachNestedInFragment_IsWalked()
     {
-        // A Fragment child that itself holds a region-rooted ForEach must still surface BC3003 — proves the
+        // A Fragment child that itself holds a region-rooted ForEach must still surface BCF3003 — proves the
         // walker recurses into Fragment children.
         var innerForEach = new ForEachTemplateNode(
             Lit("_ys"), Lit("__bc_item_1.Id"),
@@ -123,7 +123,7 @@ public sealed class KeyabilityResolverTests
         var sink = ImmutableArray.CreateBuilder<BlazorCompose.Compiler.Diagnostics.DiagnosticInfo>();
         KeyabilityResolver.CollectForEachContentDiagnostics(root, ComposableRegistry.Empty, sink);
 
-        Assert.Contains(sink, d => d.Id == "BC3003");
+        Assert.Contains(sink, d => d.Id == "BCF3003");
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class KeyabilityResolverTests
             Lit("_items"),
             Lit("__bc_item_0"),
             new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null),   // region-rooted content
-                                                                         // Not `default`: a default TemplateLocation has a null FilePath, and reporting BC3003 calls
+                                                                         // Not `default`: a default TemplateLocation has a null FilePath, and reporting BCF3003 calls
                                                                          // ToLocation() -> Location.Create(filePath: null, …) which throws ArgumentNullException.
                                                                          // Every existing case in this file uses this same spelling.
             new TemplateLocation("f", default, default));
@@ -148,7 +148,7 @@ public sealed class KeyabilityResolverTests
 
         Assert.Single(sink);
         // DiagnosticInfo is symbol-free and stores only the Id string — it has no Descriptor property.
-        Assert.Equal("BC3003", sink[0].Id);
+        Assert.Equal("BCF3003", sink[0].Id);
     }
 
     [Fact]

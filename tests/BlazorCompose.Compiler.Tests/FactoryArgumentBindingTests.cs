@@ -95,7 +95,7 @@ public sealed class FactoryArgumentBindingTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public sealed class FactoryArgumentBindingTests
     public void ForEach_NamedArgumentsOutOfOrder_GeneratesSameSourceAsPositional()
     {
         // The form issue #36 cites. Unlike If and Attr this one does not silently miscompile — the
-        // swapped key/content lands on BC3003 or BC1003 — but it must still bind correctly.
+        // swapped key/content lands on BCF3003 or BCF1003 — but it must still bind correctly.
         const string named = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -222,7 +222,7 @@ public sealed class FactoryArgumentBindingTests
     public void Element_ExplicitChildrenCollection_RemainsUnsupported()
     {
         // `Div[children: arr]` is legal C# (View[] converts to ReadOnlySpan<View>) but the argument is
-        // one whole collection, not a child list. It must land on BC1003 rather than be mis-split.
+        // one whole collection, not a child list. It must land on BCF1003 rather than be mis-split.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -238,7 +238,7 @@ public sealed class FactoryArgumentBindingTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public sealed class FactoryArgumentBindingTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]

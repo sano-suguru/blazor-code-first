@@ -38,7 +38,7 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
-    public void ParamTypeValue_UnresolvedType_ReportsBC3015AndEmitsNoSource()
+    public void ParamTypeValue_UnresolvedType_ReportsBCF3015AndEmitsNoSource()
     {
         const string source = """
             using System;
@@ -62,15 +62,15 @@ public sealed class UnresolvedEmittedTypeTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC3012" or "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF3012" or "BCF1003");
         Assert.Empty(result.GeneratedSources);
         Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
     [Fact]
-    public void IfCondition_UnresolvedType_ReportsBC3015()
+    public void IfCondition_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -88,11 +88,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void DeclarationPatternValue_UnresolvedType_ReportsBC3015AndEmitsNoSource()
+    public void DeclarationPatternValue_UnresolvedType_ReportsBCF3015AndEmitsNoSource()
     {
         const string source = """
             using BlazorCompose;
@@ -108,15 +108,15 @@ public sealed class UnresolvedEmittedTypeTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
 
         Assert.Empty(result.GeneratedSources);
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC1003" or "BC3012");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1003" or "BCF3012");
         Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
     [Fact]
-    public void OutOfPositionNamedThenUnresolvedPositional_RemainsLanguageAndBC1003Owned()
+    public void OutOfPositionNamedThenUnresolvedPositional_RemainsLanguageAndBCF1003Owned()
     {
         const string source = """
             using System;
@@ -138,15 +138,15 @@ public sealed class UnresolvedEmittedTypeTests
 
         Assert.Empty(result.GeneratedSources);
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), static d => d.Id == "CS8323");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Theory]
     [InlineData("""If(condition: typeof(Probe) == typeof(object), () => Div)""")]
     [InlineData("""If(condition: typeof(Probe) == typeof(object), then: () => Div)""")]
     [InlineData("""Element(tag: "section")[typeof(Probe).Name]""")]
-    public void LegalNamedArgumentShapes_UnresolvedTypeStillReportsBC3015(string body)
+    public void LegalNamedArgumentShapes_UnresolvedTypeStillReportsBCF3015(string body)
     {
         var source = $$"""
             using System;
@@ -163,11 +163,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void ForEachKey_UnresolvedType_ReportsBC3015()
+    public void ForEachKey_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -187,11 +187,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void ReorderedForEachKey_UnresolvedType_ReportsBC3015()
+    public void ReorderedForEachKey_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -211,11 +211,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void AttributeValue_UnresolvedType_ReportsBC3015()
+    public void AttributeValue_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -233,11 +233,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void StaticDecorationValue_UnresolvedType_RemainsBC1003Only()
+    public void StaticDecorationValue_UnresolvedType_RemainsBCF1003Only()
     {
         const string source = """
             using System;
@@ -256,18 +256,18 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void NonElementDecorationValue_UnresolvedType_RemainsBC3008Only()
+    public void NonElementDecorationValue_UnresolvedType_RemainsBCF3008Only()
     {
         // Decorations now bind ElementBuilder, not View (Decorations.cs), so decorating Raw(...)'s View
-        // result no longer resolves at all and BC3008 is reported from the failure path by
+        // result no longer resolves at all and BCF3008 is reported from the failure path by
         // RejectedDecorationScanner rather than from the analyzer's decoration arm. The report site moved,
         // but the claim did not: an unresolved type inside a rejected decoration's value must not ALSO
-        // draw a BC3015 — the value sweep must not descend into a decoration that was already rejected.
+        // draw a BCF3015 — the value sweep must not descend into a decoration that was already rejected.
         const string source = """
             using System;
             using BlazorCompose;
@@ -285,12 +285,12 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3008");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3008");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void ReorderedAttrWithInvalidName_DoesNotReportValueTypeBC3015()
+    public void ReorderedAttrWithInvalidName_DoesNotReportValueTypeBCF3015()
     {
         const string source = """
             using System;
@@ -308,16 +308,16 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
     }
 
     [Fact]
-    public void DuplicateAttribute_UnresolvedValueType_RemainsBC3010Owned()
+    public void DuplicateAttribute_UnresolvedValueType_RemainsBCF3010Owned()
     {
         // A duplicate binding is rejected before its value is normalized, so the value never becomes
         // emitted code and its type is not the author's problem — the same ownership the event channel
-        // and both BC3011 paths already had.
+        // and both BCF3011 paths already had.
         const string source = """
             using System;
             using BlazorCompose;
@@ -334,12 +334,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3010");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3010");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void ComposableArgument_UnresolvedType_ReportsBC3015()
+    public void ComposableArgument_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -359,12 +359,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        AssertSingleBCF3015(result, source);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
     [Fact]
-    public void LayoutChrome_UnresolvedType_ReportsBC3015()
+    public void LayoutChrome_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -382,11 +382,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void ComposableBody_UnresolvedType_ReportsBC3015Once()
+    public void ComposableBody_UnresolvedType_ReportsBCF3015Once()
     {
         const string source = """
             using System;
@@ -406,12 +406,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        AssertSingleBC3015(result, source);
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        AssertSingleBCF3015(result, source);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
     [Fact]
-    public void DirectComponentUnresolvedType_RemainsBC3012Only()
+    public void DirectComponentUnresolvedType_RemainsBCF3012Only()
     {
         const string source = """
             using BlazorCompose;
@@ -427,12 +427,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Single(result.Diagnostics, static d => d.Id == "BC3012");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Single(result.Diagnostics, static d => d.Id == "BCF3012");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void TwoLocations_ReportTwoBC3015Diagnostics()
+    public void TwoLocations_ReportTwoBCF3015Diagnostics()
     {
         const string source = """
             using System;
@@ -449,7 +449,7 @@ public sealed class UnresolvedEmittedTypeTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostics = result.Diagnostics.Where(static d => d.Id == "BC3015").ToArray();
+        var diagnostics = result.Diagnostics.Where(static d => d.Id == "BCF3015").ToArray();
 
         Assert.Equal(2, diagnostics.Length);
         Assert.NotEqual(diagnostics[0].Location.SourceSpan, diagnostics[1].Location.SourceSpan);
@@ -459,7 +459,7 @@ public sealed class UnresolvedEmittedTypeTests
     [InlineData("Div.Attr(typeof(Probe).Name, \"value\")")]
     [InlineData("Div.On(typeof(Probe).Name, () => { })")]
     [InlineData("Element(typeof(Probe).Name)")]
-    public void CompileTimeOnlyFactoryArgument_UnresolvedType_DoesNotReportBC3015(string body)
+    public void CompileTimeOnlyFactoryArgument_UnresolvedType_DoesNotReportBCF3015(string body)
     {
         var source = $$"""
             using System;
@@ -476,12 +476,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id is "BC3009" or "BC3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id is "BCF3009" or "BCF3011");
     }
 
     [Fact]
-    public void ParamSelectorUnresolvedType_DoesNotReportBC3015()
+    public void ParamSelectorUnresolvedType_DoesNotReportBCF3015()
     {
         const string source = """
             using BlazorCompose;
@@ -505,20 +505,20 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id is "BC1003" or "BC3005");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id is "BCF1003" or "BCF3005");
     }
 
     [Theory]
     [InlineData(
         "Component<Real>().Param(r => _other.Kind, typeof(Probe))",
-        "BC3005")]
+        "BCF3005")]
     [InlineData(
         "Component<Real>().Param(r => r.NotAParameter, typeof(Probe))",
-        "BC3006")]
+        "BCF3006")]
     [InlineData(
         "Component<Real>().Param(r => r.Kind, typeof(string)).Param(r => r.Kind, typeof(Probe))",
-        "BC3007")]
+        "BCF3007")]
     public void RejectedParamValue_UnresolvedType_RemainsOwnedByExistingDiagnostic(
         string body,
         string expectedDiagnostic)
@@ -551,11 +551,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         Assert.Empty(result.GeneratedSources);
         Assert.Contains(result.Diagnostics, d => d.Id == expectedDiagnostic);
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BC1003" or "BC3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1003" or "BCF3015");
     }
 
     [Fact]
-    public void ForEachParameterDeclarationUnresolvedType_DoesNotReportBC3015()
+    public void ForEachParameterDeclarationUnresolvedType_DoesNotReportBCF3015()
     {
         const string source = """
             using System.Collections.Generic;
@@ -575,12 +575,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     [Fact]
-    public void LambdaParameterTypeInValue_DoesNotReportBC3015()
+    public void LambdaParameterTypeInValue_DoesNotReportBCF3015()
     {
         const string source = """
             using System;
@@ -597,12 +597,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     [Fact]
-    public void PureOverloadFailure_UnresolvedType_DoesNotReportBC3015()
+    public void PureOverloadFailure_UnresolvedType_DoesNotReportBCF3015()
     {
         const string source = """
             using BlazorCompose;
@@ -620,12 +620,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     [Fact]
-    public void UserDefinedForEachOverloadFailure_DoesNotReportBC3015()
+    public void UserDefinedForEachOverloadFailure_DoesNotReportBCF3015()
     {
         const string source = """
             using System;
@@ -650,12 +650,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     [Fact]
-    public void QualifiedUserDefinedForEachOverloadFailure_DoesNotReportBC3015()
+    public void QualifiedUserDefinedForEachOverloadFailure_DoesNotReportBCF3015()
     {
         const string source = """
             using System;
@@ -687,14 +687,14 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     [Theory]
     [InlineData("nameof(Probe)")]
     [InlineData("typeof(global::Generated.Probe).Name")]
-    public void SelfContainedValueUnderFailingOuterRoute_DoesNotReportBC3015(string value)
+    public void SelfContainedValueUnderFailingOuterRoute_DoesNotReportBCF3015(string value)
     {
         var source = $$"""
             using System;
@@ -711,12 +711,12 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
     }
 
     [Fact]
-    public void EscapedNameofMethod_UnresolvedType_ReportsBC3015()
+    public void EscapedNameofMethod_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -736,11 +736,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void ValueSiblingOfUnselectedInvocation_UnresolvedType_ReportsBC3015()
+    public void ValueSiblingOfUnselectedInvocation_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -758,7 +758,7 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Theory]
@@ -780,7 +780,7 @@ public sealed class UnresolvedEmittedTypeTests
     public void ValueExpression_UnresolvedType_ReportsOnceAtSmallestName(string expression)
     {
         var result = AnalyzeValueExpression(expression);
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
 
         Assert.Equal(
             "Missing",
@@ -792,7 +792,7 @@ public sealed class UnresolvedEmittedTypeTests
     {
         var result = AnalyzeValueExpression("typeof(global::Generated.Probe)");
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
         Assert.Equal("typeof(global::Generated.Probe)", result.Template.ToCode());
     }
 
@@ -802,42 +802,42 @@ public sealed class UnresolvedEmittedTypeTests
         var result = AnalyzeValueExpression(
             "typeof(global::System.Collections.Generic.List<Probe>)");
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
         Assert.Equal("Probe", SourceText.From(result.Source).ToString(diagnostic.Span));
     }
 
     [Theory]
     [InlineData("ActuallyMissingValue")]
     [InlineData("MissingMethod(1)")]
-    public void UnresolvedValueOrOverloadFailure_DoesNotReportBC3015(string expression)
+    public void UnresolvedValueOrOverloadFailure_DoesNotReportBCF3015(string expression)
     {
         var result = AnalyzeValueExpression(expression);
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Theory]
     [InlineData("typeof(TValue)")]
     [InlineData("typeof(System.Text.StringBuilder)")]
     [InlineData("nameof(System.String)")]
-    public void ResolvedOrTypeParameterExpression_DoesNotReportBC3015(string expression)
+    public void ResolvedOrTypeParameterExpression_DoesNotReportBCF3015(string expression)
     {
         var result = AnalyzeValueExpression(expression);
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void ExtensionExplicitUnresolvedTypeArgument_ReportsBC3015()
+    public void ExtensionExplicitUnresolvedTypeArgument_ReportsBCF3015()
     {
         var result = AnalyzeValueExpression(
             "new object[] { 1 }.Cast<Probe>().FirstOrDefault()");
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
         Assert.Equal("Probe", SourceText.From(result.Source).ToString(diagnostic.Span));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
     [Fact]
-    public void SameContextAndLocation_ExtensionUnresolvedTypeArgumentReportsBC3015Once()
+    public void SameContextAndLocation_ExtensionUnresolvedTypeArgumentReportsBCF3015Once()
     {
         var result = AnalyzeValueExpression(
             "new object[] { 1 }.Cast<Probe>().FirstOrDefault()");
@@ -852,13 +852,13 @@ public sealed class UnresolvedEmittedTypeTests
         var first = ExpressionTemplateFactory.Create(result.Expression, context);
         var second = ExpressionTemplateFactory.Create(result.Expression, context);
 
-        Assert.Single(context.Diagnostics, static d => d.Id == "BC3015");
-        Assert.DoesNotContain(context.Diagnostics, static d => d.Id == "BC1002");
+        Assert.Single(context.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.DoesNotContain(context.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Equal(first.ToCode(), second.ToCode());
     }
 
     [Fact]
-    public void SameContextAndLocation_ReportsBC3015Once()
+    public void SameContextAndLocation_ReportsBCF3015Once()
     {
         var result = AnalyzeValueExpression("typeof(Probe)");
         var context = new ComposableBodyContext(
@@ -872,15 +872,15 @@ public sealed class UnresolvedEmittedTypeTests
         _ = ExpressionTemplateFactory.Create(result.Expression, context);
         _ = ExpressionTemplateFactory.Create(result.Expression, context);
 
-        Assert.Single(context.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Single(context.Diagnostics, static d => d.Id == "BCF3015");
     }
 
-    private static void AssertSingleBC3015(
+    private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
     {
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3012");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3012");
         Assert.Empty(result.GeneratedSources);
         Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }

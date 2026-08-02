@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Sweeps a design-time expression that failed to translate, reporting BC3012 for every
+/// Sweeps a design-time expression that failed to translate, reporting BCF3012 for every
 /// <c>Html.Component&lt;T&gt;()</c> call whose type argument does not resolve.
 /// </summary>
 /// <remarks>
@@ -20,7 +20,7 @@ namespace BlazorCompose.Compiler.Analysis;
 internal static class UnresolvedComponentTypeScanner
 {
     /// <summary>
-    /// Records BC3012 into <paramref name="context"/> for every unresolved <c>Component&lt;T&gt;()</c>
+    /// Records BCF3012 into <paramref name="context"/> for every unresolved <c>Component&lt;T&gt;()</c>
     /// type argument under <paramref name="root"/>, in syntactic order, once per invocation.
     /// </summary>
     public static void Report(ExpressionSyntax root, ComposableBodyContext context)
@@ -55,7 +55,7 @@ internal static class UnresolvedComponentTypeScanner
 
             // A collection expression, not ImmutableArray.Create(x) — the latter is IDE0303, an error here.
             context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BC3012,
+                DiagnosticDescriptors.BCF3012,
                 typeArgument.GetLocation(),
                 [typeArgument.ToString()]));
         }

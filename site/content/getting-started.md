@@ -33,7 +33,7 @@ public partial class Home : ComposeComponentBase
 BlazorCompose copies design-time value expressions into a generated file that has no `using`
 directives. Resolved type names are rewritten as `global::`-qualified names. If a type is still
 unresolved and its spelling depends on the source file's lexical context, the generator reports
-BC3015 at that type name.
+BCF3015 at that type name.
 
 Fix the name, fully qualify it, move a source-generated type to a referenced project, or replace it
 with a hand-written C# type. A reference already rooted at `global::` is preserved and left to normal

@@ -6,11 +6,11 @@ namespace BlazorCompose.Compiler.Tests;
 
 public sealed class ComponentUnresolvedTypeTests
 {
-    private static int CountBC3012(GeneratorRunResult result) =>
-        result.Diagnostics.Count(static d => d.Id == "BC3012");
+    private static int CountBCF3012(GeneratorRunResult result) =>
+        result.Diagnostics.Count(static d => d.Id == "BCF3012");
 
     [Fact]
-    public void Component_WithParam_ReportsBC3012AndNotBC1003()
+    public void Component_WithParam_ReportsBCF3012AndNotBCF1003()
     {
         const string source = """
             using BlazorCompose;
@@ -24,13 +24,13 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1003");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
         Assert.DoesNotContain(result.GeneratedSources, static s => s.HintName.Contains("Host"));
     }
 
     [Fact]
-    public void Component_WithParamThenDecoration_ReportsBC3012()
+    public void Component_WithParamThenDecoration_ReportsBCF3012()
     {
         // The outer .Class call makes GetSymbolInfo on both outer invocations return null, so the
         // analyzer exits before its Component branch. Only a sweep on the failure path sees this.
@@ -46,11 +46,11 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
+        Assert.Equal(1, CountBCF3012(result));
     }
 
     [Fact]
-    public void Component_InsideIfLambda_ReportsBC3012()
+    public void Component_InsideIfLambda_ReportsBCF3012()
     {
         // If's lambda argument degrades the outer GetSymbolInfo to null (OverloadResolutionFailure),
         // so the analyzer never recurses into the lambda body.
@@ -66,12 +66,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void Component_InsideForEachLambda_ReportsBC3012()
+    public void Component_InsideForEachLambda_ReportsBCF3012()
     {
         const string source = """
             using System.Collections.Generic;
@@ -88,11 +88,11 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
+        Assert.Equal(1, CountBCF3012(result));
     }
 
     [Fact]
-    public void Component_WithNestedUnresolvedTypeArgument_ReportsBC3012()
+    public void Component_WithNestedUnresolvedTypeArgument_ReportsBCF3012()
     {
         const string source = """
             using BlazorCompose;
@@ -108,12 +108,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void Component_QualifiedHtmlSpelling_ReportsBC3012()
+    public void Component_QualifiedHtmlSpelling_ReportsBCF3012()
     {
         const string source = """
             using BlazorCompose;
@@ -126,12 +126,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void Component_InsideComposableBody_ReportsBC3012NotGenericBC1002()
+    public void Component_InsideComposableBody_ReportsBCF3012NotGenericBCF1002()
     {
         const string source = """
             using BlazorCompose;
@@ -150,13 +150,13 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
     [Fact]
-    public void Component_WithoutParam_ReportsBC3012AndNoSource()
+    public void Component_WithoutParam_ReportsBCF3012AndNoSource()
     {
         const string source = """
             using BlazorCompose;
@@ -170,12 +170,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
+        Assert.Equal(1, CountBCF3012(result));
         Assert.DoesNotContain(result.GeneratedSources, static s => s.HintName.Contains("Host"));
     }
 
     [Fact]
-    public void Component_TwiceInOneBody_ReportsBC3012PerInvocation()
+    public void Component_TwiceInOneBody_ReportsBCF3012PerInvocation()
     {
         const string source = """
             using BlazorCompose;
@@ -189,11 +189,11 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(2, CountBC3012(result));
+        Assert.Equal(2, CountBCF3012(result));
     }
 
     [Fact]
-    public void Component_TwoDistinctUnresolvedTypes_ReportsBC3012ForEach()
+    public void Component_TwoDistinctUnresolvedTypes_ReportsBCF3012ForEach()
     {
         // Guards against a future dedup-by-type-name regression that would pass the same-type test
         // above. Measured behavior: two diagnostics at distinct locations.
@@ -209,11 +209,11 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(2, CountBC3012(result));
+        Assert.Equal(2, CountBCF3012(result));
     }
 
     [Fact]
-    public void Component_WithUnresolvedContainingType_ReportsBC3012()
+    public void Component_WithUnresolvedContainingType_ReportsBCF3012()
     {
         // The type argument itself is a resolved TypeKind.Class with an EMPTY TypeArguments list; the
         // unresolved type is only reachable through its ContainingType. This shape needs the analyzer's
@@ -240,14 +240,14 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
+        Assert.Equal(1, CountBCF3012(result));
     }
 
     [Fact]
-    public void Component_WithExplicitParamTypeArgument_ReportsBC3012AndNotBC3005()
+    public void Component_WithExplicitParamTypeArgument_ReportsBCF3012AndNotBCF3005()
     {
         // An explicit TValue makes the outer .Param call resolve, so it reaches the Param branch and
-        // would otherwise draw a spurious BC3005 about a selector that cannot bind to an unresolved type.
+        // would otherwise draw a spurious BCF3005 about a selector that cannot bind to an unresolved type.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -260,12 +260,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3005");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3005");
     }
 
     [Fact]
-    public void Component_WithResolvedType_ReportsNoBC3012()
+    public void Component_WithResolvedType_ReportsNoBCF3012()
     {
         const string source = """
             using BlazorCompose;
@@ -289,7 +289,7 @@ public sealed class ComponentUnresolvedTypeTests
     }
 
     [Fact]
-    public void Component_WithTypeParameter_ReportsNoBC3012()
+    public void Component_WithTypeParameter_ReportsNoBCF3012()
     {
         // A generic component embedding its own type parameter is supported and must not be reported:
         // a type parameter is not an unresolved type.
@@ -306,13 +306,13 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3012");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3012");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("OpenComponent<TChild>", generated);
     }
 
     [Fact]
-    public void Component_FromMetadataReference_ReportsNoBC3012()
+    public void Component_FromMetadataReference_ReportsNoBCF3012()
     {
         // The regression guard for "the constraint is same-compilation only": a component that exists
         // only in a referenced assembly — the position a .razor component in a referenced project or
@@ -341,7 +341,7 @@ public sealed class ComponentUnresolvedTypeTests
         var compilation = CompilationTestHost.CreateCompilation([("Host.cs", host)], reference);
         var result = CompilationTestHost.RunGenerator(compilation);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3012");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3012");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("OpenComponent<global::Lib.LibProbe>", generated);
     }
@@ -364,12 +364,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3012");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3012");
         Assert.Contains("'Aliased'", diagnostic.GetMessage());
     }
 
     [Fact]
-    public void BC3012_Message_NamesTheNestedTypeArgumentAsWritten()
+    public void BCF3012_Message_NamesTheNestedTypeArgumentAsWritten()
     {
         const string source = """
             using BlazorCompose;
@@ -385,13 +385,13 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3012");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3012");
         Assert.Contains("'Wrapper<Missing>'", diagnostic.GetMessage());
         Assert.Contains(".razor", diagnostic.GetMessage());
     }
 
     [Fact]
-    public void Component_InsideLayoutChrome_ReportsBC3012()
+    public void Component_InsideLayoutChrome_ReportsBCF3012()
     {
         // The design-time expression name is resolved from the base symbol, so a layout's Chrome takes
         // the same path as a component's Body. Pinned because the spec lists Chrome among the shapes
@@ -408,12 +408,12 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void BC3012_Location_CoversTheTypeArgumentSyntax()
+    public void BCF3012_Location_CoversTheTypeArgumentSyntax()
     {
         const string source = """
             using BlazorCompose;
@@ -426,7 +426,7 @@ public sealed class ComponentUnresolvedTypeTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC3012");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3012");
 
         // DiagnosticInfo.ToDiagnostic rebuilds an ExternalFile-kind Location whose SourceTree is null,
         // so the span has to be sliced out of a reconstructed SourceText rather than read from the tree.
@@ -435,10 +435,10 @@ public sealed class ComponentUnresolvedTypeTests
     }
 
     [Fact]
-    public void ComponentWithChildren_UnresolvedType_ReportsBC3012AndNotBC1003()
+    public void ComponentWithChildren_UnresolvedType_ReportsBCF3012AndNotBCF1003()
     {
         // Probe is never declared: the same shape the parameterless overload already covers, but the
-        // scanner compares against a single symbol, so the params form would fall through to BC1003.
+        // scanner compares against a single symbol, so the params form would fall through to BCF1003.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -451,13 +451,13 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1003");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     [Fact]
-    public void ComponentWithChildren_UnresolvedTypeInsideIf_ReportsBC3012Once()
+    public void ComponentWithChildren_UnresolvedTypeInsideIf_ReportsBCF3012Once()
     {
         // A lambda argument degrades GetSymbolInfo to a non-method symbol, so only the failure-path
         // sweep sees this. Exactly one report, not one per enclosing invocation.
@@ -473,7 +473,7 @@ public sealed class ComponentUnresolvedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Equal(1, CountBC3012(result));
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC3015");
+        Assert.Equal(1, CountBCF3012(result));
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 }

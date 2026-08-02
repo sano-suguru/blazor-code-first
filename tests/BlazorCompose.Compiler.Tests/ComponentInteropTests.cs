@@ -17,7 +17,7 @@ public sealed class ComponentInteropTests
         """;
 
     [Fact]
-    public void Component_ParamSelectsCapturedVariableMember_ReportsBC3005AndNoSource()
+    public void Component_ParamSelectsCapturedVariableMember_ReportsBCF3005AndNoSource()
     {
         const string host = """
             using BlazorCompose;
@@ -32,12 +32,12 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3005" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3005" && d.Severity == DiagnosticSeverity.Error);
         Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
     [Fact]
-    public void Component_ParamTargetsNonParameterProperty_ReportsBC3006AndNoSource()
+    public void Component_ParamTargetsNonParameterProperty_ReportsBCF3006AndNoSource()
     {
         const string host = """
             using BlazorCompose;
@@ -51,7 +51,7 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3006" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3006" && d.Severity == DiagnosticSeverity.Error);
         Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
@@ -78,7 +78,7 @@ public sealed class ComponentInteropTests
     }
 
     [Fact]
-    public void ForEach_WithComponentContent_EmitsSetKeyOnComponentAndNoBC3003()
+    public void ForEach_WithComponentContent_EmitsSetKeyOnComponentAndNoBCF3003()
     {
         const string host = """
             using System.Collections.Generic;
@@ -96,7 +96,7 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3003");
         CompilationTestHost.AssertOutputCompiles(result);
 
         var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
@@ -134,7 +134,7 @@ public sealed class ComponentInteropTests
     }
 
     [Fact]
-    public void Component_DuplicateParamOnSameProperty_ReportsBC3007AndNoSource()
+    public void Component_DuplicateParamOnSameProperty_ReportsBCF3007AndNoSource()
     {
         const string host = """
             using BlazorCompose;
@@ -149,12 +149,12 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3007" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3007" && d.Severity == DiagnosticSeverity.Error);
         Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
     [Fact]
-    public void Component_DistinctParams_DoNotReportBC3007()
+    public void Component_DistinctParams_DoNotReportBCF3007()
     {
         const string host = """
             using BlazorCompose;
@@ -169,7 +169,7 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3007");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3007");
     }
 
     private const string InheritedParamSource = """
@@ -186,7 +186,7 @@ public sealed class ComponentInteropTests
         """;
 
     [Fact]
-    public void Component_ParamTargetsOverriddenInheritedParameter_DoesNotReportBC3006()
+    public void Component_ParamTargetsOverriddenInheritedParameter_DoesNotReportBCF3006()
     {
         const string host = """
             using BlazorCompose;
@@ -200,14 +200,14 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Inherited.cs", InheritedParamSource), ("Host.cs", host));
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3006");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3006");
         CompilationTestHost.AssertOutputCompiles(result);
         var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
         Assert.Contains("AddComponentParameter(1, \"Value\", \"hi\")", generated);
     }
 
     [Fact]
-    public void Component_ParamTargetsMultiLevelOverriddenParameter_DoesNotReportBC3006()
+    public void Component_ParamTargetsMultiLevelOverriddenParameter_DoesNotReportBCF3006()
     {
         const string chain = """
             using Microsoft.AspNetCore.Components;
@@ -228,12 +228,12 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Chain.cs", chain), ("Host.cs", host));
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3006");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3006");
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
-    public void Component_ParamTargetsNewShadowedNonParameter_ReportsBC3006()
+    public void Component_ParamTargetsNewShadowedNonParameter_ReportsBCF3006()
     {
         const string shadow = """
             using Microsoft.AspNetCore.Components;
@@ -253,6 +253,6 @@ public sealed class ComponentInteropTests
 
         var result = CompilationTestHost.RunGenerator(("Shadow.cs", shadow), ("Host.cs", host));
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3006" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3006" && d.Severity == DiagnosticSeverity.Error);
     }
 }

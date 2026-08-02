@@ -11,7 +11,7 @@ namespace BlazorCompose.Compiler.Analysis;
 /// Validates a discovered <c>[Composable]</c> method against the supported static-expansion contract and,
 /// when valid, builds its symbol-free <see cref="ComposableDefinition"/>.  Invalid source declarations
 /// still yield a registry <see cref="ComposableDefinitionEntry"/> (with a null definition) plus a single
-/// value-equal BC1002 diagnostic so expansion can distinguish an already-diagnosed source declaration
+/// value-equal BCF1002 diagnostic so expansion can distinguish an already-diagnosed source declaration
 /// from a metadata-only method.
 /// </summary>
 internal static class ComposableDefinitionFactory
@@ -123,7 +123,7 @@ internal static class ComposableDefinitionFactory
         {
             // A parameter (or optional-default) type that cannot be named from another file — a file-local
             // type or one otherwise unnameable — would produce invalid generated C# at the expansion site,
-            // so reject the declaration with BC1002 instead.
+            // so reject the declaration with BCF1002 instead.
             if (IsUnnameableType(parameter.Type))
             {
                 diagnostics = [BuildDiagnostic(
@@ -179,7 +179,7 @@ internal static class ComposableDefinitionFactory
             return null;
         }
 
-        // Only non-error diagnostics (for example BC3002) remain; the definition is valid and its
+        // Only non-error diagnostics (for example BCF3002) remain; the definition is valid and its
         // warnings are still surfaced.
         diagnostics = context.Diagnostics.ToImmutable();
         return new ComposableDefinition(
@@ -208,7 +208,7 @@ internal static class ComposableDefinitionFactory
         string displayName,
         string reason) =>
         DiagnosticInfo.Create(
-            DiagnosticDescriptors.BC1002,
+            DiagnosticDescriptors.BCF1002,
             declaration.Identifier.GetLocation(),
             [displayName, reason]);
 

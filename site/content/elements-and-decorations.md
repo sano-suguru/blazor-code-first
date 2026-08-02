@@ -49,7 +49,7 @@ Available decorations are `.Class`, `.Id`, `.Href`, `.Src`, `.Alt`, `.Type`, `.T
 `.OnClick`, and the general-purpose escape hatches `.Attr(name, value)` and `.On(eventName, handler)`.
 
 A decoration must target a single element. Applying one to `If`, `ForEach`, `Fragment`, `Raw`, or a
-component result reports diagnostic BC3008, because those constructs open no element to attach to.
+component result reports diagnostic BCF3008, because those constructs open no element to attach to.
 
 ## Next
 

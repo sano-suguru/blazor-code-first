@@ -8,7 +8,7 @@ Each one is expected to fail to compile — that is the point.
 They exist because every other diagnostic test in the repository instantiates the generator or an
 analyzer directly through an in-memory Roslyn host. That verifies the *logic* of a diagnostic and
 says nothing about whether it reaches an author building an ordinary project. Issue #76 is what
-that gap costs: BC1001 was correct, tested, and unreportable in a real build.
+that gap costs: BCF1001 was correct, tested, and unreportable in a real build.
 
 ## Why four projects and not one
 
@@ -28,9 +28,9 @@ CS0534 from the `RenderView` that was never generated. Any body-binding error in
 is therefore computed for a build that has already been abandoned, and never reaches the author.
 `Compilation.GetDiagnostics()`, which every in-process test calls, binds bodies unconditionally and
 does not reproduce the cutoff, so an in-process test that observes a C# error is not evidence that
-the error is delivered. BC3008 is the case that proved it: its retirement in favour of the CS1929
+the error is delivered. BCF3008 is the case that proved it: its retirement in favour of the CS1929
 that the type system genuinely raises was measured here and found to leave the author with nothing
-but CS0534 and a generic BC1003, so the detection was restored as a generator diagnostic.
+but CS0534 and a generic BCF1003, so the detection was restored as a generator diagnostic.
 
 **Delivery path.** `ProjectReference … OutputItemType="Analyzer"` (what `samples/` and `site/` use)
 and the packed `analyzers/dotnet/cs/` layout (what an external consumer gets) are different paths
@@ -38,7 +38,7 @@ to the same DLL, and `eng/verify-package.sh` only asserts that the file is *in* 
 
 | Fixture | Mechanism | Delivery |
 | --- | --- | --- |
-| `AnalyzerDelivery.ProjectReference` | analyzer driver (BC3001) | ProjectReference |
+| `AnalyzerDelivery.ProjectReference` | analyzer driver (BCF3001) | ProjectReference |
 | `GeneratorDelivery.ProjectReference` | generator driver (everything else) | ProjectReference |
 | `AnalyzerDelivery.Package` | analyzer driver | NuGet package |
 | `GeneratorDelivery.Package` | generator driver | NuGet package |
@@ -53,4 +53,4 @@ behaviour the whole design follows from).
 Add the shape to `GeneratorDelivery.ProjectReference` (or to a new analyzer fixture if it is
 analyzer-reported), then assert it in `DiagnosticDeliveryTests`. `DescriptorCoverageTests` fails
 until every descriptor is either asserted there or listed in its exclusion table with a reason, so
-a new diagnostic cannot be dead on arrival the way BC1001 was.
+a new diagnostic cannot be dead on arrival the way BCF1001 was.

@@ -52,26 +52,26 @@ public sealed class HtmlElementTagGeneratorTests
     }
 
     [Fact]
-    public void Element_WithNonConstantTag_ReportsBC3009()
+    public void Element_WithNonConstantTag_ReportsBCF3009()
     {
         var result = CompilationTestHost.RunGenerator(NonConstantTagSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3009");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
     }
 
     [Fact]
-    public void Element_WithEmptyTag_ReportsBC3009()
+    public void Element_WithEmptyTag_ReportsBCF3009()
     {
         var result = CompilationTestHost.RunGenerator(EmptyTagSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3009");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
     }
 
     // Pins the guard's IsNullOrWhiteSpace choice: a whitespace-only tag (not caught by a
     // narrower IsNullOrEmpty) must still be rejected, so it cannot lower to OpenElement(seq, "   ").
     [Fact]
-    public void Element_WithWhitespaceTag_ReportsBC3009()
+    public void Element_WithWhitespaceTag_ReportsBCF3009()
     {
         var result = CompilationTestHost.RunGenerator(WhitespaceTagSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3009");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
     }
 
     [Theory]

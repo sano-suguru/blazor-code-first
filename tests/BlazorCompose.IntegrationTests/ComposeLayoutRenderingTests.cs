@@ -110,13 +110,13 @@ public sealed class ComposeLayoutRenderingTests : BunitContext
     public void DerivedLayoutOverridingChrome_RendersItsOwnChromeNotTheBase()
     {
         // Both levels are partial, so both get their own generated RenderView and the derived Chrome
-        // wins — the correct outcome, pinned here because the inheritance shape is what makes BC1001
+        // wins — the correct outcome, pinned here because the inheritance shape is what makes BCF1001
         // load-bearing (spec F16): RenderView is emitted as an `override`, so a derived layout that
         // did NOT get its own generated RenderView — because it was not partial — would inherit the
         // base one and render the BASE chrome while silently ignoring its own Chrome, with no CS0534
         // to warn anyone, since RenderView is implemented in the base. That failure cannot be written
-        // as a test: BC1001 stops it at compile time. The generator must therefore keep reporting
-        // BC1001 for a derived class that declares the override.
+        // as a test: BCF1001 stops it at compile time. The generator must therefore keep reporting
+        // BCF1001 for a derived class that declares the override.
         var routeData = new RouteData(typeof(DerivedShellProbePage), new Dictionary<string, object?>());
 
         var cut = Render<RouteView>(parameters => parameters.Add(p => p.RouteData, routeData));

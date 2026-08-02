@@ -593,12 +593,12 @@ public sealed class IncrementalGeneratorTests
         var diagnosticsOutputs = run2.Results[0].TrackedSteps["ComposableForEachDiagnostics"]
             .SelectMany(s => s.Outputs).ToImmutableArray();
 
-        // Sanity check: the step must have actually produced the BC3003 diagnostic (nested ForEach with
+        // Sanity check: the step must have actually produced the BCF3003 diagnostic (nested ForEach with
         // a region-rooted content root), not an empty array — otherwise this test would trivially pass
         // without ever exercising the EquatableArray value-equality path.
         Assert.Contains(diagnosticsOutputs, output =>
             output.Value is EquatableArray<DiagnosticInfo> diagnostics &&
-            diagnostics.AsImmutableArray().Any(d => d.Id == "BC3003"));
+            diagnostics.AsImmutableArray().Any(d => d.Id == "BCF3003"));
 
         Assert.All(diagnosticsOutputs, output =>
             Assert.True(
@@ -628,7 +628,7 @@ public sealed class IncrementalGeneratorTests
 
     /// <summary>
     /// The diagnostic-only branch must also participate in caching: an identical rerun of a component
-    /// that produces a BC1002 must report the modeling output as Cached/Unchanged, not Modified merely
+    /// that produces a BCF1002 must report the modeling output as Cached/Unchanged, not Modified merely
     /// because a fresh diagnostic value was allocated.
     /// </summary>
     [Fact]
@@ -824,7 +824,7 @@ public sealed class IncrementalGeneratorTests
     /// <summary>
     /// A component that translates cleanly must stay cached when an edit shifts its absolute offsets
     /// without changing it.  <see cref="ComponentAnalysis.FailureLocation"/> is the coordinate-bearing
-    /// field this could regress through: it exists to locate BC1003 (#77) and is populated only on the
+    /// field this could regress through: it exists to locate BCF1003 (#77) and is populated only on the
     /// failure path, so a healthy component must keep contributing nothing to the cache key.  Move that
     /// assignment out of its <c>template is null</c> guard and every component in the compilation becomes
     /// sensitive to a blank line inserted anywhere above it.

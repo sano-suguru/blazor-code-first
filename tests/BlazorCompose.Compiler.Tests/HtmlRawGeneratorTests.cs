@@ -57,9 +57,9 @@ public sealed class HtmlRawGeneratorTests
     }
 
     [Fact]
-    public void Raw_AsForEachContentRoot_ReportsBC3003()
+    public void Raw_AsForEachContentRoot_ReportsBCF3003()
     {
         var result = CompilationTestHost.RunGenerator(RawAsForEachContentSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003");
     }
 }

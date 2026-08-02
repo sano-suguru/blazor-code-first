@@ -91,7 +91,7 @@ public static class Html
 
     /// <summary>Design-time syntax for wrapper-less grouping: emits the children in sequence with no
     /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no element, so it is
-    /// non-keyable — it cannot be a ForEach content root (BC3003) — and cannot be decorated: decorations
+    /// non-keyable — it cannot be a ForEach content root (BCF3003) — and cannot be decorated: decorations
     /// apply to <see cref="ElementBuilder"/>, and a fragment is a <see cref="View"/>. Children may be zero
     /// or more mixed string/element values.</summary>
     public static View Fragment(params System.ReadOnlySpan<View> children) => default;
@@ -100,7 +100,7 @@ public static class Html
     /// (the MarkupString equivalent). TRUSTED CONTENT ONLY: the string is written to the DOM without
     /// escaping, so flowing untrusted data (user input, external responses) through here is an XSS vector.
     /// The value may be a string literal or a field/const reference (delivery-mechanism independent). Raw
-    /// opens no element, so it cannot be a ForEach content root (BC3003) and cannot be decorated:
+    /// opens no element, so it cannot be a ForEach content root (BCF3003) and cannot be decorated:
     /// decorations apply to <see cref="ElementBuilder"/>, and Raw is a <see cref="View"/>.</summary>
     public static View Raw(string rawHtml) => default;
 
@@ -118,7 +118,7 @@ public static class Html
     /// <typeparamref name="TComponent"/> must resolve while the source generator runs, because it is
     /// lowered to a literal <c>OpenComponent&lt;TComponent&gt;</c> call. A <c>.razor</c> component
     /// declared in the <em>same project</em> does not: the Razor compiler is itself a source generator,
-    /// and source generators cannot observe each other's output, so such a type is reported as BC3012.
+    /// and source generators cannot observe each other's output, so such a type is reported as BCF3012.
     /// The same component in a referenced project or NuGet package resolves normally, as does a
     /// hand-authored C# component. Supply children through <see cref="ComponentView{TComponent}"/>'s
     /// indexer, which binds them to the component's <c>ChildContent</c> parameter.

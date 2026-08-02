@@ -27,7 +27,7 @@ public sealed class ComposeLayoutGeneratorTests
     }
 
     [Fact]
-    public void Generator_NonPartialComposeLayout_ReportsBC1001()
+    public void Generator_NonPartialComposeLayout_ReportsBCF1001()
     {
         const string source = """
             using BlazorCompose;
@@ -41,7 +41,7 @@ public sealed class ComposeLayoutGeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1001");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1001");
         // The message must name the real base (ComposeLayoutBase), not the ComposeComponentBase literal
         // that a naive fix could leave baked into the message format.
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
@@ -50,7 +50,7 @@ public sealed class ComposeLayoutGeneratorTests
     }
 
     [Fact]
-    public void Generator_NonPartialComposeComponent_BC1001MessageNamesComposeComponentBase()
+    public void Generator_NonPartialComposeComponent_BCF1001MessageNamesComposeComponentBase()
     {
         // Companion to the layout case above: a ComposeComponentBase subclass must still get its own
         // (correct) base name in the message, not a leftover "ComposeLayoutBase" from shared code.
@@ -66,14 +66,14 @@ public sealed class ComposeLayoutGeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1001");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1001");
         var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("ComposeComponentBase", message, StringComparison.Ordinal);
         Assert.DoesNotContain("ComposeLayoutBase", message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task Generator_MutationInsideChrome_ReportsBC3001()
+    public async Task Generator_MutationInsideChrome_ReportsBCF3001()
     {
         const string source = """
             using BlazorCompose;
@@ -88,14 +88,14 @@ public sealed class ComposeLayoutGeneratorTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        var diagnostic = Assert.Single(diagnostics, d => d.Id == "BC3001");
+        var diagnostic = Assert.Single(diagnostics, d => d.Id == "BCF3001");
         // The message must name the real expression (Chrome), not the Body literal.
         Assert.Contains("Chrome", diagnostic.GetMessage());
         Assert.DoesNotContain("Body", diagnostic.GetMessage());
     }
 
     [Fact]
-    public async Task Generator_MutationInsideComponentBody_BC3001MessageNamesBody()
+    public async Task Generator_MutationInsideComponentBody_BCF3001MessageNamesBody()
     {
         // Companion to the Chrome case above: a ComposeComponentBase mutation must still say "Body".
         const string source = """
@@ -111,13 +111,13 @@ public sealed class ComposeLayoutGeneratorTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        var diagnostic = Assert.Single(diagnostics, d => d.Id == "BC3001");
+        var diagnostic = Assert.Single(diagnostics, d => d.Id == "BCF3001");
         Assert.Contains("Body", diagnostic.GetMessage());
         Assert.DoesNotContain("Chrome", diagnostic.GetMessage());
     }
 
     [Fact]
-    public async Task Generator_MutationOutsideChrome_DoesNotReportBC3001()
+    public async Task Generator_MutationOutsideChrome_DoesNotReportBCF3001()
     {
         // Regression guard for the semantic lookup replacing the "Body" literal: a mutation inside an
         // *override* property that is NOT the layout's design-time expression (Chrome) must not be
@@ -146,15 +146,15 @@ public sealed class ComposeLayoutGeneratorTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "BC3001");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3001");
     }
 
     [Fact]
-    public void Generator_UntranslatableChrome_BC1003MessageNamesChrome()
+    public void Generator_UntranslatableChrome_BCF1003MessageNamesChrome()
     {
-        // BC1003 hardcoded the word "Body", which is a false statement for a layout: what failed to
+        // BCF1003 hardcoded the word "Body", which is a false statement for a layout: what failed to
         // translate is Chrome. GetView() is a plain View-returning method, which is the Opaque path and
-        // is not implemented, so the template comes out null and BC1003 fires.
+        // is not implemented, so the template comes out null and BCF1003 fires.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -169,13 +169,13 @@ public sealed class ComposeLayoutGeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
         Assert.Contains("Chrome", diagnostic.GetMessage());
         Assert.DoesNotContain("Body", diagnostic.GetMessage());
     }
 
     [Fact]
-    public void Generator_UntranslatableBody_BC1003MessageNamesBody()
+    public void Generator_UntranslatableBody_BCF1003MessageNamesBody()
     {
         // Companion: a component must still say Body.
         const string source = """
@@ -192,7 +192,7 @@ public sealed class ComposeLayoutGeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
         Assert.Contains("Body", diagnostic.GetMessage());
         Assert.DoesNotContain("Chrome", diagnostic.GetMessage());
     }

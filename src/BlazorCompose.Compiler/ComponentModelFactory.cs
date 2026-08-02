@@ -84,18 +84,18 @@ internal static class ComponentModelFactory
                 Template: null,
                 BodyDiagnostics: ImmutableArray.Create(
                     DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC1005,
+                        DiagnosticDescriptors.BCF1005,
                         elected.Identifier.GetLocation(),
                         [symbol.Name, expressionName])),
-                // Rejected before the design-time expression was classified, and BC1005 above is located,
-                // so Expand's BC1003 is suppressed rather than reported without one.
+                // Rejected before the design-time expression was classified, and BCF1005 above is located,
+                // so Expand's BCF1003 is suppressed rather than reported without one.
                 FailureLocation: null);
         }
 
         // The generated RenderView joins this class, which requires `partial`. Reported here, from the
         // generator, because an analyzer cannot: no partial modifier means no RenderView, which means
         // CS0534 — a declaration-level error, and csc does not run the analyzer driver on a compilation
-        // that has one. BC1001 would be suppressed by the very condition it diagnoses (issue #76).
+        // that has one. BCF1001 would be suppressed by the very condition it diagnoses (issue #76).
         // Checked after the election above so a class that declares nothing to generate is never told to
         // add a modifier that would change nothing.
         if (!IsDeclaredPartial(symbol, cancellationToken))
@@ -110,10 +110,10 @@ internal static class ComponentModelFactory
                 Template: null,
                 BodyDiagnostics: ImmutableArray.Create(
                     DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC1001,
+                        DiagnosticDescriptors.BCF1001,
                         classDeclaration.Identifier.GetLocation(),
                         [symbol.Name, expressionName, composeBase.Name])),
-                // As above: BC1001 is located and suppresses BC1003.
+                // As above: BCF1001 is located and suppresses BCF1003.
                 FailureLocation: null);
         }
 
@@ -125,7 +125,7 @@ internal static class ComponentModelFactory
 
         // A getter that exists but is not a single expression is reported here rather than left to the
         // bare CS0534 the un-emitted RenderView would raise. Returning an analysis with a null template
-        // routes it through Expand's existing dedup, which suppresses BC1003 when an error is present.
+        // routes it through Expand's existing dedup, which suppresses BCF1003 when an error is present.
         if (shape == DesignTimeExpressionShape.NotTranslatable)
         {
             return new ComponentAnalysis(
@@ -138,11 +138,11 @@ internal static class ComponentModelFactory
                 Template: null,
                 BodyDiagnostics: ImmutableArray.Create(
                     DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC1004,
+                        DiagnosticDescriptors.BCF1004,
                         getterLocation ?? Location.None,
                         [symbol.Name, expressionName])),
-                // As above: BC1004 is located and suppresses BC1003. There is also no expression to
-                // blame here — the getter never reduced to one, which is what BC1004 says.
+                // As above: BCF1004 is located and suppresses BCF1003. There is also no expression to
+                // blame here — the getter never reduced to one, which is what BCF1004 says.
                 FailureLocation: null);
         }
 
@@ -172,8 +172,8 @@ internal static class ComponentModelFactory
 
         // Translation failed. Sweep the whole expression for the specific cause — an unresolved
         // Component<T>() type argument, a value-position type reference, a misplaced decoration — so the
-        // author is told it instead of BC1003's "not statically analyzable". Only on the failure path, so
-        // a healthy body pays nothing. BC1003 is then suppressed automatically by Expand's error dedup.
+        // author is told it instead of BCF1003's "not statically analyzable". Only on the failure path, so
+        // a healthy body pays nothing. BCF1003 is then suppressed automatically by Expand's error dedup.
         // FailurePathScanners owns the sweep list; both hosts run the same one by construction.
         TemplateLocation? failureLocation = null;
         if (template is null)
@@ -181,7 +181,7 @@ internal static class ComponentModelFactory
             FailurePathScanners.ReportAll(bodyExpression, bodyContext);
 
             // Carry the innermost expression that failed to classify across the symbol-free boundary so
-            // Expand can locate BC1003. The analyzer records it on every failed classification, and the
+            // Expand can locate BCF1003. The analyzer records it on every failed classification, and the
             // outermost call is this one, so a failure always leaves something behind; the coalesce is a
             // guard against a future path that produces a null template without going through Analyze.
             failureLocation = TemplateLocation.From(
@@ -213,22 +213,22 @@ internal static class ComponentModelFactory
         diagnostics.AddRange(analysis.BodyDiagnostics.AsImmutableArray());
 
         // An unrecognized/unsupported design-time expression shape yields no template; the abstract
-        // RenderView then triggers CS0534 in the user's compilation. Add a BlazorCompose-specific BC1003
+        // RenderView then triggers CS0534 in the user's compilation. Add a BlazorCompose-specific BCF1003
         // unless the design-time expression already produced an actionable diagnostic (dedup), so the
         // failure is explained rather than opaque.
         if (analysis.Template is null)
         {
-            // Emit BC1003 unless an actionable ERROR was already recorded (e.g. BC3004/BC1002). A
-            // warning-only design-time expression with a null template still gets BC1003, so a null
+            // Emit BCF1003 unless an actionable ERROR was already recorded (e.g. BCF3004/BCF1002). A
+            // warning-only design-time expression with a null template still gets BCF1003, so a null
             // template always yields at least one error diagnostic (the S4 invariant). Do NOT gate on
-            // Count==0: a co-located BC3002 warning must not suppress BC1003.
+            // Count==0: a co-located BCF3002 warning must not suppress BCF1003.
             // Located at the innermost expression that failed to classify, captured by Analyze. The
             // shapes that reach here with no FailureLocation (non-partial, nested, untranslatable getter)
             // all carry a located error of their own, so the null branch is unreachable rather than a
             // silent fallback to the location-less report this diagnostic used to have (#77).
             if (!diagnostics.Any(static d => d.IsError))
                 diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC1003,
+                    DiagnosticDescriptors.BCF1003,
                     analysis.FailureLocation?.ToLocation() ?? Location.None,
                     [analysis.ClassName, analysis.DesignTimeExpressionName]));
             return new ComponentModelResult(null, diagnostics.ToImmutable());
@@ -342,7 +342,7 @@ internal static class ComponentModelFactory
     /// <summary>
     /// The concrete design-time expression override this type declares itself, or <see langword="null"/>.
     /// A re-abstraction (<c>abstract override</c>) declares no getter to translate and is therefore not a
-    /// declaration, so it earns neither a generated <c>RenderView</c> nor BC1001.
+    /// declaration, so it earns neither a generated <c>RenderView</c> nor BCF1001.
     /// </summary>
     private static IPropertySymbol? FindDesignTimeExpressionProperty(
         INamedTypeSymbol symbol,
@@ -371,7 +371,7 @@ internal static class ComponentModelFactory
 
         /// <summary>
         /// A concrete override the generator cannot translate: a getter body that is not a single
-        /// expression, or no getter body at all on a type that needs one (an auto property). Earns BC1004.
+        /// expression, or no getter body at all on a type that needs one (an auto property). Earns BCF1004.
         /// </summary>
         NotTranslatable,
     }
@@ -381,11 +381,11 @@ internal static class ComponentModelFactory
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
     /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
     /// expression (<c>get { return e; }</c>).  An auto property (no getter body and no <c>partial</c>
-    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BC1004.  A partial
+    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.  A partial
     /// property with no implementation part (<c>partial</c> modifier and no getter body) is
     /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
     /// property itself.  Any other getter shape (a statement-bearing getter body) is also
-    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BC1004.
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,
@@ -405,12 +405,12 @@ internal static class ComponentModelFactory
         var getter = FindGetAccessor(prop);
 
         // No getter body at all. An auto property is a concrete override the generator was expected to
-        // translate, so it earns BC1004; a partial declaration part with no implementation is left to
+        // translate, so it earns BCF1004; a partial declaration part with no implementation is left to
         // CS9248, which names the property itself. The partial check is sound: a partial property's
         // implementation part always has a getter body (CS9250: "A partial property cannot be an
         // auto-property"), so reaching here with `partial` means the definition part with no
         // implementation (left to CS9248), while reaching here without `partial` means an auto property
-        // (earns BC1004).
+        // (earns BCF1004).
         if (getter is null || (getter.ExpressionBody is null && getter.Body is null))
         {
             location = prop.Identifier.GetLocation();

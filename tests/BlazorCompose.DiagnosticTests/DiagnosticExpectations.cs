@@ -44,51 +44,51 @@ public static class DiagnosticExpectations
 {
     public static ImmutableArray<DiagnosticExpectation> All { get; } =
     [
-        new("BC1001", FixtureKind.GeneratorViaProjectReference, "error", "Bc1001Bc1005.cs", "Bc1001NonPartial"),
-        new("BC1002", FixtureKind.GeneratorViaProjectReference, "error", "Bc1002Bc1003Bc1004.cs", "Helper"),
+        new("BCF1001", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1001Bcf1005.cs", "Bcf1001NonPartial"),
+        new("BCF1002", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1002Bcf1003Bcf1004.cs", "Helper"),
         new(
-            "BC1003",
+            "BCF1003",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bc1002Bc1003Bc1004.cs",
+            "Bcf1002Bcf1003Bcf1004.cs",
             "Make()",
             Note: "Points at the innermost expression that failed to classify, not at the whole Body " +
                 "(#77). Anchoring on the call rather than the property is the contract: a file with " +
                 "several components and a deep Body is exactly where a coarser location stops helping."),
-        new("BC1004", FixtureKind.GeneratorViaProjectReference, "error", "Bc1002Bc1003Bc1004.cs", "Body"),
-        new("BC1005", FixtureKind.GeneratorViaProjectReference, "error", "Bc1001Bc1005.cs", "Body"),
-        new("BC3001", FixtureKind.AnalyzerViaProjectReference, "error", "Mutating.cs", "_count++"),
-        new("BC3002", FixtureKind.GeneratorViaProjectReference, "warning", "Bc3002Bc3003Bc3004.cs", "item => 0"),
+        new("BCF1004", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1002Bcf1003Bcf1004.cs", "Body"),
+        new("BCF1005", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1001Bcf1005.cs", "Body"),
+        new("BCF3001", FixtureKind.AnalyzerViaProjectReference, "error", "Mutating.cs", "_count++"),
+        new("BCF3002", FixtureKind.GeneratorViaProjectReference, "warning", "Bcf3002Bcf3003Bcf3004.cs", "item => 0"),
         new(
-            "BC3003",
+            "BCF3003",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bc3002Bc3003Bc3004.cs",
+            "Bcf3002Bcf3003Bcf3004.cs",
             "ForEach(_items, item => item, item => Fragment(Div[item]))"),
         new(
-            "BC3004",
+            "BCF3004",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bc3002Bc3003Bc3004.cs",
+            "Bcf3002Bcf3003Bcf3004.cs",
             "ForEach(_items, item => item, Render)"),
-        new("BC3005", FixtureKind.GeneratorViaProjectReference, "error", "Bc3005ToBc3008.cs", "w => w.Label!.ToUpperInvariant()"),
-        new("BC3006", FixtureKind.GeneratorViaProjectReference, "error", "Bc3005ToBc3008.cs", "w => w.NotAParameter"),
+        new("BCF3005", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3005ToBcf3008.cs", "w => w.Label!.ToUpperInvariant()"),
+        new("BCF3006", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3005ToBcf3008.cs", "w => w.NotAParameter"),
         // Two identical selectors on the line; the duplicate is the second, and that is the one to blame.
-        new("BC3007", FixtureKind.GeneratorViaProjectReference, "error", "Bc3005ToBc3008.cs", "w => w.Label", AnchorOccurrence.Last),
-        new("BC3008", FixtureKind.GeneratorViaProjectReference, "error", "Bc3005ToBc3008.cs", "Class"),
-        new("BC3009", FixtureKind.GeneratorViaProjectReference, "error", "Bc3009ToBc3011.cs", "\"\""),
+        new("BCF3007", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3005ToBcf3008.cs", "w => w.Label", AnchorOccurrence.Last),
+        new("BCF3008", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3005ToBcf3008.cs", "Class"),
+        new("BCF3009", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3009ToBcf3011.cs", "\"\""),
         // Likewise: the second .Id is the duplicate.
-        new("BC3010", FixtureKind.GeneratorViaProjectReference, "error", "Bc3009ToBc3011.cs", "Id", AnchorOccurrence.Last),
-        new("BC3011", FixtureKind.GeneratorViaProjectReference, "error", "Bc3009ToBc3011.cs", "_name"),
-        new("BC3012", FixtureKind.GeneratorViaProjectReference, "error", "Bc3012ToBc3015.cs", "MissingWidget"),
+        new("BCF3010", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3009ToBcf3011.cs", "Id", AnchorOccurrence.Last),
+        new("BCF3011", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3009ToBcf3011.cs", "_name"),
+        new("BCF3012", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3012ToBcf3015.cs", "MissingWidget"),
         new(
-            "BC3013",
+            "BCF3013",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bc3012ToBc3015.cs",
-            "Component<ChildlessWidget>()[Span[\"bc3013\"]]"),
-        new("BC3014", FixtureKind.GeneratorViaProjectReference, "error", "Bc3012ToBc3015.cs", "Span[\"bc3014\"]"),
-        new("BC3015", FixtureKind.GeneratorViaProjectReference, "error", "Bc3012ToBc3015.cs", "MissingProbe"),
+            "Bcf3012ToBcf3015.cs",
+            "Component<ChildlessWidget>()[Span[\"bcf3013\"]]"),
+        new("BCF3014", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3012ToBcf3015.cs", "Span[\"bcf3014\"]"),
+        new("BCF3015", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3012ToBcf3015.cs", "MissingProbe"),
     ];
 
     /// <summary>
@@ -107,7 +107,7 @@ public static class DiagnosticExpectations
     /// </summary>
     public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
     [
-        ("BC2001",
+        ("BCF2001",
             "The 付録A row is intentional: the Opaque path is specified but unimplemented, so the " +
             "descriptor lands with it (#57)."),
     ];

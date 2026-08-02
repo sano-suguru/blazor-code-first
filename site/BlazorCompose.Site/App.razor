@@ -12,7 +12,7 @@
     that path is served as 404.html, so the two cannot drift apart.
 
     Razor naming a hand-written C# component is fine; the reverse -- Component<T>() naming a
-    Razor-generated type declared in this same project -- is reported as BC3012, because source
+    Razor-generated type declared in this same project -- is reported as BCF3012, because source
     generators cannot observe each other's output. A referenced project's .razor type is fine.
 *@
 <Router AppAssembly="@typeof(Program).Assembly" NotFoundPage="@typeof(Pages.NotFoundPage)">

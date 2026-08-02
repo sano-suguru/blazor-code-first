@@ -133,27 +133,27 @@ public sealed class HtmlFragmentGeneratorTests
     }
 
     [Fact]
-    public void Fragment_AsForEachContentRoot_ReportsBC3003()
+    public void Fragment_AsForEachContentRoot_ReportsBCF3003()
     {
         var result = CompilationTestHost.RunGenerator(FragmentAsForEachContentSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003");
     }
 
     [Fact]
-    public void Fragment_ViaComposableAsForEachContentRoot_ReportsBC3003()
+    public void Fragment_ViaComposableAsForEachContentRoot_ReportsBCF3003()
     {
         var result = CompilationTestHost.RunGenerator(FragmentViaComposableAsForEachContentSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003");
     }
 
     [Fact]
-    public void Fragment_WithNonStaticChild_ReportsBC1003()
+    public void Fragment_WithNonStaticChild_ReportsBCF1003()
     {
         // A non-analyzable child (a variable span, not an inline design-time syntax call) cannot be
         // sequenced, so the whole body fails to translate — proves fragment children must be
         // compile-time static.
         var result = CompilationTestHost.RunGenerator(FragmentNonStaticChildSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]

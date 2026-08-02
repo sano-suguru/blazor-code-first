@@ -58,7 +58,7 @@ the chosen position, recorded in `DESIGN.md` §4.1, not a gap to be closed.
 What C# cannot check is the *shape* of a `Body`: a component that forgets `partial`, state mutated
 inside `Body`, a decoration applied to something that is not a single element, a duplicate
 attribute, a non-constant tag name. Those are enforced after the fact by the compiler's own
-BC1xxx/BC3xxx diagnostics, listed in `ARCHITECTURE.md`.
+BCF1xxx/BCF3xxx diagnostics, listed in `ARCHITECTURE.md`.
 
 ## Status
 

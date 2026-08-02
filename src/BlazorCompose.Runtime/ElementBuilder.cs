@@ -15,7 +15,7 @@ namespace BlazorCompose;
 /// <para>
 /// This is a <c>readonly struct</c> and deliberately not a <c>ref struct</c>: a <c>ref struct</c> cannot be
 /// a generic type argument (CS0306), so <c>.Param(c =&gt; c.Payload, Div)</c> would fail to compile and
-/// BC3014 — which exists to reject exactly that expression with a purpose-written message — would never be
+/// BCF3014 — which exists to reject exactly that expression with a purpose-written message — would never be
 /// reached. The <c>[Composable]</c> parameter rejection depends on the same property.
 /// </para>
 /// <para>

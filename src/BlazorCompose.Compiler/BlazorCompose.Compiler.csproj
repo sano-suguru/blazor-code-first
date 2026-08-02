@@ -4,9 +4,7 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <!-- Diagnostic IDs and their descriptors live in Diagnostics/DiagnosticDescriptors.cs and are tracked
-         in AnalyzerReleases.{Shipped,Unshipped}.md (the RS2000 source of truth).
-         Suppress RS1029 because the 'BC' prefix is otherwise reserved for VB compiler diagnostics. -->
-    <NoWarn>$(NoWarn);RS1029</NoWarn>
+         in AnalyzerReleases.{Shipped,Unshipped}.md (the RS2000 source of truth). -->
   </PropertyGroup>
 
   <ItemGroup>

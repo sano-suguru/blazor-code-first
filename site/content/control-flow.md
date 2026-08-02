@@ -36,7 +36,7 @@ protected override View Body =>
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
 key defeats the diff — reordering the list would make Blazor reuse the wrong element state. The
 content root must be a single element or component, so a `Fragment` or `Raw` root, or a
-`RenderFragment` placed as content, reports BC3003.
+`RenderFragment` placed as content, reports BCF3003.
 
 ## Fragment
 
@@ -46,8 +46,8 @@ content root must be a single element or component, so a `Fragment` or `Raw` roo
 Fragment(H2["Title"], P["Body"])
 ```
 
-Because it opens no element it cannot be decorated (BC3008) and cannot be a `ForEach` content root
-(BC3003).
+Because it opens no element it cannot be decorated (BCF3008) and cannot be a `ForEach` content root
+(BCF3003).
 
 ## Raw
 

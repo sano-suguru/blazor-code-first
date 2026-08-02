@@ -222,7 +222,7 @@ internal sealed class KnownSymbols
 
         // GetTypeByMetadataName answers null for an *ambiguous* type as well as a missing one — two
         // references both declaring System.ReadOnlySpan<T>, say. Both indexers would then resolve to null and
-        // every Div[…] in the compilation would fall through to BC1003 with nothing naming the cause.
+        // every Div[…] in the compilation would fall through to BCF1003 with nothing naming the cause.
         // ParameterAttributeType and RenderFragmentType degrade the same way, for the same reason.
         var readOnlySpanType = compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
         ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType, readOnlySpanType);
@@ -269,9 +269,9 @@ internal sealed class KnownSymbols
             // ambiguous-type scenario above, this lookup (htmlType.ContainingAssembly.GetTypeByMetadataName)
             // is scoped to a single assembly, so null here means that assembly does not declare
             // BlazorCompose.ElementBuilder under that name, not a cross-assembly ambiguity. Rejecting every
-            // candidate would still empty these sets and silently disable BC3008 for every decoration — a
+            // candidate would still empty these sets and silently disable BCF3008 for every decoration — a
             // worse failure than the one prevented, and an invisible one, where the current degradation at
-            // least reports BC1003.
+            // least reports BCF1003.
             foreach (var member in decorationsType.GetMembers())
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)

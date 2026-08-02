@@ -219,7 +219,7 @@ public sealed class ComponentSlotGeneratorTests
 
         var result = CompilationTestHost.RunGenerator(("Card.cs", CardSource), ("Host.cs", host));
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     private const string InheritedChildContentSource = """
@@ -240,7 +240,7 @@ public sealed class ComponentSlotGeneratorTests
         // Regression guard: HasUsableChildContent must walk the base-type chain (Roslyn's GetMembers on
         // the derived type alone would not see a ChildContent property declared only on the base class).
         // Without that walk, a component that inherits ChildContent instead of redeclaring it would be
-        // rejected with a false BC3013 even though Blazor itself accepts it at runtime.
+        // rejected with a false BCF3013 even though Blazor itself accepts it at runtime.
         const string host = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -254,7 +254,7 @@ public sealed class ComponentSlotGeneratorTests
         var result = CompilationTestHost.RunGenerator(
             ("DerivedCard.cs", InheritedChildContentSource), ("Host.cs", host));
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC3013");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3013");
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("\"ChildContent\"", GeneratedHost(result));
     }

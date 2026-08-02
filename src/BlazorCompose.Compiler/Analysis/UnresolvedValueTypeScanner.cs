@@ -181,11 +181,11 @@ internal static class UnresolvedValueTypeScanner
     /// silence expressions the rejection was never about.
     /// </para>
     /// <para>
-    /// The children are scanned only when the receiver's tag survives BC3009.  A non-constant tag has
+    /// The children are scanned only when the receiver's tag survives BCF3009.  A non-constant tag has
     /// already rejected the whole element, so nothing inside the brackets reaches generated code and a
     /// report about it would be noise on top of the real error.  The rule is not restated here: the gate
     /// asks the receiver, through <see cref="HasRejectedElementTag"/>, because the receiver is what owns
-    /// the tag and what BC3009 is reported on.
+    /// the tag and what BCF3009 is reported on.
     /// </para>
     /// </remarks>
     private static void ScanChildrenIndexer(
@@ -196,7 +196,7 @@ internal static class UnresolvedValueTypeScanner
 
         ScanRenderExpression(elementAccess.Expression, context);
 
-        // A non-constant tag has already been rejected by BC3009 on the receiver, so the children never
+        // A non-constant tag has already been rejected by BCF3009 on the receiver, so the children never
         // reach generated code and reporting on them is noise. This is the gate the method-surface Element
         // arm carried before #87 deleted it.
         if (HasRejectedElementTag(elementAccess.Expression, context))
@@ -208,7 +208,7 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// Whether <paramref name="receiver"/> resolves through its decoration chain to an
-    /// <c>Element(tag)</c> call whose tag is not a non-empty constant string — the shape BC3009 rejects.
+    /// <c>Element(tag)</c> call whose tag is not a non-empty constant string — the shape BCF3009 rejects.
     /// </summary>
     /// <remarks>
     /// The chain is unwound rather than inspected at the top, because decorations sit between the element
@@ -791,7 +791,7 @@ internal static class UnresolvedValueTypeScanner
         /// A collection-expression literal passed whole (<c>Div[["a", "b"]]</c>) is unwrapped into its
         /// elements here, mirroring <see cref="FactoryArguments"/>: it is the same call as the expanded
         /// form, and leaving it whole made every name inside it invisible to the sweep, so such a body
-        /// reported a bare BC1003 and never named the value that could not be moved into generated code
+        /// reported a bare BCF1003 and never named the value that could not be moved into generated code
         /// (#75).  Reached when the element access itself has no operation — an unbound spread beside the
         /// children is the measured route, since that makes the whole element access an invalid operation
         /// and <see cref="FactoryArguments.Bind"/> returns before any element is examined.
@@ -888,7 +888,7 @@ internal static class UnresolvedValueTypeScanner
         /// deliberately parts from <c>FactoryArguments</c>.  There, a literal containing a spread is refused
         /// outright, because emitting a partially recovered child list would drop children the author wrote.
         /// Nothing is emitted from here — this binder feeds a diagnostic sweep — so the same caution would
-        /// only silence BC3015 on the children that <em>are</em> written out.  A spread's own operand is not
+        /// only silence BCF3015 on the children that <em>are</em> written out.  A spread's own operand is not
         /// collected either: it would never have been emitted as a child, and this scanner reports only on
         /// expressions the analyzer would emit.
         /// </para>

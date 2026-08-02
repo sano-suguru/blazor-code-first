@@ -57,7 +57,7 @@ internal sealed record ComposableDefinition(
 /// A registry slot for one source-declared composable.  Invalid declarations remain present with
 /// <see cref="Definition"/> set to <see langword="null"/> and <see cref="DeclarationDiagnosticReported"/>
 /// set to <see langword="true"/> so expansion can distinguish an already-diagnosed source declaration
-/// from a metadata-only method that must report BC1002 at the call site.
+/// from a metadata-only method that must report BCF1002 at the call site.
 /// </summary>
 internal sealed record ComposableDefinitionEntry(
     string MethodKey,

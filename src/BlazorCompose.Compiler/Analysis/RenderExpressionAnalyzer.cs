@@ -27,7 +27,7 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// Classifies <paramref name="expression"/>, recording it on <paramref name="context"/> when it cannot
     /// be classified.  Every recursive descent goes through here rather than through
-    /// <see cref="Classify"/>, so the innermost failure is the one recorded and BC1003 can name the
+    /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
     /// construct the author actually wrote instead of the whole design-time expression.
     /// </summary>
     public static RenderTemplateNode? Analyze(ExpressionSyntax expression, ComposableBodyContext context)
@@ -55,7 +55,7 @@ internal static class RenderExpressionAnalyzer
         // Same shape for an externally supplied RenderFragment: the pre-conversion Type is RenderFragment
         // even though it converts to View, and it lowers to the sibling AddContent overload. This must
         // stay ahead of the invocation guard below: a method call returning RenderFragment is neither
-        // design-time syntax nor a [Composable] call, so falling through would report BC1003.
+        // design-time syntax nor a [Composable] call, so falling through would report BCF1003.
         if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType &&
             SymbolEqualityComparer.Default.Equals(expressionType, renderFragmentType))
         {
@@ -121,7 +121,7 @@ internal static class RenderExpressionAnalyzer
                 || string.IsNullOrWhiteSpace(tagValue))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3009, tagArg.GetLocation(), []));
+                    DiagnosticDescriptors.BCF3009, tagArg.GetLocation(), []));
                 return null;
             }
 
@@ -185,7 +185,7 @@ internal static class RenderExpressionAnalyzer
                     contentArg.Expression, out var contentParameter, out var contentBody))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3004,
+                    DiagnosticDescriptors.BCF3004,
                     invocation.GetLocation(),
                     []));
                 return null;
@@ -195,7 +195,7 @@ internal static class RenderExpressionAnalyzer
                 || context.SemanticModel.GetDeclaredSymbol(contentParameter, context.CancellationToken) is not { } contentParamSymbol)
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3004,
+                    DiagnosticDescriptors.BCF3004,
                     invocation.GetLocation(),
                     []));
                 return null;
@@ -216,7 +216,7 @@ internal static class RenderExpressionAnalyzer
                 if (!KeyReferencesItemOrdinal(key, itemOrdinal))
                 {
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3002,
+                        DiagnosticDescriptors.BCF3002,
                         keyArg.GetLocation(),
                         []));
                 }
@@ -239,8 +239,8 @@ internal static class RenderExpressionAnalyzer
             // the written name with no qualification, and the generated file has no using directives, so
             // OpenComponent<T> would either fail with a CS0246 the author cannot reach or bind silently
             // to a different same-named type. Fail translation instead; the failure-path sweep in
-            // ComponentModelFactory/ComposableDefinitionFactory then reports BC3012 once. Returning null
-            // here also stops the Param branch from drawing a spurious BC3005 on the selector.
+            // ComponentModelFactory/ComposableDefinitionFactory then reports BCF3012 once. Returning null
+            // here also stops the Param branch from drawing a spurious BCF3005 on the selector.
             if (TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
                 return null;
 
@@ -309,7 +309,7 @@ internal static class RenderExpressionAnalyzer
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3005, selector.GetLocation(), []));
+                    DiagnosticDescriptors.BCF3005, selector.GetLocation(), []));
                 return null;
             }
 
@@ -317,7 +317,7 @@ internal static class RenderExpressionAnalyzer
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3006, selector.GetLocation(), [property.Name]));
+                    DiagnosticDescriptors.BCF3006, selector.GetLocation(), [property.Name]));
                 return null;
             }
 
@@ -330,7 +330,7 @@ internal static class RenderExpressionAnalyzer
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3007, selector.GetLocation(), [property.Name]));
+                    DiagnosticDescriptors.BCF3007, selector.GetLocation(), [property.Name]));
                 return null;
             }
 
@@ -351,7 +351,7 @@ internal static class RenderExpressionAnalyzer
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3014,
+                    DiagnosticDescriptors.BCF3014,
                     valueExpression.GetLocation(),
                     [valueExpression.ToString()]));
                 return null;
@@ -429,7 +429,7 @@ internal static class RenderExpressionAnalyzer
                 {
                     context.RejectUnresolvedValueRecovery(invocation.Span);
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3011, firstArg.GetLocation(), []));
+                        DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
                     return null;
                 }
 
@@ -437,7 +437,7 @@ internal static class RenderExpressionAnalyzer
                 {
                     context.RejectUnresolvedValueRecovery(invocation.Span);
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [eventName!]));
+                        DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [eventName!]));
                     return null;
                 }
 
@@ -467,7 +467,7 @@ internal static class RenderExpressionAnalyzer
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3011, firstArg.GetLocation(), []));
+                    DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
                 return null;
             }
 
@@ -487,7 +487,7 @@ internal static class RenderExpressionAnalyzer
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BC3010, decoAccess.Name.GetLocation(), [attrName!]));
+                    DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [attrName!]));
                 return null;
             }
 
@@ -559,9 +559,9 @@ internal static class RenderExpressionAnalyzer
     /// span, so a rejection keyed on this element access could never be read.  Where suppression is
     /// genuinely needed it is registered by a receiver that is an invocation: the decoration and
     /// <c>.Param</c> arms reject their own spans.  The construct that looks like it needs one here does not
-    /// — <c>Element(nonConstant)["x"]</c> reports BC3009 and no BC3015, because the scanner's <c>Element</c>
+    /// — <c>Element(nonConstant)["x"]</c> reports BCF3009 and no BCF3015, because the scanner's <c>Element</c>
     /// arm never reports on the tag argument at all, and its own constant-tag gate keeps it out of the
-    /// children of an element BC3009 has already rejected.
+    /// children of an element BCF3009 has already rejected.
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
@@ -572,7 +572,7 @@ internal static class RenderExpressionAnalyzer
             return null;
 
         // One whole collection passed to the params indexer (Div[arr]) is not a list of children; leave it
-        // unanalyzable so it lands on BC1003 instead of being mis-split.
+        // unanalyzable so it lands on BCF1003 instead of being mis-split.
         if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
             return null;
 
@@ -594,7 +594,7 @@ internal static class RenderExpressionAnalyzer
     /// The indexer returns <c>View</c>, so nothing can follow the brackets: children are always written last,
     /// and a <c>.Param</c> on <c>ChildContent</c> is therefore always the binding that came first.  The
     /// <c>.Param</c> arm only ever sees a receiver written before it, so it cannot see these children; this
-    /// arm has to perform the check or BC3007 goes silent for the whole combination.
+    /// arm has to perform the check or BCF3007 goes silent for the whole combination.
     /// </para>
     /// <para>
     /// The same property fixes the slot order: children cannot be followed by anything, so
@@ -612,7 +612,7 @@ internal static class RenderExpressionAnalyzer
         if (Analyze(elementAccess.Expression, context) is not ComponentTemplateNode component)
             return null;
 
-        // The node carries only the type's display name, so the symbol BC3013 and the ChildContent lookup
+        // The node carries only the type's display name, so the symbol BCF3013 and the ChildContent lookup
         // need comes from the indexer's own containing type — ComponentView<T> for the T being configured.
         if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
             return null;
@@ -627,7 +627,7 @@ internal static class RenderExpressionAnalyzer
         if (children.Value.Length > 0 && HasBinding(component, ChildContentParameterName))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BC3007,
+                DiagnosticDescriptors.BCF3007,
                 elementAccess.ArgumentList.GetLocation(),
                 [ChildContentParameterName]));
             return null;
@@ -649,14 +649,14 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Builds the single <c>ChildContent</c> slot children are bound to, reporting BC3013 at
+    /// Builds the single <c>ChildContent</c> slot children are bound to, reporting BCF3013 at
     /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them.  Yields an
     /// empty slot list — and succeeds — when there are no children.
     /// </summary>
     /// <remarks>
     /// Called only from <see cref="ClassifyComponentIndexer"/>: <c>ComponentView&lt;T&gt;</c>'s indexer is the
     /// one channel children reach a component through.  Kept as its own method rather than inlined because
-    /// the BC3013 rule — which components can receive children, and where the report lands — is worth
+    /// the BCF3013 rule — which components can receive children, and where the report lands — is worth
     /// naming separately from the indexer's argument handling.
     /// </remarks>
     private static bool TryBuildChildContentSlot(
@@ -673,7 +673,7 @@ internal static class RenderExpressionAnalyzer
         if (!HasUsableChildContent(componentType, context))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BC3013,
+                DiagnosticDescriptors.BCF3013,
                 location,
                 [componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
             return false;

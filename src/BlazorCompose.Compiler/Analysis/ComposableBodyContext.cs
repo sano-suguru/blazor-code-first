@@ -51,8 +51,8 @@ internal sealed class ComposableBodyContext
     public ImmutableArray<ComposableAccessRequirement>.Builder AccessRequirements { get; }
 
     /// <summary>
-    /// All diagnostics recorded while normalizing this body, both errors (for example BC1002) and
-    /// warnings (for example BC3002). Definition/model validity is gated on <see cref="DiagnosticInfo.IsError"/>
+    /// All diagnostics recorded while normalizing this body, both errors (for example BCF1002) and
+    /// warnings (for example BCF3002). Definition/model validity is gated on <see cref="DiagnosticInfo.IsError"/>
     /// severity, not on this collection being non-empty, so a warning-only body still builds successfully
     /// and surfaces its warnings.
     /// </summary>
@@ -63,7 +63,7 @@ internal sealed class ComposableBodyContext
     /// <see cref="RenderExpressionAnalyzer.Analyze"/> on every failed classification, keeping only the
     /// first: recursion is depth-first and no caller recovers from a <see langword="null"/> child, so the
     /// first failure recorded is the innermost one and every enclosing failure is a consequence of it.
-    /// This is what gives BC1003 a location — it is raised after classification, where no syntax remains.
+    /// This is what gives BCF1003 a location — it is raised after classification, where no syntax remains.
     /// </summary>
     /// <remarks>
     /// "First" resolves depth, not source order.  Between siblings at the same depth it is analysis order
@@ -139,23 +139,23 @@ internal sealed class ComposableBodyContext
         !_rejectedValueRouteSpans.Contains(invocationSpan);
 
     /// <summary>
-    /// Records a single declaration-time BC1002 for a body that references a symbol which cannot exist
+    /// Records a single declaration-time BCF1002 for a body that references a symbol which cannot exist
     /// in generated component code (for example a local function or a local declared in an enclosing
     /// scope).  Only the first such reference is reported so a body yields exactly one declaration
     /// diagnostic regardless of how many unsupported references it contains.  The dedup guard is
-    /// id-specific — it only suppresses a second BC1002 — so it never drops an unrelated diagnostic (for
-    /// example a co-located BC3002 warning) that was recorded first.
+    /// id-specific — it only suppresses a second BCF1002 — so it never drops an unrelated diagnostic (for
+    /// example a co-located BCF3002 warning) that was recorded first.
     /// </summary>
     public void ReportUnsupportedReference(Location location, string reason)
     {
         foreach (var existing in Diagnostics)
         {
-            if (existing.Id == DiagnosticDescriptors.BC1002.Id)
+            if (existing.Id == DiagnosticDescriptors.BCF1002.Id)
                 return;
         }
 
         Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BC1002,
+            DiagnosticDescriptors.BCF1002,
             location,
             [MethodDisplayName, reason]));
     }
@@ -165,7 +165,7 @@ internal sealed class ComposableBodyContext
         var path = location.GetLineSpan().Path ?? string.Empty;
         foreach (var existing in Diagnostics)
         {
-            if (existing.Id == DiagnosticDescriptors.BC3015.Id
+            if (existing.Id == DiagnosticDescriptors.BCF3015.Id
                 && existing.FilePath == path
                 && existing.Span == location.SourceSpan)
             {
@@ -174,7 +174,7 @@ internal sealed class ComposableBodyContext
         }
 
         Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BC3015,
+            DiagnosticDescriptors.BCF3015,
             location,
             [typeName]));
     }

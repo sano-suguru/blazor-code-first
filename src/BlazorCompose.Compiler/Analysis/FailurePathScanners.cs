@@ -14,10 +14,10 @@ namespace BlazorCompose.Compiler.Analysis;
 /// invoke it, and that difference is invisible at the call site: each factory looks complete on its own.
 /// </para>
 /// <para>
-/// That is not hypothetical.  BC3008 moved out of <c>RenderExpressionAnalyzer.Classify</c> into
+/// That is not hypothetical.  BCF3008 moved out of <c>RenderExpressionAnalyzer.Classify</c> into
 /// <c>RejectedDecorationScanner</c> during #100, was wired into the component host only, and a misplaced
-/// decoration inside a <c>[Composable]</c> body silently degraded to the generic BC1002 for the life of
-/// the branch — every BC3008 test hosted its expression in <c>Body</c>, so nothing failed.  The lesson
+/// decoration inside a <c>[Composable]</c> body silently degraded to the generic BCF1002 for the life of
+/// the branch — every BCF3008 test hosted its expression in <c>Body</c>, so nothing failed.  The lesson
 /// recorded then was that moving a check out of a shared routine turns its host set from something
 /// implied into something a human has to enumerate.  This type is the answer to that: the enumeration
 /// exists once, so there is no per-host list to get wrong.
@@ -29,13 +29,13 @@ namespace BlazorCompose.Compiler.Analysis;
 /// syntax shapes — <see cref="UnresolvedValueTypeScanner"/> skips a <c>Component&lt;T&gt;()</c> call
 /// outright and leaves it to <see cref="UnresolvedComponentTypeScanner"/> — so no scanner here overrides
 /// another's finding.  The one dedup that does exist, <c>ComposableBodyContext.ReportUnresolvedType</c>
-/// dropping a repeat BC3015 at the same file span, is reached from more than this sweep:
+/// dropping a repeat BCF3015 at the same file span, is reached from more than this sweep:
 /// <c>ExpressionTemplateFactory.TryReportUnresolvedType</c> also calls it, both from
 /// <see cref="UnresolvedValueTypeScanner"/>'s own recursion and from the success path that
 /// <c>RenderExpressionAnalyzer.Classify</c> runs over the same <see cref="ComposableBodyContext"/> before
 /// <see cref="ReportAll"/> ever executes.  It still does not make the order between the three scanners
-/// load-bearing, because the dedup only ever compares a BC3015 against an earlier BC3015, and
-/// <see cref="UnresolvedValueTypeScanner"/> is the only one of the three that reports BC3015.
+/// load-bearing, because the dedup only ever compares a BCF3015 against an earlier BCF3015, and
+/// <see cref="UnresolvedValueTypeScanner"/> is the only one of the three that reports BCF3015.
 /// </para>
 /// <para>
 /// A sweep that legitimately applies to one host only cannot be expressed through <see cref="ReportAll"/>,
@@ -47,7 +47,7 @@ internal static class FailurePathScanners
 {
     /// <summary>
     /// Sweeps <paramref name="root"/> for the specific causes behind a failed translation, so the author
-    /// is told the real one instead of BC1003's "not statically analyzable".
+    /// is told the real one instead of BCF1003's "not statically analyzable".
     /// </summary>
     /// <remarks>
     /// Call only on the failure path: a healthy expression must pay nothing for these.
