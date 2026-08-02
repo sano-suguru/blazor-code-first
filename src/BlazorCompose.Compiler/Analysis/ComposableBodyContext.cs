@@ -71,8 +71,8 @@ internal sealed class ComposableBodyContext
     /// <c>then</c> first and never reaches <c>otherwise</c>, so <c>t</c> is blamed even though <c>o</c> is
     /// written earlier.  Both are genuinely untranslatable, so this picks between real culprits rather
     /// than mislocating one.  Note that ordering by source position instead would invert the rule this
-    /// exists for: recording runs bottom-up, and an enclosing element helper always starts before the
-    /// expression nested in it, so the outermost failure would win every time.
+    /// exists for: recording runs bottom-up, and an enclosing design-time syntax call always starts before
+    /// the expression nested in it, so the outermost failure would win every time.
     /// </remarks>
     public Location? UntranslatableLocation { get; private set; }
 
