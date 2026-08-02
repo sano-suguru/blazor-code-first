@@ -3,7 +3,7 @@ title: Layouts
 order: 40
 ---
 
-A layout wraps the routed page with shared chrome — headers, navigation, footers. BlazorCompose
+A layout wraps the routed page with shared chrome — headers, navigation, footers. BlazorCodeFirst
 layouts are written the same way as components: derive from `ComposeLayoutBase`, declare a
 design-time UI expression, and let the source generator produce the rendering.
 
@@ -14,8 +14,8 @@ parameter holding the routed page. The chrome the layout itself draws goes in a 
 overridden property, `Chrome`:
 
 ```csharp
-using BlazorCompose;
-using static BlazorCompose.Html;
+using BlazorCodeFirst;
+using static BlazorCodeFirst.Html;
 
 public partial class MainLayout : ComposeLayoutBase
 {
@@ -43,9 +43,9 @@ A layout can itself sit inside another layout. Put `[Layout]` on the layout type
 would on a page:
 
 ```csharp
-using BlazorCompose;
+using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
-using static BlazorCompose.Html;
+using static BlazorCodeFirst.Html;
 
 [Layout(typeof(SiteLayout))]
 public partial class DocsLayout : ComposeLayoutBase
@@ -54,14 +54,14 @@ public partial class DocsLayout : ComposeLayoutBase
 }
 ```
 
-Nesting is resolved by Blazor, not by BlazorCompose: `LayoutView` reads the attribute off the layout
+Nesting is resolved by Blazor, not by BlazorCodeFirst: `LayoutView` reads the attribute off the layout
 type and wraps it in its own layout, and a Compose layout is an ordinary `LayoutComponentBase`
 descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Body` is the rendered
 `DocsLayout`, whose own `Body` is the routed page.
 
 ## RenderFragment becomes content directly
 
-`Body` is a plain Blazor `RenderFragment?`, not a BlazorCompose type, yet `Main[Body]` above
+`Body` is a plain Blazor `RenderFragment?`, not a BlazorCodeFirst type, yet `Main[Body]` above
 compiles without dedicated syntax: `View` has an implicit conversion from `RenderFragment?`,
 so any fragment can appear wherever element content is expected. The conversion is from the
 non-generic `RenderFragment` only — a `RenderFragment<T>` does not convert. And like `Fragment`
@@ -72,9 +72,9 @@ The same mechanism lets a Compose component render children passed in from Razor
 with `[Parameter] public RenderFragment? ChildContent` uses it exactly like `Body`:
 
 ```csharp
-using BlazorCompose;
+using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
-using static BlazorCompose.Html;
+using static BlazorCodeFirst.Html;
 
 public partial class Card : ComposeComponentBase
 {
@@ -122,7 +122,7 @@ It is also legal to name `ChildContent` through `.Param` — this is verbose but
 attribute form (`<Card><ChildContent>...</ChildContent></Card>`). Binding the same parameter through
 both channels reports BCF3007.
 
-A real `RenderFragment` value (as opposed to a BlazorCompose `View` expression) still binds through
+A real `RenderFragment` value (as opposed to a BlazorCodeFirst `View` expression) still binds through
 the generic `.Param<TValue>` overload and is emitted verbatim.
 
 For unresolved type names inside parameter values, see

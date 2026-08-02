@@ -1,0 +1,22 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+@using BlazorCodeFirst.Site.Layout
+
+@*
+    NotFoundPage, not the <NotFound> fragment. Router.NotFound is [Obsolete] in .NET 10, and
+    Router.RenderNotFound only falls back to it when NotFoundPage is null. NotFoundPage is rendered
+    through the <Found> template below -- Router calls Found(new RouteData(NotFoundPage, ...)) -- so
+    RouteView's DefaultLayout applies to it and no LayoutView or [Layout] attribute is needed.
+
+    This makes a link click to an unknown path render the same component that a hard request for
+    that path is served as 404.html, so the two cannot drift apart.
+
+    Razor naming a hand-written C# component is fine; the reverse -- Component<T>() naming a
+    Razor-generated type declared in this same project -- is reported as BCF3012, because source
+    generators cannot observe each other's output. A referenced project's .razor type is fine.
+*@
+<Router AppAssembly="@typeof(Program).Assembly" NotFoundPage="@typeof(Pages.NotFoundPage)">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+    </Found>
+</Router>

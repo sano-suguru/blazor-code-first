@@ -86,18 +86,18 @@ jobs:
 
       - name: Regenerate docs and verify freshness
         run: |
-          dotnet run --project site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site.DocGen.Cli.csproj -- \
+          dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \
             site/content \
-            site/BlazorCompose.Site/Content/Docs.g.cs \
-            site/BlazorCompose.Site/wwwroot/css/highlight.css
+            site/BlazorCodeFirst.Site/Content/Docs.g.cs \
+            site/BlazorCodeFirst.Site/wwwroot/css/highlight.css
           git diff --exit-code -- \
-            site/BlazorCompose.Site/Content/Docs.g.cs \
-            site/BlazorCompose.Site/wwwroot/css/highlight.css
+            site/BlazorCodeFirst.Site/Content/Docs.g.cs \
+            site/BlazorCodeFirst.Site/wwwroot/css/highlight.css
 
       - name: DocGen unit tests
-        run: dotnet test site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj
+        run: dotnet test site/tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj
 
-      # site/ sits outside BlazorCompose.slnx, so it is outside the repository's main
+      # site/ sits outside BlazorCodeFirst.slnx, so it is outside the repository's main
       # `dotnet format` gate (see CONTRIBUTING.md, "Code style"). This step closes that gap for
       # the site projects.
       # `dotnet format` requires a restored project; restore is left implicit here (no
@@ -106,16 +106,16 @@ jobs:
       - name: Format check (site/)
         run: |
           # Build the site app before formatting it. `dotnet format` loads each project as a Roslyn
-          # workspace and compiles it, and the app's RenderView comes from the BlazorCompose source
+          # workspace and compiles it, and the app's RenderView comes from the BlazorCodeFirst source
           # generator referenced as an analyzer ProjectReference. On a cold checkout that generator
           # assembly does not exist yet, so the workspace load reports CS0534 ("does not implement
           # inherited abstract member RenderView") for every compose component and the step fails.
           # Building first produces the generator; the DocGen projects need no such step.
-          dotnet build site/BlazorCompose.Site/BlazorCompose.Site.csproj
-          dotnet format site/BlazorCompose.Site/BlazorCompose.Site.csproj --verify-no-changes
-          dotnet format site/tools/BlazorCompose.Site.DocGen/BlazorCompose.Site.DocGen.csproj --verify-no-changes
-          dotnet format site/tools/BlazorCompose.Site.DocGen.Cli/BlazorCompose.Site.DocGen.Cli.csproj --verify-no-changes
-          dotnet format site/tools/BlazorCompose.Site.DocGen.Tests/BlazorCompose.Site.DocGen.Tests.csproj --verify-no-changes
+          dotnet build site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj
+          dotnet format site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCodeFirst.Site.DocGen/BlazorCodeFirst.Site.DocGen.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj --verify-no-changes
+          dotnet format site/tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj --verify-no-changes
 
       - name: Verify site source hygiene
         run: |
@@ -186,14 +186,14 @@ jobs:
           fi
 
       - name: Publish (static, trimmed)
-        run: dotnet publish site/BlazorCompose.Site/BlazorCompose.Site.csproj -c Release
+        run: dotnet publish site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj -c Release
 
       - name: Verify prerendered shell and documents
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
 
-          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
           # The published document slugs. Defined once and reused below so the three loops over this
           # same set (building ROUTES, the active-link/.md check, and the /docs index count check)
@@ -252,7 +252,7 @@ jobs:
           # inert and hidden under an opaque loader until WASM started, so it reached crawlers only.
           for f in $ALL_HTML; do
             assert_not_grep 'b-prerendering' "$P/$f" "a prerendering wrapper div survived into the published HTML, which hides the prerendered content from humans until WASM starts"
-            assert_not_grep 'BlazorCompose\.Site\.styles\.css' "$P/$f" "the published HTML links the scoped-CSS bundle, which this project does not produce"
+            assert_not_grep 'BlazorCodeFirst\.Site\.styles\.css' "$P/$f" "the published HTML links the scoped-CSS bundle, which this project does not produce"
 
             # Both stylesheet links and the boot script are hand-maintained lines in
             # wwwroot/index.html, not SDK-injected. Every guard above them is an ABSENCE check, so
@@ -280,7 +280,7 @@ jobs:
           # <link> for the bundle -- that line is hand-written in index.html -- so if someone adds a
           # .razor.css, the bundle appears in the publish output and silently has no effect. Catch the
           # premise breaking rather than letting the guard above quietly enforce the wrong thing.
-          assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish output, so a .razor.css was added: restore the <link href=\"BlazorCompose.Site.styles.css\"> line in wwwroot/index.html and drop the guard that forbids it"
+          assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish output, so a .razor.css was added: restore the <link href=\"BlazorCodeFirst.Site.styles.css\"> line in wwwroot/index.html and drop the guard that forbids it"
 
           # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
           assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
@@ -322,9 +322,9 @@ jobs:
           set -euo pipefail
           . eng/ci-assert.sh
 
-          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
           # The one place the production origin is written in this workflow.
-          ORIGIN=https://blazor-compose-site.pages.dev
+          ORIGIN=https://blazor-code-first-site.pages.dev
           # The same value as an extended regular expression, derived rather than retyped. Needed
           # because the guards below pass patterns to grep -E, where an unescaped "." matches ANY
           # character -- so a typo'd origin like "okXexample" would satisfy a bare "$ORIGIN" pattern.
@@ -388,7 +388,7 @@ jobs:
           set -euo pipefail
           . eng/ci-assert.sh
 
-          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
           # _headers is an ordinary wwwroot file, so if it ever stopped being published NOTHING else
           # in this workflow would fail -- and the preview injection below appends with ">>", which
@@ -417,7 +417,7 @@ jobs:
           set -euo pipefail
           . eng/ci-assert.sh
 
-          P=site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
           # Cloudflare already sends X-Robots-Tag: noindex on every preview deployment by default, so
           # what this rule actually adds is `nofollow` plus an explicit, self-evident statement of
@@ -453,8 +453,8 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # --branch comes from the resolved target, never from github.ref_name (see that step).
           command: >-
-            pages deploy site/BlazorCompose.Site/bin/Release/net10.0/publish/wwwroot
-            --project-name blazor-compose-site
+            pages deploy site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+            --project-name blazor-code-first-site
             --branch=${{ steps.target.outputs.branch }}
 
       - name: Comment the preview URL on the pull request

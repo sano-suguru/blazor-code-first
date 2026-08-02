@@ -3,7 +3,7 @@ title: Getting Started
 order: 10
 ---
 
-BlazorCompose lets you write Blazor UI as plain C#. This page is itself rendered
+BlazorCodeFirst lets you write Blazor UI as plain C#. This page is itself rendered
 from Markdown, converted at build time and injected through `Html.Raw`.
 
 ## Installation
@@ -15,8 +15,8 @@ components from `ComposeComponentBase`.
 
 ```csharp
 using Microsoft.AspNetCore.Components;
-using BlazorCompose;
-using static BlazorCompose.Html;
+using BlazorCodeFirst;
+using static BlazorCodeFirst.Html;
 
 [Route("/")]
 public partial class Home : ComposeComponentBase
@@ -24,13 +24,13 @@ public partial class Home : ComposeComponentBase
     protected override View Body =>
         Div[
             H1["Hello"],
-            Span["Welcome to BlazorCompose."]];
+            Span["Welcome to BlazorCodeFirst."]];
 }
 ```
 
 ## Values copied into generated code
 
-BlazorCompose copies design-time value expressions into a generated file that has no `using`
+BlazorCodeFirst copies design-time value expressions into a generated file that has no `using`
 directives. Resolved type names are rewritten as `global::`-qualified names. If a type is still
 unresolved and its spelling depends on the source file's lexical context, the generator reports
 BCF3015 at that type name.

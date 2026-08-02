@@ -36,25 +36,25 @@ jobs:
         with:
           dotnet-version: 10.0.300
 
-      - run: dotnet restore BlazorCompose.slnx
+      - run: dotnet restore BlazorCodeFirst.slnx
 
-      - run: dotnet build BlazorCompose.slnx --no-restore
+      - run: dotnet build BlazorCodeFirst.slnx --no-restore
 
       # Enforce whitespace formatting, IDE code style, AND naming rules.
       # `dotnet build`/EnforceCodeStyleInBuild runs most IDE* analyzers but NOT naming (IDE1006)
       # or whitespace formatting, so the full `dotnet format` verification is their enforcement point.
-      - run: dotnet format BlazorCompose.slnx --verify-no-changes --no-restore
+      - run: dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore
 
-      - run: dotnet test BlazorCompose.slnx --no-build
+      - run: dotnet test BlazorCodeFirst.slnx --no-build
 
-      - run: dotnet pack src/BlazorCompose.Runtime/BlazorCompose.Runtime.csproj -c Release -o artifacts/package
+      - run: dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
 
-      - run: bash eng/verify-package.sh artifacts/package/BlazorCompose.0.1.0-dev.nupkg
+      - run: bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.0.1.0-dev.nupkg
 
-      - run: rm -rf artifacts/nuget-packages/blazorcompose/0.1.0-dev
+      - run: rm -rf artifacts/nuget-packages/blazorcodefirst/0.1.0-dev
 
-      - run: dotnet publish tests/BlazorCompose.TrimTestApp/BlazorCompose.TrimTestApp.csproj -c Release -r ${{ matrix.rid }} --self-contained true --configfile tests/BlazorCompose.TrimTestApp/NuGet.config
+      - run: dotnet publish tests/BlazorCodeFirst.TrimTestApp/BlazorCodeFirst.TrimTestApp.csproj -c Release -r ${{ matrix.rid }} --self-contained true --configfile tests/BlazorCodeFirst.TrimTestApp/NuGet.config
 
-      - run: dotnet test tests/BlazorCompose.TrimTests/BlazorCompose.TrimTests.csproj
+      - run: dotnet test tests/BlazorCodeFirst.TrimTests/BlazorCodeFirst.TrimTests.csproj
         env:
-          BLAZORCOMPOSE_TRIM_OUTPUT: ${{ github.workspace }}/tests/BlazorCompose.TrimTestApp/bin/Release/net10.0/${{ matrix.rid }}/publish
+          BLAZORCODEFIRST_TRIM_OUTPUT: ${{ github.workspace }}/tests/BlazorCodeFirst.TrimTestApp/bin/Release/net10.0/${{ matrix.rid }}/publish

@@ -3,7 +3,7 @@
   <PropertyGroup>
     <!-- See GeneratorDelivery.Package for why restore is isolated and the dev version is purged. -->
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/nuget-packages</RestorePackagesPath>
-    <_BlazorComposeDevCachePath>$(RestorePackagesPath)/blazorcompose/0.1.0-dev</_BlazorComposeDevCachePath>
+    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/0.1.0-dev</_BlazorCodeFirstDevCachePath>
   </PropertyGroup>
 
   <!-- The analyzer-reported half of the package delivery path: the same source as
@@ -14,11 +14,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BlazorCompose" />
+    <PackageReference Include="BlazorCodeFirst" />
   </ItemGroup>
 
-  <Target Name="PurgeBlazorComposeDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
-    <RemoveDir Directories="$(_BlazorComposeDevCachePath)" Condition="Exists('$(_BlazorComposeDevCachePath)')" />
+  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <!-- The message is what makes a wrong path observable: RemoveDir on a path that does not exist
+         is silent, so without this a mistyped cache path leaves the stale package in place and the
+         tests pass against it. Mirrors the TrimTestApp target. -->
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
   </Target>
 
 </Project>

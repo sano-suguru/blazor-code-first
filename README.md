@@ -1,4 +1,4 @@
-# BlazorCompose
+# BlazorCodeFirst
 
 A code-first declarative UI layer for Blazor — write your UI in pure C#, with no `.razor` markup
 and no raw-string templates.
@@ -11,14 +11,14 @@ or expression compilation.
 
 The vocabulary mirrors HTML: elements are C# helpers, attributes and events sit next to the tag in
 a decoration chain, children follow in brackets, and layout is left entirely to CSS. This puts
-BlazorCompose in the lineage of kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`,
+BlazorCodeFirst in the lineage of kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`,
 and hiccup (Clojure) rather than of SwiftUI or Jetpack Compose — there are no `VStack` / `HStack` /
 `Grid` containers and no typed `.Padding()` / `.FontSize()` decorations.
 
 ```csharp
-using BlazorCompose;
+using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
-using static BlazorCompose.Html;
+using static BlazorCodeFirst.Html;
 
 [Route("/counter")]
 public partial class CounterPage : ComposeComponentBase
@@ -42,10 +42,10 @@ public partial class CounterPage : ComposeComponentBase
 }
 ```
 
-That is `samples/BlazorCompose.Samples.Counter/Components/CounterPage.cs`, minus its namespace
+That is `samples/BlazorCodeFirst.Samples.Counter/Components/CounterPage.cs`, minus its namespace
 declaration — the example is copied from a project that is built and tested in CI rather than
 written for the README. Run it with
-`dotnet watch --project samples/BlazorCompose.Samples.Counter/BlazorCompose.Samples.Counter.csproj`.
+`dotnet watch --project samples/BlazorCodeFirst.Samples.Counter/BlazorCodeFirst.Samples.Counter.csproj`.
 
 ## What "type-safe" means here
 
@@ -62,7 +62,7 @@ BCF1xxx/BCF3xxx diagnostics, listed in `ARCHITECTURE.md`.
 
 ## Status
 
-Prerelease. `BlazorCompose` `0.1.0-dev` is not published to nuget.org; build it from this
+Prerelease. `BlazorCodeFirst` `0.1.0-dev` is not published to nuget.org; build it from this
 repository (see [Installation](#installation)). The surface is deliberately narrow and grows by
 issue.
 
@@ -84,32 +84,32 @@ Available today:
 - Reusable `[Composable]` methods, expanded statically into the caller.
 
 Not covered yet — tracked as a single surface-area inventory in
-[#72](https://github.com/sano-suguru/blazor-compose/issues/72): typed event arguments
+[#72](https://github.com/sano-suguru/blazor-code-first/issues/72): typed event arguments
 (`MouseEventArgs` and friends), `bool` / `object`-valued attributes, `@bind`, `preventDefault` /
 `stopPropagation`, attribute splatting, `@ref` for elements and components, form helpers, and the
 elements outside the curated 22 (tables, form controls, `Strong` / `Em` / `Pre` / `Code`, …).
 
 One surface question is open rather than merely unimplemented: how wide the curated tag set should
 be. Twenty-two tags are properties and every other tag goes through `Element("…")` — a split HTML
-does not have — [#99](https://github.com/sano-suguru/blazor-compose/issues/99).
+does not have — [#99](https://github.com/sano-suguru/blazor-code-first/issues/99).
 
 ## Installation
 
 The package is not on nuget.org yet. Pack it locally:
 
 ```bash
-dotnet pack src/BlazorCompose.Runtime/BlazorCompose.Runtime.csproj -c Release -o artifacts/package
+dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
 ```
 
-That produces a single `BlazorCompose` `0.1.0-dev` package carrying both halves — the runtime in
+That produces a single `BlazorCodeFirst` `0.1.0-dev` package carrying both halves — the runtime in
 `lib/net10.0` and the generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as a
-NuGet source and reference `BlazorCompose` `0.1.0-dev` from a `net10.0` Blazor project; the .NET SDK
+NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project; the .NET SDK
 is pinned to 10.0.300 in `global.json`.
 
 ## Documentation
 
-- **[Documentation site](https://blazor-compose-site.pages.dev)** — getting started, elements and
-  decorations, control flow, layouts. The site itself is written in BlazorCompose.
+- **[Documentation site](https://blazor-code-first-site.pages.dev)** — getting started, elements and
+  decorations, control flow, layouts. The site itself is written in BlazorCodeFirst.
 - **[DESIGN.md](DESIGN.md)** (Japanese) — design overview: background, goals, API design, and
   platform strategy. Start here.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** (Japanese) — internal architecture: the compilation

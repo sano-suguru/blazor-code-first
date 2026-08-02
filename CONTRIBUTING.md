@@ -1,6 +1,6 @@
 # Contributing
 
-Notes for building, testing, and extending BlazorCompose. `DESIGN.md` (product
+Notes for building, testing, and extending BlazorCodeFirst. `DESIGN.md` (product
 and design overview) and `ARCHITECTURE.md` (compilation algorithm, sequence
 assignment, memory layout) are the authoritative specifications; changes must
 stay consistent with both where their decisions overlap.
@@ -13,26 +13,26 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 
 ## Solution layout
 
-`BlazorCompose.slnx` contains seven projects:
+`BlazorCodeFirst.slnx` contains seven projects:
 
-- `src/BlazorCompose.Runtime` — runtime types (`ComposeComponentBase`, the
+- `src/BlazorCodeFirst.Runtime` — runtime types (`ComposeComponentBase`, the
   inert element helpers, the `ElementBuilder` decorators and child-list
   indexer that `View` results come from, `Component<T>` interop).
-- `src/BlazorCompose.Compiler` — the Roslyn source generator and analyzers.
-- `tests/BlazorCompose.Runtime.Tests`, `tests/BlazorCompose.Compiler.Tests`,
-  `tests/BlazorCompose.IntegrationTests` — unit, generator/analyzer, and
+- `src/BlazorCodeFirst.Compiler` — the Roslyn source generator and analyzers.
+- `tests/BlazorCodeFirst.Runtime.Tests`, `tests/BlazorCodeFirst.Compiler.Tests`,
+  `tests/BlazorCodeFirst.IntegrationTests` — unit, generator/analyzer, and
   Blazor-rendering tests.
-- `tests/BlazorCompose.DiagnosticTests` — end-to-end diagnostic verification: it
+- `tests/BlazorCodeFirst.DiagnosticTests` — end-to-end diagnostic verification: it
   builds the deliberately broken projects under `tests/diagnostic-fixtures` with
   real MSBuild and asserts on what the compiler actually reported. The other
   diagnostic tests drive the generator in-process and cannot see whether a
   diagnostic reaches a build at all.
-- `samples/BlazorCompose.Samples.Counter` — a runnable sample.
+- `samples/BlazorCodeFirst.Samples.Counter` — a runnable sample.
 
 `tests/diagnostic-fixtures` is deliberately outside the solution: every project
 there fails to compile by design. See its README before adding one.
 
-`tests/BlazorCompose.TrimTests` and `tests/BlazorCompose.TrimTestApp` live in the
+`tests/BlazorCodeFirst.TrimTests` and `tests/BlazorCodeFirst.TrimTestApp` live in the
 repository but stay outside the solution until the package-based trimming
 workflow lands.
 
@@ -40,21 +40,21 @@ workflow lands.
 
 ```bash
 # Restore / build
-dotnet restore BlazorCompose.slnx
-dotnet build BlazorCompose.slnx --no-restore
+dotnet restore BlazorCodeFirst.slnx
+dotnet build BlazorCodeFirst.slnx --no-restore
 
 # Test everything
-dotnet test BlazorCompose.slnx
+dotnet test BlazorCodeFirst.slnx
 
 # One project
-dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj
+dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj
 
 # One case
-dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj \
+dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj \
   --filter FullyQualifiedName~GeneratorTests
 
 # Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
-dotnet test tests/BlazorCompose.DiagnosticTests/BlazorCompose.DiagnosticTests.csproj
+dotnet test tests/BlazorCodeFirst.DiagnosticTests/BlazorCodeFirst.DiagnosticTests.csproj
 ```
 
 These deliberately omit `--no-build`, which reuses whatever was compiled last and
@@ -66,13 +66,13 @@ A new diagnostic needs a fixture shape and an entry in
 listed there or excluded with a reason.
 
 `SnapshotCorpusTests` compares the generator's complete emitted source against
-baselines committed under `tests/BlazorCompose.Compiler.Tests/Snapshots`, which
+baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which
 pins sequence numbers and frame order in a way the substring assertions
 elsewhere cannot. When a change to the emitter is intended, rewrite them:
 
 ```bash
-BLAZORCOMPOSE_UPDATE_SNAPSHOTS=1 \
-  dotnet test tests/BlazorCompose.Compiler.Tests/BlazorCompose.Compiler.Tests.csproj \
+BLAZORCODEFIRST_UPDATE_SNAPSHOTS=1 \
+  dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj \
   --filter FullyQualifiedName~SnapshotCorpusTests
 ```
 
@@ -84,18 +84,18 @@ Packaging and trimming:
 
 ```bash
 # Pack the runtime and verify its layout
-dotnet pack src/BlazorCompose.Runtime/BlazorCompose.Runtime.csproj -c Release -o artifacts/package
-bash eng/verify-package.sh artifacts/package/BlazorCompose.0.1.0-dev.nupkg
+dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
+bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.0.1.0-dev.nupkg
 
 # Publish trimmed and run the trim tests (osx-arm64 shown; linux-x64 also supported)
-dotnet publish tests/BlazorCompose.TrimTestApp/BlazorCompose.TrimTestApp.csproj \
+dotnet publish tests/BlazorCodeFirst.TrimTestApp/BlazorCodeFirst.TrimTestApp.csproj \
   -c Release -r osx-arm64 --self-contained true \
-  --configfile tests/BlazorCompose.TrimTestApp/NuGet.config
-BLAZORCOMPOSE_TRIM_OUTPUT=$(pwd)/tests/BlazorCompose.TrimTestApp/bin/Release/net10.0/osx-arm64/publish \
-  dotnet test tests/BlazorCompose.TrimTests/BlazorCompose.TrimTests.csproj
+  --configfile tests/BlazorCodeFirst.TrimTestApp/NuGet.config
+BLAZORCODEFIRST_TRIM_OUTPUT=$(pwd)/tests/BlazorCodeFirst.TrimTestApp/bin/Release/net10.0/osx-arm64/publish \
+  dotnet test tests/BlazorCodeFirst.TrimTests/BlazorCodeFirst.TrimTests.csproj
 ```
 
-Hot Reload against the sample: `dotnet watch --project samples/BlazorCompose.Samples.Counter/BlazorCompose.Samples.Counter.csproj`.
+Hot Reload against the sample: `dotnet watch --project samples/BlazorCodeFirst.Samples.Counter/BlazorCodeFirst.Samples.Counter.csproj`.
 
 To read the `RenderView` the generator actually emitted for a project — the
 fastest way to confirm what a `Body` lowered to, and the only way to see
@@ -112,8 +112,8 @@ CI runs `dotnet format --verify-no-changes`, which is stricter than the build's
 `EnforceCodeStyleInBuild` and fails on any drift. Run it before pushing:
 
 ```bash
-dotnet format BlazorCompose.slnx --verify-no-changes --no-restore   # check
-dotnet format BlazorCompose.slnx                                    # auto-fix
+dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore   # check
+dotnet format BlazorCodeFirst.slnx                                    # auto-fix
 ```
 
 Enable the shared pre-push hook once per clone so this runs automatically:

@@ -1,0 +1,112 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- site/ is outside the solution and carries experimental deps; keep its
+         versions local so the shared Directory.Packages.props stays clean. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Compose components navigate without throwing on cancellation (mirrors the sample). -->
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- M0 spike: Step 1 Release publish produced zero IL2xxx/IL3xxx trim warnings, so lock in
+         the clean state and fail fast if a future change introduces one. -->
+    <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+    <!-- M0b spike: BlazorWasmPreRendering.Build config. Static mode crawls/fetches routes at
+         publish time and bakes the compose-generated RenderView output into each route's
+         index.html as plain HTML, before any WASM/JS executes. -->
+    <BlazorWasmPrerenderingMode>Static</BlazorWasmPrerenderingMode>
+    <BlazorWasmPrerenderingKeepServer>false</BlazorWasmPrerenderingKeepServer>
+    <!-- Without this the prerendered markup ships inside "<div b-prerendering-container inert>"
+         under an opaque "<div b-prerendering-loader>" (z-index 1), both nested in "<div id="app">",
+         so they only disappear once Blazor replaces #app - i.e. after WASM starts. The prerendered
+         HTML was therefore crawler-only and did nothing for a human's first paint. Deleting the
+         wrappers makes the prerendered navigation plain <a> elements that work before hydration.
+         Accepted trade-off: /counter's Increment button is now visible and clickable before
+         hydration and does nothing. No disabled-until-hydrated plumbing is being built for it. -->
+    <BlazorWasmPrerenderingDeleteLoadingContents>true</BlazorWasmPrerenderingDeleteLoadingContents>
+    <!-- Drops icudt_CJK.dat (956KB), icudt_EFIGS.dat (551KB) and icudt_no_CJK.dat (1.1MB). Safe
+         because nothing under site/BlazorCodeFirst.Site is culture-sensitive: no CultureInfo, no
+         ToUpper/ToLower, no OrderBy/Sort, no String.Compare/CompareTo, no ToString(format).
+         SiteNav.CurrentPath uses IndexOfAny(char[]) plus TrimEnd, every comparison here is
+         OrdinalIgnoreCase, and Markdown conversion and syntax highlighting run at authoring time in
+         the DocGen tool, which is a separate project unaffected by this flag. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- M0b spike: build-time static prerendering (community tool; not a first-class .NET 10
+         feature). Version pinned explicitly because the latest STABLE release (8.0.1 at spike
+         time) predates net10.0 support; 8.1.0-preview.4 is the first version whose restore
+         reports compatibility with a net10.0 TargetFramework. Prerelease dependency accepted as a
+         spike caveat; revisit for a stable net10 release (or a self-hosted prerender step). -->
+    <PackageReference Include="BlazorWasmPreRendering.Build" Version="8.1.0-preview.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.10" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Derive the prerendered route list from the same source of truth as the docs manifest
+       (site/content/*.md), so adding a document cannot silently skip prerendering.
+
+       This must be a target, not a static PropertyGroup: MSBuild evaluates properties before items,
+       so @(DocMarkdown) would be empty at evaluation time. The prerender tool's own target runs
+       AfterTargets="Publish" and expands the property inside its Exec command line, i.e. at target
+       execution time, so setting it from a BeforeTargets hook is sufficient.
+
+       If the tool ever renames that target this silently stops applying, and the CI prerender
+       verification is what catches it — for a subtler reason than "the routes go missing". A
+       renamed target makes the tool fall back to crawling links from "/", and SiteNav links every
+       "/docs/{slug}" route from every page, so all the per-document routes would still be
+       discovered. What makes the guard bite is a route nothing links to. That used to be bare
+       "/docs"; now that "/docs" is an index page with a nav link, the role belongs to "/404", which
+       is reachable by URL only. CI asserts that 404.html exists, so a renamed target — or a
+       CopyPrerendered404 that stops running — fails the build. Do not add a link to "/404". -->
+  <Target Name="ComputeDocsPrerenderPaths" BeforeTargets="BlazorWasmPrerendering">
+    <ItemGroup>
+      <DocMarkdown Include="$(MSBuildProjectDirectory)/../content/*.md" />
+    </ItemGroup>
+    <PropertyGroup>
+      <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs;/404;@(DocMarkdown->'/docs/%(Filename)')</BlazorWasmPrerenderingUrlPathToExplicitFetch>
+    </PropertyGroup>
+    <Message Importance="high" Text="Prerendering routes: $(BlazorWasmPrerenderingUrlPathToExplicitFetch)" />
+  </Target>
+
+  <!-- Promote the prerendered "/404" route to the top-level 404.html that Cloudflare Pages requires.
+       Without that file Pages assumes a single-page application and answers every unknown URL with
+       200 and the home page, which is exactly what deleting wwwroot/_redirects was meant to stop.
+
+       The prerender tool writes IndexHtmlInSubFolders, so the route lands in "404/index.html"; the
+       directory is removed afterwards so "/404/" cannot serve a second copy. The Error task makes
+       this target self-checking: if the prerender step stops emitting the route, the build fails
+       here rather than producing a publish output that silently reverts to SPA behavior.
+
+       The Condition repeats the hooked target's own condition, and must stay in sync with it. An
+       AfterTargets hook runs even when the target it hooks was SKIPPED by its condition, so without
+       this line "dotnet publish -p:BlazorWasmPrerendering=disable" — the package's own escape hatch
+       — would fail on the Error above, as would the nested publish that the wasm-tools workload
+       triggers (which is why the upstream condition tests WasmBuildingForNestedPublish at all).
+
+       Note: no 404.html.br or 404.html.gz sidecar is produced, because compression sidecar
+       generation has already finished by this point. Cloudflare Pages does not use the sidecars, so
+       this is harmless — but a future CI guard that compares file counts would trip on it. -->
+  <Target Name="CopyPrerendered404" AfterTargets="BlazorWasmPrerendering"
+          Condition=" '$(BlazorWasmPrerendering)' != 'disable' AND '$(WasmBuildingForNestedPublish)' != 'true' ">
+    <PropertyGroup>
+      <_PrerenderedNotFound>$(PublishDir)wwwroot/404/index.html</_PrerenderedNotFound>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(_PrerenderedNotFound)')"
+           Text="Prerendering did not produce '$(_PrerenderedNotFound)'. Cloudflare Pages needs a top-level 404.html or it treats the deployment as a single-page application." />
+    <Copy SourceFiles="$(_PrerenderedNotFound)" DestinationFiles="$(PublishDir)wwwroot/404.html" />
+    <RemoveDir Directories="$(PublishDir)wwwroot/404" />
+    <Message Importance="high" Text="Copied the prerendered /404 route to $(PublishDir)wwwroot/404.html" />
+  </Target>
+
+</Project>

@@ -1,8 +1,8 @@
 # Diagnostic fixtures
 
 Deliberately broken projects, built by real MSBuild from
-`tests/BlazorCompose.DiagnosticTests`. Nothing else builds them: they are outside
-`BlazorCompose.slnx`, so a solution build, `dotnet format`, and CI's build step never see them.
+`tests/BlazorCodeFirst.DiagnosticTests`. Nothing else builds them: they are outside
+`BlazorCodeFirst.slnx`, so a solution build, `dotnet format`, and CI's build step never see them.
 Each one is expected to fail to compile — that is the point.
 
 They exist because every other diagnostic test in the repository instantiates the generator or an
@@ -21,7 +21,7 @@ analyzer diagnostic can only be asserted in a compilation that has none. That is
 the shapes from `GeneratorDelivery.*` would suppress the diagnostic under test for reasons that
 have nothing to do with it. See `ARCHITECTURE.md` 付録A.0.
 
-The same cutoff also disqualifies C# errors as a way to state a BlazorCompose constraint. csc stops
+The same cutoff also disqualifies C# errors as a way to state a BlazorCodeFirst constraint. csc stops
 after the declaration stage when the compilation has a declaration-level error, so it never binds
 method bodies — and a component whose design-time expression fails to translate always has one, the
 CS0534 from the `RenderView` that was never generated. Any body-binding error inside that expression

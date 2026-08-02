@@ -15,7 +15,7 @@
 
     <!-- The harness reads the compiler's own SARIF log instead of parsing console text: it carries
          every reported diagnostic with its id, severity, and precise position, and is not localized.
-         BlazorCompose.DiagnosticTests passes DiagnosticSarifPath per build. -->
+         BlazorCodeFirst.DiagnosticTests passes DiagnosticSarifPath per build. -->
     <ErrorLog Condition="'$(DiagnosticSarifPath)' != ''">$(DiagnosticSarifPath),version=2.1</ErrorLog>
   </PropertyGroup>
 

@@ -13,7 +13,7 @@ csharp_style_namespace_declarations = file_scoped:warning
 
 # CA1724: the 'UI' type intentionally shares a name with the legacy System.Web.UI
 # namespace, which this project neither targets nor references. The short name is a
-# deliberate part of the fluent API (`using static BlazorCompose.UI;`).
+# deliberate part of the fluent API (`using static BlazorCodeFirst.UI;`).
 dotnet_diagnostic.CA1724.severity = none
 
 # --- Modern C# idioms (enforced) ---
