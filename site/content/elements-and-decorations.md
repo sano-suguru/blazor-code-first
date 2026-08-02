@@ -9,7 +9,7 @@ the source generator turns these calls into `RenderTreeBuilder` instructions at 
 
 ## Elements
 
-Element factories take mixed string and element children:
+Element helpers take mixed string and element children in brackets:
 
 ```csharp
 using BlazorCompose;
@@ -27,7 +27,7 @@ protected override View Body =>
             Li["Links and media: A, Img"]]];
 ```
 
-For an element without a dedicated factory, use `Element` with a compile-time constant tag:
+For an element without a dedicated helper, use `Element` with a compile-time constant tag:
 
 ```csharp
 Element("figure")[Img.Src("/diagram.png").Alt("Architecture")]
