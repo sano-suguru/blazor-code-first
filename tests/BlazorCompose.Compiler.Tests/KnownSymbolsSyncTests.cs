@@ -62,6 +62,50 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
+    /// Every decoration <c>KnownSymbols</c> captured is an extension on <c>ElementBuilder</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The sets are built by matching the method <em>name</em>, but what makes a method an element
+    /// decoration is its <em>receiver</em>.  Nothing in the loop said so, so a future
+    /// <c>Attr(this ComponentView&lt;T&gt;, string, string)</c> would be collected as an element
+    /// decoration and <c>UnresolvedValueTypeScanner.IsDecorationMethod</c> — pure set membership — would
+    /// agree, with nothing to notice.  <c>ClassMethod</c> showed the same defect more loudly, being a
+    /// single slot that took whichever two-parameter overload <c>GetMembers</c> returned last.
+    /// </para>
+    /// <para>
+    /// Asserted over every captured symbol rather than over a count, because the failure is one specific
+    /// wrong entry rather than a missing one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryCapturedDecoration_ExtendsElementBuilder()
+    {
+        var (symbols, html) = ResolveHtml();
+        var elementBuilder = html.ContainingAssembly.GetTypeByMetadataName("BlazorCompose.ElementBuilder");
+        Assert.NotNull(elementBuilder);
+
+        var captured = new List<ISymbol>();
+        if (symbols.ClassMethod is not null)
+            captured.Add(KnownSymbols.Normalize(symbols.ClassMethod));
+        captured.AddRange(symbols.AttributeShortcuts.Keys);
+        captured.AddRange(symbols.EventShortcuts.Keys);
+        captured.AddRange(symbols.AttrMethods);
+        captured.AddRange(symbols.OnMethods);
+
+        Assert.NotEmpty(captured);
+        foreach (var symbol in captured)
+        {
+            var method = Assert.IsAssignableFrom<IMethodSymbol>(symbol);
+            Assert.True(
+                method.Parameters.Length > 0
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder),
+                $"'{method.Name}' was captured as an element decoration but its receiver is " +
+                $"'{(method.Parameters.Length > 0 ? method.Parameters[0].Type.ToDisplayString() : "none")}'.");
+        }
+    }
+
+    /// <summary>
     /// Every decoration <c>Decorations</c> declares is a name <c>DeclaresDecorationNamed</c> answers to.
     /// </summary>
     /// <remarks>

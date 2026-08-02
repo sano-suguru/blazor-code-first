@@ -257,14 +257,40 @@ internal sealed class KnownSymbols
         var onMethods = new List<ISymbol>();
         if (decorationsType is not null)
         {
+            // A decoration is defined by its receiver, not by its name: Decorations declares extension
+            // methods on ElementBuilder, and that is what makes .Class/.Attr/.On element decorations
+            // rather than members that merely share a name. Capturing by name alone would admit a future
+            // overload on another receiver — Attr(this ComponentView<T>, string, string), say — into these
+            // sets, where IsDecorationMethod would treat it as an element decoration with nothing to
+            // notice. ClassMethod showed the same defect more loudly: a single slot taking whichever
+            // two-parameter overload GetMembers returned last.
+            //
+            // When ElementBuilderType is unavailable the test is skipped rather than failed. It is null
+            // for the ambiguous-type reason above, and rejecting every candidate would empty these sets
+            // and silently disable BC3008 for every decoration — a worse failure than the one prevented,
+            // and an invisible one, where the current degradation at least reports BC1003.
             foreach (var member in decorationsType.GetMembers())
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)
                     continue;
+                if (ElementBuilderType is not null
+                    && !(method.Parameters.Length > 0
+                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, ElementBuilderType)))
+                {
+                    continue;
+                }
+
                 var key = Normalize(method);
                 switch (method.Name)
                 {
-                    case "Class" when method.Parameters.Length == 2: ClassMethod = method; break;
+                    // Receiver plus second parameter fully determines (ElementBuilder, string), so this
+                    // single slot cannot take an arbitrary overload. Decorations declares exactly one.
+                    // Not a list pattern: this project targets netstandard2.0 without a System.Index/Range
+                    // polyfill, and the list-pattern lowering requires those types even without a slice.
+                    case "Class" when method.Parameters.Length == 2
+                        && method.Parameters[1].Type.SpecialType == SpecialType.System_String:
+                        ClassMethod = method;
+                        break;
                     case "OnClick":
                         // Both overloads map to "onclick"; the analyzer's decoration branch dispatches
                         // on EventShortcuts, so no separate first-overload symbol is retained.
