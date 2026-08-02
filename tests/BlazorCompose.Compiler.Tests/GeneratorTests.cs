@@ -243,7 +243,7 @@ public sealed class GeneratorTests
         Assert.Contains("Body", message, StringComparison.Ordinal);
 
         // BC1003 is about constructs inside the expression; conflating the two would send the author
-        // looking at their factories instead of at the nesting.
+        // looking at their design-time syntax instead of at the nesting.
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
 
         // BC1001 stays silent: the class already is partial, and partial is not the problem.
@@ -1092,10 +1092,10 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBC1003()
     {
-        // Sibling of the Html factory path's FactoryArgumentBindingTests.
+        // Sibling of the design-time syntax path's FactoryArgumentBindingTests.
         // Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource: CreateInvocationArguments
-        // used the same fragile `(argument.Syntax as ArgumentSyntax)?.Expression` cast the Html factory
-        // path used to use. For a bare null-forgiving argument with nothing else to convert (Roslyn
+        // used the same fragile `(argument.Syntax as ArgumentSyntax)?.Expression` cast the design-time
+        // syntax path used to use. For a bare null-forgiving argument with nothing else to convert (Roslyn
         // elides the `!` from the operation tree), the cast failed, the method returned null, and the
         // call fell through to BC1003 instead of translating.
         const string source = """
@@ -2852,7 +2852,7 @@ public sealed class GeneratorTests
     {
         // Regression guard for branch placement: the RenderFragment check must run BEFORE the
         // `is not InvocationExpressionSyntax` guard, otherwise a method call returning RenderFragment
-        // is neither an Html factory nor a [Composable] call and falls through to BC1003.
+        // is neither design-time syntax nor a [Composable] call and falls through to BC1003.
         const string source = """
             using BlazorCompose;
             using Microsoft.AspNetCore.Components;

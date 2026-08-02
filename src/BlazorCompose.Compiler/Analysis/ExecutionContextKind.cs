@@ -7,8 +7,8 @@ namespace BlazorCompose.Compiler.Analysis;
 internal enum ExecutionContextKind
 {
     /// <summary>
-    /// Statically sequenceable construct: a direct factory call, decorator, <c>If</c>, keyed <c>ForEach</c>,
-    /// nested SSC expression, or statically expanded <c>[Composable]</c> call.
+    /// Statically sequenceable construct: a direct design-time syntax call, decorator, <c>If</c>, keyed
+    /// <c>ForEach</c>, nested SSC expression, or statically expanded <c>[Composable]</c> call.
     /// The generator emits <c>RenderTreeBuilder</c> calls with compile-time sequence constants.
     /// </summary>
     Ssc,

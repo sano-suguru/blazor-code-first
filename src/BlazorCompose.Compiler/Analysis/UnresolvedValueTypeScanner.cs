@@ -211,8 +211,8 @@ internal static class UnresolvedValueTypeScanner
     /// <c>Element(tag)</c> call whose tag is not a non-empty constant string — the shape BC3009 rejects.
     /// </summary>
     /// <remarks>
-    /// The chain is unwound rather than inspected at the top, because decorations sit between the factory
-    /// and the brackets: in <c>Element(t).Class("c")["x"]</c> the indexer's receiver is the <c>Class</c>
+    /// The chain is unwound rather than inspected at the top, because decorations sit between the element
+    /// helper and the brackets: in <c>Element(t).Class("c")["x"]</c> the indexer's receiver is the <c>Class</c>
     /// invocation. A curated tag is a property reference and never reaches the loop's body, so it returns
     /// false and its children are scanned as before.
     /// <para>

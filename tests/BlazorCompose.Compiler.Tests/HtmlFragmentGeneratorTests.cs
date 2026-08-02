@@ -149,8 +149,9 @@ public sealed class HtmlFragmentGeneratorTests
     [Fact]
     public void Fragment_WithNonStaticChild_ReportsBC1003()
     {
-        // A non-analyzable child (a variable span, not an inline factory call) cannot be sequenced, so the
-        // whole body fails to translate — proves fragment children must be compile-time static.
+        // A non-analyzable child (a variable span, not an inline design-time syntax call) cannot be
+        // sequenced, so the whole body fails to translate — proves fragment children must be
+        // compile-time static.
         var result = CompilationTestHost.RunGenerator(FragmentNonStaticChildSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BC1003");
     }

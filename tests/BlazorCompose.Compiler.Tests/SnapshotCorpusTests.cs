@@ -64,8 +64,8 @@ public sealed class SnapshotCorpusTests
         new(StringComparer.Ordinal)
         {
             // --- elements: the constructs that gain brackets ------------------------------------
-            // Void element, no children and no decoration: the case #87 turns into a bare property
-            // reference, and the one whose spelling changes most.
+            // Void element, no children and no decoration: a bare property reference since #87, and the
+            // case whose spelling changed most.
             ["element-childless"] = Host("""Img"""),
             ["element-single-text-child"] = Host("""H1["Title"]"""),
             ["element-several-children"] = Host("""Div[Span["a"], Span["b"], Span["c"]]"""),

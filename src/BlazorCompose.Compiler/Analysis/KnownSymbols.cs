@@ -4,8 +4,8 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCompose.Compiler.Analysis;
 
 /// <summary>
-/// Resolved symbol references for the <c>BlazorCompose.Html</c> factories and their surrounding types so
-/// that expression analysis can compare symbols by identity rather than by name.
+/// Resolved symbol references for the <c>BlazorCompose.Html</c> design-time syntax and their surrounding
+/// types so that expression analysis can compare symbols by identity rather than by name.
 /// </summary>
 /// <remarks>
 /// Resolved transiently from a single <see cref="Compilation"/> inside the syntax-provider transforms
@@ -117,7 +117,7 @@ internal sealed class KnownSymbols
     public static ISymbol Normalize(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
 
     /// <summary>
-    /// Normalizes a property to the comparable key used in <see cref="ElementTags"/>: an element factory
+    /// Normalizes a property to the comparable key used in <see cref="ElementTags"/>: an element helper
     /// spelled as a property has nothing to unreduce, so only the original definition is taken.
     /// </summary>
     /// <remarks>
@@ -201,7 +201,7 @@ internal sealed class KnownSymbols
     public IMethodSymbol? HtmlForEach { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, the only component factory:
+    /// Resolved symbol for <c>BlazorCompose.Html.Component&lt;T&gt;()</c>, the only component syntax:
     /// children arrive through <see cref="ComponentIndexer"/>, not through an overload.  Null if unavailable.
     /// </summary>
     public IMethodSymbol? HtmlComponent { get; }
@@ -327,7 +327,7 @@ internal sealed class KnownSymbols
         {
             // A curated helper is a property returning ElementBuilder; children are written in brackets on
             // the indexer that type declares. The return type is checked as well as the name: a property
-            // that merely shares a curated name is not an element factory.
+            // that merely shares a curated name is not an element helper.
             if (member is IPropertySymbol { IsIndexer: false } elementProperty)
             {
                 if (ElementBuilderType is not null

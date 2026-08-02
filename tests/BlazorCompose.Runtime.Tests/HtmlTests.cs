@@ -61,9 +61,9 @@ public sealed class HtmlTests
         Assert.Equal(default, Html.Raw("<b>x</b>"));
 
     [Fact]
-    public void CuratedElementFactories_AreInert_ReturnDefaultBuilder()
+    public void CuratedElementHelpers_AreInert_ReturnDefaultBuilder()
     {
-        // Inert design-time syntax: reading a curated factory must do no work and return the
+        // Inert design-time syntax: reading a curated element helper must do no work and return the
         // default ElementBuilder. Div/Span/Button are pinned above; the rest are covered here.
         Assert.Equal(default, Html.Nav);
         Assert.Equal(default, Html.Header);
@@ -87,7 +87,7 @@ public sealed class HtmlTests
     }
 
     [Fact]
-    public void CuratedElementFactories_WithChildren_AreInert_ReturnDefaultView()
+    public void CuratedElementHelpers_WithChildren_AreInert_ReturnDefaultView()
     {
         // Same contract as above, exercised through the children indexer rather than the bare property.
         Assert.Equal(default, Html.Header["x"]);

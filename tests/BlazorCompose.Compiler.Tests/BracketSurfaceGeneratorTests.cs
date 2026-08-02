@@ -128,7 +128,7 @@ public sealed class BracketSurfaceGeneratorTests
 
             public static class Html
             {
-                // A curated name that is not an element factory.
+                // A curated name that is not an element helper.
                 public static int Div => 0;
 
                 // A curated name that is one.

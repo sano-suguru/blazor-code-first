@@ -28,7 +28,7 @@ public sealed class ComposeComponentBaseTests
     }
 
     [Fact]
-    public void HtmlFactories_WhenInvoked_RemainInertAtRuntime()
+    public void HtmlSurface_WhenInvoked_RemainsInertAtRuntime()
     {
         var onClickCalled = false;
 
