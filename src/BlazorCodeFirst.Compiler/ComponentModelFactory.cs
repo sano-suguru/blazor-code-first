@@ -19,7 +19,7 @@ internal static class ComponentModelFactory
 {
     /// <summary>
     /// Analyzes <paramref name="syntaxContext"/> when it represents a class that directly or indirectly
-    /// inherits from a Compose base (<c>BodyComponentBase</c> or <c>ChromeLayoutBase</c>), resolving
+    /// inherits from a BlazorCodeFirst base (<c>BodyComponentBase</c> or <c>ChromeLayoutBase</c>), resolving
     /// all symbols from the context's own compilation and classifying its design-time expression
     /// (<c>Body</c> or <c>Chrome</c>) into a template.  Returns a symbol-free <see cref="ComponentAnalysis"/>
     /// for every component candidate — including the diagnostic-only shapes that cannot be generated into
@@ -71,7 +71,7 @@ internal static class ComponentModelFactory
 
         // Emitting into a nested type would mean reproducing the enclosing type chain; unsupported.
         // Reported here rather than at the top of the method so a nested class that merely inherits a
-        // Compose base without declaring the expression is not told that nesting is its problem.
+        // BlazorCodeFirst base without declaring the expression is not told that nesting is its problem.
         if (symbol.ContainingType is not null)
         {
             return new ComponentAnalysis(
@@ -477,7 +477,7 @@ internal static class ComponentModelFactory
     /// <summary>
     /// True for <c>Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder</c>.  Matched by name
     /// rather than by symbol comparison so no compilation lookup is needed here, following
-    /// <see cref="DesignTimeBaseFacts"/>'s approach for the Compose base types.
+    /// <see cref="DesignTimeBaseFacts"/>'s approach for the BlazorCodeFirst base types.
     /// </summary>
     private static bool IsRenderTreeBuilder(ITypeSymbol type) =>
         type is INamedTypeSymbol { Name: "RenderTreeBuilder" } named &&

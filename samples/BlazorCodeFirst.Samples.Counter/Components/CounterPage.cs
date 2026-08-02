@@ -13,7 +13,7 @@ public partial class CounterPage : BodyComponentBase
     private int _count;
 
     protected override View Body =>
-        Div.Class("bc-counter")[
+        Div.Class("counter")[
             Span[$"Count: {_count}"],
             If(_count >= 3, () => Span["Milestone reached"]),
             Button.OnClick(() => _count++)["Increment"],

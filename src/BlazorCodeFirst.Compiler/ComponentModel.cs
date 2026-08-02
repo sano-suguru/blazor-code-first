@@ -4,7 +4,7 @@ using BlazorCodeFirst.Compiler.Diagnostics;
 namespace BlazorCodeFirst.Compiler;
 
 /// <summary>
-/// Represents a discovered Compose component together with the statically analyzed
+/// Represents a discovered BlazorCodeFirst component together with the statically analyzed
 /// render-node tree extracted from its design-time expression (<c>Body</c> or <c>Chrome</c>).
 /// </summary>
 /// <remarks>

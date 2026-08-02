@@ -92,10 +92,10 @@ BodyComponentBase                 ② SSC分類(§2.3)
 CS0111 になり、著者は自分のコードを消すしか手がなくなります)。設計時表現は未使用となり、BCF1004 も報告され
 ません。
 
-Composeコンポーネントとして認識される宣言形状は、トップレベルの `partial class` です。ジェネリック
+BlazorCodeFirstコンポーネントとして認識される宣言形状は、トップレベルの `partial class` です。ジェネリック
 (`partial class Foo<T>`)はサポートされ、生成部は同じ型パラメータ名を再掲します(制約句は再掲しません。
 制約は型パラメータに属するため一方の宣言にあれば十分です)。ネストした型は BCF1005 で拒否されます。
-`record` は `object` または別の `record` しか継承できないため(CS8864)、Composeコンポーネントにはできません。
+`record` は `object` または別の `record` しか継承できないため(CS8864)、BlazorCodeFirstコンポーネントにはできません。
 
 ### 2.2 シーケンス割当
 
@@ -291,7 +291,7 @@ __b.CloseElement();
 `AddComponentParameter` 1回とその内容の幅を消費します。
 
 ラムダ内部のシーケンス番号は外側の平坦なカウンタを継続し、独立したシーケンス空間を作りません。
-スロットのフレームは呼び出し元ではなく**子コンポーネントのフレーム列**に属します。Compose のジェネレータは
+スロットのフレームは呼び出し元ではなく**子コンポーネントのフレーム列**に属します。BlazorCodeFirst のジェネレータは
 常に `AddComponentParameter(seq, "ChildContent", (RenderFragment)(...))` を発行する側です。
 fragment を直接 invoke するかどうかは渡し先コンポーネント(手書きでも Razor 生成でも)が `AddContent` に
 渡すか自分で呼ぶかの問題であり、前者は Blazor のリージョンが隔離しますが、後者はリージョンが張られず、
@@ -450,12 +450,12 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 | ID     | 種別    | 内容                                                                                  |
 | ------ | ------- | ------------------------------------------------------------------------------------- |
-| BCF1001 | Error   | 設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)、および `RenderView` を手書きしているクラス(生成物が無いため `partial` は不要)は対象外。ネストクラスは BCF1005 が優先する(`partial` を足しても解決しないため)。生成器が報告する(理由はA.0)  |
+| BCF1001 | Error   | 設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。BlazorCodeFirstベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)、および `RenderView` を手書きしているクラス(生成物が無いため `partial` は不要)は対象外。ネストクラスは BCF1005 が優先する(`partial` を足しても解決しないため)。生成器が報告する(理由はA.0)  |
 | BCF1002 | Error   | `[Composable]` メソッドがSource Generatorのサポートする静的展開契約を満たさない(`View` 型パラメータ等)                                     |
 | BCF1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
 | BCF1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
 | BCF1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
-| BCF2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BCF2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BCF2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→Compose 方向)とは逆向きの構文である) |
+| BCF2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BCF2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BCF2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→BlazorCodeFirst 方向)とは逆向きの構文である) |
 | BCF3001 | Error   | 現行実装では設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BCF3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
 | BCF3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div[...]`)必要がある |
@@ -478,7 +478,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 **B.2 ランタイム `ref struct` ツリー方式** — 要素を `readonly ref struct` としてスタック上に構築し、実行時に `Render` を再帰呼び出しする方式。GC回避には有効だが、(a) 可変個の子要素を受け取る手段がない(`ref struct` は配列・`params` に格納不可、ジェネリックオーバーロードはアリティ上限を持つ)、(b) B.1と同じ戻り値型問題、(c) 静的サブツリーのキャッシュと両立しない(`ref struct` はフィールド格納不可)、により採用しませんでした。本方式(生成コードによる直接発行)は、同じゼロアロケーション特性を型システム上、無理なく達成します。
 
-**B.3 `ChromeLayoutBase` を `BodyComponentBase` から派生させ `SetParametersAsync` で介入する方式** — レイアウトを通常のComposeコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ChromeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
+**B.3 `ChromeLayoutBase` を `BodyComponentBase` から派生させ `SetParametersAsync` で介入する方式** — レイアウトを通常のBlazorCodeFirstコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ChromeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
 
 ## 付録C: 開発時フォールバック案 — 解釈モード(コンチネンシー)
 

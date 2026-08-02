@@ -62,7 +62,7 @@ public sealed class BracketSurfaceDiagnosticTests
 
     /// <summary>
     /// The generated source for <paramref name="body"/>, for the cases asserted as source equality.
-    /// Only the Compose host produces output — <c>Card</c> and <c>Plain</c> are ordinary
+    /// Only the BlazorCodeFirst host produces output — <c>Card</c> and <c>Plain</c> are ordinary
     /// <c>ComponentBase</c> classes — so a single generated source is the expected shape.
     /// </summary>
     private static string GenerateSource(string body)

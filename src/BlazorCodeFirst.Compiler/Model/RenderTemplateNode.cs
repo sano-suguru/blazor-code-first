@@ -49,7 +49,7 @@ internal sealed record ForEachTemplateNode(
     TemplateLocation Location) : RenderTemplateNode;
 
 /// <summary>
-/// A RenderFragment-typed component parameter whose value is Compose content rather than an expression.
+/// A RenderFragment-typed component parameter whose value is BlazorCodeFirst content rather than an expression.
 /// Kept in a channel separate from <see cref="ComponentParameter"/> because the content is a node tree:
 /// it takes part in hole substitution, sequence allocation, and [Composable] expansion, none of which are
 /// defined over <see cref="ExpressionTemplate"/>.

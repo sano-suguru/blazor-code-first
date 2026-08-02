@@ -29,7 +29,7 @@ public partial class CounterPage : BodyComponentBase
     private int _count;
 
     protected override View Body =>
-        Div.Class("bc-counter")[
+        Div.Class("counter")[
             Span[$"Count: {_count}"],
             If(_count >= 3, () => Span["Milestone reached"]),
             Button.OnClick(() => _count++)["Increment"],
@@ -79,7 +79,7 @@ Available today:
   `Func<Task>` handlers.
 - Control flow: `If(condition, then, otherwise)` and keyed `ForEach(source, key, content)`.
 - Razor interop in both directions: `Component<T>()` with `.Param(…)` and child content renders an
-  existing Razor component, and a Compose component is an ordinary component that Razor can use.
+  existing Razor component, and a BlazorCodeFirst component is an ordinary component that Razor can use.
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
 - Reusable `[Composable]` methods, expanded statically into the caller.
 

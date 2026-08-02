@@ -5,7 +5,7 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 // A two-level layout chain. Nesting is resolved entirely by Blazor: LayoutView reads the [Layout]
-// attribute on the layout TYPE, and a Compose layout is an ordinary LayoutComponentBase descendant
+// attribute on the layout TYPE, and a BlazorCodeFirst layout is an ordinary LayoutComponentBase descendant
 // with an ordinary Body parameter, so no BlazorCodeFirst machinery is involved. That reasoning was
 // checked during the #33 review but never exercised.
 public partial class OuterProbeLayout : ChromeLayoutBase

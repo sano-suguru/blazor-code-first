@@ -253,7 +253,7 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_NestedClassInheritingWithoutDeclaringExpression_ReportsNothing()
     {
-        // A nested type that merely inherits a Compose base declares nothing to generate, so it must not
+        // A nested type that merely inherits a BlazorCodeFirst base declares nothing to generate, so it must not
         // be told that nesting is a problem — same narrowing principle as BCF1001 in PR #59.
         const string source = """
             using BlazorCodeFirst;

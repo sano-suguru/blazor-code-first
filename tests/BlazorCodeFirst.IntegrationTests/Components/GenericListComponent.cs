@@ -6,7 +6,7 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
-/// A generic Compose component. Text-level assertions on the generated header cannot prove the generated
+/// A generic BlazorCodeFirst component. Text-level assertions on the generated header cannot prove the generated
 /// part actually joins the user's generic type at runtime, so this renders through bUnit with a real
 /// closed type argument.
 /// </summary>

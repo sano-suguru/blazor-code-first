@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.Operations;
 namespace BlazorCodeFirst.Compiler.Diagnostics;
 
 /// <summary>
-/// Reports BCF3001 when a Compose base's design-time expression getter (<c>Body</c> on
+/// Reports BCF3001 when a BlazorCodeFirst base's design-time expression getter (<c>Body</c> on
 /// <c>BodyComponentBase</c>, <c>Chrome</c> on <c>ChromeLayoutBase</c>) directly mutates instance
 /// state of the containing component during rendering.
 /// </summary>
@@ -61,7 +61,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         if (targetSymbol is null) return;
 
         // Condition 2: The operation is syntactically inside the design-time expression getter
-        // (Body or Chrome) of a Compose base subclass.
+        // (Body or Chrome) of a BlazorCodeFirst base subclass.
         var semanticModel = ctx.Operation.SemanticModel;
         if (semanticModel is null) return;
 
@@ -121,7 +121,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// Walks the syntax ancestors of <paramref name="operationSyntax"/> to find an <c>override</c>
     /// property declaration and verifies via the semantic model that it is the design-time expression
-    /// (<c>Body</c> or <c>Chrome</c>, resolved semantically) of a Compose base subclass.
+    /// (<c>Body</c> or <c>Chrome</c>, resolved semantically) of a BlazorCodeFirst base subclass.
     /// </summary>
     private static bool TryGetDesignTimeExpressionOwnerType(
         SyntaxNode operationSyntax,

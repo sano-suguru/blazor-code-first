@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCodeFirst.Compiler;
 
 /// <summary>
-/// Incremental source generator entry point.  Discovers Compose base subclasses
+/// Incremental source generator entry point.  Discovers BlazorCodeFirst base subclasses
 /// (<c>BodyComponentBase</c> and <c>ChromeLayoutBase</c>) and emits a <c>RenderView</c> override
 /// into the same partial class, and discovers <c>[Composable]</c> definitions into a value-equal
 /// registry while reporting declaration-time BCF1002 diagnostics.
@@ -27,7 +27,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                 // the symbol, and a component split across declarations may declare its design-time
                 // expression in the part that carries no base list. A non-partial class is admitted only
                 // with a base list — it cannot be generated into, but it earns BCF1001, and having exactly
-                // one declaration means a Compose base can only reach it through that base list. Testing
+                // one declaration means a BlazorCodeFirst base can only reach it through that base list. Testing
                 // both here keeps every other class out of the semantic transform.
                 static (node, _) => node is ClassDeclarationSyntax declaration &&
                     (declaration.Modifiers.Any(SyntaxKind.PartialKeyword) || declaration.BaseList is not null),
