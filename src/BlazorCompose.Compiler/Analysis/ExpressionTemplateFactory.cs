@@ -22,11 +22,11 @@ namespace BlazorCompose.Compiler.Analysis;
 /// <c>List&lt;string&gt;</c> or <c>Make&lt;string&gt;</c> — are fully qualified while their written type
 /// arguments are preserved and independently qualified;</item>
 /// <item>an extension method invoked in instance syntax (<c>items.First()</c>) is normalized to a fully
-/// qualified static call, or reported as BC1002 when that rewrite cannot be made semantics-preserving;</item>
+/// qualified static call, or reported as BCF1002 when that rewrite cannot be made semantics-preserving;</item>
 /// <item>references to non-public members — whether unqualified or accessed through a receiver — record an
 /// accessibility requirement;</item>
 /// <item>references to source-local constructs (local functions or locals from an enclosing scope)
-/// that cannot exist in generated code report a single declaration BC1002;</item>
+/// that cannot exist in generated code report a single declaration BCF1002;</item>
 /// <item>local, lambda, and unrecognized identifiers plus all trivia are preserved as literal text.</item>
 /// </list>
 /// </summary>
@@ -80,7 +80,7 @@ internal static class ExpressionTemplateFactory
                 if (TryCreateExtensionMethodCall(invocation, extensionMethod, context, out var extensionSegments))
                     replacements.Add(new Replacement(invocation.Span, extensionSegments));
 
-                // Whether normalized or rejected (a BC1002 was recorded inside), the invocation is fully
+                // Whether normalized or rejected (a BCF1002 was recorded inside), the invocation is fully
                 // handled here; record its span so the second pass leaves its inner names untouched.
                 replacedSpans.Add(invocation.Span);
             }
@@ -378,7 +378,7 @@ internal static class ExpressionTemplateFactory
     /// when that member is a non-public field, property, method, or event.  The member text stays
     /// unqualified because the receiver already qualifies it, but a private or protected member still
     /// constrains where the inlined body may legally be placed, so without this the expansion site would
-    /// emit CS0122 instead of the intended BC1002.
+    /// emit CS0122 instead of the intended BCF1002.
     /// </summary>
     private static void RecordMemberAccessRequirement(SimpleNameSyntax name, ComposableBodyContext context)
     {
@@ -501,7 +501,7 @@ internal static class ExpressionTemplateFactory
     /// generated file has no <c>using</c> directive to bring the method into scope.  The reduced receiver
     /// becomes the first argument, carrying the original <c>this</c> parameter's ref kind, and the inferred
     /// type arguments are emitted so the same instantiation is fixed.  Returns <see langword="false"/> and
-    /// reports BC1002 when the rewrite cannot be made semantics-preserving — a null-conditional receiver or
+    /// reports BCF1002 when the rewrite cannot be made semantics-preserving — a null-conditional receiver or
     /// a type argument that cannot be named in generated component code.
     /// </summary>
     private static bool TryCreateExtensionMethodCall(

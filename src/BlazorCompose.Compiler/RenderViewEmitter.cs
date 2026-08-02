@@ -68,7 +68,7 @@ internal static class RenderViewEmitter
     /// frame via <c>SetKey</c> immediately after it opens. Supplied only by <see cref="EmitForEach"/> for
     /// the loop content root; the key is consumed by the first element/component and never propagated to
     /// children. Region-rooted nodes (<see cref="IfNode"/>, <see cref="ForEachNode"/>) never receive a
-    /// non-<see langword="null"/> key because BC3003 blocks region-rooted content from reaching emission.
+    /// non-<see langword="null"/> key because BCF3003 blocks region-rooted content from reaching emission.
     /// </param>
     private static int EmitNode(IndentedWriter writer, RenderNode node, int startSeq, string? key = null) =>
         node switch
@@ -111,7 +111,7 @@ internal static class RenderViewEmitter
 
     private static int EmitIf(IndentedWriter writer, IfNode node, int seq, string? key = null)
     {
-        // Region-rooted nodes never carry a threaded key: BC3003 blocks region-rooted content from
+        // Region-rooted nodes never carry a threaded key: BCF3003 blocks region-rooted content from
         // reaching emission, so a non-null key here would mean a keyable node was wired to this branch
         // without updating that contract. Fail fast in tests instead of silently dropping SetKey.
         Debug.Assert(key is null, $"{nameof(EmitIf)} does not support a threaded key; SetKey would be silently dropped.");
@@ -149,7 +149,7 @@ internal static class RenderViewEmitter
 
     private static int EmitForEach(IndentedWriter writer, ForEachNode node, int seq, string? key = null)
     {
-        // Region-rooted nodes never carry a threaded key: BC3003 blocks region-rooted content from
+        // Region-rooted nodes never carry a threaded key: BCF3003 blocks region-rooted content from
         // reaching emission, so a non-null key here would mean a keyable node was wired to this branch
         // without updating that contract. Fail fast in tests instead of silently dropping SetKey.
         Debug.Assert(key is null, $"{nameof(EmitForEach)} does not support a threaded key; SetKey would be silently dropped.");
@@ -161,7 +161,7 @@ internal static class RenderViewEmitter
         writer.AppendLine("{");
         writer.Indent++;
         // The key is threaded into the content's root element/component so SetKey is emitted
-        // immediately after that frame opens — never after OpenRegion (see BC3003).
+        // immediately after that frame opens — never after OpenRegion (see BCF3003).
         EmitNode(writer, node.Content, seq + 1, node.Key.ToCode());
         writer.Indent--;
         writer.AppendLine("}");
@@ -254,7 +254,7 @@ internal static class RenderViewEmitter
 
     private static int EmitFragment(IndentedWriter writer, FragmentNode node, int seq, string? key = null)
     {
-        // A fragment is non-keyable (BC3003 blocks it as a ForEach content root), so a threaded key would be
+        // A fragment is non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be
         // silently dropped — fail fast, mirroring EmitIf/EmitForEach.
         Debug.Assert(key is null, $"{nameof(EmitFragment)} does not support a threaded key; SetKey would be silently dropped.");
         int next = seq;
@@ -273,7 +273,7 @@ internal static class RenderViewEmitter
     private static int EmitRenderFragmentContent(
         IndentedWriter writer, RenderFragmentContentNode node, int seq, string? key = null)
     {
-        // Non-keyable (BC3003 blocks it as a ForEach content root), so a threaded key would be silently
+        // Non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be silently
         // dropped — fail fast, mirroring EmitFragment/EmitRawMarkup.
         Debug.Assert(key is null, $"{nameof(EmitRenderFragmentContent)} does not support a threaded key; SetKey would be silently dropped.");
         writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");

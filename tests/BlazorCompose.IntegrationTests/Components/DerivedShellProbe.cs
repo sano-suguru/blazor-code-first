@@ -6,7 +6,7 @@ namespace BlazorCompose.IntegrationTests.Components;
 
 // A two-level layout hierarchy where both levels declare Chrome. Both are partial, so both get their
 // own generated RenderView and the derived chrome wins — the correct outcome. The shape exists so
-// ComposeLayoutRenderingTests can pin the inheritance behaviour BC1001 protects.
+// ComposeLayoutRenderingTests can pin the inheritance behaviour BCF1001 protects.
 public abstract partial class ShellProbeBase : ComposeLayoutBase
 {
     protected override View Chrome => Div[Span.Class("base-chrome")["base"], Main[Body]];

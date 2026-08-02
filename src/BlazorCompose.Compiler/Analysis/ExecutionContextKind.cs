@@ -23,14 +23,14 @@ internal enum ExecutionContextKind
     /// <summary>
     /// Opaque call: a non-<c>[Composable]</c> method returning <c>View</c> or any shape that cannot
     /// be statically analyzed.  The generator evaluates it at runtime as a <c>RenderFragment</c>-backed
-    /// <c>View</c>, isolates it in a region, and reports diagnostic BC2001.
+    /// <c>View</c>, isolates it in a region, and reports diagnostic BCF2001.
     /// </summary>
     Opaque,
 
     /// <summary>
     /// Deferred event handler: the recognized (sole, reduced) argument of a Html-mirror
     /// <c>View.OnClick(...)</c> call. Code in this context executes after rendering (in response to a
-    /// DOM event), so state mutations are expected and must not be reported as BC3001.
+    /// DOM event), so state mutations are expected and must not be reported as BCF3001.
     /// </summary>
     DeferredEventHandler,
 }

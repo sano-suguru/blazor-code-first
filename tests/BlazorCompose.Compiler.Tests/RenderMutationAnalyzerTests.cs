@@ -5,14 +5,14 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCompose.Compiler.Tests;
 
 /// <summary>
-/// Tests for <see cref="RenderMutationAnalyzer"/> (BC3001).
+/// Tests for <see cref="RenderMutationAnalyzer"/> (BCF3001).
 /// Verifies that direct state mutations in the Body rendering path are diagnosed,
 /// while mutations inside recognized deferred event handler lambdas are not.
 /// </summary>
 public sealed class RenderMutationAnalyzerTests
 {
     // -----------------------------------------------------------------------
-    // Sources that should report BC3001
+    // Sources that should report BCF3001
     // -----------------------------------------------------------------------
 
     private const string IncrementInTextSource = """
@@ -83,7 +83,7 @@ public sealed class RenderMutationAnalyzerTests
 
     /// <summary>
     /// Negative control for the Html.OnClick exemption: the mutation's nearest enclosing lambda is
-    /// the Html.If content lambda, not an OnClick handler, so it must still report BC3001.
+    /// the Html.If content lambda, not an OnClick handler, so it must still report BCF3001.
     /// </summary>
     private const string IncrementInHtmlIfContentLambdaSource = """
         using BlazorCompose;
@@ -97,13 +97,13 @@ public sealed class RenderMutationAnalyzerTests
         """;
 
     // -----------------------------------------------------------------------
-    // Sources that must NOT report BC3001
+    // Sources that must NOT report BCF3001
     // -----------------------------------------------------------------------
 
     /// <summary>
     /// Positive case for the Html.OnClick exemption (simple increment): the mutation's nearest
     /// enclosing lambda is the (reduced) sole argument of the Html-mirror
-    /// <c>ElementBuilder.OnClick(...)</c> extension call, so it must not report BC3001.
+    /// <c>ElementBuilder.OnClick(...)</c> extension call, so it must not report BCF3001.
     /// </summary>
     private const string IncrementInHtmlOnClickHandlerSource = """
         using BlazorCompose;
@@ -148,8 +148,8 @@ public sealed class RenderMutationAnalyzerTests
     // Theory data
     // -----------------------------------------------------------------------
 
-    /// <summary>Body-path mutations that must each be diagnosed as a BC3001 error.</summary>
-    public static TheoryData<string> MutationSourcesThatReportBC3001 { get; } = BuildTheoryData(
+    /// <summary>Body-path mutations that must each be diagnosed as a BCF3001 error.</summary>
+    public static TheoryData<string> MutationSourcesThatReportBCF3001 { get; } = BuildTheoryData(
         IncrementInTextSource,
         AssignmentInTextSource,
         CompoundAssignmentInTextSource,
@@ -158,8 +158,8 @@ public sealed class RenderMutationAnalyzerTests
         PropertyIncrementInTextSource,
         IncrementInHtmlIfContentLambdaSource);
 
-    /// <summary>Deferred mutations (event handlers, helper methods) that must not report BC3001.</summary>
-    public static TheoryData<string> MutationSourcesThatDoNotReportBC3001 { get; } = BuildTheoryData(
+    /// <summary>Deferred mutations (event handlers, helper methods) that must not report BCF3001.</summary>
+    public static TheoryData<string> MutationSourcesThatDoNotReportBCF3001 { get; } = BuildTheoryData(
         IncrementInHtmlOnClickHandlerSource,
         PropertyIncrementInHtmlOnClickHandlerSource,
         HelperMutationSource);
@@ -181,21 +181,21 @@ public sealed class RenderMutationAnalyzerTests
     // -----------------------------------------------------------------------
 
     [Theory]
-    [MemberData(nameof(MutationSourcesThatReportBC3001))]
-    public async Task RenderMutationAnalyzer_MutationInBodyRenderPath_ReportsBC3001(string source)
+    [MemberData(nameof(MutationSourcesThatReportBCF3001))]
+    public async Task RenderMutationAnalyzer_MutationInBodyRenderPath_ReportsBCF3001(string source)
     {
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.Contains(diagnostics, static d => d.Id == "BC3001" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3001" && d.Severity == DiagnosticSeverity.Error);
     }
 
     [Theory]
-    [MemberData(nameof(MutationSourcesThatDoNotReportBC3001))]
-    public async Task RenderMutationAnalyzer_DeferredMutation_DoesNotReportBC3001(string source)
+    [MemberData(nameof(MutationSourcesThatDoNotReportBCF3001))]
+    public async Task RenderMutationAnalyzer_DeferredMutation_DoesNotReportBCF3001(string source)
     {
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3001");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3001");
     }
 
     [Fact]
@@ -210,13 +210,13 @@ public sealed class RenderMutationAnalyzerTests
             }
             """;
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
-        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3001");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3001");
     }
 
     [Fact]
     public async Task AsyncOnClickHandler_NestedLambdaMutation_IsExempt()
     {
-        // Regression: the nested lambda i => total += i is inside the deferred handler; must NOT fire BC3001.
+        // Regression: the nested lambda i => total += i is inside the deferred handler; must NOT fire BCF3001.
         const string source = """
             using System.Collections.Generic;
             using System.Linq;
@@ -230,13 +230,13 @@ public sealed class RenderMutationAnalyzerTests
             }
             """;
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
-        Assert.DoesNotContain(diagnostics, static d => d.Id == "BC3001");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3001");
     }
 
     [Fact]
     public async Task AttrValueMutation_IsReported()
     {
-        // .Attr value runs during render — a mutation there is a real BC3001 (not a deferred handler).
+        // .Attr value runs during render — a mutation there is a real BCF3001 (not a deferred handler).
         const string source = """
             using BlazorCompose;
             public partial class C : ComposeComponentBase
@@ -246,14 +246,14 @@ public sealed class RenderMutationAnalyzerTests
             }
             """;
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
-        Assert.Contains(diagnostics, static d => d.Id == "BC3001");
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3001");
     }
 
     [Fact]
-    public async Task RenderMutationAnalyzer_NamedHandlerArgument_DoesNotReportBC3001()
+    public async Task RenderMutationAnalyzer_NamedHandlerArgument_DoesNotReportBCF3001()
     {
         // The handler is identified by the parameter it binds to, not by its position. A named argument
-        // puts it first, which used to defeat the deferred-handler exemption and produce a false BC3001.
+        // puts it first, which used to defeat the deferred-handler exemption and produce a false BCF3001.
         const string source = """
             using BlazorCompose;
             using static BlazorCompose.Html;
@@ -269,11 +269,11 @@ public sealed class RenderMutationAnalyzerTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "BC3001");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3001");
     }
 
     [Fact]
-    public async Task RenderMutationAnalyzer_PositionalHandlerArgument_StillDoesNotReportBC3001()
+    public async Task RenderMutationAnalyzer_PositionalHandlerArgument_StillDoesNotReportBCF3001()
     {
         const string source = """
             using BlazorCompose;
@@ -289,11 +289,11 @@ public sealed class RenderMutationAnalyzerTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.DoesNotContain(diagnostics, d => d.Id == "BC3001");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3001");
     }
 
     [Fact]
-    public async Task RenderMutationAnalyzer_MutationOutsideAnyHandler_StillReportsBC3001()
+    public async Task RenderMutationAnalyzer_MutationOutsideAnyHandler_StillReportsBCF3001()
     {
         // Guard against the fix widening the exemption: a mutation that is not inside a handler lambda
         // must still be reported.
@@ -311,11 +311,11 @@ public sealed class RenderMutationAnalyzerTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.Single(diagnostics, d => d.Id == "BC3001");
+        Assert.Single(diagnostics, d => d.Id == "BCF3001");
     }
 
     [Fact]
-    public async Task RenderMutationAnalyzer_SpoofedDecorationsNamespace_StillReportsBC3001()
+    public async Task RenderMutationAnalyzer_SpoofedDecorationsNamespace_StillReportsBCF3001()
     {
         // The exemption is anchored to the global BlazorCompose.Decorations. A user-defined type with
         // the same name in another namespace must not be able to claim it. This property predates the
@@ -343,6 +343,6 @@ public sealed class RenderMutationAnalyzerTests
 
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
-        Assert.Single(diagnostics, d => d.Id == "BC3001");
+        Assert.Single(diagnostics, d => d.Id == "BCF3001");
     }
 }

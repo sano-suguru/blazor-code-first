@@ -5,7 +5,7 @@ namespace BlazorCompose.IntegrationTests.Components;
 
 // A plain Blazor component with two fragment slots, used as the target of Component<T>()[children]
 // and .Param(c => c.Footer, …). Hand-written C# because a same-project .razor type cannot be a
-// Component<T> type argument (BC3012).
+// Component<T> type argument (BCF3012).
 public sealed class SlotCardComponent : ComponentBase
 {
     [Parameter]

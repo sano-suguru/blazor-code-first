@@ -10,7 +10,7 @@ namespace BlazorCompose.Compiler;
 /// Incremental source generator entry point.  Discovers Compose base subclasses
 /// (<c>ComposeComponentBase</c> and <c>ComposeLayoutBase</c>) and emits a <c>RenderView</c> override
 /// into the same partial class, and discovers <c>[Composable]</c> definitions into a value-equal
-/// registry while reporting declaration-time BC1002 diagnostics.
+/// registry while reporting declaration-time BCF1002 diagnostics.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class BlazorComposeGenerator : IIncrementalGenerator
@@ -26,7 +26,7 @@ public sealed class BlazorComposeGenerator : IIncrementalGenerator
                 // Two admissible shapes. A `partial` class needs no base list: inheritance is judged from
                 // the symbol, and a component split across declarations may declare its design-time
                 // expression in the part that carries no base list. A non-partial class is admitted only
-                // with a base list — it cannot be generated into, but it earns BC1001, and having exactly
+                // with a base list — it cannot be generated into, but it earns BCF1001, and having exactly
                 // one declaration means a Compose base can only reach it through that base list. Testing
                 // both here keeps every other class out of the semantic transform.
                 static (node, _) => node is ClassDeclarationSyntax declaration &&
@@ -67,9 +67,9 @@ public sealed class BlazorComposeGenerator : IIncrementalGenerator
             .Select(static (entries, _) => ComposableRegistry.Create(entries))
             .WithTrackingName("ComposableRegistry");
 
-        // Report BC3003 for region-rooted ForEach content inside composable definition bodies, once per
+        // Report BCF3003 for region-rooted ForEach content inside composable definition bodies, once per
         // definition and independent of whether the composable is ever called. Registry-dependent by
-        // nature (transitive root-kind resolution), and separate from BC3002/BC3004 so their per-definition
+        // nature (transitive root-kind resolution), and separate from BCF3002/BCF3004 so their per-definition
         // incrementality is unaffected.
         var composableForEachDiagnostics = registry
             .Select(static (r, _) =>

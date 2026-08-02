@@ -14,7 +14,7 @@ namespace BlazorCompose.Compiler;
 /// transform that produces this value, and only value data flows onward to be combined with the
 /// composable registry. <see cref="Template"/> is <see langword="null"/> when the body is not a
 /// recognized statically-sequenceable construct. <see cref="BodyDiagnostics"/> carries every diagnostic
-/// normalization recorded — both errors that reject the body and warnings (for example BC3002) that do
+/// normalization recorded — both errors that reject the body and warnings (for example BCF3002) that do
 /// not — so downstream emission gates on <see cref="DiagnosticInfo.IsError"/> severity rather than on
 /// this collection being non-empty.
 /// </remarks>
@@ -31,7 +31,7 @@ namespace BlazorCompose.Compiler;
 /// <param name="FailureLocation">
 /// Where to blame when <paramref name="Template"/> is <see langword="null"/> because classification
 /// failed: the innermost expression that could not be translated. Carried as symbol-free coordinates for
-/// the same reason <see cref="DiagnosticInfo"/> is — BC1003 is decided after the semantic stage, where no
+/// the same reason <see cref="DiagnosticInfo"/> is — BCF1003 is decided after the semantic stage, where no
 /// syntax survives, and without this it had no location at all (#77). <see langword="null"/> whenever a
 /// template was produced, so a healthy component contributes nothing new to the incremental cache key,
 /// and also on the shapes rejected before classification (non-partial, nested, untranslatable getter),

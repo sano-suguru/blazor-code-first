@@ -23,7 +23,7 @@ public sealed class ComposableDefinitionTests
     [InlineData("[Composable] private static View Helper(out int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
     [InlineData("[Composable] private static View Helper(in int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
     [InlineData("[Composable] private static View Helper(ref readonly int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
-    public void ComposableDefinition_UnsupportedDeclaration_ReportsBC1002(string declaration, string message)
+    public void ComposableDefinition_UnsupportedDeclaration_ReportsBCF1002(string declaration, string message)
     {
         var source = $$"""
             using BlazorCompose;
@@ -38,13 +38,13 @@ public sealed class ComposableDefinitionTests
 
         var result = CompilationTestHost.RunGenerator(source);
         var diagnostic = Assert.Single(
-            result.Diagnostics, static d => d.Id == "BC1002");
+            result.Diagnostics, static d => d.Id == "BCF1002");
 
         Assert.Contains(message, diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
     [Fact]
-    public void ComposableDefinition_ValidDefinition_DoesNotReportBC1002()
+    public void ComposableDefinition_ValidDefinition_DoesNotReportBCF1002()
     {
         var source = """
             using BlazorCompose;
@@ -61,7 +61,7 @@ public sealed class ComposableDefinitionTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class ComposableDefinitionTests
     }
 
     [Fact]
-    public void ComposableDefinition_ExpressionBodyReferencesEnclosingLocal_ReportsSingleBC1002()
+    public void ComposableDefinition_ExpressionBodyReferencesEnclosingLocal_ReportsSingleBCF1002()
     {
         var source = """
             using BlazorCompose;
@@ -163,12 +163,12 @@ public sealed class ComposableDefinitionTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BC1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("parsed", diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
     [Fact]
-    public void ComposableDefinition_ExpressionBodyUsesSelfContainedLocal_DoesNotReportBC1002()
+    public void ComposableDefinition_ExpressionBodyUsesSelfContainedLocal_DoesNotReportBCF1002()
     {
         var source = """
             using BlazorCompose;
@@ -186,7 +186,7 @@ public sealed class ComposableDefinitionTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BC1002");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
     [Fact]

@@ -53,7 +53,7 @@ public readonly struct ComponentView<TComponent>
     /// <remarks>
     /// <typeparamref name="TComponent"/> must declare a settable <c>[Parameter]</c> named
     /// <c>ChildContent</c> of type <see cref="Microsoft.AspNetCore.Components.RenderFragment"/>; otherwise
-    /// BC3013 is reported. Use
+    /// BCF3013 is reported. Use
     /// <see cref="Param(System.Func{TComponent, Microsoft.AspNetCore.Components.RenderFragment?}, View)"/>
     /// for any other fragment-typed parameter. Because this returns <see cref="View"/>, a
     /// <see cref="Param{TValue}"/> call must precede the brackets.

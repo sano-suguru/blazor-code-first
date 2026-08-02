@@ -120,8 +120,8 @@ public sealed class KnownSymbolsSyncTests
     /// that name test, and the set behind it is a function of what the constructor's member switch
     /// <em>captures</em> — not of what <c>Decorations</c> <em>declares</em>.  A runtime that added, say, a
     /// <c>.Style(…)</c> shortcut without also adding it to <c>AttributeShortcutNames</c> would leave it out
-    /// of the set, and a misplaced <c>.Style(…)</c> would be reported as BC1003 — "not statically
-    /// analyzable" — instead of BC3008.  That fails in the safe direction, which is exactly why nothing else
+    /// of the set, and a misplaced <c>.Style(…)</c> would be reported as BCF1003 — "not statically
+    /// analyzable" — instead of BCF3008.  That fails in the safe direction, which is exactly why nothing else
     /// would notice.
     /// </para>
     /// <para>
@@ -144,7 +144,7 @@ public sealed class KnownSymbolsSyncTests
             Assert.True(
                 symbols.DeclaresDecorationNamed(name),
                 $"Decorations declares '{name}', but KnownSymbols does not capture it, so a misplaced " +
-                $".{name}(…) falls through to BC1003 instead of BC3008.");
+                $".{name}(…) falls through to BCF1003 instead of BCF3008.");
         }
 
         Assert.Equal(DecorationNameCount, declared.Count);

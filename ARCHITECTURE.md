@@ -33,7 +33,7 @@
 
 Source Generatorはビルド時に、設計時のUI式を「状態を受け取ってフレーム列を返す関数」(型でいえば `S → R`)へコンパイルします。実行時に動くのはこの生成関数だけであり、`r_t` はそれを状態 `s_t` に適用した結果です。UI式そのもの(設計時の構文的実体)は実行時には評価されません。Razorとの対比で言えば、Razorコンパイラはこの入力をマークアップとして受け取り、BlazorComposeはC#式として受け取る、という違いです。
 
-生成された関数は純粋(状態のみに依存し副作用を持たない)であることを規約とします(単一方向データフロー、§4.1)。設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)内の状態変更は診断BC3001の対象となります。BC3001の初期検出範囲はコンポーネントのインスタンスメンバーへの静的識別可能な直接書き込み(フィールド代入、プロパティ代入、複合代入、インクリメント/デクリメント演算子)に限ります。`Button` のonClickラムダ(`DeferredEventHandler`として分類)内の変更はレンダリング後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用(非同期連鎖等)の完全な検出は初期スライスでは保証しません。
+生成された関数は純粋(状態のみに依存し副作用を持たない)であることを規約とします(単一方向データフロー、§4.1)。設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)内の状態変更は診断BCF3001の対象となります。BCF3001の初期検出範囲はコンポーネントのインスタンスメンバーへの静的識別可能な直接書き込み(フィールド代入、プロパティ代入、複合代入、インクリメント/デクリメント演算子)に限ります。`Button` のonClickラムダ(`DeferredEventHandler`として分類)内の変更はレンダリング後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用(非同期連鎖等)の完全な検出は初期スライスでは保証しません。
 
 ### 1.2 レンダリングツリーの等価性と差分検知
 
@@ -77,24 +77,24 @@ ComposeComponentBase                 ② SSC分類(§2.3)
                                         — [Composable] のインライン展開
 ```
 
-生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `ComposeComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BC3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
+生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `ComposeComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 設計時表現のゲッターは**単一の式に還元できなければなりません**。`=> expr` / `get => expr` /
 `get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。文を含む
-ゲッター(例: return の前のローカル変数宣言)は Transplantable 経路の領域であり未実装のため、BC1004 と
-して報告されます。自動プロパティは翻訳対象となるゲッター本体を宣言しないため、これも BC1004 となります
+ゲッター(例: return の前のローカル変数宣言)は Transplantable 経路の領域であり未実装のため、BCF1004 と
+して報告されます。自動プロパティは翻訳対象となるゲッター本体を宣言しないため、これも BCF1004 となります
 (再abstract化 `abstract override` および実装部を持たない partial プロパティは対象外、後者は CS9248 が
 原因を名指します)。設計時表現は実行時に評価されない不活性な構文であり、この制約は「式を静的に翻訳する」
 という前提そのものです。
 
 設計時表現の代わりに `RenderView` を手書きでオーバーライドすることは合法であり、SSC部分集合で表現できない
 ボディのためのエスケープハッチです。この場合ジェネレータは何も生成しません(生成すると同名メンバーの重複で
-CS0111 になり、著者は自分のコードを消すしか手がなくなります)。設計時表現は未使用となり、BC1004 も報告され
+CS0111 になり、著者は自分のコードを消すしか手がなくなります)。設計時表現は未使用となり、BCF1004 も報告され
 ません。
 
 Composeコンポーネントとして認識される宣言形状は、トップレベルの `partial class` です。ジェネリック
 (`partial class Foo<T>`)はサポートされ、生成部は同じ型パラメータ名を再掲します(制約句は再掲しません。
-制約は型パラメータに属するため一方の宣言にあれば十分です)。ネストした型は BC1005 で拒否されます。
+制約は型パラメータに属するため一方の宣言にあれば十分です)。ネストした型は BCF1005 で拒否されます。
 `record` は `object` または別の `record` しか継承できないため(CS8864)、Composeコンポーネントにはできません。
 
 ### 2.2 シーケンス割当
@@ -119,15 +119,15 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
                 code += WrapInRegion(Transplant(stmt), seq: counter); counter += 1
             case Opaque(expr):                             // 非[Composable]のView返却呼び出し等
                 code += WrapInRegion(EmitFragmentOf(expr), seq: counter); counter += 1
-                report BC2001(v)
+                report BCF2001(v)
     return code
 ```
 
 `FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別ごとに静的に定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、文字列子を1つ持つ `Span`(`Span["..."]`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`])。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
 
-値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBC3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
+値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBCF3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
 
-`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BC3003)、装飾もできません(BC3008、詳細は§2.7(A)と付録A)。この装飾不可は型システムでも表現されています — 装飾は `ElementBuilder` の拡張であり、`Fragment`/`Raw` は `View` なのでCS1929です — が、その上でBC3008も報告します。設計時表現が翻訳できないコンポーネントには `RenderView` が生成されず、クラスは必ず宣言段階エラーのCS0534を負うため、`csc` はメソッド本体の束縛へ進まずCS1929を作者へ届けません(実MSBuildでの測定値 — `RejectedDecorationScanner` が存在しなかった時点: フィクスチャ `Bc3008Host` が報告したのはCS0534とBC1003だけで、CS1929は現れませんでした。BC3008を報告するようになった現在は、同じフィクスチャがそれも報告します)。同じビルドでBC1003が届いていることが示すとおり、この打ち切りを越えられるのは生成器の診断だけであり、何が間違っているかを名指せる診断はBC3008です。
+`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BCF3003)、装飾もできません(BCF3008、詳細は§2.7(A)と付録A)。この装飾不可は型システムでも表現されています — 装飾は `ElementBuilder` の拡張であり、`Fragment`/`Raw` は `View` なのでCS1929です — が、その上でBCF3008も報告します。設計時表現が翻訳できないコンポーネントには `RenderView` が生成されず、クラスは必ず宣言段階エラーのCS0534を負うため、`csc` はメソッド本体の束縛へ進まずCS1929を作者へ届けません(実MSBuildでの測定値 — `RejectedDecorationScanner` が存在しなかった時点: フィクスチャ `Bcf3008Host` が報告したのはCS0534とBCF1003だけで、CS1929は現れませんでした。BCF3008を報告するようになった現在は、同じフィクスチャがそれも報告します)。同じビルドでBCF1003が届いていることが示すとおり、この打ち切りを越えられるのは生成器の診断だけであり、何が間違っているかを名指せる診断はBCF3008です。
 
 ### 2.3 静的シーケンス可能サブセット(SSC)
 
@@ -141,7 +141,7 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
 
 **Transplantable(構文移植)** — ネイティブ `if` / `foreach` / `switch` 等の制御構文。生成コードへ構文ごと移植され、境界リージョンで包まれます(§2.5)。
 
-**Opaque(実行時評価)** — `[Composable]` の付かない `View` 返却メソッド呼び出し、デリゲート経由の間接呼び出し等。SGは内部を解析できないため、呼び出し式を生成コードへ移植し、実行時に返された `View` に内包される `RenderFragment` をリージョン内で描画します。診断BC2001(Info)で通知されます。
+**Opaque(実行時評価)** — `[Composable]` の付かない `View` 返却メソッド呼び出し、デリゲート経由の間接呼び出し等。SGは内部を解析できないため、呼び出し式を生成コードへ移植し、実行時に返された `View` に内包される `RenderFragment` をリージョン内で描画します。診断BCF2001(Info)で通知されます。
 
 いずれの階層でも正確性は保たれます。失われるのはTransplantable/Opaque領域内部の静的差分最適化のみです。
 
@@ -205,7 +205,7 @@ Blazorのリージョンはシーケンス空間を分離するため、`D` 内�
 
 **(A) 装飾チェーンの畳み込み — 入力: 装飾の連鎖 / 出力: `class` は畳み込み、他の属性・イベントは1:1のフレーム**
 
-装飾メソッドは所有要素の属性・イベントへ静的に合成され、ラッパーノードを増やしません。`class` は特別で、`.Class`(または `.Attr("class", …)`)を何個連ねても単一の `class` 属性へ畳み込まれ、追加の属性フレームは生まれません。`class` 以外の属性・イベント(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ独立した属性/イベントフレームとして1:1で発行され、同一属性・イベントの重複バインディングはBC3010で診断されます。
+装飾メソッドは所有要素の属性・イベントへ静的に合成され、ラッパーノードを増やしません。`class` は特別で、`.Class`(または `.Attr("class", …)`)を何個連ねても単一の `class` 属性へ畳み込まれ、追加の属性フレームは生まれません。`class` 以外の属性・イベント(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ独立した属性/イベントフレームとして1:1で発行され、同一属性・イベントの重複バインディングはBCF3010で診断されます。
 
 ```csharp
 // 入力(設計時のC#式)
@@ -250,7 +250,7 @@ foreach (var item in _items)
 __b.CloseRegion();
 ```
 
-`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BC3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BC3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div[ForEach(o.Items, …)]`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
+`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BCF3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BCF3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div[ForEach(o.Items, …)]`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
 
 この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` / `RenderFragmentContentTemplateNode`(外部由来の `RenderFragment?` を `AddContent(seq, RenderFragment?)` としてそのまま発行するノード)をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。この網羅契約により、展開後ノード `RenderFragmentContentNode`(`SequenceAllocator.Width` では常に1 — シーケンス引数を消費する `AddContent` 呼び出しが `RenderFragment?` の非nullを問わず不可欠であるため)を追加した際も、`SequenceAllocator.Width` と `RenderViewEmitter.EmitNode` の両方にケースを足す必要があり、片方だけの更新は例外で検出されます。
 
@@ -283,7 +283,7 @@ __b.OpenElement(5, "span"); __b.AddContent(6, "Body"); __b.CloseElement();
 __b.CloseElement();
 ```
 
-`[Composable]` 呼び出しは、その本体を呼び出しサイトへ直接書いた場合と同じフレーム列・シーケンス区間を生みます。実行時ディスパッチもリージョン分離も介在しません。対照的に、`[Composable]` の付かない `View` 返却メソッドはOpaque(§2.3)として扱われ、リージョンで包まれ実行時に `RenderFragment` として描画され、診断BC2001の対象となります。属性付与の有無ではなく、この静的展開可能性が部品再利用の速度・トリミング特性を分けます。
+`[Composable]` 呼び出しは、その本体を呼び出しサイトへ直接書いた場合と同じフレーム列・シーケンス区間を生みます。実行時ディスパッチもリージョン分離も介在しません。対照的に、`[Composable]` の付かない `View` 返却メソッドはOpaque(§2.3)として扱われ、リージョンで包まれ実行時に `RenderFragment` として描画され、診断BCF2001の対象となります。属性付与の有無ではなく、この静的展開可能性が部品再利用の速度・トリミング特性を分けます。
 
 **コンポーネントの fragment スロット** — `RenderFragment` 型のパラメータは、値ではなくノードツリーを
 持つため `ComponentParameter`(スカラー)とは別チャンネル(`ComponentSlot` / `ComponentSlotNode`)に
@@ -341,7 +341,7 @@ public readonly struct View
 4. **フレーム列生成**: `RenderView` の実行による `r_{t+1}` の生成
 5. **差分適用**: `Δ(r_t, r_{t+1})` のDOM同期
 
-この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderView` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)内での状態変更禁止」に対応し、違反は診断BC3001となります。`Button` のonClickラムダ(`DeferredEventHandler`コンテキスト)はレンダリングではなくイベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BC3001注記参照)。`[Composable]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
+この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderView` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)内での状態変更禁止」に対応し、違反は診断BCF3001となります。`Button` のonClickラムダ(`DeferredEventHandler`コンテキスト)はレンダリングではなくイベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BCF3001注記参照)。`[Composable]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
 
 ### 4.2 Blazor標準ディスパッチとの役割分担
 
@@ -377,13 +377,13 @@ net11.0ターゲットでは、Runtime Async(ランタイムネイティブ非�
 
 BlazorComposeは実行時メタデータ分析・動的ディスパッチを排除します。全パラメータバインディング(`Component<T>().Param(...)` を含む)は、Source Generatorが生成する静的セッター経由で行われます。`Param` の式引数はSGが構文解析してセッター生成にのみ利用し、式木(`System.Linq.Expressions`)のランタイムコンパイルは行いません。`System.Reflection` / `System.Linq.Expressions` へのランタイム依存は0です。
 
-さらに、`Body` プロパティと設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BC3014)の全メンバー — はいずれも実行時に到達不能であるため、ILトリマーはこれらを丸ごと除去できます。UI記述のソースコードはバイナリサイズに寄与しません。これは実行時評価を行うコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計です。
+さらに、`Body` プロパティと設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であるため、ILトリマーはこれらを丸ごと除去できます。UI記述のソースコードはバイナリサイズに寄与しません。これは実行時評価を行うコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計です。
 
 リフレクションベースのバインディングを持つ同等構成との比較で、AOTコンパイル後のWasmペイロードサイズを約20〜30%削減(予測値)と見込みます。この予測値は、(a) BlazorCompose構成、(b) リフレクションバインディング構成、(c) 素のRazor構成の3系統のベンチマークにより確定値へ置き換えられます。素のRazor構成との比較ではほぼ同等となる見込みです。
 
 BlazorComposeのトリミング/AOT適合契約が対象とするのは、自身が生成するコード(リフレクション不使用の`RenderView`、実行時に到達不能な設計時API、`ComponentView`ビルダー)がトリミングで除去されることまでです。`Component<T>().Param(...)` によるコンポーネント埋め込みでは、パラメータが実行時に適用される段でフレームワーク側のリフレクションベース`[Parameter]`バインダー(`ComponentProperties.SetProperties`)が到達可能になりますが、これはBlazor SDKのトリミングプロファイルが担う範囲であり、BlazorCompose自体の責務ではありません。トリムテストハーネス(`tests/BlazorCompose.TrimTestApp`)では、Blazor SDKのプロファイルを持たない素のコンソールアプリという性質上この1点のフレームワーク側`IL2072`が表面化するため、`ComponentProperties.SetProperties`のみに限定した抑制(`ILLink.LinkAttributes.xml`)を適用しています。
 
-`Component<T>()` の型引数は生成コード中の `OpenComponent<T>` へリテラルとして落ちるため、BlazorComposeのジェネレータが走る時点で解決している必要があります。ソースジェネレータは互いの出力を観測できないため、**同一プロジェクト内**の `.razor` コンポーネントはこの条件を満たさず、BC3012として報告されます。参照先プロジェクトやNuGetパッケージに含まれる `.razor` コンポーネントは通常どおり解決するため、この制約は同一コンパイル内に限られます。手書きのC#コンポーネントは常に利用できます。
+`Component<T>()` の型引数は生成コード中の `OpenComponent<T>` へリテラルとして落ちるため、BlazorComposeのジェネレータが走る時点で解決している必要があります。ソースジェネレータは互いの出力を観測できないため、**同一プロジェクト内**の `.razor` コンポーネントはこの条件を満たさず、BCF3012として報告されます。参照先プロジェクトやNuGetパッケージに含まれる `.razor` コンポーネントは通常どおり解決するため、この制約は同一コンパイル内に限られます。手書きのC#コンポーネントは常に利用できます。
 
 ---
 
@@ -436,41 +436,41 @@ csc は宣言レベルのエラー(CS0534、CS0246、CS0234 等)を含むコン�
 
 > **その診断の役割が「利用者が単独では読み解けないコンパイルエラーの原因を名指すこと」であるなら、その診断は Source Generator が報告しなければならない。** アナライザーとして実装した場合、診断が発火すべき条件そのものがアナライザードライバを停止させるため、原理的に到達不能になる。
 
-BC1001 はこの規則に違反していました(#76)。`partial` の欠落は `RenderView` の非生成を意味し、それは CS0534 — すなわち宣言レベルのエラー — を必ず発生させるため、アナライザーとしての BC1001 は実ビルドで一度も報告され得ませんでした。診断すべき条件が診断自身を抑止していたことになります。BC1001 は生成器報告へ移されています。同じ理由で BC1003 / BC1005 は当初から生成器報告であり、CS0534 と共に出力されます。
+BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は `RenderView` の非生成を意味し、それは CS0534 — すなわち宣言レベルのエラー — を必ず発生させるため、アナライザーとしての BCF1001 は実ビルドで一度も報告され得ませんでした。診断すべき条件が診断自身を抑止していたことになります。BCF1001 は生成器報告へ移されています。同じ理由で BCF1003 / BCF1005 は当初から生成器報告であり、CS0534 と共に出力されます。
 
-副次的な帰結として、**宣言エラーを1つ含むコンパイルでは、そのプロジェクトのアナライザー診断が BlazorCompose 以外(CA/IDE 規則を含む)もすべて消えます**。これは BlazorCompose 固有の性質ではありませんが、非 partial なコンポーネントはこの崖に落ちる最も容易な経路であり、その意味でも BC1001 を生成器から即座に報告する価値があります。
+副次的な帰結として、**宣言エラーを1つ含むコンパイルでは、そのプロジェクトのアナライザー診断が BlazorCompose 以外(CA/IDE 規則を含む)もすべて消えます**。これは BlazorCompose 固有の性質ではありませんが、非 partial なコンポーネントはこの崖に落ちる最も容易な経路であり、その意味でも BCF1001 を生成器から即座に報告する価値があります。
 
-現行の報告経路は、BC3001 のみ `RenderMutationAnalyzer`(状態変更を含む設計時表現はコンパイル自体は成立するため、アナライザードライバが動く)、それ以外はすべて `BlazorComposeGenerator` です。新しい診断を追加する際は、その発火形状がコンパイル可能かどうかを先に判定してください。
+現行の報告経路は、BCF3001 のみ `RenderMutationAnalyzer`(状態変更を含む設計時表現はコンパイル自体は成立するため、アナライザードライバが動く)、それ以外はすべて `BlazorComposeGenerator` です。新しい診断を追加する際は、その発火形状がコンパイル可能かどうかを先に判定してください。
 
 この節の内容は文書上の約束ではなく、テストで固定されています。`tests/BlazorCompose.DiagnosticTests` が `tests/diagnostic-fixtures` の各プロジェクトを実 MSBuild でビルドし、SARIF ログから「どの診断が、どの位置に報告されたか」を検証します。同一の CA1050 違反型を全フィクスチャに含めることで、宣言エラーのあるコンパイルではアナライザー診断が消えること・ないコンパイルでは報告されることの両方が固定されており、`DiagnosticDescriptors` の全記述子はこの層で網羅されているか、理由付きの除外リストに載っているかのいずれかである必要があります。
 
-次節の表そのものも同じテストプロジェクトが検証します。`DiagnosticTableTests` が A.1 の表を読み取り、`DiagnosticDescriptors` と双方向で突き合わせます — 記述子があって行が無ければ失敗し、行があって記述子が無い場合も、実装に先行して仕様化されている理由を `DiagnosticExpectations.DocumentedWithoutDescriptor` に記録していない限り失敗します。BC2001 が現在の唯一の登録項目です。**種別**列も記述子の `DefaultSeverity` と照合されるため、診断の severity を変えることは表を変えることでもあります(記述子を持たない行は照合対象外です)。
+次節の表そのものも同じテストプロジェクトが検証します。`DiagnosticTableTests` が A.1 の表を読み取り、`DiagnosticDescriptors` と双方向で突き合わせます — 記述子があって行が無ければ失敗し、行があって記述子が無い場合も、実装に先行して仕様化されている理由を `DiagnosticExpectations.DocumentedWithoutDescriptor` に記録していない限り失敗します。BCF2001 が現在の唯一の登録項目です。**種別**列も記述子の `DefaultSeverity` と照合されるため、診断の severity を変えることは表を変えることでもあります(記述子を持たない行は照合対象外です)。
 
 ### A.1 診断一覧
 
 | ID     | 種別    | 内容                                                                                  |
 | ------ | ------- | ------------------------------------------------------------------------------------- |
-| BC1001 | Error   | 設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)、および `RenderView` を手書きしているクラス(生成物が無いため `partial` は不要)は対象外。ネストクラスは BC1005 が優先する(`partial` を足しても解決しないため)。生成器が報告する(理由はA.0)  |
-| BC1002 | Error   | `[Composable]` メソッドがSource Generatorのサポートする静的展開契約を満たさない(`View` 型パラメータ等)                                     |
-| BC1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
-| BC1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
-| BC1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
-| BC2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BC2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BC2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→Compose 方向)とは逆向きの構文である) |
-| BC3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
-| BC3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
-| BC3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div[...]`)必要がある |
-| BC3004 | Error   | `ForEach` の `content`/`key` がインライン式ラムダでない(ブロック本体ラムダ/メソッドグループ等)ため静的解析できない |
-| BC3005 | Error   | `Component<T>().Param` のセレクタが単純なプロパティ選択(`c => c.Prop`)でない(キャスト/メソッド呼び出し/捕捉変数のメンバー等) |
-| BC3006 | Error   | `Component<T>().Param` の対象が settable な `[Parameter]` プロパティでない(実行時 throw を防ぐためコンパイル時に拒否) |
-| BC3007 | Error   | `Component<T>().Param` のチェーンが同一プロパティを複数回バインドしている(Blazorは最後の値のみ適用するため重複はコンパイル時に拒否) |
-| BC3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外に書かれている。装飾は `ElementBuilder` の拡張であるため、レシーバが `View`/`ComponentView<T>`(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`、および子を与え終えた要素)の場合は `Decorations` に対するオーバーロード解決が失敗する。外部から渡された `RenderFragment` もレシーバとして受理する — `View` へ暗黙変換されるものの、拡張メソッドのレシーバは恒等/参照/ボクシング変換しか取らずユーザー定義変換を適用しないため、同じく解決に失敗し、作者の誤りは `Fragment`/`Raw` を装飾した場合と同一である(DESIGN.md §4.1)。翻訳に失敗した設計時表現を掃引し、この失敗したチェーンを検出して報告する(型システムが挙げるCS1929は宣言段階の打ち切りにより作者へ届かないため。§2.2) |
-| BC3009 | Error   | `Element` のタグ引数が非空のコンパイル時定数文字列でない(宣言性・予測可能性のため) |
-| BC3010 | Error   | 同一要素上で属性またはイベントが複数回バインドされている(属性チャネル内の重複は後勝ちで前が死に、属性チャネルとイベントチャネルにまたがる同名バインディングは両方が生き残って二重発火する。いずれも書いたとおりにならないため拒否)。畳み込まれる `class` のみ例外 |
-| BC3011 | Error   | `.Attr` の名前 / `.On` のイベント名が非空のコンパイル時定数文字列でない(宣言性・タイポ検査・class畳み込み判定・重複検出の前提) |
-| BC3012 | Error   | `Component<T>()` の型引数がジェネレータ実行時に解決できない。同一プロジェクト内の `.razor` コンポーネントはRazorコンパイラ自身がソースジェネレータであるため相互に出力が見えず、常にこの状態になる。参照先プロジェクト/NuGetパッケージの `.razor` と手書きC#コンポーネントは正常に解決する。タイポや `using` 漏れの場合は同じ位置に CS0246 も報告される |
-| BC3013 | Error   | `Component<T>()[…]` で子コンテンツが与えられているが、`T` がそれを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
-| BC3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>` / `ElementBuilder`)がジェネリック `.Param` の値位置に渡された |
-| BC3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
+| BCF1001 | Error   | 設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)、および `RenderView` を手書きしているクラス(生成物が無いため `partial` は不要)は対象外。ネストクラスは BCF1005 が優先する(`partial` を足しても解決しないため)。生成器が報告する(理由はA.0)  |
+| BCF1002 | Error   | `[Composable]` メソッドがSource Generatorのサポートする静的展開契約を満たさない(`View` 型パラメータ等)                                     |
+| BCF1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
+| BCF1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
+| BCF1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
+| BCF2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BCF2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BCF2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→Compose 方向)とは逆向きの構文である) |
+| BCF3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
+| BCF3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
+| BCF3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div[...]`)必要がある |
+| BCF3004 | Error   | `ForEach` の `content`/`key` がインライン式ラムダでない(ブロック本体ラムダ/メソッドグループ等)ため静的解析できない |
+| BCF3005 | Error   | `Component<T>().Param` のセレクタが単純なプロパティ選択(`c => c.Prop`)でない(キャスト/メソッド呼び出し/捕捉変数のメンバー等) |
+| BCF3006 | Error   | `Component<T>().Param` の対象が settable な `[Parameter]` プロパティでない(実行時 throw を防ぐためコンパイル時に拒否) |
+| BCF3007 | Error   | `Component<T>().Param` のチェーンが同一プロパティを複数回バインドしている(Blazorは最後の値のみ適用するため重複はコンパイル時に拒否) |
+| BCF3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外に書かれている。装飾は `ElementBuilder` の拡張であるため、レシーバが `View`/`ComponentView<T>`(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`、および子を与え終えた要素)の場合は `Decorations` に対するオーバーロード解決が失敗する。外部から渡された `RenderFragment` もレシーバとして受理する — `View` へ暗黙変換されるものの、拡張メソッドのレシーバは恒等/参照/ボクシング変換しか取らずユーザー定義変換を適用しないため、同じく解決に失敗し、作者の誤りは `Fragment`/`Raw` を装飾した場合と同一である(DESIGN.md §4.1)。翻訳に失敗した設計時表現を掃引し、この失敗したチェーンを検出して報告する(型システムが挙げるCS1929は宣言段階の打ち切りにより作者へ届かないため。§2.2) |
+| BCF3009 | Error   | `Element` のタグ引数が非空のコンパイル時定数文字列でない(宣言性・予測可能性のため) |
+| BCF3010 | Error   | 同一要素上で属性またはイベントが複数回バインドされている(属性チャネル内の重複は後勝ちで前が死に、属性チャネルとイベントチャネルにまたがる同名バインディングは両方が生き残って二重発火する。いずれも書いたとおりにならないため拒否)。畳み込まれる `class` のみ例外 |
+| BCF3011 | Error   | `.Attr` の名前 / `.On` のイベント名が非空のコンパイル時定数文字列でない(宣言性・タイポ検査・class畳み込み判定・重複検出の前提) |
+| BCF3012 | Error   | `Component<T>()` の型引数がジェネレータ実行時に解決できない。同一プロジェクト内の `.razor` コンポーネントはRazorコンパイラ自身がソースジェネレータであるため相互に出力が見えず、常にこの状態になる。参照先プロジェクト/NuGetパッケージの `.razor` と手書きC#コンポーネントは正常に解決する。タイポや `using` 漏れの場合は同じ位置に CS0246 も報告される |
+| BCF3013 | Error   | `Component<T>()[…]` で子コンテンツが与えられているが、`T` がそれを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
+| BCF3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>` / `ElementBuilder`)がジェネリック `.Param` の値位置に渡された |
+| BCF3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 

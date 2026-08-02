@@ -12,7 +12,7 @@
        an external consumer receives it: analyzers/dotnet/cs/BlazorCompose.Compiler.dll inside the
        package. Linking rather than copying is deliberate — one source of truth, two delivery paths. -->
   <ItemGroup>
-    <Compile Include="../GeneratorDelivery.ProjectReference/Bc1001Bc1005.cs" Link="Bc1001Bc1005.cs" />
+    <Compile Include="../GeneratorDelivery.ProjectReference/Bcf1001Bcf1005.cs" Link="Bcf1001Bcf1005.cs" />
   </ItemGroup>
 
   <ItemGroup>

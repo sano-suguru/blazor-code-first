@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.Operations;
 namespace BlazorCompose.Compiler.Diagnostics;
 
 /// <summary>
-/// Reports BC3001 when a Compose base's design-time expression getter (<c>Body</c> on
+/// Reports BCF3001 when a Compose base's design-time expression getter (<c>Body</c> on
 /// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) directly mutates instance
 /// state of the containing component during rendering.
 /// </summary>
@@ -32,7 +32,7 @@ namespace BlazorCompose.Compiler.Diagnostics;
 public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [DiagnosticDescriptors.BC3001];
+        [DiagnosticDescriptors.BCF3001];
 
     public override void Initialize(AnalysisContext context)
     {
@@ -80,7 +80,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         if (IsInsideDeferredEventHandlerLambda(ctx.Operation.Syntax, semanticModel)) return;
 
         ctx.ReportDiagnostic(Diagnostic.Create(
-            DiagnosticDescriptors.BC3001,
+            DiagnosticDescriptors.BCF3001,
             ctx.Operation.Syntax.GetLocation(),
             targetSymbol.Name,
             expressionName));

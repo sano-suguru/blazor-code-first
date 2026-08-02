@@ -9,7 +9,7 @@ namespace BlazorCompose.Compiler.Generation;
 /// <summary>
 /// The value-equal outcome of expanding a component's design-time expression (<c>Body</c> or
 /// <c>Chrome</c>) template: the final <see cref="RenderNode"/> tree (or <see langword="null"/> when
-/// expansion failed) plus the call-site BC1002 <see cref="Diagnostics"/> captured as symbol-free data.
+/// expansion failed) plus the call-site BCF1002 <see cref="Diagnostics"/> captured as symbol-free data.
 /// </summary>
 internal readonly record struct ExpansionResult(
     RenderNode? Node,
@@ -121,7 +121,7 @@ internal static class ComposableExpander
 
                     // The key is applied to the content's root element/component frame. Region-rooted
                     // content (a bare If/ForEach, or a composable whose expanded body is region-rooted)
-                    // has no keyable frame. BC3003 is reported by KeyabilityResolver (reachability-
+                    // has no keyable frame. BCF3003 is reported by KeyabilityResolver (reachability-
                     // independent, deduped per definition/component); suppress emission here so no SetKey
                     // lands on a region.
                     if (!IsKeyableRoot(content))
@@ -244,7 +244,7 @@ internal static class ComposableExpander
         if (!registry.TryGet(methodKey, out var entry))
         {
             // A [Composable] method with no source declaration in this compilation (metadata-only) cannot
-            // be inlined; report a call-site BC1002.
+            // be inlined; report a call-site BCF1002.
             diagnostics.Add(CreateDiagnostic(
                 call,
                 "no source declaration is available to expand at the call site"));
@@ -264,7 +264,7 @@ internal static class ComposableExpander
 
         if (entry.Definition is null)
         {
-            // The declaration is present but invalid; BC1002 was already reported at the declaration, so
+            // The declaration is present but invalid; BCF1002 was already reported at the declaration, so
             // the call site suppresses a duplicate diagnostic and simply fails to expand.
             return null;
         }
@@ -417,7 +417,7 @@ internal static class ComposableExpander
 
     private static DiagnosticInfo CreateDiagnostic(ComposableCallTemplateNode call, string reason) =>
         DiagnosticInfo.Create(
-            DiagnosticDescriptors.BC1002,
+            DiagnosticDescriptors.BCF1002,
             call.Location.ToLocation(),
             [call.DisplayName, reason]);
 }

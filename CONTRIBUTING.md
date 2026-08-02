@@ -169,16 +169,16 @@ milestone. That is a valid state rather than an oversight.
   identify template positions; keys identify data instances.
 - Classes that **declare the design-time expression override** (`Body` or
   `Chrome`) must be `partial` so the generator can emit `RenderView`
-  (otherwise `BC1001`), and must be top-level classes (nested classes are
-  rejected with `BC1005`). Merely inheriting a Compose base does not require
+  (otherwise `BCF1001`), and must be top-level classes (nested classes are
+  rejected with `BCF1005`). Merely inheriting a Compose base does not require
   it. A hand-written `RenderView` override suppresses generation entirely, and
-  with it every diagnostic about the design-time expression including `BC1001`:
+  with it every diagnostic about the design-time expression including `BCF1001`:
   nothing is generated into that class, so `partial` would change nothing.
 - `Body`, `Chrome`, the element helpers, decorators, `Component<T>()`,
   `Fragment`, and `Raw` are inert design-time constructs. The design-time
   expression (`ComposeComponentBase.Body` or `ComposeLayoutBase.Chrome`) must
   not be evaluated at runtime or mutate state; state mutation inside it is
-  reported as `BC3001`.
+  reported as `BCF3001`.
 - Preserve one-way flow: event dispatch precedes state mutation, which precedes
   rendering and DOM diff application.
 - Keep the SSC path free of runtime UI trees, reflection, and runtime
@@ -190,21 +190,21 @@ milestone. That is a valid state rather than an oversight.
   for `[Composable]` methods, and support existing Razor components through
   `Component<T>()`. A `Component<T>()` type argument must resolve while the
   generator runs, so a `.razor` component declared in the same project cannot be
-  named (`BC3012`) — source generators cannot observe each other's output. The
+  named (`BCF3012`) — source generators cannot observe each other's output. The
   same component in a referenced project or package resolves normally.
   `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. The target must have a
   settable `[Parameter] ChildContent` of type non-generic `RenderFragment`;
-  otherwise BC3013 is reported. A `RenderFragment<TContext>` cannot receive the
+  otherwise BCF3013 is reported. A `RenderFragment<TContext>` cannot receive the
   children — the generated lambda is non-generic and would fail an invalid cast
   at runtime. Other `RenderFragment` parameters bind through
-  `.Param(c => c.Name, content)`. BC3014 prevents design-time inert types
+  `.Param(c => c.Name, content)`. BCF3014 prevents design-time inert types
   (`View` / `ComponentView<T>` / `ElementBuilder`) from being passed to the
   generic `.Param`.
 - Value expressions copied into generated code must be lexical-context independent.
   Resolved type names are normalized to `global::`-qualified names. An unresolved
-  type name that is not already rooted at `global::` reports `BC3015`; each generic
-  type argument is judged independently. Keep this separate from `BC3012`, which
+  type name that is not already rooted at `global::` reports `BCF3015`; each generic
+  type argument is judged independently. Keep this separate from `BCF3012`, which
   is reserved for the render-node type argument of `Component<T>()`.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts — do not repurpose or remove them. New IDs and public

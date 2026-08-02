@@ -9,14 +9,14 @@ namespace BlazorCompose.Compiler.Diagnostics;
 internal static class DiagnosticDescriptors
 {
     /// <summary>
-    /// BC1001: A class that declares the design-time expression override (<c>Body</c> on
+    /// BCF1001: A class that declares the design-time expression override (<c>Body</c> on
     /// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) must be declared
     /// <c>partial</c> so the source generator can emit the <c>RenderView</c> override into the same class.
     /// A class that only inherits a Compose base without declaring the override has nothing generated
     /// into it and is not reported.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC1001 = new(
-        id: "BC1001",
+    public static readonly DiagnosticDescriptor BCF1001 = new(
+        id: "BCF1001",
         title: "Class declaring a design-time expression must be partial",
         messageFormat: "'{0}' declares the {1} design-time expression of {2} but is not declared partial; add the partial modifier",
         category: "BlazorCompose",
@@ -30,11 +30,11 @@ internal static class DiagnosticDescriptors
             "it, or a re-abstraction — has nothing generated into it and needs no partial modifier.");
 
     /// <summary>
-    /// BC1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
+    /// BCF1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
     /// static-expansion contract.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC1002 = new(
-        id: "BC1002",
+    public static readonly DiagnosticDescriptor BCF1002 = new(
+        id: "BCF1002",
         title: "Composable method shape is unsupported",
         messageFormat: "Composable method '{0}' is unsupported: {1}",
         category: "BlazorCompose",
@@ -44,7 +44,7 @@ internal static class DiagnosticDescriptors
             "A method marked Composable must satisfy the compiler's supported static expansion contract.");
 
     /// <summary>
-    /// BC3001: A Compose base's design-time expression getter (<c>Body</c> on <c>ComposeComponentBase</c>,
+    /// BCF3001: A Compose base's design-time expression getter (<c>Body</c> on <c>ComposeComponentBase</c>,
     /// <c>Chrome</c> on <c>ComposeLayoutBase</c>) must not mutate component state (single-direction
     /// data-flow violation).
     /// The initial detectable boundary covers statically identifiable direct writes (field assignments,
@@ -52,8 +52,8 @@ internal static class DiagnosticDescriptors
     /// the containing component.  Recognized deferred event handler lambdas (the <c>Button</c> onClick
     /// argument) are excluded.  Arbitrary interprocedural side effects are not guaranteed to be detected.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3001 = new(
-        id: "BC3001",
+    public static readonly DiagnosticDescriptor BCF3001 = new(
+        id: "BCF3001",
         title: "State mutation inside the design-time expression violates single-direction data flow",
         messageFormat: "'{0}' is mutated inside {1}; move state changes to event handlers to preserve single-direction data flow",
         category: "BlazorCompose",
@@ -65,12 +65,12 @@ internal static class DiagnosticDescriptors
             "the rendering pipeline. Move the mutation to an event handler.");
 
     /// <summary>
-    /// BC3002: A <c>ForEach</c> key selector does not reference its item and therefore cannot express
+    /// BCF3002: A <c>ForEach</c> key selector does not reference its item and therefore cannot express
     /// per-item identity, defeating keyed diffing. Heuristic and intentionally conservative: it does not
     /// detect an item-derived-but-index-like key.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3002 = new(
-        id: "BC3002",
+    public static readonly DiagnosticDescriptor BCF3002 = new(
+        id: "BCF3002",
         title: "ForEach key selector may not identify items",
         messageFormat: "ForEach key selector does not reference the item; a key must identify each item so list state is preserved across reorders",
         category: "BlazorCompose",
@@ -82,14 +82,14 @@ internal static class DiagnosticDescriptors
             "(a constant, an external index, or another list's item) forces full re-rendering.");
 
     /// <summary>
-    /// BC3003: A <c>ForEach</c> content template's root is not a single element or component, so its key
+    /// BCF3003: A <c>ForEach</c> content template's root is not a single element or component, so its key
     /// has no frame to attach to (Blazor's <c>SetKey</c> keys the currently open element/component frame).
     /// The required-key contract cannot be honored, so emission is suppressed. Mirrors Razor, where
     /// <c>@key</c> cannot be applied to an <c>@if</c>; wrap the content in an element such as
     /// <c>Html.Div[...]</c> instead.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3003 = new(
-        id: "BC3003",
+    public static readonly DiagnosticDescriptor BCF3003 = new(
+        id: "BCF3003",
         title: "ForEach content must be a single element or component",
         messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as Html.Div[...]",
         category: "BlazorCompose",
@@ -104,14 +104,14 @@ internal static class DiagnosticDescriptors
             "the content in a container element such as Html.Div[...].");
 
     /// <summary>
-    /// BC1003: A component's design-time expression (<c>Body</c> or <c>Chrome</c>) reached the model
+    /// BCF1003: A component's design-time expression (<c>Body</c> or <c>Chrome</c>) reached the model
     /// stage but could not be translated to a RenderView (no template, and no other actionable
     /// diagnostic was produced). Explains the CS0534 that the abstract RenderView would otherwise raise
     /// on its own. Transitional: its firing condition shrinks once the Opaque/Transplantable fallback
     /// paths are implemented.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC1003 = new(
-        id: "BC1003",
+    public static readonly DiagnosticDescriptor BCF1003 = new(
+        id: "BCF1003",
         title: "Design-time expression could not be translated",
         messageFormat: "The {1} design-time expression of '{0}' could not be translated to a RenderView; it uses a construct that is not statically analyzable",
         category: "BlazorCompose",
@@ -124,18 +124,18 @@ internal static class DiagnosticDescriptors
             "lambda, so the expression can be analyzed.");
 
     /// <summary>
-    /// BC1004: A design-time expression override declares a getter the generator cannot translate —
+    /// BCF1004: A design-time expression override declares a getter the generator cannot translate —
     /// either a getter body that does not reduce to a single expression, or an auto property, which
-    /// declares no getter body at all. Distinct from BC1003: the getter's shape is the problem, not the
+    /// declares no getter body at all. Distinct from BCF1003: the getter's shape is the problem, not the
     /// constructs used inside it, and the fix is to rewrite the getter rather than to change which
     /// element helpers are read. Reported at the property identifier rather than inside the getter, which is
-    /// the same distinction: BC1003 blames an expression, BC1004 blames the declaration around it. Not
+    /// the same distinction: BCF1003 blames an expression, BCF1004 blames the declaration around it. Not
     /// reported when the component overrides <c>RenderView</c> by hand (the design-time expression is
     /// then unused and the code is correct), nor for a partial property with no implementation part
     /// (CS9248 already names it).
     /// </summary>
-    public static readonly DiagnosticDescriptor BC1004 = new(
-        id: "BC1004",
+    public static readonly DiagnosticDescriptor BCF1004 = new(
+        id: "BCF1004",
         title: "Design-time expression getter must reduce to a single expression",
         messageFormat: "'{0}' declares the {1} design-time expression with a getter that does not reduce to a single expression; write it as '=> expr', 'get => expr', or 'get {{ return expr; }}'",
         category: "BlazorCompose",
@@ -150,14 +150,14 @@ internal static class DiagnosticDescriptors
             "cannot be expressed as a single expression.");
 
     /// <summary>
-    /// BC1005: A nested class declares a design-time expression. Emitting <c>RenderView</c> into it would
+    /// BCF1005: A nested class declares a design-time expression. Emitting <c>RenderView</c> into it would
     /// require reproducing the enclosing type chain (including any enclosing type's type parameters),
     /// which is not supported, so nothing is generated. Explains the CS0534 that the abstract RenderView
     /// would otherwise raise on its own, which names only RenderView and never mentions the nesting.
     /// Transitional: its firing condition disappears if nested components become supported.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC1005 = new(
-        id: "BC1005",
+    public static readonly DiagnosticDescriptor BCF1005 = new(
+        id: "BCF1005",
         title: "Nested class cannot declare a design-time expression",
         messageFormat: "'{0}' declares the {1} design-time expression but is a nested type; move it to a top-level type",
         category: "BlazorCompose",
@@ -169,12 +169,12 @@ internal static class DiagnosticDescriptors
             "supported. Move the component to a top-level type.");
 
     /// <summary>
-    /// BC3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
+    /// BCF3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
     /// lambda or a method group), so it cannot be statically analyzed. Transitional: narrows once the
     /// Transplantable/Opaque paths support such content.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3004 = new(
-        id: "BC3004",
+    public static readonly DiagnosticDescriptor BCF3004 = new(
+        id: "BCF3004",
         title: "ForEach content must be an inline expression lambda",
         messageFormat: "ForEach content and key must be inline expression lambdas so they can be statically analyzed; wrap the call in a lambda such as x => Wrapper(x)",
         category: "BlazorCompose",
@@ -186,12 +186,12 @@ internal static class DiagnosticDescriptors
             "expression lambda, wrapping any helper call as x => Helper(x).");
 
     /// <summary>
-    /// BC3005: A <c>Component&lt;T&gt;().Param</c> selector is not a simple property selection on its own
+    /// BCF3005: A <c>Component&lt;T&gt;().Param</c> selector is not a simple property selection on its own
     /// lambda parameter (for example <c>c =&gt; c.Label</c>). Casts, method calls, null-conditional access,
     /// or a member of a captured variable cannot be turned into a static parameter setter.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3005 = new(
-        id: "BC3005",
+    public static readonly DiagnosticDescriptor BCF3005 = new(
+        id: "BCF3005",
         title: "Component parameter selector must be a simple property selection",
         messageFormat: "Component parameter selector must select a property of the lambda parameter, such as c => c.Label",
         category: "BlazorCompose",
@@ -203,12 +203,12 @@ internal static class DiagnosticDescriptors
             "captured variable cannot be statically resolved to a parameter name.");
 
     /// <summary>
-    /// BC3006: A <c>Component&lt;T&gt;().Param</c> target is not a settable <c>[Parameter]</c> property.
+    /// BCF3006: A <c>Component&lt;T&gt;().Param</c> target is not a settable <c>[Parameter]</c> property.
     /// Setting a non-parameter (or a parameter with no accessible setter) would throw at runtime, so it is
     /// rejected at compile time.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3006 = new(
-        id: "BC3006",
+    public static readonly DiagnosticDescriptor BCF3006 = new(
+        id: "BCF3006",
         title: "Component parameter target must be a settable [Parameter] property",
         messageFormat: "'{0}' is not a settable [Parameter] property; Param can only bind properties marked [Parameter] with an accessible setter",
         category: "BlazorCompose",
@@ -219,12 +219,12 @@ internal static class DiagnosticDescriptors
             "any other member would throw at runtime when Blazor applies the parameters.");
 
     /// <summary>
-    /// BC3007: A <c>Component&lt;T&gt;().Param</c> chain binds the same property more than once. Blazor
+    /// BCF3007: A <c>Component&lt;T&gt;().Param</c> chain binds the same property more than once. Blazor
     /// silently applies the last binding, so a duplicate is almost certainly a mistake; it is rejected at
     /// compile time rather than allowed to shadow a value at runtime.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3007 = new(
-        id: "BC3007",
+    public static readonly DiagnosticDescriptor BCF3007 = new(
+        id: "BCF3007",
         title: "Component parameter is bound more than once",
         messageFormat: "'{0}' is bound more than once; remove the duplicate .Param(...) call",
         category: "BlazorCompose",
@@ -236,14 +236,14 @@ internal static class DiagnosticDescriptors
             "duplicate is reported at compile time.");
 
     /// <summary>
-    /// BC3008: A decoration (<c>.Class</c>/<c>.Attr</c>/a named attribute shortcut/<c>.OnClick</c>/<c>.On</c>)
+    /// BCF3008: A decoration (<c>.Class</c>/<c>.Attr</c>/a named attribute shortcut/<c>.OnClick</c>/<c>.On</c>)
     /// was applied to a node that does not open a single HTML element (an <c>If</c>/<c>ForEach</c> region
     /// root, a <c>Fragment</c>/<c>Raw</c> wrapper-less node, or a <c>[Composable]</c>/Component call result).
     /// Decorations fold into the attributes of the element opened by an Html element helper or
     /// <c>Html.Element</c>, so there must be such an element to attach to.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3008 = new(
-        id: "BC3008",
+    public static readonly DiagnosticDescriptor BCF3008 = new(
+        id: "BCF3008",
         title: "Decoration target must be a single element",
         messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, Fragment, Raw, or a [Composable]/Component result",
         category: "BlazorCompose",
@@ -256,13 +256,13 @@ internal static class DiagnosticDescriptors
             "[Composable]/Component result has no element to attach to. Decorate a concrete element instead.");
 
     /// <summary>
-    /// BC3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time
+    /// BCF3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time
     /// constant string. A non-empty constant tag keeps the element declarative and predictable
     /// (design-time syntax the generator can lower to a literal <c>OpenElement</c>); this is not an
     /// AOT/sequencing constraint, and non-constant or empty tags are not a security (injection) concern.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3009 = new(
-        id: "BC3009",
+    public static readonly DiagnosticDescriptor BCF3009 = new(
+        id: "BCF3009",
         title: "Element tag must be a compile-time constant string",
         messageFormat: "Html.Element tag must be a non-empty compile-time constant string; use a non-empty " +
             "string literal or a const",
@@ -275,14 +275,14 @@ internal static class DiagnosticDescriptors
             "predictable, consistent with the design-time nature of the surface.");
 
     /// <summary>
-    /// BC3010: An attribute or event is bound more than once on the same element. Neither outcome is what
+    /// BCF3010: An attribute or event is bound more than once on the same element. Neither outcome is what
     /// the author wrote: two bindings in the attribute channel leave the earlier one dead (the last write
     /// wins), while one name bound through the attribute channel and the event channel keeps both, so an
     /// inline handler and a C# handler each fire on every event. <c>class</c> is the sole exception —
     /// multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3010 = new(
-        id: "BC3010",
+    public static readonly DiagnosticDescriptor BCF3010 = new(
+        id: "BCF3010",
         title: "Attribute or event is bound more than once",
         messageFormat: "'{0}' is bound more than once on this element; remove the duplicate (only 'class' may be repeated — it folds)",
         category: "BlazorCompose",
@@ -297,12 +297,12 @@ internal static class DiagnosticDescriptors
             "fold into a single class attribute.");
 
     /// <summary>
-    /// BC3011: A <c>.Attr</c> name or <c>.On</c> event name is not a non-empty compile-time constant
+    /// BCF3011: A <c>.Attr</c> name or <c>.On</c> event name is not a non-empty compile-time constant
     /// string. A constant name keeps the decoration declarative and typo-checkable, and is required to
-    /// route class-folding and detect duplicate bindings. Sibling of BC3009 (constant Element tag).
+    /// route class-folding and detect duplicate bindings. Sibling of BCF3009 (constant Element tag).
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3011 = new(
-        id: "BC3011",
+    public static readonly DiagnosticDescriptor BCF3011 = new(
+        id: "BCF3011",
         title: "Attribute/event name must be a compile-time constant string",
         messageFormat: ".Attr name and .On event name must be a non-empty compile-time constant string",
         category: "BlazorCompose",
@@ -314,7 +314,7 @@ internal static class DiagnosticDescriptors
             "typo-checkable and is the prerequisite for class folding and duplicate-binding detection.");
 
     /// <summary>
-    /// BC3012: The type argument of <c>Component&lt;T&gt;()</c> did not resolve to a type while the
+    /// BCF3012: The type argument of <c>Component&lt;T&gt;()</c> did not resolve to a type while the
     /// generator ran. The dominant cause is a <c>.razor</c> component declared in the same project: the
     /// Razor compiler is itself a source generator, and source generators cannot observe each other's
     /// output, so the type is unresolved here even though it exists in the final compilation. The same
@@ -329,8 +329,8 @@ internal static class DiagnosticDescriptors
     /// file — or binds silently to a different same-named type that happens to be reachable from the
     /// generated file's namespace, rendering the wrong component with no diagnostic at all.
     /// </remarks>
-    public static readonly DiagnosticDescriptor BC3012 = new(
-        id: "BC3012",
+    public static readonly DiagnosticDescriptor BCF3012 = new(
+        id: "BCF3012",
         title: "Component type argument could not be resolved",
         messageFormat: "'{0}' could not be resolved when the BlazorCompose generator ran; a .razor " +
             "component declared in this project is invisible to it because source generators cannot " +
@@ -350,13 +350,13 @@ internal static class DiagnosticDescriptors
             "at the same position.");
 
     /// <summary>
-    /// BC3013: <c>Component&lt;T&gt;()[children]</c> was given child content but <c>T</c> has no parameter
+    /// BCF3013: <c>Component&lt;T&gt;()[children]</c> was given child content but <c>T</c> has no parameter
     /// that can receive it — no <c>ChildContent</c> at all, one that is not a settable
     /// <c>[Parameter]</c>, or one typed <c>RenderFragment&lt;TContext&gt;</c> rather than the non-generic
     /// <c>RenderFragment</c>. Blazor would throw while applying parameters.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3013 = new(
-        id: "BC3013",
+    public static readonly DiagnosticDescriptor BCF3013 = new(
+        id: "BCF3013",
         title: "Component cannot receive child content",
         messageFormat:
             "'{0}' has no settable [Parameter] named 'ChildContent' of type RenderFragment, so it cannot "
@@ -372,14 +372,14 @@ internal static class DiagnosticDescriptors
                 + "time.");
 
     /// <summary>
-    /// BC3014: an inert design-time value (<c>View</c>, <c>ElementBuilder</c>, or
+    /// BCF3014: an inert design-time value (<c>View</c>, <c>ElementBuilder</c>, or
     /// <c>ComponentView&lt;T&gt;</c>) was passed to the generic <c>Param</c>, whose value is emitted
     /// verbatim. Such a value binds the empty design-time marker rather than any content: an
     /// <c>object</c>-typed parameter accepts it with no exception at all and renders wrong output, and a
     /// typed parameter throws an invalid cast at runtime.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3014 = new(
-        id: "BC3014",
+    public static readonly DiagnosticDescriptor BCF3014 = new(
+        id: "BCF3014",
         title: "Design-time value bound as a component parameter value",
         messageFormat:
             "'{0}' is inert design-time syntax and cannot be bound as a parameter value; use "
@@ -395,11 +395,11 @@ internal static class DiagnosticDescriptors
                 + "parameters. Bind content through the RenderFragment overload of Param instead.");
 
     /// <summary>
-    /// BC3015: a type reference inside a design-time value expression could not be resolved while the
+    /// BCF3015: a type reference inside a design-time value expression could not be resolved while the
     /// generator ran and its written form depends on lexical context absent from generated code.
     /// </summary>
-    public static readonly DiagnosticDescriptor BC3015 = new(
-        id: "BC3015",
+    public static readonly DiagnosticDescriptor BCF3015 = new(
+        id: "BCF3015",
         title: "Type reference cannot be safely emitted",
         messageFormat:
             "'{0}' could not be resolved when the BlazorCompose generator ran and is not qualified with "

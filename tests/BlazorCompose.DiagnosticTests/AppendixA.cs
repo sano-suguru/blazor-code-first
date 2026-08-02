@@ -16,7 +16,7 @@ internal sealed record AppendixARow(string Id, string? Kind);
 /// </summary>
 /// <remarks>
 /// Deliberately tolerant about everything except what is being checked: it takes the section between
-/// the 付録A heading and the next top-level heading, then every row whose first cell is a BC ID and
+/// the 付録A heading and the next top-level heading, then every row whose first cell is a BCF ID and
 /// reads the second cell as the severity.  The prose, the column count beyond the second, and the
 /// sub-heading structure inside 付録A can all change without touching this parser.  Moving or renaming
 /// the section fails loudly here; reordering the columns fails in
@@ -63,6 +63,6 @@ internal static partial class AppendixA
         return rows.ToImmutable();
     }
 
-    [GeneratedRegex(@"^\|\s*`?(?<id>BC\d{4})`?\s*\|(?<kind>[^|]*)", RegexOptions.ExplicitCapture)]
+    [GeneratedRegex(@"^\|\s*`?(?<id>BCF\d{4})`?\s*\|(?<kind>[^|]*)", RegexOptions.ExplicitCapture)]
     private static partial Regex Row();
 }

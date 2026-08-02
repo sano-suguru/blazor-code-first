@@ -20,7 +20,7 @@ public sealed class Widget : ComponentBase
     public string? NotAParameter { get; set; }
 }
 
-/// <summary>A component with no <c>ChildContent</c> parameter, for BC3013.</summary>
+/// <summary>A component with no <c>ChildContent</c> parameter, for BCF3013.</summary>
 public sealed class ChildlessWidget : ComponentBase
 {
     [Parameter]

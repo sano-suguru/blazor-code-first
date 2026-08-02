@@ -13,9 +13,9 @@ namespace BlazorCompose.Compiler.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The failure mode this descends from: BC3008 moved from <c>RenderExpressionAnalyzer.Classify</c> — which
+/// The failure mode this descends from: BCF3008 moved from <c>RenderExpressionAnalyzer.Classify</c> — which
 /// both hosts route through — into a caller-invoked sweep, was wired into the component host only, and a
-/// misplaced decoration inside a <c>[Composable]</c> body degraded to the generic BC1002 for the life of
+/// misplaced decoration inside a <c>[Composable]</c> body degraded to the generic BCF1002 for the life of
 /// the branch.  The guard that replaced it compared the two hosts' scanner lists.  That comparison is gone
 /// because the lists are gone: <c>FailurePathScanners.ReportAll</c> holds one list and both hosts call it,
 /// so one-host wiring is no longer something that can be written.
@@ -37,9 +37,9 @@ namespace BlazorCompose.Compiler.Tests;
 /// It reads source text rather than behaviour, which is the only way to see a scanner that <em>no</em>
 /// test exercises yet.  It cannot see whether a call sits on the failure path or whether the expressions
 /// passed are equivalent; those are for the behavioural tests — see
-/// <c>BracketSurfaceDiagnosticTests.DecoratingANonElement_InsideAComposableBody_ReportsBC3008</c>,
-/// <c>UnresolvedValueType_InsideAComposableBody_ReportsBC3015</c> and
-/// <c>ComponentUnresolvedTypeTests.Component_InsideComposableBody_ReportsBC3012NotGenericBC1002</c>, which
+/// <c>BracketSurfaceDiagnosticTests.DecoratingANonElement_InsideAComposableBody_ReportsBCF3008</c>,
+/// <c>UnresolvedValueType_InsideAComposableBody_ReportsBCF3015</c> and
+/// <c>ComponentUnresolvedTypeTests.Component_InsideComposableBody_ReportsBCF3012NotGenericBCF1002</c>, which
 /// are the per-scanner author-facing cases for the <c>[Composable]</c> host.
 /// </para>
 /// </remarks>

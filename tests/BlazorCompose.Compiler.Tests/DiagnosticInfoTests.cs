@@ -32,14 +32,14 @@ public sealed class DiagnosticInfoTests
     [Fact]
     public void IsError_ForWarningDescriptor_IsFalse()
     {
-        var info = DiagnosticInfo.Create(DiagnosticDescriptors.BC3002, Location.None, []);
+        var info = DiagnosticInfo.Create(DiagnosticDescriptors.BCF3002, Location.None, []);
 
         Assert.False(info.IsError);
     }
 
     [Theory]
-    [InlineData("BC3005")]
-    [InlineData("BC3006")]
+    [InlineData("BCF3005")]
+    [InlineData("BCF3006")]
     public void ById_ResolvesNewComponentDiagnostics_AsErrors(string id)
     {
         var descriptor = BlazorCompose.Compiler.Diagnostics.DiagnosticDescriptors.ById(id);
@@ -50,9 +50,9 @@ public sealed class DiagnosticInfoTests
 
     // ToDiagnostic_ForEveryDescriptor_RoundTripsToSameDescriptor above passes empty message arguments
     // and never formats the message, so it cannot catch a placeholder/argument mismatch or an
-    // unescaped literal brace in messageFormat — exactly the defect BC1004 shipped with in this
+    // unescaped literal brace in messageFormat — exactly the defect BCF1004 shipped with in this
     // branch's plan (a literal "{ return expr; }" that needed escaping to "{{ return expr; }}") and
-    // that only a hand-written BC1004 test happened to catch.
+    // that only a hand-written BCF1004 test happened to catch.
     //
     // This must call string.Format directly on the raw messageFormat text rather than going through
     // Diagnostic.Create(...).GetMessage(...): that path was verified (by probe) to swallow the exact
@@ -67,7 +67,7 @@ public sealed class DiagnosticInfoTests
             .Select(f => (DiagnosticDescriptor)f.GetValue(null)!)
             .ToArray();
 
-        // No shipped descriptor has more than three placeholders (BC1001); ten dummy arguments is
+        // No shipped descriptor has more than three placeholders (BCF1001); ten dummy arguments is
         // comfortably more than any current or near-future descriptor could need, and surplus
         // arguments are not an error for composite formatting.
         var dummyArguments = Enumerable.Range(0, 10).Select(i => (object)$"arg{i}").ToArray();

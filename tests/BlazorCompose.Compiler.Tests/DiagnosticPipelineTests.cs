@@ -7,9 +7,9 @@ namespace BlazorCompose.Compiler.Tests;
 public sealed class DiagnosticPipelineTests
 {
     [Fact]
-    public void ComponentBody_WithBadKeyAndUnkeyableContent_ReportsBothBc3002AndBc3003()
+    public void ComponentBody_WithBadKeyAndUnkeyableContent_ReportsBothBcf3002AndBcf3003()
     {
-        // A constant-key ForEach (BC3002 warning) beside a region-rooted-content ForEach (BC3003 error)
+        // A constant-key ForEach (BCF3002 warning) beside a region-rooted-content ForEach (BCF3003 error)
         // in the same Body. The warning must not be dropped by the co-located error.
         const string source = """
             using System.Collections.Generic;
@@ -30,12 +30,12 @@ public sealed class DiagnosticPipelineTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3002" && d.Severity == DiagnosticSeverity.Warning);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3003" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3002" && d.Severity == DiagnosticSeverity.Warning);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003" && d.Severity == DiagnosticSeverity.Error);
     }
 
     [Fact]
-    public void ComponentBody_UnrecognizedConstruct_ReportsBc1003AndNoSource()
+    public void ComponentBody_UnrecognizedConstruct_ReportsBcf1003AndNoSource()
     {
         // A call that is neither design-time syntax nor a [Composable] method, though it returns View,
         // reaches the model stage with a null template.
@@ -50,12 +50,12 @@ public sealed class DiagnosticPipelineTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC1003" && d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003" && d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedSources);
     }
 
     [Fact]
-    public void ComponentBody_WithBc3004_DoesNotAlsoReportBc1003()
+    public void ComponentBody_WithBcf3004_DoesNotAlsoReportBcf1003()
     {
         const string source = """
             using System.Collections.Generic;
@@ -70,14 +70,14 @@ public sealed class DiagnosticPipelineTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BC3004");
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BC1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
     [Fact]
-    public void Bc1003_Location_CoversTheUntranslatableExpression()
+    public void Bcf1003_Location_CoversTheUntranslatableExpression()
     {
-        // BC1003 was reported with Location.None, so a real build printed it as `CSC(1,1)`: the one
+        // BCF1003 was reported with Location.None, so a real build printed it as `CSC(1,1)`: the one
         // diagnostic that explains an unanalyzable body could not be navigated to (#77).
         const string source = """
             using static BlazorCompose.Html;
@@ -89,7 +89,7 @@ public sealed class DiagnosticPipelineTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
 
         Assert.Equal("Test.cs", diagnostic.Location.GetLineSpan().Path);
         Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
@@ -148,22 +148,22 @@ public sealed class DiagnosticPipelineTests
         "decorator receiver",
         """OpaqueElementBuilder().Class("c")""",
         "OpaqueElementBuilder()")]
-    public void Bc1003_Location_BlamesTheInnermostFailure_OnEveryRecursiveDescent(
+    public void Bcf1003_Location_BlamesTheInnermostFailure_OnEveryRecursiveDescent(
         string descent, string body, string expectedAnchor)
     {
         var source = InnermostFailureHost.Replace("$BODY$", body);
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
         var actual = SourceText.From(source).ToString(diagnostic.Location.SourceSpan);
 
         Assert.True(
             string.Equals(actual, expectedAnchor, System.StringComparison.Ordinal),
-            $"{descent}: expected BC1003 at `{expectedAnchor}`, got `{actual}`.");
+            $"{descent}: expected BCF1003 at `{expectedAnchor}`, got `{actual}`.");
     }
 
     [Fact]
-    public void Bc1003_Location_DistinguishesTwoComponentsInOneFile()
+    public void Bcf1003_Location_DistinguishesTwoComponentsInOneFile()
     {
         // The shape the issue describes: several components in one file. A location that does not
         // separate them is no better than none.
@@ -181,7 +181,7 @@ public sealed class DiagnosticPipelineTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
 
         var line = diagnostic.Location.GetLineSpan().StartLinePosition.Line;
         Assert.Equal(7, line);
@@ -189,9 +189,9 @@ public sealed class DiagnosticPipelineTests
     }
 
     [Fact]
-    public void Bc1003_Location_CoversAnUntranslatableChrome()
+    public void Bcf1003_Location_CoversAnUntranslatableChrome()
     {
-        // A layout reports BC1003 from the same place; Chrome must be located like Body.
+        // A layout reports BCF1003 from the same place; Chrome must be located like Body.
         const string source = """
             using static BlazorCompose.Html;
             public partial class Shell : BlazorCompose.ComposeLayoutBase
@@ -202,7 +202,7 @@ public sealed class DiagnosticPipelineTests
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BC1003");
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
 
         Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
