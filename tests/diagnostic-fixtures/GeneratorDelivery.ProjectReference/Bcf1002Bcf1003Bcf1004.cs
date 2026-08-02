@@ -4,7 +4,7 @@ using static BlazorCodeFirst.Html;
 namespace Fixtures.GeneratorDelivery;
 
 /// <summary>BCF1002: a <c>[Composable]</c> method that is not static.</summary>
-public partial class Bcf1002Host : ComposeComponentBase
+public partial class Bcf1002Host : BodyComponentBase
 {
     protected override View Body => Span["bcf1002"];
 
@@ -17,7 +17,7 @@ public partial class Bcf1002Host : ComposeComponentBase
 /// statically analyzable and has no runtime fallback yet.  Wrapped in translatable element helpers on
 /// purpose: the reported location must be the offending call, not the whole <c>Body</c> (#77).
 /// </summary>
-public partial class Bcf1003Host : ComposeComponentBase
+public partial class Bcf1003Host : BodyComponentBase
 {
     protected override View Body => Div[Span["bcf1003"], Make()];
 
@@ -25,7 +25,7 @@ public partial class Bcf1003Host : ComposeComponentBase
 }
 
 /// <summary>BCF1004: a getter that does not reduce to a single expression.</summary>
-public partial class Bcf1004Host : ComposeComponentBase
+public partial class Bcf1004Host : BodyComponentBase
 {
     protected override View Body
     {

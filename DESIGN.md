@@ -83,13 +83,13 @@ HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止�
 
 ### 4.1 基本コンポーネントの構造
 
-開発者は `ComposeComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。語彙はHTML要素をそのまま写す「HTMLミラー表層」を採ります。この表層は kotlinx.html(Kotlin) / ScalaTags(Scala) / Feliz(F#) / Elm html(Elm) / hiccup(Clojure) の系譜に連なります。いずれも独自のレイアウト語彙を発明せず、HTML要素と属性の語彙をそのまま言語機能として表現し、レイアウトは全面的にCSSへ委ねる点で共通しており、本節もその方針に従います(系譜内での正確な位置づけ — 型安全観と装飾チェーンの形式 — は本節後段に記します)。
+開発者は `BodyComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。語彙はHTML要素をそのまま写す「HTMLミラー表層」を採ります。この表層は kotlinx.html(Kotlin) / ScalaTags(Scala) / Feliz(F#) / Elm html(Elm) / hiccup(Clojure) の系譜に連なります。いずれも独自のレイアウト語彙を発明せず、HTML要素と属性の語彙をそのまま言語機能として表現し、レイアウトは全面的にCSSへ委ねる点で共通しており、本節もその方針に従います(系譜内での正確な位置づけ — 型安全観と装飾チェーンの形式 — は本節後段に記します)。
 
 ```csharp
 using BlazorCodeFirst;
 using static BlazorCodeFirst.Html;
 
-public partial class CounterPage : ComposeComponentBase
+public partial class CounterPage : BodyComponentBase
 {
     private int _count;
 
@@ -122,7 +122,7 @@ public partial class CounterPage : ComposeComponentBase
 分岐とループは、専用コンビネータ `If` / `ForEach` で宣言的に記述します。
 
 ```csharp
-public partial class TaskListPage : ComposeComponentBase
+public partial class TaskListPage : BodyComponentBase
 {
     private readonly List<TaskItem> _items = [];
 
@@ -209,7 +209,7 @@ public partial class CounterPage
 基底クラスとの接続は次の形をとります。
 
 ```csharp
-public abstract class ComposeComponentBase : ComponentBase
+public abstract class BodyComponentBase : ComponentBase
 {
     protected abstract View Body { get; }          // 設計時のソース・オブ・トゥルース
     protected abstract void RenderView(RenderTreeBuilder builder);   // SGが実装を生成
@@ -356,7 +356,7 @@ C#によるコードファーストUIの試みは本ライブラリが最初で�
 
 ### 第1フェーズ: コアAPIとPoC
 
-コアAPIはHTMLミラー表層として実装します。常用タグの要素ヘルパー(`Html.Div` / `Span` / `Button`)と任意タグ用の `Html.Element` を統一 `Element` ノードへ落とし、属性・イベントはタグ直後の装飾チェーン(`.Class` / `.OnClick`)で、子は続く `[...]` で与えます(§4.1)。かつて本節が第1フェーズの語彙としていたSwiftUI/Compose風の `VStack` / `HStack` / `Grid` と型付き装飾(`.Padding()` / `.FontSize()` 等)は本方針により置き換えられ、新たな設計文書の改訂なしに復活しません。表層の内訳は、統合 `Element` ノード・mixed content・装飾チェーンの一般化を土台として、curatedタグ集合(`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img`)、名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`)、汎用 `.Attr` / `.On`、`Html.Fragment`(ラッパーレスなグルーピング)、`Html.Raw`(信頼済み生HTML注入)です。`class` は唯一の畳み込み属性で、それ以外の属性・イベントは単一バインディングです(重複はBCF3010、非定数の名前はBCF3011で診断)。フォーム関連ヘルパーや型付きイベント引数などの追加は次段階で検討します。レイアウトも `ComposeLayoutBase` によりコード化します。Blazorのレイアウトが要求する `Body` パラメータ(`LayoutComponentBase.Body`、型は `RenderFragment?`)は暗黙変換で `View` になるため、専用の構文なしに `Main[Body]` のようにそのまま要素の子として書けます。レイアウト自身が描く design-time 式は `Body` と名乗れない(Blazorが `Body` という名前を要求するため)ので `Chrome` と命名し、`Chrome` もコンポーネントの `Body` 同様に読み取り専用(state mutationはBCF3001)です。Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインの実証は各マイルストーンを通じて継続します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
+コアAPIはHTMLミラー表層として実装します。常用タグの要素ヘルパー(`Html.Div` / `Span` / `Button`)と任意タグ用の `Html.Element` を統一 `Element` ノードへ落とし、属性・イベントはタグ直後の装飾チェーン(`.Class` / `.OnClick`)で、子は続く `[...]` で与えます(§4.1)。かつて本節が第1フェーズの語彙としていたSwiftUI/Compose風の `VStack` / `HStack` / `Grid` と型付き装飾(`.Padding()` / `.FontSize()` 等)は本方針により置き換えられ、新たな設計文書の改訂なしに復活しません。表層の内訳は、統合 `Element` ノード・mixed content・装飾チェーンの一般化を土台として、curatedタグ集合(`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img`)、名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`)、汎用 `.Attr` / `.On`、`Html.Fragment`(ラッパーレスなグルーピング)、`Html.Raw`(信頼済み生HTML注入)です。`class` は唯一の畳み込み属性で、それ以外の属性・イベントは単一バインディングです(重複はBCF3010、非定数の名前はBCF3011で診断)。フォーム関連ヘルパーや型付きイベント引数などの追加は次段階で検討します。レイアウトも `ChromeLayoutBase` によりコード化します。Blazorのレイアウトが要求する `Body` パラメータ(`LayoutComponentBase.Body`、型は `RenderFragment?`)は暗黙変換で `View` になるため、専用の構文なしに `Main[Body]` のようにそのまま要素の子として書けます。レイアウト自身が描く design-time 式は `Body` と名乗れない(Blazorが `Body` という名前を要求するため)ので `Chrome` と命名し、`Chrome` もコンポーネントの `Body` 同様に読み取り専用(state mutationはBCF3001)です。Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインの実証は各マイルストーンを通じて継続します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
 
 ### 第2フェーズ: 解析範囲の拡張と .NET 11 対応
 

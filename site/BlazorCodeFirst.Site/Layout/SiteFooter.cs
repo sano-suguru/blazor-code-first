@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.Site.Layout;
 
-public sealed partial class SiteFooter : ComposeComponentBase
+public sealed partial class SiteFooter : BodyComponentBase
 {
     protected override View Body =>
         Footer.Class("site-footer")[

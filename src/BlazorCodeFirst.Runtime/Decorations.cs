@@ -1,8 +1,8 @@
 namespace BlazorCodeFirst;
 
 /// <summary>
-/// Design-time decoration syntax applied to an <see cref="ElementBuilder"/> in a Compose design-time
-/// expression (<see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>).
+/// Design-time decoration syntax applied to an <see cref="ElementBuilder"/> in a BlazorCodeFirst design-time
+/// expression (<see cref="BodyComponentBase.Body"/> or <see cref="ChromeLayoutBase.Chrome"/>).
 /// </summary>
 /// <remarks>
 /// Like the <see cref="Html"/> element helpers, every member here is inert design-time syntax: the

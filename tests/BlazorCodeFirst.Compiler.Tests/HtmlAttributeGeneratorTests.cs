@@ -6,7 +6,7 @@ public sealed class HtmlAttributeGeneratorTests
     {
         var source = $$"""
             using BlazorCodeFirst;
-            public partial class C : ComposeComponentBase
+            public partial class C : BodyComponentBase
             {
                 private string _url = "/x";
                 protected override View Body => {{body}};
@@ -22,7 +22,7 @@ public sealed class HtmlAttributeGeneratorTests
     {
         var source = $$"""
             using BlazorCodeFirst;
-            public partial class C : ComposeComponentBase
+            public partial class C : BodyComponentBase
             {
                 protected override View Body => {{body}};
             }

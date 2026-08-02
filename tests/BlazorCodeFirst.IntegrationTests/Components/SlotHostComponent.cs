@@ -12,7 +12,7 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 // the pre-flip ordering. The rendered DOM is unaffected — bUnit selects by CSS class, not slot order —
 // but the generated RenderView's AddComponentParameter(seq, "Footer", ...) /
 // AddComponentParameter(seq, "ChildContent", ...) pair swapped places accordingly.
-public partial class SlotHostComponent : ComposeComponentBase
+public partial class SlotHostComponent : BodyComponentBase
 {
     private int _count;
 

@@ -7,7 +7,7 @@ using static BlazorCodeFirst.Html;
 var component = new TrimCounter();
 component.RenderForTrimTest(new RenderTreeBuilder());
 
-public partial class TrimCounter : ComposeComponentBase
+public partial class TrimCounter : BodyComponentBase
 {
     private int _count;
     private readonly List<Row> _rows = [new Row(1, "First")];

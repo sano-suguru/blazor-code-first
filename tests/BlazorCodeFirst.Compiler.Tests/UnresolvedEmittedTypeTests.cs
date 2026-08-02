@@ -54,7 +54,7 @@ public sealed class UnresolvedEmittedTypeTests
                 public Type? Kind { get; set; }
             }
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Real>().Param(r => r.Kind, typeof(Probe));
@@ -79,7 +79,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     If(typeof(Probe) == typeof(object), () => Div);
@@ -100,7 +100,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Div.Class((new object() is Probe value).ToString());
@@ -125,7 +125,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     If(then: () => Div, Has<Probe>());
@@ -155,7 +155,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => {{body}};
             }
@@ -176,7 +176,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly int[] _items = [1];
 
@@ -200,7 +200,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly int[] _items = [1];
 
@@ -224,7 +224,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Div.Attr("data-type", typeof(Probe).Name);
@@ -246,7 +246,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Decorations.Attr(Div, "data-type", typeof(Probe).Name);
@@ -275,7 +275,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Raw("<b>x</b>").Class(typeof(Probe).Name);
@@ -299,7 +299,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Div.Attr(value: typeof(Probe).Name, name: typeof(string).Name);
@@ -325,7 +325,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Div.Id("first").Attr("id", typeof(Probe).Name);
@@ -348,7 +348,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 [Composable]
                 private static View Label(Type value) => Span[value.Name];
@@ -373,7 +373,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeLayoutBase
+            public partial class Host : ChromeLayoutBase
             {
                 protected override View Chrome =>
                     Div.Class(typeof(Probe).Name)[Body];
@@ -395,7 +395,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 [Composable]
                 private static View Card() => Div.Class(typeof(Probe).Name);
@@ -419,7 +419,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Probe>();
             }
@@ -441,7 +441,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Div.Class(typeof(Probe).Name + typeof(Probe).Name);
@@ -468,7 +468,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => {{body}};
             }
@@ -496,7 +496,7 @@ public sealed class UnresolvedEmittedTypeTests
                 public string Name { get; set; } = "";
             }
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Real>().Param((Probe r) => r.Name, "value");
@@ -539,7 +539,7 @@ public sealed class UnresolvedEmittedTypeTests
                 public Type? NotAParameter { get; set; }
             }
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly Real _other = new();
 
@@ -564,7 +564,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<int> _items = [];
 
@@ -589,7 +589,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Div.Class((Probe value) => "x");
             }
@@ -610,7 +610,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private static View Pick<T>(int value) => Div;
 
@@ -634,7 +634,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<int> _items = [];
 
@@ -665,7 +665,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<int> _items = [];
 
@@ -703,7 +703,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Div.Attr(typeof(string).Name, {{value}});
             }
@@ -725,7 +725,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private static string @nameof(Type value) => value.Name;
 
@@ -749,7 +749,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Div.Class(MissingMethod() + typeof(Probe).Name);
@@ -896,7 +896,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             namespace T;
 
-            public partial class Host<TValue> : ComposeComponentBase
+            public partial class Host<TValue> : BodyComponentBase
             {
                 protected override View Body => Div["ok"];
                 private object? ProbeExpression() => {{expression}};

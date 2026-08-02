@@ -5,7 +5,7 @@ public sealed class HtmlRawGeneratorTests
     private const string RawLiteralSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Main[Html.Raw("<em>hi</em>")];
         }
@@ -14,7 +14,7 @@ public sealed class HtmlRawGeneratorTests
     private const string RawFieldSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private string _html = "<em>hi</em>";
             protected override View Body => Html.Raw(_html);
@@ -25,7 +25,7 @@ public sealed class HtmlRawGeneratorTests
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private List<string> _xs = new();
             protected override View Body =>

@@ -46,7 +46,7 @@ public sealed class SnapshotCorpusTests
 
             namespace T;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 {{members}}
                 protected override View Body => {{body}};
@@ -124,7 +124,7 @@ public sealed class SnapshotCorpusTests
 
                 namespace T;
 
-                public partial class Host : BlazorCodeFirst.ComposeComponentBase
+                public partial class Host : BlazorCodeFirst.BodyComponentBase
                 {
                     private readonly List<string> _items = new();
 
@@ -147,7 +147,7 @@ public sealed class SnapshotCorpusTests
 
                     namespace T;
 
-                    public partial class First : ComposeComponentBase
+                    public partial class First : BodyComponentBase
                     {
                         protected override View Body => Div.Class("a")[Span["first"]];
                     }
@@ -158,7 +158,7 @@ public sealed class SnapshotCorpusTests
 
                     namespace T;
 
-                    public partial class Second : ComposeComponentBase
+                    public partial class Second : BodyComponentBase
                     {
                         protected override View Body => P["second"];
                     }
@@ -170,7 +170,7 @@ public sealed class SnapshotCorpusTests
 
                 namespace T;
 
-                public partial class Shell : ComposeLayoutBase
+                public partial class Shell : ChromeLayoutBase
                 {
                     protected override View Chrome => Main.Class("shell")[Body];
                 }

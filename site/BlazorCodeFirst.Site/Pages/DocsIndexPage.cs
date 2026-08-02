@@ -12,7 +12,7 @@ namespace BlazorCodeFirst.Site.Pages;
 /// under a URL nothing linked to. It is now a page of its own with content of its own.
 /// </summary>
 [Route("/docs")]
-public sealed partial class DocsIndexPage : ComposeComponentBase
+public sealed partial class DocsIndexPage : BodyComponentBase
 {
     protected override View Body =>
         Section.Class("prose")[

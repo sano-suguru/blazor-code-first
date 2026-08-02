@@ -5,7 +5,7 @@ public sealed class HtmlElementTagGeneratorTests
     private const string ConstantTagSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Element("nav")[Html.Span["x"]];
         }
@@ -14,7 +14,7 @@ public sealed class HtmlElementTagGeneratorTests
     private const string NonConstantTagSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private readonly string _tag = "nav";
             protected override View Body => Html.Element(_tag)[Html.Span["x"]];
@@ -24,7 +24,7 @@ public sealed class HtmlElementTagGeneratorTests
     private const string EmptyTagSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Element("")[Html.Span["x"]];
         }
@@ -33,7 +33,7 @@ public sealed class HtmlElementTagGeneratorTests
     private const string WhitespaceTagSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Element("   ")[Html.Span["x"]];
         }
@@ -87,7 +87,7 @@ public sealed class HtmlElementTagGeneratorTests
     {
         var source = $$"""
             using BlazorCodeFirst;
-            public partial class C : ComposeComponentBase
+            public partial class C : BodyComponentBase
             {
                 protected override View Body => Html.{{helper}};
             }

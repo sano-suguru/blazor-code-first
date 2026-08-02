@@ -10,7 +10,7 @@ internal static class DiagnosticDescriptors
 {
     /// <summary>
     /// BCF1001: A class that declares the design-time expression override (<c>Body</c> on
-    /// <c>ComposeComponentBase</c>, <c>Chrome</c> on <c>ComposeLayoutBase</c>) must be declared
+    /// <c>BodyComponentBase</c>, <c>Chrome</c> on <c>ChromeLayoutBase</c>) must be declared
     /// <c>partial</c> so the source generator can emit the <c>RenderView</c> override into the same class.
     /// A class that only inherits a Compose base without declaring the override has nothing generated
     /// into it and is not reported.
@@ -23,8 +23,8 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "A class that declares the design-time expression override (Body on ComposeComponentBase, " +
-            "Chrome on ComposeLayoutBase) must be declared partial so the source generator can emit the " +
+            "A class that declares the design-time expression override (Body on BodyComponentBase, " +
+            "Chrome on ChromeLayoutBase) must be declared partial so the source generator can emit the " +
             "RenderView override into the same class. A class that only inherits a Compose base without " +
             "declaring the override — an intermediate abstract base, a leaf whose base already declares " +
             "it, or a re-abstraction — has nothing generated into it and needs no partial modifier.");
@@ -44,8 +44,8 @@ internal static class DiagnosticDescriptors
             "A method marked Composable must satisfy the compiler's supported static expansion contract.");
 
     /// <summary>
-    /// BCF3001: A Compose base's design-time expression getter (<c>Body</c> on <c>ComposeComponentBase</c>,
-    /// <c>Chrome</c> on <c>ComposeLayoutBase</c>) must not mutate component state (single-direction
+    /// BCF3001: A Compose base's design-time expression getter (<c>Body</c> on <c>BodyComponentBase</c>,
+    /// <c>Chrome</c> on <c>ChromeLayoutBase</c>) must not mutate component state (single-direction
     /// data-flow violation).
     /// The initial detectable boundary covers statically identifiable direct writes (field assignments,
     /// property assignments, and increment/decrement operators) whose target is an instance member of

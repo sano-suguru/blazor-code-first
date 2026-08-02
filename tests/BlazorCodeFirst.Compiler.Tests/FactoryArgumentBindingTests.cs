@@ -14,7 +14,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private bool _on;
 
@@ -86,7 +86,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Decorations.Attr(Div, "data-x", "1");
             }
@@ -108,7 +108,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private bool _on;
 
@@ -131,7 +131,7 @@ public sealed class FactoryArgumentBindingTests
             using static BlazorCodeFirst.Html;
             using System.Collections.Generic;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private List<string> _items = new();
 
@@ -145,7 +145,7 @@ public sealed class FactoryArgumentBindingTests
             using static BlazorCodeFirst.Html;
             using System.Collections.Generic;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private List<string> _items = new();
 
@@ -186,7 +186,7 @@ public sealed class FactoryArgumentBindingTests
                 [Parameter] public string Label { get; set; } = "";
             }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Widget>().Param(value: "x", selector: c => c.Label);
@@ -203,7 +203,7 @@ public sealed class FactoryArgumentBindingTests
                 [Parameter] public string Label { get; set; } = "";
             }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Widget>().Param(c => c.Label, "x");
@@ -227,7 +227,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private static View[] Kids() => new View[] { Span["a"] };
 
@@ -250,7 +250,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private static View[] Kids() => new View[] { Span["a"] };
 
@@ -275,7 +275,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private static string? NullText => null;
 
@@ -365,7 +365,7 @@ public sealed class FactoryArgumentBindingTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private static string? NullText => null;
 

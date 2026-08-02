@@ -1,8 +1,8 @@
 namespace BlazorCodeFirst;
 
 /// <summary>
-/// Design-time syntax for composing a Compose design-time expression
-/// (<see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>) as literal HTML.
+/// Design-time syntax for composing a BlazorCodeFirst design-time expression
+/// (<see cref="BodyComponentBase.Body"/> or <see cref="ChromeLayoutBase.Chrome"/>) as literal HTML.
 /// Every member is inert: the BlazorCodeFirst source generator analyzes calls to these
 /// members and emits the equivalent <c>RenderTreeBuilder</c> instructions into the component's generated
 /// <c>RenderView</c>. They are never meant to run — at runtime they perform no work and return only a

@@ -33,7 +33,7 @@
 
 Source Generatorはビルド時に、設計時のUI式を「状態を受け取ってフレーム列を返す関数」(型でいえば `S → R`)へコンパイルします。実行時に動くのはこの生成関数だけであり、`r_t` はそれを状態 `s_t` に適用した結果です。UI式そのもの(設計時の構文的実体)は実行時には評価されません。Razorとの対比で言えば、Razorコンパイラはこの入力をマークアップとして受け取り、BlazorCodeFirstはC#式として受け取る、という違いです。
 
-生成された関数は純粋(状態のみに依存し副作用を持たない)であることを規約とします(単一方向データフロー、§4.1)。設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)内の状態変更は診断BCF3001の対象となります。BCF3001の初期検出範囲はコンポーネントのインスタンスメンバーへの静的識別可能な直接書き込み(フィールド代入、プロパティ代入、複合代入、インクリメント/デクリメント演算子)に限ります。`Button` のonClickラムダ(`DeferredEventHandler`として分類)内の変更はレンダリング後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用(非同期連鎖等)の完全な検出は初期スライスでは保証しません。
+生成された関数は純粋(状態のみに依存し副作用を持たない)であることを規約とします(単一方向データフロー、§4.1)。設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)内の状態変更は診断BCF3001の対象となります。BCF3001の初期検出範囲はコンポーネントのインスタンスメンバーへの静的識別可能な直接書き込み(フィールド代入、プロパティ代入、複合代入、インクリメント/デクリメント演算子)に限ります。`Button` のonClickラムダ(`DeferredEventHandler`として分類)内の変更はレンダリング後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用(非同期連鎖等)の完全な検出は初期スライスでは保証しません。
 
 ### 1.2 レンダリングツリーの等価性と差分検知
 
@@ -69,7 +69,7 @@ seq(n) = σ(π(n)),   σ : Π → ℕ は単射             … (2)
 ```
 [ユーザーコード]                     [Source Generator]
 partial class C :                    ① partial検証・Body発見
-ComposeComponentBase                 ② SSC分類(§2.3)
+BodyComponentBase                 ② SSC分類(§2.3)
   View Body => …        ──AST──▶    ③ DFS順シーケンス割当(§2.2)
   [Composable] View F() => …         ④ RenderView(RenderTreeBuilder) の生成
                                         — 静的seq定数の埋め込み
@@ -77,7 +77,7 @@ ComposeComponentBase                 ② SSC分類(§2.3)
                                         — [Composable] のインライン展開
 ```
 
-生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `ComposeComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
+生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス `BodyComponentBase` の `BuildRenderTree` から呼び出されます。`Body` プロパティおよび設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 設計時表現のゲッターは**単一の式に還元できなければなりません**。`=> expr` / `get => expr` /
 `get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。文を含む
@@ -341,7 +341,7 @@ public readonly struct View
 4. **フレーム列生成**: `RenderView` の実行による `r_{t+1}` の生成
 5. **差分適用**: `Δ(r_t, r_{t+1})` のDOM同期
 
-この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderView` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)内での状態変更禁止」に対応し、違反は診断BCF3001となります。`Button` のonClickラムダ(`DeferredEventHandler`コンテキスト)はレンダリングではなくイベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BCF3001注記参照)。`[Composable]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
+この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderView` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)内での状態変更禁止」に対応し、違反は診断BCF3001となります。`Button` のonClickラムダ(`DeferredEventHandler`コンテキスト)はレンダリングではなくイベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BCF3001注記参照)。`[Composable]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
 
 ### 4.2 Blazor標準ディスパッチとの役割分担
 
@@ -450,13 +450,13 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 | ID     | 種別    | 内容                                                                                  |
 | ------ | ------- | ------------------------------------------------------------------------------------- |
-| BCF1001 | Error   | 設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)、および `RenderView` を手書きしているクラス(生成物が無いため `partial` は不要)は対象外。ネストクラスは BCF1005 が優先する(`partial` を足しても解決しないため)。生成器が報告する(理由はA.0)  |
+| BCF1001 | Error   | 設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)の override を宣言するクラスが `partial` として宣言されていない(同一クラスへ `RenderView` を生成できない)。Composeベースを継承するだけで override を宣言しないクラス(中間abstract基底、基底が既に宣言している葉、再abstract化)、および `RenderView` を手書きしているクラス(生成物が無いため `partial` は不要)は対象外。ネストクラスは BCF1005 が優先する(`partial` を足しても解決しないため)。生成器が報告する(理由はA.0)  |
 | BCF1002 | Error   | `[Composable]` メソッドがSource Generatorのサポートする静的展開契約を満たさない(`View` 型パラメータ等)                                     |
 | BCF1003 | Error   | 設計時表現(`Body` / `Chrome`)が静的にシーケンス可能な部分集合へ分類できず、実行時フォールバックも未実装のため `RenderView` を生成できない。Opaque/Transplantable 経路の実装により発火条件は縮小する(過渡的) |
 | BCF1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
 | BCF1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
 | BCF2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来射程: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BCF2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BCF2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→Compose 方向)とは逆向きの構文である) |
-| BCF3001 | Error   | 現行実装では設計時表現(`ComposeComponentBase.Body` または `ComposeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
+| BCF3001 | Error   | 現行実装では設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BCF3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
 | BCF3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div[...]`)必要がある |
 | BCF3004 | Error   | `ForEach` の `content`/`key` がインライン式ラムダでない(ブロック本体ラムダ/メソッドグループ等)ため静的解析できない |
@@ -478,7 +478,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 **B.2 ランタイム `ref struct` ツリー方式** — 要素を `readonly ref struct` としてスタック上に構築し、実行時に `Render` を再帰呼び出しする方式。GC回避には有効だが、(a) 可変個の子要素を受け取る手段がない(`ref struct` は配列・`params` に格納不可、ジェネリックオーバーロードはアリティ上限を持つ)、(b) B.1と同じ戻り値型問題、(c) 静的サブツリーのキャッシュと両立しない(`ref struct` はフィールド格納不可)、により採用しませんでした。本方式(生成コードによる直接発行)は、同じゼロアロケーション特性を型システム上、無理なく達成します。
 
-**B.3 `ComposeLayoutBase` を `ComposeComponentBase` から派生させ `SetParametersAsync` で介入する方式** — レイアウトを通常のComposeコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ComposeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
+**B.3 `ChromeLayoutBase` を `BodyComponentBase` から派生させ `SetParametersAsync` で介入する方式** — レイアウトを通常のComposeコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ChromeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
 
 ## 付録C: 開発時フォールバック案 — 解釈モード(コンチネンシー)
 

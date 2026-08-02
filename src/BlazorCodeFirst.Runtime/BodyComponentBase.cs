@@ -15,7 +15,7 @@ namespace BlazorCodeFirst;
 /// as BCF1005. A generic component is supported: the generated part repeats the same type parameters.
 /// The component otherwise behaves as a standard Blazor <see cref="ComponentBase"/>.
 /// </remarks>
-public abstract class ComposeComponentBase : ComponentBase
+public abstract class BodyComponentBase : ComponentBase
 {
     /// <summary>
     /// The design-time-only UI expression describing this component's content.

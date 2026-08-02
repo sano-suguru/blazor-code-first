@@ -14,7 +14,7 @@ public sealed class GeneratorTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             protected override View Body => Span["Count"];
         }
@@ -24,7 +24,7 @@ public sealed class GeneratorTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private int _count = 0;
 
@@ -41,7 +41,7 @@ public sealed class GeneratorTests
 
         public partial class Outer
         {
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
             }
@@ -52,7 +52,7 @@ public sealed class GeneratorTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             protected override View Body
             {
@@ -65,7 +65,7 @@ public sealed class GeneratorTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class Counter : ComposeComponentBase
+        public partial class Counter : BodyComponentBase
         {
             private View GetView() => Span["foo"];
 
@@ -97,7 +97,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
             }
             public partial class Counter
@@ -123,7 +123,7 @@ public sealed class GeneratorTests
         const string file1 = """
             using BlazorCodeFirst;
 
-            public partial class SplitFiles : ComposeComponentBase
+            public partial class SplitFiles : BodyComponentBase
             {
             }
             """;
@@ -147,17 +147,17 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RecordDerivingFromComposeBase_IsRejectedByTheLanguage()
+    public void Generator_RecordDerivingFromBodyComponentBase_IsRejectedByTheLanguage()
     {
         // Widening the syntax predicate to TypeDeclarationSyntax so records are analyzed would be a dead
         // branch: a record may only inherit from object or another record (CS8864), and
-        // ComposeComponentBase is a class, so this shape can never compile. CS8864 names the real cause,
+        // BodyComponentBase is a class, so this shape can never compile. CS8864 names the real cause,
         // so BlazorCodeFirst deliberately adds no diagnostic of its own here.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial record Counter : ComposeComponentBase
+            public partial record Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
             }
@@ -259,7 +259,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Base : ComposeComponentBase
+            public partial class Base : BodyComponentBase
             {
                 protected override View Body => Span["base"];
             }
@@ -287,7 +287,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
             }
@@ -309,7 +309,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body { get => Span["Count"]; }
             }
@@ -319,7 +319,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
             }
@@ -349,7 +349,7 @@ public sealed class GeneratorTests
             {
                 protected override partial View Body { get; }
             }
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override partial View Body => Span["Count"];
             }
@@ -359,7 +359,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
             }
@@ -385,7 +385,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body
                 {
@@ -424,7 +424,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public abstract partial class Half : ComposeComponentBase
+            public abstract partial class Half : BodyComponentBase
             {
                 protected abstract override View Body { get; }
             }
@@ -447,7 +447,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body { get; } = default;
             }
@@ -472,7 +472,7 @@ public sealed class GeneratorTests
             using static BlazorCodeFirst.Html;
             using Microsoft.AspNetCore.Components.Rendering;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body { get; } = default;
 
@@ -498,7 +498,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public class Counter : ComposeComponentBase
+            public class Counter : BodyComponentBase
             {
                 protected override View Body { get; } = default;
             }
@@ -521,7 +521,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override partial View Body { get; }
             }
@@ -545,7 +545,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override partial View Body { get; }
             }
@@ -578,7 +578,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private int _n;
 
@@ -619,7 +619,7 @@ public sealed class GeneratorTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class IfCounter : ComposeComponentBase
+        public partial class IfCounter : BodyComponentBase
         {
             private bool _visible = true;
 
@@ -666,7 +666,7 @@ public sealed class GeneratorTests
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
-        public partial class IfThen : ComposeComponentBase
+        public partial class IfThen : BodyComponentBase
         {
             private bool _show = true;
 
@@ -694,7 +694,7 @@ public sealed class GeneratorTests
         using System.Collections.Generic;
         using static BlazorCodeFirst.Html;
 
-        public partial class TodoPage : BlazorCodeFirst.ComposeComponentBase
+        public partial class TodoPage : BlazorCodeFirst.BodyComponentBase
         {
             private readonly List<Todo> _items = new();
 
@@ -742,7 +742,7 @@ public sealed class GeneratorTests
         using System.Collections.Generic;
         using static BlazorCodeFirst.Html;
 
-        public partial class BoardPage : BlazorCodeFirst.ComposeComponentBase
+        public partial class BoardPage : BlazorCodeFirst.BodyComponentBase
         {
             private readonly List<Column> _columns = new();
 
@@ -807,7 +807,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<Group> _groups = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -832,7 +832,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<Group> _a = new();
                 private readonly List<Group> _b = new();
@@ -863,7 +863,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<Group> _groups = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -911,7 +911,7 @@ public sealed class GeneratorTests
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
 
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -934,7 +934,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -956,7 +956,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<Row> _xs = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -976,7 +976,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<Group> _groups = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -999,7 +999,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body => Div[Widget(_xs), Widget(_xs)];
@@ -1040,7 +1040,7 @@ public sealed class GeneratorTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body =>
@@ -1067,7 +1067,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Label(string value) => Span[value];
@@ -1102,7 +1102,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private static string? NullText => null;
 
@@ -1127,7 +1127,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Label(string value) => Span[value];
@@ -1160,7 +1160,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Pair(string first, string second) => Span[first + second];
@@ -1191,7 +1191,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Ignore(string used, string unused) => Span[used];
@@ -1226,7 +1226,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Ignore(string used, string unused) => Span[used];
@@ -1252,7 +1252,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Clickable(string label, System.Action onClick) => Button.OnClick(onClick)[label];
@@ -1283,7 +1283,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Sized(double width) => Span[width.ToString()];
@@ -1307,7 +1307,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private bool _show = true;
 
@@ -1335,7 +1335,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Ping() => Pong();
@@ -1361,7 +1361,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 // Invalid declaration: a composable must be static.  The call site must not add a
                 // duplicate BCF1002.
@@ -1404,7 +1404,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets.Label("1");
                 }
@@ -1435,7 +1435,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets.Label("x");
                 }
@@ -1456,7 +1456,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public abstract partial class WidgetBase : ComposeComponentBase
+                public abstract partial class WidgetBase : BodyComponentBase
                 {
                     protected static string Prefix() => "P:";
 
@@ -1502,7 +1502,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => WidgetBase.Label("x");
                 }
@@ -1535,7 +1535,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => WidgetBase.Label("x");
                 }
@@ -1567,7 +1567,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => WidgetBase.Label("x");
                 }
@@ -1601,7 +1601,7 @@ public sealed class GeneratorTests
                     using BlazorCodeFirst;
                     using static BlazorCodeFirst.Html;
 
-                    public partial class Counter : ComposeComponentBase
+                    public partial class Counter : BodyComponentBase
                     {
                         protected override View Body => ExternalWidgets.Badge("hi");
                     }
@@ -1625,7 +1625,7 @@ public sealed class GeneratorTests
 
             file class Hidden { }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Show(Hidden h) => Span["x"];
@@ -1648,7 +1648,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Inner(string value) => Span[value];
@@ -1675,7 +1675,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Loop() => Loop();
@@ -1700,7 +1700,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Ping() => Pong();
@@ -1728,7 +1728,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Echo(string value) =>
@@ -1755,7 +1755,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Named(string value) => Span[nameof(value)];
@@ -1781,7 +1781,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View NamedMember(string value) => Span[nameof(value.Length)];
@@ -1806,7 +1806,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View NamedType(string value) => Span[nameof(System.String) + value];
@@ -1832,7 +1832,7 @@ public sealed class GeneratorTests
             using static BlazorCodeFirst.Html;
             using System.Text;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Named() => Span[nameof(StringBuilder)];
@@ -1875,7 +1875,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets.Show();
                 }
@@ -1898,7 +1898,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Greet(string value) => Span[$"Hi {value}!"];
@@ -1922,7 +1922,7 @@ public sealed class GeneratorTests
 
             public enum Color { Red, Green }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Swatch(Color c = Color.Green) => Span[c.ToString()];
@@ -1946,7 +1946,7 @@ public sealed class GeneratorTests
 
             public struct Box { public int V; }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Show(Box b = default) => Span[b.V.ToString()];
@@ -1972,7 +1972,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Scaled(float scale = 1.5f) => Span[scale.ToString()];
@@ -1997,7 +1997,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Priced(decimal amount = 1.5m) => Span[amount.ToString()];
@@ -2022,7 +2022,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Special(
@@ -2070,7 +2070,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets.Label("x");
                 }
@@ -2103,7 +2103,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => WidgetBase.Label("x");
                 }
@@ -2123,7 +2123,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Widget : ComposeComponentBase
+            public partial class Widget : BodyComponentBase
             {
                 private static string Secret() => "s";
 
@@ -2151,7 +2151,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public abstract partial class WidgetBase : ComposeComponentBase
+                public abstract partial class WidgetBase : BodyComponentBase
                 {
                     protected static string Prefix() => "P:";
 
@@ -2192,7 +2192,7 @@ public sealed class GeneratorTests
             using System.Collections.Generic;
             using System.Linq;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Head(IEnumerable<string> items) => Span[items.First()];
@@ -2231,7 +2231,7 @@ public sealed class GeneratorTests
                 public static string Make<T>() => typeof(T).Name;
             }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Head() =>
@@ -2262,7 +2262,7 @@ public sealed class GeneratorTests
             using System.Collections.Generic;
             using System.Linq;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span[(new List<string> { "a" }).First()];
             }
@@ -2289,7 +2289,7 @@ public sealed class GeneratorTests
             using System.Collections.Generic;
             using System.Linq;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Head(IEnumerable<string> items) =>
@@ -2325,7 +2325,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Helper({{parameter}}) => Span["x"];
@@ -2393,7 +2393,7 @@ public sealed class GeneratorTests
                 using static BlazorCodeFirst.Html;
                 using Root.Features;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets.Show();
                 }
@@ -2424,7 +2424,7 @@ public sealed class GeneratorTests
             using System.Collections.Generic;
             using System.Linq;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private IEnumerable<string> _items = new List<string> { "a" };
 
@@ -2476,7 +2476,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets<int>.Show(5);
                 }
@@ -2512,7 +2512,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Widgets<int>.Show();
                 }
@@ -2548,7 +2548,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Outer<int>.Inner.Show();
                 }
@@ -2574,7 +2574,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public abstract partial class WidgetBase : ComposeComponentBase
+                public abstract partial class WidgetBase : BodyComponentBase
                 {
                     protected static string Prefix() => "P:";
                 }
@@ -2620,7 +2620,7 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                public abstract partial class WidgetBase : ComposeComponentBase
+                public abstract partial class WidgetBase : BodyComponentBase
                 {
                     protected static string Prefix() => "P:";
                 }
@@ -2641,7 +2641,7 @@ public sealed class GeneratorTests
 
                 // Counter does not derive from WidgetBase, so it cannot legally name the protected
                 // 'Prefix'; the requirement (keyed on WidgetBase) is correctly unsatisfied here.
-                public partial class Counter : ComposeComponentBase
+                public partial class Counter : BodyComponentBase
                 {
                     protected override View Body => Helper.Label("x");
                 }
@@ -2661,7 +2661,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span.Class("badge")["Hi"];
             }
@@ -2681,7 +2681,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span.Class("a").Class("b")["Hi"];
             }
@@ -2699,7 +2699,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private bool _on;
                 protected override View Body => Button.OnClick(() => _on = !_on).Class(_on ? "on" : "off")["OK"];
@@ -2720,7 +2720,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 private readonly List<string> _rows = new();
                 protected override View Body =>
@@ -2741,7 +2741,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Div[Chip("hot")];
 
@@ -2767,7 +2767,7 @@ public sealed class GeneratorTests
 
             public sealed class Widget : ComponentBase { }
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Component<Widget>().Class("x");
             }
@@ -2791,7 +2791,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Card : ComposeComponentBase
+            public partial class Card : BodyComponentBase
             {
                 [Parameter]
                 public RenderFragment? ChildContent { get; set; }
@@ -2814,7 +2814,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Card : ComposeComponentBase
+            public partial class Card : BodyComponentBase
             {
                 [Parameter]
                 public RenderFragment<string>? Template { get; set; }
@@ -2834,7 +2834,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Card : ComposeComponentBase
+            public partial class Card : BodyComponentBase
             {
                 [Parameter] public RenderFragment? ChildContent { get; set; }
                 protected override View Body => Div[ChildContent];
@@ -2858,7 +2858,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private RenderFragment MakeHeader() => b => b.AddContent(0, "h");
                 protected override View Body => Div[MakeHeader()];
@@ -2880,7 +2880,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Mixed : ComposeComponentBase
+            public partial class Mixed : BodyComponentBase
             {
                 [Parameter] public RenderFragment? Slot { get; set; }
                 protected override View Body => Div["before", Slot, "after"];
@@ -2902,7 +2902,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Conditional : ComposeComponentBase
+            public partial class Conditional : BodyComponentBase
             {
                 [Parameter] public RenderFragment? Slot { get; set; }
                 private bool _show;
@@ -2924,7 +2924,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Listing : ComposeComponentBase
+            public partial class Listing : BodyComponentBase
             {
                 [Parameter] public RenderFragment? Slot { get; set; }
                 private static readonly List<int> Items = [1, 2];
@@ -2945,7 +2945,7 @@ public sealed class GeneratorTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public partial class Panel : ComposeComponentBase
+            public partial class Panel : BodyComponentBase
             {
                 [Composable]
                 private static View Framed(RenderFragment? inner) => Div[inner];
@@ -2981,15 +2981,15 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Dup : ComposeComponentBase
+            public partial class Dup : BodyComponentBase
             {
                 protected override View Body => Span["a"];
             }
-            public partial class Dup : ComposeComponentBase
+            public partial class Dup : BodyComponentBase
             {
                 protected override View Body => Span["b"];
             }
-            public partial class Healthy : ComposeComponentBase
+            public partial class Healthy : BodyComponentBase
             {
                 protected override View Body => Span["h"];
             }
@@ -3019,15 +3019,15 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Healthy : ComposeComponentBase
+            public partial class Healthy : BodyComponentBase
             {
                 protected override View Body => Span["h"];
             }
-            public partial class Dup : ComposeComponentBase
+            public partial class Dup : BodyComponentBase
             {
                 protected override View Body => Span["a"];
             }
-            public partial class Dup : ComposeComponentBase
+            public partial class Dup : BodyComponentBase
             {
                 protected override View Body => Span["b"];
             }
@@ -3054,7 +3054,7 @@ public sealed class GeneratorTests
             using static BlazorCodeFirst.Html;
             using Microsoft.AspNetCore.Components.Rendering;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
 
@@ -3082,7 +3082,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 protected override View Body => Span["Count"];
 
@@ -3106,7 +3106,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Gen<TItem> : ComposeComponentBase where TItem : notnull
+            public partial class Gen<TItem> : BodyComponentBase where TItem : notnull
             {
                 protected override View Body => Span["generic"];
             }
@@ -3130,7 +3130,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Pair<TKey, TValue> : ComposeComponentBase
+            public partial class Pair<TKey, TValue> : BodyComponentBase
             {
                 protected override View Body => Span["pair"];
             }
@@ -3160,7 +3160,7 @@ public sealed class GeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Gen<TItem> : ComposeComponentBase
+            public partial class Gen<TItem> : BodyComponentBase
             {
                 private string _label = "label";
 

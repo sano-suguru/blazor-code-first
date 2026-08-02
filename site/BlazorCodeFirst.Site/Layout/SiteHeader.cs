@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.Site.Layout;
 
-public sealed partial class SiteHeader : ComposeComponentBase
+public sealed partial class SiteHeader : BodyComponentBase
 {
     protected override View Body =>
         Header.Class("site-header")[

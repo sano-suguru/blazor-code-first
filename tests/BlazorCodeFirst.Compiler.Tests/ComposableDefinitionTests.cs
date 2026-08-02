@@ -29,7 +29,7 @@ public sealed class ComposableDefinitionTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 {{declaration}}
                 protected override View Body => Span["Body"];
@@ -50,7 +50,7 @@ public sealed class ComposableDefinitionTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Greeting(string name) => Span[name];
@@ -104,7 +104,7 @@ public sealed class ComposableDefinitionTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Target(string a, int b = 1, int c = 2) => Span[a];
@@ -150,7 +150,7 @@ public sealed class ComposableDefinitionTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Helper(string s) => Div[
@@ -174,7 +174,7 @@ public sealed class ComposableDefinitionTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Helper(string s) =>
@@ -196,7 +196,7 @@ public sealed class ComposableDefinitionTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
-            public partial class Counter : ComposeComponentBase
+            public partial class Counter : BodyComponentBase
             {
                 [Composable]
                 private static View Greeting(string name) => Span[nameof(name) + name];

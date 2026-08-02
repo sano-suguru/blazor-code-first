@@ -35,7 +35,7 @@ public sealed class ComponentSlotDiagnosticTests
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => {{body}};
             }

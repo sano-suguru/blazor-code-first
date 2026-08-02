@@ -5,7 +5,7 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
 /// A plain <see cref="ComponentBase"/> row with internal state (<c>_count</c>) that is not derived from
-/// any parameter. Written by hand (no Component&lt;T&gt; / ComposeComponentBase) so the state-preservation
+/// any parameter. Written by hand (no Component&lt;T&gt; / BodyComponentBase) so the state-preservation
 /// test does not depend on the feature under test to build its own fixture. Renders its label and count so
 /// bUnit can observe the internal state through the DOM.
 /// </summary>

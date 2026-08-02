@@ -8,7 +8,7 @@ namespace BlazorCodeFirst.Compiler;
 
 /// <summary>
 /// Incremental source generator entry point.  Discovers Compose base subclasses
-/// (<c>ComposeComponentBase</c> and <c>ComposeLayoutBase</c>) and emits a <c>RenderView</c> override
+/// (<c>BodyComponentBase</c> and <c>ChromeLayoutBase</c>) and emits a <c>RenderView</c> override
 /// into the same partial class, and discovers <c>[Composable]</c> definitions into a value-equal
 /// registry while reporting declaration-time BCF1002 diagnostics.
 /// </summary>

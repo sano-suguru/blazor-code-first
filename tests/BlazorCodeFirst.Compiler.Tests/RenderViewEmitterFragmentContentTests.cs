@@ -57,7 +57,7 @@ public sealed class RenderViewEmitterFragmentContentTests
         const string source = """
             using BlazorCodeFirst;
 
-            public partial class Shell : ComposeLayoutBase
+            public partial class Shell : ChromeLayoutBase
             {
                 protected override View Chrome => Body;
             }

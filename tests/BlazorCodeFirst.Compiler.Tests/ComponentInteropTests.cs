@@ -23,7 +23,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private static readonly Child _other = new();
                 protected override View Body => Component<Child>().Param(c => _other.Label, "hi");
@@ -43,7 +43,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Child>().Param(c => c.NotAParam, "hi");
             }
@@ -62,7 +62,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<Child>().Param(c => c.Label, "hi");
             }
@@ -85,7 +85,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 private readonly List<Item> _items = new();
                 protected override View Body =>
@@ -113,7 +113,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Child>().Param(c => c.Label, "hi").Param(c => c.Title, "there");
@@ -140,7 +140,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Child>().Param(c => c.Label, "a").Param(c => c.Label, "b");
@@ -160,7 +160,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
                     Component<Child>().Param(c => c.Label, "a").Param(c => c.Title, "b");
@@ -192,7 +192,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<DerivedChild>().Param(c => c.Value, "hi");
             }
@@ -220,7 +220,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<C>().Param(c => c.Value, "hi");
             }
@@ -245,7 +245,7 @@ public sealed class ComponentInteropTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
-            public partial class Host : ComposeComponentBase
+            public partial class Host : BodyComponentBase
             {
                 protected override View Body => Component<ShadowDerived>().Param(c => c.Value, "hi");
             }

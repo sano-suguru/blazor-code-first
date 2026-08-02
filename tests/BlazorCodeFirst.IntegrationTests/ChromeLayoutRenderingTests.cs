@@ -10,7 +10,7 @@ namespace BlazorCodeFirst.IntegrationTests;
 // name). Unit tests cannot verify that: ComponentBase.SetParametersAsync calls StateHasChanged(),
 // which throws without an attached RenderHandle, so these tests drive the real RouteView/LayoutView
 // through bUnit instead.
-public sealed class ComposeLayoutRenderingTests : BunitContext
+public sealed class ChromeLayoutRenderingTests : BunitContext
 {
     [Fact]
     public void Layout_WrapsRoutedPage_ThroughRealLayoutView()
@@ -18,7 +18,7 @@ public sealed class ComposeLayoutRenderingTests : BunitContext
         // RouteView resolves the layout from LayoutProbePage's own [Layout(typeof(ProbeLayout))]
         // attribute (Microsoft.AspNetCore.Components.RouteView does this via reflection), then wraps it
         // in a real LayoutView that passes the page as Body. If SetParametersAsync did not deliver Body
-        // by name — the entire premise of ComposeLayoutBase — .page-content would never appear inside
+        // by name — the entire premise of ChromeLayoutBase — .page-content would never appear inside
         // .shell .page.
         var routeData = new RouteData(typeof(LayoutProbePage), new Dictionary<string, object?>());
 
@@ -99,7 +99,7 @@ public sealed class ComposeLayoutRenderingTests : BunitContext
     }
 
     [Fact]
-    public void ComposeComponentWithChildContent_RendersChildren()
+    public void BodyComponentWithChildContent_RendersChildren()
     {
         var cut = Render<ChildContentHostComponent>(parameters => parameters.AddChildContent("<em>kid</em>"));
 
@@ -126,7 +126,7 @@ public sealed class ComposeLayoutRenderingTests : BunitContext
     }
 
     [Fact]
-    public void NestedComposeLayouts_WrapThePageInBothLevels()
+    public void NestedChromeLayouts_WrapThePageInBothLevels()
     {
         var routeData = new RouteData(typeof(NestedLayoutProbePage), new Dictionary<string, object?>());
 

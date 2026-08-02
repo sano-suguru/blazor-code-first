@@ -8,7 +8,7 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 // ProbeLayout via reflection over this [Layout] attribute (Microsoft.AspNetCore.Components.RouteView
 // does exactly this, independent of anything BlazorCodeFirst-specific).
 [Layout(typeof(ProbeLayout))]
-public partial class LayoutProbePage : ComposeComponentBase
+public partial class LayoutProbePage : BodyComponentBase
 {
     protected override View Body => P.Class("page-content")["page content"];
 }

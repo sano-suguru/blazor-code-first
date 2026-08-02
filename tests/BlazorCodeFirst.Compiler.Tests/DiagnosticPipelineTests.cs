@@ -14,7 +14,7 @@ public sealed class DiagnosticPipelineTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 private readonly List<Group> _groups = new();
@@ -41,7 +41,7 @@ public sealed class DiagnosticPipelineTests
         // reaches the model stage with a null template.
         const string source = """
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 protected override BlazorCodeFirst.View Body => Opaque();
                 private static BlazorCodeFirst.View Opaque() => default;
@@ -60,7 +60,7 @@ public sealed class DiagnosticPipelineTests
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body => ForEach(_xs, key: x => x, content: Render);
@@ -81,7 +81,7 @@ public sealed class DiagnosticPipelineTests
         // diagnostic that explains an unanalyzable body could not be navigated to (#77).
         const string source = """
             using static BlazorCodeFirst.Html;
-            public partial class P : BlazorCodeFirst.ComposeComponentBase
+            public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 protected override BlazorCodeFirst.View Body => Opaque();
                 private static BlazorCodeFirst.View Opaque() => default;
@@ -111,7 +111,7 @@ public sealed class DiagnosticPipelineTests
             [Parameter] public RenderFragment? ChildContent { get; set; }
             [Parameter] public RenderFragment? Footer { get; set; }
         }
-        public partial class Host : ComposeComponentBase
+        public partial class Host : BodyComponentBase
         {
             private readonly List<int> _xs = new();
             private bool Flag => true;
@@ -169,11 +169,11 @@ public sealed class DiagnosticPipelineTests
         // separate them is no better than none.
         const string source = """
             using static BlazorCodeFirst.Html;
-            public partial class First : BlazorCodeFirst.ComposeComponentBase
+            public partial class First : BlazorCodeFirst.BodyComponentBase
             {
                 protected override BlazorCodeFirst.View Body => Div["fine"];
             }
-            public partial class Second : BlazorCodeFirst.ComposeComponentBase
+            public partial class Second : BlazorCodeFirst.BodyComponentBase
             {
                 protected override BlazorCodeFirst.View Body => Opaque();
                 private static BlazorCodeFirst.View Opaque() => default;
@@ -194,7 +194,7 @@ public sealed class DiagnosticPipelineTests
         // A layout reports BCF1003 from the same place; Chrome must be located like Body.
         const string source = """
             using static BlazorCodeFirst.Html;
-            public partial class Shell : BlazorCodeFirst.ComposeLayoutBase
+            public partial class Shell : BlazorCodeFirst.ChromeLayoutBase
             {
                 protected override BlazorCodeFirst.View Chrome => Main[Opaque()];
                 private static BlazorCodeFirst.View Opaque() => default;

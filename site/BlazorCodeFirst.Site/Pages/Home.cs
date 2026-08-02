@@ -7,7 +7,7 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.Site.Pages;
 
 [Route("/")]
-public sealed partial class Home : ComposeComponentBase
+public sealed partial class Home : BodyComponentBase
 {
     protected override View Body =>
         Section.Class("prose")[

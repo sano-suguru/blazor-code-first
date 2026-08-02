@@ -5,7 +5,7 @@ public sealed class HtmlDecorationGeneratorTests
     private const string ButtonOnClickSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private int _n = 0;
             protected override View Body => Html.Button.OnClick(() => _n++)["OK"];
@@ -15,7 +15,7 @@ public sealed class HtmlDecorationGeneratorTests
     private const string ClassOnDivSource = """
         using BlazorCodeFirst;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             protected override View Body => Html.Div.Class("panel")[Html.Span["x"]];
         }

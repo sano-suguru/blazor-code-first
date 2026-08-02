@@ -6,7 +6,7 @@ public sealed class HtmlForEachGeneratorTests
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private readonly List<string> _items = new() { "a", "b" };
             protected override View Body =>
@@ -18,7 +18,7 @@ public sealed class HtmlForEachGeneratorTests
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
-        public partial class C : ComposeComponentBase
+        public partial class C : BodyComponentBase
         {
             private readonly List<string> _items = new() { "a", "b" };
             protected override View Body =>

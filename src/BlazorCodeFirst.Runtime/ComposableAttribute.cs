@@ -6,7 +6,7 @@ namespace BlazorCodeFirst;
 /// </summary>
 /// <remarks>
 /// A <c>[Composable]</c> method returns a design-time <see cref="View"/> expression; like
-/// <see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>, it is analyzed
+/// <see cref="BodyComponentBase.Body"/> or <see cref="ChromeLayoutBase.Chrome"/>, it is analyzed
 /// statically and is not intended to run at runtime.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
