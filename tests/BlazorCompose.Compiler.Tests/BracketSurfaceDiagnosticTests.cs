@@ -335,6 +335,40 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.Contains(diagnostics, static d => d.Id == "BC3015");
     }
 
+    /// <summary>
+    /// The unresolved type sits inside a <c>[Composable]</c> body that fails to translate, so only the
+    /// failure-path sweep can reach it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Distinct from <c>UnresolvedEmittedTypeTests.ComposableBody_UnresolvedType_ReportsBC3015Once</c>,
+    /// whose body translates successfully: there BC3015 comes from the success path
+    /// (<c>ExpressionTemplateFactory</c> reporting through <c>ComposableBodyContext</c>) and
+    /// <c>UnresolvedValueTypeScanner</c> is never reached.  Measured by deleting the scanner call from
+    /// <c>ComposableDefinitionFactory</c>: that test still passed, and so did every other behavioural test
+    /// in the suite — only the structural wiring guard failed.  This case is the one that fails, and that
+    /// is the whole reason it exists.
+    /// </para>
+    /// <para>
+    /// The unbound spread is what forces the failure path, for the reason spelled out in
+    /// <see cref="UnresolvedValueType_BesideAnUnboundSpreadInALiteral_ReportsBC3015"/>; here it is written
+    /// inside the <c>[Composable]</c> body rather than in <c>Body</c>, so the sweep that finds it runs from
+    /// the other design-time-expression host.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void UnresolvedValueType_InsideAComposableBody_ReportsBC3015()
+    {
+        var diagnostics = Run(
+            """Div["ok"]""",
+            """
+            [Composable]
+            private static View Broken() => Div[[Span[typeof(Probe).Name], ..MissingMethod()]];
+            """);
+
+        Assert.Contains(diagnostics, static d => d.Id == "BC3015");
+    }
+
     // ---------------------------------------------------------------------------
     // BC3008's domain: decorating something that opens no element frame
     // ---------------------------------------------------------------------------
