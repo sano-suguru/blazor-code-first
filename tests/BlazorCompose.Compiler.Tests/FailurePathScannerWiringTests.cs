@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using BlazorCompose.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,8 +25,13 @@ namespace BlazorCompose.Compiler.Tests;
 /// host has grown a direct call around it — and it is keyed on structure rather than on a name.  The old
 /// guard keyed on the <c>Scanner</c> suffix on both sides, so a sweep renamed to <c>…Sweep</c> dropped out
 /// of both sets at once and a one-host wiring under that name passed silently.  Here the declared side is
-/// found by the <c>Report</c> signature, which a rename cannot slip out of: both hosts build a
-/// <c>ComposableBodyContext</c>, so any sweep reachable from both necessarily takes one.
+/// found by the <c>Report</c> signature, so a type-name rename cannot slip a sweep out from under this
+/// guard the way it could the old <c>Scanner</c>-suffix check: both hosts build a
+/// <c>ComposableBodyContext</c>, so any sweep reachable from both necessarily takes one.  The blind spot
+/// did not close, only move: <see cref="IsFailurePathReport"/> and <see cref="ScannersInvokedBy"/> both key
+/// on the member name <c>Report</c>, so a sweep declared as
+/// <c>public static void Sweep(ExpressionSyntax, ComposableBodyContext)</c> drops out of both sets at
+/// once — the same shape of failure, relocated from the type name to the method name.
 /// </para>
 /// <para>
 /// It reads source text rather than behaviour, which is the only way to see a scanner that <em>no</em>
@@ -56,7 +62,7 @@ public sealed class FailurePathScannerWiringTests
         Assert.NotEmpty(declared);
 
         // Sorted sequences rather than sets, so the failure message names which side is short.
-        Assert.Equal(declared, ScannersInvokedBy(Aggregator));
+        Assert.Equal(declared, ScannersInvokedByReportAll());
     }
 
     [Theory]
@@ -132,7 +138,39 @@ public sealed class FailurePathScannerWiringTests
         ];
 
     /// <summary>
+    /// Every <c>Something.Report(…)</c> written inside <c>FailurePathScanners.ReportAll</c>'s method body,
+    /// sorted and deduplicated.
+    /// </summary>
+    /// <remarks>
+    /// Scoped to the method body rather than the whole file: <see cref="FailurePathScanners"/>'s own XML
+    /// doc contemplates a sweep getting a second entry point of its own one day, and a scanner
+    /// call sitting elsewhere in the same file — reachable from that second entry point, not from
+    /// <c>ReportAll</c> — must not read as still invoked by <c>ReportAll</c>.
+    /// </remarks>
+    private static IReadOnlyList<string> ScannersInvokedByReportAll()
+    {
+        var root = CSharpSyntaxTree.ParseText(ReadRepositoryFile(Aggregator)).GetRoot();
+
+        var reportAll = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Single(static method => method.Identifier.ValueText == "ReportAll");
+
+        return ScannerReportCallsIn(reportAll);
+    }
+
+    /// <summary>
     /// Every <c>Something.Report(…)</c> written in <paramref name="relativePath"/>, sorted and deduplicated.
+    /// </summary>
+    /// <remarks>
+    /// Scans the whole file rather than a single method, because a host has no equivalent of
+    /// <c>ReportAll</c> to scope the search to — any direct scanner call anywhere in the host file is the
+    /// per-host list this guard exists to keep from growing back.
+    /// </remarks>
+    private static IReadOnlyList<string> ScannersInvokedBy(string relativePath) =>
+        ScannerReportCallsIn(CSharpSyntaxTree.ParseText(ReadRepositoryFile(relativePath)).GetRoot());
+
+    /// <summary>
+    /// Every <c>Something.Report(…)</c> invocation under <paramref name="root"/>, sorted and deduplicated.
     /// </summary>
     /// <remarks>
     /// Matched on the syntax rather than on a regex over the text, so a scanner named in a comment or an
@@ -141,10 +179,8 @@ public sealed class FailurePathScannerWiringTests
     /// No suffix filter: the receiver name is whatever is written, which is what makes a renamed sweep
     /// still visible here.
     /// </remarks>
-    private static IReadOnlyList<string> ScannersInvokedBy(string relativePath)
+    private static IReadOnlyList<string> ScannerReportCallsIn(SyntaxNode root)
     {
-        var root = CSharpSyntaxTree.ParseText(ReadRepositoryFile(relativePath)).GetRoot();
-
         return [.. root.DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
             .Select(static invocation => invocation.Expression)
