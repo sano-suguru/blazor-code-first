@@ -219,7 +219,7 @@ public abstract class ComposeComponentBase : ComponentBase
 }
 ```
 
-`Body` は実行時に一度も呼び出されません。設計時APIの実体 — `Html`・`ElementBuilder`・`ComponentView<T>`・`Decorations` の全メンバー — はすべて既定値を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
+`Body` は実行時に一度も呼び出されません。設計時APIの実体 — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(`ARCHITECTURE.md` 付録A、BC3014)の全メンバー — はすべて既定値を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 ### 5.2 シーケンス番号の静的確定
 
