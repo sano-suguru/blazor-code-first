@@ -9,7 +9,7 @@ sequence numbers. The generated component is an ordinary `ComponentBase` descend
 Razor's proven diffing performance and stays trimming/AOT-safe, with no runtime UI tree, reflection,
 or expression compilation.
 
-The vocabulary mirrors HTML: elements are C# factories, attributes and events sit next to the tag in
+The vocabulary mirrors HTML: elements are C# helpers, attributes and events sit next to the tag in
 a decoration chain, children follow in brackets, and layout is left entirely to CSS. This puts
 BlazorCompose in the lineage of kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`,
 and hiccup (Clojure) rather than of SwiftUI or Jetpack Compose — there are no `VStack` / `HStack` /
