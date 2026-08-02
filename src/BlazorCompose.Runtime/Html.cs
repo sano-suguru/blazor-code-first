@@ -1,15 +1,15 @@
 namespace BlazorCompose;
 
 /// <summary>
-/// Design-time factory syntax for composing a Compose design-time expression
+/// Design-time syntax for composing a Compose design-time expression
 /// (<see cref="ComposeComponentBase.Body"/> or <see cref="ComposeLayoutBase.Chrome"/>) as literal HTML.
 /// Every member is inert: the BlazorCompose source generator analyzes calls to these
 /// members and emits the equivalent <c>RenderTreeBuilder</c> instructions into the component's generated
 /// <c>RenderView</c>. They are never meant to run — at runtime they perform no work and return only a
 /// default value, so they must not be invoked directly. Add <c>using static BlazorCompose.Html;</c> and
-/// write factories unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended
+/// write element helpers unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended
 /// terse authoring form. The qualified form (<c>Html.Div["text"]</c>) remains available as an escape
-/// hatch for the rare file where an imported factory name collides with a local identifier (for example,
+/// hatch for the rare file where an imported helper name collides with a local identifier (for example,
 /// a domain type named <c>Component</c>).
 /// </summary>
 public static class Html

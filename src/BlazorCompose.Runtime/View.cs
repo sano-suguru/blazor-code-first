@@ -13,7 +13,7 @@ namespace BlazorCompose;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Usage",
     "CA2225:Operator overloads have named alternates",
-    Justification = "Both conversions (string, RenderFragment?) mirror the Html factories: they are inert " +
+    Justification = "Both conversions (string, RenderFragment?) mirror the Html element helpers: they are inert " +
         "design-time syntax read by the source generator (a string argument in element content becomes a " +
         "text node; a RenderFragment argument becomes an AddContent call) and always yield the default " +
         "View at runtime, so a named alternate would misleadingly imply work.")]

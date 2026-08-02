@@ -64,7 +64,7 @@ public readonly struct ComponentView<TComponent>
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Usage",
         "CA2225:Operator overloads have named alternates",
-        Justification = "This mirrors the other Html factory methods that return View directly; a named " +
+        Justification = "This mirrors the other Html members that return View directly; a named " +
             "alternate would suggest the conversion does real work, but it is inert design-time syntax " +
             "read by the source generator and always yields the default View at runtime.")]
     public static implicit operator View(ComponentView<TComponent> _) => default;
