@@ -11,9 +11,9 @@ indent_size = 4
 dotnet_sort_system_directives_first = true
 csharp_style_namespace_declarations = file_scoped:warning
 
-# CA1724: the 'UI' type intentionally shares a name with the legacy System.Web.UI
-# namespace, which this project neither targets nor references. The short name is a
-# deliberate part of the fluent API (`using static BlazorCodeFirst.UI;`).
+# CA1724: the 'Html' type intentionally shares a name with widely used HTML helper types
+# elsewhere in .NET, none of which this project targets or references. The short name is a
+# deliberate part of the authoring surface (`using static BlazorCodeFirst.Html;`).
 dotnet_diagnostic.CA1724.severity = none
 
 # --- Modern C# idioms (enforced) ---

@@ -12,7 +12,7 @@ internal static class DiagnosticDescriptors
     /// BCF1001: A class that declares the design-time expression override (<c>Body</c> on
     /// <c>BodyComponentBase</c>, <c>Chrome</c> on <c>ChromeLayoutBase</c>) must be declared
     /// <c>partial</c> so the source generator can emit the <c>RenderView</c> override into the same class.
-    /// A class that only inherits a Compose base without declaring the override has nothing generated
+    /// A class that only inherits a BlazorCodeFirst base without declaring the override has nothing generated
     /// into it and is not reported.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF1001 = new(
@@ -25,7 +25,7 @@ internal static class DiagnosticDescriptors
         description:
             "A class that declares the design-time expression override (Body on BodyComponentBase, " +
             "Chrome on ChromeLayoutBase) must be declared partial so the source generator can emit the " +
-            "RenderView override into the same class. A class that only inherits a Compose base without " +
+            "RenderView override into the same class. A class that only inherits a BlazorCodeFirst base without " +
             "declaring the override — an intermediate abstract base, a leaf whose base already declares " +
             "it, or a re-abstraction — has nothing generated into it and needs no partial modifier.");
 
@@ -44,7 +44,7 @@ internal static class DiagnosticDescriptors
             "A method marked Composable must satisfy the compiler's supported static expansion contract.");
 
     /// <summary>
-    /// BCF3001: A Compose base's design-time expression getter (<c>Body</c> on <c>BodyComponentBase</c>,
+    /// BCF3001: A BlazorCodeFirst base's design-time expression getter (<c>Body</c> on <c>BodyComponentBase</c>,
     /// <c>Chrome</c> on <c>ChromeLayoutBase</c>) must not mutate component state (single-direction
     /// data-flow violation).
     /// The initial detectable boundary covers statically identifiable direct writes (field assignments,

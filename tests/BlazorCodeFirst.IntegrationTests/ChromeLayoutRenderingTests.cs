@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Components;
 
 namespace BlazorCodeFirst.IntegrationTests;
 
-// The whole layout design rests on Blazor delivering the routed page to a Compose layout under a
+// The whole layout design rests on Blazor delivering the routed page to a BlazorCodeFirst layout under a
 // parameter named exactly "Body" (LayoutComponentBase.BodyPropertyName, which LayoutView passes by
 // name). Unit tests cannot verify that: ComponentBase.SetParametersAsync calls StateHasChanged(),
 // which throws without an attached RenderHandle, so these tests drive the real RouteView/LayoutView
@@ -69,7 +69,7 @@ public sealed class ChromeLayoutRenderingTests : BunitContext
     [Fact]
     public void FragmentContent_TogglingBetweenNullAndNonNull_PreservesSiblingComponentState()
     {
-        // Sequence-stability check exercised inside ONE Compose-generated Body: a conditional/nullable
+        // Sequence-stability check exercised inside ONE BlazorCodeFirst-generated Body: a conditional/nullable
         // RenderFragment position (`_show ? Slot : null`) sits next to a stateful sibling component in
         // the same render tree, so both get their sequence numbers from the same static allocation pass
         // (see ToggleableFragmentShellComponent). A bug that let the fragment's null<->non-null

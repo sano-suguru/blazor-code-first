@@ -65,6 +65,21 @@ A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
 listed there or excluded with a reason.
 
+Three projects — the TrimTestApp and both `diagnostic-fixtures/*.Package`
+fixtures — purge an isolated `blazorcodefirst/0.1.0-dev` NuGet cache before
+restoring, so a rebuilt package is never shadowed by a stale one. Get that path
+wrong and nothing fails: the tests pass against the old package contents. If you
+change it, prove the purge still fires with a direct restore, which prints
+`Purging stale dev cache: <path>`:
+
+```bash
+dotnet restore tests/diagnostic-fixtures/GeneratorDelivery.Package/GeneratorDelivery.Package.csproj \
+  --configfile tests/diagnostic-fixtures/GeneratorDelivery.Package/NuGet.config
+```
+
+`dotnet test` will not show it — those fixtures are built by MSBuild inside the
+test process, which does not surface their output.
+
 `SnapshotCorpusTests` compares the generator's complete emitted source against
 baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which
 pins sequence numbers and frame order in a way the substring assertions
@@ -170,7 +185,7 @@ milestone. That is a valid state rather than an oversight.
 - Classes that **declare the design-time expression override** (`Body` or
   `Chrome`) must be `partial` so the generator can emit `RenderView`
   (otherwise `BCF1001`), and must be top-level classes (nested classes are
-  rejected with `BCF1005`). Merely inheriting a Compose base does not require
+  rejected with `BCF1005`). Merely inheriting a BlazorCodeFirst base does not require
   it. A hand-written `RenderView` override suppresses generation entirely, and
   with it every diagnostic about the design-time expression including `BCF1001`:
   nothing is generated into that class, so `partial` would change nothing.
@@ -210,6 +225,11 @@ milestone. That is a valid state rather than an oversight.
   specification contracts — do not repurpose or remove them. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
   the analyzer build gates (RS2000/RS0016) fail.
+- Diagnostic IDs were renamed from `BC****` to `BCF****` in 2026-08 (#103),
+  along with the package itself. The four digits did not change, so `BC1001` in
+  an older issue, commit message, or review comment is today's `BCF1001`. The
+  same change renamed `ComposeComponentBase` to `BodyComponentBase` and
+  `ComposeLayoutBase` to `ChromeLayoutBase`.
 - `ARCHITECTURE.md` 付録A is the canonical diagnostic table, and
   `DiagnosticTableTests` checks it against `DiagnosticDescriptors` in both
   directions: a descriptor with no row fails, and a row with no descriptor fails

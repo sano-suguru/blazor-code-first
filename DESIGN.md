@@ -62,7 +62,7 @@ HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止�
 
 `Body` に記述された宣言的な式は、Source Generatorによってビルド時にレンダリングメソッドへコンパイルされます。生成コードはRazorコンパイラの出力と同じ形式(静的シーケンス番号付きの `RenderTreeBuilder` 命令列)であるため、Blazorエンジンから見ればBlazorCodeFirstコンポーネントと通常のRazorコンポーネントは区別がつきません。開発者が書くコードと実行される命令列の間に、ランタイムの動的解釈や中間ツリーは存在しません。
 
-> 設計上の要件: 設計時表現(`Body` / `Chrome`)の override を宣言するコンポーネントクラスは `partial` として宣言する必要があります(Source Generatorがレンダリングメソッドを同一クラスへ生成するため)。非partialクラスはビルドエラー(BCF1001)となります。Composeベースを継承するだけで設計時表現を宣言しないクラスには不要です。ネストしたクラスはサポートされません(BCF1005)。ジェネリックコンポーネント(`partial class Foo<T>`)はサポートされます。
+> 設計上の要件: 設計時表現(`Body` / `Chrome`)の override を宣言するコンポーネントクラスは `partial` として宣言する必要があります(Source Generatorがレンダリングメソッドを同一クラスへ生成するため)。非partialクラスはビルドエラー(BCF1001)となります。BlazorCodeFirstベースを継承するだけで設計時表現を宣言しないクラスには不要です。ネストしたクラスはサポートされません(BCF1005)。ジェネリックコンポーネント(`partial class Foo<T>`)はサポートされます。
 
 ---
 
@@ -94,7 +94,7 @@ public partial class CounterPage : BodyComponentBase
     private int _count;
 
     protected override View Body =>
-        Div.Class("bc-counter")[
+        Div.Class("counter")[
             Span[$"Count: {_count}"],
             Button.OnClick(() => _count++)["Increment"],
             Button.OnClick(() => _count = 0)["Reset"]];
@@ -152,7 +152,7 @@ public partial class TaskListPage : BodyComponentBase
 
 ### 4.3 コンポーネントの分割と再利用
 
-UIの部分は `[Composable]` 属性を付与した静的メソッドに抽出できます。Jetpack Composeの `@Composable` に対応する概念で、Source Generatorはこれらを解析対象に含め、呼び出しサイトへ静的に展開します。
+UIの部分は `[Composable]` 属性を付与した静的メソッドに抽出できます。Source Generatorはこれらを解析対象に含め、実行時に呼び出すのではなく、呼び出しサイトへ静的に展開します。
 
 ```csharp
 protected override View Body =>
@@ -187,7 +187,7 @@ public partial class CounterPage
     protected override void RenderView(RenderTreeBuilder __b)
     {
         __b.OpenElement(0, "div");                                    // Div + .Class
-        __b.AddAttribute(1, "class", "bc-counter");
+        __b.AddAttribute(1, "class", "counter");
         __b.OpenElement(2, "span");                                   // Span (mixed content)
         __b.AddContent(3, $"Count: {_count}");                        // 状態参照は構文ごと移植
         __b.CloseElement();
