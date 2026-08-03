@@ -230,6 +230,12 @@ renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
   as well. The other prose that names a diagnostic, meaning this file,
   `DESIGN.md`, `site/content`, and the public XML docs, cannot be checked
   mechanically, so update it in the same change.
+- The `Microsoft.CodeAnalysis.CSharp` version is a compatibility floor imposed on
+  consumers of the generator, not a dependency to keep current. Raising it is a
+  breaking change for anyone on an older toolset. The rationale and the exact
+  floor are recorded on the `PackageVersion` entry in `Directory.Packages.props`.
+  The two `Microsoft.CodeAnalysis.*Analyzers` packages carry no such constraint
+  and move independently.
 
 ## Engineering standard
 

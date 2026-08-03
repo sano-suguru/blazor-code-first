@@ -8,6 +8,15 @@
     <PackageVersion Include="bunit" Version="2.8.6" />
     <PackageVersion Include="Microsoft.AspNetCore.Components" Version="10.0.10" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.0.0" />
+    <!-- Consumer-facing Roslyn floor. 5.0.0 is the compiler shipped in .NET SDK
+         10.0.100 (GA) and Visual Studio 2026 18.0, the oldest toolset that can
+         build the net10.0 runtime, so this floor asks nothing the TFM does not
+         already require. The generator uses no API newer than Roslyn 4.3; host-side
+         fixes reach it regardless of this number. Raising it (5.6.0 = SDK 10.0.3xx)
+         only narrows the audience: an older host refuses the analyzer with CS9057
+         and the generator never runs. It cannot be lowered either, because the
+         compiler tests parse at LanguageVersion.CSharp14, which 4.14 does not know.
+         Do not let a bot move this line. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
