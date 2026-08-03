@@ -149,6 +149,7 @@ unambiguous:
 - `area: surface`: the public authoring API and how UI is written.
 - `area: site`: the documentation site and its CI.
 - `area: docs`: `README`, `DESIGN`, `ARCHITECTURE`, `CONTRIBUTING` prose.
+- `area: build`: the repository's own build, CI, and dependency toolchain.
 
 Two status labels carry process rather than subject:
 
