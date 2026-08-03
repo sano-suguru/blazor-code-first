@@ -80,7 +80,7 @@ jobs:
           echo "Deploying as $environment to Cloudflare Pages branch '$branch'"
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
