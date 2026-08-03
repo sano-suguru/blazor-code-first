@@ -11,7 +11,9 @@ namespace BlazorCodeFirst;
 /// <c>Raw</c> unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended terse
 /// authoring form. The qualified form (<c>Html.Div["text"]</c>) remains available as an escape hatch for
 /// the rare file where an imported name collides with a local identifier (for example, a domain type
-/// named <c>Component</c>).
+/// named <c>Component</c>). Element helpers cover the conforming HTML element vocabulary; HTML validity
+/// is not checked, so a void element with children or a <c>td</c> outside a <c>tr</c> compiles and
+/// renders as written.
 /// </summary>
 public static partial class Html
 {

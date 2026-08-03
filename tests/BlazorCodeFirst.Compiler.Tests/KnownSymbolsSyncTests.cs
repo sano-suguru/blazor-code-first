@@ -11,7 +11,120 @@ public sealed class KnownSymbolsSyncTests
     private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component", "Fragment", "Raw"];
 
     /// <summary>The number of curated element helpers <c>KnownSymbols</c> owns the table for.</summary>
-    internal const int CuratedTagCount = 22;
+    /// <remarks>
+    /// Not the guard against a missing entry, despite reading like one: this constant is edited in the
+    /// same act that transcribes the table, so an omission takes the count down with it and stays green.
+    /// <see cref="ExpectedCuratedNames"/> is what catches that. This still earns its place for the reason
+    /// the original comment gives, making a <em>deletion</em> from the runtime a failure.
+    /// </remarks>
+    internal const int CuratedTagCount = 100;
+
+    /// <summary>
+    /// Every curated element helper name: the conforming elements of the HTML Living Standard's
+    /// "Index — Elements", minus the six exclusion groups recorded in <c>DESIGN.md</c> §4.1.
+    /// </summary>
+    /// <remarks>
+    /// This list and <c>KnownSymbols.CuratedTags</c> are written by the same hand in the same sitting, so
+    /// it does not prove the transcription complete. What it buys is a change of question: "are these 100
+    /// dictionary rows right", which nobody can check by reading, becomes "is this sorted list the
+    /// conforming element index minus the six groups", which is one comparison against a published
+    /// document. That comparison is a review step, not an assumption. Ordinal-sorted so a failure diffs
+    /// as a single missing or extra line.
+    /// </remarks>
+    private static readonly string[] ExpectedCuratedNames =
+    [
+        "A", "Abbr", "Address", "Area", "Article", "Aside", "Audio",
+        "B", "Bdi", "Bdo", "Blockquote", "Br", "Button",
+        "Canvas", "Caption", "Cite", "Code", "Col", "Colgroup",
+        "Data", "Datalist", "Dd", "Del", "Details", "Dfn", "Dialog", "Div", "Dl", "Dt",
+        "Em", "Embed",
+        "Fieldset", "Figcaption", "Figure", "Footer", "Form",
+        "H1", "H2", "H3", "H4", "H5", "H6", "Header", "Hgroup", "Hr",
+        "I", "Iframe", "Img", "Input", "Ins",
+        "Kbd",
+        "Label", "Legend", "Li",
+        "Main", "Map", "Mark", "Menu", "Meter",
+        "Nav",
+        "Ol", "Optgroup", "Option", "Output",
+        "P", "Picture", "Pre", "Progress",
+        "Q",
+        "Rp", "Rt", "Ruby",
+        "S", "Samp", "Search", "Section", "Select", "Selectedcontent", "Small", "Source", "Span",
+        "Strong", "Sub", "Summary", "Sup",
+        "Table", "Tbody", "Td", "Textarea", "Tfoot", "Th", "Thead", "Time", "Tr", "Track",
+        "U", "Ul",
+        "Var", "Video",
+        "Wbr",
+    ];
+
+    /// <summary>The tags no curated helper may name, and why. Guards exclusion groups 1-4 and the two
+    /// group-5 roots.</summary>
+    /// <remarks>
+    /// Keyed on the tag rather than the helper name because <c>Decorations.Title(string)</c> exists and a
+    /// name-based check could not tell the element from the attribute shortcut. Group 5 covers whole
+    /// element <em>indexes</em>, which a value list cannot express: this does not reject <c>circle</c> or
+    /// <c>path</c>, and it cannot distinguish HTML <c>title</c> from SVG <c>title</c>.
+    /// </remarks>
+    private static readonly Dictionary<string, string> ExcludedTags = new(System.StringComparer.Ordinal)
+    {
+        ["html"] = "group 1: document skeleton, silently inert in a Body",
+        ["head"] = "group 1: document skeleton, silently inert in a Body",
+        ["body"] = "group 1: resolves to LayoutComponentBase.Body inside a layout and compiles",
+        ["title"] = "group 1: head-only; PageTitle is the Blazor route",
+        ["base"] = "group 1: head-only; set once in index.html",
+        ["meta"] = "group 1: head-only; reachable through Component<HeadContent>()",
+        ["link"] = "group 1: head-only; reachable through Component<HeadContent>()",
+        ["script"] = "group 2: raw text content model, not markup children",
+        ["style"] = "group 2: raw text content model, not markup children",
+        ["noscript"] = "group 2: raw text content model, not markup children",
+        ["template"] = "group 3: appended children never reach content, only the parser fills it",
+        ["slot"] = "group 3: Blazor creates no shadow root for a slot to fill",
+        ["object"] = "group 4: CS0229 against the object keyword",
+        ["svg"] = "group 5: foreign vocabulary; breaks the first-letter naming rule",
+        ["math"] = "group 5: foreign vocabulary; Math collides with System.Math",
+    };
+
+    [Fact]
+    public void ElementTags_AreExactlyTheCuratedSet()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        var actual = symbols.ElementTags.Keys
+            .Select(static key => key.Name)
+            .OrderBy(static name => name, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(ExpectedCuratedNames, actual);
+    }
+
+    [Fact]
+    public void EveryCuratedTag_IsItsHelperNameWithALowercasedFirstLetter()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        // The rule DESIGN.md §4.1 states, asserted rather than trusted: it is what makes a one-sided
+        // transcription slip (["Textarea"] = "textrea") a failure, which ExpectedCuratedNames cannot see
+        // because it holds helper names and not tags.
+        foreach (var entry in symbols.ElementTags)
+        {
+            var name = entry.Key.Name;
+            Assert.Equal(char.ToLowerInvariant(name[0]) + name[1..], entry.Value);
+        }
+    }
+
+    [Fact]
+    public void CuratedTags_ExcludeDocumentScriptingForeignAndAmbiguousElements()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        foreach (var tag in symbols.ElementTags.Values)
+        {
+            Assert.False(
+                ExcludedTags.TryGetValue(tag, out var reason),
+                $"'{tag}' is a curated element helper but is excluded by DESIGN.md §4.1 ({reason}). " +
+                $"Element(\"{tag}\") remains available for it.");
+        }
+    }
 
     [Fact]
     public void ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural()
