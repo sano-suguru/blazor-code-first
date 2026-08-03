@@ -110,6 +110,9 @@ public static class DiagnosticExpectations
         ("BCF2001",
             "The 付録A row is intentional: the Opaque path is specified but unimplemented, so the " +
             "descriptor lands with it (#57)."),
+        ("BCF3016",
+            "The 付録A row is intentional: the decision that void-element children are diagnosed " +
+            "landed ahead of the implementation, so the descriptor lands with it (#131)."),
     ];
 
     public static TheoryData<string> Ids

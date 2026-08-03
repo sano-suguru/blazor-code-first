@@ -450,7 +450,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 この節の内容は文書上の約束ではなく、テストで固定されています。`tests/BlazorCodeFirst.DiagnosticTests` が `tests/diagnostic-fixtures` の各プロジェクトを実 MSBuild でビルドし、SARIF ログから「どの診断が、どの位置に報告されたか」を検証します。同一の CA1050 違反型を全フィクスチャに含めることで、宣言エラーのあるコンパイルではアナライザー診断が消えること・ないコンパイルでは報告されることの両方が固定されており、`DiagnosticDescriptors` の全記述子はこの層で網羅されているか、理由付きの除外リストに載っているかのいずれかである必要があります。
 
-次節の表そのものも同じテストプロジェクトが検証します。`DiagnosticTableTests` が A.1 の表を読み取り、`DiagnosticDescriptors` と双方向で突き合わせます。記述子があって行が無ければ失敗し、行があって記述子が無い場合も、実装に先行して仕様化されている理由を `DiagnosticExpectations.DocumentedWithoutDescriptor` に記録していない限り失敗します。BCF2001 が現在の唯一の登録項目です。種別列も記述子の `DefaultSeverity` と照合されるため、診断の severity を変えることは表を変えることでもあります(記述子を持たない行は照合対象外です)。
+次節の表そのものも同じテストプロジェクトが検証します。`DiagnosticTableTests` が A.1 の表を読み取り、`DiagnosticDescriptors` と双方向で突き合わせます。記述子があって行が無ければ失敗し、行があって記述子が無い場合も、実装に先行して仕様化されている理由を `DiagnosticExpectations.DocumentedWithoutDescriptor` に記録していない限り失敗します。その登録は実装時に記述子と入れ替わり、入れ替え漏れは「理由を失った例外」として別のテストが落とします。種別列も記述子の `DefaultSeverity` と照合されるため、診断の severity を変えることは表を変えることでもあります(記述子を持たない行は照合対象外です)。
 
 ### A.1 診断一覧
 
@@ -477,6 +477,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 | BCF3013 | Error   | `Component<T>()[…]` で子コンテンツが与えられているが、`T` がそれを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
 | BCF3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>` / `ElementBuilder`)がジェネリック `.Param` の値位置に渡された |
 | BCF3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
+| BCF3016 | Error   | void要素に子が与えられている。対象はHTML Living Standardのvoid elements 13要素(`area` / `base` / `br` / `col` / `embed` / `hr` / `img` / `input` / `link` / `meta` / `source` / `track` / `wbr`)で、curatedヘルパーと、タグを非空の定数で受けた `Element` の双方を見る。静的SSRは閉じタグを出力し、HTMLパーサが子を兄弟へ押し出すため、prerenderとinteractive描画で異なるDOMになる(理由と計測は `DESIGN.md` §4.1)。要素タグについての単項述語で判定するため、(親, 子) で決まる同種の破れは対象外。未知タグとカスタム要素も対象外。未実装 |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 
