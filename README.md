@@ -103,8 +103,12 @@ dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Releas
 
 That produces a single `BlazorCodeFirst` `0.1.0-dev` package carrying both halves: the runtime in
 `lib/net10.0`, and the generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as
-a NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project; the .NET
-SDK is pinned to 10.0.300 in `global.json`.
+a NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project.
+
+Consuming the package needs .NET SDK 10.0.100 or later, and Visual Studio 2026 version 18.0 or later
+where the IDE is used: the generator ships as a Roslyn 5.0 analyzer, and an older compiler refuses
+to load it. That is a separate requirement from building this repository, which pins the SDK to
+10.0.300 in `global.json`.
 
 ## Documentation
 
