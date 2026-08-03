@@ -74,9 +74,9 @@ spread (`Div[[..items]]`). Use [`ForEach`](./control-flow.md#keyed-foreach) for 
 
 ## When a name collides
 
-`using static BlazorCodeFirst.Html;` imports 100 element names, and a member of your own component
-wins simple-name lookup over an imported one. Blazor parameters named `Label`, `Data`, `Summary` or
-`Source` are ordinary, so this happens.
+`using static BlazorCodeFirst.Html;` imports every conforming HTML element name, and a member of your
+own component wins simple-name lookup over an imported one. Blazor parameters named `Label`, `Data`,
+`Summary` or `Source` are ordinary, so this happens.
 
 A type that shadows a helper names itself in the error:
 
@@ -85,13 +85,18 @@ A type that shadows a helper names itself in the error:
 A member whose type is indexable does not — the element expression silently becomes an indexer call
 on your member:
 
-    [Parameter] public string Data { get; set; }
-    Div[Data["Heading"]]
-    // error CS1503: Argument 1: cannot convert from 'string' to 'int'
+```csharp
+[Parameter] public string Data { get; set; }
+Div[Data["Heading"]]
+```
+
+    error CS1503: Argument 1: cannot convert from 'string' to 'int'
 
 Both are fixed the same way, by qualifying the element:
 
-    Div[Html.Data["Heading"]]
+```csharp
+Div[Html.Data["Heading"]]
+```
 
 ## Decorations
 
