@@ -447,7 +447,7 @@ jobs:
         # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip.
         # Test the head repository explicitly instead of probing for an empty secret.
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
