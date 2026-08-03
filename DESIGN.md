@@ -104,7 +104,7 @@ public partial class CounterPage : BodyComponentBase
 - 要素ヘルパーとコンビネータは静的クラス `Html` に集約します。推奨形は `using static BlazorCodeFirst.Html;` を導入して `Div[...]` のように非修飾で書くことです。`Component` や `Element` のようにBlazor周辺で頻出する識別子とインポートした名前が衝突する場合に限り、衝突する箇所だけを `Html.Component<T>()` のように修飾します。
 - curatedな要素ヘルパーは、HTML Living Standardの *Index — Elements* にconformingとして載る要素から、後述の6群を除いたすべてをプロパティとして与えます。除外を列挙ではなく理由で定義しているため、標準に要素が追加されればそれは自動的に候補になります。ヘルパー名とタグ名の正準表は `KnownSymbols.CuratedTags` が持ち、ランタイム側の宣言との一致は `KnownSymbolsSyncTests` が双方向に固定します。この文書はその写しを持ちません。
 - 除外する6群と、その理由は次のとおりです。
-  1. 文書骨格と `<head>` 専用の要素(`html` / `head` / `body` / `title` / `base` / `meta` / `link`)。`<head>` の内側か文書の骨格としてしか意味を持ちません。コンポーネントの `Body` は `<body>` の内側へ描かれるため、これらはそこでは無言で不活性です——エラーも出ず、効果もありません。`body` はさらに、成立し得ません。レイアウトの中では `Body` が `LayoutComponentBase.Body` に解決されてコンパイルが通り、ルーティングされたページを黙って返します。`<head>` への経路は `Component<HeadContent>()` であり、そこでは `Element("meta")` が使えます。
+  1. 文書骨格と `<head>` 専用の要素(`html` / `head` / `body` / `title` / `base` / `meta` / `link`)。`<head>` の内側か文書の骨格としてしか意味を持ちません。コンポーネントの `Body` は `<body>` の内側へ描かれるため、これらはそこでは無言で不活性です(エラーも出ず、効果もありません)。`body` に至っては、そもそも成立しません。レイアウトの中では `Body` が `LayoutComponentBase.Body` に解決されてコンパイルが通り、ルーティングされたページを黙って返します。`<head>` への経路は `Component<HeadContent>()` であり、そこでは `Element("meta")` が使えます。
   2. content modelが生テキストの要素(`script` / `style` / `noscript`)。子はマークアップではなく生テキストであるため、ブラケットで子を渡す表層はその要素が何を含むかを偽って表します。
   3. レンダーツリー経由では意味が届かない要素(`template` / `slot`)。Chromiumでの計測では、`<template>` に子を追加すると `childNodes` が1、`content.childNodes` が0になります(パーサ経由はその逆で、`content` を満たすのはパーサだけです)。Blazorはshadow rootを作らないため、`<slot>` を満たすものは何も存在しません。どちらも型は通り、何も意味しません。
   4. C#で曖昧になる要素(`object`)。`object` キーワードに対してCS0229となります(計測済み)。

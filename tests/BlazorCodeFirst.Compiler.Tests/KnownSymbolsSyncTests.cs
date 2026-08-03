@@ -63,7 +63,10 @@ public sealed class KnownSymbolsSyncTests
     /// Keyed on the tag rather than the helper name because <c>Decorations.Title(string)</c> exists and a
     /// name-based check could not tell the element from the attribute shortcut. Group 5 covers whole
     /// element <em>indexes</em>, which a value list cannot express: this does not reject <c>circle</c> or
-    /// <c>path</c>, and it cannot distinguish HTML <c>title</c> from SVG <c>title</c>.
+    /// <c>path</c>, and it cannot distinguish HTML <c>title</c> from SVG <c>title</c>. Group 6, the
+    /// obsolete and non-conforming elements, is unenforceable here for the same reason: a row like
+    /// <c>["marquee"] = "..."</c> would pass this guard undetected, and only <see cref="ExpectedCuratedNames"/>
+    /// would catch it.
     /// </remarks>
     private static readonly Dictionary<string, string> ExcludedTags = new(System.StringComparer.Ordinal)
     {

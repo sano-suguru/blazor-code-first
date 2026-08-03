@@ -64,7 +64,10 @@ public sealed class HtmlTests
     public void CuratedElementHelpers_AreInert_ReturnDefaultBuilder()
     {
         // Inert design-time syntax: reading a curated element helper must do no work and return the
-        // default ElementBuilder. Div/Span/Button are pinned above; the rest are covered here.
+        // default ElementBuilder. Div/Span/Button are pinned above; this spot-checks a further
+        // sample, not the full curated set. BracketSurfaceGeneratorTests's
+        // EveryCuratedHelper_CompilesUnqualifiedAndOpensItsOwnTag proves all 100 exist and resolve
+        // unqualified.
         Assert.Equal(default, Html.Nav);
         Assert.Equal(default, Html.Header);
         Assert.Equal(default, Html.Main);
