@@ -72,6 +72,35 @@ Handing over a child list the generator cannot see through reports BCF1003. That
 or method result passed whole (`Div[_kids]`), an explicit array (`Div[new View[] { … }]`), and any
 spread (`Div[[..items]]`). Use [`ForEach`](./control-flow.md#keyed-foreach) for repetition instead.
 
+## Void elements take no children
+
+The thirteen void elements of the HTML standard — `area`, `base`, `br`, `col`, `embed`, `hr`, `img`,
+`input`, `link`, `meta`, `source`, `track`, `wbr` — have no closing tag, so children written on one
+report BCF3016:
+
+```csharp
+Img.Src("/logo.png")["Logo"]     // BCF3016
+Element("img")["Logo"]           // BCF3016, same rule
+Img.Src("/logo.png").Alt("Logo") // what to write instead
+```
+
+The reason is that the children do not survive a round trip through HTML. Prerendering serializes a
+closing tag the HTML parser does not accept, so the parser pushes the children out of the element and
+they appear as its siblings; a stray `</br>` is even re-read as a start tag, so `Br["x"]` prerenders
+as two `<br>` elements. Interactive rendering has no parser in the way and puts the same children
+inside the element. One expression, two different DOM trees, and the page changes shape as hydration
+takes over. Configure a void element with decorations and put content beside it.
+
+Both spellings are checked, the helper and `Element` with a void tag. Custom elements and unknown
+tags are not: `Element("img-viewer")["child"]` is accepted, because there is no standard to read
+their content model out of.
+
+This is the limit of what the surface checks about HTML, and the limit is deliberate. BCF3016 is
+decidable from the element tag by itself. Whether a particular child is allowed inside a particular
+parent is not — `Table[Div["x"]]` also renders differently after hydration, and it is accepted, along
+with attributes an element does not define (`Div.Href("/x")`). See `DESIGN.md` §4.1 for the whole
+position.
+
 ## When a name collides
 
 `using static BlazorCodeFirst.Html;` imports every conforming HTML element name, and a member of your

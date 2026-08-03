@@ -477,7 +477,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 | BCF3013 | Error   | `Component<T>()[…]` で子コンテンツが与えられているが、`T` がそれを受け取れる `ChildContent`(settable な `[Parameter]`、非ジェネリック `RenderFragment`)を持たない |
 | BCF3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>` / `ElementBuilder`)がジェネリック `.Param` の値位置に渡された |
 | BCF3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
-| BCF3016 | Error   | void要素に子が与えられている。対象はHTML Living Standardのvoid elements 13要素(`area` / `base` / `br` / `col` / `embed` / `hr` / `img` / `input` / `link` / `meta` / `source` / `track` / `wbr`)で、curatedヘルパーと、タグを非空の定数で受けた `Element` の双方を見る。静的SSRは閉じタグを出力し、HTMLパーサが子を兄弟へ押し出すため、prerenderとinteractive描画で異なるDOMになる(理由と計測は `DESIGN.md` §4.1)。要素タグについての単項述語で判定するため、(親, 子) で決まる同種の破れは対象外。未知タグとカスタム要素も対象外。未実装 |
+| BCF3016 | Error   | void要素に子が与えられている。対象はHTML Living Standardのvoid elements 13要素(`area` / `base` / `br` / `col` / `embed` / `hr` / `img` / `input` / `link` / `meta` / `source` / `track` / `wbr`)で、curatedヘルパーと、タグを非空の定数で受けた `Element` の双方を見る。静的SSRは閉じタグを出力し、HTMLパーサが子を兄弟へ押し出すため、prerenderとinteractive描画で異なるDOMになる(理由と計測は `DESIGN.md` §4.1)。要素タグについての単項述語で判定するため、(親, 子) で決まる同種の破れは対象外。未知タグとカスタム要素も対象外 |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 
