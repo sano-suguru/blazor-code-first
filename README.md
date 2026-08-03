@@ -51,8 +51,10 @@ declaration, copied from a project CI builds rather than written for the README.
 `Body` is an ordinary typed C# expression, so the compiler checks names and types, and refactorings
 propagate through it like any other code. It is not compile-time validation of HTML. Every element
 is one unified node type carrying a string tag, hiccup and ScalaTags style rather than kotlinx.html
-style, so `Img["child"]` accepts children and `.Href(…)` chains onto a `Div`. `DESIGN.md` §4.1
-records that as the chosen position.
+style, so `Img["child"]` accepts children and `.Href(…)` chains onto a `Div`. Neither is diagnosed
+today. `DESIGN.md` §4.1 records the position and separates the two: `.Href(…)` on a `Div` renders as
+written, while `Img["child"]` renders differently under static SSR and under interactive rendering,
+so BCF3016 is specified for it (#131, not implemented).
 
 What C# cannot check is the *shape* of a `Body`: a component that forgets `partial`, state mutated
 inside `Body`, a decoration applied to something that is not a single element, a duplicate
