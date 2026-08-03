@@ -217,7 +217,7 @@ public sealed class ComponentUnresolvedTypeTests
     {
         // The type argument itself is a resolved TypeKind.Class with an EMPTY TypeArguments list; the
         // unresolved type is only reachable through its ContainingType. This shape needs the analyzer's
-        // bail even with a .Param, because `Inner.Label` is a real settable [Parameter] — the selector
+        // bail even with a .Param, because `Inner.Label` is a real settable [Parameter], the selector
         // binds, translation would otherwise succeed, and the generator would emit
         // OpenComponent<global::T.Outer<Missing>.Inner>, failing with CS0246 in generated code.
         const string source = """
@@ -315,8 +315,8 @@ public sealed class ComponentUnresolvedTypeTests
     public void Component_FromMetadataReference_ReportsNoBCF3012()
     {
         // The regression guard for "the constraint is same-compilation only": a component that exists
-        // only in a referenced assembly — the position a .razor component in a referenced project or
-        // NuGet package occupies — resolves normally and is emitted fully qualified.
+        // only in a referenced assembly, the position a .razor component in a referenced project or
+        // NuGet package occupies, resolves normally and is emitted fully qualified.
         const string library = """
             using Microsoft.AspNetCore.Components;
             namespace Lib;

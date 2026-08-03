@@ -18,7 +18,7 @@ namespace BlazorCodeFirst.Compiler;
 /// equality dispatch without boxing.
 /// </para>
 /// <para>
-/// A <c>default</c> (uninitialized) instance is treated as an empty array throughout — equality,
+/// A <c>default</c> (uninitialized) instance is treated as an empty array throughout, equality,
 /// hashing, length, and enumeration all behave as empty and never throw.
 /// </para>
 /// </remarks>

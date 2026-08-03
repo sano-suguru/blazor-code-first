@@ -23,7 +23,7 @@ public static class AstRewriter
     /// <remarks>
     /// Only <see cref="LinkInline"/> nodes are considered. A raw HTML anchor written directly in the
     /// Markdown body (<c>&lt;a href="other.md"&gt;</c>) parses as HtmlInline/HtmlBlock and passes
-    /// through untouched — neither rewritten nor checked — so document bodies must use Markdown link
+    /// through untouched, neither rewritten nor checked, so document bodies must use Markdown link
     /// syntax. Autolinks are a different node type and are likewise out of scope.
     /// </remarks>
     public static void RewriteRelativeLinks(

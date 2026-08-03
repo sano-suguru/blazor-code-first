@@ -8,9 +8,9 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// Diagnostics on the bracket surface, verified on healthy <em>and</em> broken bodies.
 /// </summary>
 /// <remarks>
-/// Reproducing the baselines only proves the paths that succeed.  A rewrite that silently stopped reporting
-/// a diagnostic would leave every baseline green, so each diagnostic whose reporting site moves — or whose
-/// channel order reverses — is asserted here directly.
+/// Reproducing the baselines only proves the paths that succeed. A rewrite that silently stopped reporting
+/// a diagnostic would leave every baseline green, so each diagnostic whose reporting site moves, or whose
+/// channel order reverses, is asserted here directly.
 /// </remarks>
 public sealed class BracketSurfaceDiagnosticTests
 {
@@ -39,14 +39,14 @@ public sealed class BracketSurfaceDiagnosticTests
     /// <summary>Runs the generator over <paramref name="body"/> and returns its diagnostics.</summary>
     /// <remarks>
     /// <para>
-    /// Bodies that are deliberately not valid C# need no separate entry point.  They did while these tests
+    /// Bodies that are deliberately not valid C# need no separate entry point. They did while these tests
     /// ran against an in-source shim, whose own health had to be asserted before an input error could be
     /// tolerated; against the shipped runtime the compilation is built the ordinary way, and an input error
     /// is just an input error.
     /// </para>
     /// <para>
     /// What the shim's gate did carry is that no test here passes vacuously, and that is held by assertion
-    /// rather than by this remark.  Each test below does one of three things: asserts a diagnostic that
+    /// rather than by this remark. Each test below does one of three things: asserts a diagnostic that
     /// names a specific mistake, which cannot appear unless the analyzer reached the shape under test;
     /// asserts through <c>AssertOutputCompiles</c> that the generated output compiles, for the two accepted
     /// shapes; or, where the asserted diagnostic is the generic BCF1003 fallback, asserts through
@@ -62,8 +62,8 @@ public sealed class BracketSurfaceDiagnosticTests
 
     /// <summary>
     /// The generated source for <paramref name="body"/>, for the cases asserted as source equality.
-    /// Only the BlazorCodeFirst host produces output — <c>Card</c> and <c>Plain</c> are ordinary
-    /// <c>ComponentBase</c> classes — so a single generated source is the expected shape.
+    /// Only the BlazorCodeFirst host produces output, <c>Card</c> and <c>Plain</c> are ordinary
+    /// <c>ComponentBase</c> classes, so a single generated source is the expected shape.
     /// </summary>
     private static string GenerateSource(string body)
     {
@@ -176,7 +176,7 @@ public sealed class BracketSurfaceDiagnosticTests
     public void NonConstantElementTag_WithBracketedChildren_ReportsBCF3009AndNotBCF3015()
     {
         // Nothing is suppressed here, despite how this reads. The scanner's Element arm never reports on
-        // the tag argument at all, so BCF3015 has no route to it, independently of any recovery gate — and
+        // the tag argument at all, so BCF3015 has no route to it, independently of any recovery gate, and
         // independently of the constant-tag gate the sibling test below covers.
         var diagnostics = Run("""Element(typeof(Probe).Name)["x"]""");
 
@@ -236,7 +236,7 @@ public sealed class BracketSurfaceDiagnosticTests
     [Fact]
     public void CollectionExpressionLiteralInBrackets_IsAcceptedAsChildren()
     {
-        // Pinned as BCF1003 by #100 — "the current behaviour is pinned here, not endorsed" — and changed
+        // Pinned as BCF1003 by #100, "the current behaviour is pinned here, not endorsed", and changed
         // deliberately by #75: the literal is the same call as Div["a", "b"] and its children are
         // present in the operation tree, so refusing it was the one shape where BCF1003's own claim of
         // "not statically analyzable" did not hold. Equivalence with the expanded spelling is asserted
@@ -251,7 +251,7 @@ public sealed class BracketSurfaceDiagnosticTests
     public void SpreadInsideACollectionExpressionLiteral_ReportsBCF1003()
     {
         // A spread's items are a runtime collection with no per-child written expression, so they are
-        // not statically sequenceable children — that is what ForEach is for. This is the same boundary
+        // not statically sequenceable children: that is what ForEach is for. This is the same boundary
         // Div[_children] sits on, and #75 does not move it.
         var result = RunResult("""Div[[.._children]]""", """private readonly View[] _children = [];""");
 
@@ -344,9 +344,9 @@ public sealed class BracketSurfaceDiagnosticTests
     /// Distinct from <c>UnresolvedEmittedTypeTests.ComposableBody_UnresolvedType_ReportsBCF3015Once</c>,
     /// whose body translates successfully: there BCF3015 comes from the success path
     /// (<c>ExpressionTemplateFactory</c> reporting through <c>ComposableBodyContext</c>) and
-    /// <c>UnresolvedValueTypeScanner</c> is never reached.  Measured by deleting the scanner call from
+    /// <c>UnresolvedValueTypeScanner</c> is never reached. Measured by deleting the scanner call from
     /// <c>ComposableDefinitionFactory</c>: that test still passed, and so did every other behavioural test
-    /// in the suite — only the structural wiring guard failed.  This case is the one that fails, and that
+    /// in the suite, only the structural wiring guard failed. This case is the one that fails, and that
     /// is the whole reason it exists.
     /// </para>
     /// <para>
@@ -404,8 +404,8 @@ public sealed class BracketSurfaceDiagnosticTests
     /// The receiver has to be named explicitly in <c>RejectedDecorationScanner</c>, and this case is what
     /// pins that: <c>RenderFragment</c> converts to <c>View</c>, but an extension-method receiver admits only
     /// identity, reference and boxing conversions, so the conversion is not applied when resolving
-    /// <c>.Class</c> and a receiver test against <c>View</c> alone never matches.  Before that clause existed
-    /// this input reported BCF1003 — the generic "not statically analyzable" fallback — while
+    /// <c>.Class</c> and a receiver test against <c>View</c> alone never matches. Before that clause existed
+    /// this input reported BCF1003, the generic "not statically analyzable" fallback, while
     /// <c>DESIGN.md</c> §4.1 stated it was BCF3008, grouping a supplied <c>RenderFragment</c> with
     /// <c>Fragment</c> and <c>Raw</c> as content that opens no element frame.
     /// </remarks>
@@ -427,18 +427,18 @@ public sealed class BracketSurfaceDiagnosticTests
     /// <remarks>
     /// <para>
     /// Distinct from <see cref="DecoratingAComposableResult_ReportsBCF3008"/>, which decorates what a
-    /// composable <em>returns</em> and is written in <c>Body</c> like every other case in this group.  Here
+    /// composable <em>returns</em> and is written in <c>Body</c> like every other case in this group. Here
     /// the composable's own body is the broken expression, and <c>Body</c> is healthy.
     /// </para>
     /// <para>
     /// Kept as its own case because the shape is not covered by any other: a design-time expression has two
-    /// hosts — <c>ComponentModelFactory</c> for <c>Body</c> and <c>ComposableDefinitionFactory</c> for
-    /// <c>[Composable]</c> — and each wires its own failure-path sweeps.  BCF3008 was reported from inside
+    /// hosts, <c>ComponentModelFactory</c> for <c>Body</c> and <c>ComposableDefinitionFactory</c> for
+    /// <c>[Composable]</c>, and each wires its own failure-path sweeps. BCF3008 was reported from inside
     /// <c>RenderExpressionAnalyzer.Classify</c>, which both hosts route through, until it moved to a
     /// caller-invoked scanner; the composable host was then left without it, and every existing case here
-    /// shares the <c>Body</c> host template and so kept passing.  Measured on that state, this input reported
-    /// BCF1002 alone — "body must be a statically sequenceable expression", the generic text BCF3008 exists to
-    /// displace.  <c>FailurePathScannerParityTests</c> guards the wiring; this guards the author-facing
+    /// shares the <c>Body</c> host template and so kept passing. Measured on that state, this input reported
+    /// BCF1002 alone, "body must be a statically sequenceable expression", the generic text BCF3008 exists to
+    /// displace. <c>FailurePathScannerParityTests</c> guards the wiring; this guards the author-facing
     /// result.
     /// </para>
     /// </remarks>
@@ -458,7 +458,7 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // The C# error (CS1929) that would otherwise name this cannot reach the author: the host class
         // always carries CS0534 because no RenderView is generated, and csc stops after the declaration
-        // stage without binding method bodies. A BlazorCodeFirst diagnostic does get through — BCF1003 did —
+        // stage without binding method bodies. A BlazorCodeFirst diagnostic does get through, BCF1003 did,
         // so BCF3008 is what carries the explanation.
         var diagnostics = Run("""Fragment("a").Class("x")""");
 
@@ -481,46 +481,46 @@ public sealed class BracketSurfaceDiagnosticTests
 
     /// <summary>
     /// An unrelated extension method that fails to bind is not BCF3008, whichever part of the shape it
-    /// shares.  Four cases, one per part of the shape a decoration has that an unrelated method can borrow
-    /// on its own — name, receiver, and each of the two ways of borrowing every part but one.
+    /// shares. Four cases, one per part of the shape a decoration has that an unrelated method can borrow
+    /// on its own, name, receiver, and each of the two ways of borrowing every part but one.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Not one case per conjunct: the four cover the parts of the shape an unrelated method can borrow, and
-    /// only the last two turn on the conjunct each of them borrows, as the second paragraph records.  The
+    /// only the last two turn on the conjunct each of them borrows, as the second paragraph records. The
     /// name conjunct is pinned by <c>Fragment("a").Wrap(1)</c>; the receiver conjunct, by
-    /// <c>Other.MakeBin().Id(1)</c> below — the receiver clause could otherwise be widened without any case
-    /// here noticing, which is what happened when <c>RenderFragment</c> was added to it.  The return type
+    /// <c>Other.MakeBin().Id(1)</c> below, the receiver clause could otherwise be widened without any case
+    /// here noticing, which is what happened when <c>RenderFragment</c> was added to it. The return type
     /// conjunct has no case that pins it the same way; nothing here claims otherwise.
     /// </para>
     /// <para>
     /// <c>Other.Make().Class(1)</c> borrows the <em>name</em>: someone else's <c>.Class</c>, on a receiver
-    /// and with a return type of their own.  <c>Fragment("a").Describe("x")</c> borrows the
+    /// and with a return type of their own. <c>Fragment("a").Describe("x")</c> borrows the
     /// <em>receiver</em>: a method on our <c>View</c>, returning <c>string</c>.
-    /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> but the name — our <c>View</c> in,
-    /// our <c>ElementBuilder</c> out — and differs only in what it is called.
-    /// <c>Other.MakeBin().Id(1)</c> borrows the whole signature but the <em>receiver</em> — a genuine
-    /// decoration name, returning our <c>ElementBuilder</c> — and differs only in what it is written on.  It
+    /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> but the name, our <c>View</c> in,
+    /// our <c>ElementBuilder</c> out, and differs only in what it is called.
+    /// <c>Other.MakeBin().Id(1)</c> borrows the whole signature but the <em>receiver</em>, a genuine
+    /// decoration name, returning our <c>ElementBuilder</c>, and differs only in what it is written on. It
     /// is deliberately named <c>.Id</c> rather than <c>.Class</c>: a second unrelated <c>.Class</c> extension
     /// in the same compilation collides with <c>Other.Make().Class(1)</c>'s own, and Roslyn's error recovery
-    /// stops offering a candidate return type for either call once the name is ambiguous — which would have
-    /// made this case indistinguishable from a return-type failure instead of a receiver-only one.  No other
+    /// stops offering a candidate return type for either call once the name is ambiguous, which would have
+    /// made this case indistinguishable from a return-type failure instead of a receiver-only one. No other
     /// case here declares an <c>.Id</c>, so recovery stays exact.
     /// </para>
     /// <para>
-    /// The last two cases are the ones that matter, and the first of them — <c>Wrap</c> — was measured
+    /// The last two cases are the ones that matter, and the first of them, <c>Wrap</c>, was measured
     /// failing before the name conjunct existed: the two type tests describe a decoration's signature rather
     /// than a decoration, so a wrong-argument call to a user-declared <c>Wrap</c> was reported as a misplaced
-    /// decoration, anchored at <c>Wrap</c>.  An author would have been told to move attributes they never
-    /// wrote.  Keep this case: it is the only one that fails if the name conjunct is dropped, the other three
-    /// turning on the return type or the receiver instead.  <c>Other.MakeBin().Id(1)</c> is its mirror for
+    /// decoration, anchored at <c>Wrap</c>. An author would have been told to move attributes they never
+    /// wrote. Keep this case: it is the only one that fails if the name conjunct is dropped, the other three
+    /// turning on the return type or the receiver instead. <c>Other.MakeBin().Id(1)</c> is its mirror for
     /// the receiver conjunct: it is the only one that fails if the receiver conjunct is dropped, and its
     /// removal was verified to flip this case to BCF3008 while every other case here is unaffected.
     /// </para>
     /// <para>
     /// The whole collection in brackets is what makes the body untranslatable, and it is load-bearing: the
     /// scanner runs only when translation failed, so without it none of these calls would be swept at all
-    /// and the test would pass on a path it never took.  Each failed call on its own recovers to a type that
+    /// and the test would pass on a path it never took. Each failed call on its own recovers to a type that
     /// converts to <c>View</c>, so each translates.
     /// </para>
     /// </remarks>
@@ -579,18 +579,18 @@ public sealed class BracketSurfaceDiagnosticTests
     /// <remarks>
     /// <para>
     /// BCF3008 is the only one: <c>Expand</c>'s dedup drops BCF1003 once a more specific error has been
-    /// recorded for the component, and BCF1003 is the wrong explanation here anyway — it says the expression
+    /// recorded for the component, and BCF1003 is the wrong explanation here anyway: it says the expression
     /// "uses a construct that is not statically analyzable", when the construct is analyzable and only the
     /// attributes' position is wrong.
     /// </para>
     /// <para>
     /// The CS1929 assertion is kept because it is true, and worth pinning: the type system really does reject
-    /// a decoration on a <c>View</c>.  It is not evidence that the author is told so.
+    /// a decoration on a <c>View</c>. It is not evidence that the author is told so.
     /// <c>Compilation.GetDiagnostics()</c>, which is what this assertion calls, binds method bodies
     /// unconditionally; <c>csc</c> does not, and stops after the declaration stage on a compilation that has
-    /// a declaration error.  A component whose design-time expression fails to translate always has one — the
-    /// CS0534 from the <c>RenderView</c> that was never generated — so in a real build the CS1929 below is
-    /// never computed.  That is why the in-process assertion and the fixture check different things, and why
+    /// a declaration error. A component whose design-time expression fails to translate always has one, the
+    /// CS0534 from the <c>RenderView</c> that was never generated, so in a real build the CS1929 below is
+    /// never computed. That is why the in-process assertion and the fixture check different things, and why
     /// BCF3008 exists rather than the C# error being left to speak: see
     /// <c>tests/diagnostic-fixtures/README.md</c>, and <c>RejectedDecorationScanner</c>'s remarks.
     /// </para>
@@ -612,15 +612,15 @@ public sealed class BracketSurfaceDiagnosticTests
     /// <remarks>
     /// <para>
     /// Every other diagnostic asserted in this file names a specific mistake, so asserting its presence
-    /// establishes that the analyzer reached the shape under test.  BCF1003 does not: it is the generic
+    /// establishes that the analyzer reached the shape under test. BCF1003 does not: it is the generic
     /// "uses a construct that is not statically analyzable" fallback, and an input that stopped binding for
-    /// some entirely unrelated reason produces it too.  A bare <c>Assert.Contains(… BCF1003)</c> would
-    /// therefore keep passing on a host template that no longer says what the test means it to say.  The
+    /// some entirely unrelated reason produces it too. A bare <c>Assert.Contains(… BCF1003)</c> would
+    /// therefore keep passing on a host template that no longer says what the test means it to say. The
     /// shim's own input gate used to rule that out; this is what replaces it.
     /// </para>
     /// <para>
     /// CS0534 is the one error left standing, and it is expected rather than tolerated: the generator is
-    /// what supplies <c>RenderView</c>, and here it declined to for exactly the reason under test.  Any
+    /// what supplies <c>RenderView</c>, and here it declined to for exactly the reason under test. Any
     /// <em>other</em> C# error means the body failed to bind before the analyzer had an opinion about it.
     /// </para>
     /// </remarks>

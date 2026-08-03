@@ -1,6 +1,6 @@
 # BlazorCodeFirst Architecture
 
-**内部アーキテクチャ — コンパイルアルゴリズム、シーケンス割当、メモリレイアウト**
+**内部アーキテクチャ: コンパイルアルゴリズム、シーケンス割当、メモリレイアウト**
 
 前提環境: .NET 10(ベースライン)、.NET 11(条件付き機能)
 
@@ -77,7 +77,7 @@ BodyComponentBase                 ② SSC分類(§2.3)
                                         — [Composable] のインライン展開
 ```
 
-生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス(`BodyComponentBase` またはレイアウトの `ChromeLayoutBase`)の `BuildRenderTree` から呼び出されます。設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)および設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
+生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス(`BodyComponentBase` またはレイアウトの `ChromeLayoutBase`)の `BuildRenderTree` から呼び出されます。設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)および設計時API、すなわち `Html`・`Decorations` の全メンバーと設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバーは、いずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 設計時表現のゲッターは**単一の式に還元できなければなりません**。`=> expr` / `get => expr` /
 `get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。文を含む
@@ -127,21 +127,23 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
 
 値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBCF3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
 
-`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BCF3003)、装飾もできません(BCF3008、詳細は§2.7(A)と付録A)。この装飾不可は型システムでも表現されています — 装飾は `ElementBuilder` の拡張であり、`Fragment`/`Raw` は `View` なのでCS1929です — が、その上でBCF3008も報告します。設計時表現が翻訳できないコンポーネントには `RenderView` が生成されず、クラスは必ず宣言段階エラーのCS0534を負うため、`csc` はメソッド本体の束縛へ進まずCS1929を作者へ届けません(実MSBuildでの測定値 — `RejectedDecorationScanner` が存在しなかった時点: フィクスチャ `Bcf3008Host` が報告したのはCS0534とBCF1003だけで、CS1929は現れませんでした。BCF3008を報告するようになった現在は、同じフィクスチャがそれも報告します)。同じビルドでBCF1003が届いていることが示すとおり、この打ち切りを越えられるのは生成器の診断だけであり、何が間違っているかを名指せる診断はBCF3008です。
+`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[Composable]` 展開ノードと同型)。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BCF3003)、装飾もできません(BCF3008、詳細は§2.7(A)と付録A)。
+
+装飾不可は型システムでも表現されています。装飾は `ElementBuilder` の拡張であり、`Fragment` / `Raw` は `View` なのでCS1929です。それでもBCF3008を報告するのは、このCS1929が作者へ届かないためです。設計時表現が翻訳できないコンポーネントには `RenderView` が生成されず、クラスは必ず宣言段階エラーのCS0534を負うため、`csc` はメソッド本体の束縛へ進みません。`RejectedDecorationScanner` が存在しなかった時点の実MSBuild測定では、フィクスチャ `Bcf3008Host` が報告したのはCS0534とBCF1003だけで、CS1929は現れませんでした(BCF3008を報告するようになった現在は、同じフィクスチャがそれも報告します)。同じビルドでBCF1003が届いていることが示すとおり、この打ち切りを越えられるのは生成器の診断だけです。
 
 ### 2.3 静的シーケンス可能サブセット(SSC)
 
 任意のC#コードに対して条件(2)の `σ` を構成することはできません(呼び出しグラフが実行時にのみ確定するため)。解析の適用範囲を次の3階層に分類します:
 
-**SSC(完全静的)** — 静的シーケンス割当の対象:
+**SSC(完全静的)**: 静的シーケンス割当の対象。
 - SSC-1: `Body` 本体、および `[Composable]` メソッド本体における、要素ヘルパー/装飾の直接記述、および `Component<T>()`・`Fragment`・`Raw` の直接呼び出し
 - SSC-2: `If(cond, then, otherwise)` コンビネータ(両分岐がインラインラムダであること)
 - SSC-3: `ForEach(source, key, content)` コンビネータ(`content` がインラインラムダ、`key` は必須)
 - SSC-4: SSC-1〜3の任意のネスト、および `[Composable]` 呼び出しの静的インライン展開
 
-**Transplantable(構文移植)** — ネイティブ `if` / `foreach` / `switch` 等の制御構文。生成コードへ構文ごと移植され、境界リージョンで包まれます(§2.5)。
+**Transplantable(構文移植)**: ネイティブ `if` / `foreach` / `switch` 等の制御構文。生成コードへ構文ごと移植され、境界リージョンで包まれます(§2.5)。
 
-**Opaque(実行時評価)** — `[Composable]` の付かない `View` 返却メソッド呼び出し、デリゲート経由の間接呼び出し等。SGは内部を解析できないため、呼び出し式を生成コードへ移植し、実行時に返された `View` に内包される `RenderFragment` をリージョン内で描画します。診断BCF2001(Info)で通知されます。
+**Opaque(実行時評価)**: `[Composable]` の付かない `View` 返却メソッド呼び出し、デリゲート経由の間接呼び出し等。SGは内部を解析できないため、呼び出し式を生成コードへ移植し、実行時に返された `View` に内包される `RenderFragment` をリージョン内で描画します。診断BCF2001(Info)で通知されます。
 
 いずれの階層でも正確性は保たれます。失われるのはTransplantable/Opaque領域内部の静的差分最適化のみです。
 
@@ -203,7 +205,7 @@ Blazorのリージョンはシーケンス空間を分離するため、`D` 内�
 
 本方式で要となるのは、単純な要素発行ではなく、装飾チェーン・リスト・`[Composable]` の3つの変換です。§2.4の `If` と同じ密度で、それぞれ「どの入力を、どの生成コードに変えるか」を定めます。
 
-**(A) 装飾チェーンの畳み込み — 入力: 装飾の連鎖 / 出力: `class` は畳み込み、他の属性・イベントは1:1のフレーム**
+**(A) 装飾チェーンの畳み込み。入力: 装飾の連鎖 / 出力: `class` は畳み込み、他の属性・イベントは1:1のフレーム**
 
 装飾メソッドは所有要素の属性・イベントへ静的に合成され、ラッパーノードを増やしません。`class` は特別で、`.Class`(または `.Attr("class", …)`)を何個連ねても単一の `class` 属性へ畳み込まれ、追加の属性フレームは生まれません。`class` 以外の属性・イベント(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ独立した属性/イベントフレームとして1:1で発行され、同一属性・イベントの重複バインディングはBCF3010で診断されます。
 
@@ -216,7 +218,7 @@ Button
 ```
 
 ```csharp
-// 出力(生成コード) — 2つの .Class は1つの class 属性へ畳み込まれ、.OnClick は独立したフレーム
+// 出力(生成コード): 2つの .Class は1つの class 属性へ畳み込まれ、.OnClick は独立したフレーム
 __b.OpenElement(k,   "button");
 __b.AddAttribute(k+1, "class", "btn btn-primary");
 __b.AddAttribute(k+2, "onclick", /* () => Save() */);
@@ -226,7 +228,7 @@ __b.CloseElement();
 
 この `Button` の `FrameWidth` は4(`OpenElement` + `class` 属性 + `onclick` イベント + `AddContent`)です。`.Class` を何回連ねてもフレーム幅は増えませんが、`class` 以外の装飾を1つ追加するとフレーム幅も1つ増えます。ラッパーノード方式(装飾ごとに専用のラッパー要素を生成する方式)であれば装飾はDOMノードそのものを増やしますが、本方式はいずれの装飾も所有要素の属性・イベントとして合成するためDOM深さは増えません。要点は「`class` は装飾の個数によらずフレーム幅が一定に畳み込まれる一方、それ以外の属性・イベントは1装飾につき1フレームの1:1対応である」という非対称性で、この不変性が装飾を重ねても差分検知のシーケンス割当が安定する根拠です。
 
-**(B) `ForEach` — 入力: リストの変異 / 出力: キー整合の最小パッチ**
+**(B) `ForEach`。入力: リストの変異 / 出力: キー整合の最小パッチ**
 
 `ForEach`(SSC-3)は `foreach` へ展開され、テンプレート `content` に単一の静的シーケンス空間を割り当てた上で、反復インスタンス間の同一性を `SetKey(key(item))` で識別します。シーケンスが「テンプレート内の構文位置」を、キーが「データ同一性」を担い、責務が直交します。
 
@@ -237,7 +239,7 @@ ForEach(_items, key: t => t.Id, content: item =>
 ```
 
 ```csharp
-// 出力(生成コード) — テンプレートのseqは反復間で不変、同一性はキーが担う
+// 出力(生成コード): テンプレートのseqは反復間で不変、同一性はキーが担う
 __b.OpenRegion(k);
 foreach (var item in _items)
 {
@@ -252,11 +254,15 @@ __b.CloseRegion();
 
 `SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければならず、`OpenElement` の前(親がリージョンの状態)で呼ぶと実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BCF3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BCF3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div[ForEach(o.Items, …)]`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
 
-この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` / `RenderFragmentContentTemplateNode`(外部由来の `RenderFragment?` を `AddContent(seq, RenderFragment?)` としてそのまま発行するノード)をすべて `ContentRootKind.Region` に分類し(`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element`)、静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。この既定 `false` は、新種のノードが増えてもキー可否判定が安全側(非キー可能)に倒れるという意味で正しい設計です。一方、`SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対してはいずれも例外を送出し、ケース漏れを黙って通しません。両者は非対称です — フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約であるのに対し、`IsKeyableRoot` だけは「未知のノード型は非キー可能として扱う」既定を持ちます。この網羅契約により、展開後ノード `RenderFragmentContentNode`(`SequenceAllocator.Width` では常に1 — シーケンス引数を消費する `AddContent` 呼び出しが `RenderFragment?` の非nullを問わず不可欠であるため)を追加した際も、`SequenceAllocator.Width` と `RenderViewEmitter.EmitNode` の両方にケースを足す必要があり、片方だけの更新は例外で検出されます。
+この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` / `RenderFragmentContentTemplateNode` をすべて `ContentRootKind.Region` に分類し、`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element` です(`RenderFragmentContentTemplateNode` は、外部由来の `RenderFragment?` を `AddContent(seq, RenderFragment?)` としてそのまま発行するノードです)。静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。
+
+未知のノード型に対する扱いは、この2層で意図的に非対称です。`IsKeyableRoot` の既定 `false` は、新種のノードが増えてもキー可否判定を安全側(非キー可能)へ倒します。一方 `SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対して例外を送出し、ケース漏れを黙って通しません。フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約、`IsKeyableRoot` は「未知のノード型は非キー可能として扱う」既定、という分担です。
+
+この網羅契約があるため、展開後ノード `RenderFragmentContentNode` を追加した際も `SequenceAllocator.Width` と `RenderViewEmitter.EmitNode` の両方にケースを足す必要があり、片方だけの更新は例外で検出されます。なおこのノードの `Width` は常に1です。シーケンス引数を消費する `AddContent` 呼び出しが、`RenderFragment?` の非nullを問わず不可欠であるためです。
 
 入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
 
-**(C) `[Composable]` の静的インライン展開 — 入力: 部品呼び出し / 出力: 連続seqへの直接展開**
+**(C) `[Composable]` の静的インライン展開。入力: 部品呼び出し / 出力: 連続seqへの直接展開**
 
 `[Composable]` メソッド呼び出しは、呼び出しサイトへ本体をインライン展開します(§2.2 の `ComposableCall` ケース)。メソッド呼び出しもリージョン境界も生成されず、シーケンス番号は周囲の本体と連続します。引数は構文として移植されます。
 
@@ -271,7 +277,7 @@ private static View Toolbar(string title) =>
 ```
 
 ```csharp
-// 出力(生成コード) — Toolbar はインライン展開され、seqは 0 から連続する
+// 出力(生成コード): Toolbar はインライン展開され、seqは 0 から連続する
 __b.OpenElement(0, "div");                              // Div (Body の根要素)
 //   ↓ Toolbar("My App") のインライン展開開始(リージョン境界なし)
 __b.OpenElement(1, "div");                              // Div (Toolbar 本体)
@@ -285,7 +291,7 @@ __b.CloseElement();
 
 `[Composable]` 呼び出しは、その本体を呼び出しサイトへ直接書いた場合と同じフレーム列・シーケンス区間を生みます。実行時ディスパッチもリージョン分離も介在しません。対照的に、`[Composable]` の付かない `View` 返却メソッドはOpaque(§2.3)として扱われ、リージョンで包まれ実行時に `RenderFragment` として描画され、診断BCF2001の対象となります。属性付与の有無ではなく、この静的展開可能性が部品再利用の速度・トリミング特性を分けます。
 
-**コンポーネントの fragment スロット** — `RenderFragment` 型のパラメータは、値ではなくノードツリーを
+**コンポーネントの fragment スロット**: `RenderFragment` 型のパラメータは、値ではなくノードツリーを
 持つため `ComponentParameter`(スカラー)とは別チャンネル(`ComponentSlot` / `ComponentSlotNode`)に
 格納します。幅は `1 + Parameters.Length + Σ(1 + Width(slot.Content))` で、スロット1つが
 `AddComponentParameter` 1回とその内容の幅を消費します。
@@ -377,7 +383,7 @@ net11.0ターゲットでは、Runtime Async(ランタイムネイティブ非�
 
 BlazorCodeFirstは実行時メタデータ分析・動的ディスパッチを排除します。全パラメータバインディング(`Component<T>().Param(...)` を含む)は、Source Generatorが生成する静的セッター経由で行われます。`Param` の式引数はSGが構文解析してセッター生成にのみ利用し、式木(`System.Linq.Expressions`)のランタイムコンパイルは行いません。`System.Reflection` / `System.Linq.Expressions` へのランタイム依存は0です。
 
-さらに、設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)と設計時API — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバー — はいずれも実行時に到達不能であるため、ILトリマーはこれらを丸ごと除去できます。UI記述のソースコードはバイナリサイズに寄与しません。これは実行時評価を行うコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計であり、トリムテストはコンポーネントとレイアウトの双方(派生型の `Body`/`Chrome` と基底の抽象ゲッター)についてこれを検査します。
+さらに、設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)と設計時API、すなわち `Html`・`Decorations` の全メンバーと設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(付録A、BCF3014)の全メンバーは、いずれも実行時に到達不能であるため、ILトリマーはこれらを丸ごと除去できます。UI記述のソースコードはバイナリサイズに寄与しません。これは実行時評価を行うコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` の下で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計であり、トリムテストはコンポーネントとレイアウトの双方(派生型の `Body`/`Chrome` と基底の抽象ゲッター)についてこれを検査します。
 
 リフレクションベースのバインディングを持つ同等構成との比較で、AOTコンパイル後のWasmペイロードサイズを約20〜30%削減(予測値)と見込みます。この予測値は、(a) BlazorCodeFirst構成、(b) リフレクションバインディング構成、(c) 素のRazor構成の3系統のベンチマークにより確定値へ置き換えられます。素のRazor構成との比較ではほぼ同等となる見込みです。
 
@@ -436,7 +442,7 @@ csc は宣言レベルのエラー(CS0534、CS0246、CS0234 等)を含むコン�
 
 > **その診断の役割が「利用者が単独では読み解けないコンパイルエラーの原因を名指すこと」であるなら、その診断は Source Generator が報告しなければならない。** アナライザーとして実装した場合、診断が発火すべき条件そのものがアナライザードライバを停止させるため、原理的に到達不能になる。
 
-BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は `RenderView` の非生成を意味し、それは CS0534 — すなわち宣言レベルのエラー — を必ず発生させるため、アナライザーとしての BCF1001 は実ビルドで一度も報告され得ませんでした。診断すべき条件が診断自身を抑止していたことになります。BCF1001 は生成器報告へ移されています。同じ理由で BCF1003 / BCF1005 は当初から生成器報告であり、CS0534 と共に出力されます。
+BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は `RenderView` の非生成を意味し、それは宣言レベルのエラーである CS0534 を必ず発生させるため、アナライザーとしての BCF1001 は実ビルドで一度も報告され得ませんでした。診断すべき条件が診断自身を抑止していたことになります。BCF1001 は生成器報告へ移されています。同じ理由で BCF1003 / BCF1005 は当初から生成器報告であり、CS0534 と共に出力されます。
 
 副次的な帰結として、**宣言エラーを1つ含むコンパイルでは、そのプロジェクトのアナライザー診断が BlazorCodeFirst 以外(CA/IDE 規則を含む)もすべて消えます**。これは BlazorCodeFirst 固有の性質ではありませんが、非 partial なコンポーネントはこの崖に落ちる最も容易な経路であり、その意味でも BCF1001 を生成器から即座に報告する価値があります。
 
@@ -444,7 +450,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 この節の内容は文書上の約束ではなく、テストで固定されています。`tests/BlazorCodeFirst.DiagnosticTests` が `tests/diagnostic-fixtures` の各プロジェクトを実 MSBuild でビルドし、SARIF ログから「どの診断が、どの位置に報告されたか」を検証します。同一の CA1050 違反型を全フィクスチャに含めることで、宣言エラーのあるコンパイルではアナライザー診断が消えること・ないコンパイルでは報告されることの両方が固定されており、`DiagnosticDescriptors` の全記述子はこの層で網羅されているか、理由付きの除外リストに載っているかのいずれかである必要があります。
 
-次節の表そのものも同じテストプロジェクトが検証します。`DiagnosticTableTests` が A.1 の表を読み取り、`DiagnosticDescriptors` と双方向で突き合わせます — 記述子があって行が無ければ失敗し、行があって記述子が無い場合も、実装に先行して仕様化されている理由を `DiagnosticExpectations.DocumentedWithoutDescriptor` に記録していない限り失敗します。BCF2001 が現在の唯一の登録項目です。**種別**列も記述子の `DefaultSeverity` と照合されるため、診断の severity を変えることは表を変えることでもあります(記述子を持たない行は照合対象外です)。
+次節の表そのものも同じテストプロジェクトが検証します。`DiagnosticTableTests` が A.1 の表を読み取り、`DiagnosticDescriptors` と双方向で突き合わせます。記述子があって行が無ければ失敗し、行があって記述子が無い場合も、実装に先行して仕様化されている理由を `DiagnosticExpectations.DocumentedWithoutDescriptor` に記録していない限り失敗します。BCF2001 が現在の唯一の登録項目です。種別列も記述子の `DefaultSeverity` と照合されるため、診断の severity を変えることは表を変えることでもあります(記述子を持たない行は照合対象外です)。
 
 ### A.1 診断一覧
 
@@ -463,7 +469,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 | BCF3005 | Error   | `Component<T>().Param` のセレクタが単純なプロパティ選択(`c => c.Prop`)でない(キャスト/メソッド呼び出し/捕捉変数のメンバー等) |
 | BCF3006 | Error   | `Component<T>().Param` の対象が settable な `[Parameter]` プロパティでない(実行時 throw を防ぐためコンパイル時に拒否) |
 | BCF3007 | Error   | `Component<T>().Param` のチェーンが同一プロパティを複数回バインドしている(Blazorは最後の値のみ適用するため重複はコンパイル時に拒否) |
-| BCF3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外に書かれている。装飾は `ElementBuilder` の拡張であるため、レシーバが `View`/`ComponentView<T>`(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`、および子を与え終えた要素)の場合は `Decorations` に対するオーバーロード解決が失敗する。外部から渡された `RenderFragment` もレシーバとして受理する — `View` へ暗黙変換されるものの、拡張メソッドのレシーバは恒等/参照/ボクシング変換しか取らずユーザー定義変換を適用しないため、同じく解決に失敗し、作者の誤りは `Fragment`/`Raw` を装飾した場合と同一である(DESIGN.md §4.1)。翻訳に失敗した設計時表現を掃引し、この失敗したチェーンを検出して報告する(型システムが挙げるCS1929は宣言段階の打ち切りにより作者へ届かないため。§2.2) |
+| BCF3008 | Error   | 装飾(`.Class`/`.Attr`/型付き属性ショートカット/`.OnClick`/`.On`)が単一要素を開くノード(要素ヘルパ/`Element`)以外に書かれている。装飾は `ElementBuilder` の拡張であるため、レシーバが `View`/`ComponentView<T>`(`If`/`ForEach`/`Fragment`/`Raw`/`[Composable]`結果/`Component`、および子を与え終えた要素)の場合は `Decorations` に対するオーバーロード解決が失敗する。外部から渡された `RenderFragment` もレシーバとして受理する。`View` へ暗黙変換されるものの、拡張メソッドのレシーバは恒等/参照/ボクシング変換しか取らずユーザー定義変換を適用しないため、同じく解決に失敗し、作者の誤りは `Fragment`/`Raw` を装飾した場合と同一である。翻訳に失敗した設計時表現を掃引し、この失敗したチェーンを検出して報告する(型システムが挙げるCS1929は宣言段階の打ち切りにより作者へ届かないため。§2.2) |
 | BCF3009 | Error   | `Element` のタグ引数が非空のコンパイル時定数文字列でない(宣言性・予測可能性のため) |
 | BCF3010 | Error   | 同一要素上で属性またはイベントが複数回バインドされている(属性チャネル内の重複は後勝ちで前が死に、属性チャネルとイベントチャネルにまたがる同名バインディングは両方が生き残って二重発火する。いずれも書いたとおりにならないため拒否)。畳み込まれる `class` のみ例外 |
 | BCF3011 | Error   | `.Attr` の名前 / `.On` のイベント名が非空のコンパイル時定数文字列でない(宣言性・タイポ検査・class畳み込み判定・重複検出の前提) |
@@ -474,13 +480,13 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 
-**B.1 Interceptor方式(C# 14)** — `Body` を実行時に評価し、各設計時API呼び出しサイトをInterceptorで静的シーケンス付き実装へ置換する方式。呼び出しサイト置換自体は成立するが、(a) 実行時評価を前提とするため装飾チェーンの合成型に対する統一戻り値型が構成できない(C#に不透明戻り値型が存在せず、`ref struct` はインターフェースへ変換できない)、(b) `[InterceptsLocation]` の位置指定子がソース変更のたびに再計算され、ビルドパイプラインが位置データに敏感になる、(c) 本方式(全体生成)が採用可能である以上、部分置換に固有の利点がない、の3点により採用しませんでした。
+**B.1 Interceptor方式(C# 14)**: `Body` を実行時に評価し、各設計時API呼び出しサイトをInterceptorで静的シーケンス付き実装へ置換する方式。呼び出しサイト置換自体は成立するが、(a) 実行時評価を前提とするため装飾チェーンの合成型に対する統一戻り値型が構成できない(C#に不透明戻り値型が存在せず、`ref struct` はインターフェースへ変換できない)、(b) `[InterceptsLocation]` の位置指定子がソース変更のたびに再計算され、ビルドパイプラインが位置データに敏感になる、(c) 本方式(全体生成)が採用可能である以上、部分置換に固有の利点がない、の3点により採用しませんでした。
 
-**B.2 ランタイム `ref struct` ツリー方式** — 要素を `readonly ref struct` としてスタック上に構築し、実行時に `Render` を再帰呼び出しする方式。GC回避には有効だが、(a) 可変個の子要素を受け取る手段がない(`ref struct` は配列・`params` に格納不可、ジェネリックオーバーロードはアリティ上限を持つ)、(b) B.1と同じ戻り値型問題、(c) 静的サブツリーのキャッシュと両立しない(`ref struct` はフィールド格納不可)、により採用しませんでした。本方式(生成コードによる直接発行)は、同じゼロアロケーション特性を型システム上、無理なく達成します。
+**B.2 ランタイム `ref struct` ツリー方式**: 要素を `readonly ref struct` としてスタック上に構築し、実行時に `Render` を再帰呼び出しする方式。GC回避には有効だが、(a) 可変個の子要素を受け取る手段がない(`ref struct` は配列・`params` に格納不可、ジェネリックオーバーロードはアリティ上限を持つ)、(b) B.1と同じ戻り値型問題、(c) 静的サブツリーのキャッシュと両立しない(`ref struct` はフィールド格納不可)、により採用しませんでした。本方式(生成コードによる直接発行)は、同じゼロアロケーション特性を型システム上、無理なく達成します。
 
-**B.3 `ChromeLayoutBase` を `BodyComponentBase` から派生させ `SetParametersAsync` で介入する方式** — レイアウトを通常のBlazorCodeFirstコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ChromeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
+**B.3 `ChromeLayoutBase` を `BodyComponentBase` から派生させ `SetParametersAsync` で介入する方式**: レイアウトを通常のBlazorCodeFirstコンポーネントと同じ基底型に載せ、Blazorが渡す `Body` パラメータを `SetParametersAsync` で抜き取ってから残りのパラメータを基底へ転送する方式。当初はこの案を採る判断をしていましたが、実装して実行した結果、成立しないことが確認されたため撤回しました。残りのパラメータを転送する唯一の公開手段である `ParameterView.FromDictionary` は、その列挙子が `cascading: false` を固定値で返すため、cascading値のみを受け取るプロパティに対して `ComponentProperties.SetProperties` が例外を投げます(*"The property 'X' … cannot be set explicitly because it only accepts cascading values."*)。影響は `[CascadingParameter]` に限りません。この検査は `CascadingParameterAttributeBase` を基準とするため `[SupplyParameterFromQuery]` も同じ理由で落ち、認証テンプレートが標準で用いる `[CascadingParameter] Task<AuthenticationState>` もレイアウトで受け取れなくなります。加えてナビゲーションごとに `RenderTreeFrame[]` を確保します。採用した方式(`ChromeLayoutBase : LayoutComponentBase`)は、Blazorが名前で要求する `Body` を正しい名前のまま継承し、`SetParametersAsync` に付与された `[DynamicDependency]` トリマーヒントもそのまま引き継ぐため、プラットフォームのパラメータ結線と競合しません。教訓として、プラットフォーム側のパラメータ結線に介入する方式は本設計では採りません。
 
-## 付録C: 開発時フォールバック案 — 解釈モード(コンチネンシー)
+## 付録C: 開発時フォールバック案(解釈モード)
 
 §2.6のツーリング検証で、特定環境においてSource Generatorの再実行がEnCに反映されないと判明した場合に限り、次のDEBUGビルド限定フォールバックを導入する余地を残します。
 

@@ -34,7 +34,7 @@ internal sealed record ComponentModel(
 /// <remarks>
 /// Diagnostics are captured as symbol-free <see cref="DiagnosticInfo"/> so the result stays value-equal
 /// across incremental runs; they are deliberately excluded from <see cref="ComponentModel"/> equality and
-/// reconstructed into Roslyn diagnostics only inside the source-output callback.  <see cref="Diagnostics"/>
+/// reconstructed into Roslyn diagnostics only inside the source-output callback. <see cref="Diagnostics"/>
 /// is an <see cref="EquatableArray{T}"/>, which treats a <c>default</c> array as equal to an empty one, so
 /// equality never depends on whether the no-diagnostic case is stored as <c>default</c> or empty.
 /// </remarks>

@@ -6,7 +6,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
 /// Shape-level coverage of the bracket surface: that the compiler recognizes an element written as a
-/// property reference or an element access at all.  The proof that it produces the <em>same</em> code as the
+/// property reference or an element access at all. The proof that it produces the <em>same</em> code as the
 /// method surface that preceded it is <see cref="SnapshotCorpusTests"/>, whose baselines were captured before
 /// the migration; these tests exist to localize a failure to the dispatch head before a whole-file comparison
 /// is consulted.
@@ -107,9 +107,9 @@ public sealed class BracketSurfaceGeneratorTests
 
     /// <summary>
     /// A surface whose members have the right names and shapes but the wrong declared types must not be
-    /// recognized.  This is the only test that exercises the type guards: the shipped runtime declares
-    /// everything correctly, so every other test can only prove the positive side.  Hence the compilation
-    /// built without it — the wrong surface has to be the only <c>BlazorCodeFirst</c> in scope.
+    /// recognized. This is the only test that exercises the type guards: the shipped runtime declares
+    /// everything correctly, so every other test can only prove the positive side. Hence the compilation
+    /// built without it, the wrong surface has to be the only <c>BlazorCodeFirst</c> in scope.
     /// </summary>
     [Fact]
     public void MembersWithTheWrongDeclaredTypes_AreNotRecognized()

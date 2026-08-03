@@ -22,7 +22,7 @@ internal enum ExecutionContextKind
 
     /// <summary>
     /// Opaque call: a non-<c>[Composable]</c> method returning <c>View</c> or any shape that cannot
-    /// be statically analyzed.  The generator evaluates it at runtime as a <c>RenderFragment</c>-backed
+    /// be statically analyzed. The generator evaluates it at runtime as a <c>RenderFragment</c>-backed
     /// <c>View</c>, isolates it in a region, and reports diagnostic BCF2001.
     /// </summary>
     Opaque,

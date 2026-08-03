@@ -18,7 +18,7 @@ public sealed class ChromeLayoutRenderingTests : BunitContext
         // RouteView resolves the layout from LayoutProbePage's own [Layout(typeof(ProbeLayout))]
         // attribute (Microsoft.AspNetCore.Components.RouteView does this via reflection), then wraps it
         // in a real LayoutView that passes the page as Body. If SetParametersAsync did not deliver Body
-        // by name — the entire premise of ChromeLayoutBase — .page-content would never appear inside
+        // by name, the entire premise of ChromeLayoutBase, .page-content would never appear inside
         // .shell .page.
         var routeData = new RouteData(typeof(LayoutProbePage), new Dictionary<string, object?>());
 
@@ -56,7 +56,7 @@ public sealed class ChromeLayoutRenderingTests : BunitContext
     {
         // No Body is supplied at all (LayoutComponentBase.Body defaults to null). The generated
         // RenderView calls AddContent(seq, RenderFragment?) with a null fragment, which Blazor's
-        // RenderTreeBuilder emits as zero frames — so <main> must render present but empty, and nothing
+        // RenderTreeBuilder emits as zero frames, so <main> must render present but empty, and nothing
         // should throw.
         var cut = Render<ProbeLayout>(parameters => parameters.Add(p => p.Label, "Empty"));
 
@@ -110,9 +110,9 @@ public sealed class ChromeLayoutRenderingTests : BunitContext
     public void DerivedLayoutOverridingChrome_RendersItsOwnChromeNotTheBase()
     {
         // Both levels are partial, so both get their own generated RenderView and the derived Chrome
-        // wins — the correct outcome, pinned here because the inheritance shape is what makes BCF1001
+        // wins, the correct outcome, pinned here because the inheritance shape is what makes BCF1001
         // load-bearing (spec F16): RenderView is emitted as an `override`, so a derived layout that
-        // did NOT get its own generated RenderView — because it was not partial — would inherit the
+        // did NOT get its own generated RenderView, because it was not partial, would inherit the
         // base one and render the BASE chrome while silently ignoring its own Chrome, with no CS0534
         // to warn anyone, since RenderView is implemented in the base. That failure cannot be written
         // as a test: BCF1001 stops it at compile time. The generator must therefore keep reporting

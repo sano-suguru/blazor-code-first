@@ -8,7 +8,7 @@ namespace BlazorCodeFirst.Compiler.Generation;
 ///
 /// <para>
 /// <em>Width</em> is defined as the count of <c>RenderTreeBuilder</c> calls that consume a sequence
-/// argument in the subtree rooted at the given node.  <c>CloseElement</c> and <c>CloseRegion</c>
+/// argument in the subtree rooted at the given node. <c>CloseElement</c> and <c>CloseRegion</c>
 /// do <em>not</em> consume sequence numbers and are therefore excluded from the width calculation.
 /// </para>
 /// </summary>
@@ -21,7 +21,7 @@ internal static class SequenceAllocator
     public static int Width(RenderNode node) => node switch
     {
         // OpenRegion(k) = 1 call, then both branches (disjoint ranges: then=[k+1, k+1+W(T1)),
-        // else=[k+1+W(T1), k+1+W(T1)+W(T2))).  Both widths are reserved regardless of which
+        // else=[k+1+W(T1), k+1+W(T1)+W(T2))). Both widths are reserved regardless of which
         // branch executes so that the sequence of any following sibling is stable.
         IfNode { Then: var then, Otherwise: var otherwise } =>
             1 + Width(then) + (otherwise is null ? 0 : Width(otherwise)),

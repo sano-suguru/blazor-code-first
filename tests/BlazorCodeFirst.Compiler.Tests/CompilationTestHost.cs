@@ -36,7 +36,7 @@ public static class CompilationTestHost
 
     /// <summary>
     /// Parses each <c>(Path, Source)</c> tuple into its own syntax tree, creates a test compilation, and
-    /// runs the generator.  Multiple files let cross-file expansion semantics (definition in one file,
+    /// runs the generator. Multiple files let cross-file expansion semantics (definition in one file,
     /// call site in another) be exercised.
     /// </summary>
     public static GeneratorRunResult RunGenerator(params (string Path, string Source)[] sources)
@@ -82,7 +82,7 @@ public static class CompilationTestHost
     /// <summary>
     /// Asserts that the post-generation <see cref="GeneratorRunResult.OutputCompilation"/> contains no C#
     /// error diagnostics, so a supported component's generated <c>RenderView</c> is verified to actually
-    /// compile rather than only inspected as text.  On failure every error is included in the message to
+    /// compile rather than only inspected as text. On failure every error is included in the message to
     /// make the emitted mistake (for example a CS0103 out-of-scope name or a CS0664 mistyped literal)
     /// immediately visible.
     /// </summary>
@@ -210,7 +210,7 @@ public static class CompilationTestHost
 
     /// <summary>
     /// Builds the metadata references shared by every test compilation: the host process's trusted
-    /// platform assemblies plus <c>Microsoft.AspNetCore.Components</c>.  When <paramref name="includeRuntime"/>
+    /// platform assemblies plus <c>Microsoft.AspNetCore.Components</c>. When <paramref name="includeRuntime"/>
     /// is <see langword="true"/> (the default) the <c>BlazorCodeFirst.Runtime</c> assembly is also referenced;
     /// pass <see langword="false"/> when the test defines the <c>BlazorCodeFirst</c> types in-source and must
     /// not pull in the compiled runtime.
@@ -228,10 +228,10 @@ public static class CompilationTestHost
 
         var runtimeAssemblyPath = typeof(BlazorCodeFirst.BodyComponentBase).Assembly.Location;
 
-        // BCL and shared-framework assemblies available to the host process.  The runtime is skipped here
+        // BCL and shared-framework assemblies available to the host process. The runtime is skipped here
         // when it is not wanted: this test project references BlazorCodeFirst.Runtime, so its own deps.json
-        // lists BlazorCodeFirst.Runtime.dll as a runtime asset and the assembly is in TPA.  Without this
-        // filter the conditional Add below never excluded anything — the runtime came in through TPA either
+        // lists BlazorCodeFirst.Runtime.dll as a runtime asset and the assembly is in TPA. Without this
+        // filter the conditional Add below never excluded anything, the runtime came in through TPA either
         // way, and an in-source shim only won by CS0436 source shadowing rather than by isolation.
         foreach (var path in ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
                      .Split(Path.PathSeparator))
@@ -253,7 +253,7 @@ public static class CompilationTestHost
     }
 
     /// <summary>
-    /// Whether two probe paths name the same assembly file.  Compared by file name rather than by full
+    /// Whether two probe paths name the same assembly file. Compared by file name rather than by full
     /// path: TPA and <c>Assembly.Location</c> are the same string today, but they are produced by different
     /// mechanisms (a build-time list versus the loaded assembly), and a filter that silently stops matching
     /// would restore the isolation defect without failing anything.

@@ -1,7 +1,7 @@
 namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
-/// Asserts that diagnostics reach an author building an ordinary project — the layer that did not
+/// Asserts that diagnostics reach an author building an ordinary project, the layer that did not
 /// exist when BCF1001 spent its whole life unreportable behind a green test suite (#76, #80).
 /// </summary>
 [Collection(RealBuildDiagnostics.Name)]

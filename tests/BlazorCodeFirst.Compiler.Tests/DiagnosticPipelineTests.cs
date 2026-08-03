@@ -120,7 +120,7 @@ public sealed class DiagnosticPipelineTests
             private static ComponentView<Card> OpaqueComponent() => default;
 
             // Decorations bind to ElementBuilder, not View, so an opaque View-returning receiver no
-            // longer compiles here (CS1929) — a decoration on Opaque() would never reach Analyze at
+            // longer compiles here (CS1929), a decoration on Opaque() would never reach Analyze at
             // all. This one exercises the same "unrecognized receiver" descent with a shape that still
             // compiles.
             private static ElementBuilder OpaqueElementBuilder() => default;

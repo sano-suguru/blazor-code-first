@@ -8,7 +8,7 @@ namespace BlazorCodeFirst.TrimTests;
 /// to verify that the trimmer behaves according to the architecture's expectations:
 /// - Generated <c>RenderView</c> must be retained (it is rooted by <c>BuildRenderTree</c>).
 /// - The <c>Body</c> getter should be trimmed from both derived and base types (no runtime caller).
-/// - The layout counterpart <c>Chrome</c> should be trimmed on the same terms — it is the same inert
+/// - The layout counterpart <c>Chrome</c> should be trimmed on the same terms: it is the same inert
 ///   design-time getter, so the contract has to hold for <c>ChromeLayoutBase</c> too.
 /// - Unreferenced inert members of <c>BlazorCodeFirst.Html</c> and the <c>ComponentView&lt;T&gt;</c>
 ///   builder type should be trimmed.
@@ -85,7 +85,7 @@ public sealed class TrimmedOutputTests
         var methods = GetMethodNames(appAssemblyPath, "TrimLayout", expectedNamespace: "");
 
         // A [Composable] called from Chrome is statically expanded into RenderView, so the method
-        // itself is unreachable — the same result the component path asserts for CountLabel.
+        // itself is unreachable, the same result the component path asserts for CountLabel.
         Assert.DoesNotContain("ChromeTitle", methods);
     }
 
@@ -119,7 +119,7 @@ public sealed class TrimmedOutputTests
 
         var methods = GetMethodNames(runtimeAssemblyPath, "BodyComponentBase", expectedNamespace: "BlazorCodeFirst");
 
-        // The abstract Body getter in the base class should also be trimmed — no runtime call path.
+        // The abstract Body getter in the base class should also be trimmed, no runtime call path.
         Assert.DoesNotContain("get_Body", methods);
     }
 
@@ -130,10 +130,10 @@ public sealed class TrimmedOutputTests
 
         var methods = GetMethodNames(runtimeAssemblyPath, "Html", expectedNamespace: "BlazorCodeFirst");
 
-        // The tested Html members are unreachable at runtime — the source generator inlines their
+        // The tested Html members are unreachable at runtime, the source generator inlines their
         // semantics into RenderView via direct RenderTreeBuilder calls. Div/Span/Button are properties
         // since #100, so their MethodDef names are the compiler-generated getters (get_Div, etc.), not
-        // the bare property names — asserting the bare names would be vacuous, since those were never
+        // the bare property names, asserting the bare names would be vacuous, since those were never
         // MethodDef names to begin with.
         Assert.DoesNotContain("get_Div", methods);
         Assert.DoesNotContain("get_Span", methods);
@@ -252,7 +252,7 @@ public sealed class TrimmedOutputTests
     }
 
     /// <summary>
-    /// Asserts that the trim output directory is set and exists. This is an architecture gate —
+    /// Asserts that the trim output directory is set and exists. This is an architecture gate,
     /// missing output is a hard failure, not a skippable condition.
     /// </summary>
     private static void EnsureOutputDirectoryExists()

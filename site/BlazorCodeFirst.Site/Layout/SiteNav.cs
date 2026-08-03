@@ -11,8 +11,8 @@ namespace BlazorCodeFirst.Site.Layout;
 /// </summary>
 /// <remarks>
 /// The component holds no state field for the current location. Body reads
-/// <see cref="NavigationManager.Uri"/> directly as a pure projection — BCF3001 forbids mutation
-/// inside Body, not reads — so there is no second source of truth to keep in sync. The
+/// <see cref="NavigationManager.Uri"/> directly as a pure projection, BCF3001 forbids mutation
+/// inside Body, not reads, so there is no second source of truth to keep in sync. The
 /// LocationChanged subscription lives in OnInitialized (outside Body) and only requests a re-render.
 ///
 /// This component lives in the persistent layout, so it is never re-mounted and is long-lived: the

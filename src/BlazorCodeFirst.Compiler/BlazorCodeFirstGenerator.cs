@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCodeFirst.Compiler;
 
 /// <summary>
-/// Incremental source generator entry point.  Discovers BlazorCodeFirst base subclasses
+/// Incremental source generator entry point. Discovers BlazorCodeFirst base subclasses
 /// (<c>BodyComponentBase</c> and <c>ChromeLayoutBase</c>) and emits a <c>RenderView</c> override
 /// into the same partial class, and discovers <c>[Composable]</c> definitions into a value-equal
 /// registry while reporting declaration-time BCF1002 diagnostics.
@@ -26,7 +26,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                 // Two admissible shapes. A `partial` class needs no base list: inheritance is judged from
                 // the symbol, and a component split across declarations may declare its design-time
                 // expression in the part that carries no base list. A non-partial class is admitted only
-                // with a base list — it cannot be generated into, but it earns BCF1001, and having exactly
+                // with a base list: it cannot be generated into, but it earns BCF1001, and having exactly
                 // one declaration means a BlazorCodeFirst base can only reach it through that base list. Testing
                 // both here keeps every other class out of the semantic transform.
                 static (node, _) => node is ClassDeclarationSyntax declaration &&
@@ -35,7 +35,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
             .Where(static analysis => analysis is not null)
             .WithTrackingName("ComponentAnalysis");
 
-        // Discover [Composable] definitions.  Definition-side SSC analysis resolves KnownSymbols
+        // Discover [Composable] definitions. Definition-side SSC analysis resolves KnownSymbols
         // transiently from the definition's compilation so the transform output stays value-equal and
         // free of Roslyn symbols.
         var discoveryResults = context.SyntaxProvider
@@ -59,7 +59,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                     productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
             });
 
-        // Collect every source composable entry — including invalid declarations — into a
+        // Collect every source composable entry, including invalid declarations, into a
         // deterministic value-equal registry consumed by call-site expansion.
         var registry = discoveryResults
             .Select(static (result, _) => result.Entry)
@@ -84,7 +84,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                     productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
             });
 
-        // Expand each analyzed component against the registry as a pure value transform.  Both inputs are
+        // Expand each analyzed component against the registry as a pure value transform. Both inputs are
         // value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic branch, and a
         // change to the compose API surface re-runs the transform above and correctly invalidates here.
         var modelResults = analyses

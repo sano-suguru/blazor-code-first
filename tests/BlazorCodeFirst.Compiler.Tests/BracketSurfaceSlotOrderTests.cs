@@ -21,7 +21,7 @@ public sealed class BracketSurfaceSlotOrderTests
     public void FragmentParamBesideBracketedChildren_OrdersSlotsBySourcePosition()
     {
         // Not a divergence from the method surface that is merely tolerated. The indexer returns View, so
-        // nothing can be chained after the brackets and children are always written last — source order is
+        // nothing can be chained after the brackets and children are always written last, source order is
         // the only order this surface can produce. AGENTS.md's rule, that sequence numbers represent source
         // syntax positions, is what makes it the correct one. The method form writes children first and so
         // emits ChildContent first; each spelling is faithful to its own source.

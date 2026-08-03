@@ -9,7 +9,7 @@ public partial class PositionKeyedListComponent : BodyComponentBase
     private readonly List<Row> _items = [new(1, "a"), new(2, "b"), new(3, "c")];
 
     // key = current list position (index): a unique-but-positional key. State sticks to the DOM slot, not
-    // the item — the index-key failure mode. Distinct from the identity-keyed positive control.
+    // the item, the index-key failure mode. Distinct from the identity-keyed positive control.
     protected override View Body =>
         Div[
             ForEach(_items,

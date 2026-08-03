@@ -16,8 +16,8 @@ namespace BlazorCodeFirst;
     "CA1043:Use integral or string argument for indexers",
     Justification = "The indexer is the children channel of a component, not a lookup by index: its argument " +
         "is the component's content, which is a mixed sequence of strings and Views and cannot be expressed " +
-        "as an integer or a string. The bracket spelling is the point — it places attributes next to the " +
-        "tag, as HTML does — and no integral or string overload could carry it.")]
+        "as an integer or a string. The bracket spelling is the point: it places attributes next to the " +
+        "tag, as HTML does, and no integral or string overload could carry it.")]
 public readonly struct ComponentView<TComponent>
     where TComponent : Microsoft.AspNetCore.Components.IComponent
 {

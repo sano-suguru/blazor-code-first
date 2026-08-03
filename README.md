@@ -1,18 +1,18 @@
 # BlazorCodeFirst
 
-A code-first declarative UI layer for Blazor — write your UI in pure C#, with no `.razor` markup
+A code-first declarative UI layer for Blazor. You write your UI in pure C#, with no `.razor` markup
 and no raw-string templates.
 
 A Roslyn Source Generator analyzes your `Body` expressions and reachable `[Composable]` methods at
 build time and emits a standard Blazor `RenderTreeBuilder` render method with statically assigned
-sequence numbers. The generated component is an ordinary `ComponentBase` descendant, so it inherits
-Razor's proven diffing performance and stays trimming/AOT-safe, with no runtime UI tree, reflection,
-or expression compilation.
+sequence numbers. The generated component is an ordinary `ComponentBase` descendant, so it diffs the
+way Razor's output does and stays trimming/AOT-safe. There is no runtime UI tree, no reflection, and
+no expression compilation.
 
 The vocabulary mirrors HTML: elements are C# helpers, attributes and events sit next to the tag in
-a decoration chain, children follow in brackets, and layout is left entirely to CSS. This puts
+a decoration chain, children follow in brackets, and layout is left entirely to CSS. That puts
 BlazorCodeFirst in the lineage of kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`,
-and hiccup (Clojure) rather than of SwiftUI or Jetpack Compose — there are no `VStack` / `HStack` /
+and hiccup (Clojure) rather than SwiftUI or Jetpack Compose. There are no `VStack` / `HStack` /
 `Grid` containers and no typed `.Padding()` / `.FontSize()` decorations.
 
 ```csharp
@@ -42,18 +42,17 @@ public partial class CounterPage : BodyComponentBase
 }
 ```
 
-That is `samples/BlazorCodeFirst.Samples.Counter/Components/CounterPage.cs`, minus its namespace
-declaration — the example is copied from a project that is built and tested in CI rather than
-written for the README. Run it with
+That is `samples/BlazorCodeFirst.Samples.Counter/Components/CounterPage.cs` without its namespace
+declaration, copied from a project CI builds rather than written for the README. Run it with
 `dotnet watch --project samples/BlazorCodeFirst.Samples.Counter/BlazorCodeFirst.Samples.Counter.csproj`.
 
 ## What "type-safe" means here
 
-`Body` is an ordinary typed C# expression, so names and types are checked by the compiler and
-refactorings propagate through it like any other code. It is **not** compile-time validation of
-HTML: every element is one unified node type carrying a string tag — hiccup / ScalaTags style, not
-kotlinx.html style — so `Img["child"]` accepts children and `.Href(…)` chains onto a `Div`. That is
-the chosen position, recorded in `DESIGN.md` §4.1, not a gap to be closed.
+`Body` is an ordinary typed C# expression, so the compiler checks names and types, and refactorings
+propagate through it like any other code. It is not compile-time validation of HTML. Every element
+is one unified node type carrying a string tag, hiccup and ScalaTags style rather than kotlinx.html
+style, so `Img["child"]` accepts children and `.Href(…)` chains onto a `Div`. `DESIGN.md` §4.1
+records that as the chosen position.
 
 What C# cannot check is the *shape* of a `Body`: a component that forgets `partial`, state mutated
 inside `Body`, a decoration applied to something that is not a single element, a duplicate
@@ -83,15 +82,16 @@ Available today:
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
 - Reusable `[Composable]` methods, expanded statically into the caller.
 
-Not covered yet — tracked as a single surface-area inventory in
+Not covered yet, tracked as a single surface-area inventory in
 [#72](https://github.com/sano-suguru/blazor-code-first/issues/72): typed event arguments
 (`MouseEventArgs` and friends), `bool` / `object`-valued attributes, `@bind`, `preventDefault` /
 `stopPropagation`, attribute splatting, `@ref` for elements and components, form helpers, and the
 elements outside the curated 22 (tables, form controls, `Strong` / `Em` / `Pre` / `Code`, …).
 
 One surface question is open rather than merely unimplemented: how wide the curated tag set should
-be. Twenty-two tags are properties and every other tag goes through `Element("…")` — a split HTML
-does not have — [#99](https://github.com/sano-suguru/blazor-code-first/issues/99).
+be. Twenty-two tags are properties and every other tag goes through `Element("…")`, a split HTML
+itself does not have
+([#99](https://github.com/sano-suguru/blazor-code-first/issues/99)).
 
 ## Installation
 
@@ -101,18 +101,18 @@ The package is not on nuget.org yet. Pack it locally:
 dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
 ```
 
-That produces a single `BlazorCodeFirst` `0.1.0-dev` package carrying both halves — the runtime in
-`lib/net10.0` and the generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as a
-NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project; the .NET SDK
-is pinned to 10.0.300 in `global.json`.
+That produces a single `BlazorCodeFirst` `0.1.0-dev` package carrying both halves: the runtime in
+`lib/net10.0`, and the generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as
+a NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project; the .NET
+SDK is pinned to 10.0.300 in `global.json`.
 
 ## Documentation
 
-- **[Documentation site](https://blazor-code-first-site.pages.dev)** — getting started, elements and
+- [Documentation site](https://blazor-code-first-site.pages.dev): getting started, elements and
   decorations, control flow, layouts. The site itself is written in BlazorCodeFirst.
-- **[DESIGN.md](DESIGN.md)** (Japanese) — design overview: background, goals, API design, and
-  platform strategy. Start here.
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** (Japanese) — internal architecture: the compilation
+- [DESIGN.md](DESIGN.md) (Japanese): the design overview, covering background, goals, API design,
+  and platform strategy. Start here.
+- [ARCHITECTURE.md](ARCHITECTURE.md) (Japanese): the internal architecture, covering the compilation
   algorithm, static sequence assignment, memory layout, and analyzer diagnostics.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — building, testing, diagnostics, and the issue-tracker
+- [CONTRIBUTING.md](CONTRIBUTING.md): building, testing, diagnostics, and the issue-tracker
   conventions.

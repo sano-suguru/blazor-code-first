@@ -53,7 +53,7 @@ public sealed class RenderViewEmitterFragmentContentTests
     {
         // Every other fragment test places the fragment as a child, inside an If, or as ForEach content.
         // The root case has no wrapping element: EmitNode is called with startSeq 0 and the node's emit
-        // does not care about nesting, so it is correct by construction — and was untested.
+        // does not care about nesting, so it is correct by construction, and was untested.
         const string source = """
             using BlazorCodeFirst;
 

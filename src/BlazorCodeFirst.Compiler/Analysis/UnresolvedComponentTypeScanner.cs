@@ -11,8 +11,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// </summary>
 /// <remarks>
 /// A sweep rather than a check inside <see cref="RenderExpressionAnalyzer"/>'s Component branch,
-/// because the analyzer often never reaches that branch. Any call whose arguments contain a lambda —
-/// <c>If</c>, <c>ForEach</c>, or a decoration applied after <c>.Param</c> — has an outer
+/// because the analyzer often never reaches that branch. Any call whose arguments contain a lambda,
+/// <c>If</c>, <c>ForEach</c>, or a decoration applied after <c>.Param</c>, has an outer
 /// <c>GetSymbolInfo</c> that degrades to a null symbol when an unresolved type is nested inside it, and
 /// the analyzer exits at its early symbol guard without recursing into the lambda body. Running on the
 /// failure path instead makes the report independent of where translation gave up.
@@ -53,7 +53,7 @@ internal static class UnresolvedComponentTypeScanner
             if (FindTypeArgumentSyntax(invocation) is not { } typeArgument)
                 continue;
 
-            // A collection expression, not ImmutableArray.Create(x) — the latter is IDE0303, an error here.
+            // A collection expression, not ImmutableArray.Create(x): the latter is IDE0303, an error here.
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3012,
                 typeArgument.GetLocation(),
@@ -62,7 +62,7 @@ internal static class UnresolvedComponentTypeScanner
     }
 
     /// <summary>
-    /// Whether <paramref name="method"/> is <c>Html.Component&lt;T&gt;()</c>, the only component syntax —
+    /// Whether <paramref name="method"/> is <c>Html.Component&lt;T&gt;()</c>, the only component syntax,
     /// children arrive through <c>ComponentView&lt;T&gt;</c>'s indexer, which is not an invocation and so
     /// never reaches this sweep.
     /// </summary>
@@ -79,7 +79,7 @@ internal static class UnresolvedComponentTypeScanner
     /// <summary>
     /// The written type-argument syntax of a <c>Component&lt;T&gt;()</c> invocation: the generic name is
     /// the invocation's own expression for the unqualified spelling, or the <c>.Name</c> of a member
-    /// access for <c>Html.Component&lt;T&gt;()</c>.  Returns <see langword="null"/> for any other shape.
+    /// access for <c>Html.Component&lt;T&gt;()</c>. Returns <see langword="null"/> for any other shape.
     /// </summary>
     private static TypeSyntax? FindTypeArgumentSyntax(InvocationExpressionSyntax invocation)
     {

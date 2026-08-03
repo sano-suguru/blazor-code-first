@@ -17,9 +17,9 @@ internal readonly record struct ExpansionResult(
 
 /// <summary>
 /// Statically expands <c>[Composable]</c> call template nodes into the emittable <see cref="RenderNode"/>
-/// tree.  Every template node — including composable call nodes that consume no render sequence — is
+/// tree. Every template node, including composable call nodes that consume no render sequence, is
 /// assigned a global logical preorder ordinal used only to name the typed argument locals, so repeated
-/// helpers at different depths cannot collide.  Expansion is a pure function of the template tree, the
+/// helpers at different depths cannot collide. Expansion is a pure function of the template tree, the
 /// registry, and the generated component's containing-type key; it performs no rendering and evaluates no
 /// runtime composable calls.
 /// </summary>
@@ -50,7 +50,7 @@ internal static class ComposableExpander
     /// design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
     /// </param>
     /// <param name="activeMethodStack">
-    /// The method keys currently being expanded along this path, used for cycle detection.  Sibling calls
+    /// The method keys currently being expanded along this path, used for cycle detection. Sibling calls
     /// to the same composable are not cycles because each branch receives an independent immutable stack.
     /// </param>
     private static RenderNode? ExpandNode(
@@ -292,7 +292,7 @@ internal static class ComposableExpander
         var innerSubstitution = ImmutableArray.Create(innerNames);
 
         // Emit the locals in source evaluation order (supplied arguments by source position, then implicit
-        // defaults) while binding each to its parameter ordinal.  Argument initializers reference the
+        // defaults) while binding each to its parameter ordinal. Argument initializers reference the
         // caller's scope, so they are substituted with the outer names.
         var ordered = call.Arguments.ToArray();
         Array.Sort(ordered, static (left, right) => left.SourceOrder.CompareTo(right.SourceOrder));
@@ -323,7 +323,7 @@ internal static class ComposableExpander
 
     /// <summary>
     /// Determines whether an inlined body may legally name the referenced non-public member from the
-    /// generated component type.  Because the value model is symbol-free, access is decided by comparing
+    /// generated component type. Because the value model is symbol-free, access is decided by comparing
     /// normalized type keys against the type that <em>declares</em> the referenced member
     /// (<see cref="ComposableAccessRequirement.RequiredContainingTypeKey"/>), not the composable's own
     /// containing type: a <see cref="ComposableAccessRequirementKind.SameContainingType"/> (private)
@@ -365,7 +365,7 @@ internal static class ComposableExpander
 
     /// <summary>
     /// Renders the active expansion stack plus the closing call into a readable <c>A -&gt; B -&gt; A</c>
-    /// chain so a cycle diagnostic names every composable involved.  Display names are resolved from the
+    /// chain so a cycle diagnostic names every composable involved. Display names are resolved from the
     /// registry so the chain reads in source terms rather than mangled method keys.
     /// </summary>
     private static string BuildCycleChain(
@@ -386,8 +386,8 @@ internal static class ComposableExpander
 
     /// <summary>
     /// Determines whether an expanded content node's root frame is a single element or component (and so
-    /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent — its composable body's root
-    /// is the real frame — so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
+    /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent, its composable body's root
+    /// is the real frame, so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
     /// <see cref="ElementNode"/>) are keyable; region-rooted nodes (<see cref="IfNode"/>,
     /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) and wrapper-less nodes
     /// (<see cref="FragmentNode"/>, <see cref="RawMarkupNode"/>, <see cref="RenderFragmentContentNode"/>)

@@ -4,7 +4,7 @@ Dogfooding target: the documentation site built with BlazorCodeFirst itself,
 hosted statically on Cloudflare Pages. Outstanding work on the site is tracked
 under the `area: site` label in Issues.
 
-This directory is intentionally **outside** `BlazorCodeFirst.slnx` and manages
+This directory is intentionally outside `BlazorCodeFirst.slnx` and manages
 its own package versions (`ManagePackageVersionsCentrally=false`).
 
 ## Run locally (dev)
@@ -32,10 +32,10 @@ Cloudflare Pages hosts static assets only; it does not build .NET.
 Markdown under `site/content/*.md` is converted to HTML at authoring time by the
 `DocGen` tool and committed as generated artifacts:
 
-- `site/BlazorCodeFirst.Site/Content/Docs.g.cs` — a `DocEntry` record per doc plus a `Docs` manifest:
-  `Docs.All` (an `ImmutableArray<DocEntry>` ordered by front matter `order`, ties broken by slug)
-  and `Docs.Find(slug)` (case-insensitive lookup).
-- `site/BlazorCodeFirst.Site/wwwroot/css/highlight.css` — ColorCode class theme.
+- `site/BlazorCodeFirst.Site/Content/Docs.g.cs`: a `DocEntry` record per doc plus a `Docs` manifest.
+  `Docs.All` is an `ImmutableArray<DocEntry>` ordered by front matter `order` with ties broken by
+  slug, and `Docs.Find(slug)` is a case-insensitive lookup.
+- `site/BlazorCodeFirst.Site/wwwroot/css/highlight.css`: the ColorCode class theme.
 
 After editing any `.md`, regenerate and commit the artifacts:
 
@@ -69,7 +69,7 @@ order: 40
 - `title` and `order` are both required, and `order` must be unique across documents.
 - `order` decides the position of the document in the navigation and in the `/docs` index. It no
   longer changes what any URL renders: `/docs` is its own index page.
-- Do not write an h1 — the page renders the front matter `title` as the h1.
+- Do not write an h1. The page renders the front matter `title` as the h1.
 - Link to sibling documents with `./other.md` (optionally `./other.md#section`). DocGen rewrites
   these to SPA routes and fails the build if the target does not exist. Raw HTML `<a>` tags bypass
   that rewrite, so use Markdown link syntax.

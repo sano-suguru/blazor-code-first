@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
-/// Reads the SARIF 2.1 log csc writes when <c>ErrorLog</c> is set.  Console output is not parsed
+/// Reads the SARIF 2.1 log csc writes when <c>ErrorLog</c> is set. Console output is not parsed
 /// instead: it is localized, it truncates, and it does not distinguish "reported with no location"
 /// from "reported at the project file".
 /// </summary>

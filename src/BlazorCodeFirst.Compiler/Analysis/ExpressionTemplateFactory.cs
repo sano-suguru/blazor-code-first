@@ -10,20 +10,20 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
 /// Normalizes a definition-side expression into a symbol-free <see cref="ExpressionTemplate"/> so it can
-/// be inlined at any expansion site.  The generated <c>RenderView</c> carries no <c>using</c> directives,
-/// so every name that would otherwise depend on an import must be made self-contained.  Replacement
-/// decisions use Roslyn symbol identity — never textual substitution — so that:
+/// be inlined at any expansion site. The generated <c>RenderView</c> carries no <c>using</c> directives,
+/// so every name that would otherwise depend on an import must be made self-contained. Replacement
+/// decisions use Roslyn symbol identity, never textual substitution, so that:
 /// <list type="bullet">
 /// <item>identifiers bound to composable parameters become <see cref="ParameterHoleExpressionSegment"/>;</item>
 /// <item>every <c>nameof(...)</c> collapses to its compile-time constant string, because the entity it
 /// names (a parameter replaced by a typed local, a private definition member, or a type in scope only
 /// through a using) generally does not exist at the expansion site;</item>
-/// <item>unqualified type and static-member references — including generic ones such as
-/// <c>List&lt;string&gt;</c> or <c>Make&lt;string&gt;</c> — are fully qualified while their written type
+/// <item>unqualified type and static-member references, including generic ones such as
+/// <c>List&lt;string&gt;</c> or <c>Make&lt;string&gt;</c>, are fully qualified while their written type
 /// arguments are preserved and independently qualified;</item>
 /// <item>an extension method invoked in instance syntax (<c>items.First()</c>) is normalized to a fully
 /// qualified static call, or reported as BCF1002 when that rewrite cannot be made semantics-preserving;</item>
-/// <item>references to non-public members — whether unqualified or accessed through a receiver — record an
+/// <item>references to non-public members, whether unqualified or accessed through a receiver, record an
 /// accessibility requirement;</item>
 /// <item>references to source-local constructs (local functions or locals from an enclosing scope)
 /// that cannot exist in generated code report a single declaration BCF1002;</item>
@@ -32,7 +32,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// </summary>
 internal static class ExpressionTemplateFactory
 {
-    // Fully qualified type name without its type-argument list.  Used to qualify only the identifier token
+    // Fully qualified type name without its type-argument list. Used to qualify only the identifier token
     // of a generic name so the written type-argument syntax (including nullable annotations) survives and
     // each type argument is qualified independently by the traversal.
     private static readonly SymbolDisplayFormat QualifiedNameWithoutTypeArguments =
@@ -116,7 +116,7 @@ internal static class ExpressionTemplateFactory
                 // A type written under a relative namespace path (for example 'Models.Widget' inside
                 // 'namespace Root.Features' where it binds to 'Root.Models.Widget') must have the whole
                 // path fully qualified, because the generated file has no using/namespace context to
-                // resolve the left-hand namespace.  When the name is not such a reference this is a no-op
+                // resolve the left-hand namespace. When the name is not such a reference this is a no-op
                 // and the accessibility requirement is recorded as before.
                 if (TryQualifyNamespaceQualifiedType(name, context, replacements, replacedSpans))
                     continue;
@@ -143,7 +143,7 @@ internal static class ExpressionTemplateFactory
                 continue;
             }
 
-            // A type reference — including a generic one such as List<string> — is fully qualified.  A
+            // A type reference, including a generic one such as List<string>, is fully qualified. A
             // generic name qualifies only its identifier token so the written type-argument list (with any
             // nullable annotations) survives and each type argument is qualified independently below.
             if (symbol is INamedTypeSymbol typeSymbol && name is IdentifierNameSyntax or GenericNameSyntax)
@@ -157,7 +157,7 @@ internal static class ExpressionTemplateFactory
                 continue;
             }
 
-            // An unqualified static member — including a generic static method such as Make<string> — is
+            // An unqualified static member, including a generic static method such as Make<string>, is
             // qualified with its declaring type; a generic name again keeps its written type arguments.
             if ((name is IdentifierNameSyntax or GenericNameSyntax)
                 && symbol is IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol
@@ -314,7 +314,7 @@ internal static class ExpressionTemplateFactory
     /// <summary>
     /// Determines whether <paramref name="symbol"/> is a source-local construct (a local function,
     /// local variable, range variable, or label) that is referenced from outside its declaration and
-    /// therefore cannot be reproduced in generated component code.  A source-local declared inside the
+    /// therefore cannot be reproduced in generated component code. A source-local declared inside the
     /// spliced <paramref name="root"/> travels with the literal text and remains legal; one declared in
     /// an enclosing scope (for example an <c>out var</c> from a sibling argument) does not.
     /// </summary>
@@ -361,8 +361,8 @@ internal static class ExpressionTemplateFactory
             return;
 
         // The requirement is keyed on the type that declares the referenced member so expansion checks
-        // that type — not the composable's own containing type — against the component's inheritance
-        // chain.  A private/protected member always has a containing type; guard defensively regardless.
+        // that type, not the composable's own containing type, against the component's inheritance
+        // chain. A private/protected member always has a containing type; guard defensively regardless.
         var requiredContainingTypeKey = symbol.ContainingType is { } containingType
             ? containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
             : string.Empty;
@@ -375,7 +375,7 @@ internal static class ExpressionTemplateFactory
 
     /// <summary>
     /// Records the accessibility requirement for a member named through a receiver (<c>receiver.Member</c>)
-    /// when that member is a non-public field, property, method, or event.  The member text stays
+    /// when that member is a non-public field, property, method, or event. The member text stays
     /// unqualified because the receiver already qualifies it, but a private or protected member still
     /// constrains where the inlined body may legally be placed, so without this the expansion site would
     /// emit CS0122 instead of the intended BCF1002.
@@ -390,12 +390,12 @@ internal static class ExpressionTemplateFactory
     /// <summary>
     /// Fully qualifies a type reference written as the right-hand identifier of a namespace-qualified path
     /// (<c>Models.Widget</c> where <c>Models</c> binds to a namespace), replacing the whole path so the
-    /// using-less generated file can resolve it (<c>global::Root.Models.Widget</c>).  A generic name keeps
+    /// using-less generated file can resolve it (<c>global::Root.Models.Widget</c>). A generic name keeps
     /// its written type-argument list (only the identifier token is rewritten) so each argument is
-    /// qualified independently.  Returns <see langword="false"/> when <paramref name="name"/> is not the
-    /// right side of a namespace-qualified type reference — for example a member accessed through a value
+    /// qualified independently. Returns <see langword="false"/> when <paramref name="name"/> is not the
+    /// right side of a namespace-qualified type reference, for example a member accessed through a value
     /// receiver, or a nested type named through an enclosing type (whose left identifier is qualified on
-    /// its own) — leaving the caller to record the ordinary member-access requirement.
+    /// its own), leaving the caller to record the ordinary member-access requirement.
     /// </summary>
     private static bool TryQualifyNamespaceQualifiedType(
         SimpleNameSyntax name,
@@ -425,7 +425,7 @@ internal static class ExpressionTemplateFactory
                 return false;
         }
 
-        // Only a namespace-qualified left needs whole-path rewriting.  A type-qualified left (an enclosing
+        // Only a namespace-qualified left needs whole-path rewriting. A type-qualified left (an enclosing
         // type naming a nested type) is already handled by qualifying that left identifier on its own, and
         // a value receiver is a genuine member access that keeps its unqualified text.
         if (context.SemanticModel.GetSymbolInfo(leftSide, context.CancellationToken).Symbol
@@ -448,10 +448,10 @@ internal static class ExpressionTemplateFactory
 
     /// <summary>
     /// Detects a <c>nameof(...)</c> operator and returns a literal segment carrying its compile-time
-    /// constant string.  Because the entity a nameof names (a parameter replaced by a typed local, a
+    /// constant string. Because the entity a nameof names (a parameter replaced by a typed local, a
     /// private definition member, or a type in scope only through a using) generally does not exist at the
-    /// expansion site, the operator cannot survive as written and its constant value is emitted instead —
-    /// which is exactly what the C# compiler would have produced.  A method literally named <c>nameof</c>
+    /// expansion site, the operator cannot survive as written and its constant value is emitted instead,
+    /// which is exactly what the C# compiler would have produced. A method literally named <c>nameof</c>
     /// is not a constant, so the constant value doubles as a reliable operator check.
     /// </summary>
     internal static LiteralExpressionSegment? TryCreateNameofConstant(
@@ -498,10 +498,10 @@ internal static class ExpressionTemplateFactory
     /// <summary>
     /// Normalizes an extension method invoked in instance syntax (<c>receiver.Method(args)</c>) into a
     /// fully qualified static call (<c>global::Ns.Type.Method&lt;T&gt;(receiver, args)</c>), because the
-    /// generated file has no <c>using</c> directive to bring the method into scope.  The reduced receiver
+    /// generated file has no <c>using</c> directive to bring the method into scope. The reduced receiver
     /// becomes the first argument, carrying the original <c>this</c> parameter's ref kind, and the inferred
-    /// type arguments are emitted so the same instantiation is fixed.  Returns <see langword="false"/> and
-    /// reports BCF1002 when the rewrite cannot be made semantics-preserving — a null-conditional receiver or
+    /// type arguments are emitted so the same instantiation is fixed. Returns <see langword="false"/> and
+    /// reports BCF1002 when the rewrite cannot be made semantics-preserving, a null-conditional receiver or
     /// a type argument that cannot be named in generated component code.
     /// </summary>
     private static bool TryCreateExtensionMethodCall(
@@ -584,7 +584,7 @@ internal static class ExpressionTemplateFactory
     /// <summary>
     /// Returns the keyword (<c>ref </c> / <c>in </c>) required to pass the reduced receiver as the first
     /// argument of the static call, matching the extension's original <c>this</c> parameter ref kind so a
-    /// by-reference receiver is not silently copied.  Ordinary by-value receivers need no keyword.
+    /// by-reference receiver is not silently copied. Ordinary by-value receivers need no keyword.
     /// </summary>
     private static string ReceiverRefKindPrefix(IMethodSymbol method)
     {
@@ -612,7 +612,7 @@ internal static class ExpressionTemplateFactory
 
     /// <summary>
     /// Determines whether <paramref name="type"/> can be written as a fully qualified type name in a
-    /// generated file with no <c>using</c> directives.  Anonymous types, pointer types, open type
+    /// generated file with no <c>using</c> directives. Anonymous types, pointer types, open type
     /// parameters, file-local types, and otherwise unnameable types cannot, so an extension method that
     /// fixes such a type argument cannot be normalized in a semantics-preserving way.
     /// </summary>

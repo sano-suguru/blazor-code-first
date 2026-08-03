@@ -6,7 +6,7 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 
 /// <summary>
 /// Value-equal, symbol-free representation of a diagnostic captured while source syntax was
-/// available.  Incremental generator values must never carry <see cref="Diagnostic"/>,
+/// available. Incremental generator values must never carry <see cref="Diagnostic"/>,
 /// <see cref="Location"/>, <see cref="SyntaxTree"/>, <see cref="ISymbol"/>, or
 /// <see cref="SemanticModel"/>; this record captures only the primitive coordinates required to
 /// reconstruct a location in <c>RegisterSourceOutput</c>.

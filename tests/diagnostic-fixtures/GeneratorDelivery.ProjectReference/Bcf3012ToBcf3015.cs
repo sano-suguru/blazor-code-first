@@ -5,8 +5,8 @@ namespace Fixtures.GeneratorDelivery;
 
 /// <summary>
 /// BCF3012: the component type argument does not resolve while the generator runs. Written here as a
-/// name that does not exist at all; the shape the diagnostic is really about — a <c>.razor</c>
-/// component in the same project — is invisible to the generator for the same reason and reaches the
+/// name that does not exist at all; the shape the diagnostic is really about, a <c>.razor</c>
+/// component in the same project, is invisible to the generator for the same reason and reaches the
 /// same code path.
 /// </summary>
 public partial class Bcf3012Host : BodyComponentBase

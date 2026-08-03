@@ -26,8 +26,8 @@ internal static class DiagnosticDescriptors
             "A class that declares the design-time expression override (Body on BodyComponentBase, " +
             "Chrome on ChromeLayoutBase) must be declared partial so the source generator can emit the " +
             "RenderView override into the same class. A class that only inherits a BlazorCodeFirst base without " +
-            "declaring the override — an intermediate abstract base, a leaf whose base already declares " +
-            "it, or a re-abstraction — has nothing generated into it and needs no partial modifier.");
+            "declaring the override (an intermediate abstract base, a leaf whose base already declares " +
+            "it, or a re-abstraction) has nothing generated into it and needs no partial modifier.");
 
     /// <summary>
     /// BCF1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
@@ -49,8 +49,8 @@ internal static class DiagnosticDescriptors
     /// data-flow violation).
     /// The initial detectable boundary covers statically identifiable direct writes (field assignments,
     /// property assignments, and increment/decrement operators) whose target is an instance member of
-    /// the containing component.  Recognized deferred event handler lambdas (the <c>Button</c> onClick
-    /// argument) are excluded.  Arbitrary interprocedural side effects are not guaranteed to be detected.
+    /// the containing component. Recognized deferred event handler lambdas (the <c>Button</c> onClick
+    /// argument) are excluded. Arbitrary interprocedural side effects are not guaranteed to be detected.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3001 = new(
         id: "BCF3001",
@@ -124,7 +124,7 @@ internal static class DiagnosticDescriptors
             "lambda, so the expression can be analyzed.");
 
     /// <summary>
-    /// BCF1004: A design-time expression override declares a getter the generator cannot translate —
+    /// BCF1004: A design-time expression override declares a getter the generator cannot translate,
     /// either a getter body that does not reduce to a single expression, or an auto property, which
     /// declares no getter body at all. Distinct from BCF1003: the getter's shape is the problem, not the
     /// constructs used inside it, and the fix is to rewrite the getter rather than to change which
@@ -144,8 +144,8 @@ internal static class DiagnosticDescriptors
         description:
             "A design-time expression is an inert projection of state to UI that the generator translates " +
             "statically; it is never evaluated at runtime. Its getter must therefore reduce to a single " +
-            "expression. A getter that contains statements — for example a local variable declared before " +
-            "the return — would require the Transplantable path, which is not implemented. An auto " +
+            "expression. A getter that contains statements, for example a local variable declared before " +
+            "the return, would require the Transplantable path, which is not implemented. An auto " +
             "property declares no getter to translate at all. Supply RenderView by hand if the body " +
             "cannot be expressed as a single expression.");
 
@@ -232,7 +232,7 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description:
             "Component<T>().Param must bind each parameter at most once per chain. Binding the same " +
-            "property twice makes the earlier value dead — Blazor applies the last write — so the " +
+            "property twice makes the earlier value dead, because Blazor applies the last write, so the " +
             "duplicate is reported at compile time.");
 
     /// <summary>
@@ -278,13 +278,13 @@ internal static class DiagnosticDescriptors
     /// BCF3010: An attribute or event is bound more than once on the same element. Neither outcome is what
     /// the author wrote: two bindings in the attribute channel leave the earlier one dead (the last write
     /// wins), while one name bound through the attribute channel and the event channel keeps both, so an
-    /// inline handler and a C# handler each fire on every event. <c>class</c> is the sole exception —
+    /// inline handler and a C# handler each fire on every event. <c>class</c> is the sole exception,
     /// multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3010 = new(
         id: "BCF3010",
         title: "Attribute or event is bound more than once",
-        messageFormat: "'{0}' is bound more than once on this element; remove the duplicate (only 'class' may be repeated — it folds)",
+        messageFormat: "'{0}' is bound more than once on this element; remove the duplicate (only 'class' may be repeated, because it folds)",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -325,8 +325,8 @@ internal static class DiagnosticDescriptors
     /// An error rather than a pass-through because both alternatives are worse, and both were measured.
     /// An unresolved type argument is emitted as the written name with no qualification, and the
     /// generated file carries no <c>using</c> directives, so the emitted <c>OpenComponent&lt;T&gt;</c>
-    /// either fails with a CS0246 inside generated code — which the author cannot fix from their own
-    /// file — or binds silently to a different same-named type that happens to be reachable from the
+    /// either fails with a CS0246 inside generated code, which the author cannot fix from their own
+    /// file, or binds silently to a different same-named type that happens to be reachable from the
     /// generated file's namespace, rendering the wrong component with no diagnostic at all.
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3012 = new(
@@ -351,7 +351,7 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF3013: <c>Component&lt;T&gt;()[children]</c> was given child content but <c>T</c> has no parameter
-    /// that can receive it — no <c>ChildContent</c> at all, one that is not a settable
+    /// that can receive it, no <c>ChildContent</c> at all, one that is not a settable
     /// <c>[Parameter]</c>, or one typed <c>RenderFragment&lt;TContext&gt;</c> rather than the non-generic
     /// <c>RenderFragment</c>. Blazor would throw while applying parameters.
     /// </summary>

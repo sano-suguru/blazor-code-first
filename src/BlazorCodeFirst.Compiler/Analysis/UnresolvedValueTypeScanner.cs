@@ -47,9 +47,9 @@ internal static class UnresolvedValueTypeScanner
         var symbols = context.KnownSymbols;
         var recoverOwnValue = context.ShouldRecoverUnresolvedValue(invocation.Span);
 
-        // Element(tag) carries no children on this surface — they are written in brackets on the
-        // ElementBuilder it returns, and ScanChildrenIndexer handles that — and the tag itself is never
-        // reported on, whether or not it is constant.
+        // Element(tag) carries no children on this surface: they are written in brackets on the
+        // ElementBuilder it returns, and ScanChildrenIndexer handles that. The tag itself is never reported
+        // on, whether or not it is constant.
         if (symbols.IsElementFactory(method))
             return;
 
@@ -168,22 +168,22 @@ internal static class UnresolvedValueTypeScanner
     }
 
     /// <summary>
-    /// Scans an element access whose indexer is one of the design-time surface's.  Both indexers —
-    /// <c>ElementBuilder</c>'s and <c>ComponentView&lt;T&gt;</c>'s — take the same route: the receiver carries
+    /// Scans an element access whose indexer is one of the design-time surface's. Both indexers,
+    /// <c>ElementBuilder</c>'s and <c>ComponentView&lt;T&gt;</c>'s, take the same route: the receiver carries
     /// the tag, the decoration chain or the <c>.Param</c> chain and is scanned as an expression in its own
     /// right, and the bracketed arguments are the children.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Nothing here is gated on <see cref="ComposableBodyContext.ShouldRecoverUnresolvedValue"/>.  That gate
+    /// Nothing here is gated on <see cref="ComposableBodyContext.ShouldRecoverUnresolvedValue"/>. That gate
     /// exists so an arm does not re-report a value it already diagnosed, and this route has no value of its
-    /// own: the tag belongs to the receiver, which carries its own gate.  Gating the children on it would
+    /// own: the tag belongs to the receiver, which carries its own gate. Gating the children on it would
     /// silence expressions the rejection was never about.
     /// </para>
     /// <para>
-    /// The children are scanned only when the receiver's tag survives BCF3009.  A non-constant tag has
+    /// The children are scanned only when the receiver's tag survives BCF3009. A non-constant tag has
     /// already rejected the whole element, so nothing inside the brackets reaches generated code and a
-    /// report about it would be noise on top of the real error.  The rule is not restated here: the gate
+    /// report about it would be noise on top of the real error. The rule is not restated here: the gate
     /// asks the receiver, through <see cref="HasRejectedElementTag"/>, because the receiver is what owns
     /// the tag and what BCF3009 is reported on.
     /// </para>
@@ -208,7 +208,7 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// Whether <paramref name="receiver"/> resolves through its decoration chain to an
-    /// <c>Element(tag)</c> call whose tag is not a non-empty constant string — the shape BCF3009 rejects.
+    /// <c>Element(tag)</c> call whose tag is not a non-empty constant string, the shape BCF3009 rejects.
     /// </summary>
     /// <remarks>
     /// The chain is unwound rather than inspected at the top, because decorations sit between the element
@@ -216,7 +216,7 @@ internal static class UnresolvedValueTypeScanner
     /// invocation. A curated tag is a property reference and never reaches the loop's body, so it returns
     /// false and its children are scanned as before.
     /// <para>
-    /// Every path fails open — an unresolved symbol, an unrecognized method, a missing receiver and a tag
+    /// Every path fails open: an unresolved symbol, an unrecognized method, a missing receiver and a tag
     /// that cannot be bound all answer false. This gate can only ever silence diagnostics, so a route it
     /// could not analyze must leave the children scanned; the alternative is losing a report on evidence
     /// that was never gathered.
@@ -383,7 +383,7 @@ internal static class UnresolvedValueTypeScanner
     }
 
     /// <summary>
-    /// Binds an indexer's bracketed arguments.  The fallback binder matters more here than anywhere else:
+    /// Binds an indexer's bracketed arguments. The fallback binder matters more here than anywhere else:
     /// this scanner exists for compilations where symbol resolution failed, and the
     /// <see cref="FactoryArguments"/> overload requires an <c>IPropertyReferenceOperation</c>, which is
     /// exactly what is unavailable then.
@@ -531,11 +531,11 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// The design-time indexer <paramref name="elementAccess"/> resolves to, or <see langword="null"/> for any
-    /// other indexer — an unrelated <c>_dict["k"]</c> must not be read as children.
+    /// other indexer, an unrelated <c>_dict["k"]</c> must not be read as children.
     /// </summary>
     /// <remarks>
     /// Mirrors <see cref="TryGetRecognizedMethod"/>'s failure recovery, for the same reason: this scanner runs
-    /// on compilations where resolution failed, so the selected symbol is often absent.  The last resort is
+    /// on compilations where resolution failed, so the selected symbol is often absent. The last resort is
     /// the receiver's type, which still resolves when the access itself does not.
     /// </remarks>
     private static IPropertySymbol? TryGetRecognizedIndexer(
@@ -566,7 +566,7 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// The known indexer declared by <paramref name="receiverType"/>, matched through the type rather than
-    /// through the access's own symbol.  Guarded on each known type being present:
+    /// through the access's own symbol. Guarded on each known type being present:
     /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
     /// <c>x</c>, so against a runtime without the bracket surface an unguarded comparison would match every
     /// indexer whose receiver type failed to resolve.
@@ -784,15 +784,15 @@ internal static class UnresolvedValueTypeScanner
         /// <summary>
         /// Binds an argument list to declared parameters without asking Roslyn for an operation, for the
         /// compilations this scanner exists for: where symbol resolution failed and
-        /// <c>GetOperation</c> is unusable.  A <see cref="BracketedArgumentListSyntax"/> binds through the
-        /// same code as a parenthesized one — the C# positional/named rules do not differ between them.
+        /// <c>GetOperation</c> is unusable. A <see cref="BracketedArgumentListSyntax"/> binds through the
+        /// same code as a parenthesized one, the C# positional/named rules do not differ between them.
         /// </summary>
         /// <remarks>
         /// A collection-expression literal passed whole (<c>Div[["a", "b"]]</c>) is unwrapped into its
         /// elements here, mirroring <see cref="FactoryArguments"/>: it is the same call as the expanded
         /// form, and leaving it whole made every name inside it invisible to the sweep, so such a body
         /// reported a bare BCF1003 and never named the value that could not be moved into generated code
-        /// (#75).  Reached when the element access itself has no operation — an unbound spread beside the
+        /// (#75). Reached when the element access itself has no operation, an unbound spread beside the
         /// children is the measured route, since that makes the whole element access an invalid operation
         /// and <see cref="FactoryArguments.Bind"/> returns before any element is examined.
         /// </remarks>
@@ -885,10 +885,10 @@ internal static class UnresolvedValueTypeScanner
         /// </para>
         /// <para>
         /// Spread elements are skipped rather than abandoning the whole literal, which is where this
-        /// deliberately parts from <c>FactoryArguments</c>.  There, a literal containing a spread is refused
+        /// deliberately parts from <c>FactoryArguments</c>. There, a literal containing a spread is refused
         /// outright, because emitting a partially recovered child list would drop children the author wrote.
-        /// Nothing is emitted from here — this binder feeds a diagnostic sweep — so the same caution would
-        /// only silence BCF3015 on the children that <em>are</em> written out.  A spread's own operand is not
+        /// Nothing is emitted from here, because this binder feeds a diagnostic sweep, so the same caution would
+        /// only silence BCF3015 on the children that <em>are</em> written out. A spread's own operand is not
         /// collected either: it would never have been emitted as a child, and this scanner reports only on
         /// expressions the analyzer would emit.
         /// </para>

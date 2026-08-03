@@ -15,7 +15,7 @@ public sealed partial class Home : BodyComponentBase
             H1["Write Blazor UI as plain C#"],
             P["BlazorCodeFirst turns a design-time Body expression into a RenderTreeBuilder method at "
                 + "compile time. There is no runtime UI tree, no reflection, and no runtime expression "
-                + "compilation — the generated component is an ordinary Blazor component."],
+                + "compilation. The generated component is an ordinary Blazor component."],
             P["This site is itself built with BlazorCodeFirst and published as prerendered static HTML."],
             H2["Documentation"],
             Ul[

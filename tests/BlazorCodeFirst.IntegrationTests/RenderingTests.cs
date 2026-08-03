@@ -72,7 +72,7 @@ public sealed class RenderingTests : BunitContext
             "<div><span>Total: 0</span><button>+1</button><button>+5</button><button>+10</button></div>");
 
         // Clicking the second row's button (+5) must mutate state using THAT row's captured item,
-        // not the last item from the loop — a last-item-capture bug would produce 10 here instead.
+        // not the last item from the loop, a last-item-capture bug would produce 10 here instead.
         cut.FindAll("button")[1].Click();
         cut.Find("span").MarkupMatches("<span>Total: 5</span>");
 
@@ -84,7 +84,7 @@ public sealed class RenderingTests : BunitContext
     public void KeyedComponentList_WhenRowStateChangedThenRotated_StatePreservedFollowsItem()
     {
         // Positive control: key = item identity. Per-row component state (an internal counter) must
-        // follow its item across a reorder — impossible to observe with stateless rows, and it would
+        // follow its item across a reorder, impossible to observe with stateless rows, and it would
         // break under a positional key (see the negative-control test below).
         var cut = Render<StatefulKeyedListComponent>();
 

@@ -15,19 +15,19 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 
 `BlazorCodeFirst.slnx` contains seven projects:
 
-- `src/BlazorCodeFirst.Runtime` — runtime types (`BodyComponentBase`, the
-  inert element helpers, the `ElementBuilder` decorators and child-list
-  indexer that `View` results come from, `Component<T>` interop).
-- `src/BlazorCodeFirst.Compiler` — the Roslyn source generator and analyzers.
+- `src/BlazorCodeFirst.Runtime`: runtime types (`BodyComponentBase`, the inert
+  element helpers, the `ElementBuilder` decorators and child-list indexer that
+  `View` results come from, `Component<T>` interop).
+- `src/BlazorCodeFirst.Compiler`: the Roslyn source generator and analyzers.
 - `tests/BlazorCodeFirst.Runtime.Tests`, `tests/BlazorCodeFirst.Compiler.Tests`,
-  `tests/BlazorCodeFirst.IntegrationTests` — unit, generator/analyzer, and
+  `tests/BlazorCodeFirst.IntegrationTests`: unit, generator/analyzer, and
   Blazor-rendering tests.
-- `tests/BlazorCodeFirst.DiagnosticTests` — end-to-end diagnostic verification: it
+- `tests/BlazorCodeFirst.DiagnosticTests`: end-to-end diagnostic verification. It
   builds the deliberately broken projects under `tests/diagnostic-fixtures` with
   real MSBuild and asserts on what the compiler actually reported. The other
   diagnostic tests drive the generator in-process and cannot see whether a
   diagnostic reaches a build at all.
-- `samples/BlazorCodeFirst.Samples.Counter` — a runnable sample.
+- `samples/BlazorCodeFirst.Samples.Counter`: a runnable sample.
 
 `tests/diagnostic-fixtures` is deliberately outside the solution: every project
 there fails to compile by design. See its README before adding one.
@@ -65,8 +65,8 @@ A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
 listed there or excluded with a reason.
 
-Three projects — the TrimTestApp and both `diagnostic-fixtures/*.Package`
-fixtures — purge an isolated `blazorcodefirst/0.1.0-dev` NuGet cache before
+Three projects (the TrimTestApp and both `diagnostic-fixtures/*.Package`
+fixtures) purge an isolated `blazorcodefirst/0.1.0-dev` NuGet cache before
 restoring, so a rebuilt package is never shadowed by a stale one. Get that path
 wrong and nothing fails: the tests pass against the old package contents. If you
 change it, prove the purge still fires with a direct restore, which prints
@@ -77,8 +77,8 @@ dotnet restore tests/diagnostic-fixtures/GeneratorDelivery.Package/GeneratorDeli
   --configfile tests/diagnostic-fixtures/GeneratorDelivery.Package/NuGet.config
 ```
 
-`dotnet test` will not show it — those fixtures are built by MSBuild inside the
-test process, which does not surface their output.
+`dotnet test` will not show it, because MSBuild builds those fixtures inside the
+test process and their output never surfaces.
 
 `SnapshotCorpusTests` compares the generator's complete emitted source against
 baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which
@@ -91,9 +91,9 @@ BLAZORCODEFIRST_UPDATE_SNAPSHOTS=1 \
   --filter FullyQualifiedName~SnapshotCorpusTests
 ```
 
-That still fails the run after writing, by design — review the resulting diff,
-then re-run without the variable. A baseline is only meaningful if changing it
-is a deliberate, reviewed act.
+That still fails the run after writing, by design. Review the resulting diff,
+then re-run without the variable, so that changing a baseline stays a deliberate
+and reviewed act.
 
 Packaging and trimming:
 
@@ -112,8 +112,8 @@ BLAZORCODEFIRST_TRIM_OUTPUT=$(pwd)/tests/BlazorCodeFirst.TrimTestApp/bin/Release
 
 Hot Reload against the sample: `dotnet watch --project samples/BlazorCodeFirst.Samples.Counter/BlazorCodeFirst.Samples.Counter.csproj`.
 
-To read the `RenderView` the generator actually emitted for a project — the
-fastest way to confirm what a `Body` lowered to, and the only way to see
+To read the `RenderView` the generator actually emitted for a project, which is
+the fastest way to confirm what a `Body` lowered to and the only way to see
 emitted output a diagnostic does not describe:
 
 ```bash
@@ -141,53 +141,53 @@ describe the intended finished design and deliberately do not track progress,
 so an Issue is the only place a gap, a defect, or a deferred decision is
 recorded.
 
-**Every issue gets exactly one `area:` label**, plus GitHub's default type
-labels (`bug`, `enhancement`, `documentation`, `question`, `invalid`) where the
-type is unambiguous:
+Every issue gets exactly one `area:` label, plus GitHub's default type labels
+(`bug`, `enhancement`, `documentation`, `question`, `invalid`) where the type is
+unambiguous:
 
-- `area: compiler` — source generator, analyzers, diagnostics.
-- `area: surface` — the public authoring API and how UI is written.
-- `area: site` — the documentation site and its CI.
-- `area: docs` — `README`, `DESIGN`, `ARCHITECTURE`, `CONTRIBUTING` prose.
+- `area: compiler`: source generator, analyzers, diagnostics.
+- `area: surface`: the public authoring API and how UI is written.
+- `area: site`: the documentation site and its CI.
+- `area: docs`: `README`, `DESIGN`, `ARCHITECTURE`, `CONTRIBUTING` prose.
 
 Two status labels carry process rather than subject:
 
-- `blocked` — has an unresolved prerequisite. **Always pair it with a comment
-  naming the blocker.** The label alone tells a reader to go hunting; the point
-  is that the dependency is readable from the blocked issue, not only from the
-  blocking one.
-- `decision` — the deliverable is a decision, not code. Implementation is a
+- `blocked`: has an unresolved prerequisite. Always pair it with a comment
+  naming the blocker, so the dependency is readable from the blocked issue
+  instead of only from the blocking one.
+- `decision`: the deliverable is a decision, not code. Implementation is a
   separate issue that the decision unblocks.
 
-**Hierarchy uses sub-issues, not labels.** When an issue is genuinely a part of
+Hierarchy uses sub-issues, not labels. When an issue is genuinely a part of
 another rather than merely related, attach it as a sub-issue. A cross-reference
 in prose is for "these interact"; a sub-issue is for "this does not ship
 independently".
 
-**Milestones are named for the outcome they deliver, never numbered.** A
-milestone here is a bucket with a progress bar and nothing more. An earlier
-`M0`–`M6` chain was folded deliberately: that shape worked while every
-milestone was one step in a single backward chain toward publishing the docs
-site, and reusing it for gap-closing work turned acceptance criteria into
-prose. Numbered names drag the per-milestone spec-and-plan ritual back with
-them, so avoid `M7` / `RM4` and describe the outcome instead.
+Name milestones for the outcome they deliver rather than numbering them. A
+milestone here is a bucket with a progress bar and nothing more, and numbered
+names like `M7` or `RM4` drag a per-milestone spec-and-plan ritual back with
+them. An issue that is large and undated, or explicitly unscheduled, carries no
+milestone at all.
 
-An issue that is large and undated, or explicitly unscheduled, carries no
-milestone. That is a valid state rather than an oversight.
+Diagnostic IDs were renamed from `BC****` to `BCF****` in 2026-08 (#103), along
+with the package itself. The four digits did not change, so `BC1001` in an older
+issue, commit message, or review comment is today's `BCF1001`. The same change
+renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
+`ChromeLayoutBase`.
 
 ## Conventions the code must uphold
 
-- **Sequence numbers are source syntax positions, never runtime generation
-  order.** Allocate them statically with preorder traversal and give mutually
-  exclusive branches disjoint ranges.
-- **`ForEach` requires a key that represents item identity.** Sequence numbers
+- Sequence numbers are source syntax positions, never runtime generation order.
+  Allocate them statically with preorder traversal and give mutually exclusive
+  branches disjoint ranges.
+- `ForEach` requires a key that represents item identity. Sequence numbers
   identify template positions; keys identify data instances.
-- Classes that **declare the design-time expression override** (`Body` or
-  `Chrome`) must be `partial` so the generator can emit `RenderView`
-  (otherwise `BCF1001`), and must be top-level classes (nested classes are
-  rejected with `BCF1005`). Merely inheriting a BlazorCodeFirst base does not require
-  it. A hand-written `RenderView` override suppresses generation entirely, and
-  with it every diagnostic about the design-time expression including `BCF1001`:
+- Classes that declare the design-time expression override (`Body` or `Chrome`)
+  must be `partial` so the generator can emit `RenderView` (otherwise
+  `BCF1001`), and must be top-level classes (nested classes are rejected with
+  `BCF1005`). Merely inheriting a BlazorCodeFirst base does not require it. A
+  hand-written `RenderView` override suppresses generation entirely, and with it
+  every diagnostic about the design-time expression including `BCF1001`:
   nothing is generated into that class, so `partial` would change nothing.
 - `Body`, `Chrome`, the element helpers, decorators, `Component<T>()`,
   `Fragment`, and `Raw` are inert design-time constructs. The design-time
@@ -205,31 +205,20 @@ milestone. That is a valid state rather than an oversight.
   for `[Composable]` methods, and support existing Razor components through
   `Component<T>()`. A `Component<T>()` type argument must resolve while the
   generator runs, so a `.razor` component declared in the same project cannot be
-  named (`BCF3012`) — source generators cannot observe each other's output. The
-  same component in a referenced project or package resolves normally.
-  `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
-  rule that nested content becomes `ChildContent`. The target must have a
-  settable `[Parameter] ChildContent` of type non-generic `RenderFragment`;
-  otherwise BCF3013 is reported. A `RenderFragment<TContext>` cannot receive the
-  children — the generated lambda is non-generic and would fail an invalid cast
-  at runtime. Other `RenderFragment` parameters bind through
-  `.Param(c => c.Name, content)`. BCF3014 prevents design-time inert types
-  (`View` / `ComponentView<T>` / `ElementBuilder`) from being passed to the
-  generic `.Param`.
-- Value expressions copied into generated code must be lexical-context independent.
-  Resolved type names are normalized to `global::`-qualified names. An unresolved
-  type name that is not already rooted at `global::` reports `BCF3015`; each generic
-  type argument is judged independently. Keep this separate from `BCF3012`, which
-  is reserved for the render-node type argument of `Component<T>()`.
+  named (`BCF3012`), because source generators cannot observe each other's
+  output.
+- `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
+  rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence
+  off the shapes that cannot work; 付録A states the exact conditions.
+- Value expressions copied into generated code must be lexical-context
+  independent, because the generated file carries no `using` directives.
+  Resolved type names are normalized to `global::`-qualified names and an
+  unresolved one reports `BCF3015`. Keep this separate from `BCF3012`, which is
+  reserved for the render-node type argument of `Component<T>()`.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
-  specification contracts — do not repurpose or remove them. New IDs and public
+  specification contracts, so do not repurpose or remove them. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
   the analyzer build gates (RS2000/RS0016) fail.
-- Diagnostic IDs were renamed from `BC****` to `BCF****` in 2026-08 (#103),
-  along with the package itself. The four digits did not change, so `BC1001` in
-  an older issue, commit message, or review comment is today's `BCF1001`. The
-  same change renamed `ComposeComponentBase` to `BodyComponentBase` and
-  `ComposeLayoutBase` to `ChromeLayoutBase`.
 - `ARCHITECTURE.md` 付録A is the canonical diagnostic table, and
   `DiagnosticTableTests` checks it against `DiagnosticDescriptors` in both
   directions: a descriptor with no row fails, and a row with no descriptor fails
@@ -237,9 +226,9 @@ milestone. That is a valid state rather than an oversight.
   `DiagnosticExpectations.DocumentedWithoutDescriptor` with the reason it is
   specified ahead of its implementation. The 種別 column is checked against
   `DefaultSeverity`, so changing a diagnostic's severity is a change to the table
-  as well. The other prose that states a
-  diagnostic's scope — this file, `DESIGN.md`, and the public XML docs — cannot
-  be checked mechanically, so update it in the same change.
+  as well. The other prose that names a diagnostic, meaning this file,
+  `DESIGN.md`, `site/content`, and the public XML docs, cannot be checked
+  mechanically, so update it in the same change.
 
 ## Engineering standard
 
@@ -254,8 +243,8 @@ Test behavior at the appropriate layer: runtime unit tests, generator/analyzer
 tests that inspect generated source and diagnostics, integration tests against
 Blazor rendering, and benchmarks only for performance claims. Test methods are
 named `SubjectOrMethod_Scenario_ExpectedBehavior`, and they prefer observable
-behavior with real, deterministic collaborators over interaction-based mocks —
-test doubles are reserved for boundaries such as remote services, wall-clock
+behavior with real, deterministic collaborators over interaction-based mocks.
+Test doubles are reserved for boundaries such as remote services, wall-clock
 time, and randomness. Compiler tests are the exception that may reach past
 observable behavior into generated source, sequence numbers, incremental cache
 behavior, and diagnostic spans, because those are architectural contracts. Test

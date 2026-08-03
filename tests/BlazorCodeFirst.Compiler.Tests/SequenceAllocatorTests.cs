@@ -71,7 +71,7 @@ public sealed class SequenceAllocatorTests
     [Fact]
     public void SequenceAllocator_IfNodeWithoutElse_HasWidthOfOnePlusThenBranch()
     {
-        // OpenRegion(k) + then contents — else branch absent
+        // OpenRegion(k) + then contents, else branch absent
         var then = Span(ExpressionTemplate.Literal("\"yes\""));
         Assert.Equal(
             1 + SequenceAllocator.Width(then),

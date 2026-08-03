@@ -11,9 +11,9 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
 /// Classifies a composable definition body expression into the statically sequenceable
-/// <see cref="RenderTemplateNode"/> hierarchy.  Dynamic argument text is normalized through
+/// <see cref="RenderTemplateNode"/> hierarchy. Dynamic argument text is normalized through
 /// <see cref="ExpressionTemplateFactory"/> so parameter references become holes and imports/containing
-/// type context are preserved.  Nested <c>[Composable]</c> calls become <see cref="ComposableCallTemplateNode"/>.
+/// type context are preserved. Nested <c>[Composable]</c> calls become <see cref="ComposableCallTemplateNode"/>.
 /// Returns <see langword="null"/> when the expression cannot be statically analyzed.
 /// </summary>
 internal static class RenderExpressionAnalyzer
@@ -26,7 +26,7 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Classifies <paramref name="expression"/>, recording it on <paramref name="context"/> when it cannot
-    /// be classified.  Every recursive descent goes through here rather than through
+    /// be classified. Every recursive descent goes through here rather than through
     /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
     /// construct the author actually wrote instead of the whole design-time expression.
     /// </summary>
@@ -105,8 +105,8 @@ internal static class RenderExpressionAnalyzer
             known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
 
         // Element(tag) is the escape hatch for a tag outside the curated table. It carries no children of
-        // its own — those are written in brackets on the ElementBuilder it returns, which arrives here as
-        // an element access, not an invocation — so this arm only has to resolve the tag.
+        // its own, those are written in brackets on the ElementBuilder it returns, which arrives here as
+        // an element access, not an invocation, so this arm only has to resolve the tag.
         if (symbols.IsElementFactory(method))
         {
             if (FactoryArguments.Bind(invocation, context) is not { } args
@@ -201,8 +201,8 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            // Source references the enclosing scope (fields, composable params, outer items) — never this
-            // item — so it is normalized before the iteration variable is registered.
+            // Source references the enclosing scope (fields, composable params, outer items), never this
+            // item, so it is normalized before the iteration variable is registered.
             var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
             var itemOrdinal = context.PushIterationVariable(contentParamSymbol, keyParamSymbol);
@@ -245,7 +245,7 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             // Base case: Html.Component<T>() with no children and no .Param yet. Children and parameters
-            // both arrive on the ComponentView<T> this returns — through its indexer and .Param — so this
+            // both arrive on the ComponentView<T> this returns, through its indexer and .Param, so this
             // arm never sees either.
             return new ComponentTemplateNode(
                 method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
@@ -324,8 +324,8 @@ internal static class RenderExpressionAnalyzer
             // Duplicate detection spans BOTH channels, not just the parameter one: `null` binds to the
             // scalar overload (View is a struct, so `View v = null` is CS0037), so
             // .Param(c => c.ChildContent, Div["y"]).Param(c => c.ChildContent, null) really can put one
-            // name in each channel. The children-then-.Param direction cannot reach here — the indexer
-            // returns View, so nothing follows the brackets — and is checked by ClassifyComponentIndexer.
+            // name in each channel. The children-then-.Param direction cannot reach here, the indexer
+            // returns View, so nothing follows the brackets, and is checked by ClassifyComponentIndexer.
             if (HasBinding(inner, property.Name))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
@@ -377,7 +377,7 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             var inner = Analyze(decoAccess.Expression, context);
-            // null: unanalyzable or already diagnosed — propagate silently (no double report).
+            // null: unanalyzable or already diagnosed, propagate silently (no double report).
             if (inner is null)
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
@@ -471,7 +471,7 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            // 'class' folds (case-sensitive, ordinal) — same channel as .Class, may repeat.
+            // 'class' folds (case-sensitive, ordinal), same channel as .Class, may repeat.
             if (string.Equals(attrName, "class", System.StringComparison.Ordinal))
             {
                 return element with
@@ -515,7 +515,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Classifies an element access whose resolved symbol is an indexer — children written in brackets —
+    /// Classifies an element access whose resolved symbol is an indexer, children written in brackets,
     /// returning <see langword="null"/> when the indexer is not one of the design-time surface's.
     /// </summary>
     /// <remarks>
@@ -523,7 +523,7 @@ internal static class RenderExpressionAnalyzer
     /// <c>ElementIndexer</c> and <c>ComponentIndexer</c> resolve to <see langword="null"/> against a runtime
     /// without the bracket surface, and <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers
     /// <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would classify any unrelated
-    /// indexer — <c>_dict["k"]</c> — as an element.
+    /// indexer, <c>_dict["k"]</c>, as an element.
     /// </remarks>
     private static RenderTemplateNode? ClassifyIndexer(
         ElementAccessExpressionSyntax elementAccess,
@@ -555,13 +555,13 @@ internal static class RenderExpressionAnalyzer
     /// <remarks>
     /// No failure path here registers a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>
     /// span, and none usefully could: that suppressor is matched as an exact <c>TextSpan</c>, and its only
-    /// reader — <c>UnresolvedValueTypeScanner</c> — always looks up an <c>InvocationExpressionSyntax</c>
-    /// span, so a rejection keyed on this element access could never be read.  Where suppression is
+    /// reader, <c>UnresolvedValueTypeScanner</c>, always looks up an <c>InvocationExpressionSyntax</c>
+    /// span, so a rejection keyed on this element access could never be read. Where suppression is
     /// genuinely needed it is registered by a receiver that is an invocation: the decoration and
-    /// <c>.Param</c> arms reject their own spans.  The construct that looks like it needs one here does not
-    /// — <c>Element(nonConstant)["x"]</c> reports BCF3009 and no BCF3015, because the scanner's <c>Element</c>
-    /// arm never reports on the tag argument at all, and its own constant-tag gate keeps it out of the
-    /// children of an element BCF3009 has already rejected.
+    /// <c>.Param</c> arms reject their own spans. The construct that looks like it needs one here does
+    /// not: <c>Element(nonConstant)["x"]</c> reports BCF3009 and no BCF3015, because the scanner's
+    /// <c>Element</c> arm never reports on the tag argument at all, and its own constant-tag gate keeps it
+    /// out of the children of an element BCF3009 has already rejected.
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
@@ -592,15 +592,15 @@ internal static class RenderExpressionAnalyzer
     /// <para>
     /// The duplicate check here is not a mirror of the one in the <c>.Param</c> arm but the other half of it.
     /// The indexer returns <c>View</c>, so nothing can follow the brackets: children are always written last,
-    /// and a <c>.Param</c> on <c>ChildContent</c> is therefore always the binding that came first.  The
+    /// and a <c>.Param</c> on <c>ChildContent</c> is therefore always the binding that came first. The
     /// <c>.Param</c> arm only ever sees a receiver written before it, so it cannot see these children; this
     /// arm has to perform the check or BCF3007 goes silent for the whole combination.
     /// </para>
     /// <para>
     /// The same property fixes the slot order: children cannot be followed by anything, so
     /// <c>ChildContent</c> is invariably the last slot and appending is the only order this surface can
-    /// produce.  It is also the correct one — sequence numbers represent source syntax positions, so a slot
-    /// written last is numbered last.  <c>BracketSurfaceSlotOrderTests</c> pins it, because no corpus baseline
+    /// produce. It is also the correct one: sequence numbers represent source syntax positions, so a slot
+    /// written last is numbered last. <c>BracketSurfaceSlotOrderTests</c> pins it, because no corpus baseline
     /// covers a fragment <c>.Param</c> beside children.
     /// </para>
     /// </remarks>
@@ -613,7 +613,7 @@ internal static class RenderExpressionAnalyzer
             return null;
 
         // The node carries only the type's display name, so the symbol BCF3013 and the ChildContent lookup
-        // need comes from the indexer's own containing type — ComponentView<T> for the T being configured.
+        // need comes from the indexer's own containing type, ComponentView<T> for the T being configured.
         if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
             return null;
 
@@ -643,20 +643,20 @@ internal static class RenderExpressionAnalyzer
 
         // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
         // slot on the receiver, and it is not a duplicate of this one. Appending is also the only order
-        // available — see the remarks on slot order.
+        // available, see the remarks on slot order.
         var appended = component.Slots.AsImmutableArray().AddRange(slots.AsImmutableArray());
         return new ComponentTemplateNode(component.TypeName, component.Parameters, appended);
     }
 
     /// <summary>
     /// Builds the single <c>ChildContent</c> slot children are bound to, reporting BCF3013 at
-    /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them.  Yields an
-    /// empty slot list — and succeeds — when there are no children.
+    /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them. Yields an
+    /// empty slot list, and succeeds, when there are no children.
     /// </summary>
     /// <remarks>
     /// Called only from <see cref="ClassifyComponentIndexer"/>: <c>ComponentView&lt;T&gt;</c>'s indexer is the
-    /// one channel children reach a component through.  Kept as its own method rather than inlined because
-    /// the BCF3013 rule — which components can receive children, and where the report lands — is worth
+    /// one channel children reach a component through. Kept as its own method rather than inlined because
+    /// the BCF3013 rule, which components can receive children, and where the report lands, is worth
     /// naming separately from the indexer's argument handling.
     /// </remarks>
     private static bool TryBuildChildContentSlot(
@@ -724,9 +724,9 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Whether <paramref name="node"/> already binds <paramref name="name"/> in either channel. An
-    /// element's attributes and events share one name space once emitted — both become
+    /// element's attributes and events share one name space once emitted, both become
     /// <c>AddAttribute</c> frames, and Blazor resolves each name to a single value no matter which
-    /// channel produced it — so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
+    /// channel produced it, so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
     /// duplicate as two <c>.OnClick</c>. 'class' never reaches this check: both <c>.Class</c> and
     /// <c>.Attr("class", …)</c> fold into <see cref="ElementTemplateNode.Classes"/> first, which is how
     /// the one repeatable attribute stays legal.
@@ -806,7 +806,7 @@ internal static class RenderExpressionAnalyzer
         }
 
         // Explicitly supplied arguments sort by their source position; implicit/default arguments sort
-        // after every supplied argument.  Operation arguments are parameter-ordered, so the enumeration
+        // after every supplied argument. Operation arguments are parameter-ordered, so the enumeration
         // index cannot be used as source order.
         var builder = ImmutableArray.CreateBuilder<ComposableInvocationArgument>(operation.Arguments.Length);
         foreach (var argument in operation.Arguments)
@@ -826,7 +826,7 @@ internal static class RenderExpressionAnalyzer
 
                 // Strictly increasing in parameter ordinal and always greater than any source
                 // position (a small non-negative span start), so implicit defaults sort after every
-                // supplied argument while staying in parameter order.  Subtracting the parameter count
+                // supplied argument while staying in parameter order. Subtracting the parameter count
                 // before adding the ordinal keeps the value below int.MaxValue and cannot overflow,
                 // unlike a formula that could add to int.MaxValue when trailing optionals are omitted.
                 sourceOrder = int.MaxValue - method.Parameters.Length + parameter.Ordinal;
@@ -836,7 +836,7 @@ internal static class RenderExpressionAnalyzer
                 // Ordinarily argument.Syntax IS the ArgumentSyntax. But when the argument expression is
                 // a bare null-forgiving suppression with nothing else to convert (e.g. `Target(value!)`),
                 // Roslyn elides the suppression operator from the operation tree and Syntax points at the
-                // innermost operand instead — so look for the enclosing ArgumentSyntax rather than
+                // innermost operand instead, so look for the enclosing ArgumentSyntax rather than
                 // requiring an exact cast. Mirrors FactoryArguments.Bind's default arm, which the
                 // design-time syntax path already uses for the same elision.
                 var argumentExpression = argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>()?.Expression;
@@ -903,7 +903,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Succeeds only when <paramref name="selector"/> is <c>p =&gt; p.Property</c> — a member access whose
+    /// Succeeds only when <paramref name="selector"/> is <c>p =&gt; p.Property</c>, a member access whose
     /// receiver is the lambda's own single parameter. Rejects casts, method calls, null-conditional access,
     /// and members of a captured variable (whose receiver binds to something other than the parameter).
     /// </summary>
@@ -969,7 +969,7 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// Whether <paramref name="componentType"/> declares a <c>ChildContent</c> member that can receive
     /// child content: a settable <c>[Parameter]</c> whose type is exactly the non-generic
-    /// <c>RenderFragment</c>. A <c>RenderFragment&lt;TContext&gt;</c> is excluded deliberately — the
+    /// <c>RenderFragment</c>. A <c>RenderFragment&lt;TContext&gt;</c> is excluded deliberately, the
     /// generated lambda is non-generic and would fail an invalid cast at runtime.
     /// </summary>
     private static bool HasUsableChildContent(ITypeSymbol componentType, ComposableBodyContext context)

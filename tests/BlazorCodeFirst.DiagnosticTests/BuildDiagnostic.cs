@@ -2,7 +2,7 @@ namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
 /// One diagnostic exactly as the compiler reported it in a real build, read from the SARIF log csc
-/// writes for <c>ErrorLog</c>.  <see cref="FilePath"/> is empty and the positions are zero for a
+/// writes for <c>ErrorLog</c>. <see cref="FilePath"/> is empty and the positions are zero for a
 /// diagnostic reported with no location.
 /// </summary>
 public sealed record BuildDiagnostic(

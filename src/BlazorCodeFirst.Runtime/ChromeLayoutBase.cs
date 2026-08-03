@@ -14,7 +14,7 @@ namespace BlazorCodeFirst;
 /// requires a layout to expose the routed content under a parameter named exactly <c>Body</c>
 /// (<c>LayoutComponentBase.BodyPropertyName</c>, which <c>LayoutView</c> passes by name), and C# cannot
 /// declare two members with the same name on one type. So in a layout <c>Body</c> keeps the meaning it
-/// has in Razor — the page being wrapped — and <c>Chrome</c> names what the layout itself draws.
+/// has in Razor, the page being wrapped, and <c>Chrome</c> names what the layout itself draws.
 /// </para>
 /// <para>
 /// Deriving from <see cref="LayoutComponentBase"/> is not required by Blazor (any <c>IComponent</c>
@@ -37,8 +37,8 @@ public abstract class ChromeLayoutBase : LayoutComponentBase
     /// </summary>
     /// <value>Inert design-time syntax analyzed by the source generator.</value>
     /// <remarks>
-    /// <see cref="Chrome"/> is never evaluated at runtime. It may read component state — including
-    /// <see cref="LayoutComponentBase.Body"/> — but must not mutate it; state mutation inside it
+    /// <see cref="Chrome"/> is never evaluated at runtime. It may read component state, including
+    /// <see cref="LayoutComponentBase.Body"/>, but must not mutate it; state mutation inside it
     /// reports BCF3001.
     /// </remarks>
     protected abstract View Chrome { get; }

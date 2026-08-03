@@ -3,7 +3,7 @@ title: Layouts
 order: 40
 ---
 
-A layout wraps the routed page with shared chrome — headers, navigation, footers. BlazorCodeFirst
+A layout wraps the routed page with shared chrome: headers, navigation, footers. BlazorCodeFirst
 layouts are written the same way as components: derive from `ChromeLayoutBase`, declare a
 design-time UI expression, and let the source generator produce the rendering.
 
@@ -27,14 +27,14 @@ public partial class MainLayout : ChromeLayoutBase
 }
 ```
 
-`Main[Body]` here is exactly `<main>@Body</main>` in Razor — the routed page dropped in as
+`Main[Body]` here is exactly `<main>@Body</main>` in Razor, the routed page dropped in as
 element content.
 
 ## Why Chrome, not Body
 
 Blazor requires a layout's routed content to be exposed through a parameter named exactly
 `Body`, and C# cannot declare two members with the same name on one type. So `Body` keeps
-its Razor meaning — the page being wrapped — and the layout's own design-time expression is
+its Razor meaning, the page being wrapped, and the layout's own design-time expression is
 named `Chrome` instead.
 
 ## Nesting layouts
@@ -56,7 +56,7 @@ public partial class DocsLayout : ChromeLayoutBase
 
 Nesting is resolved by Blazor, not by BlazorCodeFirst: `LayoutView` reads the attribute off the layout
 type and wraps it in its own layout, and a BlazorCodeFirst layout is an ordinary `LayoutComponentBase`
-descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Body` is the rendered
+descendant. Each level's `Body` holds the level below it. `SiteLayout`'s `Body` is the rendered
 `DocsLayout`, whose own `Body` is the routed page.
 
 ## RenderFragment becomes content directly
@@ -64,7 +64,7 @@ descendant. Each level's `Body` holds the level below it — `SiteLayout`'s `Bod
 `Body` is a plain Blazor `RenderFragment?`, not a BlazorCodeFirst type, yet `Main[Body]` above
 compiles without dedicated syntax: `View` has an implicit conversion from `RenderFragment?`,
 so any fragment can appear wherever element content is expected. The conversion is from the
-non-generic `RenderFragment` only — a `RenderFragment<T>` does not convert. And like `Fragment`
+non-generic `RenderFragment` only, and a `RenderFragment<T>` does not convert. Like `Fragment`
 and `Raw`, a `RenderFragment` opens no keyable frame, so it cannot be a `ForEach` content root and
 cannot carry decorations.
 
@@ -87,10 +87,10 @@ public partial class Card : BodyComponentBase
 
 ## Passing child content to components
 
-The direction above — Razor passing content into a BlazorCodeFirst component — uses the implicit
-`RenderFragment?` conversion. The opposite direction — BlazorCodeFirst code passing content to a Razor or
-hand-written Blazor component — uses `Component<T>()` with nested children or the `.Param` overload
-for `RenderFragment` parameters.
+The direction above, Razor passing content into a BlazorCodeFirst component, uses the implicit
+`RenderFragment?` conversion. Going the other way, BlazorCodeFirst code passing content to a Razor
+or hand-written Blazor component, uses `Component<T>()` with nested children or the `.Param`
+overload for `RenderFragment` parameters.
 
 Nested children bind to `ChildContent`, mirroring Razor's rule that nested content becomes
 `ChildContent` and nothing else:
@@ -103,8 +103,8 @@ protected override View Body =>
 ```
 
 This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`; otherwise
-BCF3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children — the
-generated lambda is non-generic and would fail an invalid cast at runtime.
+BCF3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children, because
+the generated lambda is non-generic and would fail an invalid cast at runtime.
 
 Other `RenderFragment` parameters (such as `Footer` or `Header`) bind through
 `.Param(c => c.Footer, content)`, naming the parameter explicitly:
@@ -118,7 +118,7 @@ protected override View Body =>
             P["Body text"]];
 ```
 
-It is also legal to name `ChildContent` through `.Param` — this is verbose but matches Razor's
+Naming `ChildContent` through `.Param` is also legal. That is verbose, but it matches Razor's
 attribute form (`<Card><ChildContent>...</ChildContent></Card>`). Binding the same parameter through
 both channels reports BCF3007.
 
@@ -131,7 +131,7 @@ For unresolved type names inside parameter values, see
 ## Reads are allowed, mutation is not
 
 Both `Chrome` and `Body` (the `BodyComponentBase` one, not the layout's routed-content
-parameter) may read component state — projecting state to UI is their whole purpose — but
+parameter) may read component state, since projecting state to UI is their whole purpose, but
 neither may mutate it. Mutating state inside either reports BCF3001, the same diagnostic that
 applies to a regular component's `Body`.
 

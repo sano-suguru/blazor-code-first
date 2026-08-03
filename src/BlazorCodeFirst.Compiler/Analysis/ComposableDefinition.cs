@@ -31,7 +31,7 @@ internal enum ComposableAccessRequirementKind
 
 /// <summary>
 /// Records that the expanded body references a member whose accessibility constrains where the body
-/// can legally be inlined.  <see cref="RequiredContainingTypeKey"/> is the fully qualified key of the
+/// can legally be inlined. <see cref="RequiredContainingTypeKey"/> is the fully qualified key of the
 /// type that <em>declares</em> the referenced member (not the composable's own containing type), so a
 /// composable defined in one type that references an inherited protected member is validated against the
 /// member's declaring type.
@@ -54,7 +54,7 @@ internal sealed record ComposableDefinition(
     RenderTemplateNode Body);
 
 /// <summary>
-/// A registry slot for one source-declared composable.  Invalid declarations remain present with
+/// A registry slot for one source-declared composable. Invalid declarations remain present with
 /// <see cref="Definition"/> set to <see langword="null"/> and <see cref="DeclarationDiagnosticReported"/>
 /// set to <see langword="true"/> so expansion can distinguish an already-diagnosed source declaration
 /// from a metadata-only method that must report BCF1002 at the call site.

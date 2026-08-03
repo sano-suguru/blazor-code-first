@@ -5,7 +5,7 @@ namespace Fixtures.GeneratorDelivery;
 
 /// <summary>
 /// BCF1001: declares the design-time expression without <c>partial</c>. This is the shape from issue
-/// #76 — no generated RenderView means CS0534, a declaration-level error, which is exactly why this
+/// #76, no generated RenderView means CS0534, a declaration-level error, which is exactly why this
 /// diagnostic cannot be analyzer-reported.
 /// </summary>
 public class Bcf1001NonPartial : BodyComponentBase

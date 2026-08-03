@@ -39,7 +39,7 @@ public readonly struct View
     /// default View.
     /// </summary>
     /// <remarks>
-    /// The parameter is nullable because null is the normal case — an unset
+    /// The parameter is nullable because null is the normal case, an unset
     /// <c>[Parameter] RenderFragment?</c>, or a layout's Body before the first render. Blazor's
     /// <c>AddContent(int, RenderFragment?)</c> emits nothing for null.
     /// <para>

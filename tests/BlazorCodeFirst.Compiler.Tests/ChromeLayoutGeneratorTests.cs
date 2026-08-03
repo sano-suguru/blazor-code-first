@@ -121,9 +121,9 @@ public sealed class ChromeLayoutGeneratorTests
     {
         // Regression guard for the semantic lookup replacing the "Body" literal: a mutation inside an
         // *override* property that is NOT the layout's design-time expression (Chrome) must not be
-        // attributed to it. This exercises the exact branch that changed — TryGetDesignTimeExpressionOwnerType
+        // attributed to it. This exercises the exact branch that changed, TryGetDesignTimeExpressionOwnerType
         // now compares the property's name against DesignTimeBaseFacts.FindDesignTimeExpressionName(type)
-        // instead of the literal "Body" — so an unrelated override sharing neither name must still be
+        // instead of the literal "Body", so an unrelated override sharing neither name must still be
         // rejected. An intermediate class supplies the overridable "Label" property, since neither BlazorCodeFirst
         // base declares any other overridable member for a leaf class to shadow.
         const string source = """

@@ -34,7 +34,7 @@ protected override View Body =>
 ```
 
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
-key defeats the diff — reordering the list would make Blazor reuse the wrong element state. The
+key defeats the diff, because reordering the list makes Blazor reuse the wrong element state. The
 content root must be a single element or component, so a `Fragment` or `Raw` root, or a
 `RenderFragment` placed as content, reports BCF3003.
 
@@ -52,7 +52,7 @@ Because it opens no element it cannot be decorated (BCF3008) and cannot be a `Fo
 ## Raw
 
 `Raw` injects a trusted HTML string verbatim, the `MarkupString` equivalent. This page itself is
-rendered that way — its Markdown is converted to HTML at build time and passed to `Raw`.
+rendered that way: its Markdown is converted to HTML at build time and passed to `Raw`.
 
 ```csharp
 Article.Class("prose")[Raw(entry.Html)]

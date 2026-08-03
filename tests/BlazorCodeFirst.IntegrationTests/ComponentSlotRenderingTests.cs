@@ -35,7 +35,7 @@ public sealed class ComponentSlotRenderingTests : BunitContext
         // The check above is NOT sufficient on its own, and this second one is what gives the test its
         // teeth. SlotCardComponent wraps each slot in a plain <div> (class "body"/"foot"), so if a
         // sequencing regression swallowed this sibling into the ChildContent fragment it would render as
-        // `div.body > span.sibling` — which satisfies `div > .sibling` just as well, leaving the first
+        // `div.body > span.sibling`, which satisfies `div > .sibling` just as well, leaving the first
         // assertion green. Verified by mutation: moving the sibling into the slot keeps the selector
         // above passing. Asserting it is absent from inside the card is what actually detects that.
         Assert.Empty(cut.FindAll("section.card .sibling"));

@@ -22,8 +22,8 @@ public abstract class BodyComponentBase : ComponentBase
     /// </summary>
     /// <value>Inert design-time syntax analyzed by the source generator.</value>
     /// <remarks>
-    /// <see cref="Body"/> is never evaluated at runtime. It may read component state — that is how a
-    /// component projects state to UI — but must not mutate it; state mutation inside it reports BCF3001.
+    /// <see cref="Body"/> is never evaluated at runtime. It may read component state: that is how a
+    /// component projects state to UI, but must not mutate it; state mutation inside it reports BCF3001.
     /// The generator analyzes the expression statically and emits the corresponding rendering into
     /// <see cref="RenderView"/>.
     /// </remarks>

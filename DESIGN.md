@@ -1,6 +1,6 @@
 # BlazorCodeFirst: A Code-First Declarative UI Library for Blazor
 
-**Design Overview — 背景・目的・設計方針**
+**Design Overview: 背景・目的・設計方針**
 
 対象プラットフォーム: .NET 10 (LTS) ベースライン / .NET 11 マルチターゲット
 
@@ -34,17 +34,13 @@ UI定義(`Body`)は設計時のソース・オブ・トゥルースであり、�
 
 ### 1.4 Razorとの関係と本ライブラリの立ち位置
 
-なぜ既存の Razor ではなく本ライブラリを設けるのか。前提として、DOM を出力先とする宣言的 UI では、既製の HTML タグ集合(`div` / `span` / `ul` 等)へ構文を寄せる Razor が、構文的に最も素直な既定解である。本ライブラリはこの事実を認めた上で、あえて純 C# のコードファーストという別の設計点を狙う。
+なぜ既存の Razor ではなく本ライブラリを設けるのか。前提として、DOM を出力先とする宣言的 UI では、既製の HTML タグ集合(`div` / `span` / `ul` 等)へ構文を寄せる Razor が、構文的に最も素直な既定解です。本ライブラリはこの事実を認めた上で、あえて純 C# のコードファーストという別の設計点を狙います。
 
-その差が生じる根拠は言語機能にある。SwiftUI や Jetpack Compose が `if` / `for` を UI の中へそのまま書けるのは、Swift/Kotlin が result builder(`@ViewBuilder`)や trailing lambda を言語機能として備えるためである。C# にはこれがない。正確には result builder「まるごと」ではなく、**文(`if` / `foreach`)をそのまま子生成の式へ変換する仕組み**が欠けている(フラットな子並びは `params` やコレクション初期化子で表現できる)。本ライブラリで条件分岐やリストが当面 `If()` / `ForEach()` コンビネータ経由になる(§4.2)のは、この欠落を Source Generator という言語外の手段で補うための表面であり、素の `if` / `foreach` を扱う経路は段階的に実装する(§5.3、§9)。
+その差が生じる根拠は言語機能にあります。SwiftUI や Jetpack Compose が `if` / `for` を UI の中へそのまま書けるのは、Swift/Kotlin が result builder(`@ViewBuilder`)や trailing lambda を言語機能として備えるためです。C# にはこれがありません。正確には result builder まるごとではなく、文(`if` / `foreach`)をそのまま子生成の式へ変換する仕組みが欠けています(フラットな子並びは `params` やコレクション初期化子で表現できます)。本ライブラリで条件分岐やリストが当面 `If()` / `ForEach()` コンビネータ経由になる(§4.2)のは、この欠落を Source Generator という言語外の手段で補うための表面であり、素の `if` / `foreach` を扱う経路は段階的に実装します(§5.3、§9)。
 
-構文的な素直さで一歩譲るこの設計を選ぶ理由は、見た目ではなく次の実在する価値にある。
+構文的な素直さで一歩譲るこの設計を選ぶ理由は、見た目ではなく次の実在する価値にあります。UI とロジックが同じ C# で閉じるため、マークアップとコードの文脈切替が消えます。UI が素の C# 式であるため、IDE のリネームや抽出リファクタリングがそのまま適用でき、型の不整合はビルド時に検出されます。マークアップとコードの境界をまたぐ Razor で生じがちなツール精度の劣化もありません。そして UI を通常の関数・ジェネリクス・コレクション操作で組み立てられます。
 
-- **単一言語:** UI とロジックが同じ C# で閉じ、マークアップとコードの文脈切替が消える。
-- **型安全とリファクタリング:** UI が素の C# 式であるため、IDE のリネームや抽出リファクタリングがそのまま適用でき、型の不整合はビルド時に検出される。マークアップとコードの境界をまたぐ Razor で生じがちなツール精度の劣化がない。
-- **プログラム的合成:** UI を通常の関数・ジェネリクス・コレクション操作で組み立てられる。
-
-本ライブラリは、これらの価値を、Razor が実証済みの静的シーケンス割当・差分検知性能を捨てずに得ることを目標とする(§5)。したがって本ライブラリの位置づけは「Razor の置き換え」でも「Razor より優れる」でもなく、単一言語・型安全・プログラム的合成を優先する利用者に向けた、性能特性を共有する別の選択肢である。
+本ライブラリは、これらの価値を、Razor が実証済みの静的シーケンス割当・差分検知性能を捨てずに得ることを目標とします(§5)。したがって本ライブラリの位置づけは「Razor の置き換え」でも「Razor より優れる」でもなく、単一言語・型安全・プログラム的合成を優先する利用者に向けた、性能特性を共有する別の選択肢です。
 
 ---
 
@@ -81,9 +77,11 @@ HTMLのタグ記述(マークアップファイルでのタグ列挙)を廃止�
 
 ## 4. APIデザインと構文仕様
 
+本章は表層の設計方針と代表例を示します。書き方の網羅的な解説はドキュメントサイト、診断ごとの発火条件は `ARCHITECTURE.md` 付録Aが担当します。
+
 ### 4.1 基本コンポーネントの構造
 
-開発者は `BodyComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。語彙はHTML要素をそのまま写す「HTMLミラー表層」を採ります。この表層は kotlinx.html(Kotlin) / ScalaTags(Scala) / Feliz(F#) / Elm html(Elm) / hiccup(Clojure) の系譜に連なります。いずれも独自のレイアウト語彙を発明せず、HTML要素と属性の語彙をそのまま言語機能として表現し、レイアウトは全面的にCSSへ委ねる点で共通しており、本節もその方針に従います(系譜内での正確な位置づけ — 型安全観と装飾チェーンの形式 — は本節後段に記します)。
+開発者は `BodyComponentBase` を継承した `partial` クラスで、`Body` プロパティをオーバーライドしてUI構造を定義します。語彙はHTML要素をそのまま写す「HTMLミラー表層」を採ります。この表層は kotlinx.html(Kotlin) / ScalaTags(Scala) / Feliz(F#) / Elm html(Elm) / hiccup(Clojure) の系譜に連なります。いずれも独自のレイアウト語彙を発明せず、HTML要素と属性の語彙をそのまま言語機能として表現し、レイアウトは全面的にCSSへ委ねます。
 
 ```csharp
 using BlazorCodeFirst;
@@ -101,21 +99,19 @@ public partial class CounterPage : BodyComponentBase
 }
 ```
 
-- 要素ヘルパーとコンビネータは静的クラス `Html` に集約します。推奨形は `using static BlazorCodeFirst.Html;` を導入した上で `Div[...]` のように**非修飾で書く**ことです。`Component` や `Element` のようにBlazor周辺で頻出する型名・識別子とインポートした名前が衝突する場合に限り、衝突する箇所だけを `Html.Component<T>()` のように修飾するエスケープハッチとして残します。`Nav` / `Header` / `Article` / `Section` のような短いタグ名の要素ヘルパーを備えるため、ドメイン型やジェネリック引数との衝突可能性は広がりえます。
-- `Html.Div` / `Span` / `Button` は常用タグの名前付きヘルパーで、いずれも `ElementBuilder`(子をまだ与えていない要素)を返すプロパティです。任意タグ用の `Html.Element(string tag)` と同一の統合ノードに落ちます(`tag` はコンパイル時定数が必須で、非定数はBCF3009で診断されます)。curatedヘルパーの集合は `Div` / `Span` / `Button` / `Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img` の22個です。この集合にない任意タグは `Element(tag)[...]` で表現します。curatedな22個のプロパティと任意タグ用の `Html.Element(string)` をあわせて**要素ヘルパー**と呼びます(プロパティとメソッドの両方を含むため、C#のメンバー種別を含意しない語を用います)。`If` / `ForEach` はコンビネータ、`Component<T>()` はコンポーネント構文として個別に呼び分けます。
-- 要素の子は、タグ(と装飾)に続く `[...]`(`ElementBuilder` のインデクサ、`params ReadOnlySpan<View>`)で与え、文字列と `View` を**混在**できます。生の文字列は暗黙変換(`implicit operator View(string)`)によりテキストノードになるため、専用の `Text()` 構文は持ちません。テキストのみを明示的に囲みたい場合は `Span["..."]` を使います。子を持たない要素は `[]` を省いてそのまま書けます(`ElementBuilder` から `View` への暗黙変換)。子を入れ子のコレクション式リテラルで書いた形(`Div[["a", "b"]]`)も受理します。子が個々の式として静的に見えており、C#のparams collections規則でも展開形と同じ呼び出しになる(渡るスパンも同一)ため、表層がこれを区別する根拠がないからです。内側の括弧はグルーピングを作らず、子は展開形と同じく平坦に並びます。ただし推奨形は単一の括弧(`Div["a", "b"]`)です。子の実体が静的に見えない形 — 変数やメソッド結果を丸ごと渡す(`Div[_kids]` / `Div[children: Kids()]`)、明示的な配列生成(`Div[new View[] { ... }]`)、spreadを含む形(`Div[[..items]]` / `Div[["a", ..items]]`) — はいずれも静的にシーケンスできないためBCF1003で、繰り返しは `ForEach`(§4.2)で表現します。
-- 属性・イベントは子と並べるのではなく、タグ直後の**装飾チェーン**で与えます(`Div.Class("card")["text"]`)。名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`、値はいずれも `string`)が主要な書き方で、これ以外の属性は汎用 `.Attr(name, value)` で与えます。イベントは `.OnClick(Action)` / `.OnClick(Func<Task>)` に加え、汎用 `.On(fullEventName, Action)` / `.On(fullEventName, Func<Task>)` を持ちます。`.On` は `"onclick"` / `"onmouseenter"` のように**`on` プレフィックスを含むフルの属性名**を受け取り、暗黙のプレフィックス付与は行いません。`.Attr` の属性名と `.On` のイベント名はいずれもコンパイル時定数が必須で、非定数はBCF3011で診断されます。`class` は唯一の畳み込み属性で、`.Class(string)`(または `.Attr("class", …)`)をチェーンで複数回指定すると単一の `class` 属性へ畳み込まれます。それ以外の属性・イベントはすべて単一バインディングで、同一属性/イベントの重複指定はBCF3010で診断されます。`style` にショートカットはなく、外部CSSと `.Class` の併用を推奨します(明示的に `.Attr("style", …)` を書くことは可能です)。HTML自体の妥当性 — void要素(`Img` 等)が子を持てないこと、特定の属性が特定の要素にのみ許可されることなど、いわゆるcontent modelの検査は行いません。これはkotlinx.html流ではなくhiccup/ScalaTags流の型安全観(§4.1後段)どおりで、コンパイル時に検出されるのはC#レベルの名前・型の誤りに限られます。`Html.Fragment` と `Html.Raw` も備えます(下記)。将来にはフォーム関連ヘルパー、型付きイベント引数、`bool`/`object` 値属性、辞書から一括指定する `.Attrs(...)` 等の追加を検討していますが、現時点では未実装です。
-- Blazorの `RenderFragment?` はそのままコンテンツになります(`View` への暗黙変換)。専用の構文は不要で、`Div[fragment]` のように文字列や他の `View` と同じ位置に書けます。用途は主に2つです — `[Parameter] public RenderFragment? ChildContent` を持つコンポーネントがRazor側から渡された子孫を描画する場合と、レイアウト(後述)が `LayoutComponentBase.Body` を配置する場合です。変換は非ジェネリックの `RenderFragment` に限られ(`RenderFragment<T>` は変換されずCS1503)、`Fragment`/`Raw` と同様に単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BCF3003)、装飾もできません(BCF3008)。
-- `If` / `ForEach`(§4.2)・`Component<T>()`(§6.2)と同様、`Html.Fragment(params ReadOnlySpan<View> children)` と `Html.Raw(string rawHtml)` はいずれもHTML要素にマップしない構文です。`Fragment` はラッパー要素を持たないグルーピング(React `<>…</>` 相当)で、子は0個以上の文字列/`View` の混在を受け取ります。単一の要素フレームを開かないため非キー可能で、`ForEach` の `content` の根には使えず(BCF3003)、同じ理由で装飾もできません(BCF3008)。`Raw` は信頼済みHTML文字列を `RenderTreeBuilder.AddMarkupContent` へ直接注入する構文で(`MarkupString` と同じ信頼境界)、**信頼済みコンテンツ専用**です — ユーザー入力や外部レスポンスなど非信頼な文字列を通すとXSSベクタになります。値は文字列リテラルでもフィールド/const参照でも構いません(配信経路に依存しない値スロットのため、`Html.Element` のタグ引数(BCF3009)や `.Attr`/`.On` の名前引数(BCF3011)のようなコンパイル時定数の制約はありません)。`Raw` も要素を開かないため非キー可能で、`ForEach` の `content` 根には使えず(BCF3003)、装飾もできません(BCF3008)。
-- 属性を子より前に置くのは、HTMLがそう書くからです。本表層の原則は、HTMLの語彙をそのまま写し、**HTMLの上に覚え直しの語彙を一切載せない**ことにあります(後述の `VStack` / `.Padding()` 不採用、`Text()` の廃止、`style` ショートカットの不採用はいずれも同じ原則の帰結です)。HTMLでは属性はタグの内側にあって子より前に来るため、`Div.Class("card")["text"]` はその順序をC#の構文へ写したものです。属性を子の後ろへ置く形(子を与えた `Div[...]` に `.Class(...)` を後置するpostfix形式)は、この一点だけHTMLと違う形をつくり、作者に「BlazorCodeFirstでは属性が後ろに来る」という、HTMLの知識に加えて保持しなければならない項目を課します。したがってこれは、fluentイディオムという好みが読みやすさという好みに負けた、という重み付けの結果ではありません。覚え直しを載せないという原則の適用であり、C#の書き味やfluentイディオムを理由に後置形へ戻すことはしません — 戻すには、本表層がHTMLミラーであるという原則自体を改訂する必要があります。同系譜(kotlinx.html / ScalaTags / Elm html / hiccup / F# Feliz)のattrs-first形式(`div [attrs] [children]`)と一致するのはその帰結であって、系譜への準拠を目的としたものではありません。
-- ミラーはこれで完全になったわけではありません。残る破れは3点あり、いずれも属性の位置とは別の問題として残ります。(1) **casing**: `Div` は `<div>` と文字面で一致しません(本節末尾)。(2) **content model**: void要素が子を取れること、属性の適用可否など、HTML妥当性の検査は行いません(次項の型安全観)。(3) **curatedタグ集合**: 22個のタグだけがプロパティとして与えられ、それ以外は `Element("…")` を経由するという、HTMLには存在しない二分があります(#99で別途追跡)。属性の位置は、**要素の書き順として**HTML以外を覚えさせる最後の箇所であり、ここで解消されました。残る3点は形の覚え直しではなく、写像の粒度(casing・タグ集合)と検査範囲(content model)の限界です。
-- 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノード+文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、HTML妥当性レベル(void要素が子を持てない、属性が当該要素に適用可能か等)の検査は含みません。
-- 設計時表層の型はいずれも軽量なマーカー型(空の `readonly struct`)です。要素名は `ElementBuilder` を、`Component<T>()` は `ComponentView<T>` を返し、装飾は `ElementBuilder` を受けて `ElementBuilder` を返します。子を与えるインデクサ(`[...]`)とコンビネータが返すのが `View` で、`ElementBuilder` / `ComponentView<T>` はいずれも `View` へ暗黙変換されます。この型の並びが属性と子の順序を型システム上の要請にしており、逆順(`Div["text"].Class("card")`)は装飾の受け手が `View` になるため成立せず、BCF3008で診断されます(`ARCHITECTURE.md` 付録A)。式は通常のC#として型検査されますが、実行時に評価されることはなく、Source Generatorが式ツリーを直接レンダリングコードへ変換します。
-- 状態(`_count`)への参照や補間文字列、イベントラムダは、生成コードへ構文ごと移植されます(同一partialクラス内のため、privateメンバーへのアクセスも保たれます)。
-- 値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBCF3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
-- **casingの限界**: C#の識別子はPascalCase、HTMLタグ名は小文字であるため、`Div`(修飾形では `Html.Div`)は `<div>` と文字面では一致しません。「ミラー」はcasingの点で構造的に破れており、これはC#の言語制約による既知の割り切りです。
+表層の輪郭は次のとおりです。
 
-かつての設計案では、SwiftUI/Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` / `.Bold()` 等)を本節の想定APIとしていましたが、これらは採用を見送り、新たな根拠を伴う本文書またはARCHITECTURE.mdの明示的な改訂なしには復活させません。理由は、出力先が実HTML/CSSであるBlazorCodeFirstにおいて、独自のレイアウト語彙は「既に完成した下層(HTML/CSS)の上へ、覚え直しの語彙と暗黙挙動を重ねるだけ」になるためです(根拠の詳細は前掲の方向設計文書)。横並びが必要な場合は `Div.Class("row")[...]` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` を使えば `.Attr("style", "display:flex")` の明示指定も選択肢になりますが、推奨は外部CSSと `.Class` の組み合わせであり、`style` に専用のショートカットは設けません。`Text()` の廃止も同じ理由によるもので、mixed contentがその役割を引き受けます。この置き換えは§8(実DOMゆえのSEO/a11y/CSSエコシステムという差別化)および§2.1(HTMLを排した純粋なC#という立場)と矛盾しません。HTML要素の語彙をC#の式として写すだけであり、外部マークアップファイルや生文字列テンプレートを導入するものではないためです。
+- 要素ヘルパーとコンビネータは静的クラス `Html` に集約します。推奨形は `using static BlazorCodeFirst.Html;` を導入して `Div[...]` のように非修飾で書くことです。`Component` や `Element` のようにBlazor周辺で頻出する識別子とインポートした名前が衝突する場合に限り、衝突する箇所だけを `Html.Component<T>()` のように修飾します。
+- 常用タグの22個(`Div` / `Span` / `Button` / `Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img`)はプロパティ、任意タグは `Element(string tag)` で与え、いずれも同一の統合ノードへ落ちます。両者をあわせて要素ヘルパーと呼びます(プロパティとメソッドの双方を含むため、C#のメンバー種別を含意しない語を用います)。curated集合をどこまで広げるかは未決の論点です(#99)。
+- 属性とイベントは子と並べるのではなく、タグ直後の装飾チェーンで与えます(`Div.Class("card")["text"]`)。子は続く `[...]` に文字列と `View` を混在させて渡し、生の文字列は暗黙変換でテキストノードになるため専用の `Text()` 構文は持ちません。Blazorの `RenderFragment` もそのまま子になります。
+- `If` / `ForEach`(§4.2)、`Component<T>()`(§6.2)、`Fragment`、`Raw` はHTML要素にマップしない構文です。`Fragment` はラッパー要素を持たないグルーピング、`Raw` は信頼済みHTML文字列を `RenderTreeBuilder.AddMarkupContent` へ直接注入する構文です(`MarkupString` と同じ信頼境界であり、非信頼な文字列を通すとXSSベクタになります)。どちらも単一の要素フレームを開かないため、キーの付与と装飾ができません。
+- レイアウトは `ChromeLayoutBase` を継承し、レイアウト自身が描く設計時表現を `Chrome` に書きます。Blazorがレイアウトに要求する `Body` パラメータ(`LayoutComponentBase.Body`)は `RenderFragment?` であり暗黙変換で `View` になるため、`Main[Body]` のようにそのまま要素の子として置けます。
+- 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノードと文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、void要素が子を持てないといったHTML妥当性レベルの検査は含みません。
+- 設計時表層の型はいずれも軽量なマーカー型(空の `readonly struct`)です。要素名は `ElementBuilder` を、`Component<T>()` は `ComponentView<T>` を返し、装飾は `ElementBuilder` を受けて `ElementBuilder` を返します。子を与えるインデクサとコンビネータが返すのが `View` で、`ElementBuilder` / `ComponentView<T>` はいずれも `View` へ暗黙変換されます。この型の並びが属性と子の順序を型システム上の要請にしており、逆順(`Div["text"].Class("card")`)は装飾の受け手が `View` になるため成立しません(BCF3008)。
+- 状態への参照、補間文字列、イベントラムダは、生成コードへ構文ごと移植されます(同一partialクラス内のため、privateメンバーへのアクセスも保たれます)。移植の際、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。字句コンテキストに依存する未解決の型名は安全に移植できないためBCF3015とします。
+- ミラーには2つの構造的な限界があります。C#の識別子はPascalCase、HTMLタグ名は小文字であるため `Div` は `<div>` と文字面では一致しません。また、22個のcuratedタグだけがプロパティとして与えられ、それ以外は `Element("…")` を経由するという、HTMLには存在しない二分があります。いずれも写像の粒度の問題であり、要素の書き順の問題ではありません。
+
+属性を子より前に置くのは、HTMLがそう書くからです。この表層の原則は、HTMLの語彙をそのまま写し、その上に覚え直しの語彙を一切載せないことにあります。SwiftUI / Jetpack Compose流のレイアウトコンテナ(`VStack` / `HStack` / `Grid`)と型付き装飾(`.Padding()` / `.FontSize()` 等)を設けず、`Text()` を持たず、`style` にショートカットを用意しないのは、いずれも同じ原則の帰結です。出力先が実HTML/CSSである以上、独自のレイアウト語彙は完成した下層の上に覚え直しの語彙と暗黙挙動を重ねるだけになります。横並びが必要な場合は `Div.Class("row")[...]` と外部CSS(`.row { display: flex }`)で表現し、暗黙のflex注入は行いません。汎用 `.Attr(name, value)` による `.Attr("style", "display:flex")` の明示指定は可能ですが、推奨は外部CSSと `.Class` の組み合わせです。
 
 ### 4.2 リストと条件分岐の表現
 
@@ -157,7 +153,7 @@ UIの部分は `[Composable]` 属性を付与した静的メソッドに抽出�
 ```csharp
 protected override View Body =>
     Div[
-        AppHeader("My Application"),   // [Composable] メソッド — 静的展開の対象
+        AppHeader("My Application"),   // [Composable] メソッド。静的展開の対象
         BodyContent()];
 
 [Composable]
@@ -168,7 +164,7 @@ private static View AppHeader(string title) =>
 
 `[Composable]` の付かないメソッドが `View` を返す場合、Source Generatorはその内部を解析できないため、当該メソッドは実行時に評価される動的コンテンツとして扱われます(戻り値の `View` に `RenderFragment` を内包させる形式。§5.3)。
 
-本方式の要となる3つの変換 — 装飾チェーンの畳み込み、`ForEach` のキー整合、`[Composable]` の静的インライン展開 — について、それぞれ「どの入力を、どの生成コードに変えるか」を `ARCHITECTURE.md` §2.7 に入出力例として定義しています。
+本方式の要となる3つの変換、すなわち装飾チェーンの畳み込み、`ForEach` のキー整合、`[Composable]` の静的インライン展開について、それぞれ「どの入力を、どの生成コードに変えるか」を `ARCHITECTURE.md` §2.7 に入出力例として定義しています。
 
 ---
 
@@ -219,7 +215,7 @@ public abstract class BodyComponentBase : ComponentBase
 }
 ```
 
-`Body` は実行時に一度も呼び出されません。レイアウトの `ChromeLayoutBase.Chrome` も同じ形の設計時ゲッターであり、同じ扱いを受けます。設計時APIの実体 — `Html`・`Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder`(`ARCHITECTURE.md` 付録A、BCF3014)の全メンバー — はすべて既定値を返す慣性(inert)実装であり、万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
+`Body` は実行時に一度も呼び出されません。レイアウトの `ChromeLayoutBase.Chrome` も同じ形の設計時ゲッターであり、同じ扱いを受けます。設計時APIの実体、すなわち `Html` と `Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementBuilder` の全メンバーは、いずれも既定値を返す慣性(inert)実装です。万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
 
 ### 5.2 シーケンス番号の静的確定
 
@@ -279,7 +275,7 @@ public static partial class Widgets
 
 `Component<T>()` で、サードパーティ製を含む既存のBlazorコンポーネントをコードファーストツリーへ組み込めます。パラメータはSource Generatorが生成する静的セッターでバインドされるため(式木のランタイムコンパイルなし)、AOT環境でも安全です。
 
-型引数は生成コード中の `OpenComponent<T>` へリテラルとして落ちるため、ジェネレータ実行時に解決できる型でなければなりません。ソースジェネレータは互いの出力を観測できないため、**同一プロジェクト内で宣言された `.razor` コンポーネントは型引数に指定できず**、BCF3012となります。同じコンポーネントを参照先プロジェクトやNuGetパッケージに置けば通常どおり解決し、手書きのC#コンポーネントも常に利用できます。
+型引数は生成コード中の `OpenComponent<T>` へリテラルとして落ちるため、ジェネレータ実行時に解決できる型でなければなりません。ソースジェネレータは互いの出力を観測できないため、同一プロジェクト内で宣言された `.razor` コンポーネントは型引数に指定できず、BCF3012となります。同じコンポーネントを参照先プロジェクトやNuGetパッケージに置けば通常どおり解決し、手書きのC#コンポーネントも常に利用できます。
 
 ```csharp
 protected override View Body =>
@@ -305,7 +301,7 @@ protected override View Body =>
 ```
 
 `T` が `ChildContent`(settable な `[Parameter]`、型は非ジェネリックの `RenderFragment`)を持たない場合は
-BCF3013 です。`RenderFragment<TContext>` は受け取れません — 生成されるラムダは非ジェネリックであり、
+BCF3013 です。`RenderFragment<TContext>` は受け取れません。生成されるラムダは非ジェネリックであり、
 実行時にキャスト失敗となるためです。同じパラメータを children と `.Param` の両方で与えると BCF3007 です。
 
 ---
@@ -320,7 +316,7 @@ BCF3013 です。`RenderFragment<TContext>` は受け取れません — 生成�
 
 ### 7.2 差分検知性能
 
-静的シーケンス割当により、Diffing計算量は理論上の最小値 O(|r_t| + |r_{t+1}|) を維持します(`ARCHITECTURE.md` §1.2)。これは、動的インクリメント方式が要素挿入・削除・並べ替え時にサブツリー全体の破棄・再生成と状態消失を招くのに対し、本方式が構文位置に固定されたシーケンス番号によりこれを回避するためです(比較の形式的根拠は `ARCHITECTURE.md` §1.2)。
+静的シーケンス割当により、Diffing計算量は理論上の最小値 O(|r_t| + |r_{t+1}|) を維持します(`ARCHITECTURE.md` §1.2)。これは、動的インクリメント方式が要素挿入・削除・並べ替え時にサブツリー全体の破棄・再生成と状態消失を招くのに対し、本方式が構文位置に固定されたシーケンス番号によりこれを回避するためです。
 
 ### 7.3 Wasmバイナリサイズ
 
@@ -342,13 +338,11 @@ C#によるコードファーストUIの試みは本ライブラリが最初で�
 | 実行時中間表現   | なし(SSC経路)           | UIツリー+リフレクション                         | コントロール実体を保持                    | コントロール実体を保持           | なし                       |
 | AOT/トリミング   | 完全適合                | リフレクション依存                              | 適合                                      | 適合                             | 適合                       |
 
-この対比から、本ライブラリの特徴は次の3点に整理できます。
+DOMネイティブである点が最も大きな違いです。Avaloniaはブラウザ上でも動作しますが、それはSkiaによるcanvasへの描画であり、DOMを持ちません。SEO、アクセシビリティツリー、CSSエコシステム、SSR/プリレンダリングはcanvas描画には適用できません。BlazorCodeFirstは実DOM/HTMLへ宣言的UIを射影するため、これらのWeb標準の資産をそのまま利用できます。
 
-第一に、DOMネイティブであること。Avaloniaはブラウザ上でも動作しますが、それはSkiaによるcanvasへの描画であり、DOMを持ちません。SEO、アクセシビリティツリー、CSSエコシステム、SSR/プリレンダリングはcanvas描画には適用できません。BlazorCodeFirstは実DOM/HTMLへ宣言的UIを射影するため、これらのWeb標準の資産をそのまま利用できます。
+Blazor差分検知との構造的整合も本ライブラリに固有の課題です。retained-mode系(Avalonia.Markup.Declarative、MAUI.Markup)はコントロール実体を保持・変異させるため、シーケンス番号問題自体を持ちません。一方、Blazor上でコードファーストを試みる場合この問題は不可避であり、本ライブラリはこれをRazorコンパイラと同型の方式で解決します。手書き `RenderTreeBuilder` や実行時ツリー方式では、この問題が正しさと性能の両面で破綻要因となります。
 
-第二に、Blazor差分検知との構造的整合。retained-mode系(Avalonia.Markup.Declarative、MAUI.Markup)はコントロール実体を保持・変異させるため、シーケンス番号問題自体を持ちません。一方、Blazor上でコードファーストを試みる場合この問題は不可避であり、本ライブラリはこれをRazorコンパイラと同型の方式で解決します。手書き `RenderTreeBuilder` や実行時ツリー方式では、この問題が正しさと性能の両面で破綻要因となります。
-
-第三に、宣言的セマンティクスとゼロ中間表現の両立。毎レンダリングでUI全体を再評価する宣言的な書き味は、実行時ツリー構築方式(Cometがこの型)ではGCプレッシャーという恒常的コストを伴います。コンパイル時生成方式では、同じ書き味を実行時の中間オブジェクトなしに得られます。
+そして宣言的セマンティクスとゼロ中間表現が両立します。毎レンダリングでUI全体を再評価する宣言的な書き味は、実行時ツリー構築方式(Cometがこの型)ではGCプレッシャーという恒常的コストを伴います。コンパイル時生成方式では、同じ書き味を実行時の中間オブジェクトなしに得られます。
 
 ---
 
@@ -356,7 +350,9 @@ C#によるコードファーストUIの試みは本ライブラリが最初で�
 
 ### 第1フェーズ: コアAPIとPoC
 
-コアAPIはHTMLミラー表層として実装します。常用タグの要素ヘルパー(`Html.Div` / `Span` / `Button`)と任意タグ用の `Html.Element` を統一 `Element` ノードへ落とし、属性・イベントはタグ直後の装飾チェーン(`.Class` / `.OnClick`)で、子は続く `[...]` で与えます(§4.1)。かつて本節が第1フェーズの語彙としていたSwiftUI/Compose風の `VStack` / `HStack` / `Grid` と型付き装飾(`.Padding()` / `.FontSize()` 等)は本方針により置き換えられ、新たな設計文書の改訂なしに復活しません。表層の内訳は、統合 `Element` ノード・mixed content・装飾チェーンの一般化を土台として、curatedタグ集合(`Nav` / `Header` / `Main` / `Aside` / `Footer` / `Section` / `Article` / `P` / `H1`–`H6` / `Ul` / `Ol` / `Li` / `A` / `Img`)、名前付き属性ショートカット(`.Href` / `.Src` / `.Alt` / `.Id` / `.Type` / `.Title` / `.Role`)、汎用 `.Attr` / `.On`、`Html.Fragment`(ラッパーレスなグルーピング)、`Html.Raw`(信頼済み生HTML注入)です。`class` は唯一の畳み込み属性で、それ以外の属性・イベントは単一バインディングです(重複はBCF3010、非定数の名前はBCF3011で診断)。フォーム関連ヘルパーや型付きイベント引数などの追加は次段階で検討します。レイアウトも `ChromeLayoutBase` によりコード化します。Blazorのレイアウトが要求する `Body` パラメータ(`LayoutComponentBase.Body`、型は `RenderFragment?`)は暗黙変換で `View` になるため、専用の構文なしに `Main[Body]` のようにそのまま要素の子として書けます。レイアウト自身が描く design-time 式は `Body` と名乗れない(Blazorが `Body` という名前を要求するため)ので `Chrome` と命名し、`Chrome` もコンポーネントの `Body` 同様に読み取り専用(state mutationはBCF3001)です。Source Generatorによる `Body` 解析→レンダリングメソッド生成パイプラインの実証は各マイルストーンを通じて継続します。検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
+§4のコアAPIを実装し、Source Generatorによる `Body` 解析からレンダリングメソッド生成までのパイプラインを実証します。
+
+検証ベンチマークとして、動的インクリメント方式とのDiffing挙動・状態保持の比較、および素のRazorとのアロケーション比較を実測し、§7の予測値を実測値に置換します。受け入れ条件には、Visual Studio / `dotnet watch` / Riderの3環境におけるHot Reload動作の実測(§5.4)を含めます。
 
 ### 第2フェーズ: 解析範囲の拡張と .NET 11 対応
 

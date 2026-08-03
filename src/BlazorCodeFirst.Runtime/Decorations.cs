@@ -7,7 +7,7 @@ namespace BlazorCodeFirst;
 /// <remarks>
 /// Like the <see cref="Html"/> element helpers, every member here is inert design-time syntax: the
 /// BlazorCodeFirst source generator reads the decoration chain statically and folds it into the owning
-/// element's attributes. The members are never meant to run — at runtime they perform no work and
+/// element's attributes. The members are never meant to run: at runtime they perform no work and
 /// return the receiver unchanged, so they must not be invoked directly. Decorations live in a
 /// dedicated static class (rather than on <see cref="ElementBuilder"/> itself) because they are
 /// extension methods on the builder: an element's attributes are written before its children
