@@ -550,9 +550,17 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Classifies <c>Div[…]</c> and <c>Div.Class("card")[…]</c>: the tag and any decorations come from the
-    /// element access's own receiver, the children from its bracketed arguments.
+    /// element access's own receiver, the children from its bracketed arguments. This is also the one place
+    /// BCF3016 can be reported, because it is where a resolved tag and a child list meet.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// BCF3016 is anchored on the whole element access, matching BCF3013 rather than the argument list:
+    /// both diagnostics are about a tag and a child list being written together, and either half can be
+    /// the one to change (<c>Img["logo"]</c> is fixed by <c>Img.Alt("logo")</c> as readily as by dropping
+    /// the brackets), so the report does not presuppose which.
+    /// </para>
+    /// <para>
     /// No failure path here registers a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>
     /// span, and none usefully could: that suppressor is matched as an exact <c>TextSpan</c>, and its only
     /// reader, <c>UnresolvedValueTypeScanner</c>, always looks up an <c>InvocationExpressionSyntax</c>
@@ -561,7 +569,9 @@ internal static class RenderExpressionAnalyzer
     /// <c>.Param</c> arms reject their own spans. The construct that looks like it needs one here does
     /// not: <c>Element(nonConstant)["x"]</c> reports BCF3009 and no BCF3015, because the scanner's
     /// <c>Element</c> arm never reports on the tag argument at all, and its own constant-tag gate keeps it
-    /// out of the children of an element BCF3009 has already rejected.
+    /// out of the children of an element BCF3009 has already rejected. BCF3016's own rejection is the same
+    /// case: the element access is not an invocation, so there is nothing the scanner could match.
+    /// </para>
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
@@ -579,6 +589,21 @@ internal static class RenderExpressionAnalyzer
         var children = AnalyzeChildren(args.ParamsElements, context);
         if (children is null)
             return null;
+
+        // Checked after the children are classified rather than before, as BCF3013 is: a child that cannot
+        // be translated at all is the more basic complaint, and reporting it keeps BCF1003 pointing at the
+        // innermost failure instead of blaming the brackets. What counts as children is any argument at
+        // all, so Img[Fragment()] and Img[If(false, …)] report too, even though they happen to emit a
+        // correct <img />. Neither has a reason to be written, and admitting them would make the rule
+        // depend on what a child evaluates to rather than on the element's tag.
+        if (children.Value.Length > 0 && KnownSymbols.IsVoidTag(element.Tag))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3016,
+                elementAccess.GetLocation(),
+                [element.Tag]));
+            return null;
+        }
 
         return element with { Children = children.Value };
     }

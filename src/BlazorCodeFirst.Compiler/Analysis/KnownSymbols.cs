@@ -193,6 +193,39 @@ internal sealed class KnownSymbols
         ["Summary"] = "summary",
     };
 
+    /// <summary>
+    /// The HTML Living Standard's void elements, the tags that have no closing tag and therefore cannot
+    /// carry children. Keyed on the tag rather than the helper name so one table covers both surface
+    /// paths: a curated helper resolves through <see cref="ElementTags"/> and an <c>Element</c> call
+    /// carries a non-empty constant tag (guaranteed by BCF3009), and both reduce to a tag string before
+    /// the check. Two tables, one per path, would agree only by coincidence.
+    /// </summary>
+    /// <remarks>
+    /// Three of the thirteen (<c>base</c>, <c>link</c>, <c>meta</c>) have no curated helper, being
+    /// exclusion group 1 in <c>DESIGN.md</c> §4.1, and are reachable only through <c>Element</c>. They
+    /// belong here all the same: the reason they are excluded is that writing them childless in a
+    /// <c>Body</c> is silently inert, which says nothing about giving them children.
+    /// <c>KnownSymbolsSyncTests</c> holds this list against an independent transcription and against the
+    /// curated and excluded tables, since this copy is otherwise unguarded.
+    /// </remarks>
+    private static readonly HashSet<string> VoidTagSet = new(System.StringComparer.Ordinal)
+    {
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr",
+    };
+
+    /// <summary>Whether <paramref name="tag"/> is a void element, so children on it are BCF3016.</summary>
+    /// <remarks>
+    /// Static, unlike <see cref="IsElementFactory"/>: the answer is a property of the HTML standard and
+    /// not of the referenced runtime, so there is nothing to resolve out of a compilation. Ordinal, like
+    /// every other tag comparison in the compiler: a curated helper's tag comes from
+    /// <see cref="CuratedTags"/> already lowercase, and an <c>Element</c> tag is emitted as written, so
+    /// <c>Element("IMG")</c> renders <c>&lt;IMG&gt;</c> and is deliberately not this check's business.
+    /// </remarks>
+    public static bool IsVoidTag(string tag) => VoidTagSet.Contains(tag);
+
+    /// <summary>The void tags, for <c>KnownSymbolsSyncTests</c> to hold against its own transcription.</summary>
+    public static IReadOnlyCollection<string> VoidTags => VoidTagSet;
+
     /// <summary>Named attribute shortcut method name → attribute name.</summary>
     private static readonly Dictionary<string, string> AttributeShortcutNames = new(System.StringComparer.Ordinal)
     {

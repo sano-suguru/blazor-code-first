@@ -416,6 +416,40 @@ internal static class DiagnosticDescriptors
                 + "and remains subject to ordinary C# resolution.");
 
     /// <summary>
+    /// BCF3016: children were given to one of the HTML standard's void elements, either through a curated
+    /// helper (<c>Img["x"]</c>) or through <c>Element</c> with a void tag (<c>Element("img")["x"]</c>).
+    /// A void element has no closing tag, so the design-time tree does not survive being serialized and
+    /// parsed again: static SSR emits a closing tag the parser does not accept, and the children end up
+    /// outside the element, while interactive rendering places them inside it.
+    /// </summary>
+    /// <remarks>
+    /// The first member of the class of breaks decidable from the element tag alone (<c>DESIGN.md</c>
+    /// §4.1, measured on 2026-08-03). It is not a validity check: whether a given child is allowed inside
+    /// a given parent needs the (parent, child) pair and stays unchecked by design. Unknown tags and
+    /// custom elements are silent for the same reason the curated set is defined by a rule, there is no
+    /// standard to read them against.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3016 = new(
+        id: "BCF3016",
+        title: "Void element cannot have children",
+        messageFormat:
+            "'{0}' is a void element and cannot have children; prerendering pushes them out of the element "
+                + "while interactive rendering keeps them inside, so the two disagree. Remove the children, "
+                + "or place them beside the element.",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A void element (area, base, br, col, embed, hr, img, input, link, meta, source, track, wbr) "
+                + "has no closing tag, so children written on it do not round-trip. Static SSR serializes "
+                + "a closing tag, which the HTML parser does not accept: it pushes the children out to "
+                + "siblings, and a stray closing tag can be re-read as a start tag, so a Br[\"x\"] becomes "
+                + "two <br> elements. Interactive rendering has no parser in the way and places the same "
+                + "children inside the element, so prerendering and interactive rendering produce "
+                + "different DOM for one expression. Attributes are the way to configure a void element; "
+                + "content belongs next to it.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

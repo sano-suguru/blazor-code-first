@@ -89,6 +89,17 @@ public static class DiagnosticExpectations
             "Component<ChildlessWidget>()[Span[\"bcf3013\"]]"),
         new("BCF3014", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3012ToBcf3015.cs", "Span[\"bcf3014\"]"),
         new("BCF3015", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3012ToBcf3015.cs", "MissingProbe"),
+        new(
+            "BCF3016",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3016.cs",
+            "Img.Src(\"/bcf3016.png\")[\"bcf3016\"]",
+            Note: "Anchors the whole element access, as BCF3013 does, not the argument list. The " +
+                "diagnostic is about a void tag and a child list written together and either half can be " +
+                "the one to change, so the report does not presuppose which. The decoration is inside the " +
+                "anchor because it is part of that access; only Element(\"img\")[\"x\"], asserted " +
+                "in-process, has no receiver chain."),
     ];
 
     /// <summary>
@@ -110,9 +121,6 @@ public static class DiagnosticExpectations
         ("BCF2001",
             "The 付録A row is intentional: the Opaque path is specified but unimplemented, so the " +
             "descriptor lands with it (#57)."),
-        ("BCF3016",
-            "The 付録A row is intentional: the decision that void-element children are diagnosed " +
-            "landed ahead of the implementation, so the descriptor lands with it (#131)."),
     ];
 
     public static TheoryData<string> Ids
