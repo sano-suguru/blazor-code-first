@@ -1,0 +1,74 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - "area: build"
+    groups:
+      # Every major so far changed something worth reading: a runner floor, where
+      # credentials are written, or which wrangler gets installed (#113). Those
+      # arrive one per pull request. Everything below a major is noise and travels
+      # together.
+      actions:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+
+  - package-ecosystem: nuget
+    # Central package management covers src/, tests/, and samples/ through
+    # Directory.Packages.props, but the four projects under site/ set
+    # ManagePackageVersionsCentrally=false and carry inline versions. Rooting at
+    # "/" is what reaches both. Confirm on the first run that a site/ package is
+    # actually offered; if it is not, this needs explicit `directories` entries.
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - "area: build"
+    ignore:
+      # A compatibility floor imposed on consumers of the generator, not a stale
+      # pin. The rationale is on the PackageVersion entry in
+      # Directory.Packages.props, and moving it is a breaking change (#116).
+      - dependency-name: Microsoft.CodeAnalysis.CSharp
+      # This repository's own package. It is not on nuget.org; the trim and
+      # diagnostic fixtures restore 0.1.0-dev from a local feed that dotnet pack
+      # produces.
+      - dependency-name: BlazorCodeFirst
+      # net10.0 is the baseline until the net11.0 multi-target lands (#117). An
+      # 11.x ASP.NET Core package does not restore against it, so a major here
+      # would be a red pull request every week rather than an upgrade.
+      - dependency-name: Microsoft.AspNetCore.Components*
+        update-types:
+          - version-update:semver-major
+    groups:
+      # These ship as one set and version in lockstep, across both the central
+      # file and the site's inline versions.
+      aspnetcore:
+        patterns:
+          - Microsoft.AspNetCore.Components*
+      # Build-time only, referenced with PrivateAssets, and they constrain no
+      # consumer, so they move freely and together. Microsoft.CodeAnalysis.CSharp
+      # is deliberately not here: see the ignore entry above.
+      roslyn-analyzers:
+        patterns:
+          - Microsoft.CodeAnalysis.BannedApiAnalyzers
+          - Microsoft.CodeAnalysis.PublicApiAnalyzers
+      # bunit and AngleSharp move together, and the xunit pair exists both
+      # centrally and inline under site/tools, where separate pull requests would
+      # let the two copies drift. Majors are excluded so they stay individually
+      # bisectable: Test.Sdk 17 to 18 removed a test protocol and swapped the
+      # JSON stack under the whole test platform.
+      test-stack:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - xunit*
+          - Microsoft.NET.Test.Sdk
+          - bunit
+          - AngleSharp

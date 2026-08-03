@@ -446,7 +446,16 @@ jobs:
         id: deploy
         # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip.
         # Test the head repository explicitly instead of probing for an empty secret.
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        #
+        # Dependabot needs its own test. Its branches live in this repository, so they pass the fork
+        # check above, but a Dependabot-triggered run reads the Dependabot secret store rather than
+        # the Actions one and would reach wrangler with an empty apiToken. Dependabot touches site/
+        # because the four projects there hold inline package versions, so this fires often. A
+        # dependency bump has no use for a preview URL; build and verification above still run.
+        if: >-
+          github.actor != 'dependabot[bot]'
+          && (github.event_name != 'pull_request'
+              || github.event.pull_request.head.repo.full_name == github.repository)
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -458,8 +467,13 @@ jobs:
             --branch=${{ steps.target.outputs.branch }}
 
       - name: Comment the preview URL on the pull request
-        # Same fork condition as the deploy step: with no deployment there is no URL to post.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        # Same conditions as the deploy step: with no deployment there is no URL to post. The
+        # Dependabot clause is independently necessary anyway, because a Dependabot-triggered run
+        # gets a read-only GITHUB_TOKEN and `gh pr comment` would answer 403.
+        if: >-
+          github.event_name == 'pull_request'
+          && github.actor != 'dependabot[bot]'
+          && github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
