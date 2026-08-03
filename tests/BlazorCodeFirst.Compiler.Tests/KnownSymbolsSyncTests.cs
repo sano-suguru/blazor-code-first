@@ -87,6 +87,85 @@ public sealed class KnownSymbolsSyncTests
         ["math"] = "group 5: foreign vocabulary; Math collides with System.Math",
     };
 
+    /// <summary>
+    /// Every void element of the HTML Living Standard, ordinal-sorted, transcribed from "Index — Elements"
+    /// independently of <c>KnownSymbols.VoidTagSet</c>.
+    /// </summary>
+    /// <remarks>
+    /// The same change of question <see cref="ExpectedCuratedNames"/> buys, for the same reason: "are these
+    /// thirteen hash-set entries right" cannot be checked by reading, while "is this sorted list the
+    /// standard's void elements" is one comparison against a published document, and 付録A's BCF3016 row
+    /// writes the list out a third time for a reader who never opens this file. Unlike the curated set this
+    /// one is closed in practice, the standard has not added a void element in over a decade, so a failure
+    /// here is a transcription slip rather than news from the standard.
+    /// </remarks>
+    private static readonly string[] ExpectedVoidTags =
+    [
+        "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr",
+    ];
+
+    [Fact]
+    public void VoidTags_AreExactlyTheHtmlStandardsVoidElements()
+    {
+        var actual = KnownSymbols.VoidTags
+            .OrderBy(static tag => tag, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(ExpectedVoidTags, actual);
+    }
+
+    /// <summary>
+    /// Every void tag is a tag this surface can actually produce: a curated helper, or one of the three
+    /// group-1 exclusions reachable through <c>Element</c>.
+    /// </summary>
+    /// <remarks>
+    /// This is the direction <see cref="ExpectedVoidTags"/> cannot cover, because both lists are written by
+    /// the same hand: it holds the void set against the two tables the rest of this file already fixes
+    /// against the standard, so a tag misspelled identically in both transcriptions ("imge") still fails,
+    /// being neither curated nor excluded. It is also what notices a void tag going missing from the
+    /// curated table without the count in
+    /// <see cref="ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural"/> moving, since a rename
+    /// keeps the count.
+    /// </remarks>
+    [Fact]
+    public void EveryVoidTag_IsEitherACuratedHelperOrAGroup1Exclusion()
+    {
+        var (symbols, _) = ResolveHtml();
+        var curated = symbols.ElementTags.Values.ToHashSet(System.StringComparer.Ordinal);
+
+        foreach (var tag in KnownSymbols.VoidTags)
+        {
+            Assert.True(
+                curated.Contains(tag) || ExcludedTags.ContainsKey(tag),
+                $"'{tag}' is registered as a void element but is neither a curated helper nor an " +
+                $"excluded tag, so BCF3016 can never fire for it. Fix the spelling, or record why the " +
+                $"tag exists in neither table.");
+        }
+    }
+
+    /// <summary>
+    /// The three void tags with no curated helper are exactly <c>base</c>, <c>link</c> and <c>meta</c>.
+    /// </summary>
+    /// <remarks>
+    /// Pinned as a set rather than a count so the pair of tables cannot drift into agreement by swapping a
+    /// member: this is the statement <c>DESIGN.md</c> §4.1 makes, that the group-1 exclusions are void too
+    /// and are checked when reached through <c>Element</c>, and it is the one sentence in that paragraph a
+    /// reader cannot verify from either table alone.
+    /// </remarks>
+    [Fact]
+    public void VoidTagsWithoutACuratedHelper_AreTheThreeHeadOnlyElements()
+    {
+        var (symbols, _) = ResolveHtml();
+        var curated = symbols.ElementTags.Values.ToHashSet(System.StringComparer.Ordinal);
+
+        var uncurated = KnownSymbols.VoidTags
+            .Where(tag => !curated.Contains(tag))
+            .OrderBy(static tag => tag, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["base", "link", "meta"], uncurated);
+    }
+
     [Fact]
     public void ElementTags_AreExactlyTheCuratedSet()
     {
