@@ -20,17 +20,29 @@ protected override View Body =>
         H2["Elements"],
         P["Text and ", A.Href("/docs")["links"], " compose in one call."],
         Ul[
-            Li["Structure: Div, Section, Article, Header, Footer, Main, Aside, Nav"],
-            Li["Text: Span, P, H1 through H6"],
-            Li["Lists: Ul, Ol, Li"],
-            Li["Interactive: Button"],
-            Li["Links and media: A, Img"]]];
+            Li["An HTML element is a helper, named by its tag with only the first letter uppercased — Figcaption, not FigCaption, likewise Colgroup and Textarea."],
+            Li["Element covers what is not a helper: custom elements, Web Components, and the few excluded vocabularies below."]]];
 ```
 
-For an element without a dedicated helper, use `Element` with a compile-time constant tag:
+A dedicated helper exists for every element the HTML Living Standard lists as conforming, so a
+`<figure>` is one call away, attributes before children like any other element:
 
 ```csharp
-Element("figure")[Img.Src("/diagram.png").Alt("Architecture")]
+Figure[
+    Img.Src("/diagram.png").Alt("Architecture"),
+    Figcaption["The compilation pipeline"]]
+```
+
+`Element` is what is left over: custom elements and Web Components, whose tag names are never a
+known helper, and a handful of standard elements no helper covers — the document and
+`<head>`-only elements (`html`, `head`, `body`, `title`, `base`, `meta`, `link`), raw-text elements
+(`script`, `style`, `noscript`), elements the render tree cannot give meaning to (`template`,
+`slot`), `object` (ambiguous with the C# keyword), and the foreign vocabularies `svg` and `math` in
+full:
+
+```csharp
+Element("my-widget").Attr("value", "42")   // custom element
+Element("svg")[Element("circle")]          // foreign vocabulary
 ```
 
 ## Children
@@ -59,6 +71,32 @@ Div[["a", "b"]]     // same as Div["a", "b"], which is the form to prefer
 Handing over a child list the generator cannot see through reports BCF1003. That covers a variable
 or method result passed whole (`Div[_kids]`), an explicit array (`Div[new View[] { … }]`), and any
 spread (`Div[[..items]]`). Use [`ForEach`](./control-flow.md#keyed-foreach) for repetition instead.
+
+## When a name collides
+
+`using static BlazorCodeFirst.Html;` imports every conforming HTML element name, and a member of your
+own component wins simple-name lookup over an imported one. Blazor parameters named `Label`, `Data`,
+`Summary` or `Source` are ordinary, so this happens.
+
+A type that shadows a helper names itself in the error:
+
+    error CS0119: 'Table' is a type, which is not valid in the given context
+
+A member whose type is indexable does not — the element expression silently becomes an indexer call
+on your member:
+
+```csharp
+[Parameter] public string Data { get; set; }
+Div[Data["Heading"]]
+```
+
+    error CS1503: Argument 1: cannot convert from 'string' to 'int'
+
+Both are fixed the same way, by qualifying the element:
+
+```csharp
+Div[Html.Data["Heading"]]
+```
 
 ## Decorations
 

@@ -67,9 +67,14 @@ issue.
 
 Available today:
 
-- 22 curated element helpers (`Div` `Span` `Button` `Nav` `Header` `Main` `Aside` `Footer`
-  `Section` `Article` `P` `H1`–`H6` `Ul` `Ol` `Li` `A` `Img`), plus `Element(tag)` for any other
-  tag, `Fragment(…)`, and `Raw(html)` for trusted HTML.
+- An element helper for every element the HTML Living Standard's element index lists as conforming,
+  minus six reasoned exclusions recorded in `DESIGN.md` §4.1; `Element(tag)` still writes those, and
+  custom elements, Web Components and foreign vocabularies. Plus `Fragment(…)` and `Raw(html)` for
+  trusted HTML.
+- Form elements are among them and are writable, but a working form cannot be built yet: two-way
+  binding ([#71](https://github.com/sano-suguru/blazor-code-first/issues/71)) and typed event
+  arguments ([#72](https://github.com/sano-suguru/blazor-code-first/issues/72)) do not exist, so an
+  `Input` can be rendered but its value cannot be read back or bound.
 - Mixed children, supplied in brackets after the tag and its attributes (`Div.Class("card")[…]`):
   bare strings and `View`s in the same list; a Blazor `RenderFragment` is also a child, which is how
   Razor-supplied content flows in.
@@ -85,13 +90,7 @@ Available today:
 Not covered yet, tracked as a single surface-area inventory in
 [#72](https://github.com/sano-suguru/blazor-code-first/issues/72): typed event arguments
 (`MouseEventArgs` and friends), `bool` / `object`-valued attributes, `@bind`, `preventDefault` /
-`stopPropagation`, attribute splatting, `@ref` for elements and components, form helpers, and the
-elements outside the curated 22 (tables, form controls, `Strong` / `Em` / `Pre` / `Code`, …).
-
-One surface question is open rather than merely unimplemented: how wide the curated tag set should
-be. Twenty-two tags are properties and every other tag goes through `Element("…")`, a split HTML
-itself does not have
-([#99](https://github.com/sano-suguru/blazor-code-first/issues/99)).
+`stopPropagation`, attribute splatting, `@ref` for elements and components, and form helpers.
 
 ## Installation
 

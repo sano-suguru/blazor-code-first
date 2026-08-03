@@ -146,4 +146,37 @@ public sealed class BracketSurfaceGeneratorTests
         string[] expected = ["Span"];
         Assert.Equal(expected, symbols.ElementTags.Keys.Select(static key => key.Name).ToList());
     }
+
+    [Fact]
+    public void EveryCuratedHelper_CompilesUnqualifiedAndOpensItsOwnTag()
+    {
+        // The sync tests read symbol tables. This is the only check that runs a curated name through the
+        // whole path: `using static Html` import, generator dispatch, emitted tag string, and a
+        // compilation of the generated output. It is derived from ElementTags on purpose, so it proves
+        // every row works rather than re-pinning which rows exist; ExpectedCuratedNames does the latter.
+        var symbols = KnownSymbols.TryCreate(CompilationTestHost.CreateCompilation(""));
+        Assert.NotNull(symbols);
+
+        var tags = symbols!.ElementTags
+            .OrderBy(static entry => entry.Key.Name, System.StringComparer.Ordinal)
+            .Select(static entry => (Name: entry.Key.Name, Tag: entry.Value))
+            .ToArray();
+        Assert.Equal(KnownSymbolsSyncTests.CuratedTagCount, tags.Length);
+
+        // Childless bare property references: each opens and closes one element, and none of them emits
+        // an attribute or a text node, so the only quoted string in the output is a tag name.
+        var body = $"Div[{string.Join(", ", tags.Select(static t => t.Name))}]";
+        var result = CompilationTestHost.RunGenerator(Host(body));
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        foreach (var (name, tag) in tags)
+        {
+            Assert.True(
+                generated.Contains($", \"{tag}\");", System.StringComparison.Ordinal),
+                $"Html.{name} produced no OpenElement for \"{tag}\".");
+        }
+
+        // Proves the 100 runtime properties exist and are reachable unqualified through `using static`.
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
 }
