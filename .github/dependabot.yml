@@ -20,12 +20,31 @@ updates:
           - "*"
 
   - package-ecosystem: nuget
-    # Central package management covers src/, tests/, and samples/ through
-    # Directory.Packages.props, but the four projects under site/ set
-    # ManagePackageVersionsCentrally=false and carry inline versions. Rooting at
-    # "/" is what reaches both. Confirm on the first run that a site/ package is
-    # actually offered; if it is not, this needs explicit `directories` entries.
-    directory: "/"
+    # NuGet discovery does not recurse. For each configured directory it reads
+    # only the files sitting directly in that directory to find an entry point
+    # (*.sln, *.slnx, *.proj, *.csproj), then follows the project references out
+    # of what it found. So "/" reaches BlazorCodeFirst.slnx, the seven projects
+    # it lists, and the Directory.Packages.props they import — and nothing else.
+    # The four projects under site/ are deliberately outside that solution and
+    # set ManagePackageVersionsCentrally=false, so their seven inline versions
+    # need a root of their own.
+    #
+    # The first run could not settle this by observation, because every package
+    # in the repository was already current and the one pull request it produced
+    # would have looked identical either way. It was settled by reading
+    # dependabot-core instead: DiscoveryWorker.FindEntryPoints enumerates a
+    # single directory deep, and Job.GetAllDirectories glob-expands the entries
+    # below against the working tree.
+    #
+    # The glob is what keeps a site project added later from silently falling
+    # outside the configuration; a matched directory holding no project file
+    # costs one empty scan. Grouping still yields one pull request per group,
+    # because the directory loop runs inside the group loop — so a package
+    # versioned both centrally and inline under site/ moves in a single pull
+    # request rather than two that could drift apart.
+    directories:
+      - "/"
+      - "/site/**/*"
     schedule:
       interval: weekly
     labels:
