@@ -5,7 +5,7 @@ namespace BlazorCodeFirst;
 /// (<see cref="BodyComponentBase.Body"/> or <see cref="ChromeLayoutBase.Chrome"/>) as literal HTML.
 /// Every member is inert: the BlazorCodeFirst source generator analyzes calls to these
 /// members and emits the equivalent <c>RenderTreeBuilder</c> instructions into the component's generated
-/// <c>RenderView</c>. They are never meant to run — at runtime they perform no work and return only a
+/// <c>RenderView</c>. They are never meant to run: at runtime they perform no work and return only a
 /// default value, so they must not be invoked directly. Add <c>using static BlazorCodeFirst.Html;</c> and
 /// write the element helpers, <c>If</c>/<c>ForEach</c>, <c>Component&lt;T&gt;()</c>, <c>Fragment</c>, and
 /// <c>Raw</c> unqualified with children in brackets (<c>Div["text"]</c>); this is the recommended terse
@@ -81,7 +81,7 @@ public static class Html
     public static ElementBuilder A => default;
 
     /// <summary>Design-time syntax for an HTML <c>img</c> element; set <c>.Src</c>/<c>.Alt</c>. This is a
-    /// void element — supplying children with <c>[…]</c> produces invalid HTML and is not prevented by the
+    /// void element, supplying children with <c>[…]</c> produces invalid HTML and is not prevented by the
     /// type system.</summary>
     public static ElementBuilder Img => default;
 
@@ -91,7 +91,7 @@ public static class Html
 
     /// <summary>Design-time syntax for wrapper-less grouping: emits the children in sequence with no
     /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no element, so it is
-    /// non-keyable — it cannot be a ForEach content root (BCF3003) — and cannot be decorated: decorations
+    /// non-keyable, it cannot be a ForEach content root (BCF3003), and cannot be decorated: decorations
     /// apply to <see cref="ElementBuilder"/>, and a fragment is a <see cref="View"/>. Children may be zero
     /// or more mixed string/element values.</summary>
     public static View Fragment(params System.ReadOnlySpan<View> children) => default;

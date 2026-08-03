@@ -145,7 +145,7 @@ public sealed class ComponentSlotDiagnosticTests
     [Fact]
     public void SlotContainingRegionRootedContent_IsAccepted()
     {
-        // A slot is a fragment, so region-rooted content is fine — no key is ever applied to it.
+        // A slot is a fragment, so region-rooted content is fine, no key is ever applied to it.
         var result = Run("Component<Card>()[If(true, () => Div[\"x\"])]");
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);

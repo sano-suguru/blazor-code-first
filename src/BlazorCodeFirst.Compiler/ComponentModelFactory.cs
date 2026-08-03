@@ -21,14 +21,14 @@ internal static class ComponentModelFactory
     /// Analyzes <paramref name="syntaxContext"/> when it represents a class that directly or indirectly
     /// inherits from a BlazorCodeFirst base (<c>BodyComponentBase</c> or <c>ChromeLayoutBase</c>), resolving
     /// all symbols from the context's own compilation and classifying its design-time expression
-    /// (<c>Body</c> or <c>Chrome</c>) into a template.  Returns a symbol-free <see cref="ComponentAnalysis"/>
-    /// for every component candidate — including the diagnostic-only shapes that cannot be generated into
-    /// (non-partial, nested) — or <see langword="null"/> for a node that is not a component at all
+    /// (<c>Body</c> or <c>Chrome</c>) into a template. Returns a symbol-free <see cref="ComponentAnalysis"/>
+    /// for every component candidate, including the diagnostic-only shapes that cannot be generated into
+    /// (non-partial, nested), or <see langword="null"/> for a node that is not a component at all
     /// (non-inheriting, or declaring no design-time expression of its own).
     /// </summary>
     /// <remarks>
     /// This method must run inside the syntax-provider transform, where the <see cref="SemanticModel"/> and
-    /// resolved symbols belong to the current compilation.  Its output carries no symbols, so the value that
+    /// resolved symbols belong to the current compilation. Its output carries no symbols, so the value that
     /// flows onward stays equatable and cacheable across incremental runs.
     /// </remarks>
     internal static ComponentAnalysis? Analyze(
@@ -64,7 +64,7 @@ internal static class ComponentModelFactory
 
         // One declaration per type owns the generated RenderView. Electing it from the symbol (rather
         // than accepting whichever candidate declaration the syntax provider offered) is what keeps the
-        // hint name unique — see FindDesignTimeExpressionDeclaration.
+        // hint name unique, see FindDesignTimeExpressionDeclaration.
         var elected = FindDesignTimeExpressionDeclaration(symbol, expressionName, cancellationToken);
         if (elected is null || elected.Parent != classDeclaration)
             return null;
@@ -94,7 +94,7 @@ internal static class ComponentModelFactory
 
         // The generated RenderView joins this class, which requires `partial`. Reported here, from the
         // generator, because an analyzer cannot: no partial modifier means no RenderView, which means
-        // CS0534 — a declaration-level error, and csc does not run the analyzer driver on a compilation
+        // CS0534, a declaration-level error, and csc does not run the analyzer driver on a compilation
         // that has one. BCF1001 would be suppressed by the very condition it diagnoses (issue #76).
         // Checked after the election above so a class that declares nothing to generate is never told to
         // add a modifier that would change nothing.
@@ -142,12 +142,12 @@ internal static class ComponentModelFactory
                         getterLocation ?? Location.None,
                         [symbol.Name, expressionName])),
                 // As above: BCF1004 is located and suppresses BCF1003. There is also no expression to
-                // blame here — the getter never reduced to one, which is what BCF1004 says.
+                // blame here, the getter never reduced to one, which is what BCF1004 says.
                 FailureLocation: null);
         }
 
         // Resolve the BlazorCodeFirst.Html factory symbols only once the candidate is confirmed to be a
-        // component, so unrelated base-listed classes do not pay for the Html type lookup.  Resolution is
+        // component, so unrelated base-listed classes do not pay for the Html type lookup. Resolution is
         // transient to this compilation and never escapes into the cached pipeline.
         var knownSymbols = KnownSymbols.TryCreate(syntaxContext.SemanticModel.Compilation);
         if (knownSymbols is null)
@@ -157,7 +157,7 @@ internal static class ComponentModelFactory
             return null;
 
         // Reuse the composable-definition analyzer so component bodies and composable bodies share a
-        // single SSC classification.  The component body has no parameters, so no parameter holes exist;
+        // single SSC classification. The component body has no parameters, so no parameter holes exist;
         // its access-requirement and diagnostic accumulators are irrelevant here because the generated
         // RenderView is emitted directly into this same component type.
         var bodyContext = new ComposableBodyContext(
@@ -170,8 +170,8 @@ internal static class ComponentModelFactory
 
         var template = RenderExpressionAnalyzer.Analyze(bodyExpression, bodyContext);
 
-        // Translation failed. Sweep the whole expression for the specific cause — an unresolved
-        // Component<T>() type argument, a value-position type reference, a misplaced decoration — so the
+        // Translation failed. Sweep the whole expression for the specific cause, an unresolved
+        // Component<T>() type argument, a value-position type reference, a misplaced decoration, so the
         // author is told it instead of BCF1003's "not statically analyzable". Only on the failure path, so
         // a healthy body pays nothing. BCF1003 is then suppressed automatically by Expand's error dedup.
         // FailurePathScanners owns the sweep list; both hosts run the same one by construction.
@@ -204,7 +204,7 @@ internal static class ComponentModelFactory
 
     /// <summary>
     /// Expands a component's analyzed template against the composable <paramref name="registry"/> into a
-    /// final <see cref="ComponentModelResult"/>.  This is a pure function of value inputs, so it runs after
+    /// final <see cref="ComponentModelResult"/>. This is a pure function of value inputs, so it runs after
     /// the registry combine without reintroducing symbols into the pipeline.
     /// </summary>
     internal static ComponentModelResult Expand(ComponentAnalysis analysis, ComposableRegistry registry)
@@ -258,7 +258,7 @@ internal static class ComponentModelFactory
 
     /// <summary>
     /// Returns the generated component's inheritance chain as fully qualified type keys, most-derived
-    /// first (the component itself), then each base type up the hierarchy.  This is the symbol-free datum
+    /// first (the component itself), then each base type up the hierarchy. This is the symbol-free datum
     /// the expander uses to validate protected/private-protected access requirements.
     /// </summary>
     private static ImmutableArray<string> BuildInheritanceKeys(INamedTypeSymbol symbol)
@@ -271,9 +271,9 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// The component's own type-parameter names in declaration order.  Names come from the symbol because
+    /// The component's own type-parameter names in declaration order. Names come from the symbol because
     /// CS0264 requires every partial declaration to use the same names in the same order, so the generated
-    /// part must not invent its own.  Constraints are deliberately not collected: a constraint belongs to
+    /// part must not invent its own. Constraints are deliberately not collected: a constraint belongs to
     /// the type parameter rather than to a declaration, so the generated part may omit the clause
     /// entirely, and reproducing it wrongly would reject correct user code.
     /// </summary>
@@ -291,7 +291,7 @@ internal static class ComponentModelFactory
 
     /// <summary>
     /// Returns the single property declaration that carries the type's design-time expression, or
-    /// <see langword="null"/> when the type declares none.  Resolved from the symbol rather than from one
+    /// <see langword="null"/> when the type declares none. Resolved from the symbol rather than from one
     /// candidate declaration for two reasons: a type split across several partial declarations must be
     /// judged once (otherwise two candidates emit the same hint name, which throws inside AddSource and
     /// takes the whole generator down with it), and a partial property's getter lives in its
@@ -321,7 +321,7 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// True when any of the type's declarations carries the <c>partial</c> modifier.  Judged across every
+    /// True when any of the type's declarations carries the <c>partial</c> modifier. Judged across every
     /// declaration rather than from the one the syntax provider offered, so a type split into a partial
     /// part and a non-partial part (CS0260) is not also told to add a modifier it already has somewhere.
     /// </summary>
@@ -377,14 +377,14 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Classifies the elected design-time expression declaration.  Three getter spellings reduce to a
+    /// Classifies the elected design-time expression declaration. Three getter spellings reduce to a
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
     /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
-    /// expression (<c>get { return e; }</c>).  An auto property (no getter body and no <c>partial</c>
-    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.  A partial
+    /// expression (<c>get { return e; }</c>). An auto property (no getter body and no <c>partial</c>
+    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial
     /// property with no implementation part (<c>partial</c> modifier and no getter body) is
     /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
-    /// property itself.  Any other getter shape (a statement-bearing getter body) is also
+    /// property itself. Any other getter shape (a statement-bearing getter body) is also
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
@@ -455,10 +455,10 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// True when the component overrides <c>RenderView</c> by hand.  Hand-writing it is legal and is the
+    /// True when the component overrides <c>RenderView</c> by hand. Hand-writing it is legal and is the
     /// escape hatch for a body the statically sequenceable subset cannot express, so the generator must
     /// contribute nothing: a second RenderView would be CS0111 raised inside generated code, which the
-    /// author cannot fix from their own file.  No diagnostic — this is a deliberate choice, not a mistake.
+    /// author cannot fix from their own file. No diagnostic: this is a deliberate choice, not a mistake.
     /// </summary>
     private static bool DeclaresRenderViewOverride(INamedTypeSymbol symbol)
     {
@@ -475,7 +475,7 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// True for <c>Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder</c>.  Matched by name
+    /// True for <c>Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder</c>. Matched by name
     /// rather than by symbol comparison so no compilation lookup is needed here, following
     /// <see cref="DesignTimeBaseFacts"/>'s approach for the BlazorCodeFirst base types.
     /// </summary>

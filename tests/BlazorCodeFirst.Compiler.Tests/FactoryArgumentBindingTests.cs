@@ -4,7 +4,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 
 // #36: the analyzer read factory arguments by syntactic position, so named arguments written out of
 // declaration order bound to the wrong parameter. Two forms compiled AND generated, producing working
-// but wrong code — those are the cases these tests exist for. The assertion is source equality against
+// but wrong code, those are the cases these tests exist for. The assertion is source equality against
 // the positional spelling, because a diagnostic-based assertion cannot see a silent swap.
 public sealed class FactoryArgumentBindingTests
 {
@@ -124,8 +124,8 @@ public sealed class FactoryArgumentBindingTests
     [Fact]
     public void ForEach_NamedArgumentsOutOfOrder_GeneratesSameSourceAsPositional()
     {
-        // The form issue #36 cites. Unlike If and Attr this one does not silently miscompile — the
-        // swapped key/content lands on BCF3003 or BCF1003 — but it must still bind correctly.
+        // The form issue #36 cites. Unlike If and Attr this one does not silently miscompile, the
+        // swapped key/content lands on BCF3003 or BCF1003, but it must still bind correctly.
         const string named = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -314,7 +314,7 @@ public sealed class FactoryArgumentBindingTests
     {
         // The named spelling is this file's own subject (#36), and #75 makes a new combination legal:
         // a literal passed by parameter name. It binds through the same params slot, so it must mean the
-        // same thing — pinned here so a future change that keys the literal on argument position rather
+        // same thing, pinned here so a future change that keys the literal on argument position rather
         // than on the bound parameter cannot pass silently.
         var named = GenerateBody("""Div[children: ["a", "b"]]""");
         var positional = GenerateBody("""Div["a", "b"]""");
@@ -339,7 +339,7 @@ public sealed class FactoryArgumentBindingTests
     {
         // The nested counterpart of Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource:
         // Roslyn elides a bare null-forgiving suppression from the operation tree, so the element's
-        // Syntax points at the inner operand. Recovery has to climb to the written expression — and in
+        // Syntax points at the inner operand. Recovery has to climb to the written expression, and in
         // a literal that container is an ExpressionElementSyntax, not an ArgumentSyntax.
         var literal = GenerateNullForgivingBody("""Div[[NullText!, "b"]]""");
         var expanded = GenerateNullForgivingBody("""Div[NullText!, "b"]""");
@@ -347,7 +347,7 @@ public sealed class FactoryArgumentBindingTests
         Assert.Contains("NullText!", literal);
 
         // Two elements, so a recovery rule that resolved every element to the whole outer argument would
-        // emit the literal twice instead of one child each — which equality against the expanded
+        // emit the literal twice instead of one child each, which equality against the expanded
         // spelling catches, and the per-child assertions then name.
         Assert.Equal(expanded, literal);
         Assert.Contains("""AddContent(1, global::Counter.NullText!)""", literal);
@@ -355,7 +355,7 @@ public sealed class FactoryArgumentBindingTests
     }
 
     /// <summary>
-    /// As <see cref="GenerateBody"/>, for the bodies that need a nullable member to suppress.  Kept
+    /// As <see cref="GenerateBody"/>, for the bodies that need a nullable member to suppress. Kept
     /// separate rather than folded into that host: adding a member there would move every existing
     /// baseline in this file.
     /// </summary>

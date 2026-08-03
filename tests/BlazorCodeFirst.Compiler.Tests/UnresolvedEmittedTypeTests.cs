@@ -267,7 +267,7 @@ public sealed class UnresolvedEmittedTypeTests
         // result no longer resolves at all and BCF3008 is reported from the failure path by
         // RejectedDecorationScanner rather than from the analyzer's decoration arm. The report site moved,
         // but the claim did not: an unresolved type inside a rejected decoration's value must not ALSO
-        // draw a BCF3015 — the value sweep must not descend into a decoration that was already rejected.
+        // draw a BCF3015, the value sweep must not descend into a decoration that was already rejected.
         const string source = """
             using System;
             using BlazorCodeFirst;
@@ -316,7 +316,7 @@ public sealed class UnresolvedEmittedTypeTests
     public void DuplicateAttribute_UnresolvedValueType_RemainsBCF3010Owned()
     {
         // A duplicate binding is rejected before its value is normalized, so the value never becomes
-        // emitted code and its type is not the author's problem — the same ownership the event channel
+        // emitted code and its type is not the author's problem, the same ownership the event channel
         // and both BCF3011 paths already had.
         const string source = """
             using System;

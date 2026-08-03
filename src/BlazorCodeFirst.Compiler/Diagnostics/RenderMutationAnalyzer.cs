@@ -16,8 +16,8 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// <para>
 /// The initial detectable boundary covers statically identifiable direct writes: field assignments,
 /// property assignments, and increment/decrement operators whose target is an instance member of the
-/// containing component. The recognized deferred event handlers — the handler argument of a
-/// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call — are excluded because state
+/// containing component. The recognized deferred event handlers, the handler argument of a
+/// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call, are excluded because state
 /// mutations there are the correct location for imperative state transitions and execute after
 /// rendering, not during it. A mutation is exempt when <em>any</em> enclosing lambda (not just the
 /// innermost) is such a handler argument, so nested lambdas inside a deferred handler body remain
@@ -75,7 +75,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
 
         // Condition 3: The operation must not be inside a recognized deferred event handler lambda
-        // (classified as DeferredEventHandler — mutations there execute after rendering): the
+        // (classified as DeferredEventHandler, mutations there execute after rendering): the
         // Html-mirror View.OnClick(...) argument lambda.
         if (IsInsideDeferredEventHandlerLambda(ctx.Operation.Syntax, semanticModel)) return;
 
@@ -87,7 +87,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     // ---------------------------------------------------------------------------
-    // Helpers — target extraction
+    // Helpers, target extraction
     // ---------------------------------------------------------------------------
 
     /// <summary>
@@ -115,7 +115,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     // ---------------------------------------------------------------------------
-    // Helpers — Body getter detection
+    // Helpers, Body getter detection
     // ---------------------------------------------------------------------------
 
     /// <summary>
@@ -154,12 +154,12 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     // ---------------------------------------------------------------------------
-    // Helpers — deferred event handler context detection
+    // Helpers, deferred event handler context detection
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed — at any
-    /// nesting depth — by a lambda that is syntactically a recognized deferred event handler
+    /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed, at any
+    /// nesting depth, by a lambda that is syntactically a recognized deferred event handler
     /// argument: the handler argument of a Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c>
     /// call. Every enclosing lambda is checked (not just the innermost), so a mutation inside a
     /// nested lambda that itself lives inside a recognized handler lambda (e.g.
@@ -214,7 +214,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="argument"/> binds to a delegate-typed
-    /// parameter of <paramref name="invocation"/> — the <c>Action</c> or <c>Func&lt;Task&gt;</c> handler of
+    /// parameter of <paramref name="invocation"/>, the <c>Action</c> or <c>Func&lt;Task&gt;</c> handler of
     /// <c>OnClick</c>/<c>On</c>, as opposed to the <c>string</c> event name.
     /// </summary>
     private static bool BindsToDelegateParameter(
@@ -228,7 +228,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             // Reference equality is safe here even though FactoryArguments.Bind's default arm cannot
             // rely on it (see the comment there): the elision that defeats a raw Syntax comparison only
             // strips a bare null-forgiving suppression from the operation tree, and `argument` here is
-            // always a lambda literal — never a suppressed identifier — so operationArgument.Syntax
+            // always a lambda literal, never a suppressed identifier, so operationArgument.Syntax
             // always points back at the same ArgumentSyntax the caller matched on.
             if (operationArgument.Syntax != argument)
                 continue;

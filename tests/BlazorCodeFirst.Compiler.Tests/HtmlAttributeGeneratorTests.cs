@@ -94,7 +94,7 @@ public sealed class HtmlAttributeGeneratorTests
     public void DuplicateAcrossAttributeAndEventChannels_ReportsBCF3010()
     {
         // Both channels emit AddAttribute frames under one name, so a name bound once through each is
-        // the same dead duplicate as two bindings within a channel — in either decoration order.
+        // the same dead duplicate as two bindings within a channel, in either decoration order.
         Assert.Contains(Diags("""Html.Div.Attr("onclick", "alert(1)").OnClick(() => { })"""), d => d.Id == "BCF3010");
         Assert.Contains(Diags("""Html.Div.OnClick(() => { }).Attr("onclick", "alert(1)")"""), d => d.Id == "BCF3010");
         Assert.Contains(Diags("""Html.Div.Attr("onclick", "alert(1)").On("onclick", () => { })"""), d => d.Id == "BCF3010");

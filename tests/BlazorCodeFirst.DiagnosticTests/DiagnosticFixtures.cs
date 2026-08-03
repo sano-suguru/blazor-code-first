@@ -7,11 +7,11 @@ namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
 /// Builds the projects under <c>tests/diagnostic-fixtures</c> with real MSBuild and exposes what the
-/// compiler reported.  Shared across the whole test collection: each fixture is built at most once
+/// compiler reported. Shared across the whole test collection: each fixture is built at most once
 /// per test run, on first use.
 /// </summary>
 /// <remarks>
-/// This is the layer issue #80 exists to add.  Every other diagnostic test in the repository drives
+/// This is the layer issue #80 exists to add. Every other diagnostic test in the repository drives
 /// the generator or an analyzer in-process, which cannot observe whether MSBuild delivers the
 /// analyzer at all, whether csc runs it, or where the diagnostic lands in the author's file.
 /// </remarks>
@@ -62,7 +62,7 @@ public sealed class DiagnosticFixtures
 
         // Deleted first so a stale log from an earlier run can never be mistaken for this build's
         // output. Every fixture fails to compile, so csc produces no assembly and is never skipped as
-        // up-to-date — an incremental build re-runs it and rewrites the log.
+        // up-to-date, an incremental build re-runs it and rewrites the log.
         var sarifPath = Path.Combine(RepoLayout.ArtifactsDirectory, name + ".sarif");
         Directory.CreateDirectory(RepoLayout.ArtifactsDirectory);
         File.Delete(sarifPath);

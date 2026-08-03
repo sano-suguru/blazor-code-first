@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 // On the bracket surface, children are the last thing written, so the .Param(c => c.Footer, ...) call
 // now precedes the indexer that supplies ChildContent. Slots are numbered in source order, so this swaps
 // which channel comes first: Footer's sequence number is now lower than ChildContent's, the opposite of
-// the pre-flip ordering. The rendered DOM is unaffected — bUnit selects by CSS class, not slot order —
+// the pre-flip ordering. The rendered DOM is unaffected, bUnit selects by CSS class, not slot order,
 // but the generated RenderView's AddComponentParameter(seq, "Footer", ...) /
 // AddComponentParameter(seq, "ChildContent", ...) pair swapped places accordingly.
 public partial class SlotHostComponent : BodyComponentBase

@@ -13,7 +13,7 @@ public sealed record FrontMatterFields(string Title, int Order);
 /// The block is separated as plain text BEFORE the Markdown pipeline sees it, deliberately avoiding
 /// Markdig's <c>UseYamlFrontMatter</c> extension. That extension registers its renderer with
 /// <c>ObjectRenderers.InsertBefore&lt;CodeBlockRenderer&gt;</c>, which returns false instead of
-/// throwing when the target is absent — and the ColorCode extension removes the default
+/// throwing when the target is absent, and the ColorCode extension removes the default
 /// CodeBlockRenderer during its own setup. Registered after ColorCode, the YAML renderer would
 /// silently fail to register and the front matter block (a CodeBlock subclass) would be picked up by
 /// ColorCode's renderer, emitting the front matter as a code block at the top of every document with

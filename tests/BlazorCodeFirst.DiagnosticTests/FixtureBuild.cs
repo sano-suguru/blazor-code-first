@@ -32,9 +32,9 @@ public sealed class FixtureBuild
     public bool Contains(string id) => WithId(id).Length > 0;
 
     /// <summary>
-    /// Every reported diagnostic, one per line.  Assertions in this project attach this rather than a
-    /// bare "expected X" because the interesting failure mode — a diagnostic vanishing for a reason
-    /// unrelated to the one under test — is only readable from the full set.
+    /// Every reported diagnostic, one per line. Assertions in this project attach this rather than a
+    /// bare "expected X" because the interesting failure mode, a diagnostic vanishing for a reason
+    /// unrelated to the one under test, is only readable from the full set.
     /// </summary>
     public string Report() =>
         $"Fixture '{Name}' reported {Diagnostics.Length} diagnostic(s):" +
@@ -54,7 +54,7 @@ public sealed class FixtureBuild
     }
 
     /// <summary>
-    /// The source text the diagnostic's span covers — what the author sees squiggled.  Asserting on
+    /// The source text the diagnostic's span covers, what the author sees squiggled. Asserting on
     /// this rather than on raw line and column numbers keeps the pin precise without breaking every
     /// time a fixture file is reformatted.
     /// </summary>

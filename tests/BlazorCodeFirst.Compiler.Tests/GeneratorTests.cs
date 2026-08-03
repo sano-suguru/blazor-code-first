@@ -194,8 +194,8 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_DivCounter_EmitsExactSource()
     {
-        // Golden test: locks the full generated-source shape — indentation, blank lines, brace
-        // placement, and preorder sequence — that the substring assertions elsewhere do not cover,
+        // Golden test: locks the full generated-source shape, indentation, blank lines, brace
+        // placement, and preorder sequence: that the substring assertions elsewhere do not cover,
         // guarding the RenderViewEmitter's exact output. Line endings are normalized to '\n' because
         // the emitter uses Environment.NewLine (platform-dependent); structure must stay identical.
         var result = CompilationTestHost.RunGenerator(DivCounterSource);
@@ -254,7 +254,7 @@ public sealed class GeneratorTests
     public void Generator_NestedClassInheritingWithoutDeclaringExpression_ReportsNothing()
     {
         // A nested type that merely inherits a BlazorCodeFirst base declares nothing to generate, so it must not
-        // be told that nesting is a problem — same narrowing principle as BCF1001 in PR #59.
+        // be told that nesting is a problem, same narrowing principle as BCF1001 in PR #59.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -441,7 +441,7 @@ public sealed class GeneratorTests
     {
         // An auto-property override is legal C# and has no getter body, so nothing can be translated.
         // CS0534 names RenderView and never mentions the auto-property that caused it, so the author has
-        // no way to reach the real cause from the compiler's own error — which is exactly the asymmetry
+        // no way to reach the real cause from the compiler's own error, which is exactly the asymmetry
         // BCF1004 exists for. Adding `partial` (BCF1001's remedy) does not help this shape.
         const string source = """
             using BlazorCodeFirst;
@@ -492,7 +492,7 @@ public sealed class GeneratorTests
     public void Generator_NonPartialAutoPropertyOverride_ReportsBCF1001NotBCF1004()
     {
         // Two problems, reported one at a time: the partial check runs first, so the author sees BCF1001
-        // and no BCF1004. Following it leads somewhere — after adding `partial` the author gets BCF1004
+        // and no BCF1004. Following it leads somewhere, after adding `partial` the author gets BCF1004
         // naming the auto property instead of a bare CS0534.
         const string source = """
             using BlazorCodeFirst;
@@ -538,7 +538,7 @@ public sealed class GeneratorTests
     public void Generator_PartialPropertyWithStatementBodyImplementation_ReportsBCF1004()
     {
         // A partial property's implementation part can carry a statement-bearing getter, which is legal
-        // C# and still untranslatable. The classification must reach the IMPLEMENTATION part to see it —
+        // C# and still untranslatable. The classification must reach the IMPLEMENTATION part to see it,
         // reading the definition part would find `{ get; }`, classify it as NoDeclaration, and report
         // nothing at all.
         const string source = """
@@ -573,7 +573,7 @@ public sealed class GeneratorTests
     {
         // Two analyzers, two separate dedup paths: the generator reports BCF1004 and
         // RenderMutationAnalyzer independently reports BCF3001. Both are actionable, so both firing is
-        // correct — pinned here so nobody "fixes" it into a single report.
+        // correct, pinned here so nobody "fixes" it into a single report.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -646,14 +646,14 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.OpenElement(2, \"span\")", generated);
         Assert.Contains("__builder.AddContent(3, \"Yes\")", generated);
 
-        // else branch: Span["No"] uses [4, 5] — disjoint from then range [2, 3]
+        // else branch: Span["No"] uses [4, 5], disjoint from then range [2, 3]
         Assert.Contains("__builder.OpenElement(4, \"span\")", generated);
         Assert.Contains("__builder.AddContent(5, \"No\")", generated);
 
         // Region close (no sequence argument)
         Assert.Contains("__builder.CloseRegion()", generated);
 
-        // Span["Always"] starts at 6 — same sequence regardless of which branch ran
+        // Span["Always"] starts at 6, same sequence regardless of which branch ran
         Assert.Contains("__builder.OpenElement(6, \"span\")", generated);
         Assert.Contains("__builder.AddContent(7, \"Always\")", generated);
 
@@ -728,7 +728,7 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.OpenElement(4, \"span\");", generated);
         Assert.Contains("__builder.AddContent(5, \"footer\");", generated);
 
-        // SetKey must land on the content root's span frame — after OpenElement(2, "span"), never
+        // SetKey must land on the content root's span frame, after OpenElement(2, "span"), never
         // after OpenRegion(1). This is the regression guard for the Task-9 render-time defect.
         int spanIdx = generated.IndexOf("__builder.OpenElement(2, \"span\");", System.StringComparison.Ordinal);
         int keyIdx = generated.IndexOf("__builder.SetKey(", System.StringComparison.Ordinal);
@@ -768,7 +768,7 @@ public sealed class GeneratorTests
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        // Two distinct loop variables must be emitted — one for the outer `columns` ForEach and one for
+        // Two distinct loop variables must be emitted, one for the outer `columns` ForEach and one for
         // the inner `col.Cards` ForEach. If the generator ever collapsed these to a single shared local,
         // this would drop to 1 and fail here.
         var loopVars = Regex
@@ -820,7 +820,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // The outer content root is a bare nested ForEach (region-rooted) — its key has no frame to
+        // The outer content root is a bare nested ForEach (region-rooted), its key has no frame to
         // attach to, so BCF3003 fires and emission is suppressed.
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003" && d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedSources);
@@ -989,7 +989,7 @@ public sealed class GeneratorTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // Exactly one BCF3002 — the inner key references only the outer item, not its own.
+        // Exactly one BCF3002, the inner key references only the outer item, not its own.
         Assert.Single(result.Diagnostics, d => d.Id == "BCF3002");
     }
 
@@ -1363,7 +1363,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                // Invalid declaration: a composable must be static.  The call site must not add a
+                // Invalid declaration: a composable must be static. The call site must not add a
                 // duplicate BCF1002.
                 [Composable]
                 private View Helper() => Span["x"];
@@ -2246,8 +2246,8 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        // The unqualified generic static call and generic type reference — both in scope only through
-        // 'using' directives the generated file lacks — are fully qualified while preserving type arguments.
+        // The unqualified generic static call and generic type reference, both in scope only through
+        // 'using' directives the generated file lacks, are fully qualified while preserving type arguments.
         Assert.Contains("global::Factory.Make<string>()", generated);
         Assert.Contains("global::System.Collections.Generic.Dictionary<string, int>", generated);
         CompilationTestHost.AssertOutputCompiles(result);
@@ -2402,8 +2402,8 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        // The static-member access, the typeof type reference, and the generic type reference — all
-        // written under the relative 'Models' path — are fully qualified to 'global::Root.Models.*',
+        // The static-member access, the typeof type reference, and the generic type reference, all
+        // written under the relative 'Models' path, are fully qualified to 'global::Root.Models.*',
         // and the generic type argument survives, so expansion into the global namespace compiles.
         Assert.Contains("global::Root.Models.Widget.Label", generated);
         Assert.Contains("typeof(global::Root.Models.Widget)", generated);
@@ -2466,7 +2466,7 @@ public sealed class GeneratorTests
                 public class Widgets<T>
                 {
                     // A composable declared in a generic containing type would leak the unbound type
-                    // parameter 'T' — here through the 'T value' parameter — into the using-less
+                    // parameter 'T', here through the 'T value' parameter, into the using-less
                     // generated component, so the declaration is rejected up front.
                     [Composable]
                     public static View Show(T value) => Span[value!.ToString()];
@@ -2584,8 +2584,8 @@ public sealed class GeneratorTests
                 using static BlazorCodeFirst.Html;
 
                 // The composable lives in a *different* type than the one declaring the protected
-                // member.  It can name 'Prefix' because Helper derives from WidgetBase, so the access
-                // requirement must be validated against the member's declaring type (WidgetBase) — not
+                // member. It can name 'Prefix' because Helper derives from WidgetBase, so the access
+                // requirement must be validated against the member's declaring type (WidgetBase), not
                 // the composable's containing type (Helper).
                 public abstract partial class Helper : WidgetBase
                 {
@@ -2808,7 +2808,7 @@ public sealed class GeneratorTests
     {
         // The implicit conversion to View is from the non-generic RenderFragment only. A
         // RenderFragment<T> is a template needing a context argument, so it must not silently become
-        // content — the type system rejects it with CS1503 and no diagnostic of ours is needed.
+        // content, the type system rejects it with CS1503 and no diagnostic of ours is needed.
         var result = CompilationTestHost.RunGenerator("""
             using BlazorCodeFirst;
             using Microsoft.AspNetCore.Components;
@@ -2970,7 +2970,7 @@ public sealed class GeneratorTests
         // Two declarations that each carry a Body getter body is CS0102 (broken user code), but the
         // generator must still contribute source for every OTHER component in the compilation. Before
         // the declaration-election fix, both declarations produced hintName "Dup.g.cs", the second
-        // AddSource threw ArgumentException, and Roslyn reported CS8785 — at which point the generator
+        // AddSource threw ArgumentException, and Roslyn reported CS8785, at which point the generator
         // contributes NOTHING, so the unrelated and perfectly valid Healthy lost its RenderView too.
         // An exception from AddSource discards the generator's entire contribution for that run, which
         // is why the blast radius is every component in the compilation rather than just the colliding
@@ -3075,7 +3075,7 @@ public sealed class GeneratorTests
     {
         // Roslyn reports IsOverride=true even for an erroneous override, so a gate keyed only on
         // "declares an override named RenderView with one parameter" would be tripped by this shape,
-        // suppress generation, and leave the author with CS0115 plus a bare CS0534 — the dead end this
+        // suppress generation, and leave the author with CS0115 plus a bare CS0534, the dead end this
         // PR exists to remove. The generator must still emit, so the author's only error is the CS0115
         // that names their own mistake.
         const string source = """
@@ -3154,7 +3154,7 @@ public sealed class GeneratorTests
         //
         // The [Composable] lives on a separate non-generic static class on purpose: a [Composable]
         // declared INSIDE a generic type is rejected with BCF1002 ("containing type must be non-generic"),
-        // measured against this generator. That limitation is out of scope here — a generic component
+        // measured against this generator. That limitation is out of scope here, a generic component
         // calling a composable from elsewhere is the supported combination.
         const string source = """
             using BlazorCodeFirst;
@@ -3179,8 +3179,8 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
-        // The composable's body is expanded inline (no runtime dispatch), and `_label` — a private member
-        // of the generic component — is read from inside the generated part, which only compiles because
+        // The composable's body is expanded inline (no runtime dispatch), and `_label`, a private member
+        // of the generic component, is read from inside the generated part, which only compiles because
         // the generated part joins the same generic type.
         Assert.Contains("_label", generated, StringComparison.Ordinal);
         CompilationTestHost.AssertOutputCompiles(result);

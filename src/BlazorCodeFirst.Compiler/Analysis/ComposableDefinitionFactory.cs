@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
 /// Validates a discovered <c>[Composable]</c> method against the supported static-expansion contract and,
-/// when valid, builds its symbol-free <see cref="ComposableDefinition"/>.  Invalid source declarations
+/// when valid, builds its symbol-free <see cref="ComposableDefinition"/>. Invalid source declarations
 /// still yield a registry <see cref="ComposableDefinitionEntry"/> (with a null definition) plus a single
 /// value-equal BCF1002 diagnostic so expansion can distinguish an already-diagnosed source declaration
 /// from a metadata-only method.
@@ -63,9 +63,9 @@ internal static class ComposableDefinitionFactory
             return "must be non-generic";
 
         // A composable declared in a generic containing type (or nested inside one) would leak the
-        // enclosing unbound type parameter — through a parameter type such as 'T value' or a body
-        // reference such as 'typeof(T)' — into the using-less generated component, where that parameter
-        // is not in scope.  Reject the declaration up front rather than emit uncompilable expansion.
+        // enclosing unbound type parameter, through a parameter type such as 'T value' or a body
+        // reference such as 'typeof(T)', into the using-less generated component, where that parameter
+        // is not in scope. Reject the declaration up front rather than emit uncompilable expansion.
         for (var containingType = method.ContainingType;
              containingType is not null;
              containingType = containingType.ContainingType)
@@ -88,7 +88,7 @@ internal static class ComposableDefinitionFactory
 
             // A by-reference parameter (ref, out, in, or ref readonly) cannot be reproduced by the
             // static-expansion contract, which lowers each argument to a plain typed local passed by
-            // value.  Reject every RefKind other than None with a single reason.
+            // value. Reject every RefKind other than None with a single reason.
             if (parameter.RefKind != RefKind.None)
                 return "by-reference parameters are unsupported";
 
@@ -121,8 +121,8 @@ internal static class ComposableDefinitionFactory
         var parameters = ImmutableArray.CreateBuilder<ComposableParameter>(method.Parameters.Length);
         foreach (var parameter in method.Parameters)
         {
-            // A parameter (or optional-default) type that cannot be named from another file — a file-local
-            // type or one otherwise unnameable — would produce invalid generated C# at the expansion site,
+            // A parameter (or optional-default) type that cannot be named from another file, a file-local
+            // type or one otherwise unnameable, would produce invalid generated C# at the expansion site,
             // so reject the declaration with BCF1002 instead.
             if (IsUnnameableType(parameter.Type))
             {
@@ -213,9 +213,9 @@ internal static class ComposableDefinitionFactory
             [displayName, reason]);
 
     /// <summary>
-    /// Determines whether <paramref name="type"/> (or a component of it — array element, pointed-at type,
+    /// Determines whether <paramref name="type"/> (or a component of it, array element, pointed-at type,
     /// generic type argument, or an enclosing type) cannot be referenced by a fully qualified name in a
-    /// generated file, for example a <c>file</c>-local type or an otherwise unnameable type.  Such a type
+    /// generated file, for example a <c>file</c>-local type or an otherwise unnameable type. Such a type
     /// would emit invalid C# in a typed argument local, so its composable is rejected at the declaration.
     /// </summary>
     private static bool IsUnnameableType(ITypeSymbol type)

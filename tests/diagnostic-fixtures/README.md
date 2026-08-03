@@ -3,7 +3,7 @@
 Deliberately broken projects, built by real MSBuild from
 `tests/BlazorCodeFirst.DiagnosticTests`. Nothing else builds them: they are outside
 `BlazorCodeFirst.slnx`, so a solution build, `dotnet format`, and CI's build step never see them.
-Each one is expected to fail to compile — that is the point.
+Each one is expected to fail to compile. That is the point.
 
 They exist because every other diagnostic test in the repository instantiates the generator or an
 analyzer directly through an in-memory Roslyn host. That verifies the *logic* of a diagnostic and
@@ -23,7 +23,7 @@ have nothing to do with it. See `ARCHITECTURE.md` 付録A.0.
 
 The same cutoff also disqualifies C# errors as a way to state a BlazorCodeFirst constraint. csc stops
 after the declaration stage when the compilation has a declaration-level error, so it never binds
-method bodies — and a component whose design-time expression fails to translate always has one, the
+method bodies, and a component whose design-time expression fails to translate always has one, so the
 CS0534 from the `RenderView` that was never generated. Any body-binding error inside that expression
 is therefore computed for a build that has already been abandoned, and never reaches the author.
 `Compilation.GetDiagnostics()`, which every in-process test calls, binds bodies unconditionally and

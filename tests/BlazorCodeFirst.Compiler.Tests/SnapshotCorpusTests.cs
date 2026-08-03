@@ -10,16 +10,16 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// <remarks>
 /// <para>
 /// These 26 baselines were captured on the pre-#87 method surface and reproduced unchanged when every input
-/// here was re-spelled to the bracket form.  That is what makes them a safety net rather than a restatement
-/// of current behaviour: a baseline is evidence about a surface that no longer exists in the tree.  Re-record
+/// here was re-spelled to the bracket form. That is what makes them a safety net rather than a restatement
+/// of current behaviour: a baseline is evidence about a surface that no longer exists in the tree. Re-record
 /// them only with a reason written down; <c>BLAZORCODEFIRST_UPDATE_SNAPSHOTS</c> will overwrite that evidence in
-/// one run.  The case <em>names</em> are the stable identity here, not the input text: a case's input may be
+/// one run. The case <em>names</em> are the stable identity here, not the input text: a case's input may be
 /// re-spelled again in the future, but a case must never be renamed or dropped to make a baseline agree.
 /// </para>
 /// <para>
 /// Coverage is chosen for what the migration can break, not for what the emitter can emit: every element
 /// shape (the constructs that gain brackets), every <c>Component&lt;T&gt;</c> shape (likewise), and the
-/// region-opening and frame-less constructs — <c>If</c>, <c>ForEach</c>, <c>Fragment</c>, <c>Raw</c> —
+/// region-opening and frame-less constructs, <c>If</c>, <c>ForEach</c>, <c>Fragment</c>, <c>Raw</c>,
 /// nested inside an element, which is the position whose surrounding syntax changes around them.
 /// </para>
 /// </remarks>

@@ -13,30 +13,30 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The failure mode this descends from: BCF3008 moved from <c>RenderExpressionAnalyzer.Classify</c> — which
-/// both hosts route through — into a caller-invoked sweep, was wired into the component host only, and a
+/// The failure mode this descends from: BCF3008 moved from <c>RenderExpressionAnalyzer.Classify</c>, which
+/// both hosts route through, into a caller-invoked sweep, was wired into the component host only, and a
 /// misplaced decoration inside a <c>[Composable]</c> body degraded to the generic BCF1002 for the life of
-/// the branch.  The guard that replaced it compared the two hosts' scanner lists.  That comparison is gone
+/// the branch. The guard that replaced it compared the two hosts' scanner lists. That comparison is gone
 /// because the lists are gone: <c>FailurePathScanners.ReportAll</c> holds one list and both hosts call it,
 /// so one-host wiring is no longer something that can be written.
 /// </para>
 /// <para>
-/// What remains to check is narrower — that a declared scanner is actually on that list, and that neither
-/// host has grown a direct call around it — and it is keyed on structure rather than on a name.  The old
+/// What remains to check is narrower: that a declared scanner is actually on that list, and that neither
+/// host has grown a direct call around it, and it is keyed on structure rather than on a name. The old
 /// guard keyed on the <c>Scanner</c> suffix on both sides, so a sweep renamed to <c>…Sweep</c> dropped out
-/// of both sets at once and a one-host wiring under that name passed silently.  Here the declared side is
+/// of both sets at once and a one-host wiring under that name passed silently. Here the declared side is
 /// found by the <c>Report</c> signature, so a type-name rename cannot slip a sweep out from under this
 /// guard the way it could the old <c>Scanner</c>-suffix check: both hosts build a
-/// <c>ComposableBodyContext</c>, so any sweep reachable from both necessarily takes one.  The blind spot
+/// <c>ComposableBodyContext</c>, so any sweep reachable from both necessarily takes one. The blind spot
 /// did not close, only move: <see cref="IsFailurePathReport"/> and <see cref="ScannersInvokedBy"/> both key
 /// on the member name <c>Report</c>, so a sweep declared as
 /// <c>public static void Sweep(ExpressionSyntax, ComposableBodyContext)</c> drops out of both sets at
-/// once — the same shape of failure, relocated from the type name to the method name.
+/// once, the same shape of failure, relocated from the type name to the method name.
 /// </para>
 /// <para>
 /// It reads source text rather than behaviour, which is the only way to see a scanner that <em>no</em>
-/// test exercises yet.  It cannot see whether a call sits on the failure path or whether the expressions
-/// passed are equivalent; those are for the behavioural tests — see
+/// test exercises yet. It cannot see whether a call sits on the failure path or whether the expressions
+/// passed are equivalent; those are for the behavioural tests, see
 /// <c>BracketSurfaceDiagnosticTests.DecoratingANonElement_InsideAComposableBody_ReportsBCF3008</c>,
 /// <c>UnresolvedValueType_InsideAComposableBody_ReportsBCF3015</c> and
 /// <c>ComponentUnresolvedTypeTests.Component_InsideComposableBody_ReportsBCF3012NotGenericBCF1002</c>, which
@@ -90,7 +90,7 @@ public sealed class FailurePathScannerWiringTests
     /// </summary>
     /// <remarks>
     /// Keyed on the signature rather than on the filename or the type name, so renaming a sweep off the
-    /// <c>…Scanner</c> convention does not remove it from this set.  <c>FailurePathScanners</c> itself
+    /// <c>…Scanner</c> convention does not remove it from this set. <c>FailurePathScanners</c> itself
     /// declares <c>ReportAll</c>, not <c>Report</c>, so it does not appear here.
     /// </remarks>
     private static List<string> DeclaredScanners()
@@ -123,7 +123,7 @@ public sealed class FailurePathScannerWiringTests
     /// </summary>
     /// <remarks>
     /// Matched on the written syntax, not on resolved symbols, because this guard's whole point is to see
-    /// a scanner before any test exercises it.  The parameter types are compared as written; every scanner
+    /// a scanner before any test exercises it. The parameter types are compared as written; every scanner
     /// in this repository spells them unqualified.
     /// </remarks>
     private static bool IsFailurePathReport(MethodDeclarationSyntax method) =>
@@ -144,8 +144,8 @@ public sealed class FailurePathScannerWiringTests
     /// <remarks>
     /// Scoped to the method body rather than the whole file: <see cref="FailurePathScanners"/>'s own XML
     /// doc contemplates a sweep getting a second entry point of its own one day, and a scanner
-    /// call sitting elsewhere in the same file — reachable from that second entry point, not from
-    /// <c>ReportAll</c> — must not read as still invoked by <c>ReportAll</c>.
+    /// call sitting elsewhere in the same file, reachable from that second entry point, not from
+    /// <c>ReportAll</c>, must not read as still invoked by <c>ReportAll</c>.
     /// </remarks>
     private static IReadOnlyList<string> ScannersInvokedByReportAll()
     {
@@ -163,7 +163,7 @@ public sealed class FailurePathScannerWiringTests
     /// </summary>
     /// <remarks>
     /// Scans the whole file rather than a single method, because a host has no equivalent of
-    /// <c>ReportAll</c> to scope the search to — any direct scanner call anywhere in the host file is the
+    /// <c>ReportAll</c> to scope the search to, any direct scanner call anywhere in the host file is the
     /// per-host list this guard exists to keep from growing back.
     /// </remarks>
     private static IReadOnlyList<string> ScannersInvokedBy(string relativePath) =>
@@ -174,7 +174,7 @@ public sealed class FailurePathScannerWiringTests
     /// </summary>
     /// <remarks>
     /// Matched on the syntax rather than on a regex over the text, so a scanner named in a comment or an
-    /// XML doc is not counted as a call.  A qualified receiver (<c>Analysis.RejectedDecorationScanner</c>)
+    /// XML doc is not counted as a call. A qualified receiver (<c>Analysis.RejectedDecorationScanner</c>)
     /// is read from its final name segment, so adding a qualification does not read as removing the call.
     /// No suffix filter: the receiver name is whatever is written, which is what makes a renamed sweep
     /// still visible here.

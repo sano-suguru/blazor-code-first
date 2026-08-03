@@ -8,14 +8,14 @@ namespace BlazorCodeFirst;
 /// <remarks>
 /// <para>
 /// Attributes bind to the builder and children bind to the indexer, so an element is written the way HTML
-/// writes it — <c>Div.Class("card")["text"]</c>, attributes next to the tag. The indexer returns
+/// writes it, <c>Div.Class("card")["text"]</c>, attributes next to the tag. The indexer returns
 /// <see cref="View"/> rather than another builder, which is what makes the reverse spelling
 /// (<c>Div["text"].Class("card")</c>) a CS1929 rather than a second supported style.
 /// </para>
 /// <para>
 /// This is a <c>readonly struct</c> and deliberately not a <c>ref struct</c>: a <c>ref struct</c> cannot be
 /// a generic type argument (CS0306), so <c>.Param(c =&gt; c.Payload, Div)</c> would fail to compile and
-/// BCF3014 — which exists to reject exactly that expression with a purpose-written message — would never be
+/// BCF3014, which exists to reject exactly that expression with a purpose-written message, would never be
 /// reached. The <c>[Composable]</c> parameter rejection depends on the same property.
 /// </para>
 /// <para>
@@ -28,8 +28,8 @@ namespace BlazorCodeFirst;
     "CA1043:Use integral or string argument for indexers",
     Justification = "The indexer is the children channel of an element, not a lookup by index: its argument " +
         "is the element's content, which is a mixed sequence of strings and Views and cannot be expressed " +
-        "as an integer or a string. The bracket spelling is the point — it places attributes next to the " +
-        "tag, as HTML does — and no integral or string overload could carry it.")]
+        "as an integer or a string. The bracket spelling is the point: it places attributes next to the " +
+        "tag, as HTML does, and no integral or string overload could carry it.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",

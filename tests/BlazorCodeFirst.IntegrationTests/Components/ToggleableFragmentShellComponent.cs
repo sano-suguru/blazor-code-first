@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 // own static sequence allocation for that position. This is deliberately unlike hosting the
 // fragment and the sibling in two independently-diffed component instances: Blazor already treats
 // separate components as opaque frames isolated from each other, so that shape cannot exercise
-// (or break) the generator's sequence numbering — only a single shared render tree can.
+// (or break) the generator's sequence numbering, only a single shared render tree can.
 public partial class ToggleableFragmentShellComponent : BodyComponentBase
 {
     private static readonly RenderFragment Slot = builder => builder.AddContent(0, "kid");

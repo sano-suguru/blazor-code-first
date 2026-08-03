@@ -5,11 +5,11 @@ using Microsoft.CodeAnalysis.Text;
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
-/// BCF1001 must be reported by the generator, not by an analyzer.  Its trigger condition — a class that
-/// declares the design-time expression without <c>partial</c>, so no <c>RenderView</c> is emitted into it
-/// — always produces CS0534, a declaration-level error, and csc does not run the analyzer driver on a
-/// compilation that has one.  An analyzer-reported BCF1001 is therefore unreachable in a real build: the
-/// condition it diagnoses is the condition that suppresses it (issue #76).  The generator driver has no
+/// BCF1001 must be reported by the generator, not by an analyzer. Its trigger condition is a class that
+/// declares the design-time expression without <c>partial</c>, so no <c>RenderView</c> is emitted into it.
+/// That always produces CS0534, a declaration-level error, and csc does not run the analyzer driver on a
+/// compilation that has one. An analyzer-reported BCF1001 is therefore unreachable in a real build: the
+/// condition it diagnoses is the condition that suppresses it (issue #76). The generator driver has no
 /// such gate, which is why BCF1003 and BCF1005 survive the same CS0534.
 /// </summary>
 public sealed class PartialComponentTests

@@ -60,7 +60,7 @@ internal static class RenderViewEmitter
     }
 
     // ---------------------------------------------------------------------------
-    // Node emission — returns the next available sequence number
+    // Node emission, returns the next available sequence number
     // ---------------------------------------------------------------------------
 
     /// <param name="key">
@@ -161,7 +161,7 @@ internal static class RenderViewEmitter
         writer.AppendLine("{");
         writer.Indent++;
         // The key is threaded into the content's root element/component so SetKey is emitted
-        // immediately after that frame opens — never after OpenRegion (see BCF3003).
+        // immediately after that frame opens, never after OpenRegion (see BCF3003).
         EmitNode(writer, node.Content, seq + 1, node.Key.ToCode());
         writer.Indent--;
         writer.AppendLine("}");
@@ -207,7 +207,7 @@ internal static class RenderViewEmitter
                     + $"({RenderFragmentType})((__builder) =>");
             writer.AppendLine("{");
             writer.Indent++;
-            // Sequence numbering continues flatly from `next + 1` — see SequenceAllocator's ComponentNode
+            // Sequence numbering continues flatly from `next + 1`, see SequenceAllocator's ComponentNode
             // case for why a slot must not restart its own sequence space.
             EmitNode(writer, slot.Content, next + 1);
             writer.Indent--;
@@ -255,7 +255,7 @@ internal static class RenderViewEmitter
     private static int EmitFragment(IndentedWriter writer, FragmentNode node, int seq, string? key = null)
     {
         // A fragment is non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be
-        // silently dropped — fail fast, mirroring EmitIf/EmitForEach.
+        // silently dropped, fail fast, mirroring EmitIf/EmitForEach.
         Debug.Assert(key is null, $"{nameof(EmitFragment)} does not support a threaded key; SetKey would be silently dropped.");
         int next = seq;
         foreach (var child in node.Children)
@@ -274,14 +274,14 @@ internal static class RenderViewEmitter
         IndentedWriter writer, RenderFragmentContentNode node, int seq, string? key = null)
     {
         // Non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be silently
-        // dropped — fail fast, mirroring EmitFragment/EmitRawMarkup.
+        // dropped, fail fast, mirroring EmitFragment/EmitRawMarkup.
         Debug.Assert(key is null, $"{nameof(EmitRenderFragmentContent)} does not support a threaded key; SetKey would be silently dropped.");
         writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
         return seq + 1;
     }
 
     /// <summary>
-    /// Minimal indent-aware wrapper over a <see cref="StringBuilder"/>.  Line endings come from
+    /// Minimal indent-aware wrapper over a <see cref="StringBuilder"/>. Line endings come from
     /// <see cref="StringBuilder.AppendLine()"/> (<see cref="Environment.NewLine"/>) so generated
     /// output stays byte-identical to the previous manual indent threading.
     /// </summary>

@@ -12,15 +12,15 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// <para>
 /// This exists because the other generator assertions are substring-based: they check that an expected
 /// <c>__builder</c> call appears, which cannot see an added frame, a reordered attribute, or a skipped
-/// sequence number.  A full-text baseline pins all three, which is what makes it usable as the safety net
+/// sequence number. A full-text baseline pins all three, which is what makes it usable as the safety net
 /// for a change that rewrites every call site (#87) rather than the emitter.
 /// </para>
 /// <para>
 /// Baselines are committed under <see cref="DirectoryName"/> as <c>&lt;case&gt;.expected.cs</c> and are
-/// excluded from compilation by the project file — they declare the same types as the inputs that produced
-/// them, so compiling them is a duplicate-definition error.  The extension is deliberately not
+/// excluded from compilation by the project file: they declare the same types as the inputs that produced
+/// them, so compiling them is a duplicate-definition error. The extension is deliberately not
 /// <c>.g.cs</c>: the emitted text opens with <c>// &lt;auto-generated/&gt;</c>, and that plus a
-/// <c>.g.cs</c> name invites review tools to collapse the file.  The point of committing a baseline is that
+/// <c>.g.cs</c> name invites review tools to collapse the file. The point of committing a baseline is that
 /// an intentional change to it is visible in the diff, so a collapsed diff would defeat it.
 /// </para>
 /// </remarks>
@@ -97,8 +97,8 @@ public static class GeneratedSourceSnapshot
     /// <c>ContinuousIntegrationBuild</c> when <c>CI</c> is set, which turns on
     /// <c>DeterministicSourcePaths</c> and hence <c>PathMap</c>; Roslyn applies <c>PathMap</c> to
     /// <c>CallerFilePath</c> too, so the compiled-in path is <c>/_/tests/...</c> on CI and the real
-    /// checkout path locally.  Every case would pass locally and fail on CI with a misleading "baseline
-    /// missing".  <c>BlazorCodeFirst.DiagnosticTests.RepoLayout</c> does the same walk for the same reason;
+    /// checkout path locally. Every case would pass locally and fail on CI with a misleading "baseline
+    /// missing". <c>BlazorCodeFirst.DiagnosticTests.RepoLayout</c> does the same walk for the same reason;
     /// it is not shared because coupling the two test projects for fifteen lines costs more than it saves.
     /// Within this project it is shared: <c>FailurePathScannerParityTests</c> reads compiler sources through
     /// it.
@@ -120,7 +120,7 @@ public static class GeneratedSourceSnapshot
     /// <summary>
     /// Renders every generated file, ordered by hint name and each introduced by its own header, so a run
     /// that emits more than one file is captured whole rather than reduced to whichever file happened to
-    /// come first.  Ordering by hint name also makes the baseline independent of the order the generator
+    /// come first. Ordering by hint name also makes the baseline independent of the order the generator
     /// happened to add sources in.
     /// </summary>
     private static string Render(GeneratorRunResult result)
@@ -146,9 +146,9 @@ public static class GeneratedSourceSnapshot
     /// a trailing newline.
     /// </summary>
     /// <remarks>
-    /// Line endings must be normalized because the emitter picks them —
+    /// Line endings must be normalized because the emitter picks them,
     /// <c>RenderViewEmitter.IndentedWriter.AppendLine</c> calls <c>StringBuilder.AppendLine</c>, i.e.
-    /// <c>Environment.NewLine</c> — so the same generator emits CRLF on Windows and LF elsewhere.  The
+    /// <c>Environment.NewLine</c>, so the same generator emits CRLF on Windows and LF elsewhere. The
     /// trailing newline must be dropped because <c>RenderViewEmitter.Emit</c> ends with
     /// <c>Append("}")</c> and emits none, while <c>.editorconfig</c> sets <c>insert_final_newline</c>: an
     /// editor saving a baseline once would otherwise break every case, and the baselines are outside

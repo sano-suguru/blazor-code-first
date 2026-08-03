@@ -27,7 +27,7 @@ public sealed class RawFragmentRenderingTests : BunitContext
         Assert.Equal("Body", cut.Find("div > p").TextContent);
 
         // Proof of wrapper-less emission that also rules out a <div>-shaped wrapper (which `div > h2`
-        // alone would not catch): the outer shell div must have exactly 5 direct element children —
+        // alone would not catch): the outer shell div must have exactly 5 direct element children,
         // nav, header, main, and the fragment's h2 + p as direct siblings. Any interposed wrapper
         // element (of any tag) around the fragment's children would change this count.
         Assert.Equal(5, cut.Find("div").ChildElementCount);

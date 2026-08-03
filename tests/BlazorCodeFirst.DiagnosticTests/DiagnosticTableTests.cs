@@ -4,8 +4,8 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
-/// Keeps <c>ARCHITECTURE.md</c> 付録A — the canonical diagnostic table, and the document a reader
-/// actually consults — in step with the declared descriptor set in both directions.
+/// Keeps <c>ARCHITECTURE.md</c> 付録A, the canonical diagnostic table, and the document a reader
+/// actually consults, in step with the declared descriptor set in both directions.
 /// <c>AnalyzerReleases.Unshipped.md</c> is already enforced by RS2000 at build time; the table is the
 /// other half, and nothing checked it before (#86).
 /// </summary>
@@ -61,7 +61,7 @@ public sealed class DiagnosticTableTests
         Assert.True(
             stale.IsEmpty,
             $"These are excused from needing a descriptor but no longer need the excuse: {string.Join(", ", stale)}. " +
-            "The descriptor landed, or the 付録A row is gone — either way, drop the entry so the exception " +
+            "The descriptor landed, or the 付録A row is gone. Either way, drop the entry so the exception " +
             "does not outlive its reason.");
     }
 
@@ -131,8 +131,8 @@ public sealed class DiagnosticTableTests
     private static ImmutableArray<string> KnownKinds { get; } = ["Error", "Warning", "Info"];
 
     /// <summary>
-    /// Whether a 種別 cell states a severity at all.  Case is not the subject — the table is uniformly
-    /// title-cased, but a lowercase cell is a typography slip, not a wrong claim — so this and the
+    /// Whether a 種別 cell states a severity at all. Case is not the subject: the table is uniformly
+    /// title-cased, but a lowercase cell is a typography slip, not a wrong claim, so this and the
     /// severity comparison ignore it, and both go through here so they cannot disagree about that.
     /// </summary>
     private static bool IsKnownKind(string? kind) =>
@@ -143,10 +143,10 @@ public sealed class DiagnosticTableTests
         kind is null ? "empty" : $"'{(kind.Length > 40 ? kind[..40] + "…" : kind)}'";
 
     /// <summary>
-    /// The severity as 付録A words it.  Deliberately not shared with
+    /// The severity as 付録A words it. Deliberately not shared with
     /// <c>DescriptorCoverageTests.ExpectedSeverity_MatchesTheDescriptor</c>: that one speaks SARIF, where
     /// <see cref="DiagnosticSeverity.Info"/> is reported as <c>note</c>, while the table writes
-    /// <c>Info</c>.  Both derive from <see cref="DiagnosticSeverity"/> rather than from each other.
+    /// <c>Info</c>. Both derive from <see cref="DiagnosticSeverity"/> rather than from each other.
     /// </summary>
     private static string DocumentedKindOf(DiagnosticDescriptor descriptor) =>
         descriptor.DefaultSeverity switch

@@ -93,7 +93,7 @@ public sealed class KeyabilityResolverTests
     [Fact]
     public void CollectForEachContentDiagnostics_FragmentContentRoot_EmitsBcf3003()
     {
-        // ForEach whose content root is a Fragment (non-keyable) — even wrapping a single Div.
+        // ForEach whose content root is a Fragment (non-keyable), even wrapping a single Div.
         var forEach = new ForEachTemplateNode(
             Lit("_xs"), Lit("__bcf_item_0.Id"),
             new FragmentTemplateNode(ImmutableArray.Create<RenderTemplateNode>(
@@ -110,7 +110,7 @@ public sealed class KeyabilityResolverTests
     [Fact]
     public void CollectForEachContentDiagnostics_ForEachNestedInFragment_IsWalked()
     {
-        // A Fragment child that itself holds a region-rooted ForEach must still surface BCF3003 — proves the
+        // A Fragment child that itself holds a region-rooted ForEach must still surface BCF3003, proves the
         // walker recurses into Fragment children.
         var innerForEach = new ForEachTemplateNode(
             Lit("_ys"), Lit("__bcf_item_1.Id"),
@@ -147,7 +147,7 @@ public sealed class KeyabilityResolverTests
         KeyabilityResolver.CollectForEachContentDiagnostics(node, ComposableRegistry.Empty, sink);
 
         Assert.Single(sink);
-        // DiagnosticInfo is symbol-free and stores only the Id string — it has no Descriptor property.
+        // DiagnosticInfo is symbol-free and stores only the Id string: it has no Descriptor property.
         Assert.Equal("BCF3003", sink[0].Id);
     }
 

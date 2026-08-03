@@ -59,18 +59,18 @@ internal sealed class ComposableBodyContext
     public ImmutableArray<DiagnosticInfo>.Builder Diagnostics { get; }
 
     /// <summary>
-    /// The expression that failed to translate, or <see langword="null"/> if none did.  Set by
+    /// The expression that failed to translate, or <see langword="null"/> if none did. Set by
     /// <see cref="RenderExpressionAnalyzer.Analyze"/> on every failed classification, keeping only the
     /// first: recursion is depth-first and no caller recovers from a <see langword="null"/> child, so the
     /// first failure recorded is the innermost one and every enclosing failure is a consequence of it.
-    /// This is what gives BCF1003 a location — it is raised after classification, where no syntax remains.
+    /// This is what gives BCF1003 a location: it is raised after classification, where no syntax remains.
     /// </summary>
     /// <remarks>
-    /// "First" resolves depth, not source order.  Between siblings at the same depth it is analysis order
+    /// "First" resolves depth, not source order. Between siblings at the same depth it is analysis order
     /// that wins, and those differ where arguments are named: <c>If(c, otherwise: o, then: t)</c> analyzes
     /// <c>then</c> first and never reaches <c>otherwise</c>, so <c>t</c> is blamed even though <c>o</c> is
-    /// written earlier.  Both are genuinely untranslatable, so this picks between real culprits rather
-    /// than mislocating one.  Note that ordering by source position instead would invert the rule this
+    /// written earlier. Both are genuinely untranslatable, so this picks between real culprits rather
+    /// than mislocating one. Note that ordering by source position instead would invert the rule this
     /// exists for: recording runs bottom-up, and an enclosing design-time syntax call always starts before
     /// the expression nested in it, so the outermost failure would win every time.
     /// </remarks>
@@ -92,7 +92,7 @@ internal sealed class ComposableBodyContext
 
     /// <summary>
     /// Registers a ForEach iteration variable (its content and key lambda parameters denote the same
-    /// loop variable) at the next free ordinal — base parameter count plus current nesting depth — so a
+    /// loop variable) at the next free ordinal, base parameter count plus current nesting depth, so a
     /// reference to it becomes a parameter hole at that ordinal. Returns that ordinal.
     /// </summary>
     public int PushIterationVariable(ISymbol contentParameter, ISymbol keyParameter)
@@ -141,9 +141,9 @@ internal sealed class ComposableBodyContext
     /// <summary>
     /// Records a single declaration-time BCF1002 for a body that references a symbol which cannot exist
     /// in generated component code (for example a local function or a local declared in an enclosing
-    /// scope).  Only the first such reference is reported so a body yields exactly one declaration
-    /// diagnostic regardless of how many unsupported references it contains.  The dedup guard is
-    /// id-specific — it only suppresses a second BCF1002 — so it never drops an unrelated diagnostic (for
+    /// scope). Only the first such reference is reported so a body yields exactly one declaration
+    /// diagnostic regardless of how many unsupported references it contains. The dedup guard is
+    /// id-specific: it only suppresses a second BCF1002, so it never drops an unrelated diagnostic (for
     /// example a co-located BCF3002 warning) that was recorded first.
     /// </summary>
     public void ReportUnsupportedReference(Location location, string reason)

@@ -173,7 +173,7 @@ public sealed class IncrementalGeneratorTests
 
     /// <summary>
     /// Regression test: changing the <c>BlazorCodeFirst.Html</c> API signature between reused-driver
-    /// runs must invalidate all component models (not incorrectly cache them).  This validates
+    /// runs must invalidate all component models (not incorrectly cache them). This validates
     /// that <c>KnownSymbols</c> equality is based on a semantic signature fingerprint, not mere
     /// symbol presence.
     /// </summary>
@@ -252,7 +252,7 @@ public sealed class IncrementalGeneratorTests
             CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
             path: "MyComponent.cs");
 
-        // Build compilation WITHOUT the real BlazorCodeFirst.Runtime assembly reference—
+        // Build compilation WITHOUT the real BlazorCodeFirst.Runtime assembly reference-
         // use our in-source definitions instead.
         var compilation1 = CreateCompilationWithoutRuntime(runtimeTreeV1, componentTree);
 
@@ -264,7 +264,7 @@ public sealed class IncrementalGeneratorTests
             generators: [new BlazorCodeFirstGenerator().AsSourceGenerator()],
             driverOptions: driverOptions);
 
-        // Run 1: Span resolves as a curated ElementBuilder property — component is generated
+        // Run 1: Span resolves as a curated ElementBuilder property, component is generated
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation1, out _, out _);
         var run1 = driver.GetRunResult();
         Assert.Single(run1.Results[0].GeneratedSources);
@@ -594,7 +594,7 @@ public sealed class IncrementalGeneratorTests
             .SelectMany(s => s.Outputs).ToImmutableArray();
 
         // Sanity check: the step must have actually produced the BCF3003 diagnostic (nested ForEach with
-        // a region-rooted content root), not an empty array — otherwise this test would trivially pass
+        // a region-rooted content root), not an empty array, otherwise this test would trivially pass
         // without ever exercising the EquatableArray value-equality path.
         Assert.Contains(diagnosticsOutputs, output =>
             output.Value is EquatableArray<DiagnosticInfo> diagnostics &&
@@ -712,11 +712,11 @@ public sealed class IncrementalGeneratorTests
     }
 
     /// <summary>
-    /// A generic component's model must be reused across identical reruns.  This guards
+    /// A generic component's model must be reused across identical reruns. This guards
     /// <c>ComponentAnalysis.TypeParameters</c> / <c>ComponentModel.TypeParameters</c> being an
     /// <see cref="EquatableArray{T}"/>: as a raw <see cref="ImmutableArray{T}"/> the record's synthesized
     /// equality would compare the type-parameter names by underlying-array reference, so every generic
-    /// component would recompute as Modified on every incremental run.  Every other incrementality test
+    /// component would recompute as Modified on every incremental run. Every other incrementality test
     /// uses a non-generic component, where the array is empty and the defect is invisible.
     /// </summary>
     [Fact]
@@ -757,7 +757,7 @@ public sealed class IncrementalGeneratorTests
     }
 
     /// <summary>
-    /// A component with slot children must be reused across identical reruns.  This guards the nested node
+    /// A component with slot children must be reused across identical reruns. This guards the nested node
     /// tree inside <c>EquatableArray</c> on the slot channel path (ComponentNode.Children, ComponentSlot):
     /// if any layer of that tree compared by reference instead of structurally, every component with child
     /// content would recompute as Modified on every generator run, and that would be invisible to every
@@ -823,9 +823,9 @@ public sealed class IncrementalGeneratorTests
 
     /// <summary>
     /// A component that translates cleanly must stay cached when an edit shifts its absolute offsets
-    /// without changing it.  <see cref="ComponentAnalysis.FailureLocation"/> is the coordinate-bearing
+    /// without changing it. <see cref="ComponentAnalysis.FailureLocation"/> is the coordinate-bearing
     /// field this could regress through: it exists to locate BCF1003 (#77) and is populated only on the
-    /// failure path, so a healthy component must keep contributing nothing to the cache key.  Move that
+    /// failure path, so a healthy component must keep contributing nothing to the cache key. Move that
     /// assignment out of its <c>template is null</c> guard and every component in the compilation becomes
     /// sensitive to a blank line inserted anywhere above it.
     /// </summary>
@@ -887,7 +887,7 @@ public sealed class IncrementalGeneratorTests
 
     private static CSharpCompilation CreateCompilationWithoutRuntime(params SyntaxTree[] trees)
     {
-        // Only ComponentBase — NOT the BlazorCodeFirst.Runtime assembly, since these trees declare the
+        // Only ComponentBase, NOT the BlazorCodeFirst.Runtime assembly, since these trees declare the
         // BlazorCodeFirst types in-source. BuildMetadataReferences must filter the runtime out of the trusted
         // platform assemblies to achieve that: this project references the runtime, so it is in TPA and an
         // earlier version of this comment claimed an isolation the conditional Add alone never provided.

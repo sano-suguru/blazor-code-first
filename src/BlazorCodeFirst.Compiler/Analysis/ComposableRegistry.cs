@@ -6,7 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
-/// The value-equal collection of all source-declared composable entries in a compilation.  Entries are
+/// The value-equal collection of all source-declared composable entries in a compilation. Entries are
 /// sorted by <see cref="ComposableDefinitionEntry.MethodKey"/> so equality and hashing are deterministic
 /// and independent of syntax-tree discovery order; a method-key lookup index is retained for expansion.
 /// </summary>

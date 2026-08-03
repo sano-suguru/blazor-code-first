@@ -5,7 +5,7 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 // A two-level layout hierarchy where both levels declare Chrome. Both are partial, so both get their
-// own generated RenderView and the derived chrome wins — the correct outcome. The shape exists so
+// own generated RenderView and the derived chrome wins, the correct outcome. The shape exists so
 // ChromeLayoutRenderingTests can pin the inheritance behaviour BCF1001 protects.
 public abstract partial class ShellProbeBase : ChromeLayoutBase
 {

@@ -236,7 +236,7 @@ public sealed class RenderMutationAnalyzerTests
     [Fact]
     public async Task AttrValueMutation_IsReported()
     {
-        // .Attr value runs during render — a mutation there is a real BCF3001 (not a deferred handler).
+        // .Attr value runs during render, a mutation there is a real BCF3001 (not a deferred handler).
         const string source = """
             using BlazorCodeFirst;
             public partial class C : BodyComponentBase

@@ -21,7 +21,7 @@ internal enum ContentRootKind
 /// Determines ForEach content keyability from the value-model templates and the composable registry, and
 /// collects BCF3003 for region-rooted content. This is reachability-independent (it walks templates, not
 /// expansions) and registry-driven for composable-call content, so BCF3003 fires once per definition/
-/// component regardless of call sites — replacing the former per-expansion emission.
+/// component regardless of call sites, replacing the former per-expansion emission.
 /// </summary>
 internal static class KeyabilityResolver
 {

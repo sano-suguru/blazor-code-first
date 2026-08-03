@@ -24,7 +24,7 @@ public sealed class KnownSymbolsSyncTests
         // members (Element, If, ForEach, Component, Fragment, Raw) are methods, while every curated tag is
         // a property returning ElementBuilder. Filtering to IMethodSymbol would make `tagged` empty, leave
         // every remaining ordinary Html method looking structural, and so never run the Assert.Contains
-        // arm — the guard would go vacuous while staying green.
+        // arm, the guard would go vacuous while staying green.
         foreach (var member in html.GetMembers())
         {
             var name = member switch
@@ -67,15 +67,15 @@ public sealed class KnownSymbolsSyncTests
     /// <remarks>
     /// <para>
     /// The sets are built by matching the method <em>name</em>, but what makes a method an element
-    /// decoration is its <em>receiver</em>.  <c>KnownSymbols</c>'s constructor already filters on that
+    /// decoration is its <em>receiver</em>. <c>KnownSymbols</c>'s constructor already filters on that
     /// receiver when <c>ElementBuilderType</c> resolves, so neither half of the failure mode on its own
     /// makes this test fail today: adding a future <c>Attr(this ComponentView&lt;T&gt;, string, string)</c>
     /// to <c>Decorations</c> is excluded by that very filter before it reaches <c>captured</c>, and removing
     /// the filter with no such overload declared yet has nothing new to admit, since every current
-    /// <c>Decorations</c> member already takes <c>this ElementBuilder</c>.  It fails only when both happen
-    /// together — the filter is gone and a decoration on another receiver exists — at which point
-    /// <c>UnresolvedValueTypeScanner.IsDecorationMethod</c> — pure set membership — would treat it as an
-    /// element decoration with nothing else to notice.  <c>ClassMethod</c> showed the same defect more
+    /// <c>Decorations</c> member already takes <c>this ElementBuilder</c>. It fails only when both happen
+    /// together, the filter is gone and a decoration on another receiver exists, at which point
+    /// <c>UnresolvedValueTypeScanner.IsDecorationMethod</c>, pure set membership, would treat it as an
+    /// element decoration with nothing else to notice. <c>ClassMethod</c> showed the same defect more
     /// loudly before the filter existed, being a single slot that took whichever two-parameter overload
     /// <c>GetMembers</c> returned last.
     /// </para>
@@ -118,17 +118,17 @@ public sealed class KnownSymbolsSyncTests
     /// <para>
     /// <c>RejectedDecorationScanner</c> decides whether a failed call is a misplaced decoration partly by
     /// that name test, and the set behind it is a function of what the constructor's member switch
-    /// <em>captures</em> — not of what <c>Decorations</c> <em>declares</em>.  A runtime that added, say, a
+    /// <em>captures</em>, not of what <c>Decorations</c> <em>declares</em>. A runtime that added, say, a
     /// <c>.Style(…)</c> shortcut without also adding it to <c>AttributeShortcutNames</c> would leave it out
-    /// of the set, and a misplaced <c>.Style(…)</c> would be reported as BCF1003 — "not statically
-    /// analyzable" — instead of BCF3008.  That fails in the safe direction, which is exactly why nothing else
+    /// of the set, and a misplaced <c>.Style(…)</c> would be reported as BCF1003, "not statically
+    /// analyzable", instead of BCF3008. That fails in the safe direction, which is exactly why nothing else
     /// would notice.
     /// </para>
     /// <para>
     /// Name by name rather than by count alone: the failure mode is one <em>specific</em> name going
-    /// missing, and a count would also be satisfied by a swap.  The count is asserted as well, for the same
-    /// reason <see cref="CuratedTagCount"/> is — the loop only visits the decorations that exist, so on its
-    /// own it would pass a runtime that had dropped one.  The converse direction needs no assertion: every
+    /// missing, and a count would also be satisfied by a swap. The count is asserted as well, for the same
+    /// reason <see cref="CuratedTagCount"/> is, the loop only visits the decorations that exist, so on its
+    /// own it would pass a runtime that had dropped one. The converse direction needs no assertion: every
     /// name in the set is read off a symbol resolved out of <c>Decorations</c>, so the set cannot hold a name
     /// that type does not declare.
     /// </para>

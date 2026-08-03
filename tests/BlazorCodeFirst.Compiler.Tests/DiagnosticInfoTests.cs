@@ -50,7 +50,7 @@ public sealed class DiagnosticInfoTests
 
     // ToDiagnostic_ForEveryDescriptor_RoundTripsToSameDescriptor above passes empty message arguments
     // and never formats the message, so it cannot catch a placeholder/argument mismatch or an
-    // unescaped literal brace in messageFormat — exactly the defect BCF1004 shipped with in this
+    // unescaped literal brace in messageFormat, exactly the defect BCF1004 shipped with in this
     // branch's plan (a literal "{ return expr; }" that needed escaping to "{{ return expr; }}") and
     // that only a hand-written BCF1004 test happened to catch.
     //

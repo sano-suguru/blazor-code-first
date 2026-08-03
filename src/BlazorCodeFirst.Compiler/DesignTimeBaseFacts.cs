@@ -36,8 +36,8 @@ internal static class DesignTimeBaseFacts
         FindDesignTimeBase(symbol) is not null;
 
     /// <summary>
-    /// The name of the abstract <c>BlazorCodeFirst.View</c> property the base class declares — <c>Body</c>
-    /// on <c>BodyComponentBase</c>, <c>Chrome</c> on <c>ChromeLayoutBase</c> — or <see langword="null"/>
+    /// The name of the abstract <c>BlazorCodeFirst.View</c> property the base class declares, <c>Body</c>
+    /// on <c>BodyComponentBase</c>, <c>Chrome</c> on <c>ChromeLayoutBase</c>, or <see langword="null"/>
     /// when <paramref name="symbol"/> is not a BlazorCodeFirst component.
     /// </summary>
     /// <remarks>

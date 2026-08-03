@@ -10,7 +10,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// <remarks>
 /// Resolved transiently from a single <see cref="Compilation"/> inside the syntax-provider transforms
 /// that consume it and never stored in the cached incremental pipeline, so its symbols are only ever
-/// compared within the compilation they came from — never across compilations.  It therefore needs no
+/// compared within the compilation they came from, never across compilations. It therefore needs no
 /// value equality of its own.
 /// </remarks>
 internal sealed class KnownSymbols
@@ -25,13 +25,13 @@ internal sealed class KnownSymbols
     public INamedTypeSymbol? ComponentViewType { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>BlazorCodeFirst.ElementBuilder</c>, or <see langword="null"/> — which is the
+    /// Resolved symbol for <c>BlazorCodeFirst.ElementBuilder</c>, or <see langword="null"/>, which is the
     /// normal case against a runtime that has not adopted the bracket surface.
     /// </summary>
     /// <remarks>
     /// Every consumer must guard on this being non-null before comparing against it.
     /// <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answers <see langword="true"/> for a null
-    /// <c>x</c>, so an unguarded comparison would classify an unrelated indexer — <c>_dict["k"]</c> — as an
+    /// <c>x</c>, so an unguarded comparison would classify an unrelated indexer, <c>_dict["k"]</c>, as an
     /// element.
     /// </remarks>
     public INamedTypeSymbol? ElementBuilderType { get; }
@@ -124,7 +124,7 @@ internal sealed class KnownSymbols
     /// Deliberately a second overload rather than one <c>Normalize(ISymbol)</c>: an
     /// <see cref="ISymbol"/>-typed parameter would silently win overload resolution at the method call
     /// sites, stop walking <see cref="IMethodSymbol.ReducedFrom"/>, and key every fluent decoration under
-    /// its reduced symbol — which no map contains.
+    /// its reduced symbol, which no map contains.
     /// </remarks>
     public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
 
@@ -135,9 +135,9 @@ internal sealed class KnownSymbols
     /// <remarks>
     /// The null guard is defensive consistency, not a correctness requirement:
     /// <see cref="ISymbol.OriginalDefinition"/> is never null, so an unguarded comparison against a null
-    /// <see cref="HtmlElement"/> would already answer <see langword="false"/>.  The guard is load-bearing
-    /// only where the <em>left</em> operand can be null — a receiver's unresolved <c>GetTypeInfo().Type</c>,
-    /// as <see cref="ElementBuilderType"/>'s remarks describe — and the two shapes are kept alike so neither
+    /// <see cref="HtmlElement"/> would already answer <see langword="false"/>. The guard is load-bearing
+    /// only where the <em>left</em> operand can be null, a receiver's unresolved <c>GetTypeInfo().Type</c>,
+    /// as <see cref="ElementBuilderType"/>'s remarks describe, and the two shapes are kept alike so neither
     /// is read as the other's rule.
     /// </remarks>
     public bool IsElementFactory(IMethodSymbol method) =>
@@ -160,9 +160,9 @@ internal sealed class KnownSymbols
     /// a literal table, so a user-defined <c>Some.BlazorCodeFirst.Decorations</c> contributes none of them and
     /// a runtime that renames a decoration cannot leave a stale spelling behind here.
     /// <para>
-    /// It is nevertheless only a name test, and is <em>never</em> sufficient on its own — any type may
-    /// declare a <c>Class</c> or a <c>Title</c>.  Every caller must pair it with symbol-identity checks on
-    /// the types involved; it exists to narrow those, not to replace them.  Compare
+    /// It is nevertheless only a name test, and is <em>never</em> sufficient on its own: any type may
+    /// declare a <c>Class</c> or a <c>Title</c>. Every caller must pair it with symbol-identity checks on
+    /// the types involved; it exists to narrow those, not to replace them. Compare
     /// <c>RenderMutationAnalyzer</c>, which likewise tests a name and then anchors it by resolving the
     /// containing type and its namespace.
     /// </para>
@@ -170,7 +170,7 @@ internal sealed class KnownSymbols
     public bool DeclaresDecorationNamed(string name) => _decorationNames.Contains(name);
 
     /// <summary>
-    /// Curated element helper property → HTML tag name.  Keyed by <see cref="ISymbol"/> rather than
+    /// Curated element helper property → HTML tag name. Keyed by <see cref="ISymbol"/> rather than
     /// <see cref="IPropertySymbol"/> only because every consumer compares through
     /// <see cref="SymbolEqualityComparer"/>; every key is an <see cref="IPropertySymbol"/>.
     /// </summary>
@@ -202,7 +202,7 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Resolved symbol for <c>BlazorCodeFirst.Html.Component&lt;T&gt;()</c>, the only component syntax:
-    /// children arrive through <see cref="ComponentIndexer"/>, not through an overload.  Null if unavailable.
+    /// children arrive through <see cref="ComponentIndexer"/>, not through an overload. Null if unavailable.
     /// </summary>
     public IMethodSymbol? HtmlComponent { get; }
 
@@ -220,7 +220,7 @@ internal sealed class KnownSymbols
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComponentView`1");
         ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
 
-        // GetTypeByMetadataName answers null for an *ambiguous* type as well as a missing one — two
+        // GetTypeByMetadataName answers null for an *ambiguous* type as well as a missing one, two
         // references both declaring System.ReadOnlySpan<T>, say. Both indexers would then resolve to null and
         // every Div[…] in the compilation would fall through to BCF1003 with nothing naming the cause.
         // ParameterAttributeType and RenderFragmentType degrade the same way, for the same reason.
@@ -240,7 +240,7 @@ internal sealed class KnownSymbols
                     continue;
 
                 // Arity discriminates the two overloads: the scalar one is Param<TValue>, the fragment
-                // one is non-generic. Do not break early — both must be captured.
+                // one is non-generic. Do not break early, both must be captured.
                 if (paramMethod.Arity == 1)
                     ParamMethod = paramMethod;
                 else if (paramMethod.Arity == 0)
@@ -260,7 +260,7 @@ internal sealed class KnownSymbols
             // A decoration is defined by its receiver, not by its name: Decorations declares extension
             // methods on ElementBuilder, and that is what makes .Class/.Attr/.On element decorations
             // rather than members that merely share a name. Capturing by name alone would admit a future
-            // overload on another receiver — Attr(this ComponentView<T>, string, string), say — into these
+            // overload on another receiver, Attr(this ComponentView<T>, string, string), say, into these
             // sets, where IsDecorationMethod would treat it as an element decoration with nothing to
             // notice. ClassMethod showed the same defect more loudly: a single slot taking whichever
             // two-parameter overload GetMembers returned last.
@@ -269,7 +269,7 @@ internal sealed class KnownSymbols
             // ambiguous-type scenario above, this lookup (htmlType.ContainingAssembly.GetTypeByMetadataName)
             // is scoped to a single assembly, so null here means that assembly does not declare
             // BlazorCodeFirst.ElementBuilder under that name, not a cross-assembly ambiguity. Rejecting every
-            // candidate would still empty these sets and silently disable BCF3008 for every decoration — a
+            // candidate would still empty these sets and silently disable BCF3008 for every decoration, a
             // worse failure than the one prevented, and an invisible one, where the current degradation at
             // least reports BCF1003.
             foreach (var member in decorationsType.GetMembers())
@@ -372,7 +372,7 @@ internal sealed class KnownSymbols
     /// type is not the children channel, and matching it would read unrelated arguments as children.
     /// The span type is resolved by identity rather than matched by name, as this class exists to do: a
     /// differently namespaced type also called <c>ReadOnlySpan&lt;T&gt;</c> must not be read as the children
-    /// channel.  Compare <c>RenderMutationAnalyzer</c>, which anchors <c>BlazorCodeFirst.Decorations</c> to the
+    /// channel. Compare <c>RenderMutationAnalyzer</c>, which anchors <c>BlazorCodeFirst.Decorations</c> to the
     /// global namespace for the same reason.
     /// </remarks>
     private static IPropertySymbol? FindChildrenIndexer(

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace BlazorCodeFirst.Compiler;
 
 /// <summary>
-/// Symbol-free, value-equal capture of a source location for a template node.  Stores only the
+/// Symbol-free, value-equal capture of a source location for a template node. Stores only the
 /// primitive coordinates required to reconstruct a <see cref="Location"/> at diagnostic-report time,
 /// following the same discipline as <see cref="Diagnostics.DiagnosticInfo"/>.
 /// </summary>
