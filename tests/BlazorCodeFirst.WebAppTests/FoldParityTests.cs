@@ -99,4 +99,39 @@ public sealed class FoldParityTests
         new MultiClassProbe().Build(builder);
         AssertFoldedThenUnfolded(builder, expectedUnfoldedFrameCount: 5);
     }
+
+    /// <summary>
+    /// <see cref="CarriageReturnProbe"/> pins a refusal rather than a fold, so it does not fit
+    /// <see cref="AssertFoldedThenUnfolded"/>. Its first container is spelled entirely from constants and
+    /// is foldable in every respect but one: <c>StaticMarkupSerializer.CanRoundTrip</c> excludes a
+    /// carriage return, because the HTML parser normalizes CR and CRLF to LF before tokenization while
+    /// <c>setAttribute</c> and <c>createTextNode</c> keep them. So the only markup frame in this probe
+    /// must be the one <c>Html.Raw</c> emits deliberately.
+    /// </summary>
+    /// <remarks>
+    /// This is the .NET-side half of three browser tests in <c>fold-parity.spec.ts</c>, which measure the
+    /// divergence itself. Counting markup frames across the whole probe rather than checking the first
+    /// frame's type is deliberate: a CR sits inside an attribute value and a text node, so re-admitting
+    /// it would fold an inner run without necessarily changing what the first frame is — the same gap
+    /// <see cref="VoidTagInRun_folded_container_folds_and_unfolded_container_does_not"/> was written to
+    /// close.
+    /// </remarks>
+    [Fact]
+    public void CarriageReturn_is_refused_by_the_fold_so_only_the_explicit_Raw_emits_markup()
+    {
+        var builder = new RenderTreeBuilder();
+        new CarriageReturnProbe().Build(builder);
+
+        var frames = builder.GetFrames();
+        int markupFrames = 0;
+        for (int i = 0; i < frames.Count; i++)
+        {
+            if (frames.Array[i].FrameType == RenderTreeFrameType.Markup)
+            {
+                markupFrames++;
+            }
+        }
+
+        Assert.Equal(1, markupFrames);
+    }
 }

@@ -127,4 +127,49 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
 
     await expect(folded.locator('span')).toHaveClass('btn btn-primary wide');
   });
+
+  // The carriage-return case is the one shape here that pins a *refusal*, so it does not go through the
+  // loop above. StaticMarkupSerializer.CanRoundTrip excludes a CR from the fold because the HTML parser
+  // normalizes CRLF and a lone CR to LF during input-stream preprocessing, before tokenization, so a
+  // folded CR would reach the DOM as LF where setAttribute and createTextNode keep it. These three tests
+  // are the measurement behind that decision, taken in a real browser rather than read off the spec: the
+  // first two show the two paths genuinely disagreeing, and the third shows the refusal is what keeps the
+  // static spelling on the side that agrees.
+  //
+  // If a future browser stopped normalizing, the first test would go red — which is the signal that
+  // CanRoundTrip could relax, not a defect. Read this block before changing that predicate.
+  const readCarriageReturn = (page: import('@playwright/test').Page, id: string) =>
+    page.evaluate((containerId) => {
+      const container = document.getElementById(containerId)!;
+      return {
+        attribute: container.querySelector('span')!.getAttribute('data-value'),
+        text: container.querySelector('p')!.textContent,
+      };
+    }, id);
+
+  test('the markup path folds a carriage return away to a line feed', async ({ page }) => {
+    // Html.Raw, so this is the same browser-side insertMarkup path a fold would have taken.
+    expect(await readCarriageReturn(page, 'markup-carriage-return')).toEqual({
+      attribute: 'a\nb',
+      text: 'a\nb',
+    });
+  });
+
+  test('the element path keeps a carriage return', async ({ page }) => {
+    // setAttribute and createTextNode, which do no preprocessing.
+    expect(await readCarriageReturn(page, 'element-carriage-return')).toEqual({
+      attribute: 'a\rb',
+      text: 'a\rb',
+    });
+  });
+
+  test('a static carriage return is refused by the fold, so it takes the element path', async ({
+    page,
+  }) => {
+    // Spelled entirely from constants and so foldable in every other respect. If CanRoundTrip ever
+    // admitted a CR, this container would fold and match the markup result above instead.
+    expect(await readCarriageReturn(page, 'refused-carriage-return')).toEqual(
+      await readCarriageReturn(page, 'element-carriage-return'),
+    );
+  });
 });

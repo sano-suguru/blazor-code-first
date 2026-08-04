@@ -207,8 +207,33 @@ public sealed class StaticMarkupSerializerTests
     [InlineData("bad=name")]
     [InlineData("bad\"name")]
     [InlineData("")]
+
+    // A name the markup path accepts and the element path does not: <div 9x="1"> parses to a 9x
+    // attribute, while setAttribute("9x", …) throws InvalidCharacterError because the DOM applies the
+    // XML Name production. Refused so the two paths cannot disagree.
+    [InlineData("9x")]
+    [InlineData("-x")]
+    [InlineData(".x")]
     public void UnsafeAttributeName_IsNotFoldable(string name) =>
         Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate(name, Const("x"))),
+            default,
+            default)));
+
+    /// <summary>
+    /// The counterpart to <see cref="UnsafeAttributeName_IsNotFoldable"/>: the first-character rule must
+    /// not be tightened past what the DOM accepts. Underscore and colon are valid XML name starts, so
+    /// these still fold.
+    /// </summary>
+    [Theory]
+    [InlineData("data-x")]
+    [InlineData("_x")]
+    [InlineData(":x")]
+    [InlineData("x9")]
+    public void SafeAttributeName_IsFoldable(string name) =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
             "div",
             default,
             ImmutableArray.Create(new AttributeTemplate(name, Const("x"))),
@@ -222,6 +247,55 @@ public sealed class StaticMarkupSerializerTests
     [Fact]
     public void TextWithNul_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\0b"))));
+
+    /// <summary>
+    /// A carriage return cannot round-trip either, and unlike the NUL it is reachable from ordinary
+    /// source: any verbatim string literal in a file checked out with CRLF carries one. The HTML parser
+    /// normalizes CRLF and a lone CR to LF during input-stream preprocessing, so the markup path yields
+    /// LF where the element path keeps CR. Measured in Chromium through the browser gate's
+    /// carriage-return probe rather than derived from the specification alone.
+    /// </summary>
+    [Theory]
+    [InlineData("a\rb")]
+    [InlineData("a\r\nb")]
+    [InlineData("\r")]
+    public void TextWithCarriageReturn_IsNotFoldable(string value) =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const(value))));
+
+    /// <summary>
+    /// The attribute-value case, which is the sharper one: attribute values are not whitespace-collapsed,
+    /// so <c>getAttribute</c> observably returns LF on the markup path against CR on the element path.
+    /// </summary>
+    [Theory]
+    [InlineData("a\rb")]
+    [InlineData("a\r\nb")]
+    public void AttributeValueWithCarriageReturn_IsNotFoldable(string value) =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("title", Const(value))),
+            default,
+            default)));
+
+    /// <summary>
+    /// A class value is checked by the same round-trip rule, on its own code path.
+    /// </summary>
+    [Fact]
+    public void ClassWithCarriageReturn_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            ImmutableArray.Create(Const("a\rb")),
+            default,
+            default,
+            default)));
+
+    /// <summary>
+    /// A line feed alone is fine and must keep folding: preprocessing leaves it as it is, so both paths
+    /// agree. Pins that the CR rule was not written as "reject any newline".
+    /// </summary>
+    [Fact]
+    public void TextWithLineFeed_IsFoldable() =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\nb"))));
 
     /// <summary>
     /// A lone surrogate is refused for the same round-trip reason. Kept as its own <see cref="Fact"/>

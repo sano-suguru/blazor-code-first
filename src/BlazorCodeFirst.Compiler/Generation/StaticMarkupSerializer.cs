@@ -283,12 +283,26 @@ internal static class StaticMarkupSerializer
 
     /// <summary>
     /// Whether <paramref name="name"/> is safe to write as an attribute name: non-empty ASCII letters,
-    /// digits, hyphen, underscore, colon or period. Anything else could close the tag or open a second
-    /// attribute.
+    /// digits, hyphen, underscore, colon or period, starting with a letter, underscore or colon. Anything
+    /// else could close the tag or open a second attribute.
     /// </summary>
+    /// <remarks>
+    /// The first character is restricted further than the rest because the two paths disagree about a
+    /// name the markup path accepts. <c>&lt;div 9x="1"&gt;</c> parses to an element carrying a <c>9x</c>
+    /// attribute, while the element path's <c>setAttribute("9x", …)</c> throws
+    /// <c>InvalidCharacterError</c> — the DOM applies the XML Name production, the parser does not. Names
+    /// starting with a digit, hyphen or period are refused for that reason. There is no breakout risk
+    /// either way; this closes a behavioral divergence between the two paths, which is what the fold
+    /// predicate exists to prevent.
+    /// </remarks>
     private static bool IsSafeAttributeName(string name)
     {
         if (name.Length == 0)
+            return false;
+
+        var first = name[0];
+        var isValidStart = first is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or '_' or ':';
+        if (!isValidStart)
             return false;
 
         foreach (var c in name)
@@ -308,12 +322,27 @@ internal static class StaticMarkupSerializer
     /// createTextNode keeps it, so the two paths would produce different DOM. A lone surrogate is refused
     /// for the same reason.
     /// </summary>
+    /// <remarks>
+    /// A carriage return is refused on the same grounds and is by far the most reachable of the three:
+    /// any verbatim string literal in a file checked out with CRLF line endings carries one. The HTML
+    /// parser normalizes CRLF and a lone CR to LF during input-stream preprocessing, before tokenization,
+    /// and that applies to fragment parsing on a <c>&lt;template&gt;</c> as much as to a document.
+    /// Measured in Chromium through the browser gate's carriage-return probe: the markup path yields
+    /// <c>getAttribute</c> = <c>"a\nb"</c> for both <c>"a\rb"</c> and <c>"a\r\nb"</c>, where the element
+    /// path's <c>setAttribute</c> yields <c>"a\rb"</c> and <c>"a\r\nb"</c> unchanged. Text content
+    /// diverges the same way. Attribute values are not whitespace-collapsed, so the difference is
+    /// observable and not merely a serialization artifact. Escaping cannot rescue this: the reference
+    /// <c>&amp;#13;</c> is resolved after preprocessing and would round-trip, but only inside an
+    /// attribute value — in text content the parser has already folded the character away — so admitting
+    /// CR would need two escaping rules that disagree, for one character. Refusing the fold costs a
+    /// missed optimisation, which is the same trade the NUL and surrogate cases take.
+    /// </remarks>
     private static bool CanRoundTrip(string value)
     {
         for (var index = 0; index < value.Length; index++)
         {
             var c = value[index];
-            if (c == '\0')
+            if (c is '\0' or '\r')
                 return false;
 
             if (char.IsHighSurrogate(c))
