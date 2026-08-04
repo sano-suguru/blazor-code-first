@@ -134,4 +134,92 @@ public sealed class RenderViewEmitterSequenceTests
     [MemberData(nameof(CaseNames))]
     public void EmittedSequenceArguments_AreDense(string caseName) =>
         SequenceArguments.AssertDense(EmitRoot(Cases[caseName]));
+
+    // -----------------------------------------------------------------------------------------------
+    // The three facts below were recorded only by SequenceAllocatorTests, which asserted them about an
+    // independently computed width rather than about emitted code. They are restated here as assertions
+    // on the sequence numbers that actually ship (#69).
+    // -----------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void EmitComponent_SlotCostsOneParameterFramePlusItsContent_SoTheNextSiblingClearsThem()
+    {
+        // A slot costs one AddComponentParameter frame plus the whole width of its content, and a slot's
+        // frames continue the enclosing flat counter instead of restarting (ARCHITECTURE.md §2.7). The
+        // component below occupies 1..7 — OpenComponent 1, Title 2, ChildContent 3 + its text 4, Footer 5
+        // + its span 6 + that span's text 7 — so the following sibling must land on 8.
+        var node = Element(
+            "div",
+            new ComponentNode(
+                "global::T.Card",
+                ImmutableArray.Create(new ComponentParameter("Title", Code("\"t\""))),
+                ImmutableArray.Create(
+                    new ComponentSlotNode("ChildContent", new TextContentNode(Code("\"x\""))),
+                    new ComponentSlotNode("Footer", Span("\"f\"")))),
+            Span("\"after\""));
+
+        var code = EmitRoot(node);
+
+        Assert.Contains("__builder.OpenComponent<global::T.Card>(1);", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(2, \"Title\", \"t\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(3, \"ChildContent\", ", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(4, \"x\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(5, \"Footer\", ", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(6, \"span\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(7, \"f\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(8, \"span\");", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EmitIf_BranchRangesAreDisjoint_AndTheNextSiblingClearsBothBranches()
+    {
+        // Both branches are reserved whichever one runs, so the else range starts where the then range
+        // ends and the following sibling starts past both. A sibling at 4 would mean the else branch had
+        // reused the then branch's numbers, and toggling the condition would remount the sibling.
+        var node = Element(
+            "div",
+            new IfNode(Code("_on"), Span("\"Yes\""), Span("\"No\"")),
+            Span("\"Always\""));
+
+        var code = EmitRoot(node);
+
+        Assert.Contains("__builder.OpenRegion(1);", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(2, \"span\");", code, StringComparison.Ordinal);   // then
+        Assert.Contains("__builder.AddContent(3, \"Yes\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(4, \"span\");", code, StringComparison.Ordinal);   // else
+        Assert.Contains("__builder.AddContent(5, \"No\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(6, \"span\");", code, StringComparison.Ordinal);   // sibling
+        Assert.Contains("__builder.AddContent(7, \"Always\");", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EmitClassAttribute_FoldsAnyNumberOfClassesIntoOneFrame_SoTheNextSiblingIsUnmoved()
+    {
+        // ARCHITECTURE.md §2.7(A): repeated .Class decorations collapse into a single class attribute
+        // frame, so a decorated element's frame width does not depend on how many classes it carries.
+        var one = EmitWithClasses(Code("\"x\""));
+        var three = EmitWithClasses(Code("\"x\""), Code("\"y\""), Code("\"z\""));
+
+        // One class attribute frame at 2 in both spellings, and the following sibling unmoved at 4.
+        Assert.Contains("__builder.AddAttribute(2, \"class\", \"x\");", one, StringComparison.Ordinal);
+        Assert.Contains(
+            "__builder.AddAttribute(2, \"class\", (\"x\") + \" \" + (\"y\") + \" \" + (\"z\"));",
+            three,
+            StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(4, \"span\");", one, StringComparison.Ordinal);
+        Assert.Contains("__builder.OpenElement(4, \"span\");", three, StringComparison.Ordinal);
+        Assert.Equal(SequenceArguments.InTextOrder(one).Count, SequenceArguments.InTextOrder(three).Count);
+    }
+
+    /// <summary>A decorated span carrying <paramref name="classes"/>, followed by an undecorated sibling.</summary>
+    private static string EmitWithClasses(params ExpressionTemplate[] classes) =>
+        EmitRoot(Element(
+            "div",
+            new ElementNode(
+                "span",
+                ImmutableArray.Create(classes),
+                default,
+                default,
+                ImmutableArray.Create<RenderNode>(new TextContentNode(Code("\"a\"")))),
+            Span("\"after\"")));
 }
