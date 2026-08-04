@@ -257,4 +257,181 @@ public sealed class StaticMarkupSerializerTests
     public void RenderFragmentContent_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(
             new RenderFragmentContentNode(Dynamic("ChildContent"))));
+
+    // --- serialization ------------------------------------------------------------------------
+
+    private static (string Markup, int Absorbed) Write(params RenderNode[] run) =>
+        StaticMarkupSerializer.Write(ImmutableArray.Create(run));
+
+    [Fact]
+    public void Write_TextContent_EmitsTheValue() =>
+        Assert.Equal("Benchmark", Write(new TextContentNode(Const("Benchmark"))).Markup);
+
+    [Fact]
+    public void Write_Element_WrapsItsChildren() =>
+        Assert.Equal(
+            "<h1>Benchmark</h1>",
+            Write(Element("h1", new TextContentNode(Const("Benchmark")))).Markup);
+
+    [Fact]
+    public void Write_VoidElement_HasNoClosingTag() =>
+        Assert.Equal("<br>", Write(Element("br")).Markup);
+
+    [Fact]
+    public void Write_ChildlessNonVoidElement_HasAClosingTag() =>
+        Assert.Equal("<div></div>", Write(Element("div")).Markup);
+
+    [Fact]
+    public void Write_SeveralSiblings_ConcatenatesThem() =>
+        Assert.Equal(
+            "<h1>a</h1><p>b</p>",
+            Write(
+                Element("h1", new TextContentNode(Const("a"))),
+                Element("p", new TextContentNode(Const("b")))).Markup);
+
+    [Fact]
+    public void Write_SingleClass_EmitsOneClassAttribute() =>
+        Assert.Equal(
+            """<div class="card"></div>""",
+            Write(new ElementNode(
+                "div", ImmutableArray.Create(Const("card")), default, default, default)).Markup);
+
+    [Fact]
+    public void Write_SeveralClasses_JoinsThemWithOneSpace() =>
+        Assert.Equal(
+            """<div class="btn btn-primary"></div>""",
+            Write(new ElementNode(
+                "div",
+                ImmutableArray.Create(Const("btn"), Const("btn-primary")),
+                default, default, default)).Markup);
+
+    [Fact]
+    public void Write_Attribute_IsQuoted() =>
+        Assert.Equal(
+            """<a href="/home"></a>""",
+            Write(new ElementNode(
+                "a",
+                default,
+                ImmutableArray.Create(new AttributeTemplate("href", Const("/home"))),
+                default, default)).Markup);
+
+    /// <summary>AddAttribute omits an attribute whose value is a null string; the markup must match.</summary>
+    [Fact]
+    public void Write_ConstantNullAttribute_IsOmitted() =>
+        Assert.Equal(
+            "<div></div>",
+            Write(new ElementNode(
+                "div",
+                default,
+                ImmutableArray.Create(new AttributeTemplate("id", ConstWithoutText())),
+                default, default)).Markup);
+
+    [Fact]
+    public void Write_Fragment_HasNoWrapper() =>
+        Assert.Equal(
+            "ab",
+            Write(new FragmentNode(ImmutableArray.Create<RenderNode>(
+                new TextContentNode(Const("a")),
+                new TextContentNode(Const("b"))))).Markup);
+
+    // --- escaping -----------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("a & b", "a &amp; b")]
+    [InlineData("a < b", "a &lt; b")]
+    [InlineData("a > b", "a &gt; b")]
+    [InlineData("</script>", "&lt;/script&gt;")]
+    [InlineData("&amp;", "&amp;amp;")]
+    [InlineData("<!-- x -->", "&lt;!-- x --&gt;")]
+    public void Write_EscapesText(string value, string expected) =>
+        Assert.Equal(expected, Write(new TextContentNode(Const(value))).Markup);
+
+    [Theory]
+    [InlineData("a & b", "a &amp; b")]
+    [InlineData("a \" b", "a &quot; b")]
+    [InlineData("a < b", "a &lt; b")]
+    [InlineData("a > b", "a &gt; b")]
+    [InlineData("\" onmouseover=\"alert(1)", "&quot; onmouseover=&quot;alert(1)")]
+    public void Write_EscapesAttributeValues(string value, string expected) =>
+        Assert.Equal(
+            $"""<div id="{expected}"></div>""",
+            Write(new ElementNode(
+                "div",
+                default,
+                ImmutableArray.Create(new AttributeTemplate("id", Const(value))),
+                default, default)).Markup);
+
+    [Fact]
+    public void Write_EscapesClassValues() =>
+        Assert.Equal(
+            """<div class="a&quot;b"></div>""",
+            Write(new ElementNode(
+                "div", ImmutableArray.Create(Const("a\"b")), default, default, default)).Markup);
+
+    /// <summary>Text is not escaped as if it were an attribute value: a quote needs no reference there.</summary>
+    [Fact]
+    public void Write_LeavesQuotesAloneInText()
+    {
+        const string value = "say \"hi\"";
+
+        Assert.Equal(value, Write(new TextContentNode(Const(value))).Markup);
+    }
+
+    // --- absorbed frame count -----------------------------------------------------------------
+
+    [Fact]
+    public void Write_CountsOneFrameForALoneTextNode() =>
+        Assert.Equal(1, Write(new TextContentNode(Const("a"))).Absorbed);
+
+    [Fact]
+    public void Write_CountsOneFrameForAChildlessBareElement() =>
+        Assert.Equal(1, Write(Element("div")).Absorbed);
+
+    [Fact]
+    public void Write_CountsOpenPlusTextForAnElementWithAChild() =>
+        Assert.Equal(2, Write(Element("h1", new TextContentNode(Const("a")))).Absorbed);
+
+    [Fact]
+    public void Write_CountsOneFrameForTheWholeClassChannel() =>
+        Assert.Equal(2, Write(new ElementNode(
+            "div",
+            ImmutableArray.Create(Const("a"), Const("b"), Const("c")),
+            default, default, default)).Absorbed);
+
+    [Fact]
+    public void Write_CountsEachAttributeSeparately() =>
+        Assert.Equal(3, Write(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(
+                new AttributeTemplate("id", Const("x")),
+                new AttributeTemplate("data-a", Const("y"))),
+            default, default)).Absorbed);
+
+    /// <summary>An omitted null attribute emits no frame on the element path either, so it is not counted.</summary>
+    [Fact]
+    public void Write_DoesNotCountAnOmittedNullAttribute() =>
+        Assert.Equal(1, Write(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("id", ConstWithoutText())),
+            default, default)).Absorbed);
+
+    [Fact]
+    public void Write_SumsAcrossARun() =>
+        Assert.Equal(4, Write(
+            Element("h1", new TextContentNode(Const("a"))),
+            Element("p", new TextContentNode(Const("b")))).Absorbed);
+
+    /// <summary>A fragment opens no frame of its own, so it contributes only its children.</summary>
+    [Fact]
+    public void Write_CountsNoFrameForAFragmentItself() =>
+        Assert.Equal(2, Write(new FragmentNode(ImmutableArray.Create<RenderNode>(
+            new TextContentNode(Const("a")),
+            new TextContentNode(Const("b"))))).Absorbed);
+
+    [Fact]
+    public void Write_ThrowsOnANodeThatIsNotFoldable() =>
+        Assert.Throws<System.NotSupportedException>(
+            () => Write(new TextContentNode(Dynamic("Title"))));
 }

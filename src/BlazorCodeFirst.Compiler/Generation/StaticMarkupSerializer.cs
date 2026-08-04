@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Text;
 using BlazorCodeFirst.Compiler.Analysis;
 
 namespace BlazorCodeFirst.Compiler.Generation;
@@ -56,6 +58,148 @@ internal static class StaticMarkupSerializer
         // siblings inside the <i>. That is a parse-unit problem, not a trust-boundary one.
         _ => false,
     };
+
+    /// <summary>
+    /// Serializes a run of consecutive foldable siblings into one markup string.
+    /// </summary>
+    /// <param name="run">Nodes that all satisfy <see cref="IsFoldable"/>.</param>
+    /// <returns>
+    /// The markup, and the number of frames the element path would have emitted for the same run. The
+    /// count is advisory: <see cref="RenderViewEmitter"/> uses it only to decide whether folding is a win
+    /// (a run worth less than two frames is emitted node by node). It takes no part in sequence
+    /// arithmetic, because a markup frame consumes exactly one sequence number whatever the count says,
+    /// so a disagreement with the emitter costs a missed or pointless fold and can never corrupt
+    /// numbering.
+    /// </returns>
+    /// <exception cref="System.NotSupportedException">
+    /// A node in <paramref name="run"/> is not foldable. Callers partition on <see cref="IsFoldable"/>
+    /// first; reaching here means the two have drifted, which is a bug and not a case to absorb, matching
+    /// the exhaustiveness contract in <c>RenderViewEmitter.EmitNode</c>.
+    /// </exception>
+    public static (string Markup, int AbsorbedFrameCount) Write(ImmutableArray<RenderNode> run)
+    {
+        var builder = new StringBuilder();
+        var absorbed = 0;
+        foreach (var node in run)
+            WriteNode(builder, node, ref absorbed);
+
+        return (builder.ToString(), absorbed);
+    }
+
+    private static void WriteNode(StringBuilder builder, RenderNode node, ref int absorbed)
+    {
+        switch (node)
+        {
+            case TextContentNode text:
+                AppendEscapedText(builder, ConstantTextOf(text.Content, node));
+                absorbed++;
+                return;
+
+            case ElementNode element:
+                WriteElement(builder, element, ref absorbed);
+                return;
+
+            case FragmentNode fragment:
+                foreach (var child in fragment.Children)
+                    WriteNode(builder, child, ref absorbed);
+                return;
+
+            // The locals are dropped: this case is reached only when every initializer is a compile-time
+            // constant, so the declarations are side-effect free and nothing observable depends on them.
+            case ExpansionNode expansion:
+                WriteNode(builder, expansion.Body, ref absorbed);
+                return;
+
+            default:
+                throw new System.NotSupportedException(
+                    $"'{node.GetType().Name}' is not foldable; the caller must partition on IsFoldable first.");
+        }
+    }
+
+    private static void WriteElement(StringBuilder builder, ElementNode element, ref int absorbed)
+    {
+        builder.Append('<').Append(element.Tag);
+        absorbed++;
+
+        if (element.Classes.Length > 0)
+        {
+            // All .Class decorations collapse into one class attribute (ARCHITECTURE.md §2.7(A)), which is
+            // one frame however many there are.
+            builder.Append(" class=\"");
+            var first = true;
+            foreach (var @class in element.Classes)
+            {
+                if (!first)
+                    builder.Append(' ');
+                AppendEscapedAttributeValue(builder, ConstantTextOf(@class, element));
+                first = false;
+            }
+
+            builder.Append('"');
+            absorbed++;
+        }
+
+        foreach (var attribute in element.Attributes)
+        {
+            // A constant null value means AddAttribute would omit the attribute, so no markup and no frame.
+            if (attribute.Value.Constant is not { Text: { } value })
+                continue;
+
+            builder.Append(' ').Append(attribute.Name).Append("=\"");
+            AppendEscapedAttributeValue(builder, value);
+            builder.Append('"');
+            absorbed++;
+        }
+
+        builder.Append('>');
+
+        if (KnownSymbols.IsVoidTag(element.Tag))
+            return;
+
+        foreach (var child in element.Children)
+            WriteNode(builder, child, ref absorbed);
+
+        builder.Append("</").Append(element.Tag).Append('>');
+    }
+
+    private static string ConstantTextOf(ExpressionTemplate template, RenderNode owner) =>
+        template.Constant?.Text
+            ?? throw new System.NotSupportedException(
+                $"'{owner.GetType().Name}' carries a non-constant expression; the caller must partition on IsFoldable first.");
+
+    /// <summary>
+    /// Escapes text content. <c>&gt;</c> is not strictly required outside an attribute value, but it is
+    /// escaped anyway so no sequence of written text can be read as closing a construct.
+    /// </summary>
+    private static void AppendEscapedText(StringBuilder builder, string value)
+    {
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '&': builder.Append("&amp;"); break;
+                case '<': builder.Append("&lt;"); break;
+                case '>': builder.Append("&gt;"); break;
+                default: builder.Append(c); break;
+            }
+        }
+    }
+
+    /// <summary>Escapes an attribute value written inside double quotes.</summary>
+    private static void AppendEscapedAttributeValue(StringBuilder builder, string value)
+    {
+        foreach (var c in value)
+        {
+            switch (c)
+            {
+                case '&': builder.Append("&amp;"); break;
+                case '"': builder.Append("&quot;"); break;
+                case '<': builder.Append("&lt;"); break;
+                case '>': builder.Append("&gt;"); break;
+                default: builder.Append(c); break;
+            }
+        }
+    }
 
     private static bool IsFoldableText(ExpressionTemplate content) =>
         content.Constant is { Text: { } value } && CanRoundTrip(value);
