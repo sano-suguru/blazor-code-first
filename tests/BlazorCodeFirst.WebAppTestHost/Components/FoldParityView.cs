@@ -172,11 +172,16 @@ public partial class QuotedAttributeProbe : BodyComponentBase
 /// <c>Span</c>'s text. A literal <c>Img.Src("pixel.gif").Alt("px")</c> is itself a complete, self-contained
 /// foldable node (open tag plus two attributes, no children), so if only the span's text were made
 /// non-constant, the generator would still fold the img alone into its own <c>AddMarkupContent</c> frame
-/// sitting next to ordinary element frames — and Blazor's SSR renderer then inserts an internal
-/// <c>&lt;!--!--&gt;</c> boundary comment around that embedded markup frame, a real DOM node the
-/// fully-folded side never gets. That is a construction artifact of a partially-folded probe, not a #140
+/// sitting next to ordinary element frames — and Blazor's InteractiveServer rendering then inserts an
+/// internal <c>&lt;!--!--&gt;</c> boundary comment around that embedded markup frame, a real DOM node the
+/// fully-folded side never gets. (That marker is not specific to prerendering: it appears in the live,
+/// post-hydration DOM the same way, since this whole page never prerenders any content — see
+/// <c>FoldParityPage.razor</c>.) That is a construction artifact of a partially-folded probe, not a #140
 /// defect, and it was caught here by comparing against the actual rendered DOM rather than assuming the
-/// span's non-constant text was enough to keep the whole container unfolded.
+/// span's non-constant text was enough to keep the whole container unfolded. <c>FoldParityTests</c> pins
+/// this container's unfolded frame count exactly (not merely "not one frame") for the same reason: this
+/// defect shrank that count without ever un-rooting the container as an <c>Element</c> frame, so only an
+/// exact match would have caught it at the .NET layer instead of the browser.
 /// </remarks>
 public partial class VoidTagInRunProbe : BodyComponentBase
 {
