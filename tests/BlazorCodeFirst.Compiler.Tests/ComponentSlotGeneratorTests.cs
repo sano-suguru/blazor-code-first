@@ -368,9 +368,11 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ComponentWithChildren_ComposableCallInsideSlot_ExpandsInsideTheLambda()
     {
-        // Guards against a [Composable] call nested inside a slot either failing to expand statically
-        // (falling back to an opaque runtime call) or having its argument local hoisted outside the
-        // fragment lambda, where it would be out of scope for the generated fragment delegate.
+        // Guards against a [Composable] call nested inside a slot failing to expand statically (falling
+        // back to an opaque runtime call). "new" and the .Class("badge") decoration are both constant, so
+        // the lone-hole substitution rule (#140) carries the constant through and the whole call folds
+        // into one markup frame; there is no argument local left to hoist out of the fragment lambda, so
+        // this case instead pins that the folded frame itself lands inside the lambda.
         const string host = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -381,6 +383,46 @@ public sealed class ComponentSlotGeneratorTests
                 private static View Badge(string label) => Span.Class("badge")[label];
 
                 protected override View Body => Component<Card>()[Badge("new")];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Card.cs", CardSource), ("Host.cs", host));
+        var code = GeneratedHost(result);
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        // The call must be statically expanded, not left as a runtime method invocation.
+        Assert.DoesNotContain("Badge(", code);
+        Assert.DoesNotContain("__bcf_arg_", code);
+
+        int lambdaIdx = code.IndexOf(
+            "AddComponentParameter(1, \"ChildContent\",", System.StringComparison.Ordinal);
+        int markupIdx = code.IndexOf(
+            """<span class=\"badge\">new</span>""", System.StringComparison.Ordinal);
+
+        Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
+        Assert.True(
+            lambdaIdx < markupIdx,
+            "the composable's folded markup must be emitted inside the fragment lambda");
+    }
+
+    [Fact]
+    public void ComponentWithChildren_ComposableCallInsideSlotWithNonConstantArgument_DeclaresLocalInsideTheLambda()
+    {
+        // The companion to the case above for when the call does not fold: a non-constant argument keeps
+        // the expansion local live, and it must be declared inside the fragment lambda, where it would
+        // otherwise be out of scope for the generated fragment delegate if hoisted above it.
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                private string _label => "new";
+
+                [Composable]
+                private static View Badge(string label) => Span[label];
+
+                protected override View Body => Component<Card>()[Badge(_label)];
             }
             """;
 

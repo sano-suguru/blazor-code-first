@@ -166,4 +166,26 @@ public sealed class RenderViewEmitterFoldTests
         Assert.Contains("""__builder.AddMarkupContent(2, "<i>x</i>");""", emitted);
         Assert.Contains("""__builder.AddMarkupContent(3, "<span>b</span>");""", emitted);
     }
+
+    /// <summary>
+    /// A composable pass-through keeps its constant through expansion, so the expanded body folds. The
+    /// locals are still declared here: dropping them is a separate rule that needs every initializer to
+    /// be constant.
+    /// </summary>
+    [Fact]
+    public void AnExpansionBodyOfConstants_IsFolded()
+    {
+        var emitted = EmitRoot(new ExpansionNode(
+            ImmutableArray.Create(new LocalBinding("string", "__l0_0", Dynamic("Compute()"))),
+            Element("div", StaticSpan("a"), StaticSpan("b"))));
+
+        Assert.Contains("string __l0_0 = Compute();", emitted);
+        // The non-constant local only keeps the ExpansionNode itself from folding as one unit (its
+        // declaration cannot sit inside markup); the body underneath is emitted through the same EmitNode
+        // recursion as an If branch or slot content, so a fully static body folds on its own terms,
+        // sequence numbering starting fresh since the declaration consumes no sequence number.
+        Assert.Contains(
+            """__builder.AddMarkupContent(0, "<div><span>a</span><span>b</span></div>");""",
+            emitted);
+    }
 }

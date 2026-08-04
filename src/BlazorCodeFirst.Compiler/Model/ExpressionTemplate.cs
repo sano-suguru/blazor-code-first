@@ -22,6 +22,13 @@ internal sealed record ParameterHoleExpressionSegment(int ParameterOrdinal) : Ex
 /// </summary>
 internal readonly record struct ConstantInfo(string? Text);
 
+/// <summary>
+/// One value substituted for a parameter hole: the code text that replaces the hole, and that value's
+/// compile-time constant when it has one. The two travel together so they cannot fall out of step in
+/// length or order, which two parallel arrays would allow.
+/// </summary>
+internal readonly record struct SubstitutedArgument(string Code, ConstantInfo? Constant);
+
 internal sealed record ExpressionTemplate
 {
     private ExpressionTemplate(ImmutableArray<ExpressionSegment> segments, ConstantInfo? constant)
@@ -48,16 +55,34 @@ internal sealed record ExpressionTemplate
         ConstantInfo? constant = null) =>
         new(segments, constant);
 
-    public ExpressionTemplate Substitute(ImmutableArray<string> localNames)
+    /// <summary>
+    /// Replaces every parameter hole with its substituted code. When the template is exactly one hole and
+    /// that argument is a compile-time constant, the result carries the constant and its code becomes the
+    /// constant literal instead of the local's name: the value is identical, and it is what lets a
+    /// composable pass-through (<c>Span[title]</c>) fold. A hole with surrounding text is left alone,
+    /// because recomputing the value would need expression evaluation.
+    /// </summary>
+    public ExpressionTemplate Substitute(ImmutableArray<SubstitutedArgument> arguments)
     {
-        var builder = ImmutableArray.CreateBuilder<ExpressionSegment>(Segments.Length);
-        foreach (var segment in Segments)
+        var segments = Segments.AsImmutableArray();
+        if (segments.Length == 1
+            && segments[0] is ParameterHoleExpressionSegment loneHole
+            && ArgumentAt(loneHole, arguments) is { Constant: { Text: { } constantText } constant })
+        {
+            return new ExpressionTemplate(
+                [new LiteralExpressionSegment(
+                    Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(constantText, quote: true))],
+                constant);
+        }
+
+        var builder = ImmutableArray.CreateBuilder<ExpressionSegment>(segments.Length);
+        foreach (var segment in segments)
         {
             builder.Add(segment switch
             {
                 LiteralExpressionSegment literal => literal,
                 ParameterHoleExpressionSegment hole =>
-                    SubstituteHole(hole, localNames),
+                    new LiteralExpressionSegment(ArgumentAt(hole, arguments).Code),
                 _ => throw new InvalidOperationException(
                     $"Unknown expression segment '{segment.GetType().Name}'."),
             });
@@ -87,14 +112,14 @@ internal sealed record ExpressionTemplate
         return builder.ToString();
     }
 
-    private static LiteralExpressionSegment SubstituteHole(
+    private static SubstitutedArgument ArgumentAt(
         ParameterHoleExpressionSegment hole,
-        ImmutableArray<string> localNames)
+        ImmutableArray<SubstitutedArgument> arguments)
     {
         System.Diagnostics.Debug.Assert(
-            hole.ParameterOrdinal < localNames.Length,
-            $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {localNames.Length}; the ForEach/composable ordinal invariant is broken.");
-        return new LiteralExpressionSegment(localNames[hole.ParameterOrdinal]);
+            hole.ParameterOrdinal < arguments.Length,
+            $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {arguments.Length}; the ForEach/composable ordinal invariant is broken.");
+        return arguments[hole.ParameterOrdinal];
     }
 
     private static ImmutableArray<ExpressionSegment> CoalesceLiterals(

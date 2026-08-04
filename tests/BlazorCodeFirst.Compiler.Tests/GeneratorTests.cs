@@ -1134,17 +1134,23 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_SameComposableCalledTwice_UsesDistinctLocalsAndSequences()
     {
+        // The arguments are property accesses, not literals, so they carry no compile-time constant and
+        // the expansion locals stay live: a literal argument here would fold each call away entirely
+        // (#140), leaving no locals for this test's actual point (distinct names/sequences per call site).
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
             public partial class Counter : BodyComponentBase
             {
+                private string _a => "A";
+                private string _b => "B";
+
                 [Composable]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body =>
-                    Div[Label("A"), Label("B")];
+                    Div[Label(_a), Label(_b)];
             }
             """;
 
@@ -1154,8 +1160,8 @@ public sealed class GeneratorTests
         // Distinct locals from distinct logical preorder ordinals (Label calls are 1 and 4: the Span
         // element inside each Label body consumes an extra preorder ordinal for its own text-content
         // child, unlike the old single-node Text/Button/VStack templates).
-        Assert.Contains("string __bcf_arg_1_0 = \"A\";", generated);
-        Assert.Contains("string __bcf_arg_4_0 = \"B\";", generated);
+        Assert.Contains("string __bcf_arg_1_0 = _a;", generated);
+        Assert.Contains("string __bcf_arg_4_0 = _b;", generated);
 
         // Disjoint runtime sequence ranges for the two expanded Span nodes.
         Assert.Contains("__builder.AddContent(2, __bcf_arg_1_0)", generated);
@@ -1198,24 +1204,30 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_UnusedSuppliedArgument_StillReceivesLocal()
     {
+        // Property accesses, not literals: a constant argument here would fold the whole call away
+        // (#140), and this test's point is that the unused argument still gets a local when the call
+        // does not fold.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
             public partial class Counter : BodyComponentBase
             {
+                private string _keep => "keep";
+                private string _drop => "drop";
+
                 [Composable]
                 private static View Ignore(string used, string unused) => Span[used];
 
-                protected override View Body => Ignore("keep", "drop");
+                protected override View Body => Ignore(_keep, _drop);
             }
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("string __bcf_arg_0_0 = \"keep\";", generated);
-        Assert.Contains("string __bcf_arg_0_1 = \"drop\";", generated);
+        Assert.Contains("string __bcf_arg_0_0 = _keep;", generated);
+        Assert.Contains("string __bcf_arg_0_1 = _drop;", generated);
         Assert.Contains("__builder.AddContent(1, __bcf_arg_0_0)", generated);
     }
 
@@ -1230,8 +1242,15 @@ public sealed class GeneratorTests
         AssertAppearsBefore(generated, "#pragma warning disable CS0219", "partial class Counter");
     }
 
+    /// <summary>
+    /// Both arguments are constant, including the unused one, so the whole expansion folds (#140): no
+    /// locals are declared at all, and there is nothing left for CS0219 to complain about. Before constant
+    /// propagation this call kept both locals with the unused one triggering CS0219, which the pragma at
+    /// the top of the generated file suppressed; folding away the declarations makes that moot rather than
+    /// wrong.
+    /// </summary>
     [Fact]
-    public void Generator_UnusedConstantComposableArgument_KeepsLocalWithoutCS0219Diagnostic()
+    public void Generator_UnusedConstantComposableArgument_FoldsAwayWithoutCS0219Diagnostic()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1249,8 +1268,8 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("string __bcf_arg_0_0 = \"keep\";", generated);
-        Assert.Contains("string __bcf_arg_0_1 = \"drop\";", generated);
+        Assert.DoesNotContain("__bcf_arg_", generated);
+        Assert.Contains("""__builder.AddMarkupContent(0, "<span>keep</span>");""", generated);
         Assert.DoesNotContain(
             result.OutputCompilation.GetDiagnostics(),
             static diagnostic => diagnostic.Id == "CS0219");
@@ -1314,6 +1333,9 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_ComposableCallInIfBranch_DeclaresLocalInsideBranchBraces()
     {
+        // The then-branch argument is a property access, not a literal: a constant argument here would
+        // fold the whole branch into one markup frame (#140), leaving no local to place inside the braces,
+        // which is this test's actual point.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -1321,12 +1343,13 @@ public sealed class GeneratorTests
             public partial class Counter : BodyComponentBase
             {
                 private bool _show = true;
+                private string _label => "in-branch";
 
                 [Composable]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body =>
-                    If(_show, () => Label("in-branch"), () => Span["no"]);
+                    If(_show, () => Label(_label), () => Span["no"]);
             }
             """;
 
@@ -1334,8 +1357,8 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The expansion local must be declared inside the then branch, before the else branch.
-        AssertAppearsBefore(generated, "if (_show)", "__bcf_arg_1_0 = \"in-branch\";");
-        AssertAppearsBefore(generated, "__bcf_arg_1_0 = \"in-branch\";", "else");
+        AssertAppearsBefore(generated, "if (_show)", "__bcf_arg_1_0 = _label;");
+        AssertAppearsBefore(generated, "__bcf_arg_1_0 = _label;", "else");
         Assert.DoesNotContain("Label(", generated);
     }
 
@@ -1676,10 +1699,14 @@ public sealed class GeneratorTests
 
         Assert.DoesNotContain("Outer(", generated);
         Assert.DoesNotContain("Inner(", generated);
-        // The inner expansion's local is initialized from the outer's local, which is not a compile-time
-        // constant, so nothing above it folds and only the outer body's own static sibling does. Its
-        // sequence number says the inner expansion's width was accounted for.
-        Assert.Contains("__builder.AddMarkupContent(3, \"<span>tail</span>\")", generated);
+        // "hi" is constant, and the lone-hole substitution rule (#140) carries it through both levels of
+        // expansion: Outer's own local, Inner's argument, and Inner's local are all constant, so nothing
+        // is left to declare and the whole tree, both composable calls plus the trailing Span, folds into
+        // one frame.
+        Assert.DoesNotContain("__bcf_arg_", generated);
+        Assert.Contains(
+            """__builder.AddMarkupContent(0, "<div><span>hi</span><span>tail</span></div>");""",
+            generated);
     }
 
     [Fact]
@@ -2772,9 +2799,13 @@ public sealed class GeneratorTests
             """);
 
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("\"class\", ", source);
-        // If the hole were not substituted, ToCode() would throw and generation would fail; a compiling
-        // output proves the composable-argument class hole was bound.
+        // "hot" is constant, so the class hole substitution (#140) carries it into the class attribute
+        // and the whole call folds to one markup frame: an unbound hole would leave the class template
+        // unable to serialize (StaticMarkupSerializer requires a constant), so a compiling, folded output
+        // proves the composable-argument class hole was bound.
+        Assert.Contains(
+            """__builder.AddMarkupContent(0, "<div><span class=\"hot\">chip</span></div>");""",
+            source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

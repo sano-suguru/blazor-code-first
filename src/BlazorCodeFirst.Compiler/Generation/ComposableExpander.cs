@@ -46,8 +46,8 @@ internal static class ComposableExpander
     }
 
     /// <param name="substitution">
-    /// The local names bound to the enclosing composable's parameter holes; empty at the component's
-    /// design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
+    /// The arguments bound to the enclosing composable's parameter holes, code plus constant; empty at the
+    /// component's design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
     /// </param>
     /// <param name="activeMethodStack">
     /// The method keys currently being expanded along this path, used for cycle detection. Sibling calls
@@ -55,7 +55,7 @@ internal static class ComposableExpander
     /// </param>
     private static RenderNode? ExpandNode(
         RenderTemplateNode node,
-        ImmutableArray<string> substitution,
+        ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
         ComposableRegistry registry,
@@ -105,7 +105,7 @@ internal static class ComposableExpander
                     // are bound in the extended scope whose last slot is this loop variable.
                     var loopVariableName = $"__bcf_item_{ordinal}";
                     var source = forEach.Source.Substitute(substitution);
-                    var extended = substitution.Add(loopVariableName);
+                    var extended = substitution.Add(new SubstitutedArgument(loopVariableName, Constant: null));
                     var key = forEach.Key.Substitute(extended);
 
                     var content = ExpandNode(
@@ -232,7 +232,7 @@ internal static class ComposableExpander
     private static ExpansionNode? ExpandCall(
         ComposableCallTemplateNode call,
         int callPreorderOrdinal,
-        ImmutableArray<string> substitution,
+        ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
         ComposableRegistry registry,
@@ -285,11 +285,15 @@ internal static class ComposableExpander
         var parameters = definition.Parameters;
 
         // One typed local per parameter, named from the call's logical preorder ordinal and the
-        // parameter ordinal so names are unique across the whole component.
-        var innerNames = new string[parameters.Length];
+        // parameter ordinal so names are unique across the whole component. The argument's constant
+        // travels with the name so a pass-through body (Span[title]) keeps its constant and can fold.
+        var innerArguments = new SubstitutedArgument[parameters.Length];
         foreach (var parameter in parameters)
-            innerNames[parameter.Ordinal] = CreateLocalName(callPreorderOrdinal, parameter.Ordinal);
-        var innerSubstitution = ImmutableArray.Create(innerNames);
+        {
+            innerArguments[parameter.Ordinal] = new SubstitutedArgument(
+                CreateLocalName(callPreorderOrdinal, parameter.Ordinal),
+                Constant: null);
+        }
 
         // Emit the locals in source evaluation order (supplied arguments by source position, then implicit
         // defaults) while binding each to its parameter ordinal. Argument initializers reference the
@@ -301,11 +305,17 @@ internal static class ComposableExpander
         foreach (var argument in ordered)
         {
             var parameter = parameters[argument.ParameterOrdinal];
+            var initializer = argument.Value.Substitute(substitution);
             locals.Add(new LocalBinding(
                 parameter.TypeName,
-                innerNames[argument.ParameterOrdinal],
-                argument.Value.Substitute(substitution)));
+                innerArguments[argument.ParameterOrdinal].Code,
+                initializer));
+
+            innerArguments[argument.ParameterOrdinal] =
+                innerArguments[argument.ParameterOrdinal] with { Constant = initializer.Constant };
         }
+
+        var innerSubstitution = ImmutableArray.Create(innerArguments);
 
         var body = ExpandNode(
             definition.Body,
@@ -401,7 +411,7 @@ internal static class ComposableExpander
     };
 
     private static EquatableArray<ExpressionTemplate> SubstituteClasses(
-        EquatableArray<ExpressionTemplate> classes, ImmutableArray<string> substitution)
+        EquatableArray<ExpressionTemplate> classes, ImmutableArray<SubstitutedArgument> substitution)
     {
         if (classes.Length == 0)
             return classes;
