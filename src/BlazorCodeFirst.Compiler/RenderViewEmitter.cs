@@ -248,6 +248,14 @@ internal static class RenderViewEmitter
         return next;
     }
 
+    /// <summary>
+    /// Emits a composable expansion's locals and then its body. Reached only when the expansion is not
+    /// foldable, that is when at least one local's initializer is not a compile-time constant: a fully
+    /// constant expansion is absorbed into a markup frame by the fold check in <see cref="EmitNode"/> (a
+    /// lone or root expansion) or <see cref="EmitChildren"/> (one among a sibling run), with its
+    /// declarations dropped because constant initializers have no side effects. The body may still fold
+    /// on its own here.
+    /// </summary>
     private static int EmitExpansion(IndentedWriter writer, ExpansionNode node, int startSeq, string? key = null)
     {
         foreach (var local in node.Locals)

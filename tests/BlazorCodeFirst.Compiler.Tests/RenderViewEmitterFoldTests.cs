@@ -87,8 +87,17 @@ public sealed class RenderViewEmitterFoldTests
 
     /// <summary>
     /// <c>model.RootNode</c> is a single-node fold position like an <c>If</c> branch or a slot's content
-    /// (design §4.3), and nothing threads a key to it, so a fully static root becomes one markup frame.
+    /// (ARCHITECTURE.md §2.7(D)), and nothing threads a key to it, so a fully static root becomes one
+    /// markup frame.
     /// </summary>
+    /// <remarks>
+    /// A wrapper element stays an element frame only when it has a non-foldable child: an open tag cannot
+    /// be folded together with a partial child list. When the whole subtree is foldable, though, the
+    /// root's own open tag folds with it, so a fully static component emits exactly one frame, as this
+    /// test shows. #140's quoted gate output showed differences starting at frame 2 rather than frame 0
+    /// only because that example's <c>&lt;div&gt;</c> had a dynamic child; dropping that condition turns a
+    /// conditional statement into a wrong generalization.
+    /// </remarks>
     [Fact]
     public void AFullyStaticRoot_FoldsToOneFrame()
     {
@@ -187,5 +196,51 @@ public sealed class RenderViewEmitterFoldTests
         Assert.Contains(
             """__builder.AddMarkupContent(0, "<div><span>a</span><span>b</span></div>");""",
             emitted);
+    }
+
+    /// <summary>
+    /// Every local is constant-initialized, so the declarations are side-effect free and are dropped,
+    /// which lets the expanded body coalesce with its siblings into one frame. The wrapper uses
+    /// <see cref="DynamicHost"/>, not a plain element, because a foldable wrapper would absorb the whole
+    /// subtree at the root (<see cref="AFullyStaticRoot_FoldsToOneFrame"/>) and hide the run boundary this
+    /// test is about.
+    /// </summary>
+    [Fact]
+    public void AnExpansionWithOnlyConstantLocals_CoalescesWithItsSiblings()
+    {
+        var emitted = EmitRoot(DynamicHost(
+            "div",
+            new ExpansionNode(
+                ImmutableArray.Create(new LocalBinding("string", "__l0_0", Const("App"))),
+                Element("header", StaticSpan("App"))),
+            StaticSpan("x")));
+
+        Assert.Contains(
+            """__builder.AddMarkupContent(2, "<header><span>App</span></header><span>x</span>");""",
+            emitted);
+        Assert.DoesNotContain("__l0_0", emitted);
+    }
+
+    /// <summary>
+    /// One non-constant initializer keeps every declaration, because dropping them would stop a
+    /// side-effecting argument from running even when the body never names it. Both locals are declared
+    /// with the non-constant one second, so a check that only inspected the first local would wrongly
+    /// call this expansion foldable.
+    /// </summary>
+    [Fact]
+    public void AnExpansionWithANonConstantLocal_KeepsItsDeclarationsAndSplitsTheRun()
+    {
+        var emitted = EmitRoot(Element(
+            "div",
+            new ExpansionNode(
+                ImmutableArray.Create(
+                    new LocalBinding("string", "__l0_0", Const("App")),
+                    new LocalBinding("object", "__l0_1", Dynamic("Log()"))),
+                Element("header", StaticSpan("App"))),
+            StaticSpan("x")));
+
+        Assert.Contains("object __l0_1 = Log();", emitted);
+        Assert.Contains("""__builder.AddMarkupContent(1, "<header><span>App</span></header>");""", emitted);
+        Assert.Contains("""__builder.AddMarkupContent(2, "<span>x</span>");""", emitted);
     }
 }
