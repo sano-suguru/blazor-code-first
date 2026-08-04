@@ -86,6 +86,24 @@ a failure policy that nothing has decided yet. The §7.2 assertions do ride the
 ordinary `dotnet test BlazorCodeFirst.slnx` run, because they are tests — that
 follows from where they live, and is not a gate on the numbers.
 
+The benchmark project holds a second measurement set that is **not** published.
+`StaticFoldBenchmarks` compares folded markup frames against element frames to
+decide #140, and it reports times, which §7.1 deliberately does not publish
+because the variance is large and machine-dependent. No CI step runs it either,
+for the same reason as above. `--filter '*'` picks it up along with the §7.1
+benchmarks; to run only it:
+
+```bash
+# The #140 decision input only (not a DESIGN.md figure)
+dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*StaticFoldBenchmarks*'
+```
+
+Its two component pairs deliberately render *different* frames, because that
+difference is what is being measured, so the frame-equivalence gate cannot cover
+them. `Program.Main` gates the inverse condition instead — the folded spelling
+must emit strictly fewer frames — and `FoldFixtureTests` asserts each pair
+renders the same DOM.
+
 A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
 listed there or excluded with a reason.
