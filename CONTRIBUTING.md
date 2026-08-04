@@ -123,6 +123,27 @@ dotnet restore tests/diagnostic-fixtures/GeneratorDelivery.Package/GeneratorDeli
 `dotnet test` will not show it, because MSBuild builds those fixtures inside the
 test process and their output never surfaces.
 
+Blazor's browser-side markup path is not covered by `dotnet test`. A text frame
+reaches the DOM through `createTextNode`, while a markup frame is parsed by
+assigning `innerHTML` on a shared `<template>` element; bUnit parses a document
+string with AngleSharp and prerendering writes markup verbatim, so neither sees
+the difference. The #140 static fold produces markup frames, so its parity with
+the element path is checked in a real browser:
+
+```bash
+# Start the host on the port the browser tests default to, then compare folded
+# and unfolded spellings of the same content
+dotnet run --project tests/BlazorCodeFirst.WebAppTestHost --urls http://localhost:5000
+cd tests/BlazorCodeFirst.WebAppTests/browser && npm install && npx playwright test
+```
+
+`FoldParityTests` in `BlazorCodeFirst.WebAppTests` (which `dotnet test` does
+run) pins the premise this depends on: that each folded container in
+`FoldParityView` really collapses to one `AddMarkupContent` frame and each
+unfolded container really does not. If that gate is red, the browser result is
+worthless even if green, because the comparison would no longer be between a
+folded and an unfolded spelling of the same content.
+
 `SnapshotCorpusTests` compares the generator's complete emitted source against
 baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which
 pins sequence numbers and frame order in a way the substring assertions

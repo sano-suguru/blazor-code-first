@@ -1,0 +1,10 @@
+{
+  "name": "blazorcodefirst-browser-tests",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  },
+  "scripts": {
+    "test": "playwright test"
+  }
+}

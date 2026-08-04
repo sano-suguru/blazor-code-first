@@ -19,3 +19,7 @@ artifacts/
 
 # Local wrangler CLI cache/state (account info, not for commit)
 .wrangler/
+
+# Playwright browser test dependencies and run artifacts (tests/BlazorCodeFirst.WebAppTests/browser)
+node_modules/
+test-results/
