@@ -2,7 +2,7 @@ using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
 using static BlazorCodeFirst.Html;
 
-namespace BlazorCodeFirst.Samples.Counter.Components;
+namespace BlazorCodeFirst.WebAppTestHost.Components;
 
 [Route("/counter")]
 public partial class CounterPage : BodyComponentBase
