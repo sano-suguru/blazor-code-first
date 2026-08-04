@@ -40,6 +40,17 @@ public sealed class StaticMarkupSerializerTests
     public void ConstantTextContent_IsFoldable() =>
         Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a"))));
 
+    /// <summary>
+    /// A valid surrogate pair (an astral-plane character, here U+1F600) must round-trip and therefore
+    /// fold. This is the positive counterpart to <see cref="TextWithLoneSurrogate_IsNotFoldable"/>: a
+    /// <see cref="StaticMarkupSerializer"/> that rejected every surrogate rather than only an unpaired
+    /// one would pass every other test in this file while silently disabling folding for any static
+    /// text containing an emoji or other non-BMP character.
+    /// </summary>
+    [Fact]
+    public void TextWithAstralCharacter_IsFoldable() =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\U0001F600b"))));
+
     [Fact]
     public void CuratedElementWithConstantChildren_IsFoldable() =>
         Assert.True(StaticMarkupSerializer.IsFoldable(
@@ -78,6 +89,21 @@ public sealed class StaticMarkupSerializerTests
                 new TextContentNode(Const("a")),
                 Element("span", new TextContentNode(Const("b")))))));
 
+    /// <summary>
+    /// An expansion is foldable when every local is constant-initialized and the body is foldable: the
+    /// declarations are then side-effect free and can be dropped entirely. Includes one local whose
+    /// initializer is a non-string constant (<see cref="ConstWithoutText"/>, state 2 of
+    /// <see cref="ConstantInfo"/>) to prove that state counts as constant too — foldability asks whether
+    /// <see cref="ConstantInfo"/> is present at all, not whether it carries usable text.
+    /// </summary>
+    [Fact]
+    public void ExpansionOfConstantLocalsWithFoldableBody_IsFoldable() =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new ExpansionNode(
+            ImmutableArray.Create(
+                new LocalBinding("int", "_count", ConstWithoutText()),
+                new LocalBinding("string", "_label", Const("x"))),
+            Element("div"))));
+
     // --- not foldable -------------------------------------------------------------------------
 
     [Fact]
@@ -102,6 +128,17 @@ public sealed class StaticMarkupSerializerTests
         Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
             "div", ImmutableArray.Create(Dynamic("_cls")), default, default, default)));
 
+    /// <summary>
+    /// A class value requires usable text (<see cref="ConstantInfo"/> state 3): unlike an attribute
+    /// value, a class with no usable text has nothing sensible to omit, so state 2
+    /// (<see cref="ConstWithoutText"/>) must not fold here even though it does for an attribute value
+    /// (<see cref="ConstantNullAttributeValue_IsFoldable"/>).
+    /// </summary>
+    [Fact]
+    public void ClassWithoutStringValue_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div", ImmutableArray.Create(ConstWithoutText()), default, default, default)));
+
     [Fact]
     public void ElementWithDynamicAttributeValue_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
@@ -115,6 +152,29 @@ public sealed class StaticMarkupSerializerTests
     public void ElementWithADynamicChild_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(
             Element("div", new TextContentNode(Dynamic("Title")))));
+
+    /// <summary>
+    /// One non-constant local is enough to block the fold, even though the body is foldable on its own:
+    /// dropping the declarations would stop a side-effecting argument (here, the second local's
+    /// initializer) from running even though the body never names it. The non-constant local is the
+    /// second of two so a predicate that only inspects the first local would wrongly pass this case.
+    /// </summary>
+    [Fact]
+    public void ExpansionWithANonConstantLocal_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ExpansionNode(
+            ImmutableArray.Create(
+                new LocalBinding("string", "_label", Const("x")),
+                new LocalBinding("string", "_sideEffect", Dynamic("ComputeAndLog()"))),
+            Element("div"))));
+
+    /// <summary>
+    /// Every local is constant, so the declarations are droppable, but the body itself is not foldable.
+    /// </summary>
+    [Fact]
+    public void ExpansionWithConstantLocalsButNonFoldableBody_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ExpansionNode(
+            ImmutableArray.Create(new LocalBinding("string", "_label", Const("x"))),
+            new TextContentNode(Dynamic("Title")))));
 
     [Theory]
     [InlineData("script")]   // RAWTEXT, and not curated
