@@ -256,6 +256,13 @@ public partial class MultiClassProbe : BodyComponentBase
 /// premises: that the static container emits no markup frame, and that the <c>Raw</c> container emits
 /// exactly one.
 /// </para>
+/// <para>
+/// Standing in <c>Raw</c> for a fold rests on one premise, stated here rather than left implicit:
+/// <c>Raw</c> passes its argument to <c>AddMarkupContent</c> verbatim, performing no normalization or
+/// sanitization of its own. Were it ever to gain any, this container would stop reproducing what a fold
+/// produces, and the browser comparison would go red — or worse, agree — for a reason with nothing to do
+/// with folding.
+/// </para>
 /// </remarks>
 public partial class CarriageReturnProbe : BodyComponentBase
 {
