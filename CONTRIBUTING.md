@@ -60,11 +60,31 @@ dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.
 
 # Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
 dotnet test tests/BlazorCodeFirst.DiagnosticTests/BlazorCodeFirst.DiagnosticTests.csproj
+
+# The measurements published in DESIGN.md §7.2 (diff cost and component teardown)
+dotnet test tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTests.csproj \
+  --filter FullyQualifiedName~DiffCostTests --logger "console;verbosity=detailed"
+
+# The measurements published in DESIGN.md §7.1 (allocations per render)
+dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*'
 ```
 
 These deliberately omit `--no-build`, which reuses whatever was compiled last and
 so reports a pass for code that was never compiled. CI can pass it
 (`ci.yml` builds in the preceding step); a local edit-and-test loop cannot.
+
+Every figure in `DESIGN.md` §7.1 and §7.2 comes from the last two commands. Both
+compare against something, and both refuse to report a number unless the two
+sides render frame-for-frame equivalent output apart from sequence numbers: the
+§7.2 comparison asserts it in `VariantEquivalenceTests`, and the benchmark exits
+non-zero from `Program.Main` before BenchmarkDotNet starts. A number from a
+mismatched comparison would describe the mismatch, not the compilation strategy.
+
+No CI step runs either one. A published figure has to be reproducible on demand,
+which is a lower bar than a per-PR gate; gating would need a noise threshold and
+a failure policy that nothing has decided yet. The §7.2 assertions do ride the
+ordinary `dotnet test BlazorCodeFirst.slnx` run, because they are tests — that
+follows from where they live, and is not a gate on the numbers.
 
 A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
