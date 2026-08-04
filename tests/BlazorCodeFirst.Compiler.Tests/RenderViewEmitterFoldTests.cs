@@ -168,12 +168,12 @@ public sealed class RenderViewEmitterFoldTests
     }
 
     /// <summary>
-    /// A composable pass-through keeps its constant through expansion, so the expanded body folds. The
-    /// locals are still declared here: dropping them is a separate rule that needs every initializer to
-    /// be constant.
+    /// The local's non-constant initializer keeps the ExpansionNode itself from folding as one unit (its
+    /// declaration cannot sit inside markup). The locals are still declared here: dropping them is a
+    /// separate rule that needs every initializer to be constant.
     /// </summary>
     [Fact]
-    public void AnExpansionBodyOfConstants_IsFolded()
+    public void AnExpansionThatCannotFoldItself_StillFoldsItsStaticBody()
     {
         var emitted = EmitRoot(new ExpansionNode(
             ImmutableArray.Create(new LocalBinding("string", "__l0_0", Dynamic("Compute()"))),

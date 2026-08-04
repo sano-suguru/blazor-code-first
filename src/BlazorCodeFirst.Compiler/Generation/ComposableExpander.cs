@@ -311,8 +311,18 @@ internal static class ComposableExpander
                 innerArguments[argument.ParameterOrdinal].Code,
                 initializer));
 
-            innerArguments[argument.ParameterOrdinal] =
-                innerArguments[argument.ParameterOrdinal] with { Constant = initializer.Constant };
+            // Gated on the parameter's declared type being exactly string, not the argument expression's
+            // own type: the local is declared with the parameter's type, so a parameter of a type with an
+            // implicit conversion from string and a custom ToString (e.g. MyType m) would diverge between
+            // the local's value (converted, then re-stringified through that custom ToString) and the bare
+            // literal substituted in the body's hole (never converted at all). Every serializable slot in
+            // the surface is string-typed today (Decorations.cs), but that is a fact about the surface, not
+            // this file, so the gate is written here rather than assumed from elsewhere.
+            if (parameter.TypeName == "string")
+            {
+                innerArguments[argument.ParameterOrdinal] =
+                    innerArguments[argument.ParameterOrdinal] with { Constant = initializer.Constant };
+            }
         }
 
         var innerSubstitution = ImmutableArray.Create(innerArguments);

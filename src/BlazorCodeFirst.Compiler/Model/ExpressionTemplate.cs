@@ -57,10 +57,12 @@ internal sealed record ExpressionTemplate
 
     /// <summary>
     /// Replaces every parameter hole with its substituted code. When the template is exactly one hole and
-    /// that argument is a compile-time constant, the result carries the constant and its code becomes the
-    /// constant literal instead of the local's name: the value is identical, and it is what lets a
-    /// composable pass-through (<c>Span[title]</c>) fold. A hole with surrounding text is left alone,
-    /// because recomputing the value would need expression evaluation.
+    /// that argument is a compile-time constant <em>string</em>, the result carries the constant and its
+    /// code becomes the constant literal instead of the local's name: the value is identical, and it is
+    /// what lets a composable pass-through (<c>Span[title]</c>) fold. Only a string constant qualifies,
+    /// because only a string can be re-spelled as a literal in the hole's place without changing the
+    /// substituted code's type. A hole with surrounding text is left alone, because recomputing the value
+    /// would need expression evaluation.
     /// </summary>
     public ExpressionTemplate Substitute(ImmutableArray<SubstitutedArgument> arguments)
     {

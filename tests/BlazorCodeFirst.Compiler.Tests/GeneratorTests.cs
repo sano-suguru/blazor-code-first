@@ -1244,13 +1244,12 @@ public sealed class GeneratorTests
 
     /// <summary>
     /// Both arguments are constant, including the unused one, so the whole expansion folds (#140): no
-    /// locals are declared at all, and there is nothing left for CS0219 to complain about. Before constant
-    /// propagation this call kept both locals with the unused one triggering CS0219, which the pragma at
-    /// the top of the generated file suppressed; folding away the declarations makes that moot rather than
-    /// wrong.
+    /// locals are declared at all. Before constant propagation this call kept both locals, with the
+    /// unused one relying on the file-level CS0219 pragma; folding away the declarations makes that
+    /// reliance moot here rather than wrong (the mixed-constant case right below keeps it meaningful).
     /// </summary>
     [Fact]
-    public void Generator_UnusedConstantComposableArgument_FoldsAwayWithoutCS0219Diagnostic()
+    public void Generator_UnusedConstantComposableArgument_FoldsAway()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1270,6 +1269,38 @@ public sealed class GeneratorTests
 
         Assert.DoesNotContain("__bcf_arg_", generated);
         Assert.Contains("""__builder.AddMarkupContent(0, "<span>keep</span>");""", generated);
+    }
+
+    /// <summary>
+    /// "used" is a property access (non-constant), so the expansion cannot fold as a whole and both
+    /// locals stay declared; "unused" is a literal, so its local is never referenced. Roslyn's CS0219
+    /// only fires for a local whose initializer is a compile-time constant (a non-constant one might
+    /// have a side effect, so the compiler does not flag it as pointless to keep), which is exactly the
+    /// shape this pins: without the file-level pragma, this would be CS0219 on "unused".
+    /// </summary>
+    [Fact]
+    public void Generator_UnusedConstantArgumentBesideNonConstantOne_KeepsDeclarationWithoutCS0219Diagnostic()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                private string _keep => "keep";
+
+                [Composable]
+                private static View Ignore(string used, string unused) => Span[used];
+
+                protected override View Body => Ignore(_keep, "drop");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("string __bcf_arg_0_0 = _keep;", generated);
+        Assert.Contains("string __bcf_arg_0_1 = \"drop\";", generated);
         Assert.DoesNotContain(
             result.OutputCompilation.GetDiagnostics(),
             static diagnostic => diagnostic.Id == "CS0219");
