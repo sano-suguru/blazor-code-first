@@ -260,9 +260,13 @@ __b.CloseRegion();
 
 この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)は `IfTemplateNode` / `ForEachTemplateNode` / `TextContentTemplateNode` / `FragmentTemplateNode` / `RawMarkupTemplateNode` / `RenderFragmentContentTemplateNode` をすべて `ContentRootKind.Region` に分類し、`ComponentTemplateNode` / `ElementTemplateNode` のみが `ContentRootKind.Element` です(`RenderFragmentContentTemplateNode` は、外部由来の `RenderFragment?` を `AddContent(seq, RenderFragment?)` としてそのまま発行するノードです)。静的展開後ツリー層(`ComposableExpander.IsKeyableRoot`)は `ComponentNode` / `ElementNode` のみを真とし、それ以外は既定で `false` を返します。
 
-未知のノード型に対する扱いは、この2層で意図的に非対称です。`IsKeyableRoot` の既定 `false` は、新種のノードが増えてもキー可否判定を安全側(非キー可能)へ倒します。一方 `SequenceAllocator.Width` / `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対して例外を送出し、ケース漏れを黙って通しません。フレーム発行・幅計算・根種別解決は「未知のノード型はバグとして早期検出する」契約、`IsKeyableRoot` は「未知のノード型は非キー可能として扱う」既定、という分担です。
+未知のノード型に対する扱いは、この2層で意図的に非対称です。`IsKeyableRoot` の既定 `false` は、新種のノードが増えてもキー可否判定を安全側(非キー可能)へ倒します。一方 `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ComposableExpander.ExpandNode` は未知のノード型に対して例外を送出し、ケース漏れを黙って通しません。フレーム発行・根種別解決は「未知のノード型はバグとして早期検出する」契約、`IsKeyableRoot` は「未知のノード型は非キー可能として扱う」既定、という分担です。
 
-この網羅契約があるため、展開後ノード `RenderFragmentContentNode` を追加した際も `SequenceAllocator.Width` と `RenderViewEmitter.EmitNode` の両方にケースを足す必要があり、片方だけの更新は例外で検出されます。なおこのノードの `Width` は常に1です。シーケンス引数を消費する `AddContent` 呼び出しが、`RenderFragment?` の非nullを問わず不可欠であるためです。
+シーケンス幅を定める実装は発行そのものだけです。各 `Emit*` は自身が進めたカーソルを返し、兄弟の開始位置はその戻り値です。したがって新種のノードを追加する際に足すケースは `RenderViewEmitter.EmitNode` の1箇所で、漏れは例外で検出されます。かつては `SequenceAllocator.Width` が同じ算術を独立に実装しており、要素の分岐条件と順序を発行側と一致させる義務をコメントで課していましたが、#69 で削除しました。
+
+シーケンス算術を守るのは、発行されたテキストが持つ性質です。生成コードに現れるシーケンス引数は、木の形に関わらず出現順で `0..N-1` の密な連番になります。どのノード種別も、予約した番号を必ずテキストへ書くためです(`If` は両分岐を予約し両方を発行し、`ForEach` は content 幅を予約し content を発行し、スロットは外側の平坦なカウンタを継続し、`CloseElement` / `CloseRegion` / `CloseComponent` / `SetKey` は消費しません)。全ノード種別を覆うコーパスに対して `RenderViewEmitterSequenceTests` がこれを検査します。独立計算した幅との比較は合計しか見ないため、相殺する2つの誤りと `If` の分岐レンジの重複を通しますが、この性質は両方を落とします。なおこの密性は本実装の割当方式の性質であり、Blazor の要求ではありません。Blazor が要求するのは、シーケンス番号が構文位置に対して安定であることだけです。
+
+`RenderFragmentContentNode` が消費するシーケンス番号は、`RenderFragment?` の非nullを問わず常に1です。シーケンス引数を消費する `AddContent` 呼び出しが不可欠であり、それが開くリージョンフレームだけが非nullのとき限りであるためです。
 
 入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
 
@@ -297,7 +301,7 @@ __b.CloseElement();
 
 **コンポーネントの fragment スロット**: `RenderFragment` 型のパラメータは、値ではなくノードツリーを
 持つため `ComponentParameter`(スカラー)とは別チャンネル(`ComponentSlot` / `ComponentSlotNode`)に
-格納します。幅は `1 + Parameters.Length + Σ(1 + Width(slot.Content))` で、スロット1つが
+格納します。発行されるフレーム幅は `1 + Parameters.Length + Σ(1 + 内容のフレーム幅)` で、スロット1つが
 `AddComponentParameter` 1回とその内容の幅を消費します。
 
 ラムダ内部のシーケンス番号は外側の平坦なカウンタを継続し、独立したシーケンス空間を作りません。

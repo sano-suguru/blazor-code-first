@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler;
-using BlazorCodeFirst.Compiler.Generation;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -25,12 +24,14 @@ public sealed class RenderViewEmitterFragmentContentTests
     }
 
     [Fact]
-    public void FragmentContent_WidthIsOne_RegardlessOfRuntimeNullness()
+    public void FragmentContent_ConsumesOneSequenceNumber_RegardlessOfRuntimeNullness()
     {
-        // Width counts sequence-consuming RenderTreeBuilder calls, not frames (SequenceAllocator.cs:10-12).
         // AddContent(seq, fragment) is always called; it emits a Region frame only when the fragment is
-        // non-null. So the width is unconditionally 1 and sibling sequences never depend on runtime state.
-        Assert.Equal(1, SequenceAllocator.Width(new RenderFragmentContentNode(ExpressionTemplate.Literal("Body"))));
+        // non-null. So the node consumes exactly one sequence number and sibling sequences never depend
+        // on runtime state.
+        var code = EmitRoot(new RenderFragmentContentNode(ExpressionTemplate.Literal("Body")));
+
+        Assert.Equal(0, Assert.Single(SequenceArguments.InTextOrder(code)));
     }
 
     [Fact]

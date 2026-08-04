@@ -119,8 +119,9 @@ internal static class RenderViewEmitter
         // seq is consumed by OpenRegion.
         // then  branch occupies [seq+1, seq+1+W(then)).
         // else  branch occupies [seq+1+W(then), seq+1+W(then)+W(else)).
-        // The total reservation equals SequenceAllocator.Width(node) so that sibling nodes
-        // always receive a sequence that is independent of which branch executes at runtime.
+        // Both branches are reserved whichever one runs, so a following sibling receives a sequence
+        // independent of the condition. The cursor after the last emitted branch *is* that reservation:
+        // with no else, `afterThen` already sits at the end of the then range.
         int thenStart = seq + 1;
 
         writer.AppendLine($"__builder.OpenRegion({seq});");
@@ -131,20 +132,21 @@ internal static class RenderViewEmitter
         writer.Indent--;
         writer.AppendLine("}");
 
+        int next = afterThen;
         if (node.Otherwise is not null)
         {
-            // afterThen == seq+1+Width(then) which is exactly where the else range begins.
+            // afterThen is exactly where the else range begins.
             writer.AppendLine("else");
             writer.AppendLine("{");
             writer.Indent++;
-            EmitNode(writer, node.Otherwise, afterThen);
+            next = EmitNode(writer, node.Otherwise, afterThen);
             writer.Indent--;
             writer.AppendLine("}");
         }
 
         writer.AppendLine("__builder.CloseRegion();");
 
-        return seq + SequenceAllocator.Width(node);
+        return next;
     }
 
     private static int EmitForEach(IndentedWriter writer, ForEachNode node, int seq, string? key = null)
@@ -162,11 +164,11 @@ internal static class RenderViewEmitter
         writer.Indent++;
         // The key is threaded into the content's root element/component so SetKey is emitted
         // immediately after that frame opens, never after OpenRegion (see BCF3003).
-        EmitNode(writer, node.Content, seq + 1, node.Key.ToCode());
+        int next = EmitNode(writer, node.Content, seq + 1, node.Key.ToCode());
         writer.Indent--;
         writer.AppendLine("}");
         writer.AppendLine("__builder.CloseRegion();");
-        return seq + SequenceAllocator.Width(node);
+        return next;
     }
 
     private static int EmitExpansion(IndentedWriter writer, ExpansionNode node, int startSeq, string? key = null)
@@ -207,16 +209,19 @@ internal static class RenderViewEmitter
                     + $"({RenderFragmentType})((__builder) =>");
             writer.AppendLine("{");
             writer.Indent++;
-            // Sequence numbering continues flatly from `next + 1`, see SequenceAllocator's ComponentNode
-            // case for why a slot must not restart its own sequence space.
-            EmitNode(writer, slot.Content, next + 1);
+            // Sequence numbering continues flatly from `next + 1`: a slot must not restart its own
+            // sequence space. A slot's frames belong to the *child* component's frame list, and a host
+            // that invokes the fragment directly (instead of passing it to AddContent) gets no isolating
+            // region, so restarting at 0 collides with the host's own low numbers and remounts components
+            // (measured). ARCHITECTURE.md §2.7 records this.
+            int afterSlotContent = EmitNode(writer, slot.Content, next + 1);
             writer.Indent--;
             writer.AppendLine("}));");
-            next += 1 + SequenceAllocator.Width(slot.Content);
+            next = afterSlotContent;
         }
 
         writer.AppendLine("__builder.CloseComponent();");
-        return seq + SequenceAllocator.Width(node);
+        return next;
     }
 
     private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
@@ -243,7 +248,7 @@ internal static class RenderViewEmitter
         foreach (var child in node.Children)
             next = EmitNode(writer, child, next);
         writer.AppendLine("__builder.CloseElement();");
-        return seq + SequenceAllocator.Width(node);
+        return next;
     }
 
     private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)
@@ -260,7 +265,7 @@ internal static class RenderViewEmitter
         int next = seq;
         foreach (var child in node.Children)
             next = EmitNode(writer, child, next);
-        return seq + SequenceAllocator.Width(node);
+        return next;
     }
 
     private static int EmitRawMarkup(IndentedWriter writer, RawMarkupNode node, int seq, string? key = null)

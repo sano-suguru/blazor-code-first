@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler;
-using BlazorCodeFirst.Compiler.Generation;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -119,10 +118,12 @@ public sealed class RenderViewEmitterDecorationTests
     }
 
     [Fact]
-    public void EmitElement_SequenceArgumentCount_EqualsWidth()
+    public void EmitElement_EmittedSequenceArguments_AreDense()
     {
-        // Regression guard for the Width/Emit invariant: for a non-branching element tree the number of
-        // sequence-consuming builder calls emitted must equal SequenceAllocator.Width(node).
+        // Regression guard for the emitter's sequence arithmetic: the numbers emitted for a decorated
+        // element with attributes, events, and nested children must form a dense run with no gap and no
+        // repeat. SequenceArguments.AssertDense records why this replaced a comparison against an
+        // independently computed width (#69).
         var node = new ElementNode(
             "a",
             ImmutableArray.Create(ExpressionTemplate.Literal("\"nav\"")),
@@ -135,11 +136,6 @@ public sealed class RenderViewEmitterDecorationTests
                 new ElementNode("span", default, default, default,
                     ImmutableArray.Create<RenderNode>(new TextContentNode(ExpressionTemplate.Literal("\"!\""))))));
 
-        var code = EmitRoot(node);
-        int seqCalls = System.Text.RegularExpressions.Regex.Count(
-            code,
-            @"__builder\.(OpenElement|AddAttribute|AddContent|OpenComponent|AddComponentParameter)\(");
-
-        Assert.Equal(SequenceAllocator.Width(node), seqCalls);
+        SequenceArguments.AssertDense(EmitRoot(node));
     }
 }
