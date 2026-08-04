@@ -194,6 +194,30 @@ internal sealed class KnownSymbols
     };
 
     /// <summary>
+    /// The curated tags as a set, derived from <see cref="CuratedTags"/>. Declared after that table
+    /// because static field initializers run in declaration order; moving this above it yields an empty
+    /// set. <c>KnownSymbolsSyncTests</c> holds it against the name table in both count and content.
+    /// </summary>
+    private static readonly HashSet<string> CuratedTagValues =
+        new(CuratedTags.Values, System.StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether <paramref name="tag"/> is one of the curated element tags. Used by the #140 fold
+    /// predicate as its allow-list: a tag outside this set (and outside <see cref="VoidTags"/>) reaches
+    /// a <c>Body</c> only through <c>Element("…")</c>, and folding it would mean serializing markup for
+    /// a tag whose HTML text interpretation the compiler has not vetted.
+    /// </summary>
+    /// <remarks>
+    /// Static and ordinal, for the same reasons as <see cref="IsVoidTag"/>: the curated table is the
+    /// compiler's own and needs nothing resolved out of a compilation, and every curated tag is
+    /// lowercase, so <c>Element("DIV")</c> is deliberately not curated.
+    /// </remarks>
+    public static bool IsCuratedTag(string tag) => CuratedTagValues.Contains(tag);
+
+    /// <summary>The curated element tags, for <c>KnownSymbolsSyncTests</c>.</summary>
+    public static IReadOnlyCollection<string> CuratedElementTags => CuratedTagValues;
+
+    /// <summary>
     /// The HTML Living Standard's void elements, the tags that have no closing tag and therefore cannot
     /// carry children. Keyed on the tag rather than the helper name so one table covers both surface
     /// paths: a curated helper resolves through <see cref="ElementTags"/> and an <c>Element</c> call
