@@ -37,4 +37,27 @@ public sealed class FoldFixtureTests : BunitContext
         Assert.Equal(23, elementFrames.GetFrames().Count);
         Assert.Equal(6, markupFrames.GetFrames().Count);
     }
+
+    [Fact]
+    public void Mixed_MarkupSpelling_RendersTheSameDomAsTheElementSpelling()
+    {
+        var element = Render<MixedElementView>();
+        var markup = Render<MixedMarkupView>();
+
+        markup.MarkupMatches(element.Markup);
+    }
+
+    [Fact]
+    public void Mixed_MarkupSpelling_EmitsStrictlyFewerFrames()
+    {
+        var elementFrames = new RenderTreeBuilder();
+        var markupFrames = new RenderTreeBuilder();
+        new MixedElementView().Build(elementFrames);
+        new MixedMarkupView().Build(markupFrames);
+
+        // The low-static shape: only two runs are foldable and each is a single element, so the
+        // reduction is small on purpose. This is the lower bound of the measured range.
+        Assert.Equal(12, elementFrames.GetFrames().Count);
+        Assert.Equal(10, markupFrames.GetFrames().Count);
+    }
 }
