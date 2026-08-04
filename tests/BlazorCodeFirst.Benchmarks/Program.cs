@@ -1,6 +1,7 @@
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Running;
 using BlazorCodeFirst.Benchmarks.Components;
+using BlazorCodeFirst.IntegrationTests.Components;
 using BlazorCodeFirst.IntegrationTests.DiffCost;
 using Microsoft.AspNetCore.Components.Rendering;
 
@@ -32,11 +33,48 @@ internal static class Program
             return 1;
         }
 
+        // The #140 fold pairs cannot pass the gate above: their frames differ by construction,
+        // because that difference IS the measurement. The useful condition is the inverse one. If
+        // the markup spelling does not emit strictly fewer frames it is not folded, and a ratio
+        // between the two would describe nothing. The counts are printed either way: they are
+        // deterministic, so they are a recorded fact rather than a measurement.
+        (string Name, int Element, int Markup)[] foldPairs =
+        [
+            ("static-heavy",
+                FrameCount(builder => new StaticHeavyElementView().Build(builder)),
+                FrameCount(builder => new StaticHeavyMarkupView().Build(builder))),
+            ("low-static",
+                FrameCount(builder => new MixedElementView().Build(builder)),
+                FrameCount(builder => new MixedMarkupView().Build(builder))),
+        ];
+
+        foreach (var pair in foldPairs)
+        {
+            Console.WriteLine(
+                $"#140 fold pair '{pair.Name}': {pair.Element} frames unfolded, {pair.Markup} folded.");
+
+            if (pair.Markup >= pair.Element)
+            {
+                Console.Error.WriteLine(
+                    $"The '{pair.Name}' fold pair's markup spelling emits {pair.Markup} frames against " +
+                    $"the element spelling's {pair.Element}, so it is not folded and the #140 " +
+                    "comparison would not measure folding.");
+                return 1;
+            }
+        }
+
         var config = ManualConfig.Create(DefaultConfig.Instance)
             .WithArtifactsPath(ResolveArtifactsPath());
 
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args, config);
         return 0;
+
+        static int FrameCount(Action<RenderTreeBuilder> build)
+        {
+            var builder = new RenderTreeBuilder();
+            build(builder);
+            return builder.GetFrames().Count;
+        }
     }
 
     /// <summary>
