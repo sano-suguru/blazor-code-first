@@ -50,6 +50,56 @@ public sealed class VariantEquivalenceTests
         Assert.Equal(RowRegionSequence(hiddenBuilder), RowRegionSequence(shownBuilder));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VariantC_AgainstGeneratedVariantA_DiffersOnlyInSequenceNumbersAndRegionFrames(bool showBanner)
+    {
+        var log = new RowLifecycleLog();
+        var a = new BannerListComponent { RowCount = 3, Lifecycle = log, ShowBanner = showBanner };
+        var c = new RuntimeIncrementBannerListComponent
+        {
+            RowCount = 3,
+            Lifecycle = log,
+            ShowBanner = showBanner,
+        };
+
+        var left = new RenderTreeBuilder();
+        var right = new RenderTreeBuilder();
+        a.Build(left);
+        c.Build(right);
+
+        // C emits no regions at all, which is what makes it the naive method. Everything else,
+        // including nesting once the region frames are normalised away, has to match.
+        FrameEquivalence.AssertEquivalent(left, right, ignoreRegionFrames: true);
+    }
+
+    [Fact]
+    public void VariantC_WithWideBanner_AddsExactlyOneFrame()
+    {
+        // The wide banner exists so the sweep can measure both alignments. Assert the width it
+        // actually adds, because the whole point is that 3 divides the row width and 2 does not.
+        var narrow = new RuntimeIncrementBannerListComponent
+        {
+            RowCount = 1,
+            BannerFrameWidth = 2,
+            ShowBanner = true,
+        };
+        var wide = new RuntimeIncrementBannerListComponent
+        {
+            RowCount = 1,
+            BannerFrameWidth = 3,
+            ShowBanner = true,
+        };
+
+        var narrowBuilder = new RenderTreeBuilder();
+        var wideBuilder = new RenderTreeBuilder();
+        narrow.Build(narrowBuilder);
+        wide.Build(wideBuilder);
+
+        Assert.Equal(narrowBuilder.GetFrames().Count + 1, wideBuilder.GetFrames().Count);
+    }
+
     /// <summary>
     /// Returns the sequence number of the last region frame, which is the one wrapping the rows.
     /// </summary>
