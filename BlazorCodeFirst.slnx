@@ -9,5 +9,6 @@
     <Project Path="tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTests.csproj" />
     <Project Path="tests/BlazorCodeFirst.Runtime.Tests/BlazorCodeFirst.Runtime.Tests.csproj" />
     <Project Path="tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj" />
+    <Project Path="tests/BlazorCodeFirst.WebAppTests/BlazorCodeFirst.WebAppTests.csproj" />
   </Folder>
 </Solution>
