@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The analyzer delivered exactly as samples/ and site/ deliver it. -->
+  <!-- The analyzer delivered exactly as this repository's own consumer projects deliver it. -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
     <ProjectReference Include="..\..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"

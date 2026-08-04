@@ -32,7 +32,7 @@ the error is delivered. BCF3008 is the case that proved it: its retirement in fa
 that the type system genuinely raises was measured here and found to leave the author with nothing
 but CS0534 and a generic BCF1003, so the detection was restored as a generator diagnostic.
 
-**Delivery path.** `ProjectReference … OutputItemType="Analyzer"` (what `samples/` and `site/` use)
+**Delivery path.** `ProjectReference … OutputItemType="Analyzer"` (what this repository's own consumer projects use)
 and the packed `analyzers/dotnet/cs/` layout (what an external consumer gets) are different paths
 to the same DLL, and `eng/verify-package.sh` only asserts that the file is *in* the package.
 

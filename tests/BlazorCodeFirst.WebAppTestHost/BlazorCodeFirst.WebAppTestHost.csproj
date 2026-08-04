@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WebApplicationFactory<Program> binds the internal Program that top-level statements
+         synthesize, so the test project needs access to this assembly's internals. -->
+    <InternalsVisibleTo Include="BlazorCodeFirst.WebAppTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

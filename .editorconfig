@@ -106,10 +106,6 @@ dotnet_diagnostic.CA1849.severity = none
 # Test helpers need not validate parameters that tests always supply.
 dotnet_diagnostic.CA1062.severity = none
 
-# Sample application: entry-point/page types are public by Blazor convention.
-[samples/**/*.cs]
-dotnet_diagnostic.CA1515.severity = none
-
 # Production code: banned-API usage (reflection / runtime expression compilation) is a
 # hard error, guarding the trimming/AOT-safe contract.
 [src/**/*.cs]
