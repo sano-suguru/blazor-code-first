@@ -37,7 +37,7 @@ public sealed class RenderViewEmitterForEachTests
     [Fact]
     public void Emit_ForEachRoot_EmitsSetKeyAfterContentRootOpenElement()
     {
-        // Regression guard for the Task-9 defect: Blazor's SetKey applies to the currently open
+        // Regression guard for the render-time defect ARCHITECTURE.md §2.7(B) records: Blazor's SetKey applies to the currently open
         // element/component frame, so SetKey emitted while the open frame is the OpenRegion frame
         // throws "Cannot set a key on a frame of type Region." at render time. SetKey must therefore
         // appear AFTER the content root's OpenElement, not merely be present in the output.

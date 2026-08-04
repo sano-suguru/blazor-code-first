@@ -333,7 +333,7 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ForEach_WithSlotContent_EmitsSetKeyBeforeTheSlotParameter()
     {
-        // Regression guard mirroring the Task-9 SetKey defect, but for a slot instead of a plain
+        // Regression guard mirroring the SetKey defect ARCHITECTURE.md §2.7(B) records, but for a slot instead of a plain
         // element: SetKey applies to whichever frame is currently open, so it must be emitted right
         // after OpenComponent and before the slot's AddComponentParameter opens the fragment. Emitting
         // it after the slot parameter would try to key a frame that is no longer the component frame

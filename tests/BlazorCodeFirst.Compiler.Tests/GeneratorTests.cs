@@ -738,7 +738,8 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.AddMarkupContent(4, \"<span>footer</span>\");", generated);
 
         // SetKey must land on the content root's span frame, after OpenElement(2, "span"), never
-        // after OpenRegion(1). This is the regression guard for the Task-9 render-time defect.
+        // after OpenRegion(1). This is the regression guard for the render-time defect
+        // ARCHITECTURE.md §2.7(B) records.
         int spanIdx = generated.IndexOf("__builder.OpenElement(2, \"span\");", System.StringComparison.Ordinal);
         int keyIdx = generated.IndexOf("__builder.SetKey(", System.StringComparison.Ordinal);
         Assert.True(spanIdx >= 0, "content root OpenElement should be emitted");
