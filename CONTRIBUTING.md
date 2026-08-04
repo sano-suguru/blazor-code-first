@@ -13,7 +13,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 
 ## Solution layout
 
-`BlazorCodeFirst.slnx` contains seven projects:
+`BlazorCodeFirst.slnx` contains eight projects:
 
 - `src/BlazorCodeFirst.Runtime`: runtime types (`BodyComponentBase`, the inert
   element helpers, the `ElementBuilder` decorators and child-list indexer that
@@ -27,7 +27,12 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
   real MSBuild and asserts on what the compiler actually reported. The other
   diagnostic tests drive the generator in-process and cannot see whether a
   diagnostic reaches a build at all.
-- `samples/BlazorCodeFirst.Samples.Counter`: a runnable sample.
+- `tests/BlazorCodeFirst.WebAppTestHost`: a Blazor Web App with an
+  `InteractiveServer` render mode. The only project here that prerenders over a
+  real HTTP pipeline and then hydrates, which no other test layer can observe.
+  Run it with `dotnet watch` to look at generated output in a browser.
+- `tests/BlazorCodeFirst.WebAppTests`: asserts that host's prerendered HTML
+  through `WebApplicationFactory`.
 
 `tests/diagnostic-fixtures` is deliberately outside the solution: every project
 there fails to compile by design. See its README before adding one.
@@ -110,7 +115,7 @@ BLAZORCODEFIRST_TRIM_OUTPUT=$(pwd)/tests/BlazorCodeFirst.TrimTestApp/bin/Release
   dotnet test tests/BlazorCodeFirst.TrimTests/BlazorCodeFirst.TrimTests.csproj
 ```
 
-Hot Reload against the sample: `dotnet watch --project samples/BlazorCodeFirst.Samples.Counter/BlazorCodeFirst.Samples.Counter.csproj`.
+Hot Reload against the test host: `dotnet watch --project tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj`.
 
 To read the `RenderView` the generator actually emitted for a project, which is
 the fastest way to confirm what a `Body` lowered to and the only way to see

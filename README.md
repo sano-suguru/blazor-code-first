@@ -42,9 +42,9 @@ public partial class CounterPage : BodyComponentBase
 }
 ```
 
-That is `samples/BlazorCodeFirst.Samples.Counter/Components/CounterPage.cs` without its namespace
-declaration, copied from a project CI builds rather than written for the README. Run it with
-`dotnet watch --project samples/BlazorCodeFirst.Samples.Counter/BlazorCodeFirst.Samples.Counter.csproj`.
+That is `tests/BlazorCodeFirst.WebAppTestHost/Components/CounterPage.cs` without its namespace
+declaration, copied from a project CI builds and tests rather than written for the README. Run it with
+`dotnet watch --project tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj`.
 
 ## What "type-safe" means here
 
