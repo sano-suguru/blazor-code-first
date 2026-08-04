@@ -65,9 +65,9 @@ public sealed class BracketSurfaceDiagnosticTests
     /// Only the BlazorCodeFirst host produces output, <c>Card</c> and <c>Plain</c> are ordinary
     /// <c>ComponentBase</c> classes, so a single generated source is the expected shape.
     /// </summary>
-    private static string GenerateSource(string body)
+    private static string GenerateSource(string body, string members = "")
     {
-        var result = RunResult(body);
+        var result = RunResult(body, members);
         CompilationTestHost.AssertOutputCompiles(result);
         return Assert.Single(result.GeneratedSources).SourceText.ToString();
     }
@@ -290,23 +290,30 @@ public sealed class BracketSurfaceDiagnosticTests
         // Html.Fragment is the third params ReadOnlySpan<View> surface and reads the gate at
         // RenderExpressionAnalyzer.cs:272. One shared fix has to reach it. Wrapped in a Div because
         // Fragment opens no element frame, which keeps this about children rather than root shape.
-        var literal = GenerateSource("""Div[Fragment(["a", "b"])]""");
-        var expanded = GenerateSource("""Div[Fragment("a", "b")]""");
+        // Non-constant children, so the two text frames stay separate: folded into markup they would
+        // concatenate to "ab", which a single child spelled "ab" would produce too, and the whole point is
+        // that the literal was unwrapped into two children.
+        const string members = """private string _a => "a"; private string _b => "b";""";
+        var literal = GenerateSource("""Div[Fragment([_a, _b])]""", members);
+        var expanded = GenerateSource("""Div[Fragment(_a, _b)]""", members);
 
         Assert.Equal(expanded, literal);
-        Assert.Contains("""AddContent(1, "a")""", literal);
-        Assert.Contains("""AddContent(2, "b")""", literal);
+        Assert.Contains("AddContent(1, _a)", literal);
+        Assert.Contains("AddContent(2, _b)", literal);
     }
 
     [Fact]
     public void ComponentIndexer_CollectionExpressionLiteralChildren_GeneratesSameSourceAsExpanded()
     {
         // The component indexer reads the same gate at RenderExpressionAnalyzer.cs:620.
-        var literal = GenerateSource("""Component<Card>()[["a", "b"]]""");
-        var expanded = GenerateSource("""Component<Card>()["a", "b"]""");
+        // Non-constant children, for the reason the fragment case above gives.
+        const string members = """private string _a => "a"; private string _b => "b";""";
+        var literal = GenerateSource("""Component<Card>()[[_a, _b]]""", members);
+        var expanded = GenerateSource("""Component<Card>()[_a, _b]""", members);
 
         Assert.Equal(expanded, literal);
-        Assert.Contains("AddContent", literal);
+        Assert.Contains("AddContent(2, _a)", literal);
+        Assert.Contains("AddContent(3, _b)", literal);
     }
 
     [Fact]

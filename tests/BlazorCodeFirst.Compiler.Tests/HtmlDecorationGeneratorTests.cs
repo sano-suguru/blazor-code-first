@@ -12,12 +12,15 @@ public sealed class HtmlDecorationGeneratorTests
         }
         """;
 
+    // Non-constant class, so the div is not folded away: what this test checks is that the decoration lands
+    // on its own attribute frame at seq+1.
     private const string ClassOnDivSource = """
         using BlazorCodeFirst;
 
         public partial class C : BodyComponentBase
         {
-            protected override View Body => Html.Div.Class("panel")[Html.Span["x"]];
+            private string _cls => "panel";
+            protected override View Body => Html.Div.Class(_cls)[Html.Span["x"]];
         }
         """;
 
@@ -42,7 +45,7 @@ public sealed class HtmlDecorationGeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
-        Assert.Contains("__builder.AddAttribute(1, \"class\", \"panel\")", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", _cls)", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 }

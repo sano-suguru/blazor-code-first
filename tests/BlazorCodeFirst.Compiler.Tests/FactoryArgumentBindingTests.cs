@@ -18,6 +18,12 @@ public sealed class FactoryArgumentBindingTests
             {
                 private bool _on;
 
+                // Non-constant text for the cases that need the static fold out of the way: a folded run
+                // concatenates its children into one string, and this file's subject is how many children
+                // an argument list bound in the first place.
+                private string _a => "a";
+                private string _b => "b";
+
                 protected override View Body => {{bodyExpression}};
             }
             """;
@@ -297,16 +303,16 @@ public sealed class FactoryArgumentBindingTests
         // indexer as one whole collection rather than two children. Under the params-collections rules
         // it is the same call as the expanded spelling and passes the same span, so it must emit the
         // same code.
-        var literal = GenerateBody("""Div[[Span["a"], Span["b"]]]""");
-        var expanded = GenerateBody("""Div[Span["a"], Span["b"]]""");
+        var literal = GenerateBody("""Div[[Span[_a], Span[_b]]]""");
+        var expanded = GenerateBody("""Div[Span[_a], Span[_b]]""");
 
         Assert.Equal(expanded, literal);
 
         // Equality alone would also hold for two childless divs, so pin that the children are really
         // there: two spans, each with its own text at its own sequence number.
         Assert.Equal(2, Regex.Count(literal, """OpenElement\(\d+, "span"\)"""));
-        Assert.Contains("""AddContent(2, "a")""", literal);
-        Assert.Contains("""AddContent(4, "b")""", literal);
+        Assert.Contains("AddContent(2, _a)", literal);
+        Assert.Contains("AddContent(4, _b)", literal);
     }
 
     [Fact]
@@ -316,12 +322,12 @@ public sealed class FactoryArgumentBindingTests
         // a literal passed by parameter name. It binds through the same params slot, so it must mean the
         // same thing, pinned here so a future change that keys the literal on argument position rather
         // than on the bound parameter cannot pass silently.
-        var named = GenerateBody("""Div[children: ["a", "b"]]""");
-        var positional = GenerateBody("""Div["a", "b"]""");
+        var named = GenerateBody("""Div[children: [_a, _b]]""");
+        var positional = GenerateBody("""Div[_a, _b]""");
 
         Assert.Equal(positional, named);
-        Assert.Contains("""AddContent(1, "a")""", named);
-        Assert.Contains("""AddContent(2, "b")""", named);
+        Assert.Contains("AddContent(1, _a)", named);
+        Assert.Contains("AddContent(2, _b)", named);
     }
 
     [Fact]

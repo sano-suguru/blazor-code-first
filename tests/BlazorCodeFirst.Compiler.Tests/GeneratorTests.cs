@@ -83,8 +83,9 @@ public sealed class GeneratorTests
         Assert.Contains(
             "protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)",
             source);
-        Assert.Contains("__builder.OpenElement(0, \"span\")", source);
-        Assert.Contains("__builder.AddContent(1, \"Count\")", source);
+        // The body is fully static, so it folds into one markup frame. What this test is about is that a
+        // RenderView override is generated with the body's content in it at all.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>Count</span>\")", source);
     }
 
     [Fact]
@@ -109,7 +110,8 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "__builder.AddMarkupContent(0, \"<span>Count</span>\")", generated, StringComparison.Ordinal);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -142,7 +144,8 @@ public sealed class GeneratorTests
             ("File2.cs", file2));
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "__builder.AddMarkupContent(0, \"<span>split</span>\")", generated, StringComparison.Ordinal);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -615,6 +618,8 @@ public sealed class GeneratorTests
     // If emission
     // -----------------------------------------------------------------------
 
+    // Non-constant branch and sibling text, so the static fold leaves two frames per branch: what this test
+    // is about is that the two branch ranges are disjoint, and a one-frame branch would barely show it.
     private const string IfCounterSource = """
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
@@ -622,11 +627,14 @@ public sealed class GeneratorTests
         public partial class IfCounter : BodyComponentBase
         {
             private bool _visible = true;
+            private string _yes => "Yes";
+            private string _no => "No";
+            private string _always => "Always";
 
             protected override View Body =>
                 Div[
-                    If(_visible, () => Span["Yes"], () => Span["No"]),
-                    Span["Always"]];
+                    If(_visible, () => Span[_yes], () => Span[_no]),
+                    Span[_always]];
         }
         """;
 
@@ -642,20 +650,20 @@ public sealed class GeneratorTests
         // If region boundary at 1 (one literal sequence for the conditional region)
         Assert.Contains("__builder.OpenRegion(1)", generated);
 
-        // then branch: Span["Yes"] uses [2, 3]
+        // then branch: Span[_yes] uses [2, 3]
         Assert.Contains("__builder.OpenElement(2, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(3, \"Yes\")", generated);
+        Assert.Contains("__builder.AddContent(3, _yes)", generated);
 
-        // else branch: Span["No"] uses [4, 5], disjoint from then range [2, 3]
+        // else branch: Span[_no] uses [4, 5], disjoint from then range [2, 3]
         Assert.Contains("__builder.OpenElement(4, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(5, \"No\")", generated);
+        Assert.Contains("__builder.AddContent(5, _no)", generated);
 
         // Region close (no sequence argument)
         Assert.Contains("__builder.CloseRegion()", generated);
 
-        // Span["Always"] starts at 6, same sequence regardless of which branch ran
+        // Span[_always] starts at 6, same sequence regardless of which branch ran
         Assert.Contains("__builder.OpenElement(6, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(7, \"Always\")", generated);
+        Assert.Contains("__builder.AddContent(7, _always)", generated);
 
         // All sequence numbers are compile-time literals; no runtime ++ variable
         Assert.DoesNotContain("__seq", generated);
@@ -682,8 +690,9 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenRegion(0)", generated);
-        Assert.Contains("__builder.OpenElement(1, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(2, \"Visible\")", generated);
+        // The then branch is static and folds into one markup frame; the claim here is that only the then
+        // branch is emitted, which the absent else below carries.
+        Assert.Contains("__builder.AddMarkupContent(1, \"<span>Visible</span>\")", generated);
         Assert.Contains("__builder.CloseRegion()", generated);
 
         // No else branch
@@ -724,9 +733,9 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.OpenElement(2, \"span\");", generated);
         Assert.Contains("__builder.AddContent(3,", generated);
         Assert.Contains("__builder.CloseRegion();", generated);
-        // Following sibling is stable: Div(1) + ForEach region(1 + content 2) => next span at 4.
-        Assert.Contains("__builder.OpenElement(4, \"span\");", generated);
-        Assert.Contains("__builder.AddContent(5, \"footer\");", generated);
+        // Following sibling is stable: Div(1) + ForEach region(1 + content 2) => next sibling at 4. It is
+        // static, so it is one folded markup frame there rather than an element and a text frame.
+        Assert.Contains("__builder.AddMarkupContent(4, \"<span>footer</span>\");", generated);
 
         // SetKey must land on the content root's span frame, after OpenElement(2, "span"), never
         // after OpenRegion(1). This is the regression guard for the Task-9 render-time defect.
@@ -1085,7 +1094,9 @@ public sealed class GeneratorTests
         Assert.Contains("string __bcf_arg_1_0 = Compute();", generated);
         Assert.Contains("__builder.OpenElement(1, \"span\")", generated);
         Assert.Contains("__builder.AddContent(2, __bcf_arg_1_0)", generated);
-        Assert.Contains("__builder.OpenElement(3, \"span\")", generated);
+        // The static sibling folds; it is here to show the expansion's width was accounted for, and the
+        // folded frame's sequence number still says that.
+        Assert.Contains("__builder.AddMarkupContent(3, \"<span>After</span>\")", generated);
         Assert.DoesNotContain("Label(", generated);
     }
 
@@ -1665,7 +1676,10 @@ public sealed class GeneratorTests
 
         Assert.DoesNotContain("Outer(", generated);
         Assert.DoesNotContain("Inner(", generated);
-        Assert.Contains("\"tail\"", generated);
+        // The inner expansion's local is initialized from the outer's local, which is not a compile-time
+        // constant, so nothing above it folds and only the outer body's own static sibling does. Its
+        // sequence number says the inner expansion's width was accounted for.
+        Assert.Contains("__builder.AddMarkupContent(3, \"<span>tail</span>\")", generated);
     }
 
     [Fact]
@@ -1768,8 +1782,9 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The parameter 'value' does not exist after expansion, so nameof(value) must collapse to its
-        // compile-time constant string rather than reference an out-of-scope name.
-        Assert.Contains("__builder.AddContent(1, \"value\")", generated);
+        // compile-time constant string rather than reference an out-of-scope name. Being a constant, it
+        // folds into the markup, which is itself the strongest statement that it collapsed.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>value</span>\")", generated);
         Assert.DoesNotContain("nameof(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -1794,7 +1809,7 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // nameof(value.Length) evaluates to "Length"; the vanished parameter must not survive as text.
-        Assert.Contains("__builder.AddContent(1, \"Length\")", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>Length</span>\")", generated);
         Assert.DoesNotContain("value", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -1846,7 +1861,7 @@ public sealed class GeneratorTests
 
         // 'StringBuilder' is only in scope through 'using System.Text;', which the generated file lacks;
         // the nameof must collapse to its constant string rather than reference an out-of-scope type.
-        Assert.Contains("__builder.AddContent(1, \"StringBuilder\")", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>StringBuilder</span>\")", generated);
         Assert.DoesNotContain("nameof(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -1886,7 +1901,7 @@ public sealed class GeneratorTests
 
         // '_secret' is a private field of Widgets and does not exist inside Counter's generated RenderView;
         // nameof(_secret) must collapse to its constant string so it never references the vanished member.
-        Assert.Contains("__builder.AddContent(1, \"_secret\")", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>_secret</span>\")", generated);
         Assert.DoesNotContain("nameof(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -2346,7 +2361,7 @@ public sealed class GeneratorTests
         // while nothing references the invalid Helper: no broken generated output is produced.
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.DoesNotContain("Helper", generated);
-        Assert.Contains("\"Body\"", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>Body</span>\")", generated);
     }
 
     // -----------------------------------------------------------------------
@@ -2663,13 +2678,15 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                protected override View Body => Span.Class("badge")["Hi"];
+                private string _badge => "badge";
+                protected override View Body => Span.Class(_badge)["Hi"];
             }
             """);
 
+        // Non-constant class, so the span is not folded away: the class attribute frame is the point.
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("__builder.OpenElement(0, \"span\");", source);
-        Assert.Contains("__builder.AddAttribute(1, \"class\", \"badge\");", source);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", _badge);", source);
         Assert.Contains("__builder.AddContent(2, \"Hi\");", source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -2683,12 +2700,16 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                protected override View Body => Span.Class("a").Class("b")["Hi"];
+                private string _a => "a";
+                private string _b => "b";
+                protected override View Body => Span.Class(_a).Class(_b)["Hi"];
             }
             """);
 
+        // Non-constant classes: what is pinned here is the concatenation expression the class channel emits,
+        // and that expression exists only when the element is not folded.
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (\"a\") + \" \" + (\"b\"));", source);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", (_a) + \" \" + (_b));", source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

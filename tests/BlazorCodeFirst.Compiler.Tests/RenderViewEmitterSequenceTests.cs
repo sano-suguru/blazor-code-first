@@ -14,13 +14,28 @@ public sealed class RenderViewEmitterSequenceTests
             HintName: "T.g.cs", ClassName: "T", TypeParameters: default, Namespace: null,
             RootNode: root)).ToString();
 
+    /// <summary>
+    /// A non-constant expression. Every case below that uses this stays unfolded, which is deliberate:
+    /// these baselines were recorded against the element form, and keeping them unfolded preserves that
+    /// evidence. The folded shape is covered by the <c>folded-*</c> cases, which use <see cref="Const"/>.
+    /// </summary>
     private static ExpressionTemplate Code(string code) => ExpressionTemplate.Literal(code);
+
+    /// <summary>An expression carrying a constant string value, so nodes built from it fold.</summary>
+    private static ExpressionTemplate Const(string value) =>
+        ExpressionTemplate.Create(
+            [new LiteralExpressionSegment(
+                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true))],
+            new ConstantInfo(value));
 
     private static ElementNode Element(string tag, params RenderNode[] children) =>
         new(tag, default, default, default, ImmutableArray.Create(children));
 
     private static ElementNode Span(string literal) =>
         Element("span", new TextContentNode(Code(literal)));
+
+    private static ElementNode StaticSpan(string text) =>
+        Element("span", new TextContentNode(Const(text)));
 
     public static TheoryData<string> CaseNames() => new([.. Cases.Keys]);
 
@@ -128,6 +143,34 @@ public sealed class RenderViewEmitterSequenceTests
             ["expansion-with-locals"] = new ExpansionNode(
                 ImmutableArray.Create(new LocalBinding("string", "__c0", Code("\"heading\""))),
                 Element("div", Span("__c0"), Span("\"b\""))),
+
+            // --- folded runs ----------------------------------------------------------------------
+            // A markup frame reserves and writes exactly one sequence number, so the density property
+            // holds without a special case. These cases put a fold next to every construct that reserves
+            // a range for something else, which is where a reservation error would move.
+            ["folded-run-in-element"] = Element("div", StaticSpan("a"), StaticSpan("b")),
+            ["folded-run-split-by-dynamic-sibling"] = Element(
+                "div",
+                StaticSpan("a"),
+                Element("span", new TextContentNode(Code("Count"))),
+                StaticSpan("b")),
+            ["folded-fragment-root"] = new FragmentNode(
+                ImmutableArray.Create<RenderNode>(StaticSpan("a"), StaticSpan("b"))),
+            ["folded-both-if-branches-with-sibling"] = Element(
+                "div",
+                new IfNode(Code("_flag"), Element("p", StaticSpan("t")), Element("p", StaticSpan("f"))),
+                StaticSpan("after")),
+            ["folded-inside-foreach-content"] = Element(
+                "div",
+                new ForEachNode(Code("_items"), Code("item.Id"), Element("li", StaticSpan("x")), "item"),
+                StaticSpan("after")),
+            ["folded-component-slot-with-sibling"] = Element(
+                "div",
+                new ComponentNode(
+                    "global::T.Card",
+                    ImmutableArray.Create(new ComponentParameter("Title", Code("\"t\""))),
+                    ImmutableArray.Create(new ComponentSlotNode("ChildContent", Element("p", StaticSpan("a"))))),
+                StaticSpan("after")),
         };
 
     [Theory]

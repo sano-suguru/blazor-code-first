@@ -39,9 +39,18 @@ public partial class BannerListComponent : BodyComponentBase
 
     private IEnumerable<int> Rows => Enumerable.Range(0, RowCount);
 
+    /// <summary>
+    /// The banner's text, as a property rather than a literal so that #140's static fold does not apply to
+    /// it. The §7.2 comparison is about sequence assignment and region isolation, and variants B and C are
+    /// hand-written <c>RenderTreeBuilder</c> code, which is how other libraries emit and therefore never
+    /// folds. A folded banner here would be one frame against their two and the frame-equivalence gate
+    /// would be comparing different trees, so the measurement would no longer be attributable.
+    /// </summary>
+    private static string BannerText => "banner";
+
     protected override View Body =>
         Div[
-            If(ShowBanner, () => P["banner"]),
+            If(ShowBanner, () => P[BannerText]),
             ForEach(Rows,
                 key: i => i,
                 content: i => Component<CountingRowComponent>()

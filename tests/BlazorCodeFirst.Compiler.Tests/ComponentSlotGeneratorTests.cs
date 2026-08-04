@@ -83,8 +83,9 @@ public sealed class ComponentSlotGeneratorTests
             "__builder.AddComponentParameter(2, \"ChildContent\", "
                 + "(global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>",
             code);
-        Assert.Contains("__builder.OpenElement(3, \"div\");", code);
-        Assert.Contains("__builder.AddContent(4, \"x\");", code);
+        // The slot's content is fully static, so it folds into one markup frame. What this test needs from
+        // it is unchanged: the content starts at the sequence number after the slot parameter.
+        Assert.Contains("__builder.AddMarkupContent(3, \"<div>x</div>\");", code);
     }
 
     [Fact]
@@ -105,8 +106,9 @@ public sealed class ComponentSlotGeneratorTests
 
         // Both children share the single ChildContent fragment; only one AddComponentParameter for it.
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(code, @"""ChildContent"""));
-        Assert.Contains("__builder.OpenElement(2, \"div\");", code);
-        Assert.Contains("__builder.AddContent(4, \"text\");", code);
+        // Both children are static and adjacent, so they fold into one markup frame — which shows them
+        // sharing the one slot more directly than the pair of frame assertions this replaced.
+        Assert.Contains("__builder.AddMarkupContent(2, \"<div>a</div>text\");", code);
     }
 
     [Fact]
@@ -130,7 +132,7 @@ public sealed class ComponentSlotGeneratorTests
             "__builder.AddComponentParameter(1, \"Footer\", "
                 + "(global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>",
             code);
-        Assert.Contains("__builder.OpenElement(2, \"div\");", code);
+        Assert.Contains("__builder.AddMarkupContent(2, \"<div>f</div>\");", code);
     }
 
     [Fact]
@@ -170,11 +172,12 @@ public sealed class ComponentSlotGeneratorTests
         var code = GeneratedHost(result);
 
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        // outer OpenComponent=0, outer slot=1, inner OpenComponent=2, inner slot=3, div=4, text=5
+        // outer OpenComponent=0, outer slot=1, inner OpenComponent=2, inner slot=3, folded content=4. The
+        // claim under test is that a slot does not restart its own sequence space, and the inner
+        // component's 2 and the inner slot's content at 4 still show that.
         Assert.Contains("__builder.OpenComponent<global::T.Card>(0);", code);
         Assert.Contains("__builder.OpenComponent<global::T.Card>(2);", code);
-        Assert.Contains("__builder.OpenElement(4, \"div\");", code);
-        Assert.Contains("__builder.AddContent(5, \"deep\");", code);
+        Assert.Contains("__builder.AddMarkupContent(4, \"<div>deep</div>\");", code);
     }
 
     [Fact]

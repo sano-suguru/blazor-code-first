@@ -42,8 +42,10 @@ public sealed class BracketSurfaceSlotOrderTests
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
+        // Footer first, and ChildContent after the whole width of Footer's content — one folded markup frame
+        // at 2, so 3. The order is the claim; the numbers say the first slot's content was accounted for.
         Assert.Contains("__builder.AddComponentParameter(1, \"Footer\"", generated);
-        Assert.Contains("__builder.AddComponentParameter(4, \"ChildContent\"", generated);
+        Assert.Contains("__builder.AddComponentParameter(3, \"ChildContent\"", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 }

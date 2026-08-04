@@ -2,12 +2,15 @@ namespace BlazorCodeFirst.Compiler.Tests;
 
 public sealed class HtmlElementTagGeneratorTests
 {
+    // Non-constant child text, so the static fold leaves the element frames alone: what this test checks is
+    // that Element(tag) resolves its tag onto an OpenElement call.
     private const string ConstantTagSource = """
         using BlazorCodeFirst;
 
         public partial class C : BodyComponentBase
         {
-            protected override View Body => Html.Element("nav")[Html.Span["x"]];
+            private string _x => "x";
+            protected override View Body => Html.Element("nav")[Html.Span[_x]];
         }
         """;
 
@@ -47,7 +50,7 @@ public sealed class HtmlElementTagGeneratorTests
 
         Assert.Contains("__builder.OpenElement(0, \"nav\")", generated);
         Assert.Contains("__builder.OpenElement(1, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(2, \"x\")", generated);
+        Assert.Contains("__builder.AddContent(2, _x)", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
