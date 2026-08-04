@@ -11,8 +11,21 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="RenderModeForPage" />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // A page's own @rendermode directive (see FoldParityPage.razor) only populates endpoint metadata; a
+    // fixed @rendermode="InteractiveServer" here would never read it back, so every page would silently
+    // get the same ambient mode regardless of what it declared for itself. Reading the metadata here and
+    // falling back to InteractiveServer preserves today's behavior for every page that does not declare
+    // its own render mode.
+    private IComponentRenderMode? RenderModeForPage =>
+        HttpContext.GetEndpoint()?.Metadata.GetMetadata<RenderModeAttribute>()?.Mode ?? InteractiveServer;
+}

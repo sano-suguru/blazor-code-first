@@ -25,7 +25,16 @@ namespace BlazorCodeFirst.WebAppTestHost.Components;
 /// <c>WebAppTests</c> pins the frame counts behind every probe below directly, so that failure mode is
 /// caught before the browser is ever asked to look.
 /// </remarks>
-[Route("/fold-parity")]
+/// <remarks>
+/// Routed by <c>FoldParityPage.razor</c> rather than carrying <c>[Route]</c> itself, specifically so that
+/// page can disable prerendering. With prerendering on (the host's ambient default), the browser's first
+/// HTML for this route would already contain every container fully populated — the .NET
+/// <c>HtmlRenderer</c> writes markup verbatim during that pass — and if the interactive circuit's first
+/// render batch is identical to what is already in the DOM, Blazor emits no edits and the JS renderer
+/// (<c>insertMarkup</c>/<c>insertText</c>) never runs at all. The comparison would then be between two
+/// subtrees that both came from the server-written HTML, which is exactly the path
+/// <c>PrerenderTests</c> already covers, not the one this file exists to check.
+/// </remarks>
 public partial class FoldParityView : BodyComponentBase
 {
     protected override View Body =>
