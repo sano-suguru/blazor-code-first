@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler;
-using BlazorCodeFirst.Compiler.Generation;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -56,19 +55,15 @@ public sealed class RenderViewEmitterRawFragmentTests
     }
 
     [Fact]
-    public void EmitFragment_SequenceArgumentCount_EqualsWidth()
+    public void EmitFragment_EmittedSequenceArguments_AreDense()
     {
-        // Regression guard for the Width/Emit invariant on the wrapper-less node.
+        // Regression guard for the emitter's sequence arithmetic on the wrapper-less node: a fragment
+        // opens no frame of its own, so its children must number as if they were the parent's.
         var node = new FragmentNode(ImmutableArray.Create<RenderNode>(
             Span(ExpressionTemplate.Literal("\"a\"")),
             new RawMarkupNode(ExpressionTemplate.Literal("\"<i>y</i>\"")),
             Span(ExpressionTemplate.Literal("\"b\""))));
 
-        var code = EmitRoot(node);
-        int seqCalls = System.Text.RegularExpressions.Regex.Count(
-            code,
-            @"__builder\.(OpenElement|AddAttribute|AddContent|AddMarkupContent|OpenComponent|AddComponentParameter)\(");
-
-        Assert.Equal(SequenceAllocator.Width(node), seqCalls);
+        SequenceArguments.AssertDense(EmitRoot(node));
     }
 }

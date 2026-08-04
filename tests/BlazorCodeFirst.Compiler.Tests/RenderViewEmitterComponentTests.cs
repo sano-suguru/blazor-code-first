@@ -91,7 +91,7 @@ public sealed class RenderViewEmitterComponentTests
     }
 
     [Fact]
-    public void Emit_ComponentWithSlot_SequenceArgumentCountEqualsWidth()
+    public void Emit_ComponentWithSlot_EmittedSequenceArgumentsAreDense()
     {
         var node = new ComponentNode(
             "global::MyApp.Card",
@@ -102,14 +102,9 @@ public sealed class RenderViewEmitterComponentTests
         var generated = RenderViewEmitter.Emit(
             new ComponentModel("T.g.cs", "T", default, null, node)).ToString();
 
-        // Every sequence-consuming call is counted; a drift between SequenceAllocator and the emitter
-        // shows up here as a missing or extra call. Mirrors EmitElement_SequenceArgumentCount_EqualsWidth
-        // in RenderViewEmitterDecorationTests:122. OpenComponent needs its own alternative because the
-        // type argument sits between the method name and the paren.
-        int seqCalls = System.Text.RegularExpressions.Regex.Count(
-            generated,
-            @"__builder\.(OpenElement|AddAttribute|AddContent|AddMarkupContent|OpenRegion|AddComponentParameter)\(|__builder\.OpenComponent<");
-
-        Assert.Equal(Generation.SequenceAllocator.Width(node), seqCalls);
+        // A slot's frames continue the enclosing flat counter, so a drift in the slot arithmetic shows up
+        // as a gap or a repeat in the emitted run. Mirrors EmitElement_EmittedSequenceArguments_AreDense
+        // in RenderViewEmitterDecorationTests.
+        SequenceArguments.AssertDense(generated);
     }
 }
