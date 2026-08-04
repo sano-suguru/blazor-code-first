@@ -24,4 +24,20 @@
     <Compile Include="..\BlazorCodeFirst.IntegrationTests\DiffCost\FrameEquivalence.cs"
              Link="FrameEquivalence.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The #140 fold fixtures. Their DOM-equivalence gate needs bunit, which lives in the test
+         project, and the benchmark needs the same components; linked rather than copied for the same
+         reason FrameEquivalence.cs is, and in the same direction. This project has no
+         ProjectReference to IntegrationTests, so the generator runs over these files again here and
+         each assembly gets its own partial. -->
+    <Compile Include="..\BlazorCodeFirst.IntegrationTests\Components\StaticHeavyElementView.cs"
+             Link="Components\StaticHeavyElementView.cs" />
+    <Compile Include="..\BlazorCodeFirst.IntegrationTests\Components\StaticHeavyMarkupView.cs"
+             Link="Components\StaticHeavyMarkupView.cs" />
+    <Compile Include="..\BlazorCodeFirst.IntegrationTests\Components\MixedElementView.cs"
+             Link="Components\MixedElementView.cs" />
+    <Compile Include="..\BlazorCodeFirst.IntegrationTests\Components\MixedMarkupView.cs"
+             Link="Components\MixedMarkupView.cs" />
+  </ItemGroup>
 </Project>
