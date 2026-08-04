@@ -1,6 +1,6 @@
 using BlazorCodeFirst.WebAppTestHost.Components;
-using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.AspNetCore.Components.RenderTree;
 
 namespace BlazorCodeFirst.WebAppTests;
 

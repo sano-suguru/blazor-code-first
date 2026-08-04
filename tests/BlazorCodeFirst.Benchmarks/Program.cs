@@ -33,6 +33,35 @@ internal static class Program
             return 1;
         }
 
+        // The same comparison in the static spelling. This one guards a claim rather than a figure: it
+        // carries no benchmark, because §7.1's published allocations were measured against the
+        // property-driven pair above and re-spelling those would invalidate published numbers. What it
+        // proves is that DESIGN.md §7.1's statement — that since #140 the two compilers emit the same
+        // frames for a fully static subtree — holds mechanically. It fails the run like the gates above
+        // rather than warning, because a claim nothing checks is the failure mode #140 hit repeatedly.
+        var staticGenerated = new RenderTreeBuilder();
+        var staticRazor = new RenderTreeBuilder();
+        new StaticParityView().Build(staticGenerated);
+        new StaticParityViewRazor().Build(staticRazor);
+
+        var staticDifferences = FrameEquivalence.Compare(staticGenerated, staticRazor);
+        if (staticDifferences.Count > 0)
+        {
+            Console.Error.WriteLine(
+                "StaticParityView and StaticParityViewRazor do not render equivalent frames, so " +
+                "DESIGN.md §7.1's claim that the static fold reaches Razor's frame shape no longer holds:");
+            foreach (string difference in staticDifferences)
+            {
+                Console.Error.WriteLine($"  {difference}");
+            }
+
+            return 1;
+        }
+
+        Console.WriteLine(
+            "Static spelling parity: StaticParityView and StaticParityViewRazor both render " +
+            $"{staticGenerated.GetFrames().Count} frame(s), equivalent apart from sequence numbers.");
+
         // The #140 fold pairs used to fail the gate above by construction: before the emitter folded,
         // the element spelling was the unfolded baseline and the markup spelling was a hand-written
         // Html.Raw stand-in for the shape folding was expected to produce, so the two sides' frame

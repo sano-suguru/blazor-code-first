@@ -13,11 +13,17 @@ namespace BlazorCodeFirst.Benchmarks.Components;
 /// unimplemented (see #57 and #17), so that clause keeps its 予測値.
 /// <para>
 /// Every text node comes from a property rather than a literal, because the Razor compiler folds a
-/// fully static element subtree into one <c>AddMarkupContent</c> frame while this generator always
-/// emits an element frame plus a text frame. That difference is real and is recorded against §7.1,
-/// but it is not what an allocation comparison can measure: two components emitting different frame
-/// counts are not the same workload. Driving the content from properties puts both compilers on the
-/// same frames so the allocated bytes are attributable to the compilation strategy.
+/// fully static element subtree into one <c>AddMarkupContent</c> frame while this generator, before
+/// #140, emitted an element frame plus a text frame. That difference was real and was recorded against
+/// §7.1, but it is not what an allocation comparison can measure: two components emitting different
+/// frame counts are not the same workload. Driving the content from properties puts both compilers on
+/// the same frames so the allocated bytes are attributable to the compilation strategy.
+/// </para>
+/// <para>
+/// Since #140 the generator folds too, so the static spelling would now match Razor as well — that is
+/// what <see cref="StaticParityView"/> gates. This pair is left on the property-driven spelling
+/// regardless: the §7.1 figures were measured against it, and a non-constant value keeps both sides off
+/// the fold path entirely, which is the narrower comparison those figures describe.
 /// </para>
 /// </remarks>
 public partial class BenchmarkView : BodyComponentBase

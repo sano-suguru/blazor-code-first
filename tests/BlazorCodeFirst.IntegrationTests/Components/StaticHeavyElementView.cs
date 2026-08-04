@@ -23,8 +23,8 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 /// The element spelling is no longer the unfolded side of the pair: since #140 the emitter folds each run
 /// of consecutive static siblings into one <c>AddMarkupContent</c> frame, so this body emits 6 frames where
 /// it emitted 23 before — the same count as <see cref="StaticHeavyMarkupView"/>. <c>FoldFixtureTests</c>
-/// pins that folded count. Restating what the pair as a whole is for, now that both sides fold, is
-/// follow-up work under #140.
+/// pins that folded count. What the pair measures now that both sides fold is stated in the remarks on
+/// <c>StaticFoldBenchmarks</c>.
 /// </para>
 /// </remarks>
 public partial class StaticHeavyElementView : BodyComponentBase

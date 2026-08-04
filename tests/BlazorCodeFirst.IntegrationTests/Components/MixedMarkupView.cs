@@ -5,7 +5,8 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
 /// The low-static shape with its two foldable runs folded into one <c>AddMarkupContent</c> frame
-/// each, which is the output the generator would produce if #140 were implemented.
+/// each. This was written as a prediction of what #140 would produce; since #140 the generator
+/// produces that shape itself, and <see cref="MixedElementView"/> reaches the same frame count.
 /// </summary>
 /// <remarks>
 /// Each run is a single element here, so this fold saves one frame per run rather than the seventeen

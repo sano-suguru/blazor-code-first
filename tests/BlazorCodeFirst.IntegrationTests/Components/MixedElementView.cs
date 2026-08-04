@@ -19,8 +19,8 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 /// <para>
 /// Since #140 the emitter folds this too: each of the two single-element static runs becomes one
 /// <c>AddMarkupContent</c> frame, so this body emits 10 frames where it emitted 12 before — the same count
-/// as <see cref="MixedMarkupView"/>. <c>FoldFixtureTests</c> pins that folded count, and restating what the
-/// pair is for is follow-up work under #140.
+/// as <see cref="MixedMarkupView"/>. <c>FoldFixtureTests</c> pins that folded count, and what the pair
+/// measures now that both sides fold is stated in the remarks on <c>StaticFoldBenchmarks</c>.
 /// </para>
 /// </remarks>
 public partial class MixedElementView : BodyComponentBase
