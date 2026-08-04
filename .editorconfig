@@ -129,6 +129,12 @@ dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1812.severity = none
 dotnet_diagnostic.CA1001.severity = none
 
+# Prerender tests: same RenderTree access as above, for the same reason. Whether FoldEscapingPage's
+# #140 fold produced exactly one frame is itself the premise the escaping test next to it depends on,
+# and RenderTreeBuilder.GetFrames() is the only way to observe that count; no public API reports it.
+[tests/BlazorCodeFirst.WebAppTests/*.cs]
+dotnet_diagnostic.BL0006.severity = none
+
 # Production code: banned-API usage (reflection / runtime expression compilation) is a
 # hard error, guarding the trimming/AOT-safe contract.
 [src/**/*.cs]
