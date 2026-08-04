@@ -28,6 +28,15 @@ test('prerendering is off, so the containers are only ever populated by the inte
   // The same URL, fetched directly with no browser involved: this is exactly the HTML
   // WebApplicationFactory-based PrerenderTests would see, and exactly what a browser's initial
   // navigation receives before any script runs.
+  //
+  // Asserting the container id is ABSENT here is the point, not an oversight to tidy up: an empty
+  // prerender response is what forces this content through the client-side renderer in the first
+  // place, since there is nothing else that could ever put it in the DOM. Every DOM comparison in the
+  // describe block below depends on that — if prerendering ever starts writing this content again
+  // (someone reverts FoldParityPage's render mode, or the framework's behavior shifts), those
+  // comparisons would keep passing while silently going back to comparing two subtrees the .NET
+  // HtmlRenderer wrote verbatim, the same server-written markup twice. This assertion is what catches
+  // that regression, so it must fail loudly rather than being deleted as a "test that never renders".
   const prerendered = await (await request.get('/fold-parity')).text();
   expect(prerendered).not.toContain('folded-table-fragment');
   expect(prerendered).not.toContain('unfolded-table-fragment');
