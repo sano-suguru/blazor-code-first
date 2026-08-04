@@ -4,8 +4,9 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
-/// The static-heavy shape of the #140 fold measurement, written the way the surface is written today:
-/// every static node becomes an element frame plus a text frame.
+/// The static-heavy shape of the #140 fold measurement, written in the element spelling: every static
+/// node is spelled as its own element with its own text, rather than as one markup string the way
+/// <see cref="StaticHeavyMarkupView"/> writes it.
 /// </summary>
 /// <remarks>
 /// Page chrome and copy with exactly one dynamic slot, which is the case #140 argues folding wins.
@@ -17,6 +18,13 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 /// property so that its frames match the Razor side of the §7.1 comparison. A property reference is
 /// not a compile-time constant, so nothing in <c>BenchmarkView</c> would be foldable at all and it
 /// cannot serve as an element-spelling side here.
+/// </para>
+/// <para>
+/// The element spelling is no longer the unfolded side of the pair: since #140 the emitter folds each run
+/// of consecutive static siblings into one <c>AddMarkupContent</c> frame, so this body emits 6 frames where
+/// it emitted 23 before — the same count as <see cref="StaticHeavyMarkupView"/>. <c>FoldFixtureTests</c>
+/// pins that folded count. Restating what the pair as a whole is for, now that both sides fold, is
+/// follow-up work under #140.
 /// </para>
 /// </remarks>
 public partial class StaticHeavyElementView : BodyComponentBase

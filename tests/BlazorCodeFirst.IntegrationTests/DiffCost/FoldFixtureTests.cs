@@ -14,9 +14,9 @@ namespace BlazorCodeFirst.IntegrationTests.DiffCost;
 /// </summary>
 /// <remarks>
 /// The "strictly fewer frames" half of that summary no longer holds, and restating what this pair is for
-/// is Task 8's. Now that the emitter folds, the element spelling folds to exactly the frame count the
-/// <c>Html.Raw</c> stand-in was written to predict, so the two sides are equal rather than unequal. The
-/// frame assertions below say so; the DOM comparisons are unaffected.
+/// is follow-up work under #140. Now that the emitter folds, the element spelling folds to exactly the
+/// frame count the <c>Html.Raw</c> stand-in was written to predict, so the two sides are equal rather than
+/// unequal. The frame assertions below say so; the DOM comparisons are unaffected.
 /// </remarks>
 public sealed class FoldFixtureTests : BunitContext
 {
