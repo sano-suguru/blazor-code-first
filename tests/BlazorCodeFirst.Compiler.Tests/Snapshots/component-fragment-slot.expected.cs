@@ -12,9 +12,7 @@ partial class Host
         __builder.OpenComponent<global::T.Card>(0);
         __builder.AddComponentParameter(1, "Footer", (global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>
         {
-            __builder.OpenElement(2, "div");
-            __builder.AddContent(3, "f");
-            __builder.CloseElement();
+            __builder.AddMarkupContent(2, "<div>f</div>");
         }));
         __builder.CloseComponent();
     }

@@ -14,15 +14,11 @@ partial class Host
         __builder.OpenRegion(2);
         if (_on)
         {
-            __builder.OpenElement(3, "span");
-            __builder.AddContent(4, "Yes");
-            __builder.CloseElement();
+            __builder.AddMarkupContent(3, "<span>Yes</span>");
         }
         else
         {
-            __builder.OpenElement(5, "span");
-            __builder.AddContent(6, "No");
-            __builder.CloseElement();
+            __builder.AddMarkupContent(4, "<span>No</span>");
         }
         __builder.CloseRegion();
         __builder.CloseElement();

@@ -9,11 +9,6 @@ partial class Host
 {
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "card");
-        __builder.OpenElement(2, "span");
-        __builder.AddContent(3, "a");
-        __builder.CloseElement();
-        __builder.CloseElement();
+        __builder.AddMarkupContent(0, "<div class=\"card\"><span>a</span></div>");
     }
 }

@@ -17,6 +17,14 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// re-spelled again in the future, but a case must never be renamed or dropped to make a baseline agree.
 /// </para>
 /// <para>
+/// The baselines were re-recorded once, for #140: the emitter now folds a run of consecutive fully static
+/// siblings into a single <c>AddMarkupContent</c> frame, so the emitted shape changed by design for every
+/// case whose content is statically written. This is the re-record the paragraph above asks for a reason
+/// for, and the diff of that commit is the primary review surface for the fold. What the baselines still
+/// guard is unchanged: a case's input may be re-spelled, but a case must never be renamed or dropped to
+/// make a baseline agree.
+/// </para>
+/// <para>
 /// Coverage is chosen for what the migration can break, not for what the emitter can emit: every element
 /// shape (the constructs that gain brackets), every <c>Component&lt;T&gt;</c> shape (likewise), and the
 /// region-opening and frame-less constructs, <c>If</c>, <c>ForEach</c>, <c>Fragment</c>, <c>Raw</c>,

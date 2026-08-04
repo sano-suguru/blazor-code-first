@@ -13,9 +13,7 @@ partial class Host
         __builder.AddComponentParameter(1, "Title", "t");
         __builder.AddComponentParameter(2, "ChildContent", (global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>
         {
-            __builder.OpenElement(3, "div");
-            __builder.AddContent(4, "x");
-            __builder.CloseElement();
+            __builder.AddMarkupContent(3, "<div>x</div>");
         }));
         __builder.CloseComponent();
     }

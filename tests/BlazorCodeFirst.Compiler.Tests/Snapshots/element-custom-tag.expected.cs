@@ -9,8 +9,6 @@ partial class Host
 {
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
-        __builder.OpenElement(0, "custom-tag");
-        __builder.AddContent(1, "slotted");
-        __builder.CloseElement();
+        __builder.AddMarkupContent(0, "<custom-tag>slotted</custom-tag>");
     }
 }

@@ -10,13 +10,8 @@ partial class Host
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
         __builder.OpenElement(0, "div");
-        __builder.OpenElement(1, "p");
-        __builder.AddContent(2, "a");
-        __builder.CloseElement();
-        __builder.OpenElement(3, "p");
-        __builder.AddContent(4, "b");
-        __builder.CloseElement();
-        __builder.AddMarkupContent(5, "<em>trusted</em>");
+        __builder.AddMarkupContent(1, "<p>a</p><p>b</p>");
+        __builder.AddMarkupContent(2, "<em>trusted</em>");
         __builder.CloseElement();
     }
 }
