@@ -118,11 +118,16 @@ dotnet_diagnostic.BL0006.severity = none
 
 # Allocation benchmarks: same RenderTree access as above. BenchmarkDotNet additionally requires
 # public instance [Benchmark] methods on a public class it instantiates by reflection, which CA1822
-# (mark as static) and CA1812 (uninstantiated internal class) both misread.
-[tests/BlazorCodeFirst.Benchmarks/**/*.cs]
+# (mark as static) and CA1812 (uninstantiated internal class) both misread. CA1001 wants the
+# benchmark class to be IDisposable for the renderers it holds, but BenchmarkDotNet never disposes a
+# benchmark instance; [GlobalCleanup] is its teardown hook and that is where they are released.
+# The pattern is `**.cs`, not `**/*.cs`: the latter does not match files sitting directly in the
+# project directory, which is where the renderer and the benchmarks themselves live.
+[tests/BlazorCodeFirst.Benchmarks/**.cs]
 dotnet_diagnostic.BL0006.severity = none
 dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1812.severity = none
+dotnet_diagnostic.CA1001.severity = none
 
 # Production code: banned-API usage (reflection / runtime expression compilation) is a
 # hard error, guarding the trimming/AOT-safe contract.
