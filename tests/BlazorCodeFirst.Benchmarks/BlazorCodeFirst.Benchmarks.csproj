@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The frame-equivalence gate is what makes both the §7.1 and §7.2 numbers attributable, and a
+         second copy could drift so that one measurement silently weakens. Linked rather than copied
+         for that reason; a shared project for one file would be heavier. Its physical path keeps the
+         .editorconfig BL0006 allowance that the DiffCost directory carries. -->
+    <Compile Include="..\BlazorCodeFirst.IntegrationTests\DiffCost\FrameEquivalence.cs"
+             Link="FrameEquivalence.cs" />
+  </ItemGroup>
+</Project>

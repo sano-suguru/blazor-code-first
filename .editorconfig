@@ -106,6 +106,29 @@ dotnet_diagnostic.CA1849.severity = none
 # Test helpers need not validate parameters that tests always supply.
 dotnet_diagnostic.CA1062.severity = none
 
+# Diff-cost harness: reads Microsoft.AspNetCore.Components.RenderTree types (RenderBatch,
+# RenderTreeDiff, RenderTreeEdit, RenderTreeFrame), which BL0006 flags as not intended for use
+# outside the Blazor framework. Reading them IS the measurement: DESIGN.md §7.2 makes claims about
+# the frames and edits Blazor's diff actually produces, and no other public API reports those. The
+# Microsoft.AspNetCore.Components pin in Directory.Packages.props is what keeps this stable; BL0006
+# is Microsoft reserving the right to change these shapes, so a Components bump can break these
+# files and that is the expected failure mode, not a surprise.
+[tests/BlazorCodeFirst.IntegrationTests/DiffCost/*.cs]
+dotnet_diagnostic.BL0006.severity = none
+
+# Allocation benchmarks: same RenderTree access as above. BenchmarkDotNet additionally requires
+# public instance [Benchmark] methods on a public class it instantiates by reflection, which CA1822
+# (mark as static) and CA1812 (uninstantiated internal class) both misread. CA1001 wants the
+# benchmark class to be IDisposable for the renderers it holds, but BenchmarkDotNet never disposes a
+# benchmark instance; [GlobalCleanup] is its teardown hook and that is where they are released.
+# The pattern is `**.cs`, not `**/*.cs`: the latter does not match files sitting directly in the
+# project directory, which is where the renderer and the benchmarks themselves live.
+[tests/BlazorCodeFirst.Benchmarks/**.cs]
+dotnet_diagnostic.BL0006.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA1812.severity = none
+dotnet_diagnostic.CA1001.severity = none
+
 # Production code: banned-API usage (reflection / runtime expression compilation) is a
 # hard error, guarding the trimming/AOT-safe contract.
 [src/**/*.cs]
