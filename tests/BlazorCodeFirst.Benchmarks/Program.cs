@@ -33,32 +33,42 @@ internal static class Program
             return 1;
         }
 
-        // The #140 fold pairs cannot pass the gate above: their frames differ by construction,
-        // because that difference IS the measurement. The useful condition is the inverse one. If
-        // the markup spelling does not emit strictly fewer frames it is not folded, and a ratio
-        // between the two would describe nothing. The counts are printed either way: they are
-        // deterministic, so they are a recorded fact rather than a measurement.
-        (string Name, int Element, int Markup)[] foldPairs =
+        // The #140 fold pairs used to fail the gate above by construction: before the emitter folded,
+        // the element spelling was the unfolded baseline and the markup spelling was a hand-written
+        // Html.Raw stand-in for the shape folding was expected to produce, so the two sides' frame
+        // counts differed on purpose. Now that #140 folds static runs, the element spelling reaches
+        // that same shape itself, so the condition this gate needs is equality: if the two sides'
+        // frame counts diverge, either the element spelling stopped folding or the pair no longer
+        // describes the same DOM, and either way a ratio between them would not measure folding. The
+        // pre-fold counts (23 and 12) are kept here only as reference points for how much folding
+        // used to save; they are not asserted, since re-checking them would need a non-folding twin
+        // fixture with the same DOM, which FoldFixtureTests deliberately does not add (see its
+        // remarks).
+        (string Name, int Element, int Markup, int PreFoldElement)[] foldPairs =
         [
             ("static-heavy",
                 FrameCount(builder => new StaticHeavyElementView().Build(builder)),
-                FrameCount(builder => new StaticHeavyMarkupView().Build(builder))),
+                FrameCount(builder => new StaticHeavyMarkupView().Build(builder)),
+                23),
             ("low-static",
                 FrameCount(builder => new MixedElementView().Build(builder)),
-                FrameCount(builder => new MixedMarkupView().Build(builder))),
+                FrameCount(builder => new MixedMarkupView().Build(builder)),
+                12),
         ];
 
         foreach (var pair in foldPairs)
         {
             Console.WriteLine(
-                $"#140 fold pair '{pair.Name}': {pair.Element} frames unfolded, {pair.Markup} folded.");
+                $"#140 fold pair '{pair.Name}': both sides fold to {pair.Element} frames " +
+                $"(element was {pair.PreFoldElement} before #140).");
 
-            if (pair.Markup >= pair.Element)
+            if (pair.Markup != pair.Element)
             {
                 Console.Error.WriteLine(
-                    $"The '{pair.Name}' fold pair's markup spelling emits {pair.Markup} frames against " +
-                    $"the element spelling's {pair.Element}, so it is not folded and the #140 " +
-                    "comparison would not measure folding.");
+                    $"The '{pair.Name}' fold pair's element spelling emits {pair.Element} frames " +
+                    $"against the markup spelling's {pair.Markup} after folding, so the element " +
+                    "spelling did not fold to the markup spelling's shape and the #140 comparison " +
+                    "would not measure folding.");
                 return 1;
             }
         }

@@ -108,4 +108,30 @@ public sealed class PrerenderTests
         // and hidden.
         Assert.DoesNotContain("Milestone reached", document, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task FoldEscaping_page_escapes_folded_text_and_attribute_content()
+    {
+        // FoldEscapingPage is fully static, so the generator's #140 fold coalesces it into a single
+        // AddMarkupContent frame at compile time. The .NET HtmlRenderer writes markup frames verbatim,
+        // so this is the one place in the suite that would catch StaticMarkupSerializer.Write emitting
+        // an unescaped '&', '<', '>', or '"' into that frame: bUnit's MarkupMatches compares parsed DOM
+        // trees, which treats raw and escaped markup as equivalent once parsed.
+        var document = await GetDocumentAsync("fold-escaping");
+
+        Assert.Contains("class=\"fold-escaping\"", document, StringComparison.Ordinal);
+        Assert.Contains(
+            "Q&amp;A: &lt;script&gt;alert(1)&lt;/script&gt; &amp; more",
+            document,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "title=\"say &quot;hi&quot; &amp; bye\"",
+            document,
+            StringComparison.Ordinal);
+
+        // The Contains checks above only prove the escaped forms are present; a regression that wrote
+        // both the escaped text and this literal, unescaped tag would still pass them. This pins the
+        // absence directly.
+        Assert.DoesNotContain("<script>alert(1)</script>", document, StringComparison.Ordinal);
+    }
 }

@@ -5,18 +5,24 @@ using Microsoft.AspNetCore.Components.Rendering;
 namespace BlazorCodeFirst.IntegrationTests.DiffCost;
 
 /// <summary>
-/// Gates for the #140 fold measurement. The §7.1 and §7.2 gates require their two sides to render
-/// equivalent frames; this pair's frames differ by construction, because that difference IS what is
-/// being measured. The two conditions are therefore inverted: the pair must render the same DOM (or
-/// the markup spelling is a cheaper but different workload, and the ratio measures nothing), and the
-/// markup spelling must emit strictly fewer frames (or it is not folded, and the ratio measures
-/// nothing either).
+/// Gates that the element spelling folds to the same frame shape as its hand-written markup counterpart.
+/// Each pair was written for the #140 fold measurement, at a time when the generator did not fold: the
+/// only way to spell the folded shape was to hand-write it with <c>Html.Raw</c> in the markup spelling,
+/// and the element spelling was the unfolded baseline being measured against it. This pair guarantees two
+/// things: the two spellings render the same DOM (or the markup spelling is a cheaper but different
+/// workload, and no ratio between them means anything), and — now that the emitter folds — the element
+/// spelling reaches exactly the frame count the markup spelling was written to predict.
 /// </summary>
 /// <remarks>
-/// The "strictly fewer frames" half of that summary no longer holds, and restating what this pair is for
-/// is follow-up work under #140. Now that the emitter folds, the element spelling folds to exactly the
-/// frame count the <c>Html.Raw</c> stand-in was written to predict, so the two sides are equal rather than
-/// unequal. The frame assertions below say so; the DOM comparisons are unaffected.
+/// A regression that stops folding shows up here as the element spelling's frame count moving away from
+/// the markup spelling's, back toward the pre-fold values recorded in the comments below (23 for
+/// static-heavy, 12 for low-static). Those two numbers are not themselves gated: doing so would need a
+/// non-folding twin with the same DOM inside this compilation, and constructing one is possible — move a
+/// fixture's static text to a property reference so <c>StaticMarkupSerializer.IsFoldable</c> excludes it —
+/// but is declined here. The equality assertions already fail loudly and specifically the moment folding
+/// regresses, since the element spelling's count would move away from 6 or 10; a non-constant twin would
+/// only re-pin the historical 23/12 endpoint, at the cost of two more fixtures whose correspondence to
+/// these has to be kept in step by hand.
 /// </remarks>
 public sealed class FoldFixtureTests : BunitContext
 {
