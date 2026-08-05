@@ -1,0 +1,13 @@
+@page "/fold-parity"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@*
+    Prerendering is off for this page specifically (see the remarks on FoldParityView.cs): with it on,
+    the .NET HtmlRenderer would already write every container's markup verbatim into the first HTML
+    response, and if the interactive circuit's first render batch matches that DOM exactly, Blazor
+    applies no edits and the JS insertMarkup/insertText functions this test exists to exercise never run.
+    Disabling prerendering here means the containers below are genuinely empty until the circuit
+    connects and performs its first render, which is the only way this page's comparison can be of the
+    browser-side path rather than of the same server-written HTML twice.
+*@
+<FoldParityView />

@@ -1,4 +1,6 @@
 using System.Net;
+using BlazorCodeFirst.WebAppTestHost.Components;
+using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace BlazorCodeFirst.WebAppTests;
@@ -107,5 +109,46 @@ public sealed class PrerenderTests
         // If(_count >= 3, …) is false at count 0, so the branch must be absent rather than emitted
         // and hidden.
         Assert.DoesNotContain("Milestone reached", document, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FoldEscaping_page_folds_to_a_single_markup_frame()
+    {
+        // Pins the premise the test below relies on. FoldEscapingPage is fully static, so the
+        // generator's #140 fold is expected to coalesce it into one AddMarkupContent frame; without
+        // this assertion, if the page ever stopped folding, the escaping test below would keep passing
+        // through the ordinary AddContent/AddAttribute path instead — the .NET HtmlRenderer escapes
+        // those byte-identically to StaticMarkupSerializer.Write for every character asserted there, so
+        // that test alone cannot tell the two paths apart.
+        var builder = new RenderTreeBuilder();
+        new FoldEscapingPage().Build(builder);
+
+        Assert.Equal(1, builder.GetFrames().Count);
+    }
+
+    [Fact]
+    public async Task FoldEscaping_page_escapes_folded_text_and_attribute_content()
+    {
+        // The .NET HtmlRenderer writes markup frames verbatim, so given the single-frame fold pinned by
+        // FoldEscaping_page_folds_to_a_single_markup_frame above, this is the one place in the suite
+        // that would catch StaticMarkupSerializer.Write emitting an unescaped '&', '<', '>', or '"' into
+        // that frame: bUnit's MarkupMatches compares parsed DOM trees, which treats raw and escaped
+        // markup as equivalent once parsed.
+        var document = await GetDocumentAsync("fold-escaping");
+
+        Assert.Contains("class=\"fold-escaping\"", document, StringComparison.Ordinal);
+        Assert.Contains(
+            "Q&amp;A: &lt;script&gt;alert(1)&lt;/script&gt; &amp; more",
+            document,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "title=\"say &quot;hi&quot; &amp; bye\"",
+            document,
+            StringComparison.Ordinal);
+
+        // The Contains checks above only prove the escaped forms are present; a regression that wrote
+        // both the escaped text and this literal, unescaped tag would still pass them. This pins the
+        // absence directly.
+        Assert.DoesNotContain("<script>alert(1)</script>", document, StringComparison.Ordinal);
     }
 }

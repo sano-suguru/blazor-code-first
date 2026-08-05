@@ -80,6 +80,28 @@ public static class CompilationTestHost
     }
 
     /// <summary>
+    /// Runs the generator on <paramref name="source"/> and returns the single component's
+    /// <see cref="ComponentModel"/>, extracted from the tracked <c>ComponentModeling</c> incremental step
+    /// (the same idiom <see cref="IncrementalGeneratorTests"/> uses to identify a component by name). Fails
+    /// loudly if the source does not resolve to exactly one modeled component.
+    /// </summary>
+    internal static ComponentModel ModelSingleComponent(string source)
+    {
+        var result = RunGenerator(source);
+        Assert.True(result.TrackedSteps.ContainsKey("ComponentModeling"),
+            "Expected tracked step 'ComponentModeling' but found: " +
+            string.Join(", ", result.TrackedSteps.Keys));
+
+        var models = result.TrackedSteps["ComponentModeling"]
+            .SelectMany(static step => step.Outputs)
+            .Select(static output => ((ComponentModelResult)output.Value).Model)
+            .Where(static model => model is not null)
+            .ToImmutableArray();
+
+        return Assert.Single(models)!;
+    }
+
+    /// <summary>
     /// Asserts that the post-generation <see cref="GeneratorRunResult.OutputCompilation"/> contains no C#
     /// error diagnostics, so a supported component's generated <c>RenderView</c> is verified to actually
     /// compile rather than only inspected as text. On failure every error is included in the message to

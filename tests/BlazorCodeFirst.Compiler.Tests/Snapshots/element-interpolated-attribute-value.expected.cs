@@ -11,9 +11,7 @@ partial class Host
     {
         __builder.OpenElement(0, "div");
         __builder.AddAttribute(1, "data-n", $"{_count}");
-        __builder.OpenElement(2, "span");
-        __builder.AddContent(3, "a");
-        __builder.CloseElement();
+        __builder.AddMarkupContent(2, "<span>a</span>");
         __builder.CloseElement();
     }
 }

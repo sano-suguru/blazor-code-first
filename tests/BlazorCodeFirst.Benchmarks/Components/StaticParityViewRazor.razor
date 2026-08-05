@@ -1,0 +1,14 @@
+@* The Razor side of the static-spelling parity gate. See the remarks on StaticParityView for why the
+   pair exists and why it carries no benchmark.
+
+   Written on one line for the reason BenchmarkViewRazor is: newlines between tags become markup frames
+   of their own in Razor, and that whitespace difference is an artifact of Razor's source format rather
+   than a gap on this side, so it is kept out of the comparison. Unlike BenchmarkViewRazor, every text
+   node here is a literal, which is the point — Razor folds this whole subtree into one
+   AddMarkupContent frame, and since #140 so does the generator. *@
+<div class="card"><h1>Static parity</h1><span>A literal count</span><p>A paragraph of content.</p></div>
+
+@code {
+    // Exposes the Razor compiler's render path on the same terms as StaticParityView.Build.
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}

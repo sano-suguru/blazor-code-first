@@ -9,12 +9,7 @@ partial class First
 {
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "a");
-        __builder.OpenElement(2, "span");
-        __builder.AddContent(3, "first");
-        __builder.CloseElement();
-        __builder.CloseElement();
+        __builder.AddMarkupContent(0, "<div class=\"a\"><span>first</span></div>");
     }
 }
 
@@ -29,8 +24,6 @@ partial class Second
 {
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
-        __builder.OpenElement(0, "p");
-        __builder.AddContent(1, "second");
-        __builder.CloseElement();
+        __builder.AddMarkupContent(0, "<p>second</p>");
     }
 }

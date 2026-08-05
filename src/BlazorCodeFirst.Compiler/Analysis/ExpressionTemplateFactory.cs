@@ -172,9 +172,33 @@ internal static class ExpressionTemplateFactory
             }
         }
 
+        // The constant value is a property of the whole expression, independent of the name-level
+        // rewrites above: a rewrite qualifies or collapses source text and never changes what the
+        // expression evaluates to. Captured here because the emitter sees only source text, and folding
+        // needs the value (ARCHITECTURE.md §2.7).
+        var constant = ReadConstant(expression, context);
+
         return replacements.Count == 0
-            ? ExpressionTemplate.Literal(expression.ToString())
-            : Splice(expression, replacements);
+            ? ExpressionTemplate.Create(
+                [new LiteralExpressionSegment(expression.ToString())], constant)
+            : Splice(expression, replacements, constant);
+    }
+
+    /// <summary>
+    /// Reads <paramref name="expression"/>'s compile-time constant value off the semantic model. Returns
+    /// <see langword="null"/> when it is not a constant. A constant of a non-string type, and a constant
+    /// <see langword="null"/> string, both come back as <c>{ Text: null }</c>: they are side-effect free
+    /// (so a composable local bound to one may be dropped) but carry no string usable in markup.
+    /// </summary>
+    private static ConstantInfo? ReadConstant(
+        ExpressionSyntax expression,
+        ComposableBodyContext context)
+    {
+        var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
+        if (!constant.HasValue)
+            return null;
+
+        return new ConstantInfo(constant.Value as string);
     }
 
     internal static bool TryReportUnresolvedType(
@@ -283,7 +307,10 @@ internal static class ExpressionTemplateFactory
         replacedSpans.Add(span);
     }
 
-    private static ExpressionTemplate Splice(ExpressionSyntax expression, List<Replacement> replacements)
+    private static ExpressionTemplate Splice(
+        ExpressionSyntax expression,
+        List<Replacement> replacements,
+        ConstantInfo? constant)
     {
         replacements.Sort(static (left, right) => left.Span.Start.CompareTo(right.Span.Start));
 
@@ -308,7 +335,7 @@ internal static class ExpressionTemplateFactory
         if (cursor < baseText.Length)
             segments.Add(new LiteralExpressionSegment(baseText.Substring(cursor)));
 
-        return ExpressionTemplate.Create(segments.ToImmutable());
+        return ExpressionTemplate.Create(segments.ToImmutable(), constant);
     }
 
     /// <summary>

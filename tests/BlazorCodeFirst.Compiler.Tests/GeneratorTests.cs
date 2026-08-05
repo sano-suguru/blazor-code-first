@@ -83,8 +83,9 @@ public sealed class GeneratorTests
         Assert.Contains(
             "protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)",
             source);
-        Assert.Contains("__builder.OpenElement(0, \"span\")", source);
-        Assert.Contains("__builder.AddContent(1, \"Count\")", source);
+        // The body is fully static, so it folds into one markup frame. What this test is about is that a
+        // RenderView override is generated with the body's content in it at all.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>Count</span>\")", source);
     }
 
     [Fact]
@@ -109,7 +110,8 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "__builder.AddMarkupContent(0, \"<span>Count</span>\")", generated, StringComparison.Ordinal);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -142,7 +144,8 @@ public sealed class GeneratorTests
             ("File2.cs", file2));
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.OpenElement(0, \"span\")", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "__builder.AddMarkupContent(0, \"<span>split</span>\")", generated, StringComparison.Ordinal);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -615,6 +618,8 @@ public sealed class GeneratorTests
     // If emission
     // -----------------------------------------------------------------------
 
+    // Non-constant branch and sibling text, so the static fold leaves two frames per branch: what this test
+    // is about is that the two branch ranges are disjoint, and a one-frame branch would barely show it.
     private const string IfCounterSource = """
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
@@ -622,11 +627,14 @@ public sealed class GeneratorTests
         public partial class IfCounter : BodyComponentBase
         {
             private bool _visible = true;
+            private string _yes => "Yes";
+            private string _no => "No";
+            private string _always => "Always";
 
             protected override View Body =>
                 Div[
-                    If(_visible, () => Span["Yes"], () => Span["No"]),
-                    Span["Always"]];
+                    If(_visible, () => Span[_yes], () => Span[_no]),
+                    Span[_always]];
         }
         """;
 
@@ -642,20 +650,20 @@ public sealed class GeneratorTests
         // If region boundary at 1 (one literal sequence for the conditional region)
         Assert.Contains("__builder.OpenRegion(1)", generated);
 
-        // then branch: Span["Yes"] uses [2, 3]
+        // then branch: Span[_yes] uses [2, 3]
         Assert.Contains("__builder.OpenElement(2, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(3, \"Yes\")", generated);
+        Assert.Contains("__builder.AddContent(3, _yes)", generated);
 
-        // else branch: Span["No"] uses [4, 5], disjoint from then range [2, 3]
+        // else branch: Span[_no] uses [4, 5], disjoint from then range [2, 3]
         Assert.Contains("__builder.OpenElement(4, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(5, \"No\")", generated);
+        Assert.Contains("__builder.AddContent(5, _no)", generated);
 
         // Region close (no sequence argument)
         Assert.Contains("__builder.CloseRegion()", generated);
 
-        // Span["Always"] starts at 6, same sequence regardless of which branch ran
+        // Span[_always] starts at 6, same sequence regardless of which branch ran
         Assert.Contains("__builder.OpenElement(6, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(7, \"Always\")", generated);
+        Assert.Contains("__builder.AddContent(7, _always)", generated);
 
         // All sequence numbers are compile-time literals; no runtime ++ variable
         Assert.DoesNotContain("__seq", generated);
@@ -682,8 +690,9 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenRegion(0)", generated);
-        Assert.Contains("__builder.OpenElement(1, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(2, \"Visible\")", generated);
+        // The then branch is static and folds into one markup frame; the claim here is that only the then
+        // branch is emitted, which the absent else below carries.
+        Assert.Contains("__builder.AddMarkupContent(1, \"<span>Visible</span>\")", generated);
         Assert.Contains("__builder.CloseRegion()", generated);
 
         // No else branch
@@ -724,12 +733,13 @@ public sealed class GeneratorTests
         Assert.Contains("__builder.OpenElement(2, \"span\");", generated);
         Assert.Contains("__builder.AddContent(3,", generated);
         Assert.Contains("__builder.CloseRegion();", generated);
-        // Following sibling is stable: Div(1) + ForEach region(1 + content 2) => next span at 4.
-        Assert.Contains("__builder.OpenElement(4, \"span\");", generated);
-        Assert.Contains("__builder.AddContent(5, \"footer\");", generated);
+        // Following sibling is stable: Div(1) + ForEach region(1 + content 2) => next sibling at 4. It is
+        // static, so it is one folded markup frame there rather than an element and a text frame.
+        Assert.Contains("__builder.AddMarkupContent(4, \"<span>footer</span>\");", generated);
 
         // SetKey must land on the content root's span frame, after OpenElement(2, "span"), never
-        // after OpenRegion(1). This is the regression guard for the Task-9 render-time defect.
+        // after OpenRegion(1). This is the regression guard for the render-time defect
+        // ARCHITECTURE.md §2.7(B) records.
         int spanIdx = generated.IndexOf("__builder.OpenElement(2, \"span\");", System.StringComparison.Ordinal);
         int keyIdx = generated.IndexOf("__builder.SetKey(", System.StringComparison.Ordinal);
         Assert.True(spanIdx >= 0, "content root OpenElement should be emitted");
@@ -1085,7 +1095,9 @@ public sealed class GeneratorTests
         Assert.Contains("string __bcf_arg_1_0 = Compute();", generated);
         Assert.Contains("__builder.OpenElement(1, \"span\")", generated);
         Assert.Contains("__builder.AddContent(2, __bcf_arg_1_0)", generated);
-        Assert.Contains("__builder.OpenElement(3, \"span\")", generated);
+        // The static sibling folds; it is here to show the expansion's width was accounted for, and the
+        // folded frame's sequence number still says that.
+        Assert.Contains("__builder.AddMarkupContent(3, \"<span>After</span>\")", generated);
         Assert.DoesNotContain("Label(", generated);
     }
 
@@ -1123,17 +1135,23 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_SameComposableCalledTwice_UsesDistinctLocalsAndSequences()
     {
+        // The arguments are property accesses, not literals, so they carry no compile-time constant and
+        // the expansion locals stay live: a literal argument here would fold each call away entirely
+        // (#140), leaving no locals for this test's actual point (distinct names/sequences per call site).
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
             public partial class Counter : BodyComponentBase
             {
+                private string _a => "A";
+                private string _b => "B";
+
                 [Composable]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body =>
-                    Div[Label("A"), Label("B")];
+                    Div[Label(_a), Label(_b)];
             }
             """;
 
@@ -1143,8 +1161,8 @@ public sealed class GeneratorTests
         // Distinct locals from distinct logical preorder ordinals (Label calls are 1 and 4: the Span
         // element inside each Label body consumes an extra preorder ordinal for its own text-content
         // child, unlike the old single-node Text/Button/VStack templates).
-        Assert.Contains("string __bcf_arg_1_0 = \"A\";", generated);
-        Assert.Contains("string __bcf_arg_4_0 = \"B\";", generated);
+        Assert.Contains("string __bcf_arg_1_0 = _a;", generated);
+        Assert.Contains("string __bcf_arg_4_0 = _b;", generated);
 
         // Disjoint runtime sequence ranges for the two expanded Span nodes.
         Assert.Contains("__builder.AddContent(2, __bcf_arg_1_0)", generated);
@@ -1187,24 +1205,30 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_UnusedSuppliedArgument_StillReceivesLocal()
     {
+        // Property accesses, not literals: a constant argument here would fold the whole call away
+        // (#140), and this test's point is that the unused argument still gets a local when the call
+        // does not fold.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
             public partial class Counter : BodyComponentBase
             {
+                private string _keep => "keep";
+                private string _drop => "drop";
+
                 [Composable]
                 private static View Ignore(string used, string unused) => Span[used];
 
-                protected override View Body => Ignore("keep", "drop");
+                protected override View Body => Ignore(_keep, _drop);
             }
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("string __bcf_arg_0_0 = \"keep\";", generated);
-        Assert.Contains("string __bcf_arg_0_1 = \"drop\";", generated);
+        Assert.Contains("string __bcf_arg_0_0 = _keep;", generated);
+        Assert.Contains("string __bcf_arg_0_1 = _drop;", generated);
         Assert.Contains("__builder.AddContent(1, __bcf_arg_0_0)", generated);
     }
 
@@ -1219,8 +1243,14 @@ public sealed class GeneratorTests
         AssertAppearsBefore(generated, "#pragma warning disable CS0219", "partial class Counter");
     }
 
+    /// <summary>
+    /// Both arguments are constant, including the unused one, so the whole expansion folds (#140): no
+    /// locals are declared at all. Before constant propagation this call kept both locals, with the
+    /// unused one relying on the file-level CS0219 pragma; folding away the declarations makes that
+    /// reliance moot here rather than wrong (the mixed-constant case right below keeps it meaningful).
+    /// </summary>
     [Fact]
-    public void Generator_UnusedConstantComposableArgument_KeepsLocalWithoutCS0219Diagnostic()
+    public void Generator_UnusedConstantComposableArgument_FoldsAway()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1238,7 +1268,39 @@ public sealed class GeneratorTests
         var result = CompilationTestHost.RunGenerator(source);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("string __bcf_arg_0_0 = \"keep\";", generated);
+        Assert.DoesNotContain("__bcf_arg_", generated);
+        Assert.Contains("""__builder.AddMarkupContent(0, "<span>keep</span>");""", generated);
+    }
+
+    /// <summary>
+    /// "used" is a property access (non-constant), so the expansion cannot fold as a whole and both
+    /// locals stay declared; "unused" is a literal, so its local is never referenced. Roslyn's CS0219
+    /// only fires for a local whose initializer is a compile-time constant (a non-constant one might
+    /// have a side effect, so the compiler does not flag it as pointless to keep), which is exactly the
+    /// shape this pins: without the file-level pragma, this would be CS0219 on "unused".
+    /// </summary>
+    [Fact]
+    public void Generator_UnusedConstantArgumentBesideNonConstantOne_KeepsDeclarationWithoutCS0219Diagnostic()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                private string _keep => "keep";
+
+                [Composable]
+                private static View Ignore(string used, string unused) => Span[used];
+
+                protected override View Body => Ignore(_keep, "drop");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("string __bcf_arg_0_0 = _keep;", generated);
         Assert.Contains("string __bcf_arg_0_1 = \"drop\";", generated);
         Assert.DoesNotContain(
             result.OutputCompilation.GetDiagnostics(),
@@ -1303,6 +1365,9 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_ComposableCallInIfBranch_DeclaresLocalInsideBranchBraces()
     {
+        // The then-branch argument is a property access, not a literal: a constant argument here would
+        // fold the whole branch into one markup frame (#140), leaving no local to place inside the braces,
+        // which is this test's actual point.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -1310,12 +1375,13 @@ public sealed class GeneratorTests
             public partial class Counter : BodyComponentBase
             {
                 private bool _show = true;
+                private string _label => "in-branch";
 
                 [Composable]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body =>
-                    If(_show, () => Label("in-branch"), () => Span["no"]);
+                    If(_show, () => Label(_label), () => Span["no"]);
             }
             """;
 
@@ -1323,8 +1389,8 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The expansion local must be declared inside the then branch, before the else branch.
-        AssertAppearsBefore(generated, "if (_show)", "__bcf_arg_1_0 = \"in-branch\";");
-        AssertAppearsBefore(generated, "__bcf_arg_1_0 = \"in-branch\";", "else");
+        AssertAppearsBefore(generated, "if (_show)", "__bcf_arg_1_0 = _label;");
+        AssertAppearsBefore(generated, "__bcf_arg_1_0 = _label;", "else");
         Assert.DoesNotContain("Label(", generated);
     }
 
@@ -1665,7 +1731,14 @@ public sealed class GeneratorTests
 
         Assert.DoesNotContain("Outer(", generated);
         Assert.DoesNotContain("Inner(", generated);
-        Assert.Contains("\"tail\"", generated);
+        // "hi" is constant, and the lone-hole substitution rule (#140) carries it through both levels of
+        // expansion: Outer's own local, Inner's argument, and Inner's local are all constant, so nothing
+        // is left to declare and the whole tree, both composable calls plus the trailing Span, folds into
+        // one frame.
+        Assert.DoesNotContain("__bcf_arg_", generated);
+        Assert.Contains(
+            """__builder.AddMarkupContent(0, "<div><span>hi</span><span>tail</span></div>");""",
+            generated);
     }
 
     [Fact]
@@ -1768,8 +1841,9 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // The parameter 'value' does not exist after expansion, so nameof(value) must collapse to its
-        // compile-time constant string rather than reference an out-of-scope name.
-        Assert.Contains("__builder.AddContent(1, \"value\")", generated);
+        // compile-time constant string rather than reference an out-of-scope name. Being a constant, it
+        // folds into the markup, which is itself the strongest statement that it collapsed.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>value</span>\")", generated);
         Assert.DoesNotContain("nameof(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -1794,7 +1868,7 @@ public sealed class GeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         // nameof(value.Length) evaluates to "Length"; the vanished parameter must not survive as text.
-        Assert.Contains("__builder.AddContent(1, \"Length\")", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>Length</span>\")", generated);
         Assert.DoesNotContain("value", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -1846,7 +1920,7 @@ public sealed class GeneratorTests
 
         // 'StringBuilder' is only in scope through 'using System.Text;', which the generated file lacks;
         // the nameof must collapse to its constant string rather than reference an out-of-scope type.
-        Assert.Contains("__builder.AddContent(1, \"StringBuilder\")", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>StringBuilder</span>\")", generated);
         Assert.DoesNotContain("nameof(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -1886,7 +1960,7 @@ public sealed class GeneratorTests
 
         // '_secret' is a private field of Widgets and does not exist inside Counter's generated RenderView;
         // nameof(_secret) must collapse to its constant string so it never references the vanished member.
-        Assert.Contains("__builder.AddContent(1, \"_secret\")", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>_secret</span>\")", generated);
         Assert.DoesNotContain("nameof(", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -2346,7 +2420,7 @@ public sealed class GeneratorTests
         // while nothing references the invalid Helper: no broken generated output is produced.
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.DoesNotContain("Helper", generated);
-        Assert.Contains("\"Body\"", generated);
+        Assert.Contains("__builder.AddMarkupContent(0, \"<span>Body</span>\")", generated);
     }
 
     // -----------------------------------------------------------------------
@@ -2663,13 +2737,15 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                protected override View Body => Span.Class("badge")["Hi"];
+                private string _badge => "badge";
+                protected override View Body => Span.Class(_badge)["Hi"];
             }
             """);
 
+        // Non-constant class, so the span is not folded away: the class attribute frame is the point.
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("__builder.OpenElement(0, \"span\");", source);
-        Assert.Contains("__builder.AddAttribute(1, \"class\", \"badge\");", source);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", _badge);", source);
         Assert.Contains("__builder.AddContent(2, \"Hi\");", source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -2683,12 +2759,16 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                protected override View Body => Span.Class("a").Class("b")["Hi"];
+                private string _a => "a";
+                private string _b => "b";
+                protected override View Body => Span.Class(_a).Class(_b)["Hi"];
             }
             """);
 
+        // Non-constant classes: what is pinned here is the concatenation expression the class channel emits,
+        // and that expression exists only when the element is not folded.
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (\"a\") + \" \" + (\"b\"));", source);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", (_a) + \" \" + (_b));", source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -2751,9 +2831,13 @@ public sealed class GeneratorTests
             """);
 
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("\"class\", ", source);
-        // If the hole were not substituted, ToCode() would throw and generation would fail; a compiling
-        // output proves the composable-argument class hole was bound.
+        // "hot" is constant, so the class hole substitution (#140) carries it into the class attribute
+        // and the whole call folds to one markup frame: an unbound hole would leave the class template
+        // unable to serialize (StaticMarkupSerializer requires a constant), so a compiling, folded output
+        // proves the composable-argument class hole was bound.
+        Assert.Contains(
+            """__builder.AddMarkupContent(0, "<div><span class=\"hot\">chip</span></div>");""",
+            source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

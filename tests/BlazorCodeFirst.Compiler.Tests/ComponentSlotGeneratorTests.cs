@@ -83,8 +83,9 @@ public sealed class ComponentSlotGeneratorTests
             "__builder.AddComponentParameter(2, \"ChildContent\", "
                 + "(global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>",
             code);
-        Assert.Contains("__builder.OpenElement(3, \"div\");", code);
-        Assert.Contains("__builder.AddContent(4, \"x\");", code);
+        // The slot's content is fully static, so it folds into one markup frame. What this test needs from
+        // it is unchanged: the content starts at the sequence number after the slot parameter.
+        Assert.Contains("__builder.AddMarkupContent(3, \"<div>x</div>\");", code);
     }
 
     [Fact]
@@ -105,8 +106,9 @@ public sealed class ComponentSlotGeneratorTests
 
         // Both children share the single ChildContent fragment; only one AddComponentParameter for it.
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(code, @"""ChildContent"""));
-        Assert.Contains("__builder.OpenElement(2, \"div\");", code);
-        Assert.Contains("__builder.AddContent(4, \"text\");", code);
+        // Both children are static and adjacent, so they fold into one markup frame — which shows them
+        // sharing the one slot more directly than the pair of frame assertions this replaced.
+        Assert.Contains("__builder.AddMarkupContent(2, \"<div>a</div>text\");", code);
     }
 
     [Fact]
@@ -130,7 +132,7 @@ public sealed class ComponentSlotGeneratorTests
             "__builder.AddComponentParameter(1, \"Footer\", "
                 + "(global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>",
             code);
-        Assert.Contains("__builder.OpenElement(2, \"div\");", code);
+        Assert.Contains("__builder.AddMarkupContent(2, \"<div>f</div>\");", code);
     }
 
     [Fact]
@@ -170,11 +172,12 @@ public sealed class ComponentSlotGeneratorTests
         var code = GeneratedHost(result);
 
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        // outer OpenComponent=0, outer slot=1, inner OpenComponent=2, inner slot=3, div=4, text=5
+        // outer OpenComponent=0, outer slot=1, inner OpenComponent=2, inner slot=3, folded content=4. The
+        // claim under test is that a slot does not restart its own sequence space, and the inner
+        // component's 2 and the inner slot's content at 4 still show that.
         Assert.Contains("__builder.OpenComponent<global::T.Card>(0);", code);
         Assert.Contains("__builder.OpenComponent<global::T.Card>(2);", code);
-        Assert.Contains("__builder.OpenElement(4, \"div\");", code);
-        Assert.Contains("__builder.AddContent(5, \"deep\");", code);
+        Assert.Contains("__builder.AddMarkupContent(4, \"<div>deep</div>\");", code);
     }
 
     [Fact]
@@ -330,7 +333,7 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ForEach_WithSlotContent_EmitsSetKeyBeforeTheSlotParameter()
     {
-        // Regression guard mirroring the Task-9 SetKey defect, but for a slot instead of a plain
+        // Regression guard mirroring the SetKey defect ARCHITECTURE.md §2.7(B) records, but for a slot instead of a plain
         // element: SetKey applies to whichever frame is currently open, so it must be emitted right
         // after OpenComponent and before the slot's AddComponentParameter opens the fragment. Emitting
         // it after the slot parameter would try to key a frame that is no longer the component frame
@@ -365,9 +368,11 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ComponentWithChildren_ComposableCallInsideSlot_ExpandsInsideTheLambda()
     {
-        // Guards against a [Composable] call nested inside a slot either failing to expand statically
-        // (falling back to an opaque runtime call) or having its argument local hoisted outside the
-        // fragment lambda, where it would be out of scope for the generated fragment delegate.
+        // Guards against a [Composable] call nested inside a slot failing to expand statically (falling
+        // back to an opaque runtime call). "new" and the .Class("badge") decoration are both constant, so
+        // the lone-hole substitution rule (#140) carries the constant through and the whole call folds
+        // into one markup frame; there is no argument local left to hoist out of the fragment lambda, so
+        // this case instead pins that the folded frame itself lands inside the lambda.
         const string host = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -378,6 +383,46 @@ public sealed class ComponentSlotGeneratorTests
                 private static View Badge(string label) => Span.Class("badge")[label];
 
                 protected override View Body => Component<Card>()[Badge("new")];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Card.cs", CardSource), ("Host.cs", host));
+        var code = GeneratedHost(result);
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        // The call must be statically expanded, not left as a runtime method invocation.
+        Assert.DoesNotContain("Badge(", code);
+        Assert.DoesNotContain("__bcf_arg_", code);
+
+        int lambdaIdx = code.IndexOf(
+            "AddComponentParameter(1, \"ChildContent\",", System.StringComparison.Ordinal);
+        int markupIdx = code.IndexOf(
+            """<span class=\"badge\">new</span>""", System.StringComparison.Ordinal);
+
+        Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
+        Assert.True(
+            lambdaIdx < markupIdx,
+            "the composable's folded markup must be emitted inside the fragment lambda");
+    }
+
+    [Fact]
+    public void ComponentWithChildren_ComposableCallInsideSlotWithNonConstantArgument_DeclaresLocalInsideTheLambda()
+    {
+        // The companion to the case above for when the call does not fold: a non-constant argument keeps
+        // the expansion local live, and it must be declared inside the fragment lambda, where it would
+        // otherwise be out of scope for the generated fragment delegate if hoisted above it.
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                private string _label => "new";
+
+                [Composable]
+                private static View Badge(string label) => Span[label];
+
+                protected override View Body => Component<Card>()[Badge(_label)];
             }
             """;
 

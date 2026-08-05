@@ -13,16 +13,14 @@ partial class Host
         global::System.Collections.Generic.List<string> __bcf_arg_0_1 = _items;
         __builder.OpenElement(0, "div");
         __builder.AddAttribute(1, "class", "panel");
-        __builder.OpenElement(2, "h2");
-        __builder.AddContent(3, __bcf_arg_0_0);
-        __builder.CloseElement();
-        __builder.OpenElement(4, "ul");
-        __builder.OpenRegion(5);
+        __builder.AddMarkupContent(2, "<h2>Heading</h2>");
+        __builder.OpenElement(3, "ul");
+        __builder.OpenRegion(4);
         foreach (var __bcf_item_5 in __bcf_arg_0_1)
         {
-            __builder.OpenElement(6, "li");
+            __builder.OpenElement(5, "li");
             __builder.SetKey(__bcf_item_5);
-            __builder.AddContent(7, $"{__bcf_arg_0_0}:{__bcf_item_5}");
+            __builder.AddContent(6, $"{__bcf_arg_0_0}:{__bcf_item_5}");
             __builder.CloseElement();
         }
         __builder.CloseRegion();

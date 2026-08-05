@@ -33,11 +33,14 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void ElementWithChildren_WrittenAsAnElementAccess_OpensTheElement()
     {
-        var result = CompilationTestHost.RunGenerator(Host("""Div["a"]"""));
+        // Non-constant text keeps the static fold away: this file localizes a failure to the dispatch head,
+        // which needs the element and text frames themselves rather than a markup string.
+        var result = CompilationTestHost.RunGenerator(
+            Host("""Div[_a]""", """private string _a => "a";"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
-        Assert.Contains("__builder.AddContent(1, \"a\")", generated);
+        Assert.Contains("__builder.AddContent(1, _a)", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -66,12 +69,15 @@ public sealed class BracketSurfaceGeneratorTests
     [Fact]
     public void DecoratedElementWithChildren_FoldsTheDecorationIntoTheElement()
     {
-        var result = CompilationTestHost.RunGenerator(Host("""Div.Class("card")["a"]"""));
+        // Non-constant class and text: what this test checks is that the decoration lands on the element's
+        // own attribute frame, which a folded markup string would not show.
+        var result = CompilationTestHost.RunGenerator(
+            Host("""Div.Class(_cls)[_a]""", """private string _cls => "card"; private string _a => "a";"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
-        Assert.Contains("__builder.AddAttribute(1, \"class\", \"card\")", generated);
-        Assert.Contains("__builder.AddContent(2, \"a\")", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", _cls)", generated);
+        Assert.Contains("__builder.AddContent(2, _a)", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -100,8 +106,10 @@ public sealed class BracketSurfaceGeneratorTests
         var result = CompilationTestHost.RunGenerator(Host("""Div[Img]"""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
-        Assert.Contains("__builder.OpenElement(1, \"img\")", generated);
+        // Both elements are static so the pair folds into one markup frame, which shows the img child was
+        // bound at all — and, as a bonus this test did not previously cover, that a void tag is serialized
+        // without a closing tag.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<div><img></div>\")", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -169,11 +177,17 @@ public sealed class BracketSurfaceGeneratorTests
         var result = CompilationTestHost.RunGenerator(Host(body));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
+        // Either spelling counts, because the static fold decides which one a given tag gets, and what this
+        // test is about is that the name resolved to its tag at all. Both patterns are exact: a childless
+        // element carries no attributes, so its markup form is exactly "<tag>". Both arms are genuinely
+        // used — Pre, Textarea and Iframe are curated but excluded from the fold, so they split the run and
+        // stay element frames while their neighbours coalesce.
         foreach (var (name, tag) in tags)
         {
             Assert.True(
-                generated.Contains($", \"{tag}\");", System.StringComparison.Ordinal),
-                $"Html.{name} produced no OpenElement for \"{tag}\".");
+                generated.Contains($", \"{tag}\");", System.StringComparison.Ordinal)
+                    || generated.Contains($"<{tag}>", System.StringComparison.Ordinal),
+                $"Html.{name} produced no element for \"{tag}\".");
         }
 
         // Proves the 100 runtime properties exist and are reachable unqualified through `using static`.

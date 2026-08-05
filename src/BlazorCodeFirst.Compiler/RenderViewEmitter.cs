@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -70,8 +71,16 @@ internal static class RenderViewEmitter
     /// children. Region-rooted nodes (<see cref="IfNode"/>, <see cref="ForEachNode"/>) never receive a
     /// non-<see langword="null"/> key because BCF3003 blocks region-rooted content from reaching emission.
     /// </param>
-    private static int EmitNode(IndentedWriter writer, RenderNode node, int startSeq, string? key = null) =>
-        node switch
+    private static int EmitNode(IndentedWriter writer, RenderNode node, int startSeq, string? key = null)
+    {
+        // A folded run is one AddMarkupContent frame, which SetKey cannot attach to. EmitForEach is the
+        // only caller that passes a non-null key (for the loop content root), so this check is what keeps
+        // a ForEach content root out of the fold; there is no separate predicate to keep in step
+        // (ARCHITECTURE.md §2.7(D)).
+        if (key is null && TryEmitFolded(writer, [node], startSeq, out var afterFold))
+            return afterFold;
+
+        return node switch
         {
             IfNode ifNode => EmitIf(writer, ifNode, startSeq, key),
             ExpansionNode expansion => EmitExpansion(writer, expansion, startSeq, key),
@@ -86,6 +95,74 @@ internal static class RenderViewEmitter
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
+    }
+
+    /// <summary>
+    /// Emits a child list, coalescing maximal runs of consecutive foldable siblings into one
+    /// <c>AddMarkupContent</c> frame each, and returns the next available sequence number. The run, not
+    /// the subtree, is the fold unit: adjacent static siblings with nothing dynamic between them become
+    /// one frame, which is what #142's measurement found the reduction actually comes from.
+    /// </summary>
+    private static int EmitChildren(IndentedWriter writer, EquatableArray<RenderNode> children, int seq)
+    {
+        var nodes = children.AsImmutableArray();
+        var index = 0;
+        while (index < nodes.Length)
+        {
+            if (!StaticMarkupSerializer.IsFoldable(nodes[index]))
+            {
+                seq = EmitNode(writer, nodes[index], seq);
+                index++;
+                continue;
+            }
+
+            var runEnd = index + 1;
+            while (runEnd < nodes.Length && StaticMarkupSerializer.IsFoldable(nodes[runEnd]))
+                runEnd++;
+
+            var run = ImmutableArray.CreateRange(nodes, index, runEnd - index, static node => node);
+            if (TryEmitFolded(writer, run, seq, out var afterFold))
+            {
+                seq = afterFold;
+            }
+            else
+            {
+                // Foldable but not worth folding: emit the run's nodes as they stand.
+                for (var inner = index; inner < runEnd; inner++)
+                    seq = EmitNode(writer, nodes[inner], seq);
+            }
+
+            index = runEnd;
+        }
+
+        return seq;
+    }
+
+    /// <summary>
+    /// Emits <paramref name="run"/> as one <c>AddMarkupContent</c> frame when every node in it is
+    /// foldable and doing so replaces at least two frames, and reports the next sequence number through
+    /// <paramref name="next"/>. A run worth one frame is left alone: folding it would change the shape
+    /// without reducing anything.
+    /// </summary>
+    private static bool TryEmitFolded(
+        IndentedWriter writer, ImmutableArray<RenderNode> run, int seq, out int next)
+    {
+        next = seq;
+        foreach (var node in run)
+        {
+            if (!StaticMarkupSerializer.IsFoldable(node))
+                return false;
+        }
+
+        var (markup, absorbed) = StaticMarkupSerializer.Write(run);
+        if (absorbed < 2)
+            return false;
+
+        var literal = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(markup, quote: true);
+        writer.AppendLine($"__builder.AddMarkupContent({seq}, {literal});");
+        next = seq + 1;
+        return true;
+    }
 
     /// <summary>
     /// Emits the folded <c>class</c> attribute for a decorated element and returns the next sequence
@@ -171,6 +248,14 @@ internal static class RenderViewEmitter
         return next;
     }
 
+    /// <summary>
+    /// Emits a composable expansion's locals and then its body. Reached only when the expansion is not
+    /// foldable, that is when at least one local's initializer is not a compile-time constant: a fully
+    /// constant expansion is absorbed into a markup frame by the fold check in <see cref="EmitNode"/> (a
+    /// lone or root expansion) or <see cref="EmitChildren"/> (one among a sibling run), with its
+    /// declarations dropped because constant initializers have no side effects. The body may still fold
+    /// on its own here.
+    /// </summary>
     private static int EmitExpansion(IndentedWriter writer, ExpansionNode node, int startSeq, string? key = null)
     {
         foreach (var local in node.Locals)
@@ -245,8 +330,7 @@ internal static class RenderViewEmitter
                 $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
             next++;
         }
-        foreach (var child in node.Children)
-            next = EmitNode(writer, child, next);
+        next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;
     }
@@ -262,10 +346,7 @@ internal static class RenderViewEmitter
         // A fragment is non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be
         // silently dropped, fail fast, mirroring EmitIf/EmitForEach.
         Debug.Assert(key is null, $"{nameof(EmitFragment)} does not support a threaded key; SetKey would be silently dropped.");
-        int next = seq;
-        foreach (var child in node.Children)
-            next = EmitNode(writer, child, next);
-        return next;
+        return EmitChildren(writer, node.Children, seq);
     }
 
     private static int EmitRawMarkup(IndentedWriter writer, RawMarkupNode node, int seq, string? key = null)

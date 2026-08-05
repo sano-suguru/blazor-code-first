@@ -24,13 +24,28 @@ namespace BlazorCodeFirst.Benchmarks;
 /// both of which are artifacts of Razor's source format rather than gaps on this side.
 /// </para>
 /// <para>
-/// <c>Program.Main</c> has already proved each pair emits strictly fewer folded frames, and
+/// <c>Program.Main</c> has already proved each pair's two sides emit the same frames, and
 /// <c>FoldFixtureTests</c> has proved each pair renders the same DOM, before any of these run.
 /// </para>
 /// <para>
-/// The judgment criterion is the <c>MannWhitney(10%)</c> column: folding is implemented only if the
-/// static-heavy render cycle clears 10%. The threshold was fixed before any number existed, and the
-/// column exists so that it appears in the output rather than in someone's reading of Mean ± Error.
+/// <strong>The decision these figures informed is closed, and re-running them now measures something
+/// weaker than it did.</strong> The element spelling was the unfolded baseline only while the emitter
+/// did not fold; since #140 it folds to the same frame shape as the <c>Html.Raw</c> spelling, so what
+/// each pair now compares is two source spellings of one frame shape and the two sides should come out
+/// alike. The pre-fold reduction each pair used to show (23 frames to 6, and 12 to 10) is recorded in
+/// <c>Program.Main</c> and in <c>FoldFixtureTests</c>; reproducing it here would need a non-folding twin
+/// fixture with the same DOM, which <c>FoldFixtureTests</c> deliberately declines to add for the reason
+/// its remarks give. These stay because a near-equal result is the standing check on the premise the
+/// decision rested on: that runtime cost follows the frame shape.
+/// </para>
+/// <para>
+/// The judgment criterion was the <c>MannWhitney(10%)</c> column: folding was to be implemented only if
+/// the static-heavy render cycle cleared 10% against the unfolded baseline. The threshold was fixed
+/// before any number existed, and the column exists so that it appears in the output rather than in
+/// someone's reading of Mean ± Error. That column now reports <c>Same</c> for every pair, and that is
+/// the expected reading of the closed decision rather than a criterion the implementation fails: the
+/// baseline is no longer unfolded, so the two sides are two spellings of one frame shape and are
+/// supposed to come out alike.
 /// </para>
 /// </remarks>
 [MemoryDiagnoser]

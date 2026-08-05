@@ -9,6 +9,8 @@ public sealed class HtmlAttributeGeneratorTests
             public partial class C : BodyComponentBase
             {
                 private string _url = "/x";
+                private string _a => "a";
+                private string _b => "b";
                 protected override View Body => {{body}};
             }
             """;
@@ -33,17 +35,19 @@ public sealed class HtmlAttributeGeneratorTests
     [Fact]
     public void NamedShortcut_EmitsHrefAttribute()
     {
+        // Static throughout, so it folds; the resolved attribute name is what this test is about and the
+        // markup states it, with the value quoted as an attribute value.
         var code = Run("""Html.A.Href("/home")["Home"]""");
-        Assert.Contains("__builder.OpenElement(0, \"a\")", code);
-        Assert.Contains("__builder.AddAttribute(1, \"href\", \"/home\")", code);
-        Assert.Contains("__builder.AddContent(2, \"Home\")", code);
+        Assert.Contains("""__builder.AddMarkupContent(0, "<a href=\"/home\">Home</a>");""", code);
     }
 
     [Fact]
     public void GenericAttr_EmitsArbitraryAttribute()
     {
+        // Folded, for the reason NamedShortcut_EmitsHrefAttribute gives: the arbitrary name is written
+        // through to the markup unchanged.
         var code = Run("""Html.Nav.Attr("aria-label", "main")""");
-        Assert.Contains("__builder.AddAttribute(1, \"aria-label\", \"main\")", code);
+        Assert.Contains("""__builder.AddMarkupContent(0, "<nav aria-label=\"main\"></nav>");""", code);
     }
 
     [Fact]
@@ -58,9 +62,11 @@ public sealed class HtmlAttributeGeneratorTests
     [Fact]
     public void ClassThenAttrClass_BothFoldIntoSingleClassAttribute()
     {
-        var code = Run("""Html.Div.Class("a").Attr("class", "b")[Html.Span["x"]]""");
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (\"a\") + \" \" + (\"b\"))", code);
-        Assert.DoesNotContain("\"class\", \"b\"", code); // not a second class frame
+        // Non-constant class values: what is pinned here is the concatenation expression the class channel
+        // emits into one frame, and that expression exists only in the frame form.
+        var code = Run("""Html.Div.Class(_a).Attr("class", _b)[Html.Span["x"]]""");
+        Assert.Contains("__builder.AddAttribute(1, \"class\", (_a) + \" \" + (_b))", code);
+        Assert.DoesNotContain("\"class\", _b)", code); // not a second class frame
     }
 
     [Fact]

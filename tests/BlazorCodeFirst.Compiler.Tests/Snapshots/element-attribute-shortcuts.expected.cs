@@ -9,10 +9,6 @@ partial class Host
 {
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
-        __builder.OpenElement(0, "a");
-        __builder.AddAttribute(1, "href", "/");
-        __builder.AddAttribute(2, "title", "home");
-        __builder.AddContent(3, "Home");
-        __builder.CloseElement();
+        __builder.AddMarkupContent(0, "<a href=\"/\" title=\"home\">Home</a>");
     }
 }

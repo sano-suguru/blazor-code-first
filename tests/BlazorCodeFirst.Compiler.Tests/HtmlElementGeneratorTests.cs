@@ -28,8 +28,9 @@ public sealed class HtmlElementGeneratorTests
         var result = CompilationTestHost.RunGenerator(DivTextSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
-        Assert.Contains("__builder.AddContent(1, \"hello\")", generated);
+        // Static throughout, so it folds into one markup frame — which states the claim more directly than
+        // the frame pair it replaced: bare text stays bare text, with no span wrapped around it.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<div>hello</div>\")", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -39,12 +40,10 @@ public sealed class HtmlElementGeneratorTests
         var result = CompilationTestHost.RunGenerator(MixedContentSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        // div(0) -> text "Count: "(1) -> span(2) -> "x"(3) -> text "tail"(4)
-        Assert.Contains("__builder.OpenElement(0, \"div\")", generated);
-        Assert.Contains("__builder.AddContent(1, \"Count: \")", generated);
-        Assert.Contains("__builder.OpenElement(2, \"span\")", generated);
-        Assert.Contains("__builder.AddContent(3, \"x\")", generated);
-        Assert.Contains("__builder.AddContent(4, \"tail\")", generated);
+        // Static throughout, so the whole body folds into one markup frame. Preorder is the claim and the
+        // markup string carries it: text, then the element, then text, in source order.
+        Assert.Contains(
+            "__builder.AddMarkupContent(0, \"<div>Count: <span>x</span>tail</div>\")", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 }

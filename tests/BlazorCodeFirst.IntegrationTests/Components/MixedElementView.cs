@@ -4,7 +4,8 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
-/// The low-static shape of the #140 fold measurement, written the way the surface is written today.
+/// The low-static shape of the #140 fold measurement, written in the element spelling, the way
+/// <see cref="StaticHeavyElementView"/> is.
 /// </summary>
 /// <remarks>
 /// The three dynamic slots are interleaved so that each static element stands alone between dynamic
@@ -14,6 +15,12 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 /// <para>
 /// Plain properties rather than <c>[Parameter]</c>s, for the reason
 /// <see cref="StaticHeavyElementView.Index"/> gives.
+/// </para>
+/// <para>
+/// Since #140 the emitter folds this too: each of the two single-element static runs becomes one
+/// <c>AddMarkupContent</c> frame, so this body emits 10 frames where it emitted 12 before — the same count
+/// as <see cref="MixedMarkupView"/>. <c>FoldFixtureTests</c> pins that folded count, and what the pair
+/// measures now that both sides fold is stated in the remarks on <c>StaticFoldBenchmarks</c>.
 /// </para>
 /// </remarks>
 public partial class MixedElementView : BodyComponentBase

@@ -98,11 +98,22 @@ benchmarks; to run only it:
 dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*StaticFoldBenchmarks*'
 ```
 
-Its two component pairs deliberately render *different* frames, because that
-difference is what is being measured, so the frame-equivalence gate cannot cover
-them. `Program.Main` gates the inverse condition instead — the folded spelling
-must emit strictly fewer frames — and `FoldFixtureTests` asserts each pair
-renders the same DOM.
+Its two component pairs were written before the emitter folded, when the element
+spelling was the unfolded baseline and the markup spelling hand-wrote the folded
+shape with `Html.Raw`, so the two sides then rendered deliberately different
+frames. Now that the emitter folds, each pair's two sides emit the same frames,
+and `Program.Main` gates that equality rather than the strict inequality it once
+required: if the counts diverge, the element spelling stopped folding.
+`FoldFixtureTests` pins each pair's folded frame count and asserts both sides
+render the same DOM.
+
+`Program.Main` also gates one thing that is not a figure. `StaticParityView` and
+`StaticParityViewRazor` are a statically written pair, added once folding made
+such a comparison possible, and their frame equivalence is what backs
+`DESIGN.md` §7.1's statement that the two compilers now emit the same shape for
+a static subtree. They carry no benchmark: §7.1's published allocations were
+measured against the property-driven pair, and re-spelling those fixtures would
+invalidate published numbers.
 
 A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
@@ -122,6 +133,27 @@ dotnet restore tests/diagnostic-fixtures/GeneratorDelivery.Package/GeneratorDeli
 
 `dotnet test` will not show it, because MSBuild builds those fixtures inside the
 test process and their output never surfaces.
+
+Blazor's browser-side markup path is not covered by `dotnet test`. A text frame
+reaches the DOM through `createTextNode`, while a markup frame is parsed by
+assigning `innerHTML` on a shared `<template>` element; bUnit parses a document
+string with AngleSharp and prerendering writes markup verbatim, so neither sees
+the difference. The #140 static fold produces markup frames, so its parity with
+the element path is checked in a real browser:
+
+```bash
+# Start the host on the port the browser tests default to, then compare folded
+# and unfolded spellings of the same content
+dotnet run --project tests/BlazorCodeFirst.WebAppTestHost --urls http://localhost:5000
+cd tests/BlazorCodeFirst.WebAppTests/browser && npm install && npx playwright test
+```
+
+`FoldParityTests` in `BlazorCodeFirst.WebAppTests` (which `dotnet test` does
+run) pins the premise this depends on: that each folded container in
+`FoldParityView` really collapses to one `AddMarkupContent` frame and each
+unfolded container really does not. If that gate is red, the browser result is
+worthless even if green, because the comparison would no longer be between a
+folded and an unfolded spelling of the same content.
 
 `SnapshotCorpusTests` compares the generator's complete emitted source against
 baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which

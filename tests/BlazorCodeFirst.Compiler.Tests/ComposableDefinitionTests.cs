@@ -233,7 +233,7 @@ public sealed class ComposableDefinitionTests
             default);
 
         var template = ExpressionTemplateFactory.Create(argument, context);
-        var code = template.Substitute(["__p0"]).ToCode();
+        var code = template.Substitute([new SubstitutedArgument("__p0", Constant: null)]).ToCode();
 
         // nameof(name) depends on the parameter, so it collapses to its compile-time constant string;
         // the bare 'name' becomes the substituted hole.

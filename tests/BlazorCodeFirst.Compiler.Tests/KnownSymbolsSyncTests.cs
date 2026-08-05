@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using BlazorCodeFirst.Compiler.Analysis;
@@ -431,6 +432,36 @@ public sealed class KnownSymbolsSyncTests
         // The generic overload has a type parameter; the fragment overload does not.
         Assert.Equal(1, symbols.ParamMethod!.Arity);
         Assert.Equal(0, symbols.FragmentParamMethod!.Arity);
+    }
+
+    /// <summary>
+    /// The tag-value view added for the #140 fold predicate has to agree with the name-keyed table it is
+    /// derived from, in both count and content. The content direction reuses the rule
+    /// <see cref="EveryCuratedTag_IsItsHelperNameWithALowercasedFirstLetter"/> already establishes, so a
+    /// second hand-written transcription of 100 tags is not needed here.
+    /// </summary>
+    [Fact]
+    public void CuratedElementTags_AreExactlyTheCuratedTableValues()
+    {
+        var expected = ExpectedCuratedNames
+            .Select(static name => char.ToLowerInvariant(name[0]) + name.Substring(1))
+            .OrderBy(static tag => tag, StringComparer.Ordinal)
+            .ToArray();
+
+        var actual = KnownSymbols.CuratedElementTags
+            .OrderBy(static tag => tag, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(CuratedTagCount, actual.Length);
+        Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void IsCuratedTag_IsOrdinal()
+    {
+        Assert.True(KnownSymbols.IsCuratedTag("div"));
+        Assert.False(KnownSymbols.IsCuratedTag("DIV"));
+        Assert.False(KnownSymbols.IsCuratedTag("marquee"));
     }
 
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()
