@@ -141,8 +141,21 @@ internal static class StaticMarkupSerializer
 
         foreach (var attribute in element.Attributes)
         {
-            // A constant null value means AddAttribute would omit the attribute, so no markup and no frame.
-            if (attribute.Value.Constant is not { Text: { } value })
+            // Each case writes what AddAttribute would have produced, and counts a frame only where
+            // AddAttribute appends one. A constant null and a false bool append nothing at all, so they
+            // write no markup and absorb no frame; a true bool appends a frame whose value reaches the
+            // DOM as an empty string (measured, #158), so it is written as name="".
+            var value = attribute.Value.Constant switch
+            {
+                NullConstant or BooleanConstant { Value: false } => null,
+                BooleanConstant { Value: true } => string.Empty,
+                StringConstant constant => constant.Text,
+                _ => throw new System.NotSupportedException(
+                    $"Attribute '{attribute.Name}' carries a value the fold cannot serialize; "
+                        + "the caller must partition on IsFoldable first."),
+            };
+
+            if (value is null)
                 continue;
 
             builder.Append(' ').Append(attribute.Name).Append("=\"");
@@ -163,9 +176,10 @@ internal static class StaticMarkupSerializer
     }
 
     private static string ConstantTextOf(ExpressionTemplate template, RenderNode owner) =>
-        template.Constant?.Text
-            ?? throw new System.NotSupportedException(
-                $"'{owner.GetType().Name}' carries a non-constant expression; the caller must partition on IsFoldable first.");
+        template.Constant is StringConstant constant
+            ? constant.Text
+            : throw new System.NotSupportedException(
+                $"'{owner.GetType().Name}' carries no constant string; the caller must partition on IsFoldable first.");
 
     /// <summary>
     /// Escapes text content. <c>&gt;</c> is not strictly required outside an attribute value, but it is
@@ -202,7 +216,7 @@ internal static class StaticMarkupSerializer
     }
 
     private static bool IsFoldableText(ExpressionTemplate content) =>
-        content.Constant is { Text: { } value } && CanRoundTrip(value);
+        content.Constant is StringConstant { Text: var value } && CanRoundTrip(value);
 
     private static bool IsFoldableElement(ElementNode element)
     {
@@ -213,9 +227,11 @@ internal static class StaticMarkupSerializer
         if (element.Events.Length > 0)
             return false;
 
+        // The class channel folds by concatenation, so it needs a constant string and nothing else will
+        // do: a constant null has no text to join, and a bool has no meaning as part of a class list.
         foreach (var @class in element.Classes)
         {
-            if (@class.Constant is not { Text: { } value } || !CanRoundTrip(value))
+            if (@class.Constant is not StringConstant { Text: var value } || !CanRoundTrip(value))
                 return false;
         }
 
@@ -224,12 +240,27 @@ internal static class StaticMarkupSerializer
             if (!IsSafeAttributeName(attribute.Name))
                 return false;
 
-            // A constant null value is foldable: it is written by omitting the attribute, which is what
-            // AddAttribute does with a null string.
-            if (attribute.Value.Constant is not { } constant)
-                return false;
+            var foldable = attribute.Value.Constant switch
+            {
+                // Written by omitting the attribute, which is what AddAttribute does with either.
+                NullConstant or BooleanConstant { Value: false } => true,
 
-            if (constant.Text is { } text && !CanRoundTrip(text))
+                // Written as name="", which reaches the same DOM AddAttribute gives a true bool
+                // (measured in Chromium, #158).
+                BooleanConstant { Value: true } => true,
+
+                StringConstant constant => CanRoundTrip(constant.Text),
+
+                // Every other constant renders under the runtime's formatting culture, which the
+                // compiler cannot know, so it stays on the element path. Same shape as CanRoundTrip's
+                // refusals: the cost is a missed fold, and the reason is a measurement (#158).
+                RuntimeFormattedConstant => false,
+
+                // Not a compile-time constant at all.
+                _ => false,
+            };
+
+            if (!foldable)
                 return false;
         }
 

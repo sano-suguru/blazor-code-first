@@ -185,11 +185,16 @@ internal static class ExpressionTemplateFactory
     }
 
     /// <summary>
-    /// Reads <paramref name="expression"/>'s compile-time constant value off the semantic model. Returns
-    /// <see langword="null"/> when it is not a constant. A constant of a non-string type, and a constant
-    /// <see langword="null"/> string, both come back as <c>{ Text: null }</c>: they are side-effect free
-    /// (so a composable local bound to one may be dropped) but carry no string usable in markup.
+    /// Reads <paramref name="expression"/>'s compile-time constant value off the semantic model and
+    /// classifies it into one of <see cref="ConstantInfo"/>'s cases. Returns <see langword="null"/> when
+    /// it is not a constant.
     /// </summary>
+    /// <remarks>
+    /// A constant <see langword="null"/> arrives here with no type of its own to read — a null constant
+    /// string and a null constant of any other type are the same <see cref="Optional{T}"/> — which costs
+    /// nothing: both mean <c>AddAttribute</c> omits the attribute, so both are
+    /// <see cref="NullConstant"/>.
+    /// </remarks>
     private static ConstantInfo? ReadConstant(
         ExpressionSyntax expression,
         ComposableBodyContext context)
@@ -198,7 +203,13 @@ internal static class ExpressionTemplateFactory
         if (!constant.HasValue)
             return null;
 
-        return new ConstantInfo(constant.Value as string);
+        return constant.Value switch
+        {
+            null => new NullConstant(),
+            string text => new StringConstant(text),
+            bool value => new BooleanConstant(value),
+            _ => new RuntimeFormattedConstant(),
+        };
     }
 
     internal static bool TryReportUnresolvedType(

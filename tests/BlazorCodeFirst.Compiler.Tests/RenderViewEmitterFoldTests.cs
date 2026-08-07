@@ -17,7 +17,7 @@ public sealed class RenderViewEmitterFoldTests
         ExpressionTemplate.Create(
             [new LiteralExpressionSegment(
                 Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true))],
-            new ConstantInfo(value));
+            new StringConstant(value));
 
     private static ExpressionTemplate Dynamic(string code) => ExpressionTemplate.Literal(code);
 

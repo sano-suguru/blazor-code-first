@@ -11,16 +11,49 @@ internal sealed record LiteralExpressionSegment(string Text) : ExpressionSegment
 internal sealed record ParameterHoleExpressionSegment(int ParameterOrdinal) : ExpressionSegment;
 
 /// <summary>
-/// The compile-time constant value of an expression, when it has one. Distinguishes three states that the
-/// fold predicate needs to tell apart, so it is a nullable struct rather than a bare string:
-/// <c>null</c> means the expression is not a compile-time constant (so it cannot be serialized, and a
-/// composable local bound to it cannot be dropped because the initializer may have side effects);
-/// <c>{ Text: null }</c> means it is a constant with no usable string value, either a constant
-/// <see langword="null"/> string (which <c>AddAttribute</c> omits entirely) or a constant of a
-/// non-string type (side-effect free, but not directly serializable);
-/// <c>{ Text: not null }</c> means it is a constant string usable in markup.
+/// The compile-time constant value of an expression, when it has one. A <see langword="null"/> reference
+/// (rather than any case below) means the expression is not a compile-time constant at all: it cannot be
+/// serialized, and a composable local bound to it cannot be dropped, because its initializer may have
+/// side effects.
 /// </summary>
-internal readonly record struct ConstantInfo(string? Text);
+/// <remarks>
+/// The cases are separate types, and not one nullable string, because the fold has to tell "renders
+/// nothing" apart from "renders something the compiler cannot spell". A single <c>string? Text</c>
+/// carried both as <c>null</c>, and <see cref="Generation.StaticMarkupSerializer"/> read that as "the
+/// attribute is omitted" — right for a constant <see langword="null"/>, and wrong for every non-string
+/// constant, which renders. Nothing was broken while <c>.Attr</c> was string-only; the
+/// <see langword="bool"/> overload (#158) is what made a non-string attribute value reachable, and the
+/// same route would have carried an <c>int</c> silently to markup with the attribute missing.
+/// </remarks>
+internal abstract record ConstantInfo;
+
+/// <summary>A constant string, usable in markup as it stands.</summary>
+internal sealed record StringConstant(string Text) : ConstantInfo;
+
+/// <summary>
+/// A constant <see langword="null"/>, of a string or of any other type. <c>AddAttribute</c> appends no
+/// frame for it, so the fold writes nothing, and the two paths reach the same DOM.
+/// </summary>
+internal sealed record NullConstant : ConstantInfo;
+
+/// <summary>
+/// A constant <see langword="bool"/>: the one non-string value the markup path can express exactly.
+/// Measured in Chromium (#158), <c>AddAttribute</c> renders <see langword="true"/> as <c>name=""</c> and
+/// omits the attribute entirely for <see langword="false"/>, and markup can write both. A
+/// <see langword="bool"/> has nothing to format, which is what separates it from
+/// <see cref="RuntimeFormattedConstant"/>.
+/// </summary>
+internal sealed record BooleanConstant(bool Value) : ConstantInfo;
+
+/// <summary>
+/// A constant of any other type — an <c>int</c>, a <c>double</c>, a <c>DateTime</c>, an enum member.
+/// Side-effect free, so a composable local bound to one may still be dropped, but never serializable:
+/// measured (#158), <c>AddAttribute</c> formats such a value under whatever culture the formatting
+/// thread carries at render time rather than under the culture in effect while the component builds its
+/// frames, so the compiler cannot know the text it becomes (<c>3.5</c> reaches the DOM as <c>"3.5"</c>
+/// under <c>en-US</c> and <c>"3,5"</c> under <c>de-DE</c>).
+/// </summary>
+internal sealed record RuntimeFormattedConstant : ConstantInfo;
 
 /// <summary>
 /// One value substituted for a parameter hole: the code text that replaces the hole, and that value's
@@ -69,7 +102,7 @@ internal sealed record ExpressionTemplate
         var segments = Segments.AsImmutableArray();
         if (segments.Length == 1
             && segments[0] is ParameterHoleExpressionSegment loneHole
-            && ArgumentAt(loneHole, arguments) is { Constant: { Text: { } constantText } constant })
+            && ArgumentAt(loneHole, arguments) is { Constant: StringConstant { Text: var constantText } constant })
         {
             return new ExpressionTemplate(
                 [new LiteralExpressionSegment(

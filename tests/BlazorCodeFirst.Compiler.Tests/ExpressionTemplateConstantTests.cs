@@ -39,7 +39,7 @@ public sealed class ExpressionTemplateConstantTests
     {
         var text = TextOf(RootOf("""H1["Benchmark"]"""));
 
-        Assert.Equal("Benchmark", text.Constant?.Text);
+        Assert.Equal(new StringConstant("Benchmark"), text.Constant);
     }
 
     [Fact]
@@ -49,7 +49,7 @@ public sealed class ExpressionTemplateConstantTests
             "H1[Label]",
             members: "private const string Label = \"Benchmark\";"));
 
-        Assert.Equal("Benchmark", text.Constant?.Text);
+        Assert.Equal(new StringConstant("Benchmark"), text.Constant);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class ExpressionTemplateConstantTests
     {
         var text = TextOf(RootOf("""H1["Bench" + "mark"]"""));
 
-        Assert.Equal("Benchmark", text.Constant?.Text);
+        Assert.Equal(new StringConstant("Benchmark"), text.Constant);
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public sealed class ExpressionTemplateConstantTests
         var element = (ElementNode)RootOf("""A.Href("/home")["Home"]""");
         var href = element.Attributes.AsImmutableArray().Single(a => a.Name == "href");
 
-        Assert.Equal("/home", href.Value.Constant?.Text);
+        Assert.Equal(new StringConstant("/home"), href.Value.Constant);
     }
 
     [Fact]
@@ -99,6 +99,50 @@ public sealed class ExpressionTemplateConstantTests
     {
         var element = (ElementNode)RootOf("""Div.Class("card")["x"]""");
 
-        Assert.Equal("card", element.Classes.AsImmutableArray().Single().Constant?.Text);
+        Assert.Equal(
+            new StringConstant("card"), element.Classes.AsImmutableArray().Single().Constant);
+    }
+
+    /// <summary>
+    /// A constant <see langword="null"/> is its own state, not the absence of a constant: the expression
+    /// is side-effect free (so a composable local bound to it may be dropped) and <c>AddAttribute</c>
+    /// omits the attribute, which is exactly what the fold writes for it.
+    /// </summary>
+    [Fact]
+    public void ConstantNullAttributeValue_CarriesTheNullConstant()
+    {
+        var element = (ElementNode)RootOf(
+            """Div.Attr("id", Missing)["x"]""",
+            members: "private const string? Missing = null;");
+        var id = element.Attributes.AsImmutableArray().Single(a => a.Name == "id");
+
+        Assert.Equal(new NullConstant(), id.Value.Constant);
+    }
+
+    /// <summary>
+    /// The distinction #158 turns on: a constant of a type other than <see langword="string"/> or
+    /// <see langword="bool"/> must not be read as a constant <see langword="null"/>. Both used to arrive
+    /// as <c>{ Text: null }</c>, and the fold reads that state as "the attribute is omitted", which is
+    /// right for a <see langword="null"/> and drops an attribute that renders for everything else.
+    /// </summary>
+    /// <remarks>
+    /// Measured through the component parameter channel because it is the only one that carries a
+    /// non-string, non-<see langword="bool"/> value today: <c>.Attr</c> takes a <see langword="string"/>
+    /// or a <see langword="bool"/>, deliberately (#158), so no attribute value can be an <c>int</c>.
+    /// </remarks>
+    [Fact]
+    public void NonStringConstantValue_IsDistinctFromAConstantNull()
+    {
+        var component = (ComponentNode)RootOf(
+            "Component<Card>().Param(c => c.Count, 3)",
+            members: """
+                public sealed class Card : Microsoft.AspNetCore.Components.ComponentBase
+                {
+                    [Microsoft.AspNetCore.Components.Parameter] public int Count { get; set; }
+                }
+                """);
+        var count = component.Parameters.AsImmutableArray().Single();
+
+        Assert.Equal(new RuntimeFormattedConstant(), count.Value.Constant);
     }
 }
