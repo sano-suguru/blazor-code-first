@@ -450,6 +450,116 @@ internal static class DiagnosticDescriptors
                 + "content belongs next to it.");
 
     /// <summary>
+    /// BCF3017: A <c>.Bind</c> getter is not an inline lambda with an expression body. The body is
+    /// transplanted twice — as the attribute value and as the binder's current value — so it has to be
+    /// available as an expression.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3017 = new(
+        id: "BCF3017",
+        title: "Bind getter is not an inline expression lambda",
+        messageFormat: "The '.Bind' getter must be an inline lambda with an expression body, such as "
+            + "'() => _name'. A block-bodied lambda or a method group cannot be read as an expression.",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The generator transplants the getter's body twice: once as the bound attribute's value, and "
+                + "once as the binder's current value. A block-bodied lambda and a method group both hide "
+                + "that expression behind a call, leaving nothing to transplant. This is the same "
+                + "restriction BCF3004 places on ForEach's content and key, for the same reason. The "
+                + "setter argument carries no such restriction, because it is handed to EventCallback "
+                + "whole and never taken apart.");
+
+    /// <summary>
+    /// BCF3018: A getter-only <c>.Bind</c>'s getter body is not assignable, so no setter can be built
+    /// from it. Argument counts are not used to name the forms: the same form is three arguments on an
+    /// element and two on a component, so a count is wrong on one of the two surfaces this fires on.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3018 = new(
+        id: "BCF3018",
+        title: "Bind target is not assignable",
+        messageFormat: "'{0}' cannot be assigned to, so no setter can be derived from it. Write the "
+            + "setter explicitly as the last argument of '.Bind', for example "
+            + "'.Bind(\"value\", \"oninput\", () => Query, v => Query = v.Trim())' on an element or "
+            + "'.Bind(c => c.Value, () => Query, v => Query = v.Trim())' on a component.",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The getter-only form derives its setter by placing the getter's body on the left of an "
+                + "assignment, so that body has to be assignable: a field, a settable property, or an "
+                + "element access whose indexer has a setter, alone or at the end of a member chain. A "
+                + "call, an operator, a get-only property and a readonly field are none of those. A local "
+                + "variable, a parameter and a ForEach iteration variable are rejected even though C# "
+                + "would assign to them, because the design-time expression is a property getter: those "
+                + "die with each render and the write-back would not survive to the next one. A member of "
+                + "an iteration variable is accepted, because it writes through to the element in the "
+                + "source list. Anything outside that set needs a setter written at the call site.");
+
+    /// <summary>
+    /// BCF3019: An event name does not begin with <c>on</c>. Blazor's event attribute names always do,
+    /// and a name that does not is added as a plain attribute whose handler never fires.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3019 = new(
+        id: "BCF3019",
+        title: "Event name does not begin with 'on'",
+        messageFormat: "'{0}' is not an event attribute name. Blazor event names begin with 'on' "
+            + "(for example 'oninput', 'onchange'); the prefix is never added for you.",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A name without the prefix reaches AddAttribute as an ordinary attribute rather than an event "
+                + "registration, so the handler is never called and nothing reports it at runtime. The "
+                + "surface never adds the prefix for the author, which is what makes the omission worth "
+                + "diagnosing. On '.Bind' the check does a second job: the attribute name and the event "
+                + "name are adjacent string arguments, and swapping them compiles, so this is what stops "
+                + "a swapped pair.");
+
+    /// <summary>
+    /// BCF3020: The component has no <c>{name}Changed</c> parameter of the bound type, so the binding's
+    /// write-back has nowhere to go.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3020 = new(
+        id: "BCF3020",
+        title: "Component has no matching change callback",
+        messageFormat: "'{0}' declares no settable '[Parameter]' named '{1}' of type "
+            + "'EventCallback<{2}>', so '{3}' cannot be bound in both directions. Bind it one way with "
+            + "'.Param' instead.",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Component binding derives its parameter names rather than taking them from the author, which "
+                + "is the opposite of the element surface. That is only sound because the derivation can "
+                + "be checked: the component's type is known, so the generator looks the derived name up "
+                + "and reports this when it is absent or carries the wrong type. Element binding has no "
+                + "such check available, which is why it makes the author write both names instead.");
+
+    /// <summary>
+    /// BCF3021: More than one <c>.Bind</c> on one element. This surface binds at most one value per
+    /// element; nothing in Blazor requires that, so the narrowing is deliberate (issue #162).
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3021 = new(
+        id: "BCF3021",
+        title: "Element is bound more than once",
+        messageFormat: "This element already binds '{0}'. This surface binds at most one value per "
+            + "element, so a second '.Bind' is rejected even when both of its names are free. Bind the "
+            + "second value on a different element, or write it as '.Attr' plus '.On'.",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The one-binding-per-element rule is this surface's own, not Blazor's. "
+                + "SetUpdatesAttributeName records the resynchronized attribute name on the immediately "
+                + "preceding attribute frame rather than on the element, so two bindings on one element "
+                + "would each keep their own name: nothing is overwritten and no resynchronization is "
+                + "lost (measured). The surface narrows to one value per element and the model holds one "
+                + "binding per element to match. Whether to keep that narrowing is issue #162. It is not "
+                + "a duplicate name, so BCF3010 cannot express it: two '.Bind' calls naming entirely "
+                + "different attributes and events still collide here.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

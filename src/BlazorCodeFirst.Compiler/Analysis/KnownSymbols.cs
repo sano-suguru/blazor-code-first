@@ -68,6 +68,28 @@ internal sealed class KnownSymbols
     public INamedTypeSymbol? RenderFragmentType { get; }
 
     /// <summary>
+    /// Resolved unbound generic <c>Microsoft.AspNetCore.Components.EventCallback&lt;TValue&gt;</c>, or null.
+    /// </summary>
+    /// <remarks>
+    /// The generic one only. A component binding's change callback is <c>EventCallback&lt;TValue&gt;</c> for
+    /// the bound parameter's own type, and the non-generic <c>EventCallback</c> carries no value, so a
+    /// parameter declared with it cannot receive the write-back and is BCF3020 like any other mistype.
+    /// </remarks>
+    public INamedTypeSymbol? EventCallbackType { get; }
+
+    /// <summary>
+    /// Resolved unbound generic <c>System.Linq.Expressions.Expression&lt;TDelegate&gt;</c>, or null.
+    /// </summary>
+    public INamedTypeSymbol? ExpressionType { get; }
+
+    /// <summary>
+    /// Resolved unbound generic <c>System.Func&lt;TResult&gt;</c>, the one-argument arity, or null. Paired
+    /// with <see cref="ExpressionType"/> to recognize a <c>{name}Expression</c> parameter, whose declared
+    /// type is <c>Expression&lt;Func&lt;TValue&gt;&gt;</c>.
+    /// </summary>
+    public INamedTypeSymbol? FuncType { get; }
+
+    /// <summary>
     /// Resolved symbol for <c>BlazorCodeFirst.Decorations.Class(this ElementBuilder, string)</c>, or null.
     /// </summary>
     public IMethodSymbol? ClassMethod { get; }
@@ -302,8 +324,8 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Whether the referenced runtime's <c>Decorations</c> type declares a decoration spelled
-    /// <paramref name="name"/>: <c>Class</c>, a named attribute shortcut, an event shortcut, <c>Attr</c> or
-    /// <c>On</c>.
+    /// <paramref name="name"/>: <c>Class</c>, a named attribute shortcut, an event shortcut, <c>Attr</c>,
+    /// <c>On</c>, or <c>Bind</c>.
     /// </summary>
     /// <remarks>
     /// The names are read off the symbols resolved out of the referenced runtime assembly rather than from
@@ -337,6 +359,21 @@ internal sealed class KnownSymbols
 
     /// <summary>All <c>Decorations.On</c> overloads.</summary>
     public IReadOnlyCollection<ISymbol> OnMethods { get; }
+
+    /// <summary>All <c>Decorations.Bind</c> overloads.</summary>
+    public IReadOnlyCollection<ISymbol> BindMethods { get; }
+
+    /// <summary>
+    /// All <c>ComponentView&lt;T&gt;.Bind&lt;TValue&gt;</c> overloads.
+    /// </summary>
+    /// <remarks>
+    /// Held unnormalized, exactly as <see cref="ParamMethod"/> is: these are members of the unbound
+    /// generic <see cref="ComponentViewType"/>, so they are already original definitions and there is no
+    /// reduced extension form to unwrap. A consumer matches with
+    /// <c>SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, …)</c>, which is what the
+    /// <c>.Param</c> arm does.
+    /// </remarks>
+    public IReadOnlyCollection<ISymbol> ComponentBindMethods { get; }
 
     /// <summary>
     /// Resolved symbol for <c>BlazorCodeFirst.Html.Element(string)</c>, which returns an
@@ -381,7 +418,12 @@ internal sealed class KnownSymbols
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderFragment");
+        EventCallbackType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallback`1");
+        ExpressionType = compilation.GetTypeByMetadataName("System.Linq.Expressions.Expression`1");
+        FuncType = compilation.GetTypeByMetadataName("System.Func`1");
 
+        var componentBindMethods = new List<ISymbol>();
         if (ComponentViewType is not null)
         {
             foreach (var member in ComponentViewType.GetMembers("Param"))
@@ -396,7 +438,17 @@ internal sealed class KnownSymbols
                 else if (paramMethod.Arity == 0)
                     FragmentParamMethod = paramMethod;
             }
+
+            // All three overloads, which differ only in their setter parameter; the analyzer reads the
+            // setter's own type to tell the synchronous one from the asynchronous one, so nothing here
+            // has to discriminate them.
+            foreach (var member in ComponentViewType.GetMembers("Bind"))
+            {
+                if (member is IMethodSymbol bindMethod)
+                    componentBindMethods.Add(bindMethod);
+            }
         }
+        ComponentBindMethods = componentBindMethods;
 
         var decorationsType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.Decorations");
@@ -405,6 +457,7 @@ internal sealed class KnownSymbols
         var eventShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         var attrMethods = new List<ISymbol>();
         var onMethods = new List<ISymbol>();
+        var bindMethods = new List<ISymbol>();
         if (decorationsType is not null)
         {
             // A decoration is defined by its receiver, not by its name: Decorations declares extension
@@ -451,6 +504,11 @@ internal sealed class KnownSymbols
                         break;
                     case "On": onMethods.Add(key); break;                     // all four overloads
                     case "Attr": attrMethods.Add(key); break;
+                    // An ordinary registration beside On and Attr, and read the same way: the decoration
+                    // arm in RenderExpressionAnalyzer matches a normalized method against this bucket to
+                    // recognize a binding, and the names folded out of it below are what let
+                    // DeclaresDecorationNamed report a misplaced .Bind(…) as BCF3008 rather than BCF1003.
+                    case "Bind": bindMethods.Add(key); break;                    // all six overloads
                     default:
                         if (AttributeShortcutNames.TryGetValue(method.Name, out var attr))
                             attributeShortcuts[key] = attr;
@@ -462,6 +520,7 @@ internal sealed class KnownSymbols
         EventShortcuts = eventShortcuts;
         AttrMethods = attrMethods;
         OnMethods = onMethods;
+        BindMethods = bindMethods;
 
         _decorationNames = new HashSet<string>(System.StringComparer.Ordinal);
         if (ClassMethod is not null)
@@ -474,6 +533,8 @@ internal sealed class KnownSymbols
             _decorationNames.Add(attr.Name);
         foreach (var on in onMethods)
             _decorationNames.Add(on.Name);
+        foreach (var bind in bindMethods)
+            _decorationNames.Add(bind.Name);
 
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())

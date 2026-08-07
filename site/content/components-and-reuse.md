@@ -180,5 +180,6 @@ If you need the part in another project, make it a component and use it through 
 
 ## Next
 
-See [layouts](./layouts.md) for wrapping routed pages in shared chrome, or
-[control flow](./control-flow.md) for `If` and keyed `ForEach`.
+See [layouts](./layouts.md) for wrapping routed pages in shared chrome,
+[two-way binding](./two-way-binding.md#binding-a-component-parameter) for `.Bind`, the other way a
+parameter is supplied, or [control flow](./control-flow.md) for `If` and keyed `ForEach`.

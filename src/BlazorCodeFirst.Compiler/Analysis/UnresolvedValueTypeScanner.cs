@@ -160,6 +160,21 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
+        if (Contains(symbols.BindMethods, normalized))
+        {
+            ScanRenderExpression(Receiver(invocation), context);
+            if (!recoverOwnValue)
+                return;
+
+            // The getter and the setter, both of which are transplanted into generated code and can
+            // therefore name a type that does not resolve. The two name arguments are not value
+            // positions: a non-constant one is BCF3011's to report, and that rejection has already
+            // cleared recoverOwnValue by the time this runs.
+            ReportValue(args.At(2)?.Expression, context);
+            ReportValue(args.At(3)?.Expression, context);
+            return;
+        }
+
         if (IsComposable(method, context))
         {
             foreach (var argument in args.ExplicitArguments)
@@ -669,6 +684,7 @@ internal static class UnresolvedValueTypeScanner
             || symbols.EventShortcuts.ContainsKey(normalized)
             || Contains(symbols.AttrMethods, normalized)
             || Contains(symbols.OnMethods, normalized)
+            || Contains(symbols.BindMethods, normalized)
             || IsComposable(method, context);
     }
 
@@ -699,7 +715,8 @@ internal static class UnresolvedValueTypeScanner
         || symbols.AttributeShortcuts.ContainsKey(method)
         || symbols.EventShortcuts.ContainsKey(method)
         || Contains(symbols.AttrMethods, method)
-        || Contains(symbols.OnMethods, method);
+        || Contains(symbols.OnMethods, method)
+        || Contains(symbols.BindMethods, method);
 
     private static bool IsFluentExtensionInvocation(
         InvocationExpressionSyntax invocation,

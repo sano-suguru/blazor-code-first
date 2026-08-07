@@ -330,6 +330,32 @@ internal static class RenderViewEmitter
                 $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
             next++;
         }
+        if (node.Bind is { } bind)
+        {
+            var attributeName =
+                global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.AttributeName, quote: true);
+            var eventName =
+                global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.EventName, quote: true);
+            writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {bind.Value.ToCode()});");
+            next++;
+            // The framework's own CreateBinder overload for string annotates its setter parameter
+            // Action<string?> defensively; the binder this template builds — the inverted getter, the
+            // explicit-setter cast, CreateInferredBindSetter — is synthesized here and nowhere else, so
+            // this is the one place that annotation can disagree with a non-nullable <value> or setter.
+            // Measured against a real dispatch (BindRenderingTests, EmptyInput_DeliversEmptyStringNotNull):
+            // an empty text input's oninput never actually delivers null, so there is no runtime defect
+            // to fix, only this static mismatch to silence. Scoped to the one line it is about, not the
+            // whole file: an author's own null assignment inside a transplanted Body expression is not
+            // this binder, and must keep failing in the author's own file.
+            writer.AppendLine("#pragma warning disable CS8601, CS8620");
+            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {bind.Binder.ToCode()});");
+            writer.AppendLine("#pragma warning restore CS8601, CS8620");
+            next++;
+            // Blazor resynchronizes the DOM from this attribute when a re-render produces the value the
+            // element already shows. Without it, a setter that normalizes or rejects the incoming value
+            // leaves the element displaying the rejected text while the field holds something else.
+            writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
+        }
         next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;

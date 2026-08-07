@@ -25,6 +25,44 @@ internal static class RenderExpressionAnalyzer
     private const string ChildContentParameterName = "ChildContent";
 
     /// <summary>
+    /// <c>CreateBinder</c> written as the static call it is. It is an extension method on
+    /// <c>EventCallbackFactory</c>, declared by this class, and the generated file carries no
+    /// <c>using</c> directives, so the instance spelling Razor uses
+    /// (<c>EventCallback.Factory.CreateBinder(…)</c>) fails with CS1061 here. This is the same
+    /// normalization <see cref="ExpressionTemplateFactory"/> applies to any extension method an author
+    /// writes in instance syntax, for the same reason (<c>ARCHITECTURE.md</c> §2). Its sibling
+    /// <c>EventCallback.Factory.Create</c>, which the event channel emits, needs no such treatment
+    /// because <c>Create</c> is an instance method.
+    /// </summary>
+    private const string CreateBinderCall =
+        "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
+        + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, ";
+
+    /// <summary>
+    /// <c>EventCallback.Factory.Create&lt;TValue&gt;</c> up to its type argument, which a component
+    /// binding's <c>{name}Changed</c> parameter carries. Written in the instance syntax Razor uses, and
+    /// needing none of <see cref="CreateBinderCall"/>'s treatment: <c>Create</c> is a real instance method
+    /// on <c>EventCallbackFactory</c>, not an extension method, so the absence of <c>using</c> directives
+    /// in the generated file costs it nothing. This is the same spelling the event channel emits.
+    /// </summary>
+    private const string CreateCall =
+        "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<";
+
+    private const string RuntimeHelpers =
+        "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers";
+
+    /// <summary>
+    /// Fully qualified with no special-type spellings, so <c>string</c> is written
+    /// <c>global::System.String</c>. <see cref="SymbolDisplayFormat.FullyQualifiedFormat"/> carries
+    /// <see cref="SymbolDisplayMiscellaneousOptions.UseSpecialTypes"/>, which would emit the keyword and
+    /// leave the one cast this file writes depending on a language keyword rather than on a qualified
+    /// name.
+    /// </summary>
+    private static readonly SymbolDisplayFormat FullyQualifiedTypeName =
+        SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
+
+    /// <summary>
     /// Classifies <paramref name="expression"/>, recording it on <paramref name="context"/> when it cannot
     /// be classified. Every recursive descent goes through here rather than through
     /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
@@ -283,10 +321,13 @@ internal static class RenderExpressionAnalyzer
             SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod);
         bool isFragmentParam = symbols.FragmentParamMethod is not null
             && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.FragmentParamMethod);
-        if (isScalarParam || isFragmentParam)
+        bool isComponentBind = Contains(symbols.ComponentBindMethods, method.OriginalDefinition);
+        if (isScalarParam || isFragmentParam || isComponentBind)
         {
-            // Chained: <ComponentView<T> receiver>.Param(selector, value). Recurse into the receiver to
-            // reach the base Component<T>() (or an inner .Param), then append this parameter in source order.
+            // Chained: <ComponentView<T> receiver>.Param(selector, value), or .Bind(selector, get[, set]).
+            // Recurse into the receiver to reach the base Component<T>() (or an inner .Param), then append
+            // this parameter in source order. Both spellings share everything up to the selected property:
+            // they take the same selector in the same position and answer to the same three rules about it.
             if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
                 || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
             {
@@ -294,6 +335,7 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
+            // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
             var paramArgs = FactoryArguments.Bind(invocation, context);
             if (paramArgs is not { } args ||
                 args.At(0) is not { } selectorArg ||
@@ -303,7 +345,6 @@ internal static class RenderExpressionAnalyzer
             }
 
             var selector = selectorArg.Expression;
-            var valueExpression = valueArg.Expression;
 
             if (!TryGetSelectorProperty(selector, context, out var property))
             {
@@ -333,6 +374,11 @@ internal static class RenderExpressionAnalyzer
                     DiagnosticDescriptors.BCF3007, selector.GetLocation(), [property.Name]));
                 return null;
             }
+
+            if (isComponentBind)
+                return ClassifyComponentBind(invocation, method, inner, property, selector, args, valueArg, context);
+
+            var valueExpression = valueArg.Expression;
 
             if (isFragmentParam)
             {
@@ -370,8 +416,9 @@ internal static class RenderExpressionAnalyzer
         bool isEventShortcut = symbols.EventShortcuts.TryGetValue(normalized, out var shortcutEventName);
         bool isAttr = Contains(symbols.AttrMethods, normalized);
         bool isOn = Contains(symbols.OnMethods, normalized);
+        bool isBind = Contains(symbols.BindMethods, normalized);
 
-        if (isClass || isAttrShortcut || isEventShortcut || isAttr || isOn)
+        if (isClass || isAttrShortcut || isEventShortcut || isAttr || isOn || isBind)
         {
             if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
                 return null;
@@ -408,6 +455,9 @@ internal static class RenderExpressionAnalyzer
                 };
             }
 
+            if (isBind)
+                return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
+
             if (isEventShortcut || isOn)
             {
                 // Shortcut: name is implied; .On: name is arg[0] (constant required), handler is arg[1].
@@ -430,6 +480,16 @@ internal static class RenderExpressionAnalyzer
                     context.RejectUnresolvedValueRecovery(invocation.Span);
                     context.Diagnostics.Add(DiagnosticInfo.Create(
                         DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
+                    return null;
+                }
+
+                // The event-shortcut path supplies its own name from a literal table and never reaches
+                // here with a bad one, so only the .On / .Bind string path is checked.
+                if (!isEventShortcut && !eventName!.StartsWith("on", System.StringComparison.Ordinal))
+                {
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BCF3019, firstArg.GetLocation(), [eventName!]));
                     return null;
                 }
 
@@ -512,6 +572,497 @@ internal static class RenderExpressionAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Classifies <c>.Bind(attribute, event, get)</c> and its explicit-setter form onto
+    /// <paramref name="element"/>, or reports why it cannot be.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every <em>reported</em> rejection registers a
+    /// <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/> span for the whole invocation, as
+    /// the sibling decoration arms do: the getter and setter are dynamic argument expressions, and a
+    /// rejected binding never reaches generated code, so the failure scanner must not go on to report on
+    /// their types. The defensive <see langword="null"/> returns (a missing argument, the
+    /// <c>declaredCount</c> guard, and the two delegate-shape guards) do not, and need not: each answers a
+    /// call this compiler was not written against, none of them reports anything of its own, and the
+    /// unregistered span costs at most a second report on a body that is already BCF1003.
+    /// </para>
+    /// <para>
+    /// One shape passes every check and is deliberately not diagnosed:
+    /// <c>.Bind("oninput", "oninput", …)</c>, the same name in both positions, emits two frames under one
+    /// name of which the second wins. It is not written by accident — a swapped pair, which is, is caught
+    /// by BCF3019 — so it buys no check of its own.
+    /// </para>
+    /// </remarks>
+    private static ElementTemplateNode? ClassifyBind(
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax decoAccess,
+        IMethodSymbol method,
+        ElementTemplateNode element,
+        FactoryArguments args,
+        ArgumentSyntax attributeArg,
+        ComposableBodyContext context)
+    {
+        if (args.At(1) is not { } eventArg || args.At(2) is not { } getterArg)
+            return null;
+
+        if (!TryGetConstantName(attributeArg.Expression, context, out var attrName))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3011, attributeArg.GetLocation(), []));
+            return null;
+        }
+
+        if (!TryGetConstantName(eventArg.Expression, context, out var eventName))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3011, eventArg.GetLocation(), []));
+            return null;
+        }
+
+        // Ordinal, like every other name comparison here. The prefix is never supplied for the author, so
+        // its absence is the author's, and on .Bind this also catches the two adjacent string arguments
+        // being written the wrong way round, which compiles.
+        if (!eventName!.StartsWith("on", System.StringComparison.Ordinal))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3019, eventArg.GetLocation(), [eventName]));
+            return null;
+        }
+
+        // Before the duplicate-name check, because a second binding is the more specific complaint: it is
+        // rejected even when both its names are free, since the surface binds one value per element (a
+        // narrowing of its own, not something Blazor requires; issue #162).
+        if (element.Bind is { } existing)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3021, decoAccess.Name.GetLocation(), [existing.AttributeName]));
+            return null;
+        }
+
+        // Both names, because a binding occupies both channels: the attribute frame and the event frame
+        // are as much duplicates of an .Attr and an .On as those two are of each other.
+        var duplicate =
+            HasBinding(element, attrName!) ? attrName!
+            : HasBinding(element, eventName) ? eventName
+            : null;
+        if (duplicate is not null)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [duplicate]));
+            return null;
+        }
+
+        if (BindTargetResolver.TryGetBody(getterArg.Expression, out var getterBody)
+            != BindTargetFailure.None)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3017, getterArg.GetLocation(), []));
+            return null;
+        }
+
+        var setter = args.At(3)?.Expression;
+
+        // Only the inverted form needs an assignable target. With an explicit setter the getter is read
+        // and never written, so a call or a get-only property is a legitimate thing to show.
+        if (setter is null
+            && BindTargetResolver.CheckAssignable(getterBody!, context.SemanticModel, context.CancellationToken)
+                != BindTargetFailure.None)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3018, getterBody!.GetLocation(), [getterBody!.ToString()]));
+            return null;
+        }
+
+        // The bound type and the setter's kind are read off the overload the C# compiler picked rather
+        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape), so
+        // the resolved symbol already answers both questions exactly.
+        // Unreduced plus the receiver offset, exactly as FactoryArguments computes it, so that a parameter
+        // index and an argument index mean the same position whichever syntax the call was written in.
+        var declared = method.ReducedFrom ?? method;
+        var receiverOffset = declared.IsExtensionMethod ? 1 : 0;
+        var declaredCount = declared.Parameters.Length - receiverOffset;
+
+        // Every declared overload has at least the three, and four when a setter was written. The guard is
+        // for a runtime whose Decorations declares a Bind this compiler was not written against: refusing
+        // to translate costs a BCF1003, where indexing past the end would crash the generator.
+        if (declaredCount < 3 || (setter is not null && declaredCount < 4))
+            return null;
+
+        if (declared.Parameters[receiverOffset + 2].Type
+            is not INamedTypeSymbol { DelegateInvokeMethod.ReturnType: { } valueType })
+        {
+            return null;
+        }
+
+        var setterIsAsynchronous = false;
+        if (setter is not null)
+        {
+            if (declared.Parameters[receiverOffset + 3].Type
+                is not INamedTypeSymbol { DelegateInvokeMethod: { } setterInvoke })
+            {
+                return null;
+            }
+
+            // Action<T> returns void, Func<T, Task> does not. Nothing else can be written here, because
+            // these are the only two setter parameter types the surface declares.
+            setterIsAsynchronous = !setterInvoke.ReturnsVoid;
+        }
+
+        var value = ExpressionTemplateFactory.Create(getterBody!, context);
+        var binder = BuildBinder(
+            value, valueType.ToDisplayString(FullyQualifiedTypeName), setter, setterIsAsynchronous, context);
+
+        return element with { Bind = new BindTemplate(attrName!, eventName, value, binder) };
+    }
+
+    /// <summary>
+    /// Classifies <c>.Bind(selector, get)</c> and its explicit-setter forms onto <paramref name="inner"/>,
+    /// appending the two or three component parameters the binding lowers to, or reports why it cannot be.
+    /// </summary>
+    /// <param name="property">The parameter the selector resolved to, already checked by the shared
+    /// <c>.Param</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
+    /// <param name="getterArg">The getter argument, already required non-<see langword="null"/> by the same
+    /// shared prologue (as <c>valueArg</c>); passed through rather than re-derived from <paramref
+    /// name="args"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// Where the element surface makes the author write both names, this one derives them:
+    /// <c>{name}Changed</c> always, <c>{name}Expression</c> when the component declares it. That is only
+    /// admissible because <c>TComponent</c> is a known type symbol, so a derived name can be looked up
+    /// and checked. The two names are then treated differently, and deliberately so:
+    /// <c>{name}Changed</c> must exist and carry <c>EventCallback&lt;TValue&gt;</c> or the binding is
+    /// rejected (BCF3020), while <c>{name}Expression</c> is emitted when it exists and matches and is
+    /// omitted silently otherwise (see the comment at its emission below for why). The element surface
+    /// has nothing to check either derivation against (its tag is a string), which is the whole of the
+    /// difference.
+    /// </para>
+    /// <para>
+    /// Rejections register a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/> span for the
+    /// whole invocation, as the <c>.Param</c> arm and <see cref="ClassifyBind"/> do, so the failure scanner
+    /// does not go on to report on the types of a getter or setter that never reaches generated code. The
+    /// defensive <see langword="null"/> returns do not, for the reason <see cref="ClassifyBind"/>'s own
+    /// remarks give.
+    /// </para>
+    /// <para>
+    /// The duplicate check the shared <c>.Param</c> prologue runs (see the caller) spans <c>{name}</c> and,
+    /// via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but not <c>{name}Expression</c>. So
+    /// <c>.Param(c =&gt; c.ValueExpression, …).Bind(c =&gt; c.Value, …)</c>, written in that order, does not
+    /// become BCF3007: both calls append a <c>ValueExpression</c> parameter frame, and the later one silently
+    /// wins. The reverse order is caught, because then it is the <c>.Param</c> arm's own duplicate check that
+    /// sees the frame this method already appended. The gap is not widened, for two reasons: what a duplicate
+    /// check would discard here is the author's own hand-written expression, while what wins is the derived
+    /// getter lambda, which is the correct <c>{name}Expression</c> in most cases anyway; and constructing an
+    /// <c>Expression&lt;Func&lt;T&gt;&gt;</c> by hand is not a shape anyone writes by accident.
+    /// <c>{name}Changed</c> is checked because there, being discarded is the actual behavior, not an accident
+    /// to guard against.
+    /// </para>
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentBind(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        ComponentTemplateNode inner,
+        IPropertySymbol property,
+        ExpressionSyntax selector,
+        FactoryArguments args,
+        ArgumentSyntax getterArg,
+        ComposableBodyContext context)
+    {
+        var valueType = property.Type;
+        var changedName = property.Name + "Changed";
+
+        // The derived name occupies a channel of its own, so a .Param that already wrote it is the same
+        // dead duplicate as two .Param on one name — and a likelier mistake here, because the author never
+        // wrote the name this collides with.
+        if (HasBinding(inner, changedName))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3007, selector.GetLocation(), [changedName]));
+            return null;
+        }
+
+        // TComponent comes from the constructed ComponentView<TComponent> this Bind is a member of, not
+        // from the selected property's containing type: the property may be declared on a base class,
+        // while the derived names must be looked up on the type the author actually wrote.
+        if (method.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
+            return null;
+
+        var componentType = componentViewType.TypeArguments[0];
+
+        if (FindSettableParameter(componentType, changedName, context) is not { } changed
+            || !IsChangeCallbackFor(changed, valueType, context))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3020,
+                selector.GetLocation(),
+                [
+                    componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    changedName,
+                    valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    property.Name,
+                ]));
+            return null;
+        }
+
+        if (BindTargetResolver.TryGetBody(getterArg.Expression, out var getterBody)
+            != BindTargetFailure.None)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3017, getterArg.GetLocation(), []));
+            return null;
+        }
+
+        var setter = args.At(2)?.Expression;
+
+        // Only the inverted form needs an assignable target, exactly as on the element surface: with an
+        // explicit setter the getter is read and never written.
+        if (setter is null
+            && BindTargetResolver.CheckAssignable(getterBody!, context.SemanticModel, context.CancellationToken)
+                != BindTargetFailure.None)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3018, getterBody!.GetLocation(), [getterBody!.ToString()]));
+            return null;
+        }
+
+        // The setter's kind is read off the overload the C# compiler picked rather than guessed from the
+        // syntax, as ClassifyBind does. These are instance methods, so there is no receiver offset, and
+        // the guard is for a runtime whose ComponentView declares a Bind this compiler was not written
+        // against: refusing to translate costs a BCF1003, where indexing past the end would crash.
+        var setterIsAsynchronous = false;
+        if (setter is not null)
+        {
+            if (method.Parameters.Length < 3
+                || method.Parameters[2].Type
+                    is not INamedTypeSymbol { DelegateInvokeMethod: { } setterInvoke })
+            {
+                return null;
+            }
+
+            // Action<T> returns void, Func<T, Task> does not; the surface declares no other setter type.
+            setterIsAsynchronous = !setterInvoke.ReturnsVoid;
+        }
+
+        var valueTypeName = valueType.ToDisplayString(FullyQualifiedTypeName);
+        var value = ExpressionTemplateFactory.Create(getterBody!, context);
+
+        var parameters = inner.Parameters.AsImmutableArray()
+            .Add(new ComponentParameter(property.Name, value))
+            .Add(new ComponentParameter(
+                changedName,
+                BuildChangeCallback(value, valueTypeName, setter, setterIsAsynchronous, context)));
+
+        // Emitted only when the component declares it. This is Razor's measured behaviour: a component
+        // without the parameter receives two, one with it receives three. Always emitting it would fail to
+        // bind on every component that does not declare it.
+        var expressionName = property.Name + "Expression";
+        if (FindSettableParameter(componentType, expressionName, context) is { } fieldExpression
+            && IsFieldExpressionFor(fieldExpression, valueType, context))
+        {
+            parameters = parameters.Add(new ComponentParameter(
+                expressionName,
+                BuildFieldExpression(getterArg.Expression, valueTypeName, context)));
+        }
+
+        // Value, then {name}Changed, then {name}Expression: the order Razor emits, and the order the
+        // sequence numbers have to follow, since they stand for source positions in one expression.
+        return new ComponentTemplateNode(inner.TypeName, parameters, inner.Slots);
+    }
+
+    /// <summary>
+    /// Builds the <c>EventCallback.Factory.Create&lt;T&gt;(this, …)</c> expression a component binding's
+    /// <c>{name}Changed</c> parameter carries, around the getter's own segments.
+    /// </summary>
+    /// <remarks>
+    /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
+    /// <c>ToCode()</c>, for the reason <see cref="BuildBinder"/> records: inside a <c>[Composable]</c>
+    /// body the getter still holds unbound parameter holes.
+    /// <para>
+    /// The cast around the setter is required for the same reason the element side needs one: a lambda
+    /// written in an argument position has no natural type, and <c>Create</c>'s own overloads cannot pick
+    /// one for it once it travels through this template.
+    /// </para>
+    /// </remarks>
+    private static ExpressionTemplate BuildChangeCallback(
+        ExpressionTemplate value,
+        string valueTypeName,
+        ExpressionSyntax? setter,          // null = invert the getter
+        bool setterIsAsynchronous,
+        ComposableBodyContext context)
+    {
+        var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
+        segments.Add(new LiteralExpressionSegment($"{CreateCall}{valueTypeName}>(this, "));
+
+        if (setter is null)
+        {
+            // Create<T>(this, (Action<T>)(__value => <value> = __value))
+            segments.Add(new LiteralExpressionSegment(
+                $"(global::System.Action<{valueTypeName}>)(__value => "));
+            segments.AddRange(value.Segments.AsImmutableArray());
+            segments.Add(new LiteralExpressionSegment(" = __value)"));
+        }
+        else
+        {
+            // Create<T>(this, (Action<T>)(<setter>)) or, for an asynchronous setter,
+            // Create<T>(this, (Func<T, Task>)(<setter>)).
+            var setterType = setterIsAsynchronous
+                ? $"global::System.Func<{valueTypeName}, global::System.Threading.Tasks.Task>"
+                : $"global::System.Action<{valueTypeName}>";
+            segments.Add(new LiteralExpressionSegment($"({setterType})("));
+            segments.AddRange(ExpressionTemplateFactory.Create(setter, context).Segments.AsImmutableArray());
+            segments.Add(new LiteralExpressionSegment(")"));
+        }
+
+        segments.Add(new LiteralExpressionSegment(")"));
+        return ExpressionTemplate.Create(segments.ToImmutable());
+    }
+
+    /// <summary>
+    /// Builds the <c>{name}Expression</c> parameter's value: the getter lambda itself, whole, cast to the
+    /// expression-tree type the parameter declares. This is what identifies the bound field to an
+    /// <c>EditForm</c>, and no other spelling of the target could supply it.
+    /// </summary>
+    private static ExpressionTemplate BuildFieldExpression(
+        ExpressionSyntax getter, string valueTypeName, ComposableBodyContext context)
+    {
+        ImmutableArray<ExpressionSegment> segments =
+        [
+            new LiteralExpressionSegment(
+                "(global::System.Linq.Expressions.Expression<global::System.Func<"
+                + valueTypeName + ">>)("),
+            .. ExpressionTemplateFactory.Create(getter, context).Segments.AsImmutableArray(),
+            new LiteralExpressionSegment(")"),
+        ];
+
+        return ExpressionTemplate.Create(segments);
+    }
+
+    /// <summary>
+    /// The settable <c>[Parameter]</c> named <paramref name="name"/> that <paramref name="componentType"/>
+    /// declares or inherits, or <see langword="null"/>. Walks the base chain for the reason
+    /// <see cref="HasUsableChildContent"/> does: Blazor accepts a parameter declared on a base class, and
+    /// Roslyn's <c>GetMembers</c> on the derived type alone would not see it.
+    /// </summary>
+    private static IPropertySymbol? FindSettableParameter(
+        ITypeSymbol componentType, string name, ComposableBodyContext context)
+    {
+        for (var current = componentType; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers(name))
+            {
+                if (member is IPropertySymbol property && IsSettableParameter(property, context))
+                    return property;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="changed"/> can receive a binding's write-back for
+    /// <paramref name="valueType"/>: its type is exactly <c>EventCallback&lt;TValue&gt;</c>.
+    /// </summary>
+    private static bool IsChangeCallbackFor(
+        IPropertySymbol changed, ITypeSymbol valueType, ComposableBodyContext context) =>
+        context.KnownSymbols.EventCallbackType is { } eventCallbackType
+        && changed.Type is INamedTypeSymbol { TypeArguments.Length: 1 } callback
+        && SymbolEqualityComparer.Default.Equals(callback.OriginalDefinition, eventCallbackType)
+        && SymbolEqualityComparer.Default.Equals(callback.TypeArguments[0], valueType);
+
+    /// <summary>
+    /// Whether <paramref name="fieldExpression"/> is a <c>{name}Expression</c> parameter for
+    /// <paramref name="valueType"/>: its type is exactly
+    /// <c>Expression&lt;Func&lt;TValue&gt;&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// Nullable annotations play no part: <see cref="SymbolEqualityComparer.Default"/> ignores them, and
+    /// the parameter is conventionally declared <c>Expression&lt;Func&lt;TValue&gt;&gt;?</c> while the
+    /// value assigned to it never is.
+    /// </remarks>
+    private static bool IsFieldExpressionFor(
+        IPropertySymbol fieldExpression, ITypeSymbol valueType, ComposableBodyContext context)
+    {
+        var symbols = context.KnownSymbols;
+        if (symbols.ExpressionType is not { } expressionType || symbols.FuncType is not { } funcType)
+            return false;
+
+        return fieldExpression.Type is INamedTypeSymbol { TypeArguments.Length: 1 } tree
+            && SymbolEqualityComparer.Default.Equals(tree.OriginalDefinition, expressionType)
+            && tree.TypeArguments[0] is INamedTypeSymbol { TypeArguments.Length: 1 } getter
+            && SymbolEqualityComparer.Default.Equals(getter.OriginalDefinition, funcType)
+            && SymbolEqualityComparer.Default.Equals(getter.TypeArguments[0], valueType);
+    }
+
+    /// <summary>
+    /// Builds the whole <c>CreateBinder(this, setter, current)</c> expression around the getter's own
+    /// segments, so that a parameter hole inside the getter survives into the binder.
+    /// </summary>
+    /// <remarks>
+    /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
+    /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
+    /// and <c>ToCode()</c> throws on those. The value's segments are spliced in twice, which is what puts
+    /// the same hole on both sides of the binding for <c>ComposableExpander</c> to substitute.
+    /// </remarks>
+    private static ExpressionTemplate BuildBinder(
+        ExpressionTemplate value,
+        string valueTypeName,          // "global::System.String" or "global::System.Boolean"
+        ExpressionSyntax? setter,      // null = invert the getter
+        bool setterIsAsynchronous,
+        ComposableBodyContext context)
+    {
+        var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
+        var valueSegments = value.Segments.AsImmutableArray();
+
+        if (setter is null)
+        {
+            // CreateBinder(this, __value => <value> = __value, <value>)
+            segments.Add(new LiteralExpressionSegment($"{CreateBinderCall}__value => "));
+            segments.AddRange(valueSegments);
+            segments.Add(new LiteralExpressionSegment(" = __value, "));
+            segments.AddRange(valueSegments);
+            segments.Add(new LiteralExpressionSegment(")"));
+        }
+        else if (setterIsAsynchronous)
+        {
+            // CreateBinder(this, RuntimeHelpers.CreateInferredBindSetter(callback: <setter>, value: <value>), <value>)
+            var setterTemplate = ExpressionTemplateFactory.Create(setter, context);
+            segments.Add(new LiteralExpressionSegment(
+                $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter(callback: "));
+            segments.AddRange(setterTemplate.Segments.AsImmutableArray());
+            segments.Add(new LiteralExpressionSegment(", value: "));
+            segments.AddRange(valueSegments);
+            segments.Add(new LiteralExpressionSegment("), "));
+            segments.AddRange(valueSegments);
+            segments.Add(new LiteralExpressionSegment(")"));
+        }
+        else
+        {
+            // CreateBinder(this, (Action<T>)(<setter>), <value>)
+            // The cast is required: a lambda written in the argument position has no natural type, and
+            // CreateBinder's own overloads cannot pick one for it once it travels through this template.
+            var setterTemplate = ExpressionTemplateFactory.Create(setter, context);
+            segments.Add(new LiteralExpressionSegment(
+                $"{CreateBinderCall}(global::System.Action<{valueTypeName}>)("));
+            segments.AddRange(setterTemplate.Segments.AsImmutableArray());
+            segments.Add(new LiteralExpressionSegment("), "));
+            segments.AddRange(valueSegments);
+            segments.Add(new LiteralExpressionSegment(")"));
+        }
+
+        return ExpressionTemplate.Create(segments.ToImmutable());
     }
 
     /// <summary>
@@ -755,6 +1306,12 @@ internal static class RenderExpressionAnalyzer
     /// duplicate as two <c>.OnClick</c>. 'class' never reaches this check: both <c>.Class</c> and
     /// <c>.Attr("class", …)</c> fold into <see cref="ElementTemplateNode.Classes"/> first, which is how
     /// the one repeatable attribute stays legal.
+    /// <para>
+    /// A binding occupies both names it was given, and both are checked here rather than only in the
+    /// bind arm, so that the answer does not depend on decoration order:
+    /// <c>.Bind("value", …).Attr("value", …)</c> and the reverse spelling are the same dead duplicate and
+    /// report alike.
+    /// </para>
     /// </summary>
     private static bool HasBinding(ElementTemplateNode node, string name)
     {
@@ -768,6 +1325,13 @@ internal static class RenderExpressionAnalyzer
         {
             if (string.Equals(@event.Name, name, System.StringComparison.Ordinal))
                 return true;
+        }
+
+        if (node.Bind is { } bind
+            && (string.Equals(bind.AttributeName, name, System.StringComparison.Ordinal)
+                || string.Equals(bind.EventName, name, System.StringComparison.Ordinal)))
+        {
+            return true;
         }
 
         return false;

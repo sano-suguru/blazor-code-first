@@ -138,4 +138,68 @@ public sealed class RenderViewEmitterDecorationTests
 
         SequenceArguments.AssertDense(EmitRoot(node));
     }
+
+    private static ElementNode BoundInput(BindTemplate bind) =>
+        new("input", default, default, default, default) { Bind = bind };
+
+    [Fact]
+    public void Emit_BoundElement_EmitsValueThenBinderThenUpdatesName()
+    {
+        // The binder is spelled as the static call it is. CreateBinder is an extension method on
+        // EventCallbackFactory, and the generated file carries no using directives, so the instance
+        // spelling fails with CS1061 there. This test does not compile its output, so the spelling is
+        // held to the one RenderExpressionAnalyzer builds and HtmlBindGeneratorTests compiles.
+        const string binder =
+            "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
+            + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, "
+            + "__value => _name = __value, _name)";
+
+        var node = BoundInput(new BindTemplate(
+            "value",
+            "oninput",
+            ExpressionTemplate.Literal("_name"),
+            ExpressionTemplate.Literal(binder)));
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.OpenElement(0, \"input\");", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"value\", _name);", generated);
+        Assert.Contains($"__builder.AddAttribute(2, \"oninput\", {binder});", generated);
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+        Assert.Contains("__builder.CloseElement();", generated);
+    }
+
+    [Fact]
+    public void Emit_BoundElementWithOtherDecorations_NumbersBindFramesAfterThem()
+    {
+        var node = new ElementNode(
+            "input",
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"field\"")),
+            ImmutableArray.Create(new AttributeTemplate("type", ExpressionTemplate.Literal("\"text\""))),
+            default,
+            default)
+        {
+            Bind = new BindTemplate(
+                "value",
+                "oninput",
+                ExpressionTemplate.Literal("_name"),
+                ExpressionTemplate.Literal("BINDER")),
+        };
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"field\");", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"type\", \"text\");", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"value\", _name);", generated);
+        Assert.Contains("__builder.AddAttribute(4, \"oninput\", BINDER);", generated);
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+    }
+
+    [Fact]
+    public void Emit_UnboundElement_EmitsNoUpdatesAttributeName()
+    {
+        var generated = EmitRoot(Span(ExpressionTemplate.Literal("\"Hi\"")));
+
+        Assert.DoesNotContain("SetUpdatesAttributeName", generated);
+    }
 }

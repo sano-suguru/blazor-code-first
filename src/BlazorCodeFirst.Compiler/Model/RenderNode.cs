@@ -59,7 +59,11 @@ internal sealed record ElementNode(
     EquatableArray<ExpressionTemplate> Classes = default,
     EquatableArray<AttributeTemplate> Attributes = default,
     EquatableArray<EventTemplate> Events = default,
-    EquatableArray<RenderNode> Children = default) : RenderNode;
+    EquatableArray<RenderNode> Children = default) : RenderNode
+{
+    /// <summary>The element's two-way binding, or null. Two frames: the attribute, then the event.</summary>
+    public BindTemplate? Bind { get; init; }
+}
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>
 internal sealed record TextContentNode(ExpressionTemplate Content) : RenderNode;

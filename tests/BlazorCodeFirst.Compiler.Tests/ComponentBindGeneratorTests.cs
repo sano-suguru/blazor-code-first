@@ -1,0 +1,226 @@
+using System.Linq;
+using Microsoft.CodeAnalysis;
+
+namespace BlazorCodeFirst.Compiler.Tests;
+
+/// <summary>
+/// The component surface's <c>.Bind</c>, whose parameter names are derived from the selector rather than
+/// written by the author. Every case here is about a derivation that has to be checked against
+/// <c>TComponent</c>, which is what makes the derivation admissible at all.
+/// </summary>
+public sealed class ComponentBindGeneratorTests
+{
+    private const string Probe = """
+        public sealed class Probe : Microsoft.AspNetCore.Components.ComponentBase
+        {
+            [Microsoft.AspNetCore.Components.Parameter] public string Value { get; set; } = "";
+            [Microsoft.AspNetCore.Components.Parameter]
+            public Microsoft.AspNetCore.Components.EventCallback<string> ValueChanged { get; set; }
+        }
+        """;
+
+    private const string ProbeWithExpression = """
+        public sealed class ProbeWithExpression : Microsoft.AspNetCore.Components.ComponentBase
+        {
+            [Microsoft.AspNetCore.Components.Parameter] public string Value { get; set; } = "";
+            [Microsoft.AspNetCore.Components.Parameter]
+            public Microsoft.AspNetCore.Components.EventCallback<string> ValueChanged { get; set; }
+            [Microsoft.AspNetCore.Components.Parameter]
+            public System.Linq.Expressions.Expression<System.Func<string>>? ValueExpression { get; set; }
+        }
+        """;
+
+    private const string ProbeWithoutChanged = """
+        public sealed class ProbeWithoutChanged : Microsoft.AspNetCore.Components.ComponentBase
+        {
+            [Microsoft.AspNetCore.Components.Parameter] public string Value { get; set; } = "";
+        }
+        """;
+
+    private const string ProbeWithMistypedChanged = """
+        public sealed class ProbeWithMistypedChanged : Microsoft.AspNetCore.Components.ComponentBase
+        {
+            [Microsoft.AspNetCore.Components.Parameter] public string Value { get; set; } = "";
+            [Microsoft.AspNetCore.Components.Parameter]
+            public Microsoft.AspNetCore.Components.EventCallback<int> ValueChanged { get; set; }
+        }
+        """;
+
+    /// <summary>
+    /// Runs the generator over <paramref name="body"/> placed in a component that binds against
+    /// <paramref name="probe"/>, and returns the generated text. The output is compiled, not merely
+    /// inspected: the change callback and the field expression are both written with casts the generated
+    /// file has no <c>using</c> for, so a spelling that reads correctly can still fail to bind.
+    /// </summary>
+    private static string GenerateBodyWith(string probe, string body)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                {{body}}
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Probe.cs", probe), ("Host.cs", source));
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+        return result.GeneratedSources.Single().SourceText.ToString();
+    }
+
+    private static void AssertDiagnosticWith(string probe, string body, string id)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                {{body}}
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Probe.cs", probe), ("Host.cs", source));
+        Assert.Contains(result.Diagnostics, d => d.Id == id);
+    }
+
+    [Fact]
+    public void Bind_ComponentWithoutValueExpression_EmitsTwoParameters()
+    {
+        var generated = GenerateBodyWith(Probe, """
+            private string _name = "";
+            protected override View Body => Html.Component<Probe>().Bind(c => c.Value, () => _name);
+            """);
+
+        Assert.Contains("__builder.AddComponentParameter(1, \"Value\", _name);", generated);
+        Assert.Contains(
+            "__builder.AddComponentParameter(2, \"ValueChanged\", "
+            + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>("
+            + "this, (global::System.Action<global::System.String>)(__value => _name = __value)));",
+            generated);
+        Assert.DoesNotContain("ValueExpression", generated);
+    }
+
+    [Fact]
+    public void Bind_ComponentDeclaringValueExpression_EmitsThreeParameters()
+    {
+        var generated = GenerateBodyWith(ProbeWithExpression, """
+            private string _name = "";
+            protected override View Body =>
+                Html.Component<ProbeWithExpression>().Bind(c => c.Value, () => _name);
+            """);
+
+        Assert.Contains(
+            "__builder.AddComponentParameter(3, \"ValueExpression\", "
+            + "(global::System.Linq.Expressions.Expression<global::System.Func<global::System.String>>)"
+            + "(() => _name));",
+            generated);
+    }
+
+    [Fact]
+    public void Bind_ExplicitSyncSetter_TransplantsAuthorLambdaCastToAction()
+    {
+        var generated = GenerateBodyWith(Probe, """
+            private string Query { get; set; } = "";
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => c.Value, () => Query, v => Query = v.Trim());
+            """);
+
+        Assert.Contains(
+            "__builder.AddComponentParameter(2, \"ValueChanged\", "
+            + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>("
+            + "this, (global::System.Action<global::System.String>)(v => Query = v.Trim())));",
+            generated);
+    }
+
+    [Fact]
+    public void Bind_ExplicitAsyncSetter_CastsToFuncOfTask()
+    {
+        // No RuntimeHelpers.CreateInferredBindSetter here, unlike the element surface: CreateBinder takes
+        // an Action-shaped setter and has to have the asynchronous one adapted, while EventCallback's
+        // Create declares a Func<T, Task> overload of its own.
+        var generated = GenerateBodyWith(Probe, """
+            private string _name = "";
+            private System.Threading.Tasks.Task SetAsync(string v)
+            {
+                _name = v;
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => c.Value, () => _name, SetAsync);
+            """);
+
+        Assert.Contains(
+            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>("
+            + "this, (global::System.Func<global::System.String, "
+            + "global::System.Threading.Tasks.Task>)(SetAsync))",
+            generated);
+        Assert.DoesNotContain("CreateInferredBindSetter", generated);
+    }
+
+    [Fact]
+    public void Bind_InsideComposable_SubstitutesBothTheValueAndTheChangeCallback()
+    {
+        // Why the change callback is composed from the getter's segments rather than from its ToCode():
+        // inside a [Composable] body the getter still holds an unbound parameter hole, and ToCode() throws
+        // on those. The same hole must be filled on both sides, or the parameter and its callback would
+        // name different objects.
+        var generated = GenerateBodyWith(Probe, """
+            private sealed class FormModel { public string Name { get; set; } = ""; }
+            private readonly FormModel _form = new();
+
+            [Composable]
+            private static View Field(FormModel model) =>
+                Html.Component<Probe>().Bind(c => c.Value, () => model.Name);
+
+            protected override View Body => Html.Div[Field(_form)];
+            """);
+
+        Assert.Contains("\"Value\", __bcf_arg_1_0.Name);", generated);
+        Assert.Contains("(__value => __bcf_arg_1_0.Name = __value)", generated);
+    }
+
+    [Fact]
+    public void Bind_ComponentWithoutChangeCallback_ReportsBcf3020()
+    {
+        AssertDiagnosticWith(ProbeWithoutChanged, """
+            private string _name = "";
+            protected override View Body =>
+                Html.Component<ProbeWithoutChanged>().Bind(c => c.Value, () => _name);
+            """, "BCF3020");
+    }
+
+    [Fact]
+    public void Bind_ChangeCallbackOfAnotherType_ReportsBcf3020()
+    {
+        // The derived name is present, so only the type check stands between this and a generated call
+        // that would not compile. A name-only lookup would accept it.
+        AssertDiagnosticWith(ProbeWithMistypedChanged, """
+            private string _name = "";
+            protected override View Body =>
+                Html.Component<ProbeWithMistypedChanged>().Bind(c => c.Value, () => _name);
+            """, "BCF3020");
+    }
+
+    [Fact]
+    public void Bind_BesideParamOnChangeCallback_ReportsBcf3007()
+    {
+        AssertDiagnosticWith(Probe, """
+            private string _name = "";
+            protected override View Body =>
+                Html.Component<Probe>()
+                    .Param(c => c.ValueChanged, default(Microsoft.AspNetCore.Components.EventCallback<string>))
+                    .Bind(c => c.Value, () => _name);
+            """, "BCF3007");
+    }
+
+    [Fact]
+    public void Bind_NonAssignableGetter_ReportsBcf3018()
+    {
+        AssertDiagnosticWith(Probe, """
+            private string _name = "";
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => c.Value, () => _name.Trim());
+            """, "BCF3018");
+    }
+}

@@ -66,12 +66,41 @@ internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
 /// <summary>An element attribute: a resolved constant name plus a value expression template.</summary>
 internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 
+/// <summary>
+/// A two-way binding on an element: the attribute carrying the current value, the event writing it
+/// back, the value expression, and the whole binder expression.
+/// </summary>
+/// <remarks>
+/// <paramref name="Binder"/> holds the complete <c>CreateBinder(…)</c> call rather than just the
+/// setter, so that the three setter shapes (inverted, synchronous, asynchronous) are resolved in the
+/// analyzer and the emitter stays a single unconditional line. It is an
+/// <see cref="ExpressionTemplate"/> and not a string because the analyzer composes it around the
+/// author's own transplanted syntax, which may still contain unbound parameter holes from a
+/// <c>[Composable]</c> expansion.
+/// <para>
+/// An element carries at most one of these, because the surface binds at most one value per element.
+/// Blazor does not require that — <c>SetUpdatesAttributeName</c> writes to the immediately preceding
+/// attribute frame, so two bindings on one element would each keep their own resynchronized name
+/// (measured) — so this field is a single slot to match a deliberate narrowing, and BCF3021 rejects a
+/// second binding. Whether to keep the narrowing is issue #162.
+/// </para>
+/// </remarks>
+internal sealed record BindTemplate(
+    string AttributeName,
+    string EventName,
+    ExpressionTemplate Value,
+    ExpressionTemplate Binder);
+
 internal sealed record ElementTemplateNode(
     string Tag,
     EquatableArray<ExpressionTemplate> Classes = default,       // folded class channel (RM1)
     EquatableArray<AttributeTemplate> Attributes = default,     // one frame each (RM2)
     EquatableArray<EventTemplate> Events = default,             // one frame each
-    EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode;
+    EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode
+{
+    /// <summary>The element's two-way binding, or null. Two frames: the attribute, then the event.</summary>
+    public BindTemplate? Bind { get; init; }
+}
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;
 

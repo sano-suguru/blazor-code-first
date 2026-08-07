@@ -227,6 +227,13 @@ internal static class StaticMarkupSerializer
         if (element.Events.Length > 0)
             return false;
 
+        // A binding is two such frames plus SetUpdatesAttributeName, none of which markup can express.
+        // Its value is never a compile-time constant either, being a field or property read, but that is
+        // not what disqualifies it: folding here would drop the binding silently and leave a plain
+        // attribute behind, which is the one failure this predicate must not be able to produce.
+        if (element.Bind is not null)
+            return false;
+
         // The class channel folds by concatenation, so it needs a constant string and nothing else will
         // do: a constant null has no text to join, and a bool has no meaning as part of a class list.
         foreach (var @class in element.Classes)

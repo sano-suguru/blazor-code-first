@@ -23,3 +23,8 @@ BCF3013 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3014 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3015 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3016 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3017 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3018 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3019 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3020 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3021 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator

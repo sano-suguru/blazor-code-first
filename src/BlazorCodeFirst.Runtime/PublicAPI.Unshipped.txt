@@ -149,3 +149,12 @@ static BlazorCodeFirst.ElementBuilder.implicit operator BlazorCodeFirst.View(Bla
 BlazorCodeFirst.ComponentView<TComponent>.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
 static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action<TArgs!>! handler) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<TArgs!, System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<string!>! get) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<string!>! get, System.Action<string!>! set) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<string!>! get, System.Func<string!, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<bool>! get) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<bool>! get, System.Action<bool>! set) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<bool>! get, System.Func<bool, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ElementBuilder
+BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Action<TValue>! set) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Func<TValue, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ComponentView<TComponent>
