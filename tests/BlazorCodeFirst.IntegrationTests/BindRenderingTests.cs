@@ -5,10 +5,10 @@ namespace BlazorCodeFirst.IntegrationTests;
 
 /// <summary>
 /// Runs a bound component through bUnit's real dispatch (not the generator's C# output, which
-/// <c>Compiler.Tests</c> already covers) to confirm the round trip works, and to settle two measurements
-/// that the generated code has to be correct against: what an empty text input actually delivers to the
-/// setter, and whether bUnit's headless DOM observes the resynchronization <c>SetUpdatesAttributeName</c>
-/// exists for.
+/// <c>Compiler.Tests</c> already covers) to confirm the round trip works, and to settle what an empty
+/// text input actually delivers to the setter (<see cref="EmptyInput_DeliversEmptyStringNotNull"/>).
+/// <c>SetUpdatesAttributeName</c>'s DOM resynchronization is <em>not</em> covered here — measured and
+/// found unobservable from bUnit; see the report and Task 10, which owns it against a real browser.
 /// </summary>
 public sealed class BindRenderingTests : BunitContext
 {
@@ -59,20 +59,6 @@ public sealed class BindRenderingTests : BunitContext
         cut.Find("input").Input("  x  ");
 
         Assert.Equal("x", cut.Instance.Name);
-    }
-
-    [Fact]
-    public void NormalizingTextInput_TrimmedValue_ResynchronizesTheValueAttribute()
-    {
-        // Measured (see the report): SetUpdatesAttributeName's DOM resync is observable through
-        // bUnit's headless renderer, not only through a browser's. After typing "  x  ", the field
-        // holds the trimmed "x" (asserted above); this checks that the rendered value attribute
-        // catches up to it rather than keeping the untrimmed text the user actually typed.
-        var cut = Render<NormalizingTextInput>();
-
-        cut.Find("input").Input("  x  ");
-
-        Assert.Equal("x", cut.Find("input").GetAttribute("value"));
     }
 
     [Fact]
