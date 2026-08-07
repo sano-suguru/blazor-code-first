@@ -1,5 +1,6 @@
 using BlazorCodeFirst.IntegrationTests.Components;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 
 namespace BlazorCodeFirst.IntegrationTests;
 
@@ -179,5 +180,20 @@ public sealed class RenderingTests : BunitContext
         Assert.Equal(2, items.Count);
         Assert.Equal("alpha", items[0].TextContent);
         Assert.Equal("beta", items[1].TextContent);
+    }
+
+    [Fact]
+    public void TypedEventComponent_WhenInputRaised_ReceivesTheEventArgumentAndRerenders()
+    {
+        // Reads TextContent rather than matching markup: the claim under test is that the handler received
+        // e.Value, and a full markup comparison would also pin how an empty value attribute on a void
+        // element is normalized, which is not what this is about.
+        var cut = Render<TypedEventComponent>();
+
+        Assert.Equal("Hello, ", cut.Find("span").TextContent);
+
+        cut.Find("input").Input(new ChangeEventArgs { Value = "Ada" });
+
+        Assert.Equal("Hello, Ada", cut.Find("span").TextContent);
     }
 }
