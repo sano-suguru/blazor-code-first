@@ -100,6 +100,30 @@ public static class DiagnosticExpectations
                 "the one to change, so the report does not presuppose which. The decoration is inside the " +
                 "anchor because it is part of that access; only Element(\"img\")[\"x\"], asserted " +
                 "in-process, has no receiver chain."),
+        new(
+            "BCF3017",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3017Bcf3018Bcf3021.cs",
+            "() => { return _name; }",
+            Note: "Anchors the whole getter argument rather than its body. What is wrong is the shape of " +
+                "the lambda, not anything inside it, and the fix rewrites the argument."),
+        new(
+            "BCF3018",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3017Bcf3018Bcf3021.cs",
+            "Name",
+            Note: "Anchors the getter's body, which is the expression the message quotes and the one " +
+                "that has to change."),
+        // Two .Bind on the line; the second is the one that would take the resynchronization away.
+        new(
+            "BCF3021",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3017Bcf3018Bcf3021.cs",
+            "Bind",
+            AnchorOccurrence.Last),
     ];
 
     /// <summary>
