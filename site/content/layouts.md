@@ -1,6 +1,6 @@
 ---
 title: Layouts
-order: 40
+order: 50
 ---
 
 A layout wraps the routed page with shared chrome: headers, navigation, footers. BlazorCodeFirst
@@ -85,48 +85,9 @@ public partial class Card : BodyComponentBase
 }
 ```
 
-## Passing child content to components
-
-The direction above, Razor passing content into a BlazorCodeFirst component, uses the implicit
-`RenderFragment?` conversion. Going the other way, BlazorCodeFirst code passing content to a Razor
-or hand-written Blazor component, uses `Component<T>()` with nested children or the `.Param`
-overload for `RenderFragment` parameters.
-
-Nested children bind to `ChildContent`, mirroring Razor's rule that nested content becomes
-`ChildContent` and nothing else:
-
-```csharp
-protected override View Body =>
-    Component<Card>()[
-        H2["Heading"],
-        P["Body text"]];
-```
-
-This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`; otherwise
-BCF3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children, because
-the generated lambda is non-generic and would fail an invalid cast at runtime.
-
-Other `RenderFragment` parameters (such as `Footer` or `Header`) bind through
-`.Param(c => c.Footer, content)`, naming the parameter explicitly:
-
-```csharp
-protected override View Body =>
-    Component<Card>()
-        .Param(c => c.Title, "Card title")
-        .Param(c => c.Footer, Span["Footer note"])[
-            H2["Heading"],
-            P["Body text"]];
-```
-
-Naming `ChildContent` through `.Param` is also legal. That is verbose, but it matches Razor's
-attribute form (`<Card><ChildContent>...</ChildContent></Card>`). Binding the same parameter through
-both channels reports BCF3007.
-
-A real `RenderFragment` value (as opposed to a BlazorCodeFirst `View` expression) still binds through
-the generic `.Param<TValue>` overload and is emitted verbatim.
-
-For unresolved type names inside parameter values, see
-[Values copied into generated code](./getting-started.md#values-copied-into-generated-code).
+Passing content the other way, from BlazorCodeFirst code into a Razor or hand-written component,
+uses `Component<T>()`. See
+[passing child content](./components-and-reuse.md#passing-child-content).
 
 ## Reads are allowed, mutation is not
 
@@ -137,5 +98,5 @@ applies to a regular component's `Body`.
 
 ## Next
 
-See [elements and decorations](./elements-and-decorations.md) for the element vocabulary used
-above, or [control flow](./control-flow.md) for `If` and keyed `ForEach`.
+See [components and reuse](./components-and-reuse.md) for calling one component from another, or
+[elements and decorations](./elements-and-decorations.md) for the element vocabulary used above.

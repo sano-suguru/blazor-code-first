@@ -63,4 +63,5 @@ or an external response through it.
 
 ## Next
 
-See [elements and decorations](./elements-and-decorations.md#decorations) for the element vocabulary.
+See [components and reuse](./components-and-reuse.md) for calling one component from another, or
+[elements and decorations](./elements-and-decorations.md#decorations) for the element vocabulary.
