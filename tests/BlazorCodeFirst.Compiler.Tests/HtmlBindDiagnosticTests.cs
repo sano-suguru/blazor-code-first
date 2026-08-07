@@ -225,4 +225,26 @@ public sealed class HtmlBindDiagnosticTests
 
         AssertDiagnostic(body, "BCF3019");
     }
+
+    [Fact]
+    public void On_EventNameWithoutOnPrefix_ReportsBcf3019()
+    {
+        const string body = """
+            protected override View Body =>
+                Html.Button.On("click", () => { });
+            """;
+
+        AssertDiagnostic(body, "BCF3019");
+    }
+
+    [Fact]
+    public void On_EventNameWithOnPrefix_IsAccepted()
+    {
+        const string body = """
+            protected override View Body =>
+                Html.Button.On("onclick", () => { });
+            """;
+
+        AssertNoDiagnostics(body);
+    }
 }

@@ -465,6 +465,16 @@ internal static class RenderExpressionAnalyzer
                     return null;
                 }
 
+                // The event-shortcut path supplies its own name from a literal table and never reaches
+                // here with a bad one, so only the .On / .Bind string path is checked.
+                if (!isEventShortcut && !eventName!.StartsWith("on", System.StringComparison.Ordinal))
+                {
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BCF3019, firstArg.GetLocation(), [eventName!]));
+                    return null;
+                }
+
                 if (HasBinding(element, eventName!))
                 {
                     context.RejectUnresolvedValueRecovery(invocation.Span);

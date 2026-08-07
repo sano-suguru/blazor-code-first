@@ -109,7 +109,9 @@ public static class Decorations
     /// <summary>
     /// Design-time syntax adding an event handler. <paramref name="eventName"/> is the full HTML event
     /// attribute name including the <c>on</c> prefix (for example <c>"onclick"</c>, <c>"onmouseenter"</c>);
-    /// it is never prefixed automatically. Must be a non-empty compile-time constant.
+    /// it is never prefixed automatically, and a name that does not begin with <c>on</c> is BCF3019.
+    /// Blazor would add such a name as a plain attribute whose handler never fires. Must be a non-empty
+    /// compile-time constant.
     /// </summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>

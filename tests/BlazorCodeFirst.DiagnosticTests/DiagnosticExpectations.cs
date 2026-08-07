@@ -124,6 +124,15 @@ public static class DiagnosticExpectations
             "Bcf3017Bcf3018Bcf3021.cs",
             "Bind",
             AnchorOccurrence.Last),
+        new(
+            "BCF3019",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3019.cs",
+            "\"click\"",
+            Note: "Anchors the event-name argument, the one that has to gain the \"on\" prefix. .On and " +
+                ".Bind both report this id; the fixture exercises only .On, since a real build needs one " +
+                "reachable route, not both."),
     ];
 
     /// <summary>
