@@ -188,7 +188,14 @@ internal static class ComposableExpander
                         SubstituteClasses(element.Classes, substitution),
                         attributes.ToImmutable(),
                         events.ToImmutable(),
-                        children.ToImmutable());
+                        children.ToImmutable())
+                    {
+                        Bind = element.Bind is null ? null : new BindTemplate(
+                            element.Bind.AttributeName,
+                            element.Bind.EventName,
+                            element.Bind.Value.Substitute(substitution),
+                            element.Bind.Binder.Substitute(substitution)),
+                    };
                 }
 
             case RawMarkupTemplateNode raw:

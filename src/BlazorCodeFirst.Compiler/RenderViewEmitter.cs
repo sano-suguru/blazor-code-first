@@ -330,6 +330,21 @@ internal static class RenderViewEmitter
                 $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
             next++;
         }
+        if (node.Bind is { } bind)
+        {
+            var attributeName =
+                global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.AttributeName, quote: true);
+            var eventName =
+                global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.EventName, quote: true);
+            writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {bind.Value.ToCode()});");
+            next++;
+            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {bind.Binder.ToCode()});");
+            next++;
+            // Blazor resynchronizes the DOM from this attribute when a re-render produces the value the
+            // element already shows. Without it, a setter that normalizes or rejects the incoming value
+            // leaves the element displaying the rejected text while the field holds something else.
+            writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
+        }
         next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;

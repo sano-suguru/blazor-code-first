@@ -138,4 +138,65 @@ public sealed class RenderViewEmitterDecorationTests
 
         SequenceArguments.AssertDense(EmitRoot(node));
     }
+
+    private static ElementNode BoundInput(BindTemplate bind) =>
+        new("input", default, default, default, default) { Bind = bind };
+
+    [Fact]
+    public void Emit_BoundElement_EmitsValueThenBinderThenUpdatesName()
+    {
+        var node = BoundInput(new BindTemplate(
+            "value",
+            "oninput",
+            ExpressionTemplate.Literal("_name"),
+            ExpressionTemplate.Literal(
+                "global::Microsoft.AspNetCore.Components.EventCallback.Factory.CreateBinder("
+                + "this, __value => _name = __value, _name)")));
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.OpenElement(0, \"input\");", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"value\", _name);", generated);
+        Assert.Contains(
+            "__builder.AddAttribute(2, \"oninput\", "
+            + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.CreateBinder("
+            + "this, __value => _name = __value, _name));",
+            generated);
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+        Assert.Contains("__builder.CloseElement();", generated);
+    }
+
+    [Fact]
+    public void Emit_BoundElementWithOtherDecorations_NumbersBindFramesAfterThem()
+    {
+        var node = new ElementNode(
+            "input",
+            ImmutableArray.Create(ExpressionTemplate.Literal("\"field\"")),
+            ImmutableArray.Create(new AttributeTemplate("type", ExpressionTemplate.Literal("\"text\""))),
+            default,
+            default)
+        {
+            Bind = new BindTemplate(
+                "value",
+                "oninput",
+                ExpressionTemplate.Literal("_name"),
+                ExpressionTemplate.Literal("BINDER")),
+        };
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"field\");", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"type\", \"text\");", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"value\", _name);", generated);
+        Assert.Contains("__builder.AddAttribute(4, \"oninput\", BINDER);", generated);
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+    }
+
+    [Fact]
+    public void Emit_UnboundElement_EmitsNoUpdatesAttributeName()
+    {
+        var generated = EmitRoot(Span(ExpressionTemplate.Literal("\"Hi\"")));
+
+        Assert.DoesNotContain("SetUpdatesAttributeName", generated);
+    }
 }

@@ -66,12 +66,39 @@ internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
 /// <summary>An element attribute: a resolved constant name plus a value expression template.</summary>
 internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 
+/// <summary>
+/// A two-way binding on an element: the attribute carrying the current value, the event writing it
+/// back, the value expression, and the whole binder expression.
+/// </summary>
+/// <remarks>
+/// <paramref name="Binder"/> holds the complete <c>CreateBinder(…)</c> call rather than just the
+/// setter, so that the three setter shapes (inverted, synchronous, asynchronous) are resolved in the
+/// analyzer and the emitter stays a single unconditional line. It is an
+/// <see cref="ExpressionTemplate"/> and not a string because the analyzer composes it around the
+/// author's own transplanted syntax, which may still contain unbound parameter holes from a
+/// <c>[Composable]</c> expansion.
+/// <para>
+/// An element carries at most one of these. <c>SetUpdatesAttributeName</c> holds one attribute name
+/// per element and a second call overwrites the first, which would silently strip the first binding's
+/// resynchronization; BCF3021 rejects that instead.
+/// </para>
+/// </remarks>
+internal sealed record BindTemplate(
+    string AttributeName,
+    string EventName,
+    ExpressionTemplate Value,
+    ExpressionTemplate Binder);
+
 internal sealed record ElementTemplateNode(
     string Tag,
     EquatableArray<ExpressionTemplate> Classes = default,       // folded class channel (RM1)
     EquatableArray<AttributeTemplate> Attributes = default,     // one frame each (RM2)
     EquatableArray<EventTemplate> Events = default,             // one frame each
-    EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode;
+    EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode
+{
+    /// <summary>The element's two-way binding, or null. Two frames: the attribute, then the event.</summary>
+    public BindTemplate? Bind { get; init; }
+}
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;
 
