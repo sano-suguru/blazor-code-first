@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Threading.Tasks;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
@@ -344,5 +345,87 @@ public sealed class RenderMutationAnalyzerTests
         var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
 
         Assert.Single(diagnostics, d => d.Id == "BCF3001");
+    }
+
+    // -----------------------------------------------------------------------
+    // Bind setter exemption: the setter runs after the render, so it is a deferred handler like
+    // OnClick/On, while the getter is evaluated while the frames are built and stays checked.
+    // -----------------------------------------------------------------------
+
+    /// <summary>Wraps <paramref name="body"/> as the members of a BodyComponentBase subclass, alongside
+    /// a minimal two-way-bindable component so a component <c>.Bind</c> call resolves; mirrors the
+    /// Probe fixture in ComponentBindGeneratorTests.</summary>
+    private static ImmutableArray<Diagnostic> Diags(string body)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public sealed class Probe : Microsoft.AspNetCore.Components.ComponentBase
+            {
+                [Microsoft.AspNetCore.Components.Parameter] public string Value { get; set; } = "";
+                [Microsoft.AspNetCore.Components.Parameter]
+                public Microsoft.AspNetCore.Components.EventCallback<string> ValueChanged { get; set; }
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                {{body}}
+            }
+            """;
+
+        return CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source).GetAwaiter().GetResult();
+    }
+
+    private static void AssertDiagnostic(string body, string id) =>
+        Assert.Contains(Diags(body), d => d.Id == id);
+
+    private static void AssertNoDiagnostics(string body) =>
+        Assert.DoesNotContain(Diags(body), d => d.Severity == DiagnosticSeverity.Error);
+
+    [Fact]
+    public void Bind_ExplicitSetterLambda_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _name, v => _name = v.Trim());
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    [Fact]
+    public void Bind_ComponentExplicitSetterLambda_DoesNotReportBcf3001()
+    {
+        // Probe declares Value and ValueChanged; see ComponentBindGeneratorTests.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => c.Value, () => _name, v => _name = v);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    [Fact]
+    public void Bind_GetterLambdaMutatingState_ReportsBcf3001()
+    {
+        // The getter is evaluated while the frames are built, so a mutation there is still a
+        // one-way-flow break and must keep reporting BCF3001. Only the setter is exempt.
+        //
+        // This has to use the four-argument form. In the three-argument form the getter must be
+        // assignable (BCF3018), and an assignable expression cannot carry a mutation, so BCF3018
+        // would fire first and BCF3001 would never be reached. Supplying an explicit setter lifts
+        // the assignability requirement from the getter, which is the only shape where a mutating
+        // getter is otherwise legal.
+        const string body = """
+            private string _name = "";
+            private int _reads;
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => (_reads++).ToString(), v => _name = v);
+            """;
+
+        AssertDiagnostic(body, "BCF3001");
     }
 }

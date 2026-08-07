@@ -16,12 +16,14 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// <para>
 /// The initial detectable boundary covers statically identifiable direct writes: field assignments,
 /// property assignments, and increment/decrement operators whose target is an instance member of the
-/// containing component. The recognized deferred event handlers, the handler argument of a
-/// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call, are excluded because state
-/// mutations there are the correct location for imperative state transitions and execute after
-/// rendering, not during it. A mutation is exempt when <em>any</em> enclosing lambda (not just the
-/// innermost) is such a handler argument, so nested lambdas inside a deferred handler body remain
-/// exempt as well.
+/// containing component. The recognized deferred event handlers — the handler argument of a
+/// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call, and the setter argument of a
+/// two-way <c>.Bind(...)</c> call — are excluded because state mutations there are the correct
+/// location for imperative state transitions and execute after rendering, not during it. The getter
+/// argument of a <c>.Bind(...)</c> call is not exempt: it is evaluated while the frames are built, so
+/// a mutation there is still a one-way-flow break. A mutation is exempt when <em>any</em> enclosing
+/// lambda (not just the innermost) is such a handler argument, so nested lambdas inside a deferred
+/// handler body remain exempt as well.
 /// </para>
 /// <para>
 /// Arbitrary interprocedural side effects (mutations inside a helper method called from Body) are
@@ -161,10 +163,11 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed, at any
     /// nesting depth, by a lambda that is syntactically a recognized deferred event handler
     /// argument: the handler argument of a Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c>
-    /// call. Every enclosing lambda is checked (not just the innermost), so a mutation inside a
-    /// nested lambda that itself lives inside a recognized handler lambda (e.g.
-    /// <c>OnClick(async () => items.ForEach(i => total += i))</c>) is still exempt. If-content
-    /// lambdas and other non-handler lambdas do not match and analysis continues outward.
+    /// call, or the setter argument of a two-way <c>.Bind(...)</c> call. Every enclosing lambda is
+    /// checked (not just the innermost), so a mutation inside a nested lambda that itself lives
+    /// inside a recognized handler lambda (e.g. <c>OnClick(async () => items.ForEach(i => total +=
+    /// i))</c>) is still exempt. If-content lambdas and other non-handler lambdas do not match and
+    /// analysis continues outward.
     /// </summary>
     private static bool IsInsideDeferredEventHandlerLambda(
         SyntaxNode operationSyntax,
@@ -174,7 +177,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         while (node is not null)
         {
             if (node is LambdaExpressionSyntax lambda &&
-                IsDeferredEventHandlerArgument(lambda, semanticModel))
+                (IsDeferredEventHandlerArgument(lambda, semanticModel) ||
+                 IsBindSetterArgument(lambda, semanticModel)))
             {
                 return true;
             }
@@ -234,6 +238,111 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
                 continue;
 
             return operationArgument.Parameter?.Type.TypeKind == TypeKind.Delegate;
+        }
+
+        return false;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Helpers, Bind setter argument detection
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the setter argument of a
+    /// two-way <c>.Bind(...)</c> call: the element decoration <c>Decorations.Bind(...)</c> (an
+    /// extension method on the element builder) or the component decoration
+    /// <c>ComponentView&lt;TComponent&gt;.Bind(...)</c> (an instance method on the component
+    /// builder). The setter runs after the render, in response to the bound event, so a mutation
+    /// there is not a one-way-flow break. The getter argument of the same call is deliberately not
+    /// recognized here: it is evaluated while the frames are built, so a mutation there must still
+    /// be reported.
+    /// </summary>
+    private static bool IsBindSetterArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
+    {
+        if (lambda.Parent is not ArgumentSyntax arg ||
+            arg.Parent is not ArgumentListSyntax argList ||
+            argList.Parent is not InvocationExpressionSyntax invocation)
+        {
+            return false;
+        }
+
+        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
+            method.Name != "Bind" ||
+            !IsRecognizedBindMethod(method))
+        {
+            return false;
+        }
+
+        return IsSetterParameter(method, GetBoundParameter(arg, invocation, semanticModel));
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="method"/> is one of the two known
+    /// <c>Bind</c> declarations. Anchored the same way as the OnClick/On check above: the namespace
+    /// is rooted at the global namespace, and the declaring type name plus extension-method-ness
+    /// together rule out an unrelated same-named <c>Bind</c> method.
+    /// </summary>
+    private static bool IsRecognizedBindMethod(IMethodSymbol method)
+    {
+        var declaringType = (method.ReducedFrom ?? method).ContainingType;
+        if (declaringType is not { ContainingNamespace: { IsGlobalNamespace: false, Name: "BlazorCodeFirst" } ns } ||
+            !ns.ContainingNamespace.IsGlobalNamespace)
+        {
+            return false;
+        }
+
+        // The element decoration is an extension method declared on Decorations; the component
+        // decoration is an instance method declared on ComponentView<TComponent>.
+        return (method.IsExtensionMethod && declaringType.Name == "Decorations") ||
+               (!method.IsExtensionMethod && declaringType.Name == "ComponentView");
+    }
+
+    /// <summary>
+    /// Returns the parameter of the resolved method that <paramref name="argument"/> binds to, or
+    /// <see langword="null"/> when the operation tree does not resolve it.
+    /// </summary>
+    private static IParameterSymbol? GetBoundParameter(
+        ArgumentSyntax argument, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        if (semanticModel.GetOperation(invocation) is not IInvocationOperation operation)
+            return null;
+
+        foreach (var operationArgument in operation.Arguments)
+        {
+            // See the reference-equality note on BindsToDelegateParameter above; the same reasoning
+            // applies here, since argument is likewise always a lambda literal.
+            if (operationArgument.Syntax != argument)
+                continue;
+
+            return operationArgument.Parameter;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="candidate"/> is the setter parameter of
+    /// <paramref name="bindMethod"/>: a delegate taking exactly the bound value
+    /// (<c>Action&lt;T&gt;</c> or <c>Func&lt;T, Task&gt;</c>). Identified by finding the same
+    /// overload's getter parameter — a zero-argument <c>Func&lt;T&gt;</c> — and comparing
+    /// <paramref name="candidate"/>'s single delegate parameter against the getter's return type T,
+    /// rather than by argument position: the element and component surfaces put the setter at a
+    /// different ordinal, and the component surface additionally declares a selector parameter
+    /// (<c>Func&lt;TComponent, TValue&gt;</c>) whose own single delegate parameter would otherwise be
+    /// mistaken for a setter by arity alone.
+    /// </summary>
+    private static bool IsSetterParameter(IMethodSymbol bindMethod, IParameterSymbol? candidate)
+    {
+        if (candidate?.Type is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke })
+            return false;
+
+        foreach (var parameter in bindMethod.Parameters)
+        {
+            if (parameter.Type is INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 0 } getterInvoke })
+            {
+                return SymbolEqualityComparer.Default.Equals(
+                    setterInvoke.Parameters[0].Type, getterInvoke.ReturnType);
+            }
         }
 
         return false;
