@@ -539,6 +539,11 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 | BCF3014 | Error   | 設計時慣性型(`View` / `ComponentView<T>` / `ElementBuilder`)がジェネリック `.Param` の値位置に渡された |
 | BCF3015 | Error   | body 内の値式で、生成コードへ安全に移植できない未解決の型参照 |
 | BCF3016 | Error   | void要素に子が与えられている。対象はHTML Living Standardのvoid elements 13要素(`area` / `base` / `br` / `col` / `embed` / `hr` / `img` / `input` / `link` / `meta` / `source` / `track` / `wbr`)で、curatedヘルパーと、タグを非空の定数で受けた `Element` の双方を見る。静的SSRは閉じタグを出力し、HTMLパーサが子を兄弟へ押し出すため、prerenderとinteractive描画で異なるDOMになる(理由と計測は `DESIGN.md` §4.1)。要素タグについての単項述語で判定するため、(親, 子) で決まる同種の破れは対象外。未知タグとカスタム要素も対象外 |
+| BCF3017 | Error   | `.Bind` の getter が本体式を持つインラインラムダでない(ブロック本体ラムダ/メソッドグループ等)。getter の本体式は属性値と `CreateBinder` の現在値の双方へ移植されるため、式として取り出せなければならない。setter 側にこの制約はない(`EventCallback` へ渡すだけで本体を取り出さないため) |
+| BCF3018 | Error   | 2引数形の `.Bind` で getter の本体が代入可能でない。許可されるのはメンバーアクセス(`_name` / `_form.Name` / `Model.Items[0].Title`)と要素アクセス(`_dict["k"]`)で、対象が setter を持つこと。呼び出し・演算(`() => _name.ToUpper()`)、get-only プロパティ、`readonly` フィールドは拒否する。ローカル変数・パラメータ・`ForEach` の反復変数そのものへの直接代入も拒否する(`Body` はプロパティゲッターでありローカルはレンダリングごとに死ぬため、書き戻しが次のレンダリングに残らない)。反復変数の**メンバー**(`o.Title`)は元の要素を書き換えるので許可する。setter を明示する3引数形へ誘導する |
+| BCF3019 | Error   | `.Bind` / `.On` のイベント名が `on` で始まらない。Blazor のイベント属性名は常に `on` で始まり、そうでない名前は属性として静かに追加されてハンドラが一度も発火しない。`.Bind` は属性名とイベント名の2つの文字列を隣り合って取るため、取り違えがこの検査で止まる |
+| BCF3020 | Error   | `ComponentView<T>.Bind` の対象に対応する `{名前}Changed` パラメータが `T` に無い、または `EventCallback<TValue>` でない。要素側と違いコンポーネント側は名前を導くが、導いた名前は必ず型シンボルで確かめる |
+| BCF3021 | Error   | 同一要素に `.Bind` が2つ以上ある。`SetUpdatesAttributeName` は要素につき1つの属性名しか保持できず、2つ目の呼び出しが1つ目を上書きして最初の束縛が再同期を失う。名前の重複ではないためBCF3010では表せない |
 
 ## 付録B: 検討した代替アーキテクチャと不採用理由
 
