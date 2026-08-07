@@ -177,6 +177,9 @@ is what selects the overload. `ChangeEventArgs` lives in `Microsoft.AspNetCore.C
 `Microsoft.AspNetCore.Components.Web`, which a Blazor app already references. Nothing checks that
 the type you name is the one the event delivers.
 
+That pair — an attribute out, an event back — is what [`.Bind`](./two-way-binding.md) writes as one
+decoration.
+
 `class` is the one attribute that folds: chaining `.Class` more than once merges the values into a
 single `class` attribute. Every other attribute and event is a single binding, and binding one twice
 on the same element reports BCF3010. There is no `style` shortcut, so prefer an external stylesheet

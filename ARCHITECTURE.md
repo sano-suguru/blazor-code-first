@@ -129,7 +129,7 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
 
 上の擬似コードはノード単位のループとして書いていますが、畳み込みの単位は**連続する兄弟の run** であり(§2.7(D))、run 全体が1つの `AddMarkupContent` として発行されます。したがって幅を定めるのは発行そのものであって、ノード種別ではありません。#69 で `SequenceAllocator.Width` を削除して発行側を単一の権威にしたのはこのためで、独立に幅を計算する実装はもう存在しません(§2.7(B)末尾)。
 
-`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別と、そのノードが畳み込み可能かどうかから定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、**動的な**文字列子を1つ持つ `Span`(`Span[$"...{x}"]`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`]。イベントは畳み込みを阻むため、`Button` の子が定数でもこの幅です)。対して**定数**の文字列子を1つ持つ `Span`(`Span["..."]`)はそれ自体が畳み込み可能なので幅 1 です(`AddMarkupContent` 1回)。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
+`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別と、そのノードが畳み込み可能かどうかから定まります(例: 子を持たない `Span` = 1 [`OpenElement`]、**動的な**文字列子を1つ持つ `Span`(`Span[$"...{x}"]`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`]。イベントは畳み込みを阻むため、`Button` の子が定数でもこの幅です)。対して**定数**の文字列子を1つ持つ `Span`(`Span["..."]`)はそれ自体が畳み込み可能なので幅 1 です(`AddMarkupContent` 1回)。装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。例外は `.Bind` で、これ1つが属性フレームとイベントフレームの2つを追加します(§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
 
 値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBCF3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。
 
@@ -233,6 +233,30 @@ __b.CloseElement();
 ```
 
 この `Button` の `FrameWidth` は4(`OpenElement` + `class` 属性 + `onclick` イベント + `AddContent`)です。`.Class` を何回連ねてもフレーム幅は増えませんが、`class` 以外の装飾を1つ追加するとフレーム幅も1つ増えます。ラッパーノード方式(装飾ごとに専用のラッパー要素を生成する方式)であれば装飾はDOMノードそのものを増やしますが、本方式はいずれの装飾も所有要素の属性・イベントとして合成するためDOM深さは増えません。要点は「`class` は装飾の個数によらずフレーム幅が一定に畳み込まれる一方、それ以外の属性・イベントは1装飾につき1フレームの1:1対応である」という非対称性で、この不変性が装飾を重ねても差分検知のシーケンス割当が安定する根拠です。
+
+1:1の唯一の例外が双方向束縛です。`.Bind` は属性フレーム1つとイベントフレーム1つを発行するため、この装飾の `FrameWidth` は2です。加えて `SetUpdatesAttributeName` を1回呼びますが、これはシーケンス引数を取らないためフレームを増やしません(ビルダが開いている要素に、再同期対象の属性名を記録するだけです)。要素につき保持できる属性名は1つであるため、同一要素の2つ目の `.Bind` はBCF3021で拒否します。名前が衝突していなくても拒否するので、BCF3010では表せません。
+
+```csharp
+// 入力(設計時のC#式)
+Input.Type("text").Bind("value", "oninput", () => _name)
+```
+
+```csharp
+// 出力(生成コード): 属性フレームとイベントフレームの2つ、そして再同期の記録
+__b.OpenElement(k,   "input");
+__b.AddAttribute(k+1, "type", "text");
+__b.AddAttribute(k+2, "value", _name);                  // 属性フレーム
+__b.AddAttribute(k+3, "oninput", EventCallbackFactoryBinderExtensions.CreateBinder(
+    EventCallback.Factory, this, __value => _name = __value, _name));   // イベントフレーム
+__b.SetUpdatesAttributeName("value");                   // シーケンス引数を取らない
+__b.CloseElement();
+```
+
+`CreateBinder` を拡張メソッドの静的呼び出しとして書くのは、生成ファイルが `using` を持たず、Razorの書くインスタンス構文(`EventCallback.Factory.CreateBinder(…)`)がCS1061になるためです。同じ正規化を作者の書いた拡張メソッドにも適用しています(§2.2)。setterを明示した3引数形では、この `__value => …` の位置に `(Action<T>)(setter)` が、非同期setterでは `RuntimeHelpers.CreateInferredBindSetter(callback: setter, value: 現在値)` が入ります。いずれの形でも現在値を第3引数として渡す点と、フレーム数は変わりません。
+
+`.Bind` は(D)の静的畳み込みに参加しません。値がフィールドやプロパティの読み出しである以上コンパイル時定数になり得ませんが、畳み込みを止めているのは値の非定数性ではなく述語そのものです(`StaticMarkupSerializer.IsFoldableElement` が `Bind` を持つ要素を畳み込み不可として返します)。値の判定に任せれば、束縛が黙って落ちてただの属性だけが残る出力を、この述語が原理的に作れてしまうためです。
+
+コンポーネント側の `.Bind` はこの非対称性を持ちません。導かれた `{名前}Changed` と `{名前}Expression` は通常のパラメータフレームとして積まれるため、フレーム幅は `.Param` 2回ぶん、`{名前}Expression` を宣言している型に対しては3回ぶんです((D)末尾のコンポーネントのフレーム幅の式がそのまま成り立ちます)。要素側の `SetUpdatesAttributeName` に相当するものもありません。DOMを持つのは束縛先のコンポーネントであって、この呼び出し元ではないためです。
 
 **(B) `ForEach`。入力: リストの変異 / 出力: キー整合の最小パッチ**
 
