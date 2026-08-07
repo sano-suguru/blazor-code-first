@@ -147,6 +147,20 @@ Available decorations are `.Class`, `.Id`, `.Href`, `.Src`, `.Alt`, `.Type`, `.T
 prefixed for you. The name given to `.Attr` or `.On` must be a non-empty compile-time constant, or
 the generator reports BCF3011.
 
+A handler written as `Action` or `Func<Task>` receives nothing. To read the event, give the lambda
+parameter its type, and `.On` picks up the typed overload:
+
+```csharp
+Input.Type("text").Attr("value", _name)
+     .On("oninput", (ChangeEventArgs e) => _name = e.Value?.ToString() ?? "")
+```
+
+Unlike Razor, the argument type is not inferred from the event name, so writing it on the parameter
+is what selects the overload. `ChangeEventArgs` lives in `Microsoft.AspNetCore.Components`;
+`MouseEventArgs`, `KeyboardEventArgs` and `FocusEventArgs` live in
+`Microsoft.AspNetCore.Components.Web`, which a Blazor app already references. Nothing checks that
+the type you name is the one the event delivers.
+
 `class` is the one attribute that folds: chaining `.Class` more than once merges the values into a
 single `class` attribute. Every other attribute and event is a single binding, and binding one twice
 on the same element reports BCF3010. There is no `style` shortcut, so prefer an external stylesheet
