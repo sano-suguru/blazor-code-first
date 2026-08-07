@@ -6,11 +6,14 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.WebAppTestHost.Components;
 
 /// <summary>
-/// Hosts seven shapes that need a real browser to verify #140's static fold. The first six each
+/// Hosts eleven shapes that need a real browser to verify #140's static fold. The first six each
 /// render the same content twice, once through a fully-static, folded spelling and once through an
 /// otherwise-identical spelling routed through a non-constant property so the generator's #140 fold
-/// cannot apply. The seventh (<see cref="CarriageReturnProbe"/>) is the exception: it pins a value the
-/// fold <em>refuses</em>, and measures the divergence that refusal avoids. The folded spelling reaches
+/// cannot apply, and so does the last (<see cref="SweptCharactersProbe"/>). The other four
+/// (<see cref="CarriageReturnProbe"/>, <see cref="NullCharacterProbe"/>,
+/// <see cref="LoneSurrogateProbe"/>, <see cref="LeadingByteOrderMarkProbe"/>) are the exception: each pins a value <c>CanRoundTrip</c>
+/// <em>refuses</em> and measures what the two paths actually do with it, so the refusal rests on a
+/// measurement rather than on a reading of the parsing specification. The folded spelling reaches
 /// the DOM by assigning HTML text to a shared
 /// <c>&lt;template&gt;</c>'s <c>innerHTML</c> (mirroring <c>blazor.web.js</c>'s <c>insertMarkup</c>); the
 /// unfolded spelling reaches it through <c>createElement</c>/<c>setAttribute</c>/<c>createTextNode</c>.
@@ -48,6 +51,10 @@ public partial class FoldParityView : BodyComponentBase
             Component<VoidTagInRunProbe>(),
             Component<MultiClassProbe>(),
             Component<CarriageReturnProbe>(),
+            Component<NullCharacterProbe>(),
+            Component<LoneSurrogateProbe>(),
+            Component<LeadingByteOrderMarkProbe>(),
+            Component<SweptCharactersProbe>(),
 
             // Playwright waits for this before comparing DOM, so the comparison is of the live,
             // hydrated render and not of the prerendered markup that the .NET HtmlRenderer already
@@ -286,6 +293,218 @@ public partial class CarriageReturnProbe : BodyComponentBase
             Div.Attr("id", "element-carriage-return")[
                 Span.Attr("data-value", CrAttributeValue)["one"],
                 P[CrText]]);
+
+    /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}
+
+/// <summary>
+/// Shape 8: a NUL (U+0000), the second value <c>CanRoundTrip</c> refuses. Three containers, for the
+/// same reason <see cref="CarriageReturnProbe"/> carries three.
+/// </summary>
+/// <remarks>
+/// This probe exists because the recorded reason for the refusal was wrong in both halves, and nothing
+/// measured it. <c>CanRoundTrip</c>'s remarks said the parser "maps both a literal NUL and the
+/// reference <c>&amp;#0;</c> to U+FFFD". The reference half cannot happen at all — the serializer
+/// escapes <c>&amp;</c> to <c>&amp;amp;</c>, so no character reference can ever form out of a value —
+/// and the literal half is only half true. Measured in Chromium here, the markup path replaces a NUL
+/// with U+FFFD in an <em>attribute value</em> but drops it entirely from <em>text content</em>, where
+/// <c>createTextNode</c> keeps it. So the divergence is real and the refusal stands, but it takes two
+/// different shapes and neither was the one written down.
+/// <para>
+/// Both shapes are asserted rather than just their disagreement with the element path, because they
+/// are what a future browser change would move. The refusal itself is the third container.
+/// </para>
+/// </remarks>
+public partial class NullCharacterProbe : BodyComponentBase
+{
+    private static string NulAttributeValue => "a\0b";
+
+    private static string NulText => "a\0b";
+
+    protected override View Body =>
+        Fragment(
+            // Constant throughout, so this folds unless CanRoundTrip refuses the NUL.
+            Div.Attr("id", "refused-null")[
+                Span.Attr("data-value", "a\0b")["one"],
+                P["a\0b"]],
+
+            // What folding would have produced, entered through Raw for the reason CarriageReturnProbe
+            // gives: after the refusal there is nothing left that folds.
+            Div.Attr("id", "markup-null")[
+                Raw("<span data-value=\"a\0b\">one</span><p>a\0b</p>")],
+
+            Div.Attr("id", "element-null")[
+                Span.Attr("data-value", NulAttributeValue)["one"],
+                P[NulText]]);
+
+    /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}
+
+/// <summary>
+/// Shape 9: a lone surrogate (an unpaired U+D800), the third value <c>CanRoundTrip</c> refuses.
+/// </summary>
+/// <remarks>
+/// Unlike the other refusals here, this one has no divergence behind it, and the measurement is what
+/// established that. The parsing specification makes a lone surrogate in the input stream a
+/// <c>surrogate-in-input-stream</c> parse error and nothing more — parse errors do not rewrite the
+/// stream — so the claim that it was refused "for the same reason" as a NUL was never right. Measured
+/// here, it does not even reach the parser: all three containers read back <c>"a\uFFFDb"</c>, because
+/// .NET's UTF-8 encoding of the render batch replaces the surrogate before either path leaves the
+/// server, and both paths take that same trip.
+/// <para>
+/// The refusal is kept. It costs a missed fold on a value no author writes by accident, and dropping it
+/// would change behaviour on the strength of one hosting model — this host renders interactive-server,
+/// and nothing here has measured WebAssembly. What this probe buys is that the agreement is now under
+/// measurement rather than assumed: if a future runtime delivered the surrogate intact on one path
+/// only, the refusal would acquire a real justification and this probe is what would say so.
+/// </para>
+/// </remarks>
+public partial class LoneSurrogateProbe : BodyComponentBase
+{
+    private static string SurrogateAttributeValue => "a\ud800b";
+
+    private static string SurrogateText => "a\ud800b";
+
+    protected override View Body =>
+        Fragment(
+            Div.Attr("id", "refused-lone-surrogate")[
+                Span.Attr("data-value", "a\ud800b")["one"],
+                P["a\ud800b"]],
+
+            Div.Attr("id", "markup-lone-surrogate")[
+                Raw("<span data-value=\"a\ud800b\">one</span><p>a\ud800b</p>")],
+
+            Div.Attr("id", "element-lone-surrogate")[
+                Span.Attr("data-value", SurrogateAttributeValue)["one"],
+                P[SurrogateText]]);
+
+    /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}
+
+/// <summary>
+/// Shape 10: a value that <em>begins</em> with U+FEFF, which <c>CanRoundTrip</c> refuses. The refusal
+/// looks like the other three but rests on a different mechanism, and #150's sweep found it by
+/// measurement after reading the parsing specification had ruled the character safe.
+/// </summary>
+/// <remarks>
+/// No HTML parsing stage touches a BOM: it is stripped by the byte-stream decode, which fragment
+/// parsing on a <c>&lt;template&gt;</c> never runs. The stripping happens one layer earlier and once
+/// per frame string, when the browser decodes the render batch — a UTF-8 decode drops a byte order
+/// mark in first position and keeps it anywhere else. That makes the divergence positional rather
+/// than character-based, and folding is exactly what moves the position: unfolded, a text or
+/// attribute value is its own frame string and a leading BOM is its first character, so it is
+/// stripped; folded, the same value sits inside a larger markup string that opens with
+/// <c>&lt;</c>, so it survives.
+/// <para>
+/// Measured in Chromium, on all three containers below. It is the one refusal here where the markup
+/// path is the <em>more</em> faithful of the two — the fold would preserve a character the element
+/// path loses — but the fold's contract is that both spellings produce the same DOM, not that either
+/// is the better reading of the source.
+/// </para>
+/// <para>
+/// The third container is what identifies the mechanism rather than merely the symptom, and is why
+/// this probe carries one more container than <see cref="CarriageReturnProbe"/>. Its <c>Raw</c>
+/// string starts with the BOM instead of with a tag, so the markup path loses it too. Without that
+/// container the measurement would equally support "the element path drops a leading BOM", which is
+/// the wrong rule and would have produced the wrong predicate.
+/// </para>
+/// </remarks>
+public partial class LeadingByteOrderMarkProbe : BodyComponentBase
+{
+    private static string LeadingBomText => "\uFEFFab";
+
+    private static string LeadingBomAttribute => "\uFEFFab";
+
+    protected override View Body =>
+        Fragment(
+            // Constant throughout, so this folds unless CanRoundTrip refuses a leading BOM.
+            Div.Attr("id", "refused-leading-bom")[
+                Span.Attr("data-value", "\uFEFFab")["one"],
+                P["\uFEFFab"]],
+
+            // What folding would have produced: the value sits in the interior of the markup string,
+            // because the string opens with the span's tag.
+            Div.Attr("id", "markup-leading-bom")[
+                Raw("<span data-value=\"\uFEFFab\">one</span><p>\uFEFFab</p>")],
+
+            Div.Attr("id", "element-leading-bom")[
+                Span.Attr("data-value", LeadingBomAttribute)["one"],
+                P[LeadingBomText]],
+
+            // The same markup path, but with the BOM in first position of the frame string rather than
+            // inside it. This is the container that names the mechanism: position, not path.
+            Div.Attr("id", "markup-leading-bom-at-string-start")[
+                Raw("\uFEFFab<span>one</span>")]);
+
+    /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}
+
+/// <summary>
+/// Shape 11: one representative of every character class the parsing specification singles out and
+/// <c>CanRoundTrip</c> nonetheless admits. This is the standing form of #150's sweep: the sweep's
+/// finding was that the fold predicate has no hole, and a finding of "nothing here diverges" is worth
+/// nothing unless something keeps checking it.
+/// </summary>
+/// <remarks>
+/// Input-stream preprocessing rewrites exactly one thing, newlines, which is
+/// <see cref="CarriageReturnProbe"/>'s subject. Everything else the same section names — surrogates,
+/// noncharacters, and controls other than ASCII whitespace and NUL — it classifies as a parse error
+/// only, which does not rewrite the stream. NUL is handled later, in tokenization and tree
+/// construction, and is <see cref="NullCharacterProbe"/>'s subject. So the classes below are the ones
+/// the specification calls out and then leaves alone, and each is here because "the specification says
+/// it is left alone" is exactly the kind of claim this repository does not accept without a browser.
+/// <para>
+/// The two containers must agree with each other <em>and</em> with the source, and
+/// <c>fold-parity.spec.ts</c> asserts both. Agreement alone would be satisfied by a defect that
+/// mangled the two paths identically.
+/// </para>
+/// </remarks>
+public partial class SweptCharactersProbe : BodyComponentBase
+{
+    // Spelled with \u escapes throughout. Every character here is invisible, and several are
+    // noncharacters that an editor, a diff viewer or a formatter is entitled to mangle; an escape
+    // survives all three and can be read. The folded side repeats each literal instead of naming the
+    // property, because a literal is what the fold needs to see -- that duplication is the premise of
+    // the comparison, and a typo in it fails the comparison rather than passing silently.
+
+    /// <summary>A C0 control and DEL, both <c>control-character-in-input-stream</c> parse errors.</summary>
+    private static string ControlsText => "a\u0001b\u007Fc";
+
+    /// <summary>NEL, NBSP, and the Unicode line and paragraph separators.</summary>
+    private static string SeparatorsText => "a\u0085b\u00A0c\u2028d\u2029e";
+
+    /// <summary>An interior BOM, and a U+FFFD that was already one in the source.</summary>
+    private static string ByteOrderMarkText => "a\uFEFFb\uFFFDc";
+
+    /// <summary>BMP noncharacters and an astral one, all <c>noncharacter-in-input-stream</c> parse errors.</summary>
+    private static string NoncharactersText => "a\uFFFEb\uFFFFc\uFDD0d\uD83F\uDFFEe";
+
+    /// <summary>Tab, line feed, a doubled space, and a correctly paired astral character.</summary>
+    private static string WhitespaceText => "a\tb\nc  d\uD83D\uDE00e";
+
+    /// <summary>Several of the classes at once, in attribute position rather than text position.</summary>
+    private static string MixedAttributeValue => "a\u0001b\u0085c\uFEFFd\uFFFFe\tf  g";
+
+    protected override View Body =>
+        Fragment(
+            Div.Attr("id", "folded-swept-characters")[
+                Span.Attr("data-value", "a\u0001b\u0085c\uFEFFd\uFFFFe\tf  g")["one"],
+                P["a\u0001b\u007Fc"],
+                P["a\u0085b\u00A0c\u2028d\u2029e"],
+                P["a\uFEFFb\uFFFDc"],
+                P["a\uFFFEb\uFFFFc\uFDD0d\uD83F\uDFFEe"],
+                P["a\tb\nc  d\uD83D\uDE00e"]],
+            Div.Attr("id", "unfolded-swept-characters")[
+                Span.Attr("data-value", MixedAttributeValue)["one"],
+                P[ControlsText],
+                P[SeparatorsText],
+                P[ByteOrderMarkText],
+                P[NoncharactersText],
+                P[WhitespaceText]]);
 
     /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
     public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);

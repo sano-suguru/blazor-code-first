@@ -69,6 +69,7 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
     'quoted-attribute',
     'void-in-run',
     'multi-class',
+    'swept-characters',
   ];
 
   for (const name of cases) {
@@ -128,17 +129,35 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
     await expect(folded.locator('span')).toHaveClass('btn btn-primary wide');
   });
 
-  // The carriage-return case is the one shape here that pins a *refusal*, so it does not go through the
-  // loop above. StaticMarkupSerializer.CanRoundTrip excludes a CR from the fold because the HTML parser
-  // normalizes CRLF and a lone CR to LF during input-stream preprocessing, before tokenization, so a
-  // folded CR would reach the DOM as LF where setAttribute and createTextNode keep it. These three tests
-  // are the measurement behind that decision, taken in a real browser rather than read off the spec: the
-  // first two show the two paths genuinely disagreeing, and the third shows the refusal is what keeps the
-  // static spelling on the side that agrees.
-  //
-  // If a future browser stopped normalizing, the first test would go red — which is the signal that
-  // CanRoundTrip could relax, not a defect. Read this block before changing that predicate.
-  const readCarriageReturn = (page: import('@playwright/test').Page, id: string) =>
+
+  // #150 swept every character class the HTML parsing specification singles out, to find whether any
+  // besides the carriage return survives one path and not the other. The loop above already proves the
+  // folded and unfolded spellings of the swept battery agree; this pins what that shared DOM contains,
+  // so a defect that mangled both paths identically cannot pass by agreeing with itself.
+  test('the swept character classes reach the DOM unchanged on both paths', async ({ page }) => {
+    const folded = page.locator('#folded-swept-characters');
+
+    await expect(folded.locator('span')).toHaveAttribute(
+      'data-value',
+      'a\u0001b\u0085c\uFEFFd\uFFFFe\tf  g',
+    );
+
+    const texts = await folded.locator('p').allTextContents();
+    expect(texts).toEqual([
+      'a\u0001b\u007Fc',
+      'a\u0085b\u00A0c\u2028d\u2029e',
+      'a\uFEFFb\uFFFDc',
+      'a\uFFFEb\uFFFFc\uFDD0d\u{1FFFE}e',
+      'a\tb\nc  d\u{1F600}e',
+    ]);
+  });
+
+  // The remaining blocks each pin a *refusal*, so they do not go through the loop: the whole point is
+  // that the static spelling does not fold, which makes a folded/unfolded comparison meaningless. Each
+  // reads the two paths explicitly instead and measures what they actually do, which is what
+  // CanRoundTrip's remarks cite. FoldParityTests pins the premise on the .NET side: that the static
+  // container emits no markup frame and the Raw container emits exactly one.
+  const readProbe = (page: import('@playwright/test').Page, id: string) =>
     page.evaluate((containerId) => {
       const container = document.getElementById(containerId)!;
       return {
@@ -147,9 +166,96 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
       };
     }, id);
 
+  // A NUL diverges in two different shapes, which is what makes it worth measuring rather than
+  // asserting a single "the parser replaces it" rule: it is dropped from text content and replaced with
+  // U+FFFD in an attribute value. CanRoundTrip's remarks said U+FFFD for both, which was half wrong.
+  test('the markup path drops a NUL from text and replaces it in an attribute value', async ({ page }) => {
+    expect(await readProbe(page, 'markup-null')).toEqual({
+      attribute: 'a\uFFFDb',
+      text: 'ab',
+    });
+  });
+
+  test('the element path keeps a NUL in both positions', async ({ page }) => {
+    expect(await readProbe(page, 'element-null')).toEqual({
+      attribute: 'a\u0000b',
+      text: 'a\u0000b',
+    });
+  });
+
+  test('a static NUL is refused by the fold, so it takes the element path', async ({ page }) => {
+    expect(await readProbe(page, 'refused-null')).toEqual(await readProbe(page, 'element-null'));
+  });
+
+  // The lone surrogate is the one refusal with no divergence behind it. It never reaches the parser:
+  // .NET's UTF-8 encoding of the render batch replaces it with U+FFFD, on both paths equally. These two
+  // tests are what keep that stated reason honest — if a future runtime started delivering the
+  // surrogate intact on one path only, they go red and the refusal acquires a real justification.
+  test('a lone surrogate becomes U+FFFD before it reaches either path', async ({ page }) => {
+    const markup = await readProbe(page, 'markup-lone-surrogate');
+    const element = await readProbe(page, 'element-lone-surrogate');
+
+    expect(markup).toEqual({ attribute: 'a\uFFFDb', text: 'a\uFFFDb' });
+    expect(element).toEqual(markup);
+  });
+
+  test('a static lone surrogate is refused by the fold, so it takes the element path', async ({ page }) => {
+    expect(await readProbe(page, 'refused-lone-surrogate')).toEqual(
+      await readProbe(page, 'element-lone-surrogate'),
+    );
+  });
+
+  // The leading byte order mark is #150's actual finding, and the only refusal here where the markup
+  // path is the more faithful of the two. Nothing in HTML parsing is involved: the browser strips a BOM
+  // in first position while decoding each frame string of the render batch. Folding is what moves the
+  // character out of first position, which is why the fold has to refuse it.
+  test('a leading BOM survives the markup path, where it is not the first character of the string', async ({
+    page,
+  }) => {
+    expect(await readProbe(page, 'markup-leading-bom')).toEqual({
+      attribute: '\uFEFFab',
+      text: '\uFEFFab',
+    });
+  });
+
+  test('a leading BOM is stripped on the element path, where the value is its own frame string', async ({
+    page,
+  }) => {
+    expect(await readProbe(page, 'element-leading-bom')).toEqual({
+      attribute: 'ab',
+      text: 'ab',
+    });
+  });
+
+  // The discriminating case. If the rule were "the element path drops a BOM", this markup string would
+  // keep it; it does not, because the BOM is this string's first character. That is what makes the rule
+  // positional, and what makes refusing a *leading* BOM the correct predicate rather than refusing the
+  // character outright.
+  test('the markup path also strips a BOM that starts its own frame string', async ({ page }) => {
+    const text = await page.locator('#markup-leading-bom-at-string-start').textContent();
+    expect(text).toBe('abone');
+  });
+
+  test('a static leading BOM is refused by the fold, so it takes the element path', async ({ page }) => {
+    expect(await readProbe(page, 'refused-leading-bom')).toEqual(
+      await readProbe(page, 'element-leading-bom'),
+    );
+  });
+
+  // The carriage return is the refusal an author actually reaches: any verbatim string literal in a
+  // file checked out with CRLF carries one. StaticMarkupSerializer.CanRoundTrip excludes a CR from the
+  // fold because the HTML parser normalizes CRLF and a lone CR to LF during input-stream preprocessing,
+  // before tokenization, so a folded CR would reach the DOM as LF where setAttribute and
+  // createTextNode keep it. These three tests are the measurement behind that decision, taken in a real
+  // browser rather than read off the spec: the first two show the two paths genuinely disagreeing, and
+  // the third shows the refusal is what keeps the static spelling on the side that agrees.
+  //
+  // If a future browser stopped normalizing, the first test would go red — which is the signal that
+  // CanRoundTrip could relax, not a defect. Read this block before changing that predicate.
+
   test('the markup path folds a carriage return away to a line feed', async ({ page }) => {
     // Html.Raw, so this is the same browser-side insertMarkup path a fold would have taken.
-    expect(await readCarriageReturn(page, 'markup-carriage-return')).toEqual({
+    expect(await readProbe(page, 'markup-carriage-return')).toEqual({
       attribute: 'a\nb',
       text: 'a\nb',
     });
@@ -157,7 +263,7 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
 
   test('the element path keeps a carriage return', async ({ page }) => {
     // setAttribute and createTextNode, which do no preprocessing.
-    expect(await readCarriageReturn(page, 'element-carriage-return')).toEqual({
+    expect(await readProbe(page, 'element-carriage-return')).toEqual({
       attribute: 'a\rb',
       text: 'a\rb',
     });
@@ -168,8 +274,8 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
   }) => {
     // Spelled entirely from constants and so foldable in every other respect. If CanRoundTrip ever
     // admitted a CR, this container would fold and match the markup result above instead.
-    expect(await readCarriageReturn(page, 'refused-carriage-return')).toEqual(
-      await readCarriageReturn(page, 'element-carriage-return'),
+    expect(await readProbe(page, 'refused-carriage-return')).toEqual(
+      await readProbe(page, 'element-carriage-return'),
     );
   });
 });
