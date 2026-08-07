@@ -85,6 +85,28 @@ public static class Decorations
     public static ElementBuilder Attr(this ElementBuilder element, string name, string value) => element;
 
     /// <summary>
+    /// Design-time syntax setting an attribute from a <see langword="bool"/>, which is Blazor's
+    /// conditional-attribute form: <see langword="true"/> renders the attribute with an empty value
+    /// (<c>disabled</c>, <c>checked</c>, <c>hidden</c> and the rest of HTML's boolean attributes read
+    /// that as set), and <see langword="false"/> omits it entirely. <paramref name="name"/> follows the
+    /// same rule as the string overload: a non-empty compile-time constant.
+    /// </summary>
+    /// <remarks>
+    /// This is the only non-<see langword="string"/> overload, and deliberately so (#158). A value of any
+    /// other type is formatted under whatever culture the formatting thread carries at render time —
+    /// measured, not under the culture in effect while the component builds its frames — so an
+    /// <c>object</c> overload's output would depend on ambient state the call site cannot see, and the
+    /// generator could never fold it. Write such a value out at the call site instead, where the culture
+    /// is a visible choice: <c>.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))</c>. A
+    /// <see langword="bool"/> has nothing to format and neither problem.
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
+    /// <param name="value">The attribute's presence; any <see langword="bool"/> expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Attr(this ElementBuilder element, string name, bool value) => element;
+
+    /// <summary>
     /// Design-time syntax adding an event handler. <paramref name="eventName"/> is the full HTML event
     /// attribute name including the <c>on</c> prefix (for example <c>"onclick"</c>, <c>"onmouseenter"</c>);
     /// it is never prefixed automatically. Must be a non-empty compile-time constant.

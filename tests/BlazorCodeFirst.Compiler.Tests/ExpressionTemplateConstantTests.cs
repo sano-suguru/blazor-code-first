@@ -120,6 +120,21 @@ public sealed class ExpressionTemplateConstantTests
     }
 
     /// <summary>
+    /// The <see langword="bool"/> overload's value is classified as a <see langword="bool"/> and not as a
+    /// constant with nothing to write, which is what lets the fold express both of its outcomes.
+    /// </summary>
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public void BooleanAttributeValue_CarriesTheBooleanConstant(string literal, bool expected)
+    {
+        var element = (ElementNode)RootOf($"""Input.Attr("disabled", {literal})""");
+        var disabled = element.Attributes.AsImmutableArray().Single(a => a.Name == "disabled");
+
+        Assert.Equal(new BooleanConstant(expected), disabled.Value.Constant);
+    }
+
+    /// <summary>
     /// The distinction #158 turns on: a constant of a type other than <see langword="string"/> or
     /// <see langword="bool"/> must not be read as a constant <see langword="null"/>. Both used to arrive
     /// as <c>{ Text: null }</c>, and the fold reads that state as "the attribute is omitted", which is
