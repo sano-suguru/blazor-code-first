@@ -4,9 +4,9 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
-/// The explicit-setter path (Task 5): the setter trims the incoming value, which is what makes the
-/// DOM resynchronization observable — the element's typed text and the field's normalized value
-/// diverge.
+/// The explicit-setter path (Task 5): the setter trims the incoming value. The divergence between the
+/// typed text and the normalized field that <c>SetUpdatesAttributeName</c> resyncs is not reachable
+/// from bUnit (measured — see the report); resync itself is covered in the browser suite (Task 10).
 /// </summary>
 public partial class NormalizingTextInput : BodyComponentBase
 {
