@@ -414,7 +414,7 @@ public sealed class RenderMutationAnalyzerTests
         // The getter is evaluated while the frames are built, so a mutation there is still a
         // one-way-flow break and must keep reporting BCF3001. Only the setter is exempt.
         //
-        // This has to use the four-argument form. In the three-argument form the getter must be
+        // This has to supply an explicit setter. In the getter-only form the getter must be
         // assignable (BCF3018), and an assignable expression cannot carry a mutation, so BCF3018
         // would fire first and BCF3001 would never be reached. Supplying an explicit setter lifts
         // the assignability requirement from the getter, which is the only shape where a mutating

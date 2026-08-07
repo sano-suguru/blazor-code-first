@@ -19,12 +19,15 @@ internal enum BindTargetFailure
 
 /// <summary>
 /// Reads a <c>.Bind</c> getter argument. The getter is an inline lambda whose body is transplanted
-/// twice — as the bound attribute's value and as the binder's current value — and, in the two-argument
+/// twice — as the bound attribute's value and as the binder's current value — and, in the getter-only
 /// form, placed on the left of an assignment to derive the setter.
 /// </summary>
 /// <remarks>
 /// Shared by the element surface and the component surface, which apply the same two rules to the same
-/// argument shape and would otherwise agree only by coincidence.
+/// argument shape and would otherwise agree only by coincidence. That sharing is why the forms are named
+/// getter-only and explicit-setter rather than by argument count: the counts differ between the two
+/// surfaces (three and four on an element, two and three on a component), so a count written here would
+/// be wrong for half the callers.
 /// </remarks>
 internal static class BindTargetResolver
 {
@@ -52,7 +55,7 @@ internal static class BindTargetResolver
 
     /// <summary>
     /// Whether <paramref name="body"/> can appear on the left of an assignment in generated code, so
-    /// that the two-argument form can derive a setter from it.
+    /// that the getter-only form can derive a setter from it.
     /// </summary>
     /// <remarks>
     /// A local, a parameter, and a <c>ForEach</c> iteration variable are rejected even though C# would

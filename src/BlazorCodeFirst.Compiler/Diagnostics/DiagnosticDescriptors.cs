@@ -471,20 +471,22 @@ internal static class DiagnosticDescriptors
                 + "whole and never taken apart.");
 
     /// <summary>
-    /// BCF3018: A two-argument <c>.Bind</c> getter's body is not assignable, so no setter can be built
-    /// from it.
+    /// BCF3018: A getter-only <c>.Bind</c>'s getter body is not assignable, so no setter can be built
+    /// from it. Argument counts are not used to name the forms: the same form is three arguments on an
+    /// element and two on a component, so a count is wrong on one of the two surfaces this fires on.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3018 = new(
         id: "BCF3018",
         title: "Bind target is not assignable",
         messageFormat: "'{0}' cannot be assigned to, so no setter can be derived from it. Write the "
-            + "setter explicitly with the four-argument overload, for example "
-            + "'.Bind(\"value\", \"oninput\", () => Query, v => Query = v.Trim())'.",
+            + "setter explicitly as the last argument of '.Bind', for example "
+            + "'.Bind(\"value\", \"oninput\", () => Query, v => Query = v.Trim())' on an element or "
+            + "'.Bind(c => c.Value, () => Query, v => Query = v.Trim())' on a component.",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The two-argument form derives its setter by placing the getter's body on the left of an "
+            "The getter-only form derives its setter by placing the getter's body on the left of an "
                 + "assignment, so that body has to be assignable: a field, a settable property, or an "
                 + "element access whose indexer has a setter, alone or at the end of a member chain. A "
                 + "call, an operator, a get-only property and a readonly field are none of those. A local "

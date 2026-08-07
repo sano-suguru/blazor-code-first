@@ -32,8 +32,9 @@ for you. So the target has to be assignable: a field, a property with a setter, 
 either (`_form.Name`, `Model.Items[0].Title`, `_dict["k"]`). A computed expression such as
 `() => _name.ToUpper()` reports BCF3018, and the way to write that is the explicit setter below.
 
-Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus, the
-same two choices Razor's `@bind:event` offers.
+Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus. Those
+are the two you will usually want; any event name is accepted, since the only thing checked is the `on`
+prefix.
 
 ## Why you write both names
 
