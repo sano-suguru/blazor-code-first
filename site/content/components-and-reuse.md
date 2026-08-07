@@ -101,3 +101,84 @@ There are two ways around it:
   resolves — including in the same project.
 
 A typo or a missing `using` produces the same BCF3012, alongside CS0246 at the same position.
+
+## Using a BlazorCodeFirst component from Razor
+
+The other direction has no such restriction. A BlazorCodeFirst component is a plain Blazor
+component — `BodyComponentBase` derives from `ComponentBase` — so a `.razor` file names it as an
+ordinary tag:
+
+```razor
+@* ExistingPage.razor *@
+<div class="legacy-layout">
+    <StatusBadge Status="@currentStatus" />
+</div>
+```
+
+```csharp
+public partial class StatusBadge : BodyComponentBase
+{
+    [Parameter] public Status Status { get; set; } = default!;
+
+    protected override View Body =>
+        Span.Class(Status.IsHealthy ? "badge badge-ok" : "badge badge-alert")[Status.Label];
+}
+```
+
+This works in the same project, and it is worth understanding why the asymmetry with BCF3012
+exists. What Razor has to resolve here is the *class name*, and that class declaration is source
+you wrote. The generator only fills in `RenderView` inside it, and Razor never needs to see that.
+In the BCF3012 direction, the type itself is generated output, which is a different problem.
+
+This site does it: `App.razor` names `NotFoundPage`, a BlazorCodeFirst component declared in a
+plain `.cs` file in the same project.
+
+## Splitting without a component: `[Composable]`
+
+Not every part of a `Body` expression deserves a component. A `[Composable]` method is a piece of
+UI that the generator expands *into the caller* rather than rendering through a component
+boundary:
+
+```csharp
+protected override View Body =>
+    Div[
+        AppHeader("My Application"),
+        BodyContent()];
+
+[Composable]
+private static View AppHeader(string title) =>
+    Div.Class("app-header")[
+        Span[title]];
+```
+
+The caller's generated `RenderView` contains the header's frames directly. There is no component
+instance, no parameters, no lifecycle, and no diffing boundary — it is as if you had written the
+markup inline.
+
+That is the whole trade-off:
+
+- **Reach for `[Composable]`** when the part is pure projection: it has no state of its own, and
+  you want it inlined rather than sitting behind a boundary.
+- **Reach for a component** when the part holds state, needs a lifecycle, should re-render on its
+  own, or is used from another assembly.
+
+A `[Composable]` has to satisfy a declaration contract the generator can expand, or it reports
+**BCF1002**. It must be a static, non-generic, expression-bodied method returning `View`, declared
+in a non-generic type, and its parameters must be ordinary by-value parameters whose types can be
+named from generated code. `View` and `ElementBuilder` parameters, `params`, and by-reference
+parameters are all rejected.
+
+BCF1002 also fires at the *call site*, and one of its conditions is worth stating plainly:
+
+**a `[Composable]` cannot cross an assembly boundary.** Expanding a call needs the declaration's
+source syntax, and the generator collects declarations from the compilation it is running in. IL
+carries no body syntax, so a `[Composable]` in a referenced project or a package always reports
+BCF1002 where it is called. The same diagnostic covers a recursive expansion cycle, and a body
+that reaches a `private` or `protected` member the expansion site cannot see.
+
+If you need the part in another project, make it a component and use it through `Component<T>()`.
+
+## Next
+
+See [layouts](./layouts.md) for wrapping routed pages in shared chrome, or
+[control flow](./control-flow.md) for `If` and keyed `ForEach`.
