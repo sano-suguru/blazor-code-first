@@ -37,4 +37,46 @@ public sealed class DecorationsTests
             "oninput",
             (Microsoft.AspNetCore.Components.ChangeEventArgs a) => System.Threading.Tasks.Task.CompletedTask));
     }
+
+    [Fact]
+    public void Bind_StringGetterOnly_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(element, element.Bind("value", "oninput", () => "x"));
+    }
+
+    [Fact]
+    public void Bind_StringWithSyncSetter_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(element, element.Bind("value", "oninput", () => "x", _ => { }));
+    }
+
+    [Fact]
+    public void Bind_StringWithAsyncSetter_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(element, element.Bind("value", "oninput", () => "x", _ => System.Threading.Tasks.Task.CompletedTask));
+    }
+
+    [Fact]
+    public void Bind_BoolGetterOnly_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(element, element.Bind("checked", "onchange", () => true));
+    }
+
+    [Fact]
+    public void Bind_BoolWithSyncSetter_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(element, element.Bind("checked", "onchange", () => true, _ => { }));
+    }
+
+    [Fact]
+    public void Bind_BoolWithAsyncSetter_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(element, element.Bind("checked", "onchange", () => true, _ => System.Threading.Tasks.Task.CompletedTask));
+    }
 }

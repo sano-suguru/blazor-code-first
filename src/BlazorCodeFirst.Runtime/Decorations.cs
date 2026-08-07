@@ -167,4 +167,101 @@ public static class Decorations
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementBuilder OnClick(
         this ElementBuilder element, System.Func<System.Threading.Tasks.Task> handler) => element;
+
+    /// <summary>
+    /// Design-time syntax binding an attribute and an event to a single target, which is Razor's
+    /// <c>@bind</c>. <paramref name="attributeName"/> receives the current value and
+    /// <paramref name="eventName"/> writes it back. Both are non-empty compile-time constants, and
+    /// neither is inferred: <paramref name="eventName"/> is the full HTML event attribute name
+    /// including the <c>on</c> prefix, exactly as <see cref="On(ElementBuilder, string, System.Action)"/>
+    /// requires it.
+    /// </summary>
+    /// <remarks>
+    /// Razor reads the literal <c>type="checkbox"</c> out of markup to decide between <c>value</c> and
+    /// <c>checked</c>. This surface cannot: its <c>type</c> is an expression
+    /// (<c>Input.Type(kind)</c>), so there is nothing to check an inference against, and a silent
+    /// fallback would leave a checkbox bound to the wrong attribute with no diagnostic. The author
+    /// writes both names instead.
+    /// <para>
+    /// <paramref name="get"/> must be an inline lambda whose body is an assignable expression
+    /// (BCF3017, BCF3018): the generator places that body on the left of an assignment to build the
+    /// setter. Use the overload taking an explicit setter for a computed target or to normalize the
+    /// incoming value.
+    /// </para>
+    /// <para>
+    /// Only <see langword="string"/> and <see langword="bool"/> are bindable, for the reason recorded
+    /// on the <see langword="bool"/> <see cref="Attr(ElementBuilder, string, bool)"/> overload (#158):
+    /// any other type is formatted at render time under the formatting thread's culture. Razor answers
+    /// that by injecting a culture chosen from the element's literal <c>type</c>, which this surface
+    /// does not read. Bind such a value through the explicit-setter overload, where the culture is a
+    /// visible choice at the call site.
+    /// </para>
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Input</c>, <c>Textarea</c>, …).</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Bind(
+        this ElementBuilder element, string attributeName, string eventName,
+        System.Func<string> get) => element;
+
+    /// <summary>Design-time syntax binding with an explicit setter; see the getter-only overload.</summary>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Bind(
+        this ElementBuilder element, string attributeName, string eventName,
+        System.Func<string> get, System.Action<string> set) => element;
+
+    /// <summary>Design-time syntax binding with an explicit async setter; see the getter-only overload.</summary>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Bind(
+        this ElementBuilder element, string attributeName, string eventName,
+        System.Func<string> get, System.Func<string, System.Threading.Tasks.Task> set) => element;
+
+    /// <summary>
+    /// Design-time syntax binding a <see langword="bool"/> attribute, which is HTML's boolean-attribute
+    /// form (<c>checked</c>, and the conditional-omission behaviour recorded on
+    /// <see cref="Attr(ElementBuilder, string, bool)"/>); see the <see langword="string"/> overload for
+    /// the rest.
+    /// </summary>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Bind(
+        this ElementBuilder element, string attributeName, string eventName,
+        System.Func<bool> get) => element;
+
+    /// <summary>Design-time syntax binding a <see langword="bool"/> with an explicit setter.</summary>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Bind(
+        this ElementBuilder element, string attributeName, string eventName,
+        System.Func<bool> get, System.Action<bool> set) => element;
+
+    /// <summary>Design-time syntax binding a <see langword="bool"/> with an explicit async setter.</summary>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Bind(
+        this ElementBuilder element, string attributeName, string eventName,
+        System.Func<bool> get, System.Func<bool, System.Threading.Tasks.Task> set) => element;
 }

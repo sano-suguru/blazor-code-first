@@ -302,8 +302,8 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Whether the referenced runtime's <c>Decorations</c> type declares a decoration spelled
-    /// <paramref name="name"/>: <c>Class</c>, a named attribute shortcut, an event shortcut, <c>Attr</c> or
-    /// <c>On</c>.
+    /// <paramref name="name"/>: <c>Class</c>, a named attribute shortcut, an event shortcut, <c>Attr</c>,
+    /// <c>On</c>, or <c>Bind</c>.
     /// </summary>
     /// <remarks>
     /// The names are read off the symbols resolved out of the referenced runtime assembly rather than from
@@ -405,6 +405,7 @@ internal sealed class KnownSymbols
         var eventShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         var attrMethods = new List<ISymbol>();
         var onMethods = new List<ISymbol>();
+        var bindMethods = new List<ISymbol>();
         if (decorationsType is not null)
         {
             // A decoration is defined by its receiver, not by its name: Decorations declares extension
@@ -451,6 +452,11 @@ internal sealed class KnownSymbols
                         break;
                     case "On": onMethods.Add(key); break;                     // all four overloads
                     case "Attr": attrMethods.Add(key); break;
+                    // Named only, not analyzed: the six Bind overloads only need to answer
+                    // DeclaresDecorationNamed so a misplaced .Bind(…) reports BCF3008, not BCF1003.
+                    // Their inversion and explicit-setter analysis is a later task's concern and reads
+                    // the Decorations methods directly rather than through a captured bucket here.
+                    case "Bind": bindMethods.Add(key); break;
                     default:
                         if (AttributeShortcutNames.TryGetValue(method.Name, out var attr))
                             attributeShortcuts[key] = attr;
@@ -474,6 +480,8 @@ internal sealed class KnownSymbols
             _decorationNames.Add(attr.Name);
         foreach (var on in onMethods)
             _decorationNames.Add(on.Name);
+        foreach (var bind in bindMethods)
+            _decorationNames.Add(bind.Name);
 
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
