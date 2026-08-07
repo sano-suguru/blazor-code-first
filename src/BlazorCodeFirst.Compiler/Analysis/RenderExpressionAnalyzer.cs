@@ -376,7 +376,7 @@ internal static class RenderExpressionAnalyzer
             }
 
             if (isComponentBind)
-                return ClassifyComponentBind(invocation, method, inner, property, selector, args, context);
+                return ClassifyComponentBind(invocation, method, inner, property, selector, args, valueArg, context);
 
             var valueExpression = valueArg.Expression;
 
@@ -730,6 +730,9 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <param name="property">The parameter the selector resolved to, already checked by the shared
     /// <c>.Param</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
+    /// <param name="getterArg">The getter argument, already required non-<see langword="null"/> by the same
+    /// shared prologue (as <c>valueArg</c>); passed through rather than re-derived from <paramref
+    /// name="args"/>.</param>
     /// <remarks>
     /// <para>
     /// Where the element surface makes the author write both names, this one derives them:
@@ -745,6 +748,19 @@ internal static class RenderExpressionAnalyzer
     /// defensive <see langword="null"/> returns do not, for the reason <see cref="ClassifyBind"/>'s own
     /// remarks give.
     /// </para>
+    /// <para>
+    /// The duplicate check the shared <c>.Param</c> prologue runs (see the caller) spans <c>{name}</c> and,
+    /// via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but not <c>{name}Expression</c>. So
+    /// <c>.Param(c =&gt; c.ValueExpression, …).Bind(c =&gt; c.Value, …)</c>, written in that order, does not
+    /// become BCF3007: both calls append a <c>ValueExpression</c> parameter frame, and the later one silently
+    /// wins. The reverse order is caught, because then it is the <c>.Param</c> arm's own duplicate check that
+    /// sees the frame this method already appended. The gap is not widened, for two reasons: what a duplicate
+    /// check would discard here is the author's own hand-written expression, while what wins is the derived
+    /// getter lambda, which is the correct <c>{name}Expression</c> in most cases anyway; and constructing an
+    /// <c>Expression&lt;Func&lt;T&gt;&gt;</c> by hand is not a shape anyone writes by accident.
+    /// <c>{name}Changed</c> is checked because there, being discarded is the actual behavior, not an accident
+    /// to guard against.
+    /// </para>
     /// </remarks>
     private static ComponentTemplateNode? ClassifyComponentBind(
         InvocationExpressionSyntax invocation,
@@ -753,6 +769,7 @@ internal static class RenderExpressionAnalyzer
         IPropertySymbol property,
         ExpressionSyntax selector,
         FactoryArguments args,
+        ArgumentSyntax getterArg,
         ComposableBodyContext context)
     {
         var valueType = property.Type;
@@ -792,9 +809,6 @@ internal static class RenderExpressionAnalyzer
                 ]));
             return null;
         }
-
-        if (args.At(1) is not { } getterArg)
-            return null;
 
         if (BindTargetResolver.TryGetBody(getterArg.Expression, out var getterBody)
             != BindTargetFailure.None)
