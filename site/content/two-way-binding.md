@@ -33,8 +33,10 @@ either (`_form.Name`, `Model.Items[0].Title`, `_dict["k"]`). A computed expressi
 `() => _name.ToUpper()` reports BCF3018, and the way to write that is the explicit setter below.
 
 Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus. Those
-are the two you will usually want; any event name is accepted, since the only thing checked is the `on`
-prefix.
+are the two you will usually want, and no list restricts the pair: both names have to be non-empty
+compile-time constants (BCF3011), the event name has to start with `on` (BCF3019), and neither may
+already be bound on the same element by another decoration (BCF3010). Nothing checks the names against
+HTML.
 
 ## Why you write both names
 
@@ -159,6 +161,13 @@ reference. A component under an `EditForm` resolves a `FieldIdentifier` from tha
 identifier is what ties the input to a property of your model, so validation messages land on the right
 field. No other spelling could supply it.
 
+The `EditForm` itself is the part you cannot yet write here. `EditForm.ChildContent` is a
+`RenderFragment<EditContext>`, and `.Param` takes BlazorCodeFirst content only for a non-generic
+`RenderFragment`, so `Component<EditForm>()[…]` reports BCF3013. Until
+[issue #161](https://github.com/sano-suguru/blazor-code-first/issues/161) closes, put the bound inputs
+in their own component and hand that to `EditForm.ChildContent` as a `RenderFragment<EditContext>`
+written by hand — the binding above, and the `ValueExpression` it supplies, are unaffected.
+
 An explicit setter and an `async` setter are available here too, with the same meaning as on an
 element. `TValue` is not restricted to `string` and `bool`, because the value goes to a parameter
 rather than to the DOM and nothing formats it on the way.
@@ -180,9 +189,12 @@ components such as `InputText`, and hand-written C# components, always resolve.
   attribute and the handler would never fire, so this is what catches the two names swapped.
 - **BCF3020** — the component's `{Name}Changed` parameter is missing or is not an
   `EventCallback<TValue>`.
-- **BCF3021** — an element carries more than one `.Bind`. Only one attribute name per element can be
-  registered for resynchronization, so a second binding would take the first one's resynchronization
-  away. It is not a duplicate name, so BCF3010 cannot express it.
+- **BCF3021** — an element carries more than one `.Bind`. This surface binds one value per element, so
+  the second is rejected even when both of its names are free — which is why it is not a duplicate
+  name and BCF3010 cannot express it. Blazor itself does not require this; it is a deliberate
+  narrowing, and whether to keep it is
+  [issue #162](https://github.com/sano-suguru/blazor-code-first/issues/162). Bind the second value on a
+  different element, or write it as `.Attr` plus `.On`.
 
 ## Next
 
