@@ -12,6 +12,8 @@ namespace BlazorCodeFirst.TrimTests;
 ///   design-time getter, so the contract has to hold for <c>ChromeLayoutBase</c> too.
 /// - Unreferenced inert members of <c>BlazorCodeFirst.Html</c> and the <c>ComponentView&lt;T&gt;</c>
 ///   builder type should be trimmed.
+/// - <c>Decorations.Bind</c> and <c>ComponentView&lt;T&gt;.Bind</c>, the two-way binding surface, are
+///   inert on the same terms and should be trimmed too.
 /// </summary>
 public sealed class TrimmedOutputTests
 {
@@ -142,6 +144,39 @@ public sealed class TrimmedOutputTests
         Assert.DoesNotContain("If", methods);
         Assert.DoesNotContain("ForEach", methods);
         Assert.DoesNotContain("Component", methods);
+    }
+
+    [Fact]
+    public void TrimmedRuntime_AfterPublish_TrimsUnreferencedDecorationsBindMethod()
+    {
+        var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
+
+        var methods = GetMethodNames(runtimeAssemblyPath, "Decorations", expectedNamespace: "BlazorCodeFirst");
+
+        // Bind is inert design-time syntax like every other Decorations member (Class, OnClick, Attr,
+        // …): the generator reads the getter/setter lambdas statically and folds them into
+        // AddAttribute/AddAttributeEventHandler/SetUpdatesAttributeName calls in RenderView, so nothing
+        // at runtime ever calls Decorations.Bind. All six overloads (string/bool, getter-only, explicit
+        // setter, explicit async setter) share the metadata name "Bind", so this single assertion
+        // covers every one of them, provided TrimTestApp's Body reaches each shape (it does; see
+        // TrimCounter.Body).
+        Assert.DoesNotContain("Bind", methods);
+    }
+
+    [Fact]
+    public void TrimmedRuntime_AfterPublish_TrimsComponentViewBindMethod()
+    {
+        var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
+
+        // ComponentView<T>'s metadata TypeDef.Name carries the generic arity suffix, same as the
+        // whole-type check below.
+        var methods = GetMethodNames(runtimeAssemblyPath, "ComponentView`1", expectedNamespace: "BlazorCodeFirst");
+
+        // Bind is inert design-time syntax on ComponentView<T>, the same contract as Param and the
+        // indexer: the generator reads the selector/getter/setter lambdas statically and never calls
+        // it at runtime. All three overloads (getter-only, explicit setter, explicit async setter)
+        // share the metadata name "Bind".
+        Assert.DoesNotContain("Bind", methods);
     }
 
     [Fact]

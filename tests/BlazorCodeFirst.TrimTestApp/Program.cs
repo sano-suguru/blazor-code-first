@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Rendering;
 using static BlazorCodeFirst.Html;
 
@@ -13,12 +14,23 @@ layout.RenderForTrimTest(new RenderTreeBuilder());
 public partial class TrimCounter : BodyComponentBase
 {
     private int _count;
+    private string _name = "";
+    private bool _agreed;
     private readonly List<Row> _rows = [new Row(1, "First")];
 
+    // Exercises every Bind shape at least once: the element surface (string/bool, getter-only and
+    // explicit setter) and the component surface (ComponentView<T>.Bind). All are design-time-only,
+    // read by the source generator and never invoked at runtime, so the trim tests assert none of
+    // their MethodDefs survive publishing.
     protected override View Body =>
         Div[
             CountLabel($"Count: {_count}"),
             Button.OnClick(() => _count++)["Increment"],
+            Input.Type("text").Bind("value", "oninput", () => _name),
+            Input.Type("text").Bind("value", "oninput", () => _name, v => _name = v),
+            Input.Type("checkbox").Bind("checked", "onchange", () => _agreed),
+            Input.Type("checkbox").Bind("checked", "onchange", () => _agreed, v => _agreed = v),
+            Component<InputText>().Bind(c => c.Value, () => _name),
             ForEach(_rows, key: r => r.Id, content: r => Component<DummyRow>().Param(c => c.Text, r.Label))];
 
     [Composable]
