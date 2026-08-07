@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -18,19 +19,38 @@ public partial class TrimCounter : BodyComponentBase
     private bool _agreed;
     private readonly List<Row> _rows = [new Row(1, "First")];
 
-    // Exercises every Bind shape at least once: the element surface (string/bool, getter-only and
-    // explicit setter) and the component surface (ComponentView<T>.Bind). All are design-time-only,
-    // read by the source generator and never invoked at runtime, so the trim tests assert none of
-    // their MethodDefs survive publishing.
+    // Exercises every Bind overload at least once: all six on the element surface (string and bool,
+    // each getter-only, explicit setter, and explicit async setter) and all three on the component
+    // surface (ComponentView<T>.Bind). All are design-time-only, read by the source generator and never
+    // invoked at runtime, so the trim tests assert none of their MethodDefs survive publishing — and
+    // those assertions only mean anything for an overload that is called here, since an overload no
+    // call site reaches would be trimmed as dead code whether or not the generator folded it away.
     protected override View Body =>
         Div[
             CountLabel($"Count: {_count}"),
             Button.OnClick(() => _count++)["Increment"],
             Input.Type("text").Bind("value", "oninput", () => _name),
             Input.Type("text").Bind("value", "oninput", () => _name, v => _name = v),
+            Input.Type("text").Bind("value", "oninput", () => _name, async v =>
+            {
+                _name = v;
+                await Task.Yield();
+            }),
             Input.Type("checkbox").Bind("checked", "onchange", () => _agreed),
             Input.Type("checkbox").Bind("checked", "onchange", () => _agreed, v => _agreed = v),
+            Input.Type("checkbox").Bind("checked", "onchange", () => _agreed, async v =>
+            {
+                _agreed = v;
+                await Task.Yield();
+            }),
             Component<InputText>().Bind(c => c.Value, () => _name),
+            // InputText.Value is string?, so TValue infers nullable and the setters coalesce.
+            Component<InputText>().Bind(c => c.Value, () => _name, v => _name = v ?? ""),
+            Component<InputText>().Bind(c => c.Value, () => _name, async v =>
+            {
+                _name = v ?? "";
+                await Task.Yield();
+            }),
             ForEach(_rows, key: r => r.Id, content: r => Component<DummyRow>().Param(c => c.Text, r.Label))];
 
     [Composable]

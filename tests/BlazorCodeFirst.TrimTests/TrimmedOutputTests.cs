@@ -175,7 +175,8 @@ public sealed class TrimmedOutputTests
         // Bind is inert design-time syntax on ComponentView<T>, the same contract as Param and the
         // indexer: the generator reads the selector/getter/setter lambdas statically and never calls
         // it at runtime. All three overloads (getter-only, explicit setter, explicit async setter)
-        // share the metadata name "Bind".
+        // share the metadata name "Bind", so this single assertion covers every one of them, provided
+        // TrimTestApp's Body reaches each shape (it does; see TrimCounter.Body).
         Assert.DoesNotContain("Bind", methods);
     }
 
