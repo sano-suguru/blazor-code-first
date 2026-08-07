@@ -45,6 +45,49 @@ public readonly struct ComponentView<TComponent>
         View content) => this;
 
     /// <summary>
+    /// Design-time syntax two-way binding the parameter selected by <paramref name="selector"/>, which
+    /// is Razor's <c>@bind-Value</c>. Unlike the element decoration, the names here are derived rather
+    /// than written: the generator appends <c>{name}Changed</c>, and <c>{name}Expression</c> when
+    /// <typeparamref name="TComponent"/> declares it. Both derivations are checked against the type,
+    /// so a missing or mistyped <c>{name}Changed</c> is BCF3020 rather than a silent miss.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="get"/> must be an inline lambda whose body is an assignable expression
+    /// (BCF3017, BCF3018). Beyond building the setter, that lambda is what the generator passes as
+    /// <c>{name}Expression</c>, which is how a component inside an <c>EditForm</c> identifies the
+    /// bound field. No other spelling of the target can supply it.
+    /// </remarks>
+    /// <typeparam name="TValue">The parameter's value type, inferred from the selected property.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.Value</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Bind<TValue>(
+        System.Func<TComponent, TValue> selector,
+        System.Func<TValue> get) => this;
+
+    /// <summary>Design-time syntax two-way binding with an explicit setter; see the getter-only overload.</summary>
+    /// <typeparam name="TValue">The parameter's value type, inferred from the selected property.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.Value</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Bind<TValue>(
+        System.Func<TComponent, TValue> selector,
+        System.Func<TValue> get,
+        System.Action<TValue> set) => this;
+
+    /// <summary>Design-time syntax two-way binding with an explicit async setter; see the getter-only overload.</summary>
+    /// <typeparam name="TValue">The parameter's value type, inferred from the selected property.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.Value</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Bind<TValue>(
+        System.Func<TComponent, TValue> selector,
+        System.Func<TValue> get,
+        System.Func<TValue, System.Threading.Tasks.Task> set) => this;
+
+    /// <summary>
     /// Design-time syntax binding <paramref name="children"/> to the component's <c>ChildContent</c>
     /// parameter, mirroring how Razor binds nested content.
     /// </summary>

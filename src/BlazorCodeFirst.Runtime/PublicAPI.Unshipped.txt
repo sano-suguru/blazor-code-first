@@ -33,6 +33,9 @@ static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder e
 BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.ComponentView() -> void
 BlazorCodeFirst.ComponentView<TComponent>.Param<TValue>(System.Func<TComponent, TValue>! selector, TValue value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Action<TValue>! set) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Func<TValue, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ComponentView<TComponent>
 static BlazorCodeFirst.ComponentView<TComponent>.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ComponentView<TComponent> _) -> BlazorCodeFirst.View
 BlazorCodeFirst.Html
 static BlazorCodeFirst.Html.Div.get -> BlazorCodeFirst.ElementBuilder
