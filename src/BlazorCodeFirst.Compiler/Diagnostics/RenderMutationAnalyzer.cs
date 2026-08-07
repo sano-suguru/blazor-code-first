@@ -222,26 +222,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// <c>OnClick</c>/<c>On</c>, as opposed to the <c>string</c> event name.
     /// </summary>
     private static bool BindsToDelegateParameter(
-        ArgumentSyntax argument, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
-    {
-        if (semanticModel.GetOperation(invocation) is not IInvocationOperation operation)
-            return false;
-
-        foreach (var operationArgument in operation.Arguments)
-        {
-            // Reference equality is safe here even though FactoryArguments.Bind's default arm cannot
-            // rely on it (see the comment there): the elision that defeats a raw Syntax comparison only
-            // strips a bare null-forgiving suppression from the operation tree, and `argument` here is
-            // always a lambda literal, never a suppressed identifier, so operationArgument.Syntax
-            // always points back at the same ArgumentSyntax the caller matched on.
-            if (operationArgument.Syntax != argument)
-                continue;
-
-            return operationArgument.Parameter?.Type.TypeKind == TypeKind.Delegate;
-        }
-
-        return false;
-    }
+        ArgumentSyntax argument, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
+        GetBoundParameter(argument, invocation, semanticModel)?.Type.TypeKind == TypeKind.Delegate;
 
     // ---------------------------------------------------------------------------
     // Helpers, Bind setter argument detection
@@ -309,8 +291,12 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
         foreach (var operationArgument in operation.Arguments)
         {
-            // See the reference-equality note on BindsToDelegateParameter above; the same reasoning
-            // applies here, since argument is likewise always a lambda literal.
+            // Reference equality is safe here even though FactoryArguments.Bind's default arm cannot
+            // rely on it (see the comment there): the elision that defeats a raw Syntax comparison only
+            // strips a bare null-forgiving suppression from the operation tree, and `argument` is
+            // always a lambda literal on both paths into this method, never a suppressed identifier, so
+            // operationArgument.Syntax always points back at the same ArgumentSyntax the caller matched
+            // on.
             if (operationArgument.Syntax != argument)
                 continue;
 

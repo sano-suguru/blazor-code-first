@@ -28,12 +28,14 @@ public sealed class BindRenderingTests : BunitContext
     }
 
     [Fact]
-    public void BoundTextInput_StateChange_UpdatesTheValueAttribute()
+    public void BoundTextInput_OnInput_RendersTheFieldIntoTheValueAttribute()
     {
         var cut = Render<BoundTextInput>();
 
         cut.Find("input").Input("hello");
 
+        // Not a DOM round trip: the re-render puts the field's value into the value attribute, which is
+        // the direction the sibling write-back test does not measure.
         Assert.Equal("hello", cut.Find("input").GetAttribute("value"));
     }
 
