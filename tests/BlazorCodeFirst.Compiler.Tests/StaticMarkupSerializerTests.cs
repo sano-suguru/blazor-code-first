@@ -241,8 +241,11 @@ public sealed class StaticMarkupSerializerTests
             default)));
 
     /// <summary>
-    /// A NUL cannot round-trip through markup: the HTML parser replaces both a literal NUL and the
-    /// reference &amp;#0; with U+FFFD, while the element path's createTextNode keeps it.
+    /// A NUL cannot round-trip through markup, in two different shapes: measured in Chromium through the
+    /// browser gate's NUL probe, the markup path drops it from text content and replaces it with U+FFFD
+    /// in an attribute value, while the element path keeps it in both. The reference &amp;#0; plays no
+    /// part despite an earlier note here saying so — the serializer escapes &amp; to &amp;amp;, so no
+    /// character reference can form out of a value.
     /// </summary>
     [Fact]
     public void TextWithNul_IsNotFoldable() =>
@@ -298,7 +301,11 @@ public sealed class StaticMarkupSerializerTests
         Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\nb"))));
 
     /// <summary>
-    /// A lone surrogate is refused for the same round-trip reason. Kept as its own <see cref="Fact"/>
+    /// A lone surrogate is refused conservatively, not because the two paths disagree: measured end to
+    /// end, .NET's UTF-8 encoding of the render batch turns it into U+FFFD before it reaches the browser,
+    /// so both paths deliver U+FFFD and agree. The check is kept because it costs a missed fold on a value
+    /// no author writes by accident, and <c>LoneSurrogateProbe</c> keeps the agreement under measurement.
+    /// Kept as its own <see cref="Fact"/>
     /// rather than an <see cref="InlineDataAttribute"/> case alongside the NUL above: VSTest marshals
     /// <c>InlineData</c> arguments through a discovery channel that mangles an unpaired surrogate into
     /// three U+FFFD before the test body runs, while a string literal built directly in the method body
@@ -307,6 +314,49 @@ public sealed class StaticMarkupSerializerTests
     [Fact]
     public void TextWithLoneSurrogate_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\ud800b"))));
+
+    /// <summary>
+    /// A value that begins with U+FEFF is refused, and the rule is positional rather than about the
+    /// character: the browser strips a byte order mark in first position when it decodes each frame
+    /// string of the render batch and keeps it anywhere else. Unfolded, the value is its own frame
+    /// string and the BOM is stripped; folded, it sits inside a larger markup string that opens with
+    /// <c>&lt;</c> and survives. Folding would therefore change the DOM. Measured in Chromium through
+    /// <c>LeadingByteOrderMarkProbe</c>; no HTML parsing stage is involved, which is why #150's sweep
+    /// found this by measurement after the specification had ruled the character safe.
+    /// </summary>
+    [Theory]
+    [InlineData("\uFEFFab")]
+    [InlineData("\uFEFF")]
+    public void TextWithLeadingByteOrderMark_IsNotFoldable(string value) =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const(value))));
+
+    [Fact]
+    public void AttributeValueWithLeadingByteOrderMark_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("title", Const("\uFEFFab"))),
+            default,
+            default)));
+
+    /// <summary>A class value is checked by the same rule, on its own code path.</summary>
+    [Fact]
+    public void ClassWithLeadingByteOrderMark_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            ImmutableArray.Create(Const("\uFEFFab")),
+            default,
+            default,
+            default)));
+
+    /// <summary>
+    /// An interior BOM must keep folding. Pins that the rule was written as "first position" and not as
+    /// "reject U+FEFF": the browser keeps a BOM that is not the first character of its frame string, so
+    /// refusing one would cost a fold for nothing.
+    /// </summary>
+    [Fact]
+    public void TextWithInteriorByteOrderMark_IsFoldable() =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\uFEFFb"))));
 
     [Fact]
     public void RawMarkup_IsNotFoldable() =>

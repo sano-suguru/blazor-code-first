@@ -317,28 +317,75 @@ internal static class StaticMarkupSerializer
     }
 
     /// <summary>
-    /// Whether <paramref name="value"/> survives a markup round trip. A NUL does not: the HTML parser
-    /// maps both a literal NUL and the reference <c>&amp;#0;</c> to U+FFFD, while the element path's
-    /// createTextNode keeps it, so the two paths would produce different DOM. A lone surrogate is refused
-    /// for the same reason.
+    /// Whether <paramref name="value"/> reaches the DOM unchanged by the markup path, so that folding it
+    /// produces the same DOM the element path's <c>createTextNode</c> and <c>setAttribute</c> produce.
     /// </summary>
     /// <remarks>
-    /// A carriage return is refused on the same grounds and is by far the most reachable of the three:
-    /// any verbatim string literal in a file checked out with CRLF line endings carries one. The HTML
-    /// parser normalizes CRLF and a lone CR to LF during input-stream preprocessing, before tokenization,
-    /// and that applies to fragment parsing on a <c>&lt;template&gt;</c> as much as to a document.
-    /// Measured in Chromium through the browser gate's carriage-return probe: the markup path yields
-    /// <c>getAttribute</c> = <c>"a\nb"</c> for both <c>"a\rb"</c> and <c>"a\r\nb"</c>, where the element
-    /// path's <c>setAttribute</c> yields <c>"a\rb"</c> and <c>"a\r\nb"</c> unchanged. Text content
-    /// diverges the same way. Attribute values are not whitespace-collapsed, so the difference is
-    /// observable and not merely a serialization artifact. Escaping cannot rescue this: the reference
-    /// <c>&amp;#13;</c> is resolved after preprocessing and would round-trip, but only inside an
-    /// attribute value — in text content the parser has already folded the character away — so admitting
-    /// CR would need two escaping rules that disagree, for one character. Refusing the fold costs a
-    /// missed optimisation, which is the same trade the NUL and surrogate cases take.
+    /// <para>
+    /// Four values are refused, and every one of them was measured in Chromium through the browser gate
+    /// (<c>FoldParityView</c> and <c>fold-parity.spec.ts</c>) rather than derived from the parsing
+    /// specification. That standard was set when the carriage return was found: reading the specification
+    /// produced the right answer there and the wrong one twice below, so a refusal in this predicate is
+    /// expected to name a measurement.
+    /// </para>
+    /// <para>
+    /// <b>A carriage return.</b> Input-stream preprocessing normalizes CRLF and a lone CR to LF before
+    /// tokenization, and that applies to fragment parsing on a <c>&lt;template&gt;</c> as much as to a
+    /// document, so the markup path yields <c>"a\nb"</c> where <c>setAttribute</c> and
+    /// <c>createTextNode</c> keep <c>"a\rb"</c>. This is by far the most reachable of the four: any
+    /// verbatim string literal in a file checked out with CRLF line endings carries one. Escaping cannot
+    /// rescue it — <c>&amp;#13;</c> is resolved after preprocessing and would survive, but only inside an
+    /// attribute value, since in text content the parser has already folded the character away — so
+    /// admitting a CR would need two escaping rules that disagree, for one character.
+    /// </para>
+    /// <para>
+    /// <b>A NUL.</b> It diverges in two different shapes, and neither is the one this comment used to
+    /// claim. Handling is spread across tokenization and tree construction rather than preprocessing:
+    /// measured, the markup path replaces a NUL with U+FFFD in an attribute value and drops it entirely
+    /// from text content, while the element path keeps it in both. The character-reference route the
+    /// earlier note also cited (<c>&amp;#0;</c> resolving to U+FFFD) cannot arise at all, because
+    /// <see cref="AppendEscapedText"/> and <see cref="AppendEscapedAttributeValue"/> turn <c>&amp;</c>
+    /// into <c>&amp;amp;</c>, so no character reference can ever form out of a value.
+    /// </para>
+    /// <para>
+    /// <b>A lone surrogate.</b> Refused conservatively, and deliberately kept although no divergence
+    /// backs it. The specification makes a lone surrogate in the input stream a parse error and nothing
+    /// more, and a parse error does not rewrite the stream — so the earlier claim that it was refused
+    /// "for the same reason" as a NUL was wrong. Measured end to end, it never reaches the parser in the
+    /// first place: .NET's UTF-8 encoding of the render batch replaces it with U+FFFD, so both paths
+    /// deliver U+FFFD and agree. The check costs a missed fold on a value no author writes by accident,
+    /// and <c>LoneSurrogateProbe</c> keeps the "they agree" half under measurement, so if that ever stops
+    /// holding the reason will be visible rather than assumed.
+    /// </para>
+    /// <para>
+    /// <b>A leading U+FEFF.</b> The one refusal here that no parsing stage explains, and the one #150's
+    /// sweep found. The browser strips a byte order mark in first position when it decodes each frame
+    /// string of the render batch, and keeps it anywhere else, so the divergence is positional rather
+    /// than character-based — and folding is precisely what moves the position. Unfolded, a text or
+    /// attribute value is its own frame string and a leading BOM is stripped; folded, the same value sits
+    /// inside a larger markup string that opens with <c>&lt;</c>, and it survives. Measured on all three
+    /// containers of <c>LeadingByteOrderMarkProbe</c>, including a <c>Raw</c> string that itself begins
+    /// with the BOM and loses it, which is what identifies the rule as positional instead of
+    /// "the element path drops a BOM".
+    /// </para>
+    /// <para>
+    /// <b>What was swept, and found safe (#150).</b> The rest of input-stream preprocessing rewrites
+    /// nothing: newline normalization is the only transforming step in that stage, and surrogates,
+    /// noncharacters, and controls other than ASCII whitespace and NUL are classified as parse errors,
+    /// which leave the stream alone. Measured accordingly and admitted: C0 controls, DEL, NEL, NBSP,
+    /// U+2028 and U+2029, BMP and astral noncharacters, an interior BOM, U+FFFD itself, tab, line feed,
+    /// repeated spaces, and correctly paired astral characters. <c>SweptCharactersProbe</c> holds one
+    /// representative of each class under measurement, because a finding of "nothing here diverges" is
+    /// worth nothing unless something keeps checking it.
+    /// </para>
     /// </remarks>
     private static bool CanRoundTrip(string value)
     {
+        // Position-dependent, so it is checked once here rather than inside the loop: only a BOM in
+        // first position is at risk, and only because folding is what moves it out of that position.
+        if (value.Length > 0 && value[0] == '\uFEFF')
+            return false;
+
         for (var index = 0; index < value.Length; index++)
         {
             var c = value[index];
