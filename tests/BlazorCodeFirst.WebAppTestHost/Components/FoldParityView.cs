@@ -6,10 +6,11 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.WebAppTestHost.Components;
 
 /// <summary>
-/// Hosts eleven shapes that need a real browser to verify #140's static fold. The first six each
+/// Hosts twelve shapes that need a real browser to verify #140's static fold. The first six each
 /// render the same content twice, once through a fully-static, folded spelling and once through an
 /// otherwise-identical spelling routed through a non-constant property so the generator's #140 fold
-/// cannot apply, and so does the last (<see cref="SweptCharactersProbe"/>). The other four
+/// cannot apply, and so do the last two (<see cref="SweptCharactersProbe"/>,
+/// <see cref="BooleanAttributeProbe"/>). The other four
 /// (<see cref="CarriageReturnProbe"/>, <see cref="NullCharacterProbe"/>,
 /// <see cref="LoneSurrogateProbe"/>, <see cref="LeadingByteOrderMarkProbe"/>) are the exception: each pins a value <c>CanRoundTrip</c>
 /// <em>refuses</em> and measures what the two paths actually do with it, so the refusal rests on a
@@ -55,6 +56,7 @@ public partial class FoldParityView : BodyComponentBase
             Component<LoneSurrogateProbe>(),
             Component<LeadingByteOrderMarkProbe>(),
             Component<SweptCharactersProbe>(),
+            Component<BooleanAttributeProbe>(),
 
             // Playwright waits for this before comparing DOM, so the comparison is of the live,
             // hydrated render and not of the prerendered markup that the .NET HtmlRenderer already
@@ -505,6 +507,44 @@ public partial class SweptCharactersProbe : BodyComponentBase
                 P[ByteOrderMarkText],
                 P[NoncharactersText],
                 P[WhitespaceText]]);
+
+    /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}
+
+/// <summary>
+/// Shape 12: an attribute whose value is a <c>bool</c> (#158). The one non-string value the fold admits,
+/// and the only shape here whose two DOM outcomes are produced by two different mechanisms: the folded
+/// side writes <c>disabled=""</c> and writes nothing at all for the false one, while the element side
+/// hands the <c>bool</c> to <c>AddAttribute</c> and lets Blazor's conditional-attribute behaviour decide.
+/// </summary>
+/// <remarks>
+/// The equivalence was measured with a hand-written <c>RenderTreeBuilder</c> component before the
+/// surface could express it (#158): <c>AddAttribute</c> with <c>true</c> reaches the DOM as
+/// <c>name=""</c>, indistinguishable from an empty string value, and with <c>false</c> the attribute is
+/// absent. Both halves are what the fold now relies on, and nothing kept that measurement true, which is
+/// what this probe is for.
+/// <para>
+/// A false value is the sharper half. It is the one case where the fold writes <em>nothing</em> for an
+/// attribute the source spells out, so a defect there is invisible in the folded markup and shows up
+/// only against the element path. The two paths do not even agree on frame count — the element path
+/// emits no frame for a false <c>bool</c> either, which is what <c>FoldParityTests</c> pins.
+/// </para>
+/// </remarks>
+public partial class BooleanAttributeProbe : BodyComponentBase
+{
+    private static bool True => true;
+
+    private static bool False => false;
+
+    protected override View Body =>
+        Fragment(
+            Div.Attr("id", "folded-boolean-attribute")[
+                Input.Attr("disabled", true).Attr("hidden", false),
+                Span.Attr("data-flag", true)["one"]],
+            Div.Attr("id", "unfolded-boolean-attribute")[
+                Input.Attr("disabled", True).Attr("hidden", False),
+                Span.Attr("data-flag", True)["one"]]);
 
     /// <summary>Exposes the generated render path to <c>FoldParityTests</c>' premise gate.</summary>
     public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
