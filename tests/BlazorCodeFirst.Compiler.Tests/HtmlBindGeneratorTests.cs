@@ -152,12 +152,15 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
-    public void Bind_OnAnOtherwiseConstantElement_IsNotFoldedIntoMarkup()
+    public void Bind_OnAnElementWhoseOtherChannelsAreAllConstant_StillEmitsFrames()
     {
-        // Every other channel on this element is constant and the tag is foldable, so without the
-        // binding the whole element would serialize to one AddMarkupContent frame. A fold here would
-        // drop the binder frame and SetUpdatesAttributeName and leave a plain attribute behind, with
-        // nothing failing to compile to say so.
+        // Every other channel here is a compile-time constant and 'input' is a foldable void tag, so
+        // without the binding this whole element serializes to one AddMarkupContent frame. Markup can
+        // express neither the binder nor SetUpdatesAttributeName, so a fold would leave a plain
+        // value="" attribute behind and drop the binding, with nothing failing to compile to say so.
+        //
+        // Written against the frames rather than against the predicate that produces them: the element
+        // path is the outcome that has to survive, whichever part of the fold decides it.
         const string body = """
             private string _name = "";
             protected override View Body =>
@@ -168,6 +171,10 @@ public sealed class HtmlBindGeneratorTests
 
         Assert.DoesNotContain("AddMarkupContent", generated);
         Assert.Contains("__builder.OpenElement(0, \"input\");", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"field\");", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"type\", \"text\");", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"value\", _name);", generated);
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+        Assert.Contains("__builder.CloseElement();", generated);
     }
 }

@@ -145,23 +145,26 @@ public sealed class RenderViewEmitterDecorationTests
     [Fact]
     public void Emit_BoundElement_EmitsValueThenBinderThenUpdatesName()
     {
+        // The binder is spelled as the static call it is. CreateBinder is an extension method on
+        // EventCallbackFactory, and the generated file carries no using directives, so the instance
+        // spelling fails with CS1061 there. This test does not compile its output, so the spelling is
+        // held to the one RenderExpressionAnalyzer builds and HtmlBindGeneratorTests compiles.
+        const string binder =
+            "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
+            + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, "
+            + "__value => _name = __value, _name)";
+
         var node = BoundInput(new BindTemplate(
             "value",
             "oninput",
             ExpressionTemplate.Literal("_name"),
-            ExpressionTemplate.Literal(
-                "global::Microsoft.AspNetCore.Components.EventCallback.Factory.CreateBinder("
-                + "this, __value => _name = __value, _name)")));
+            ExpressionTemplate.Literal(binder)));
 
         var generated = EmitRoot(node);
 
         Assert.Contains("__builder.OpenElement(0, \"input\");", generated);
         Assert.Contains("__builder.AddAttribute(1, \"value\", _name);", generated);
-        Assert.Contains(
-            "__builder.AddAttribute(2, \"oninput\", "
-            + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.CreateBinder("
-            + "this, __value => _name = __value, _name));",
-            generated);
+        Assert.Contains($"__builder.AddAttribute(2, \"oninput\", {binder});", generated);
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
         Assert.Contains("__builder.CloseElement();", generated);
     }
