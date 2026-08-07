@@ -178,6 +178,25 @@ public sealed class FoldParityTests
     }
 
     /// <summary>
+    /// <see cref="BlazorCodeFirst.WebAppTestHost.Components.BooleanAttributeProbe"/>'s <c>bool</c>
+    /// attribute values (#158), pinned as an ordinary folded/unfolded pair.
+    /// </summary>
+    /// <remarks>
+    /// The count carries a second fact here. Of the unfolded container's four attribute decorations, only
+    /// three become frames: <c>AddAttribute</c> appends nothing for a <c>false</c> <c>bool</c>, which is
+    /// the behaviour the folded side reproduces by writing no attribute at all. So a count of 8 would say
+    /// the element path had started emitting a frame for the false value, and the browser comparison
+    /// would be measuring something other than what the fold assumes.
+    /// </remarks>
+    [Fact]
+    public void BooleanAttribute_folded_container_folds_and_unfolded_container_does_not()
+    {
+        var builder = new RenderTreeBuilder();
+        new BooleanAttributeProbe().Build(builder);
+        AssertFoldedThenUnfolded(builder, expectedUnfoldedFrameCount: 7);
+    }
+
+    /// <summary>
     /// Counts markup frames across the whole probe rather than checking the first frame's type, because
     /// each refusal probe carries its refused value inside both an attribute value and a text node:
     /// re-admitting the value would fold an inner run without necessarily changing what the first frame

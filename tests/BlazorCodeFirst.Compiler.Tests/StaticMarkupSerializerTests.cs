@@ -15,13 +15,25 @@ public sealed class StaticMarkupSerializerTests
     private static ExpressionTemplate Const(string value) =>
         ExpressionTemplate.Create(
             [new LiteralExpressionSegment(Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true))],
-            new ConstantInfo(value));
+            new StringConstant(value));
 
-    /// <summary>A constant of no usable string value: a constant null string, or a non-string constant.</summary>
-    private static ExpressionTemplate ConstWithoutText() =>
+    /// <summary>A constant <see langword="null"/>, which <c>AddAttribute</c> omits entirely.</summary>
+    private static ExpressionTemplate ConstNull() =>
+        ExpressionTemplate.Create([new LiteralExpressionSegment("null")], new NullConstant());
+
+    /// <summary>A constant <see langword="bool"/>, the one non-string value markup can express exactly.</summary>
+    private static ExpressionTemplate ConstBool(bool value) =>
         ExpressionTemplate.Create(
-            [new LiteralExpressionSegment("null")],
-            new ConstantInfo(null));
+            [new LiteralExpressionSegment(value ? "true" : "false")],
+            new BooleanConstant(value));
+
+    /// <summary>
+    /// A constant whose text the runtime produces, under whatever culture the formatting thread carries
+    /// (an <c>int</c>, a <c>double</c>, a <c>DateTime</c>, an enum member).
+    /// </summary>
+    private static ExpressionTemplate ConstRuntimeFormatted(string code = "3") =>
+        ExpressionTemplate.Create(
+            [new LiteralExpressionSegment(code)], new RuntimeFormattedConstant());
 
     /// <summary>A non-constant expression, as a property reference would produce.</summary>
     private static ExpressionTemplate Dynamic(string code) => ExpressionTemplate.Literal(code);
@@ -74,7 +86,26 @@ public sealed class StaticMarkupSerializerTests
         Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
             "div",
             default,
-            ImmutableArray.Create(new AttributeTemplate("id", ConstWithoutText())),
+            ImmutableArray.Create(new AttributeTemplate("id", ConstNull())),
+            default,
+            default)));
+
+    /// <summary>
+    /// A constant <see langword="bool"/> folds, either way round, because markup can express both of its
+    /// outcomes exactly: measured in Chromium (#158), <c>AddAttribute</c> with <see langword="true"/>
+    /// reaches the same DOM as <c>name=""</c>, and with <see langword="false"/> the same DOM as no
+    /// attribute at all. It is the only non-string constant that folds, for the reason
+    /// <see cref="RuntimeFormattedAttributeValue_IsNotFoldable"/> gives: a <see langword="bool"/> has
+    /// nothing to format, so no culture can come between the two paths.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ConstantBooleanAttributeValue_IsFoldable(bool value) =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "input",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("disabled", ConstBool(value))),
             default,
             default)));
 
@@ -92,15 +123,16 @@ public sealed class StaticMarkupSerializerTests
     /// <summary>
     /// An expansion is foldable when every local is constant-initialized and the body is foldable: the
     /// declarations are then side-effect free and can be dropped entirely. Includes one local whose
-    /// initializer is a non-string constant (<see cref="ConstWithoutText"/>, state 2 of
-    /// <see cref="ConstantInfo"/>) to prove that state counts as constant too — foldability asks whether
-    /// <see cref="ConstantInfo"/> is present at all, not whether it carries usable text.
+    /// initializer is a constant the serializer refuses to write (<see cref="ConstRuntimeFormatted"/>) to
+    /// prove that it still counts as constant here — a local asks only whether
+    /// <see cref="ConstantInfo"/> is present at all, because what it needs is the absence of side
+    /// effects, not a string it could serialize.
     /// </summary>
     [Fact]
     public void ExpansionOfConstantLocalsWithFoldableBody_IsFoldable() =>
         Assert.True(StaticMarkupSerializer.IsFoldable(new ExpansionNode(
             ImmutableArray.Create(
-                new LocalBinding("int", "_count", ConstWithoutText()),
+                new LocalBinding("int", "_count", ConstRuntimeFormatted()),
                 new LocalBinding("string", "_label", Const("x"))),
             Element("div"))));
 
@@ -112,7 +144,26 @@ public sealed class StaticMarkupSerializerTests
 
     [Fact]
     public void TextContentWithoutStringValue_IsNotFoldable() =>
-        Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(ConstWithoutText())));
+        Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(ConstNull())));
+
+    /// <summary>
+    /// The refusal #158 turns on. A constant of any type other than <see langword="string"/>,
+    /// <see langword="bool"/> or a constant <see langword="null"/> is left on the element path, because
+    /// the compiler cannot know the text it will become: measured (#158), <c>AddAttribute</c> formats a
+    /// non-string value under whatever culture the formatting thread carries at render time, not under
+    /// the culture in effect while the component builds its frames — <c>3.5</c> reaches the DOM as
+    /// <c>"3.5"</c> under <c>en-US</c> and <c>"3,5"</c> under <c>de-DE</c>. Folding would freeze one of
+    /// those into the markup, so the same value would render differently depending on whether the
+    /// element around it happened to be static. The cost of the refusal is a missed fold.
+    /// </summary>
+    [Fact]
+    public void RuntimeFormattedAttributeValue_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("data-v", ConstRuntimeFormatted("3.5"))),
+            default,
+            default)));
 
     [Fact]
     public void ElementWithAnEvent_IsNotFoldable() =>
@@ -129,15 +180,21 @@ public sealed class StaticMarkupSerializerTests
             "div", ImmutableArray.Create(Dynamic("_cls")), default, default, default)));
 
     /// <summary>
-    /// A class value requires usable text (<see cref="ConstantInfo"/> state 3): unlike an attribute
-    /// value, a class with no usable text has nothing sensible to omit, so state 2
-    /// (<see cref="ConstWithoutText"/>) must not fold here even though it does for an attribute value
-    /// (<see cref="ConstantNullAttributeValue_IsFoldable"/>).
+    /// A class value requires a constant <em>string</em>: the class channel folds by concatenation, so
+    /// unlike an attribute value it has nowhere to put a constant that carries no text. A constant
+    /// <see langword="null"/> must therefore not fold here even though it does for an attribute value
+    /// (<see cref="ConstantNullAttributeValue_IsFoldable"/>), and neither must a <see langword="bool"/>,
+    /// which does fold as an attribute value
+    /// (<see cref="ConstantBooleanAttributeValue_IsFoldable"/>).
     /// </summary>
     [Fact]
-    public void ClassWithoutStringValue_IsNotFoldable() =>
+    public void ClassWithoutStringValue_IsNotFoldable()
+    {
         Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
-            "div", ImmutableArray.Create(ConstWithoutText()), default, default, default)));
+            "div", ImmutableArray.Create(ConstNull()), default, default, default)));
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div", ImmutableArray.Create(ConstBool(true)), default, default, default)));
+    }
 
     [Fact]
     public void ElementWithDynamicAttributeValue_IsNotFoldable() =>
@@ -447,7 +504,38 @@ public sealed class StaticMarkupSerializerTests
             Write(new ElementNode(
                 "div",
                 default,
-                ImmutableArray.Create(new AttributeTemplate("id", ConstWithoutText())),
+                ImmutableArray.Create(new AttributeTemplate("id", ConstNull())),
+                default, default)).Markup);
+
+    /// <summary>
+    /// A <see langword="true"/> <see langword="bool"/> is written as an empty value, which parses to the
+    /// same DOM the element path produces for it (measured in Chromium, #158; the prerendered HTML for
+    /// the same page writes a bare <c>disabled</c> with no <c>=""</c>, which parses identically). Not
+    /// written as <c>"True"</c>: that is what a <c>bool.ToString()</c> at the call site would give, and
+    /// it is a different DOM.
+    /// </summary>
+    [Fact]
+    public void Write_BooleanTrueAttribute_HasAnEmptyValue() =>
+        Assert.Equal(
+            """<input disabled="">""",
+            Write(new ElementNode(
+                "input",
+                default,
+                ImmutableArray.Create(new AttributeTemplate("disabled", ConstBool(true))),
+                default, default)).Markup);
+
+    /// <summary>
+    /// A <see langword="false"/> <see langword="bool"/> is omitted entirely, which is Blazor's
+    /// conditional-attribute behaviour: <c>AddAttribute</c> appends no frame at all for it.
+    /// </summary>
+    [Fact]
+    public void Write_BooleanFalseAttribute_IsOmitted() =>
+        Assert.Equal(
+            "<input>",
+            Write(new ElementNode(
+                "input",
+                default,
+                ImmutableArray.Create(new AttributeTemplate("disabled", ConstBool(false))),
                 default, default)).Markup);
 
     [Fact]
@@ -538,7 +626,22 @@ public sealed class StaticMarkupSerializerTests
         Assert.Equal(1, Write(new ElementNode(
             "div",
             default,
-            ImmutableArray.Create(new AttributeTemplate("id", ConstWithoutText())),
+            ImmutableArray.Create(new AttributeTemplate("id", ConstNull())),
+            default, default)).Absorbed);
+
+    /// <summary>
+    /// A <see langword="bool"/> attribute is counted exactly as the element path emits it:
+    /// <c>AddAttribute</c> appends a frame for <see langword="true"/> and appends nothing for
+    /// <see langword="false"/>, so only the element frame remains in the second case.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 2)]
+    [InlineData(false, 1)]
+    public void Write_CountsABooleanAttributeAsTheElementPathEmitsIt(bool value, int expected) =>
+        Assert.Equal(expected, Write(new ElementNode(
+            "input",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("disabled", ConstBool(value))),
             default, default)).Absorbed);
 
     [Fact]
@@ -558,4 +661,18 @@ public sealed class StaticMarkupSerializerTests
     public void Write_ThrowsOnANodeThatIsNotFoldable() =>
         Assert.Throws<System.NotSupportedException>(
             () => Write(new TextContentNode(Dynamic("Title"))));
+
+    /// <summary>
+    /// The attribute channel keeps the same exhaustiveness contract as the node switch: a value the
+    /// predicate refuses must throw here rather than be silently dropped, because dropping it is exactly
+    /// the defect #158 found — an attribute that renders on the element path and vanishes when the
+    /// element around it folds.
+    /// </summary>
+    [Fact]
+    public void Write_ThrowsOnAnAttributeValueThatCannotBeSerialized() =>
+        Assert.Throws<System.NotSupportedException>(() => Write(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("data-v", ConstRuntimeFormatted("3.5"))),
+            default, default)));
 }

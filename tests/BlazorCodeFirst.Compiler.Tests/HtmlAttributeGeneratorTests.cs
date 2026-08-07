@@ -11,6 +11,7 @@ public sealed class HtmlAttributeGeneratorTests
                 private string _url = "/x";
                 private string _a => "a";
                 private string _b => "b";
+                private bool _flag => true;
                 protected override View Body => {{body}};
             }
             """;
@@ -48,6 +49,43 @@ public sealed class HtmlAttributeGeneratorTests
         // through to the markup unchanged.
         var code = Run("""Html.Nav.Attr("aria-label", "main")""");
         Assert.Contains("""__builder.AddMarkupContent(0, "<nav aria-label=\"main\"></nav>");""", code);
+    }
+
+    /// <summary>
+    /// The <see langword="bool"/> overload (#158) folded: a constant <see langword="true"/> is written as
+    /// an empty attribute value, which parses to the same DOM <c>AddAttribute</c> produces for it.
+    /// </summary>
+    [Fact]
+    public void ConstantTrueAttr_FoldsToAnEmptyAttributeValue()
+    {
+        var code = Run("""Html.Input.Attr("disabled", true)""");
+        Assert.Contains("""__builder.AddMarkupContent(0, "<input disabled=\"\">");""", code);
+    }
+
+    /// <summary>
+    /// A constant <see langword="false"/> is written by omitting the attribute, which is Blazor's
+    /// conditional-attribute behaviour. The second attribute is what makes the run worth folding (one
+    /// absorbed frame is left on the element path), so the omission is pinned inside a real fold.
+    /// </summary>
+    [Fact]
+    public void ConstantFalseAttr_FoldsToNoAttributeAtAll()
+    {
+        var code = Run("""Html.Input.Attr("disabled", false).Attr("id", "x")""");
+        Assert.Contains("""__builder.AddMarkupContent(0, "<input id=\"x\">");""", code);
+        Assert.DoesNotContain("disabled", code);
+    }
+
+    /// <summary>
+    /// A non-constant <see langword="bool"/> cannot fold, and reaches <c>AddAttribute</c>'s
+    /// <see langword="bool"/> overload as written — which is the whole point of the overload: that
+    /// overload is what omits the attribute when the value is <see langword="false"/> at render time.
+    /// <c>Run</c> compiles the generated source, so this also pins that the emitted call binds.
+    /// </summary>
+    [Fact]
+    public void RuntimeBooleanAttr_PassesTheBoolThroughToAddAttribute()
+    {
+        var code = Run("""Html.Input.Attr("disabled", _flag)""");
+        Assert.Contains("""__builder.AddAttribute(1, "disabled", _flag);""", code);
     }
 
     [Fact]

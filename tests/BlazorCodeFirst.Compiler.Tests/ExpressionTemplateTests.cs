@@ -41,21 +41,29 @@ public sealed class ExpressionTemplateTests
     {
         var template = ExpressionTemplate.Create(
             [new LiteralExpressionSegment("\"a\"")],
-            new ConstantInfo("a"));
+            new StringConstant("a"));
 
-        Assert.Equal(new ConstantInfo("a"), template.Constant);
+        Assert.Equal(new StringConstant("a"), template.Constant);
     }
 
     [Fact]
-    public void ConstantNullString_IsDistinctFromNotConstant()
+    public void ConstantNull_IsDistinctFromNotConstant()
     {
         var constantNull = ExpressionTemplate.Create(
             [new LiteralExpressionSegment("null")],
-            new ConstantInfo(null));
+            new NullConstant());
 
-        Assert.NotNull(constantNull.Constant);
-        Assert.Null(constantNull.Constant!.Value.Text);
+        Assert.Equal(new NullConstant(), constantNull.Constant);
     }
+
+    /// <summary>
+    /// The states are distinct types rather than one nullable string, so "renders nothing" and "renders
+    /// something the compiler cannot spell" cannot be read as each other. Conflating them is what let a
+    /// constant non-string attribute value fold to markup with the attribute missing (#158).
+    /// </summary>
+    [Fact]
+    public void ConstantNull_IsDistinctFromAConstantThatRendersWithoutAString() =>
+        Assert.NotEqual<ConstantInfo>(new NullConstant(), new RuntimeFormattedConstant());
 
     /// <summary>
     /// A template carrying a constant never contains a parameter hole: a hole is created only for an
@@ -67,11 +75,11 @@ public sealed class ExpressionTemplateTests
     {
         var template = ExpressionTemplate.Create(
             [new LiteralExpressionSegment("\"a\"")],
-            new ConstantInfo("a"));
+            new StringConstant("a"));
 
         var substituted = template.Substitute([new SubstitutedArgument("__local", Constant: null)]);
 
-        Assert.Equal(new ConstantInfo("a"), substituted.Constant);
+        Assert.Equal(new StringConstant("a"), substituted.Constant);
     }
 
     /// <summary>
@@ -85,10 +93,27 @@ public sealed class ExpressionTemplateTests
         var template = ExpressionTemplate.Create(
             [new ParameterHoleExpressionSegment(0)]);
 
-        var substituted = template.Substitute([new SubstitutedArgument("__l0", new ConstantInfo("App"))]);
+        var substituted = template.Substitute([new SubstitutedArgument("__l0", new StringConstant("App"))]);
 
-        Assert.Equal(new ConstantInfo("App"), substituted.Constant);
+        Assert.Equal(new StringConstant("App"), substituted.Constant);
         Assert.Equal("\"App\"", substituted.ToCode());
+    }
+
+    /// <summary>
+    /// Only a <em>string</em> constant is re-spelled in the hole's place. A <see langword="bool"/>
+    /// argument keeps the local's name, and the template carries no constant, so the element it decorates
+    /// stays on the element path: the cost is a missed fold through a composable, never a wrong DOM.
+    /// </summary>
+    [Fact]
+    public void Substitute_LoneHole_WithABooleanConstantKeepsTheLocalName()
+    {
+        var template = ExpressionTemplate.Create([new ParameterHoleExpressionSegment(0)]);
+
+        var substituted = template.Substitute(
+            [new SubstitutedArgument("__l0", new BooleanConstant(true))]);
+
+        Assert.Null(substituted.Constant);
+        Assert.Equal("__l0", substituted.ToCode());
     }
 
     [Fact]
@@ -117,7 +142,7 @@ public sealed class ExpressionTemplateTests
             new LiteralExpressionSegment("\""),
         ]);
 
-        var substituted = template.Substitute([new SubstitutedArgument("__l0", new ConstantInfo("App"))]);
+        var substituted = template.Substitute([new SubstitutedArgument("__l0", new StringConstant("App"))]);
 
         Assert.Null(substituted.Constant);
         Assert.Equal("$\"Hello __l0\"", substituted.ToCode());
@@ -129,7 +154,7 @@ public sealed class ExpressionTemplateTests
         ImmutableArray<ExpressionSegment> segments = [new LiteralExpressionSegment("\"a\"")];
 
         Assert.NotEqual(
-            ExpressionTemplate.Create(segments, new ConstantInfo("a")),
+            ExpressionTemplate.Create(segments, new StringConstant("a")),
             ExpressionTemplate.Create(segments, constant: null));
     }
 }

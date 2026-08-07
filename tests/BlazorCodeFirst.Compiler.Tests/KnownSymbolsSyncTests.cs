@@ -385,6 +385,20 @@ public sealed class KnownSymbolsSyncTests
         Assert.Equal(2, symbols.EventShortcuts.Count(kvp => kvp.Value == "onclick"));
     }
 
+    /// <summary>
+    /// <c>.Attr(string,string)</c> and <c>.Attr(string,bool)</c> are both captured. The registration is
+    /// by name, so it takes every overload without a change here; what this pins is that the runtime
+    /// still declares both, since dropping one would silently narrow the surface back to strings while
+    /// every other test kept passing.
+    /// </summary>
+    [Fact]
+    public void Attr_RegistersBothOverloads()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.Equal(2, symbols.AttrMethods.Count);
+    }
+
     [Fact]
     public void Raw_IsResolved()
     {

@@ -26,7 +26,7 @@ public sealed class RenderViewEmitterSequenceTests
         ExpressionTemplate.Create(
             [new LiteralExpressionSegment(
                 Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(value, quote: true))],
-            new ConstantInfo(value));
+            new StringConstant(value));
 
     private static ElementNode Element(string tag, params RenderNode[] children) =>
         new(tag, default, default, default, ImmutableArray.Create(children));

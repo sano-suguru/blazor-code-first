@@ -70,6 +70,7 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
     'void-in-run',
     'multi-class',
     'swept-characters',
+    'boolean-attribute',
   ];
 
   for (const name of cases) {
@@ -150,6 +151,23 @@ test.describe('folded and unfolded spellings, once the interactive circuit has r
       'a\uFFFEb\uFFFFc\uFDD0d\u{1FFFE}e',
       'a\tb\nc  d\u{1F600}e',
     ]);
+  });
+
+  // #158 admits one non-string constant into the fold, a bool, on the measurement that AddAttribute
+  // renders true as name="" and omits the attribute for false. The loop above proves the two spellings
+  // agree; this pins what they agree on, because the false half is invisible in the folded markup —
+  // the fold writes nothing for it — and a fold that had dropped the true half as well would still
+  // match an element path that had somehow done the same.
+  test('a bool attribute is present with an empty value when true, and absent when false', async ({
+    page,
+  }) => {
+    for (const container of ['#folded-boolean-attribute', '#unfolded-boolean-attribute']) {
+      const probe = page.locator(container);
+
+      await expect(probe.locator('input')).toHaveAttribute('disabled', '');
+      await expect(probe.locator('input')).not.toHaveAttribute('hidden', /.*/);
+      await expect(probe.locator('span')).toHaveAttribute('data-flag', '');
+    }
   });
 
   // The remaining blocks each pin a *refusal*, so they do not go through the loop: the whole point is

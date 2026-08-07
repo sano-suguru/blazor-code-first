@@ -147,6 +147,22 @@ Available decorations are `.Class`, `.Id`, `.Href`, `.Src`, `.Alt`, `.Type`, `.T
 prefixed for you. The name given to `.Attr` or `.On` must be a non-empty compile-time constant, or
 the generator reports BCF3011.
 
+`.Attr` takes a `string` or a `bool`. A `bool` is Blazor's conditional attribute: `true` renders the
+attribute with an empty value, which is how HTML reads `disabled`, `checked` and `hidden` as set, and
+`false` leaves the attribute out entirely.
+
+```csharp
+Input.Type("checkbox").Attr("checked", _agreed).Attr("disabled", _submitting)
+```
+
+There is deliberately no `object` overload. A value of any other type is formatted at render time
+under the formatting thread's culture rather than the one your component ran under, so write it out
+yourself, where the culture is a choice you can see:
+
+```csharp
+Div.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))
+```
+
 A handler written as `Action` or `Func<Task>` receives nothing. To read the event, give the lambda
 parameter its type, and `.On` picks up the typed overload:
 

@@ -148,6 +148,27 @@ public sealed class RenderingTests : BunitContext
         Assert.NotNull(spans[1].GetAttribute("class"));
     }
 
+    /// <summary>
+    /// A <c>bool</c> attribute value through real rendering and a real re-render diff. The compiler tests
+    /// pin the emitted call and the browser gate pins the folded/element parity for a constant; this pins
+    /// what the overload is actually for, that a runtime <see langword="false"/> removes the attribute
+    /// from an element that already carried it.
+    /// </summary>
+    [Fact]
+    public void BooleanAttributeComponent_WhenToggled_AddsAndRemovesTheAttribute()
+    {
+        var cut = Render<BooleanAttributeComponent>();
+
+        // Present with an empty value, which is how a true bool reaches the DOM.
+        Assert.Equal(string.Empty, cut.Find("input").GetAttribute("disabled"));
+
+        cut.Find("button").Click();
+
+        // GetAttribute returns null when the attribute is absent, which is the distinction under test;
+        // MarkupMatches would blur presence-with-an-empty-value against absence.
+        Assert.Null(cut.Find("input").GetAttribute("disabled"));
+    }
+
     [Fact]
     public void SemanticShell_RendersExpectedDom()
     {
