@@ -155,6 +155,18 @@ unfolded container really does not. If that gate is red, the browser result is
 worthless even if green, because the comparison would no longer be between a
 folded and an unfolded spelling of the same content.
 
+That same run carries the only cover a second emission has anywhere.
+`SetUpdatesAttributeName` turns on Blazor's DOM resynchronization, which repairs
+the divergence a two-way binding whose setter normalizes its input creates: the
+element shows what was typed, the render tree holds the normalized value, and
+ordinary diffing — comparing the new render tree against the previous one —
+writes nothing. bUnit cannot construct that divergence at all, because its
+`Input()` writes the value that reaches the setter straight into the AngleSharp
+DOM; that was measured, not assumed, after an attempt to cover it from bUnit
+passed unchanged with the emission replaced by a no-op. `bind-resync.spec.ts`
+measures it against a real browser and `BindResyncTests` pins its premise, in
+the same two-part arrangement as above.
+
 `SnapshotCorpusTests` compares the generator's complete emitted source against
 baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which
 pins sequence numbers and frame order in a way the substring assertions
