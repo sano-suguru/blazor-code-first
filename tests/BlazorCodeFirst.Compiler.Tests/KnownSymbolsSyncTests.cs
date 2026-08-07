@@ -377,8 +377,10 @@ public sealed class KnownSymbolsSyncTests
     public void OnAndOnClick_RegisterAllOverloads()
     {
         var (symbols, _) = ResolveHtml();
-        // .On(string,Action) and .On(string,Func<Task>) => 2 OnMethods.
-        Assert.Equal(2, symbols.OnMethods.Count);
+        // .On(string,Action), .On(string,Func<Task>), .On<TArgs>(string,Action<TArgs>) and
+        // .On<TArgs>(string,Func<TArgs,Task>) => 4 OnMethods. The generic pair keys correctly because
+        // Normalize takes OriginalDefinition, so a constructed call site lands on the open definition.
+        Assert.Equal(4, symbols.OnMethods.Count);
         // .OnClick(Action) and .OnClick(Func<Task>) both map to "onclick" => 2 EventShortcuts entries.
         Assert.Equal(2, symbols.EventShortcuts.Count(kvp => kvp.Value == "onclick"));
     }
