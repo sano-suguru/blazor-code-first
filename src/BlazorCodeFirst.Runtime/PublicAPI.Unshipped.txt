@@ -146,3 +146,5 @@ BlazorCodeFirst.ElementBuilder.ElementBuilder() -> void
 BlazorCodeFirst.ElementBuilder.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
 static BlazorCodeFirst.ElementBuilder.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ElementBuilder builder) -> BlazorCodeFirst.View
 BlazorCodeFirst.ComponentView<TComponent>.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
+static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action<TArgs!>! handler) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<TArgs!, System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
