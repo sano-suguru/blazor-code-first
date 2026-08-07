@@ -152,6 +152,72 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
+    public void Bind_StringGetterOnly_CarriesNoNullableMismatchDiagnostic()
+    {
+        // Regression: the framework's own CreateBinder(receiver, Action<string?> setter, string
+        // existingValue, ...) overload annotates its setter nullable, so `__value => _name = __value`
+        // triggers CS8601 wherever the assignment target's own declaration is nullable-enabled — hence
+        // the explicit #nullable enable on the user source below, which GenerateBody's helper omits and
+        // every other test in this file relies on that omission to stay silent on this exact defect.
+        // AssertOutputCompiles alone would not have caught it either way: CS8601 is a warning, not an
+        // error, until a project (any real one; this repository's own Directory.Build.props included)
+        // escalates warnings to errors. Task 9's BindRenderingTests found this by building for real.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Type("text").Bind("value", "oninput", () => _name);
+            """;
+
+        var source = $$"""
+            #nullable enable
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                {{body}}
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Id is "CS8601" or "CS8620");
+    }
+
+    [Fact]
+    public void Bind_ExplicitSyncSetter_CarriesNoNullableMismatchDiagnostic()
+    {
+        // Same regression as the getter-only case, on the (Action<string>)(<setter>) cast: the cast's
+        // own type does not match CreateBinder's Action<string?> parameter, which is CS8620 rather than
+        // CS8601 but the same underlying mismatch. Unlike CS8601 above, this one does not depend on the
+        // user source's own nullable context — the mismatch is entirely between two casts inside the
+        // generated file itself — but #nullable enable is kept here too so both tests model the same
+        // (realistic, nullable-enabled) consuming project.
+        const string body = """
+            private string Query { get; set; } = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => Query, v => Query = v.Trim());
+            """;
+
+        var source = $$"""
+            #nullable enable
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                {{body}}
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Id is "CS8601" or "CS8620");
+    }
+
+    [Fact]
     public void Bind_OnAnElementWhoseOtherChannelsAreAllConstant_StillEmitsFrames()
     {
         // Every other channel here is a compile-time constant and 'input' is a foldable void tag, so

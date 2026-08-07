@@ -198,6 +198,14 @@ public static class Decorations
     /// does not read. Bind such a value through the explicit-setter overload, where the culture is a
     /// visible choice at the call site.
     /// </para>
+    /// <para>
+    /// Measured against a real dispatch (BindRenderingTests, <c>EmptyInput_DeliversEmptyStringNotNull</c>):
+    /// an empty text input's <c>oninput</c> delivers <c>""</c> to the setter, not <c>null</c>. That is
+    /// why <paramref name="get"/> and the explicit-setter overload's setter both take a non-nullable
+    /// <see langword="string"/>: the generated setter itself never has to guard against a null it will
+    /// not receive. The framework's own binder helper still annotates its own parameter nullable
+    /// defensively; the generated file's preamble accounts for that, not this surface.
+    /// </para>
     /// </remarks>
     /// <param name="element">The element being decorated (<c>Input</c>, <c>Textarea</c>, …).</param>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
