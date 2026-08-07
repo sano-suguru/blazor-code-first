@@ -277,12 +277,14 @@ renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
   parameter setters and stay trimming/AOT safe.
 - Decorator chains collapse into the owning element's emitted attributes rather
   than introducing wrapper nodes or extra frame widths.
-- Preserve bidirectional Razor compatibility: generate `...AsFragment` siblings
-  for `[Composable]` methods, and support existing Razor components through
-  `Component<T>()`. A `Component<T>()` type argument must resolve while the
-  generator runs, so a `.razor` component declared in the same project cannot be
-  named (`BCF3012`), because source generators cannot observe each other's
-  output.
+- Preserve bidirectional Razor compatibility. A BlazorCodeFirst component stays a
+  plain Blazor component, so a `.razor` file names it as a tag with no same-project
+  restriction: what Razor resolves is the hand-written class, and the generator only
+  fills in `RenderView`. The other direction, `Component<T>()`, reaches existing Razor
+  components, and its type argument must resolve while the generator runs, so a
+  `.razor` component declared in the same project cannot be named (`BCF3012`),
+  because source generators cannot observe each other's output. `[Composable]` has no
+  Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` 付録B.4).
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence
   off the shapes that cannot work; 付録A states the exact conditions.

@@ -265,23 +265,28 @@ BlazorCodeFirstは独自のシェルターを構築するのではなく、既�
 
 ### 6.1 Razorの中でBlazorCodeFirstを使う
 
-Source Generatorは各 `[Composable]` メソッドに対し、`RenderFragment` を返す兄弟メソッド(`〜AsFragment`)を併生成します。これにより既存の `.razor` ファイルへコードファーストUIを直接埋め込めます。
+BlazorCodeFirstのコンポーネントは通常のBlazorコンポーネントです。基底型が `BodyComponentBase` であることと、レンダリングメソッドをSource Generatorが生成することを除けば、Blazorから見た姿は手書きのC#コンポーネントと変わりません。したがって既存の `.razor` からは、通常どおりタグとして名指せます。
 
 ```razor
 @* ExistingPage.razor *@
 <div class="legacy-layout">
-    @Widgets.StatusBadgeAsFragment(currentStatus)
+    <StatusBadge Status="@currentStatus" />
 </div>
 ```
 
 ```csharp
-public static partial class Widgets
+public partial class StatusBadge : BodyComponentBase
 {
-    [Composable]
-    public static View StatusBadge(Status status) =>
-        Span.Class(status.IsHealthy ? "badge badge-ok" : "badge badge-alert")[status.Label];
+    [Parameter] public Status Status { get; set; } = default!;
+
+    protected override View Body =>
+        Span.Class(Status.IsHealthy ? "badge badge-ok" : "badge badge-alert")[Status.Label];
 }
 ```
+
+この方向には§6.2のBCF3012のような同一プロジェクト制限がありません。Razorが解決するのはクラス名であり、そのクラス宣言は作者が書いたソースだからです。Source Generatorが足すのは `RenderView` の本体だけで、Razor側はそれを見る必要がありません。生成物そのものを型引数に取る§6.2の方向とは、ここが非対称です。
+
+`[Composable]` はこの方向の入口にはなりません。§4.3のとおり静的展開は呼び出しサイトが宣言と同一のコンパイル内にあることを要求し、`.razor` から呼べる実体は生成されないためです。Razorへ見せたい部分はコンポーネントにします(`ARCHITECTURE.md` 付録B.4)。
 
 ### 6.2 BlazorCodeFirstの中で既存のRazorコンポーネントを使う
 
