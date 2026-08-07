@@ -125,6 +125,15 @@ public static class DiagnosticExpectations
             "Bind",
             AnchorOccurrence.Last),
         new(
+            "BCF3020",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3020.cs",
+            "w => w.Label",
+            Note: "Anchors the selector, which is what the two derived names come from: the fix is to " +
+                "select a parameter the component can write back, or to bind this one one-way with " +
+                ".Param."),
+        new(
             "BCF3019",
             FixtureKind.GeneratorViaProjectReference,
             "error",

@@ -68,6 +68,28 @@ internal sealed class KnownSymbols
     public INamedTypeSymbol? RenderFragmentType { get; }
 
     /// <summary>
+    /// Resolved unbound generic <c>Microsoft.AspNetCore.Components.EventCallback&lt;TValue&gt;</c>, or null.
+    /// </summary>
+    /// <remarks>
+    /// The generic one only. A component binding's change callback is <c>EventCallback&lt;TValue&gt;</c> for
+    /// the bound parameter's own type, and the non-generic <c>EventCallback</c> carries no value, so a
+    /// parameter declared with it cannot receive the write-back and is BCF3020 like any other mistype.
+    /// </remarks>
+    public INamedTypeSymbol? EventCallbackType { get; }
+
+    /// <summary>
+    /// Resolved unbound generic <c>System.Linq.Expressions.Expression&lt;TDelegate&gt;</c>, or null.
+    /// </summary>
+    public INamedTypeSymbol? ExpressionType { get; }
+
+    /// <summary>
+    /// Resolved unbound generic <c>System.Func&lt;TResult&gt;</c>, the one-argument arity, or null. Paired
+    /// with <see cref="ExpressionType"/> to recognize a <c>{name}Expression</c> parameter, whose declared
+    /// type is <c>Expression&lt;Func&lt;TValue&gt;&gt;</c>.
+    /// </summary>
+    public INamedTypeSymbol? FuncType { get; }
+
+    /// <summary>
     /// Resolved symbol for <c>BlazorCodeFirst.Decorations.Class(this ElementBuilder, string)</c>, or null.
     /// </summary>
     public IMethodSymbol? ClassMethod { get; }
@@ -396,6 +418,10 @@ internal sealed class KnownSymbols
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderFragment");
+        EventCallbackType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallback`1");
+        ExpressionType = compilation.GetTypeByMetadataName("System.Linq.Expressions.Expression`1");
+        FuncType = compilation.GetTypeByMetadataName("System.Func`1");
 
         var componentBindMethods = new List<ISymbol>();
         if (ComponentViewType is not null)

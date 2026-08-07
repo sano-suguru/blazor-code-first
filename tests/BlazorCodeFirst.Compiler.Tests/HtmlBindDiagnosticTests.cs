@@ -213,7 +213,7 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
-    public void Bind_EventNameWithoutOnPrefix_ReportsBcf3019()
+    public void Bind_EventNameWithoutOnPrefix_OrSwapped_ReportsBcf3019()
     {
         // Also what catches the attribute and event names being written the wrong way round, since both
         // are adjacent string arguments and the swap compiles.
