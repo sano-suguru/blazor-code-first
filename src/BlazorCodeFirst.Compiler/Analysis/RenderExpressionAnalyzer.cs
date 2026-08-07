@@ -636,7 +636,8 @@ internal static class RenderExpressionAnalyzer
         }
 
         // Before the duplicate-name check, because a second binding is the more specific complaint: it is
-        // rejected even when both its names are free, since SetUpdatesAttributeName holds only one.
+        // rejected even when both its names are free, since the surface binds one value per element (a
+        // narrowing of its own, not something Blazor requires; issue #162).
         if (element.Bind is { } existing)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
@@ -737,9 +738,13 @@ internal static class RenderExpressionAnalyzer
     /// <para>
     /// Where the element surface makes the author write both names, this one derives them:
     /// <c>{name}Changed</c> always, <c>{name}Expression</c> when the component declares it. That is only
-    /// admissible because <c>TComponent</c> is a known type symbol, so each derived name is looked up and
-    /// the binding is rejected when the lookup fails or the type does not match. The element surface has
-    /// nothing to check a derivation against (its tag is a string), which is the whole of the difference.
+    /// admissible because <c>TComponent</c> is a known type symbol, so a derived name can be looked up
+    /// and checked. The two names are then treated differently, and deliberately so:
+    /// <c>{name}Changed</c> must exist and carry <c>EventCallback&lt;TValue&gt;</c> or the binding is
+    /// rejected (BCF3020), while <c>{name}Expression</c> is emitted when it exists and matches and is
+    /// omitted silently otherwise (see the comment at its emission below for why). The element surface
+    /// has nothing to check either derivation against (its tag is a string), which is the whole of the
+    /// difference.
     /// </para>
     /// <para>
     /// Rejections register a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/> span for the

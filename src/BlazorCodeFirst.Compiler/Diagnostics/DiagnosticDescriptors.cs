@@ -537,25 +537,27 @@ internal static class DiagnosticDescriptors
                 + "such check available, which is why it makes the author write both names instead.");
 
     /// <summary>
-    /// BCF3021: More than one <c>.Bind</c> on one element. <c>SetUpdatesAttributeName</c> holds one
-    /// name per element and the second call overwrites the first.
+    /// BCF3021: More than one <c>.Bind</c> on one element. This surface binds at most one value per
+    /// element; nothing in Blazor requires that, so the narrowing is deliberate (issue #162).
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3021 = new(
         id: "BCF3021",
         title: "Element is bound more than once",
-        messageFormat: "This element already binds '{0}'. An element carries at most one '.Bind', "
-            + "because Blazor tracks one resynchronized attribute per element and a second binding "
-            + "would silently take that tracking away from the first.",
+        messageFormat: "This element already binds '{0}'. This surface binds at most one value per "
+            + "element, so a second '.Bind' is rejected even when both of its names are free. Bind the "
+            + "second value on a different element, or write it as '.Attr' plus '.On'.",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "SetUpdatesAttributeName records one attribute name on the element's frame, and a second call "
-                + "overwrites the first. Both bindings would still read and write their values, so "
-                + "nothing looks broken, but the first one loses the resynchronization that pulls the DOM "
-                + "back when a setter normalizes or rejects what the user typed. This is not a duplicate "
-                + "name, so BCF3010 cannot express it: two '.Bind' calls naming entirely different "
-                + "attributes and events still collide here.");
+            "The one-binding-per-element rule is this surface's own, not Blazor's. "
+                + "SetUpdatesAttributeName records the resynchronized attribute name on the immediately "
+                + "preceding attribute frame rather than on the element, so two bindings on one element "
+                + "would each keep their own name: nothing is overwritten and no resynchronization is "
+                + "lost (measured). The surface narrows to one value per element and the model holds one "
+                + "binding per element to match. Whether to keep that narrowing is issue #162. It is not "
+                + "a duplicate name, so BCF3010 cannot express it: two '.Bind' calls naming entirely "
+                + "different attributes and events still collide here.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

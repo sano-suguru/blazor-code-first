@@ -23,7 +23,10 @@ public partial class Bcf3018Host : BodyComponentBase
     protected override View Body => Input.Bind("value", "oninput", () => Name);
 }
 
-/// <summary>BCF3021: two bindings on one element, of which only the first would stay resynchronized.</summary>
+/// <summary>
+/// BCF3021: two bindings on one element. Both names are free on both, so nothing here is a duplicate;
+/// what the surface rejects is the second binding itself, since it binds one value per element.
+/// </summary>
 public partial class Bcf3021Host : BodyComponentBase
 {
     private string _first = "bcf3021";

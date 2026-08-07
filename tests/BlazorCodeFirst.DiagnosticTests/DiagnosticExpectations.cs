@@ -116,7 +116,8 @@ public static class DiagnosticExpectations
             "Name",
             Note: "Anchors the getter's body, which is the expression the message quotes and the one " +
                 "that has to change."),
-        // Two .Bind on the line; the second is the one that would take the resynchronization away.
+        // Two .Bind on the line; the second is the one the surface rejects, since it binds one value
+        // per element.
         new(
             "BCF3021",
             FixtureKind.GeneratorViaProjectReference,

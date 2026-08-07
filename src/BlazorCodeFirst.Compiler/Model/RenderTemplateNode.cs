@@ -78,9 +78,11 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// author's own transplanted syntax, which may still contain unbound parameter holes from a
 /// <c>[Composable]</c> expansion.
 /// <para>
-/// An element carries at most one of these. <c>SetUpdatesAttributeName</c> holds one attribute name
-/// per element and a second call overwrites the first, which would silently strip the first binding's
-/// resynchronization; BCF3021 rejects that instead.
+/// An element carries at most one of these, because the surface binds at most one value per element.
+/// Blazor does not require that — <c>SetUpdatesAttributeName</c> writes to the immediately preceding
+/// attribute frame, so two bindings on one element would each keep their own resynchronized name
+/// (measured) — so this field is a single slot to match a deliberate narrowing, and BCF3021 rejects a
+/// second binding. Whether to keep the narrowing is issue #162.
 /// </para>
 /// </remarks>
 internal sealed record BindTemplate(
