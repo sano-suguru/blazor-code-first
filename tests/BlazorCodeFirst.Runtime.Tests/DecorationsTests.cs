@@ -32,5 +32,9 @@ public sealed class DecorationsTests
         Assert.Equal(e, e.On("onmouseenter", () => { }));
         Assert.Equal(e, e.On("onmouseenter", () => System.Threading.Tasks.Task.CompletedTask));
         Assert.Equal(e, e.OnClick(() => System.Threading.Tasks.Task.CompletedTask));
+        Assert.Equal(e, e.On("oninput", (Microsoft.AspNetCore.Components.ChangeEventArgs a) => { }));
+        Assert.Equal(e, e.On(
+            "oninput",
+            (Microsoft.AspNetCore.Components.ChangeEventArgs a) => System.Threading.Tasks.Task.CompletedTask));
     }
 }

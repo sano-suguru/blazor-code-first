@@ -103,6 +103,42 @@ public static class Decorations
     public static ElementBuilder On(
         this ElementBuilder element, string eventName, System.Func<System.Threading.Tasks.Task> handler) => element;
 
+    /// <summary>
+    /// Design-time syntax adding an event handler that receives the event's arguments.
+    /// <paramref name="eventName"/> follows the same rule as the argument-less overload: the full HTML
+    /// event attribute name including the <c>on</c> prefix, a non-empty compile-time constant.
+    /// </summary>
+    /// <remarks>
+    /// <typeparamref name="TArgs"/> is inferred from an explicitly typed lambda parameter
+    /// (<c>.On("oninput", (ChangeEventArgs e) =&gt; …)</c>), so writing it out is legal but never necessary.
+    /// Razor infers the argument type from the event name through its <c>[EventHandler]</c> metadata; a
+    /// string-named decoration cannot, because C# overload resolution runs before the generator observes
+    /// the expression and the generator does not influence binding. Nothing here checks that
+    /// <typeparamref name="TArgs"/> is the type the named event actually delivers.
+    /// </remarks>
+    /// <typeparam name="TArgs">The event argument type the handler receives.</typeparam>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
+    /// <param name="handler">The handler invoked on the event; lowered to an EventCallback.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder On<TArgs>(
+        this ElementBuilder element, string eventName, System.Action<TArgs> handler)
+        where TArgs : System.EventArgs => element;
+
+    /// <summary>
+    /// Design-time syntax adding an async event handler that receives the event's arguments; see the
+    /// synchronous overload.
+    /// </summary>
+    /// <typeparam name="TArgs">The event argument type the handler receives.</typeparam>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
+    /// <param name="handler">The async handler invoked on the event; lowered to an EventCallback.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder On<TArgs>(
+        this ElementBuilder element, string eventName,
+        System.Func<TArgs, System.Threading.Tasks.Task> handler)
+        where TArgs : System.EventArgs => element;
+
     /// <summary>Design-time syntax adding an async <c>onclick</c> handler.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="handler">The async handler invoked on click; lowered to an EventCallback.</param>

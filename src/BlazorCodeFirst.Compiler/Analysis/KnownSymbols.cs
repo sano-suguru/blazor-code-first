@@ -449,7 +449,7 @@ internal sealed class KnownSymbols
                         // on EventShortcuts, so no separate first-overload symbol is retained.
                         eventShortcuts[key] = "onclick";
                         break;
-                    case "On": onMethods.Add(key); break;                     // both overloads
+                    case "On": onMethods.Add(key); break;                     // all four overloads
                     case "Attr": attrMethods.Add(key); break;
                     default:
                         if (AttributeShortcutNames.TryGetValue(method.Name, out var attr))
