@@ -134,6 +134,14 @@ public static class DiagnosticExpectations
             Note: "Anchors the event-name argument, the one that has to gain the \"on\" prefix. .On and " +
                 ".Bind both report this id; the fixture exercises only .On, since a real build needs one " +
                 "reachable route, not both."),
+        new(
+            "BCF3022",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3022.cs",
+            "Render",
+            Note: "Anchors the complete contextual-template content argument; the argument shape is what " +
+                "must be rewritten."),
     ];
 
     /// <summary>

@@ -419,12 +419,24 @@ internal static class RenderExpressionAnalyzer
                 if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
                     || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
                     || !SymbolEqualityComparer.Default.Equals(
-                        genericFragment.OriginalDefinition, renderFragmentGenericType)
-                    || !TryExtractSingleParameterLambda(
+                        genericFragment.OriginalDefinition, renderFragmentGenericType))
+                {
+                    return null;
+                }
+
+                // The content has to be an inline expression lambda twice over: the body is what gets
+                // sequenced, and the parameter symbol is what the generated context variable is
+                // substituted for. A method group, an anonymous method, and a block-bodied lambda supply
+                // neither. Arity is not checked here: a lambda with no parameter or with two does not
+                // convert to Func<TContext, View>, so C# has already rejected the call.
+                if (!TryExtractSingleParameterLambda(
                         valueExpression, out var contextParameter, out var contextBody)
                     || context.SemanticModel.GetDeclaredSymbol(
                         contextParameter, context.CancellationToken) is not { } contextParameterSymbol)
                 {
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BCF3022, valueArg.GetLocation(), []));
                     return null;
                 }
 

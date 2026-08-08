@@ -186,9 +186,11 @@ internal static class DiagnosticDescriptors
             "expression lambda, wrapping any helper call as x => Helper(x).");
 
     /// <summary>
-    /// BCF3005: A <c>Component&lt;T&gt;().Param</c> selector is not a simple property selection on its own
-    /// lambda parameter (for example <c>c =&gt; c.Label</c>). Casts, method calls, null-conditional access,
-    /// or a member of a captured variable cannot be turned into a static parameter setter.
+    /// BCF3005: A <c>Component&lt;T&gt;()</c> parameter-binding selector is not a simple property selection
+    /// on its own lambda parameter (for example <c>c =&gt; c.Label</c>). Casts, method calls,
+    /// null-conditional access, or a member of a captured variable cannot be turned into a static parameter
+    /// setter. Every channel that names a parameter with a selector answers to this rule:
+    /// <c>.Param</c>, <c>.Template</c>, and <c>.Bind</c>.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3005 = new(
         id: "BCF3005",
@@ -198,42 +200,46 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Component<T>().Param takes a selector of the form c => c.Property so the source generator can " +
-            "emit a static parameter setter. A cast, method call, null-conditional access, or a member of a " +
-            "captured variable cannot be statically resolved to a parameter name.");
+            "Component<T>() names the parameter to bind with a selector of the form c => c.Property, so the " +
+            "source generator can emit a static parameter setter. .Param, .Template, and .Bind all take that " +
+            "same selector. A cast, method call, null-conditional access, or a member of a captured variable " +
+            "cannot be statically resolved to a parameter name.");
 
     /// <summary>
-    /// BCF3006: A <c>Component&lt;T&gt;().Param</c> target is not a settable <c>[Parameter]</c> property.
-    /// Setting a non-parameter (or a parameter with no accessible setter) would throw at runtime, so it is
-    /// rejected at compile time.
+    /// BCF3006: A <c>Component&lt;T&gt;()</c> parameter binding (<c>.Param</c>, <c>.Template</c>, or
+    /// <c>.Bind</c>) targets a property that is not a settable <c>[Parameter]</c>. Setting a non-parameter
+    /// (or a parameter with no accessible setter) would throw at runtime, so it is rejected at compile time.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3006 = new(
         id: "BCF3006",
         title: "Component parameter target must be a settable [Parameter] property",
-        messageFormat: "'{0}' is not a settable [Parameter] property; Param can only bind properties marked [Parameter] with an accessible setter",
+        messageFormat: "'{0}' is not a settable [Parameter] property; only a property marked [Parameter] with an accessible setter can be bound",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Component<T>().Param can only bind a property marked [Parameter] with a public setter. Binding " +
-            "any other member would throw at runtime when Blazor applies the parameters.");
+            "Component<T>() binds a parameter through .Param, .Template, or .Bind, and each of them can " +
+            "only target a property marked [Parameter] with a public setter. Binding any other member " +
+            "would throw at runtime when Blazor applies the parameters.");
 
     /// <summary>
-    /// BCF3007: A <c>Component&lt;T&gt;().Param</c> chain binds the same property more than once. Blazor
-    /// silently applies the last binding, so a duplicate is almost certainly a mistake; it is rejected at
-    /// compile time rather than allowed to shadow a value at runtime.
+    /// BCF3007: A <c>Component&lt;T&gt;()</c> chain binds the same property more than once, counting every
+    /// channel that can bind one: <c>.Param</c>, <c>.Template</c>, <c>.Bind</c>, and child content written
+    /// in brackets. Blazor silently applies the last binding, so a duplicate is almost certainly a mistake;
+    /// it is rejected at compile time rather than allowed to shadow a value at runtime.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3007 = new(
         id: "BCF3007",
         title: "Component parameter is bound more than once",
-        messageFormat: "'{0}' is bound more than once; remove the duplicate .Param(...) call",
+        messageFormat: "'{0}' is bound more than once; remove the duplicate binding",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Component<T>().Param must bind each parameter at most once per chain. Binding the same " +
-            "property twice makes the earlier value dead, because Blazor applies the last write, so the " +
-            "duplicate is reported at compile time.");
+            "Component<T>() must bind each parameter at most once per chain, counting every channel that " +
+            "can bind one: .Param, .Template, .Bind, and child content written in brackets. Binding the " +
+            "same property twice makes the earlier value dead, because Blazor applies the last write, so " +
+            "the duplicate is reported at compile time.");
 
     /// <summary>
     /// BCF3008: A decoration (<c>.Class</c>/<c>.Attr</c>/a named attribute shortcut/<c>.OnClick</c>/<c>.On</c>)
@@ -535,6 +541,29 @@ internal static class DiagnosticDescriptors
                 + "be checked: the component's type is known, so the generator looks the derived name up "
                 + "and reports this when it is absent or carries the wrong type. Element binding has no "
                 + "such check available, which is why it makes the author write both names instead.");
+
+    /// <summary>
+    /// BCF3022: The content argument of the contextual <c>Component&lt;T&gt;().Template</c> overload is not
+    /// an inline expression lambda, so the generator has no expression to sequence and no parameter symbol
+    /// to substitute the generated context variable for. A method group, an anonymous method, and a
+    /// block-bodied lambda all hide the content behind a call.
+    /// </summary>
+    /// <remarks>
+    /// Sibling of BCF3004, which places the same restriction on <c>ForEach</c>'s content and key for the
+    /// same reason. Arity is not this rule's concern: a zero-parameter or multi-parameter lambda does not
+    /// convert to <c>Func&lt;TContext, View&gt;</c> at all, so C# rejects the call before this rule could
+    /// apply. The number follows BCF3021, which was withdrawn (付録B.5) and stays retired.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3022 = new(
+        id: "BCF3022",
+        title: "Generic fragment template must be an inline expression lambda",
+        messageFormat: "Generic fragment template must be an inline expression lambda so it can be statically analyzed; write it as context => content",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Component<T>().Template contextual content must be an inline expression lambda. " +
+            "Method groups, anonymous methods, and block-bodied lambdas cannot be statically sequenced.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
