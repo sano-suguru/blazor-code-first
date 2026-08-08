@@ -14,6 +14,9 @@ namespace BlazorCodeFirst.TrimTests;
 ///   builder type should be trimmed.
 /// - <c>Decorations.Bind</c> and <c>ComponentView&lt;T&gt;.Bind</c>, the two-way binding surface, are
 ///   inert on the same terms and should be trimmed too.
+/// - <c>ComponentView&lt;T&gt;.Template</c>, the generic fragment channel, is inert on the same terms:
+///   the generator emits the <c>RenderFragment&lt;TContext&gt;</c> lambda itself, so no runtime caller
+///   remains and nothing generic is constructed reflectively.
 /// </summary>
 public sealed class TrimmedOutputTests
 {
@@ -178,6 +181,14 @@ public sealed class TrimmedOutputTests
         // share the metadata name "Bind", so this single assertion covers every one of them, provided
         // TrimTestApp's Body reaches each shape (it does; see TrimCounter.Body).
         Assert.DoesNotContain("Bind", methods);
+    }
+
+    [Fact]
+    public void TrimmedRuntime_AfterPublish_TrimsComponentViewTemplateMethod()
+    {
+        var runtimeAssemblyPath = ResolvePublishedAssembly(RuntimeAssemblyFileName);
+        var methods = GetMethodNames(runtimeAssemblyPath, "ComponentView`1", "BlazorCodeFirst");
+        Assert.DoesNotContain("Template", methods);
     }
 
     [Fact]

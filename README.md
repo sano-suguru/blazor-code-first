@@ -74,26 +74,28 @@ Available today:
   minus six reasoned exclusions recorded in `DESIGN.md` §4.1; `Element(tag)` still writes those, and
   custom elements, Web Components and foreign vocabularies. Plus `Fragment(…)` and `Raw(html)` for
   trusted HTML.
-- Form elements are among them and are writable, but a working form cannot be built yet: two-way
-  binding ([#71](https://github.com/sano-suguru/blazor-code-first/issues/71)) and typed event
-  arguments ([#72](https://github.com/sano-suguru/blazor-code-first/issues/72)) do not exist, so an
-  `Input` can be rendered but its value cannot be read back or bound.
+- Forms can use string/bool `.Bind`, component `.Bind`, and typed `.On<TArgs>` handlers. Generic
+  `RenderFragment<TContext>` parameters such as `EditForm.ChildContent` accept BlazorCodeFirst content
+  through `.Template`, with either an ignored or named context.
 - Mixed children, supplied in brackets after the tag and its attributes (`Div.Class("card")[…]`):
   bare strings and `View`s in the same list; a Blazor `RenderFragment` is also a child, which is how
   Razor-supplied content flows in.
 - Decorations: `.Class` (folding), the `.Href` `.Src` `.Alt` `.Id` `.Type` `.Title` `.Role`
-  shortcuts, generic `.Attr(name, value)`, and `.OnClick` / `.On(eventName, …)` with `Action` or
-  `Func<Task>` handlers.
+  shortcuts, generic `.Attr(name, string)` and `.Attr(name, bool)`, and `.OnClick` /
+  `.On(eventName, …)` / `.On<TArgs>(eventName, …)` with `Action` or `Func<Task>` handlers.
 - Control flow: `If(condition, then, otherwise)` and keyed `ForEach(source, key, content)`.
-- Razor interop in both directions: `Component<T>()` with `.Param(…)` and child content renders an
-  existing Razor component, and a BlazorCodeFirst component is an ordinary component that Razor can use.
+- Razor interop in both directions: `Component<T>()` with `.Param(…)`, `.Template(…)` and child
+  content renders an existing Razor component, and a BlazorCodeFirst component is an ordinary
+  component that Razor can use.
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
 - Reusable `[Composable]` methods, expanded statically into the caller.
 
 Not covered yet, tracked as a single surface-area inventory in
-[#72](https://github.com/sano-suguru/blazor-code-first/issues/72): typed event arguments
-(`MouseEventArgs` and friends), `bool` / `object`-valued attributes, `@bind`, `preventDefault` /
+[#72](https://github.com/sano-suguru/blazor-code-first/issues/72): `preventDefault` /
 `stopPropagation`, attribute splatting, `@ref` for elements and components, and form helpers.
+
+`object`-valued attributes are absent and stay absent. That is a decision, not a gap: attribute
+values are `string` and `bool` only, for the reason `DESIGN.md` §4.1 records.
 
 ## Installation
 

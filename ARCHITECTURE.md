@@ -387,6 +387,52 @@ fragment を直接 invoke するかどうかは渡し先コンポーネント(�
 再生成され状態が失われるため(実測)、平坦継続が厳密に安全側です。これは Razor と同一の挙動で、
 リージョンで包んでも解決しません(リージョンはホストのフレーム列における隣接関係を変えないため)。
 
+**ジェネリックな fragment スロット**: `RenderFragment<TContext>` 型のパラメータは `.Template` で受け、
+`TContext` を取る外側のラムダと `RenderTreeBuilder` を取る内側のラムダを重ねた2段の式として発行します。
+外側の引数は、コンテキストを使わない綴りでは破棄 `_`、コンテキストを読む綴りでは
+`__bcf_context_<論理プレオーダー番号>` という生成名になります。内側は非ジェネリックのスロットと同一です。
+
+```csharp
+// 入力(設計時のC#式)
+Component<Card>()
+    .Param(c => c.Title, "t")
+    .Template(c => c.HeaderTemplate, Span["heading"])
+    .Template(c => c.RowTemplate, row => Span[$"Row {row}"])
+```
+
+```csharp
+// 出力(生成コード): スカラーが先、スロットはソース順、seqは平坦に継続する
+// (キャストの型名は表示の都合で短縮。実際は §2.2 のとおり global:: 修飾で書き出されます)
+__b.OpenComponent<global::T.Card>(0);
+__b.AddComponentParameter(1, "Title", "t");
+__b.AddComponentParameter(2, "HeaderTemplate", (RenderFragment<int>)((_) => (__builder) =>
+{
+    __builder.AddMarkupContent(3, "<span>heading</span>");
+}));
+__b.AddComponentParameter(4, "RowTemplate", (RenderFragment<int>)((__bcf_context_3) => (__builder) =>
+{
+    __builder.OpenElement(5, "span");
+    __builder.AddContent(6, $"Row {__bcf_context_3}");
+    __builder.CloseElement();
+}));
+__b.CloseComponent();
+```
+
+チャンネルの発行順は、スカラーのパラメータがソース順で先、続いてスロットがソース順です。スロット内容の
+シーケンス番号は外側の平坦なカウンタをそのまま継続し、独立した空間を作りません(非ジェネリックのスロットと
+同じ規則です)。上の例の `RowTemplate` が `__bcf_context_3` を名乗るのは論理プレオーダー番号が3だからで、
+自身の `AddComponentParameter` のseq(4)とは別の数です。両者が一致する保証はありません。
+
+コンテキストの名前は生成側が決め、作者の書いた識別子は生成コードに現れません。作者のラムダ引数は
+`[Composable]` の引数と同じ**穴**としてテンプレートに記録され、展開時に生成名が差し込まれます。穴の位置は
+解析時にパラメータの `ISymbol` から決まるため、同じ綴りの別物(同名のフィールド、内側のラムダが再宣言した
+同名の変数)は書き換わりません。ただし `ISymbol` と `TextSpan` はこの解析呼び出しの内側に閉じ、テンプレートへ
+渡るのは書き換え後の文字列だけです。ジェネレータのインクリメンタルモデルは不変・値等価なレコードと
+プリミティブと文字列だけで構成する必要があり、シンボルやスパンを持ち込めばキャッシュの等価判定が壊れます。
+
+逆向きの衝突も2つ塞いであります。作者が `__bcf_context_*` という名前を自分で宣言していれば
+`__bcf_authored_context_*` へ改名し、生成引数が作者の非静的メンバーを覆い隠す位置では `this.` を補います。
+
 ---
 
 ## 3. メモリレイアウト
