@@ -108,6 +108,30 @@ protected override View Body =>
                 Component<NameFields>().Param(fields => fields.Value, _model)));
 ```
 
+That second example needs one caveat, or the badge will never change. `IsModified()` is read when the
+template runs, and nothing in the `EditForm` / `CascadingValue` chain re-renders on `OnFieldChanged`.
+Typing into a field does notify the `EditContext`, but the notification reaches whichever component
+owns that input's binding — here `NameFields` — and not the component holding the template, so the
+badge keeps the text it was first rendered with. This is Blazor's render propagation, not a limit on
+the context the template receives: the template is handed the live `EditContext` every time it runs.
+
+So if a template reads context state that changes, the component owning the form has to re-render
+itself. Construct the `EditContext` rather than letting `Model` create it, subscribe to
+`OnFieldChanged`, call `StateHasChanged`, and unsubscribe in `Dispose`:
+
+```csharp
+public ContextReadingForm()
+{
+    _editContext = new EditContext(_model);
+    _editContext.OnFieldChanged += (_, _) => StateHasChanged();
+}
+
+// ...then pass .Param(form => form.EditContext, _editContext) instead of .Param(form => form.Model, …)
+```
+
+A template that ignores its context, or reads only state that does not change while the form is open,
+needs none of this.
+
 The generator writes the `RenderFragment<TContext>` lambda for you, so the content inside is ordinary
 BlazorCodeFirst and its sequence numbers continue the surrounding ones. The context parameter's name
 is yours to choose; the generated code uses a name of its own and rewrites the places you referred to
