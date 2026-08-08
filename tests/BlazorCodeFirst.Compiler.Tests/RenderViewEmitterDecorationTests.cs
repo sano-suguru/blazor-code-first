@@ -261,8 +261,11 @@ public sealed class RenderViewEmitterDecorationTests
         Assert.Contains("__builder.AddAttribute(3, \"data-committed\", _committed);", generated);
         Assert.Contains("__builder.AddAttribute(4, \"onchange\", COMMITTED_BINDER);", generated);
 
-        // Exactly one, and it names the first binding's attribute. At most one binding per element can
-        // resynchronize, because "value" and "checked" never belong to the same interaction.
+        // A name is recorded for the first binding and none for the second: the emitter records one only
+        // when the bound attribute is "value" or "checked", the two the client can send back, and
+        // "data-committed" is neither. Nothing here says an element may record at most one name — an
+        // element carrying both "value" and "checked" would emit two calls, and the surface declines to
+        // diagnose that shape rather than ruling it out.
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
         Assert.DoesNotContain("SetUpdatesAttributeName(\"data-committed\")", generated);
     }

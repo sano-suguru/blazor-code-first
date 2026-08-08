@@ -263,4 +263,39 @@ public sealed class HtmlBindGeneratorTests
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
         Assert.DoesNotContain("SetUpdatesAttributeName(\"data-committed\")", generated);
     }
+
+    [Fact]
+    public void TwoBinds_InsideComposable_SubstituteEveryBindingsHoles()
+    {
+        // The expander maps over every binding on the element. Reduced to substituting Bindings[0], the
+        // second binding would vanish from the expansion with nothing failing — the same class of break
+        // the fold predicate guards against, reached through the expander instead: a binding silently
+        // dropped, leaving a plain attribute behind. The single-binding case above cannot see it, since
+        // there is no second element of the collection to lose.
+        const string body = """
+            private sealed class FormModel
+            {
+                public string Live { get; set; } = "";
+                public string Committed { get; set; } = "";
+            }
+            private readonly FormModel _form = new();
+
+            [Composable]
+            private static View Field(FormModel model) =>
+                Html.Input
+                    .Bind("value", "oninput", () => model.Live)
+                    .Bind("data-committed", "onchange", () => model.Committed);
+
+            protected override View Body => Html.Div[Field(_form)];
+            """;
+
+        var generated = GenerateBody(body);
+
+        // Both bindings carry the expansion local on both sides, which is what proves the loop ran to the
+        // end rather than substituting the first binding and copying the rest through unsubstituted.
+        Assert.Contains("__builder.AddAttribute(2, \"value\", __bcf_arg_1_0.Live);", generated);
+        Assert.Contains("__value => __bcf_arg_1_0.Live = __value, __bcf_arg_1_0.Live)", generated);
+        Assert.Contains("__builder.AddAttribute(4, \"data-committed\", __bcf_arg_1_0.Committed);", generated);
+        Assert.Contains("__value => __bcf_arg_1_0.Committed = __value, __bcf_arg_1_0.Committed)", generated);
+    }
 }

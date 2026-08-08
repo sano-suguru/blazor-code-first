@@ -79,7 +79,9 @@ public sealed class DiagnosticTableTests
         Assert.True(
             revived.IsEmpty,
             $"These IDs were retired and must not be reused: {string.Join(", ", revived)}. " +
-            "付録B records why each was withdrawn. Allocate the next free number instead.");
+            "付録B records why each was withdrawn. A retired number stays taken, so a new diagnostic " +
+            "takes the next number above every allocated and retired ID — `AnalyzerReleases.Unshipped.md` " +
+            "is not the whole picture, since a retired ID is listed in neither release file.");
     }
 
     [Fact]
