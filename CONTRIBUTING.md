@@ -37,6 +37,10 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 `tests/diagnostic-fixtures` is deliberately outside the solution: every project
 there fails to compile by design. See its README before adding one.
 
+`tests/msbuild-fixtures` contains projects expected to build successfully under nested real MSBuild.
+They are separate from `tests/diagnostic-fixtures`, where every project must fail. The Razor interop
+fixtures verify both ProjectReference and isolated NuGet-package delivery and inspect generated source.
+
 `tests/BlazorCodeFirst.TrimTests` and `tests/BlazorCodeFirst.TrimTestApp` live in the
 repository but stay outside the solution until the package-based trimming
 workflow lands.
@@ -58,7 +62,8 @@ dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.
 dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj \
   --filter FullyQualifiedName~GeneratorTests
 
-# Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
+# Diagnostics as a real build reports them (packs delivery packages, builds four failure fixtures,
+# and runs the Razor interop success fixtures)
 dotnet test tests/BlazorCodeFirst.DiagnosticTests/BlazorCodeFirst.DiagnosticTests.csproj
 
 # The measurements published in DESIGN.md §7.2 (diff cost and component teardown)
@@ -68,6 +73,8 @@ dotnet test tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTe
 # The measurements published in DESIGN.md §7.1 (allocations per render)
 dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*'
 ```
+
+That command also runs the successful Razor interop fixtures described above.
 
 These deliberately omit `--no-build`, which reuses whatever was compiled last and
 so reports a pass for code that was never compiled. CI can pass it

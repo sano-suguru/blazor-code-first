@@ -15,4 +15,21 @@ public sealed class RazorInteropDeliveryTests(RazorInteropFixtures fixtures)
             StringComparison.Ordinal);
         Assert.DoesNotContain("BCF3012", build.Output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Package_RazorComponent_ResolvesFromIsolatedPackageAndEmitsOpenComponent()
+    {
+        var build = fixtures.Package;
+
+        Assert.True(build.ExitCode == 0, build.Output);
+        Assert.Contains(
+            "__builder.OpenComponent<global::RazorInteropFixture.ReferencedRazorComponent>(0);",
+            build.GeneratedSource,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("BCF3012", build.Output, StringComparison.Ordinal);
+
+        var assets = File.ReadAllText(build.AssetsFilePath);
+        Assert.Contains("blazorcodefirst.razorinteropfixture/0.1.0-dev", assets, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("blazorcodefirst/0.1.0-dev", assets, StringComparison.OrdinalIgnoreCase);
+    }
 }
