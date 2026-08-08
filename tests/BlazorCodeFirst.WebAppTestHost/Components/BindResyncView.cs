@@ -71,3 +71,46 @@ public partial class TrimmingInputProbe : BodyComponentBase
         _name = value.Trim();
     }
 }
+
+/// <summary>
+/// The same normalizing input as <see cref="TrimmingInputProbe"/>, with a second binding beside it.
+/// BCF3021's withdrawn justification predicted that the second binding's SetUpdatesAttributeName would
+/// overwrite the first and cost it its repair; the storage is per frame, so it does not (#162).
+/// </summary>
+[Route("/bind-resync-two")]
+public partial class TwoBindingResyncView : BodyComponentBase
+{
+    protected override View Body =>
+        Fragment(
+            Component<TwoBindingProbe>(),
+            If(RendererInfo.IsInteractive, () => Span.Attr("id", "two-binding-ready")["ready"]));
+}
+
+/// <summary>The two bindings, in their own component for the same reason <see cref="TrimmingInputProbe"/>
+/// is: <see cref="Build"/> needs no render handle.</summary>
+public partial class TwoBindingProbe : BodyComponentBase
+{
+    private string _name = "";
+
+    private string _committed = "";
+
+    private int _writes;
+
+    protected override View Body =>
+        Div.Class("bind-resync")[
+            Input.Attr("id", "two-bound-input").Type("text")
+                .Bind("value", "oninput", () => _name, Normalize)
+                .Bind("data-committed", "onchange", () => _committed),
+
+            Span.Attr("id", "two-write-count")[$"{_writes}"],
+            Span.Attr("id", "two-field-value")[_name]];
+
+    /// <summary>Exposes the generated render path to the premise gate in <c>BindResyncTests</c>.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+
+    private void Normalize(string value)
+    {
+        _writes++;
+        _name = value.Trim();
+    }
+}

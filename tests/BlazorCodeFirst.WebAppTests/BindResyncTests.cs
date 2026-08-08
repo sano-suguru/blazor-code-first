@@ -62,4 +62,51 @@ public sealed class BindResyncTests
         // that was really a missing round trip.
         Assert.Equal(["oninput"], eventNames);
     }
+
+    [Fact]
+    public void TwoBindingProbe_MarksOnlyTheValueAttributeForDomResynchronization()
+    {
+        var builder = new RenderTreeBuilder();
+        new TwoBindingProbe().Build(builder);
+
+        var frames = builder.GetFrames();
+        var resynchronized = new List<string>();
+        for (int i = 0; i < frames.Count; i++)
+        {
+            if (frames.Array[i].AttributeEventUpdatesAttributeName is { } name)
+            {
+                resynchronized.Add(name);
+            }
+        }
+
+        // Exactly one, and named "value". The second binding names "data-committed", which the client
+        // can never send back — EventFieldInfo carries the element's own value or checked and nothing
+        // else — so the emitter records nothing for it. If this became two, the browser test below would
+        // be measuring a page whose retained render tree gets corrupted on every change event.
+        Assert.Equal(["value"], resynchronized);
+    }
+
+    [Fact]
+    public void TwoBindingProbe_EmitsBothEventFrames()
+    {
+        var builder = new RenderTreeBuilder();
+        new TwoBindingProbe().Build(builder);
+
+        var frames = builder.GetFrames();
+        var attributeNames = new List<string>();
+        for (int i = 0; i < frames.Count; i++)
+        {
+            ref readonly var frame = ref frames.Array[i];
+            if (frame.FrameType == RenderTreeFrameType.Attribute)
+            {
+                attributeNames.Add(frame.AttributeName);
+            }
+        }
+
+        // The point of the browser test is that a second binding is genuinely present. If either of
+        // these went missing the run below would pass while measuring the single-binding case.
+        Assert.Contains("oninput", attributeNames);
+        Assert.Contains("onchange", attributeNames);
+        Assert.Contains("data-committed", attributeNames);
+    }
 }
