@@ -23,9 +23,10 @@ namespace BlazorCodeFirst.WebAppTestHost.Components;
 /// render tree already held emits no edit, and the element keeps displaying the un-normalized text.
 /// <para>
 /// So <c>bind-resync.spec.ts</c> in <c>BlazorCodeFirst.WebAppTests/browser</c> is the only cover this
-/// emission's runtime effect has anywhere, and that suite is run by hand rather than by
-/// <c>dotnet test</c> or CI. <c>BindResyncTests</c> in <c>WebAppTests</c> pins the .NET-side premise the
-/// browser test depends on, the same way <c>FoldParityTests</c> does for <c>fold-parity.spec.ts</c>.
+/// emission's runtime effect has anywhere. <c>dotnet test</c> does not reach it, but the
+/// <c>browser</c> job in <c>.github/workflows/ci.yml</c> runs it on every pull request.
+/// <c>BindResyncTests</c> in <c>WebAppTests</c> pins the .NET-side premise the browser test depends on,
+/// the same way <c>FoldParityTests</c> does for <c>fold-parity.spec.ts</c>.
 /// </para>
 /// </remarks>
 [Route("/bind-resync")]

@@ -8,9 +8,11 @@ namespace BlazorCodeFirst.WebAppTests;
 /// Pins, on the .NET side, the premise <c>bind-resync.spec.ts</c> depends on: that
 /// <see cref="TrimmingInputProbe"/> really does carry <c>SetUpdatesAttributeName("value")</c> and really
 /// does normalize the value on the way in. This is the same two-part arrangement
-/// <c>FoldParityTests</c> has with <c>fold-parity.spec.ts</c>, and for the same reason — the browser
-/// suite is not run by <c>dotnet test</c> or by CI, so if its premise silently flipped nothing would say
-/// so. Neither assertion here can replace the browser test: the resynchronization these two facts enable
+/// <c>FoldParityTests</c> has with <c>fold-parity.spec.ts</c>, and for the same reason — a green browser
+/// run means nothing if the premise underneath it has flipped, and the browser suite cannot tell the
+/// difference between "the resynchronization works" and "there was nothing to resynchronize". CI runs
+/// both halves; that is what makes the pair worth having rather than either one alone.
+/// Neither assertion here can replace the browser test: the resynchronization these two facts enable
 /// is a property of Blazor's JS renderer and is invisible from every .NET test layer in this repository.
 /// </summary>
 public sealed class BindResyncTests

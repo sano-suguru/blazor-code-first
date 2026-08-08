@@ -15,14 +15,14 @@ import { expect, test } from '@playwright/test';
  * earlier attempt to cover this from bUnit passed unchanged after the emission was replaced with a
  * no-op. Prerendering dispatches no events at all.
  *
- * This suite is not run by `dotnet test` and is not in CI (see the opening comment of
- * playwright.config.ts and CONTRIBUTING.md's "Build and test" section: the host is started by hand and
- * `npx playwright test` points at it). It lives here because there is nowhere else it can live, not
- * because that is desirable. As with fold-parity.spec.ts, the .NET side pins the premise and the browser
- * side measures the effect: BindResyncTests in BlazorCodeFirst.WebAppTests — which `dotnet test` does
- * run — asserts that TrimmingInputProbe really emits SetUpdatesAttributeName("value") on an "oninput"
- * binding, and HtmlBindGeneratorTests / RenderViewEmitterDecorationTests in Compiler.Tests pin the
- * emission itself. If those are red, a green run here means nothing.
+ * `dotnet test` does not reach this suite — it needs a real browser, and BlazorCodeFirst.WebAppTests
+ * asserts prerendered HTML through WebApplicationFactory. The `browser` job in
+ * .github/workflows/ci.yml runs it on every pull request, which is what makes it a cover rather than a
+ * check someone remembers (#163). As with fold-parity.spec.ts, the .NET side pins the premise and the
+ * browser side measures the effect: BindResyncTests in BlazorCodeFirst.WebAppTests — which `dotnet test`
+ * does run — asserts that TrimmingInputProbe really emits SetUpdatesAttributeName("value") on an
+ * "oninput" binding, and HtmlBindGeneratorTests / RenderViewEmitterDecorationTests in Compiler.Tests pin
+ * the emission itself. If those are red, a green run here means nothing.
  */
 
 test.describe('a normalizing setter resynchronizes the DOM', () => {

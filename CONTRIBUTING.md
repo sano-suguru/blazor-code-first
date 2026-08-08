@@ -142,10 +142,11 @@ the difference. The #140 static fold produces markup frames, so its parity with
 the element path is checked in a real browser:
 
 ```bash
-# Start the host on the port the browser tests default to, then compare folded
-# and unfolded spellings of the same content
-dotnet run --project tests/BlazorCodeFirst.WebAppTestHost --urls http://localhost:5000
-cd tests/BlazorCodeFirst.WebAppTests/browser && npm install && npx playwright test
+# Compare folded and unfolded spellings of the same content. The config starts
+# the host itself, on port 5100 (macOS ControlCenter holds 5000), and stops it
+# afterwards. Set BCF_BASE_URL to point the suite at a host you started some
+# other way, which turns that off.
+cd tests/BlazorCodeFirst.WebAppTests/browser && npm ci && npx playwright install chromium && npx playwright test
 ```
 
 `FoldParityTests` in `BlazorCodeFirst.WebAppTests` (which `dotnet test` does
@@ -155,7 +156,9 @@ unfolded container really does not. If that gate is red, the browser result is
 worthless even if green, because the comparison would no longer be between a
 folded and an unfolded spelling of the same content.
 
-That same run carries the only cover a second emission has anywhere.
+CI runs both of these: the `browser` job in `.github/workflows/ci.yml` starts
+the host and invokes Playwright on every pull request. That same run carries
+the only cover a second emission has anywhere.
 `SetUpdatesAttributeName` turns on Blazor's DOM resynchronization, which repairs
 the divergence a two-way binding whose setter normalizes its input creates: the
 element shows what was typed, the render tree holds the normalized value, and
