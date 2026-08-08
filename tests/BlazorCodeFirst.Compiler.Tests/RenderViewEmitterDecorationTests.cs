@@ -140,7 +140,7 @@ public sealed class RenderViewEmitterDecorationTests
     }
 
     private static ElementNode BoundInput(BindTemplate bind) =>
-        new("input", default, default, default, default) { Bind = bind };
+        new("input", default, default, default, default) { Bindings = ImmutableArray.Create(bind) };
 
     [Fact]
     public void Emit_BoundElement_EmitsValueThenBinderThenUpdatesName()
@@ -170,6 +170,41 @@ public sealed class RenderViewEmitterDecorationTests
     }
 
     [Fact]
+    public void Emit_BoundToAttributeOtherThanValueOrChecked_EmitsNoUpdatesAttributeName()
+    {
+        // EventFieldInfo sends back the element's own value (or checked, on a checkbox) and nothing
+        // else, and RenderTreeUpdater writes that value into whichever frame this names. On a form
+        // element, naming a third attribute writes the input's value into an unrelated frame of the
+        // retained tree and strands the real one; on any other element the call is dead, because
+        // EventFieldInfo.fromEvent returns null there. Neither is worth emitting.
+        var node = BoundInput(new BindTemplate(
+            "data-x",
+            "onfocus",
+            ExpressionTemplate.Literal("_x"),
+            ExpressionTemplate.Literal("BINDER")));
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.AddAttribute(1, \"data-x\", _x);", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"onfocus\", BINDER);", generated);
+        Assert.DoesNotContain("SetUpdatesAttributeName", generated);
+    }
+
+    [Fact]
+    public void Emit_BoundCheckbox_EmitsUpdatesAttributeNameForChecked()
+    {
+        var node = BoundInput(new BindTemplate(
+            "checked",
+            "onchange",
+            ExpressionTemplate.Literal("_agreed"),
+            ExpressionTemplate.Literal("BINDER")));
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"checked\");", generated);
+    }
+
+    [Fact]
     public void Emit_BoundElementWithOtherDecorations_NumbersBindFramesAfterThem()
     {
         var node = new ElementNode(
@@ -179,11 +214,11 @@ public sealed class RenderViewEmitterDecorationTests
             default,
             default)
         {
-            Bind = new BindTemplate(
+            Bindings = ImmutableArray.Create(new BindTemplate(
                 "value",
                 "oninput",
                 ExpressionTemplate.Literal("_name"),
-                ExpressionTemplate.Literal("BINDER")),
+                ExpressionTemplate.Literal("BINDER"))),
         };
 
         var generated = EmitRoot(node);
@@ -201,5 +236,57 @@ public sealed class RenderViewEmitterDecorationTests
         var generated = EmitRoot(Span(ExpressionTemplate.Literal("\"Hi\"")));
 
         Assert.DoesNotContain("SetUpdatesAttributeName", generated);
+    }
+
+    [Fact]
+    public void Emit_TwoBindings_EmitsBothPairsInSourceOrderWithOneUpdatesName()
+    {
+        var node = new ElementNode("input", default, default, default, default)
+        {
+            Bindings = ImmutableArray.Create(
+                new BindTemplate(
+                    "value", "oninput",
+                    ExpressionTemplate.Literal("_live"),
+                    ExpressionTemplate.Literal("LIVE_BINDER")),
+                new BindTemplate(
+                    "data-committed", "onchange",
+                    ExpressionTemplate.Literal("_committed"),
+                    ExpressionTemplate.Literal("COMMITTED_BINDER"))),
+        };
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.AddAttribute(1, \"value\", _live);", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"oninput\", LIVE_BINDER);", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"data-committed\", _committed);", generated);
+        Assert.Contains("__builder.AddAttribute(4, \"onchange\", COMMITTED_BINDER);", generated);
+
+        // A name is recorded for the first binding and none for the second: the emitter records one only
+        // when the bound attribute is "value" or "checked", the two the client can send back, and
+        // "data-committed" is neither. Nothing here says an element may record at most one name — an
+        // element carrying both "value" and "checked" would emit two calls, and the surface declines to
+        // diagnose that shape rather than ruling it out.
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+        Assert.DoesNotContain("SetUpdatesAttributeName(\"data-committed\")", generated);
+    }
+
+    [Fact]
+    public void Emit_TwoBindings_EmittedSequenceArguments_AreDense()
+    {
+        var node = new ElementNode(
+            "input",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("type", ExpressionTemplate.Literal("\"text\""))),
+            default,
+            default)
+        {
+            Bindings = ImmutableArray.Create(
+                new BindTemplate("value", "oninput",
+                    ExpressionTemplate.Literal("_live"), ExpressionTemplate.Literal("A")),
+                new BindTemplate("data-committed", "onchange",
+                    ExpressionTemplate.Literal("_committed"), ExpressionTemplate.Literal("B"))),
+        };
+
+        SequenceArguments.AssertDense(EmitRoot(node));
     }
 }

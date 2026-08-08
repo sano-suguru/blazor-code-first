@@ -537,29 +537,6 @@ internal static class DiagnosticDescriptors
                 + "such check available, which is why it makes the author write both names instead.");
 
     /// <summary>
-    /// BCF3021: More than one <c>.Bind</c> on one element. This surface binds at most one value per
-    /// element; nothing in Blazor requires that, so the narrowing is deliberate (issue #162).
-    /// </summary>
-    public static readonly DiagnosticDescriptor BCF3021 = new(
-        id: "BCF3021",
-        title: "Element is bound more than once",
-        messageFormat: "This element already binds '{0}'. This surface binds at most one value per "
-            + "element, so a second '.Bind' is rejected even when both of its names are free. Bind the "
-            + "second value on a different element, or write it as '.Attr' plus '.On'.",
-        category: "BlazorCodeFirst",
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true,
-        description:
-            "The one-binding-per-element rule is this surface's own, not Blazor's. "
-                + "SetUpdatesAttributeName records the resynchronized attribute name on the immediately "
-                + "preceding attribute frame rather than on the element, so two bindings on one element "
-                + "would each keep their own name: nothing is overwritten and no resynchronization is "
-                + "lost (measured). The surface narrows to one value per element and the model holds one "
-                + "binding per element to match. Whether to keep that narrowing is issue #162. It is not "
-                + "a duplicate name, so BCF3010 cannot express it: two '.Bind' calls naming entirely "
-                + "different attributes and events still collide here.");
-
-    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

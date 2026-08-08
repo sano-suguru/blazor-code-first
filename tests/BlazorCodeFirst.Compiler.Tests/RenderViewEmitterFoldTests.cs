@@ -243,4 +243,21 @@ public sealed class RenderViewEmitterFoldTests
         Assert.Contains("""__builder.AddMarkupContent(1, "<header><span>App</span></header>");""", emitted);
         Assert.Contains("""__builder.AddMarkupContent(2, "<span>x</span>");""", emitted);
     }
+
+    [Fact]
+    public void Fold_ElementWithTwoBindings_DoesNotFold()
+    {
+        var node = new ElementNode("input", default, default, default, default)
+        {
+            Bindings = ImmutableArray.Create(
+                new BindTemplate("value", "oninput",
+                    ExpressionTemplate.Literal("_live"), ExpressionTemplate.Literal("A")),
+                new BindTemplate("data-committed", "onchange",
+                    ExpressionTemplate.Literal("_committed"), ExpressionTemplate.Literal("B"))),
+        };
+
+        var emitted = EmitRoot(node);
+
+        Assert.DoesNotContain("AddMarkupContent", emitted);
+    }
 }

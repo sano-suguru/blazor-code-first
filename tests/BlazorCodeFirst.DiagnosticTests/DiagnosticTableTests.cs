@@ -66,6 +66,25 @@ public sealed class DiagnosticTableTests
     }
 
     [Fact]
+    public void RetiredIds_AreNeitherDeclaredNorDocumented()
+    {
+        var documented = AppendixA.DocumentedIds.ToImmutableHashSet(StringComparer.Ordinal);
+
+        var revived = DiagnosticExpectations.RetiredIds
+            .Where(entry => DeclaredDescriptors.Ids.Contains(entry.Id) || documented.Contains(entry.Id))
+            .Select(static entry => entry.Id)
+            .Order(StringComparer.Ordinal)
+            .ToImmutableArray();
+
+        Assert.True(
+            revived.IsEmpty,
+            $"These IDs were retired and must not be reused: {string.Join(", ", revived)}. " +
+            "付録B records why each was withdrawn. A retired number stays taken, so a new diagnostic " +
+            "takes the next number above every allocated and retired ID — `AnalyzerReleases.Unshipped.md` " +
+            "is not the whole picture, since a retired ID is listed in neither release file.");
+    }
+
+    [Fact]
     public void AppendixA_ListsEachDiagnosticOnce()
     {
         var repeated = AppendixA.DocumentedIds

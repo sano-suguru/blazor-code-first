@@ -22,16 +22,3 @@ public partial class Bcf3018Host : BodyComponentBase
 
     protected override View Body => Input.Bind("value", "oninput", () => Name);
 }
-
-/// <summary>
-/// BCF3021: two bindings on one element. Both names are free on both, so nothing here is a duplicate;
-/// what the surface rejects is the second binding itself, since it binds one value per element.
-/// </summary>
-public partial class Bcf3021Host : BodyComponentBase
-{
-    private string _first = "bcf3021";
-    private string _second = "bcf3021";
-
-    protected override View Body =>
-        Input.Bind("value", "oninput", () => _first).Bind("data-bcf3021", "onfocus", () => _second);
-}

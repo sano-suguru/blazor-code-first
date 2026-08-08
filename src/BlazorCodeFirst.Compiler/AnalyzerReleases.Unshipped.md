@@ -27,4 +27,3 @@ BCF3017 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3018 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3019 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3020 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
-BCF3021 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator

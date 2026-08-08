@@ -137,8 +137,10 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
-    public void Bind_TwiceOnOneElement_ReportsBcf3021()
+    public void Bind_TwiceOnOneElement_ReportsNothing()
     {
+        // BCF3021 rejected this until #162. SetUpdatesAttributeName records the resynchronized name on
+        // the event's own frame, so two bindings never collided; nothing broke, so nothing is reported.
         const string body = """
             private string _a = "";
             private string _b = "";
@@ -146,7 +148,36 @@ public sealed class HtmlBindDiagnosticTests
                 Html.Input.Bind("value", "oninput", () => _a).Bind("data-x", "onfocus", () => _b);
             """;
 
-        AssertDiagnostic(body, "BCF3021");
+        AssertNoDiagnostics(body);
+    }
+
+    [Fact]
+    public void Bind_TwiceOnOneAttributeName_ReportsBcf3010()
+    {
+        const string body = """
+            private string _a = "";
+            private string _b = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _a).Bind("value", "onchange", () => _b);
+            """;
+
+        AssertDiagnostic(body, "BCF3010");
+    }
+
+    [Fact]
+    public void Bind_TwiceOnOneEventName_ReportsBcf3010()
+    {
+        // The event channel half. Two bindings sharing an event name emit two frames under one name, of
+        // which the second wins, so the first binding's write-back is dead — the same duplicate BCF3010
+        // reports between an .Attr and an .On.
+        const string body = """
+            private string _a = "";
+            private string _b = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _a).Bind("data-x", "oninput", () => _b);
+            """;
+
+        AssertDiagnostic(body, "BCF3010");
     }
 
     [Fact]

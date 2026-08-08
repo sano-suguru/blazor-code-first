@@ -104,7 +104,7 @@ public static class DiagnosticExpectations
             "BCF3017",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bcf3017Bcf3018Bcf3021.cs",
+            "Bcf3017Bcf3018.cs",
             "() => { return _name; }",
             Note: "Anchors the whole getter argument rather than its body. What is wrong is the shape of " +
                 "the lambda, not anything inside it, and the fix rewrites the argument."),
@@ -112,19 +112,10 @@ public static class DiagnosticExpectations
             "BCF3018",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bcf3017Bcf3018Bcf3021.cs",
+            "Bcf3017Bcf3018.cs",
             "Name",
             Note: "Anchors the getter's body, which is the expression the message quotes and the one " +
                 "that has to change."),
-        // Two .Bind on the line; the second is the one the surface rejects, since it binds one value
-        // per element.
-        new(
-            "BCF3021",
-            FixtureKind.GeneratorViaProjectReference,
-            "error",
-            "Bcf3017Bcf3018Bcf3021.cs",
-            "Bind",
-            AnchorOccurrence.Last),
         new(
             "BCF3020",
             FixtureKind.GeneratorViaProjectReference,
@@ -164,6 +155,18 @@ public static class DiagnosticExpectations
         ("BCF2001",
             "The 付録A row is intentional: the Opaque path is specified but unimplemented, so the " +
             "descriptor lands with it (#57)."),
+    ];
+
+    /// <summary>
+    /// IDs that were implemented and then withdrawn. The number is retired, not freed: a reader who hits
+    /// the old error in a preview build and searches for it must not find a different rule wearing the
+    /// same name. <c>CONTRIBUTING.md</c>'s prohibition covers IDs listed in
+    /// <c>AnalyzerReleases.Shipped.md</c>, which is empty, so this is what enforces the decision.
+    /// 付録B records the withdrawal itself.
+    /// </summary>
+    public static ImmutableArray<(string Id, string Reason)> RetiredIds { get; } =
+    [
+        ("BCF3021", "One binding per element. Withdrawn in #162; the justification was false and no break stood behind the rule."),
     ];
 
     public static TheoryData<string> Ids
