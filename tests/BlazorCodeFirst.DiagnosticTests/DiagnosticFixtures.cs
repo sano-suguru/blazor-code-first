@@ -1,7 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Globalization;
-using System.Text;
 
 namespace BlazorCodeFirst.DiagnosticTests;
 
@@ -17,8 +14,6 @@ namespace BlazorCodeFirst.DiagnosticTests;
 /// </remarks>
 public sealed class DiagnosticFixtures
 {
-    private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(10);
-
     private readonly ConcurrentDictionary<string, Lazy<FixtureBuild>> _builds = new(StringComparer.Ordinal);
     private readonly Lazy<string> _packageDirectory;
 
@@ -88,7 +83,7 @@ public sealed class DiagnosticFixtures
             arguments.Add("-p:RestoreForce=true");
         }
 
-        var (_, output) = RunDotnet(arguments, projectDirectory);
+        var (_, output) = NestedDotnet.Run(arguments, projectDirectory);
 
         // The exit code is deliberately ignored: every fixture is expected to fail to build. A missing
         // log means the failure happened before csc ran (restore, a bad project file), which the raw
@@ -114,7 +109,7 @@ public sealed class DiagnosticFixtures
 
         Directory.CreateDirectory(packageDirectory);
 
-        var (exitCode, output) = RunDotnet(
+        var (exitCode, output) = NestedDotnet.Run(
             [
                 "pack",
                 Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"),
@@ -132,71 +127,6 @@ public sealed class DiagnosticFixtures
         return packageDirectory;
     }
 
-    private static (int ExitCode, string Output) RunDotnet(IReadOnlyList<string> arguments, string workingDirectory)
-    {
-        var startInfo = new ProcessStartInfo(RepoLayout.DotnetHost)
-        {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-
-        foreach (var argument in arguments)
-            startInfo.ArgumentList.Add(argument);
-
-        // MSBuild exports its own toolset paths to child processes. Inheriting them from the MSBuild
-        // run that started this test would point the nested build at the wrong SDK.
-        foreach (var variable in (string[])
-            [
-                "MSBuildSDKsPath",
-                "MSBuildExtensionsPath",
-                "MSBuildExtensionsPath32",
-                "MSBuildExtensionsPath64",
-                "MSBuildLoadMicrosoftTargetsReadOnly",
-                "MSBuildStartupDirectory",
-                "MSBUILD_EXE_PATH",
-            ])
-        {
-            startInfo.Environment.Remove(variable);
-        }
-
-        startInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
-        // Console output only ever appears inside assertion failures; keep it readable everywhere.
-        startInfo.Environment["DOTNET_CLI_UI_LANGUAGE"] = "en";
-
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start dotnet.");
-
-        var output = new StringBuilder();
-        process.OutputDataReceived += (_, e) => AppendLine(output, e.Data);
-        process.ErrorDataReceived += (_, e) => AppendLine(output, e.Data);
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-
-        if (!process.WaitForExit((int)BuildTimeout.TotalMilliseconds))
-        {
-            process.Kill(entireProcessTree: true);
-            throw new TimeoutException(
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"dotnet {string.Join(' ', arguments)} did not finish within {BuildTimeout}."));
-        }
-
-        // Flushes the asynchronous readers; the overload above returns before they are drained.
-        process.WaitForExit();
-
-        return (process.ExitCode, output.ToString());
-    }
-
-    private static void AppendLine(StringBuilder builder, string? line)
-    {
-        if (line is null)
-            return;
-
-        lock (builder)
-            builder.AppendLine(line);
-    }
 }
 
 /// <summary>
@@ -204,7 +134,9 @@ public sealed class DiagnosticFixtures
 /// packed package, so their builds must not overlap.
 /// </summary>
 [CollectionDefinition(Name)]
-public sealed class RealBuildDiagnostics : ICollectionFixture<DiagnosticFixtures>
+public sealed class RealBuildDiagnostics :
+    ICollectionFixture<DiagnosticFixtures>,
+    ICollectionFixture<RazorInteropFixtures>
 {
     public const string Name = "real-build diagnostics";
 }
