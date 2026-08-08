@@ -78,11 +78,10 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// author's own transplanted syntax, which may still contain unbound parameter holes from a
 /// <c>[Composable]</c> expansion.
 /// <para>
-/// An element carries at most one of these, because the surface binds at most one value per element.
-/// Blazor does not require that — <c>SetUpdatesAttributeName</c> writes to the immediately preceding
-/// attribute frame, so two bindings on one element would each keep their own resynchronized name
-/// (measured) — so this field is a single slot to match a deliberate narrowing, and BCF3021 rejects a
-/// second binding. Whether to keep the narrowing is issue #162.
+/// An element carries any number of these. <c>SetUpdatesAttributeName</c> writes to the immediately
+/// preceding attribute frame and <c>RenderTreeUpdater</c> reads it back from the event's own frame, so
+/// two bindings on one element each keep their own resynchronized name (measured, #162). BCF3021 once
+/// rejected the second on the grounds that they would collide; 付録B.5 records why that was withdrawn.
 /// </para>
 /// </remarks>
 internal sealed record BindTemplate(
@@ -98,8 +97,8 @@ internal sealed record ElementTemplateNode(
     EquatableArray<EventTemplate> Events = default,             // one frame each
     EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode
 {
-    /// <summary>The element's two-way binding, or null. Two frames: the attribute, then the event.</summary>
-    public BindTemplate? Bind { get; init; }
+    /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>
+    public EquatableArray<BindTemplate> Bindings { get; init; }
 }
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

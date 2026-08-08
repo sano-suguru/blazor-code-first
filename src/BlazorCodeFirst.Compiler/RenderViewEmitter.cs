@@ -330,7 +330,7 @@ internal static class RenderViewEmitter
                 $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
             next++;
         }
-        if (node.Bind is { } bind)
+        foreach (var bind in node.Bindings)
         {
             var attributeName =
                 global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.AttributeName, quote: true);

@@ -61,8 +61,8 @@ internal sealed record ElementNode(
     EquatableArray<EventTemplate> Events = default,
     EquatableArray<RenderNode> Children = default) : RenderNode
 {
-    /// <summary>The element's two-way binding, or null. Two frames: the attribute, then the event.</summary>
-    public BindTemplate? Bind { get; init; }
+    /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>
+    public EquatableArray<BindTemplate> Bindings { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>

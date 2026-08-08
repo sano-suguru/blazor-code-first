@@ -183,6 +183,16 @@ internal static class ComposableExpander
                     foreach (var e in element.Events.AsImmutableArray())
                         events.Add(new EventTemplate(e.Name, e.Handler.Substitute(substitution)));
 
+                    var bindings = ImmutableArray.CreateBuilder<BindTemplate>(element.Bindings.Length);
+                    foreach (var b in element.Bindings.AsImmutableArray())
+                    {
+                        bindings.Add(new BindTemplate(
+                            b.AttributeName,
+                            b.EventName,
+                            b.Value.Substitute(substitution),
+                            b.Binder.Substitute(substitution)));
+                    }
+
                     return new ElementNode(
                         element.Tag,
                         SubstituteClasses(element.Classes, substitution),
@@ -190,11 +200,7 @@ internal static class ComposableExpander
                         events.ToImmutable(),
                         children.ToImmutable())
                     {
-                        Bind = element.Bind is null ? null : new BindTemplate(
-                            element.Bind.AttributeName,
-                            element.Bind.EventName,
-                            element.Bind.Value.Substitute(substitution),
-                            element.Bind.Binder.Substitute(substitution)),
+                        Bindings = bindings.ToImmutable(),
                     };
                 }
 

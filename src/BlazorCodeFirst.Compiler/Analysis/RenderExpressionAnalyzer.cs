@@ -638,11 +638,11 @@ internal static class RenderExpressionAnalyzer
         // Before the duplicate-name check, because a second binding is the more specific complaint: it is
         // rejected even when both its names are free, since the surface binds one value per element (a
         // narrowing of its own, not something Blazor requires; issue #162).
-        if (element.Bind is { } existing)
+        if (element.Bindings.Length > 0)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3021, decoAccess.Name.GetLocation(), [existing.AttributeName]));
+                DiagnosticDescriptors.BCF3021, decoAccess.Name.GetLocation(), [element.Bindings[0].AttributeName]));
             return null;
         }
 
@@ -722,7 +722,11 @@ internal static class RenderExpressionAnalyzer
         var binder = BuildBinder(
             value, valueType.ToDisplayString(FullyQualifiedTypeName), setter, setterIsAsynchronous, context);
 
-        return element with { Bind = new BindTemplate(attrName!, eventName, value, binder) };
+        return element with
+        {
+            Bindings = element.Bindings.AsImmutableArray()
+                .Add(new BindTemplate(attrName!, eventName, value, binder)),
+        };
     }
 
     /// <summary>
@@ -1327,11 +1331,13 @@ internal static class RenderExpressionAnalyzer
                 return true;
         }
 
-        if (node.Bind is { } bind
-            && (string.Equals(bind.AttributeName, name, System.StringComparison.Ordinal)
-                || string.Equals(bind.EventName, name, System.StringComparison.Ordinal)))
+        foreach (var bind in node.Bindings)
         {
-            return true;
+            if (string.Equals(bind.AttributeName, name, System.StringComparison.Ordinal)
+                || string.Equals(bind.EventName, name, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
         }
 
         return false;

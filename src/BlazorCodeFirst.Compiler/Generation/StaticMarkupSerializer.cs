@@ -231,7 +231,7 @@ internal static class StaticMarkupSerializer
         // Its value is never a compile-time constant either, being a field or property read, but that is
         // not what disqualifies it: folding here would drop the binding silently and leave a plain
         // attribute behind, which is the one failure this predicate must not be able to produce.
-        if (element.Bind is not null)
+        if (element.Bindings.Length > 0)
             return false;
 
         // The class channel folds by concatenation, so it needs a constant string and nothing else will

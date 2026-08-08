@@ -140,7 +140,7 @@ public sealed class RenderViewEmitterDecorationTests
     }
 
     private static ElementNode BoundInput(BindTemplate bind) =>
-        new("input", default, default, default, default) { Bind = bind };
+        new("input", default, default, default, default) { Bindings = ImmutableArray.Create(bind) };
 
     [Fact]
     public void Emit_BoundElement_EmitsValueThenBinderThenUpdatesName()
@@ -214,11 +214,11 @@ public sealed class RenderViewEmitterDecorationTests
             default,
             default)
         {
-            Bind = new BindTemplate(
+            Bindings = ImmutableArray.Create(new BindTemplate(
                 "value",
                 "oninput",
                 ExpressionTemplate.Literal("_name"),
-                ExpressionTemplate.Literal("BINDER")),
+                ExpressionTemplate.Literal("BINDER"))),
         };
 
         var generated = EmitRoot(node);
