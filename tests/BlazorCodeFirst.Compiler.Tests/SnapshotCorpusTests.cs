@@ -89,6 +89,12 @@ public sealed class SnapshotCorpusTests
             ["element-generic-event"] = Host(
                 """Div.On("onmouseenter", () => _count++)[Span["a"]]""",
                 """private int _count;"""),
+            ["element-two-bindings"] = Host(
+                """Input.Bind("value", "oninput", () => _live).Bind("data-committed", "onchange", () => _committed)""",
+                """
+                private string _live = "";
+                private string _committed = "";
+                """),
             ["element-custom-tag"] = Host("""Element("custom-tag")["slotted"]"""),
             ["element-nested-mixed-content"] = Host(
                 """Div.Class("shell")[Span[$"Count: {_count}"], "bare text", Button.OnClick(() => _count++)["Go"]]""",
