@@ -152,7 +152,11 @@ internal static class ComposableExpander
                         if (content is null)
                             return null;
 
-                        slots.Add(new ComponentSlotNode(slot.Name, content));
+                        slots.Add(new ComponentSlotNode(slot.Name, content)
+                        {
+                            Kind = slot.Kind,
+                            ContextTypeName = slot.ContextTypeName,
+                        });
                     }
 
                     return new ComponentNode(

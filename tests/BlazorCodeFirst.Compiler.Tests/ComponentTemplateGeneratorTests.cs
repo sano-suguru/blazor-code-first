@@ -15,6 +15,33 @@ public sealed class ComponentTemplateGeneratorTests
         """;
 
     [Fact]
+    public void ContextIgnoredTemplate_IsLoweredThroughTypedComponentSlot()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, Div["x"]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("__builder.OpenComponent<global::T.TemplateTarget>(0);", code);
+        Assert.Contains(
+            "__builder.AddComponentParameter(1, \"RowTemplate\", " +
+                "(global::Microsoft.AspNetCore.Components.RenderFragment<global::System.Int32>)((_) => (__builder) =>",
+            code);
+        Assert.Contains("__builder.AddMarkupContent(2, \"<div>x</div>\");", code);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void Template_OverloadsCompileWithoutCSharpErrors()
     {
         const string host = """

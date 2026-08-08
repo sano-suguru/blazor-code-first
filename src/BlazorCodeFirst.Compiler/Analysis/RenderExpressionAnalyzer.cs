@@ -317,17 +317,15 @@ internal static class RenderExpressionAnalyzer
             return new FragmentTemplateNode(children.Value);
         }
 
-        bool isScalarParam =
-            SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod);
-        bool isFragmentParam = symbols.FragmentParamMethod is not null
-            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.FragmentParamMethod);
+        var componentParameterKind = symbols.ClassifyComponentParameterMethod(method);
         bool isComponentBind = Contains(symbols.ComponentBindMethods, method.OriginalDefinition);
-        if (isScalarParam || isFragmentParam || isComponentBind)
+        if (componentParameterKind != ComponentParameterMethodKind.None || isComponentBind)
         {
-            // Chained: <ComponentView<T> receiver>.Param(selector, value), or .Bind(selector, get[, set]).
-            // Recurse into the receiver to reach the base Component<T>() (or an inner .Param), then append
-            // this parameter in source order. Both spellings share everything up to the selected property:
-            // they take the same selector in the same position and answer to the same three rules about it.
+            // Chained: <ComponentView<T> receiver>.Param/Template(selector, value), or
+            // .Bind(selector, get[, set]). Recurse into the receiver to reach the base Component<T>() (or
+            // an inner parameter call), then append this binding in source order. All spellings share
+            // everything up to the selected property: they take the same selector in the same position
+            // and answer to the same three rules about it.
             if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
                 || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
             {
@@ -380,7 +378,7 @@ internal static class RenderExpressionAnalyzer
 
             var valueExpression = valueArg.Expression;
 
-            if (isFragmentParam)
+            if (componentParameterKind == ComponentParameterMethodKind.FragmentParam)
             {
                 var slotContent = Analyze(valueExpression, context);
                 if (slotContent is null)
@@ -391,7 +389,35 @@ internal static class RenderExpressionAnalyzer
                 return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
             }
 
-            if (isScalarParam && IsInertDesignTimeType(
+            if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateIgnored)
+            {
+                if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
+                    || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
+                    || !SymbolEqualityComparer.Default.Equals(
+                        genericFragment.OriginalDefinition, renderFragmentGenericType))
+                {
+                    return null;
+                }
+
+                var slotContent = Analyze(valueExpression, context);
+                if (slotContent is null)
+                    return null;
+
+                var contextTypeName = genericFragment.TypeArguments[0]
+                    .ToDisplayString(FullyQualifiedTypeName);
+                var appendedSlots = inner.Slots.AsImmutableArray()
+                    .Add(new ComponentSlot(property.Name, slotContent)
+                    {
+                        Kind = ComponentSlotKind.GenericContextIgnored,
+                        ContextTypeName = contextTypeName,
+                    });
+                return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+            }
+
+            if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateContextual)
+                return null;
+
+            if (componentParameterKind == ComponentParameterMethodKind.ScalarParam && IsInertDesignTimeType(
                     context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
                     context))
             {

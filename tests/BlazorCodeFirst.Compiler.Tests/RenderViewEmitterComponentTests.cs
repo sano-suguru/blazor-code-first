@@ -70,6 +70,33 @@ public sealed class RenderViewEmitterComponentTests
     }
 
     [Fact]
+    public void Emit_ComponentWithContextIgnoredGenericSlot_EmitsTypedOuterAndInnerFragmentLambdas()
+    {
+        var node = new ComponentNode(
+            "global::MyApp.Grid",
+            ImmutableArray.Create(new ComponentParameter("Dense", ExpressionTemplate.Literal("true"))),
+            ImmutableArray.Create(
+                new ComponentSlotNode(
+                    "RowTemplate",
+                    new TextContentNode(ExpressionTemplate.Literal("\"x\"")))
+                {
+                    Kind = ComponentSlotKind.GenericContextIgnored,
+                    ContextTypeName = "global::System.Int32",
+                }));
+
+        var generated = RenderViewEmitter.Emit(
+            new ComponentModel("T.g.cs", "T", default, null, node)).ToString();
+
+        Assert.Contains(
+            "__builder.AddComponentParameter(2, \"RowTemplate\", " +
+                "(global::Microsoft.AspNetCore.Components.RenderFragment<global::System.Int32>)" +
+                "((_) => (__builder) =>",
+            generated);
+        Assert.Contains("__builder.AddContent(3, \"x\");", generated);
+        SequenceArguments.AssertDense(generated);
+    }
+
+    [Fact]
     public void Emit_ComponentWithSlotAndFollowingSibling_GivesSiblingThePostSlotSequence()
     {
         var component = new ComponentNode(

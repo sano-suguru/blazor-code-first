@@ -48,13 +48,24 @@ internal sealed record ForEachTemplateNode(
     RenderTemplateNode Content,
     TemplateLocation Location) : RenderTemplateNode;
 
+internal enum ComponentSlotKind
+{
+    NonGeneric,
+    GenericContextIgnored,
+    GenericContextual,
+}
+
 /// <summary>
 /// A RenderFragment-typed component parameter whose value is BlazorCodeFirst content rather than an expression.
 /// Kept in a channel separate from <see cref="ComponentParameter"/> because the content is a node tree:
 /// it takes part in hole substitution, sequence allocation, and [Composable] expansion, none of which are
 /// defined over <see cref="ExpressionTemplate"/>.
 /// </summary>
-internal sealed record ComponentSlot(string Name, RenderTemplateNode Content);
+internal sealed record ComponentSlot(string Name, RenderTemplateNode Content)
+{
+    public ComponentSlotKind Kind { get; init; }
+    public string? ContextTypeName { get; init; }
+}
 
 internal sealed record ComponentTemplateNode(
     string TypeName,
