@@ -104,7 +104,7 @@ public static class DiagnosticExpectations
             "BCF3017",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bcf3017Bcf3018Bcf3021.cs",
+            "Bcf3017Bcf3018.cs",
             "() => { return _name; }",
             Note: "Anchors the whole getter argument rather than its body. What is wrong is the shape of " +
                 "the lambda, not anything inside it, and the fix rewrites the argument."),
@@ -112,19 +112,10 @@ public static class DiagnosticExpectations
             "BCF3018",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bcf3017Bcf3018Bcf3021.cs",
+            "Bcf3017Bcf3018.cs",
             "Name",
             Note: "Anchors the getter's body, which is the expression the message quotes and the one " +
                 "that has to change."),
-        // Two .Bind on the line; the second is the one the surface rejects, since it binds one value
-        // per element.
-        new(
-            "BCF3021",
-            FixtureKind.GeneratorViaProjectReference,
-            "error",
-            "Bcf3017Bcf3018Bcf3021.cs",
-            "Bind",
-            AnchorOccurrence.Last),
         new(
             "BCF3020",
             FixtureKind.GeneratorViaProjectReference,

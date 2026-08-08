@@ -635,17 +635,6 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // Before the duplicate-name check, because a second binding is the more specific complaint: it is
-        // rejected even when both its names are free, since the surface binds one value per element (a
-        // narrowing of its own, not something Blazor requires; issue #162).
-        if (element.Bindings.Length > 0)
-        {
-            context.RejectUnresolvedValueRecovery(invocation.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3021, decoAccess.Name.GetLocation(), [element.Bindings[0].AttributeName]));
-            return null;
-        }
-
         // Both names, because a binding occupies both channels: the attribute frame and the event frame
         // are as much duplicates of an .Attr and an .On as those two are of each other.
         var duplicate =
