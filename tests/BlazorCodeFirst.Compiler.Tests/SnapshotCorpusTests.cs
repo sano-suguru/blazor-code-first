@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These 27 baselines were captured on the pre-#87 method surface and reproduced unchanged when every input
+/// These 28 baselines were captured on the pre-#87 method surface and reproduced unchanged when every input
 /// here was re-spelled to the bracket form. That is what makes them a safety net rather than a restatement
 /// of current behaviour: a baseline is evidence about a surface that no longer exists in the tree. Re-record
 /// them only with a reason written down; <c>BLAZORCODEFIRST_UPDATE_SNAPSHOTS</c> will overwrite that evidence in
@@ -25,7 +25,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// make a baseline agree.
 /// </para>
 /// <para>
-/// One of the 27, <c>component-generic-templates</c>, was added afterwards rather than captured on the pre-#87
+/// One of the 28, <c>component-generic-templates</c>, was added afterwards rather than captured on the pre-#87
 /// surface: the <c>.Template</c> channel did not exist then. It is a baseline of current behaviour, so it
 /// carries none of the migration evidence the others do; what it pins is the emitted shape of both overloads,
 /// including the generated context parameter name that the contextual form's holes refer to.

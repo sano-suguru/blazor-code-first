@@ -795,7 +795,7 @@ internal static class RenderExpressionAnalyzer
     /// appending the two or three component parameters the binding lowers to, or reports why it cannot be.
     /// </summary>
     /// <param name="property">The parameter the selector resolved to, already checked by the shared
-    /// <c>.Param</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
+    /// <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
     /// <param name="getterArg">The getter argument, already required non-<see langword="null"/> by the same
     /// shared prologue (as <c>valueArg</c>); passed through rather than re-derived from <paramref
     /// name="args"/>.</param>
@@ -819,8 +819,9 @@ internal static class RenderExpressionAnalyzer
     /// remarks give.
     /// </para>
     /// <para>
-    /// The duplicate check the shared <c>.Param</c> prologue runs (see the caller) spans <c>{name}</c> and,
-    /// via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but not <c>{name}Expression</c>. So
+    /// The duplicate check the shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue runs (see the
+    /// caller) spans <c>{name}</c> and, via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but
+    /// not <c>{name}Expression</c>. So
     /// <c>.Param(c =&gt; c.ValueExpression, …).Bind(c =&gt; c.Value, …)</c>, written in that order, does not
     /// become BCF3007: both calls append a <c>ValueExpression</c> parameter frame, and the later one silently
     /// wins. The reverse order is caught, because then it is the <c>.Param</c> arm's own duplicate check that

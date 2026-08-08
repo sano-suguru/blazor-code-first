@@ -110,9 +110,9 @@ protected override View Body =>
 
 That second example needs one caveat, or the badge will never change. `IsModified()` is read when the
 template runs, and nothing in the `EditForm` / `CascadingValue` chain re-renders on `OnFieldChanged`.
-Typing into a field does notify the `EditContext`, but the notification reaches whichever component
-owns that input's binding — here `NameFields` — and not the component holding the template, so the
-badge keeps the text it was first rendered with. This is Blazor's render propagation, not a limit on
+Typing into a field does notify the `EditContext`, but with nothing subscribed to that notification
+the component holding the template never re-renders, so the badge keeps the text it was first
+rendered with. This is Blazor's render propagation, not a limit on
 the context the template receives: the template is handed the live `EditContext` every time it runs.
 
 So if a template reads context state that changes, the component owning the form has to re-render
@@ -123,8 +123,12 @@ itself. Construct the `EditContext` rather than letting `Model` create it, subsc
 public ContextReadingForm()
 {
     _editContext = new EditContext(_model);
-    _editContext.OnFieldChanged += (_, _) => StateHasChanged();
+    _editContext.OnFieldChanged += OnFieldChanged;
 }
+
+private void OnFieldChanged(object? sender, FieldChangedEventArgs e) => StateHasChanged();
+
+public void Dispose() => _editContext.OnFieldChanged -= OnFieldChanged;
 
 // ...then pass .Param(form => form.EditContext, _editContext) instead of .Param(form => form.Model, …)
 ```

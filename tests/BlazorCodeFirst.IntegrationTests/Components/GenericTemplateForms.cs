@@ -36,8 +36,9 @@ public partial class ContextIgnoringTemplateForm : BodyComponentBase
 /// <para>
 /// The rerender button sits outside the <see cref="EditForm"/> on purpose. Clicking it re-runs this component's
 /// generated <c>RenderView</c>, which hands <see cref="EditForm"/> a freshly allocated template delegate; the
-/// form therefore re-renders its child content while keeping the <see cref="EditContext"/> it already had. That
-/// is the case a template that captured its context once, instead of receiving it per invocation, would fail.
+/// form therefore re-renders its child content while keeping the <see cref="EditContext"/> it already had. What
+/// that shows is that the template reads live context state across re-renders: the span is recomputed from the
+/// context on every run rather than frozen at whatever the first render produced.
 /// </para>
 /// <para>
 /// The <see cref="EditContext"/> is constructed here rather than left to <c>EditForm.Model</c> because nothing

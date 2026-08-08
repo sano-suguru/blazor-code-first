@@ -81,8 +81,9 @@ Available today:
   bare strings and `View`s in the same list; a Blazor `RenderFragment` is also a child, which is how
   Razor-supplied content flows in.
 - Decorations: `.Class` (folding), the `.Href` `.Src` `.Alt` `.Id` `.Type` `.Title` `.Role`
-  shortcuts, generic `.Attr(name, string)` and `.Attr(name, bool)`, and `.OnClick` /
-  `.On(eventName, …)` / `.On<TArgs>(eventName, …)` with `Action` or `Func<Task>` handlers.
+  shortcuts, generic `.Attr(name, string)` and `.Attr(name, bool)`, and events: `.OnClick` and
+  `.On(eventName, …)` take `Action` or `Func<Task>` handlers, `.On<TArgs>(eventName, …)` takes
+  `Action<TArgs>` or `Func<TArgs, Task>`.
 - Control flow: `If(condition, then, otherwise)` and keyed `ForEach(source, key, content)`.
 - Razor interop in both directions: `Component<T>()` with `.Param(…)`, `.Template(…)` and child
   content renders an existing Razor component, and a BlazorCodeFirst component is an ordinary
