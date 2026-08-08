@@ -117,4 +117,41 @@ public sealed class BindRenderingTests : BunitContext
         // change for this outcome.
         Assert.Equal("", cut.Instance.Name);
     }
+
+    [Fact]
+    public void TwoBoundInputs_OnInput_WritesOnlyTheFirstField()
+    {
+        var cut = Render<TwoBoundInputs>();
+
+        cut.Find("input").Input("typed");
+
+        Assert.Equal("typed", cut.Instance.Live);
+        Assert.Equal("", cut.Instance.Committed);
+    }
+
+    [Fact]
+    public void TwoBoundInputs_OnChange_WritesOnlyTheSecondField()
+    {
+        var cut = Render<TwoBoundInputs>();
+
+        cut.Find("input").Change("committed");
+
+        Assert.Equal("committed", cut.Instance.Committed);
+        Assert.Equal("", cut.Instance.Live);
+    }
+
+    [Fact]
+    public void TwoBoundInputs_BothEvents_LeaveBothFieldsIntact()
+    {
+        // The handler IDs are assigned per event frame. If the second binding's binder were wired to the
+        // first frame, or the two shared one ID, one of these writes would land in the wrong field —
+        // which no frame-level assertion can see.
+        var cut = Render<TwoBoundInputs>();
+
+        cut.Find("input").Input("live");
+        cut.Find("input").Change("done");
+
+        Assert.Equal("live", cut.Instance.Live);
+        Assert.Equal("done", cut.Instance.Committed);
+    }
 }
