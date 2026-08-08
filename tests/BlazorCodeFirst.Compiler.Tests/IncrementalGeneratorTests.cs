@@ -821,8 +821,14 @@ public sealed class IncrementalGeneratorTests
             namespace T;
             public partial class Host : BodyComponentBase
             {
-                protected override View Body =>
-                    Component<Target>().Template(c => c.RowTemplate, context => Span[context.ToString()]);
+                protected override View Body => Build();
+
+                [Composable]
+                private static View Build() =>
+                    Div[Fragment(If(true, () =>
+                        Component<Target>().Template(
+                            c => c.RowTemplate,
+                            context => Span[context.ToString()])))];
             }
             """;
 
@@ -837,8 +843,8 @@ public sealed class IncrementalGeneratorTests
         var contextualOutputs = driver.GetRunResult().Results[0].TrackedSteps["ComponentModeling"]
             .SelectMany(static step => step.Outputs)
             .Where(static output =>
-                output.Value is ComponentModelResult { Model.RootNode: ComponentNode component }
-                && component.Slots.Any(static slot => slot.Kind == ComponentSlotKind.GenericContextual))
+                output.Value is ComponentModelResult { Model.RootNode: { } root }
+                && ContainsContextualSlot(root))
             .ToImmutableArray();
 
         Assert.NotEmpty(contextualOutputs);
@@ -864,6 +870,22 @@ public sealed class IncrementalGeneratorTests
             driverOptions: new GeneratorDriverOptions(
                 disabledOutputs: default,
                 trackIncrementalGeneratorSteps: true));
+
+    private static bool ContainsContextualSlot(RenderNode node) =>
+        node switch
+        {
+            ComponentNode component => component.Slots.Any(static slot =>
+                slot.Kind == ComponentSlotKind.GenericContextual
+                || ContainsContextualSlot(slot.Content)),
+            ElementNode element => element.Children.Any(ContainsContextualSlot),
+            FragmentNode fragment => fragment.Children.Any(ContainsContextualSlot),
+            IfNode conditional => ContainsContextualSlot(conditional.Then)
+                || conditional.Otherwise is not null
+                && ContainsContextualSlot(conditional.Otherwise),
+            ForEachNode forEach => ContainsContextualSlot(forEach.Content),
+            ExpansionNode expansion => ContainsContextualSlot(expansion.Body),
+            _ => false,
+        };
 
     /// <summary>
     /// A component that translates cleanly must stay cached when an edit shifts its absolute offsets

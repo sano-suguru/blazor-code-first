@@ -1,5 +1,6 @@
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -23,6 +24,7 @@ public sealed class ComponentTemplateGeneratorTests
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
             namespace T;
+
             public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
@@ -254,6 +256,149 @@ public sealed class ComponentTemplateGeneratorTests
     }
 
     [Fact]
+    public void ContextualTemplate_NestedLambdaParameterCannotCaptureGeneratedContextName()
+    {
+        const string host = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Span[$"{((Func<int, int>)(__bcf_context_1 =>
+                            context + __bcf_context_1))(0)}"]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        CompilationTestHost.AssertOutputCompiles(result);
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("((__bcf_context_1) => (__builder) =>", code);
+        Assert.Contains("__bcf_authored_context_0 =>", code);
+        Assert.Contains("__bcf_context_1 + __bcf_authored_context_0", code);
+        Assert.DoesNotContain("__bcf_context_1 =>", code);
+        AssertGeneratedContextReferencesBindOuterParameter(result, "__bcf_context_1");
+    }
+
+    [Fact]
+    public void ContextualTemplate_ComposableExpansionKeepsNestedLambdaBindingHygienic()
+    {
+        const string host = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+
+            public static class OffsetExtensions
+            {
+                public static int Twice(this int value) => value * 2;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        AddOffset(context));
+
+                [Composable]
+                private static View AddOffset(int value) =>
+                    Span[$"{((Func<int, int>)(__bcf_context_1 =>
+                        value + __bcf_context_1.Twice()))(0)}"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        CompilationTestHost.AssertOutputCompiles(result);
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("int __bcf_arg_1_0 = __bcf_context_1;", code);
+        Assert.Contains("__bcf_authored_context_0 =>", code);
+        Assert.Contains(
+            "__bcf_arg_1_0 + global::T.OffsetExtensions.Twice(__bcf_authored_context_0)",
+            code);
+        Assert.DoesNotContain("__bcf_context_1 =>", code);
+        AssertGeneratedContextReferencesBindOuterParameter(result, "__bcf_context_1");
+    }
+
+    [Fact]
+    public void ContextualTemplate_NestedLocalAndPatternDeclarationsCannotCaptureGeneratedContextName()
+    {
+        const string host = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Div[
+                            Span[$"{((Func<int>)(() =>
+                            {
+                                var __bcf_context_1 = 1;
+                                return context + __bcf_context_1;
+                            }))()}"],
+                            Span[$"{(0 is int __bcf_context_1
+                                ? context + __bcf_context_1
+                                : context)}"]]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        CompilationTestHost.AssertOutputCompiles(result);
+        var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host"));
+        var root = generated.SyntaxTree.GetRoot();
+        var localName = root.DescendantNodes().OfType<VariableDeclaratorSyntax>()
+            .Single(variable => variable.Initializer?.Value.ToString() == "1")
+            .Identifier.ValueText;
+        var patternName = root.DescendantNodes().OfType<SingleVariableDesignationSyntax>()
+            .Single()
+            .Identifier.ValueText;
+
+        Assert.StartsWith("__bcf_authored_context_", localName, System.StringComparison.Ordinal);
+        Assert.StartsWith("__bcf_authored_context_", patternName, System.StringComparison.Ordinal);
+        AssertGeneratedContextReferencesBindOuterParameter(result, "__bcf_context_1");
+    }
+
+    [Fact]
+    public void ContextualTemplate_HygieneRenameAvoidsExistingAuthorIdentifier()
+    {
+        const string host = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                private readonly int __bcf_authored_context_0 = 10;
+
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Span[$"{((Func<int, int>)(__bcf_context_1 =>
+                            context + __bcf_context_1 + __bcf_authored_context_0))(0)}"]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        CompilationTestHost.AssertOutputCompiles(result);
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("__bcf_authored_context_0_1 =>", code);
+        Assert.Contains(
+            "__bcf_context_1 + __bcf_authored_context_0_1 + __bcf_authored_context_0",
+            code);
+        AssertGeneratedContextReferencesBindOuterParameter(result, "__bcf_context_1");
+    }
+
+    [Fact]
     public void Template_OverloadsCompileWithoutCSharpErrors()
     {
         const string host = """
@@ -314,5 +459,34 @@ public sealed class ComponentTemplateGeneratorTests
                 + "(global::Microsoft.AspNetCore.Components.RenderFragment<int>?)null);",
             generated);
         Assert.Contains("__builder.AddComponentParameter(9, \"RowTemplate\", _fragment);", generated);
+    }
+
+    private static void AssertGeneratedContextReferencesBindOuterParameter(
+        GeneratorRunResult result,
+        string contextName)
+    {
+        var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host"));
+        var tree = generated.SyntaxTree;
+        var semanticModel = result.OutputCompilation.GetSemanticModel(tree);
+        var contextualLambda = tree.GetRoot().DescendantNodes()
+            .OfType<ParenthesizedLambdaExpressionSyntax>()
+            .Single(lambda =>
+                lambda.ParameterList.Parameters is [{ Identifier.ValueText: var name }]
+                && name == contextName);
+        var contextSymbol = semanticModel.GetDeclaredSymbol(
+            contextualLambda.ParameterList.Parameters[0])!;
+        var references = contextualLambda.Body.DescendantNodesAndSelf()
+            .OfType<IdentifierNameSyntax>()
+            .Where(identifier => identifier.Identifier.ValueText == contextName)
+            .ToArray();
+
+        Assert.NotEmpty(references);
+        Assert.All(
+            references,
+            reference => Assert.True(
+                SymbolEqualityComparer.Default.Equals(
+                    contextSymbol,
+                    semanticModel.GetSymbolInfo(reference).Symbol),
+                $"Generated reference '{reference}' did not bind to the outer contextual parameter."));
     }
 }
