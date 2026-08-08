@@ -142,6 +142,8 @@ static BlazorCodeFirst.Html.If(bool condition, System.Func<BlazorCodeFirst.View>
 static BlazorCodeFirst.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.Component<TComponent>() -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Template<TContext>(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Template<TContext>(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?>! selector, System.Func<TContext, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ElementBuilder
 BlazorCodeFirst.ElementBuilder.ElementBuilder() -> void
 BlazorCodeFirst.ElementBuilder.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
