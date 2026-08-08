@@ -157,4 +157,41 @@ public sealed class EquatableArrayTests
 
         Assert.NotEqual(left, right);
     }
+
+    [Fact]
+    public void GenericSlot_PrimitiveFieldsParticipateInValueEquality()
+    {
+        static ComponentSlot Build(string contextTypeName) =>
+            new ComponentSlot(
+                "RowTemplate",
+                new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\"")))
+            {
+                Kind = ComponentSlotKind.GenericContextIgnored,
+                ContextTypeName = contextTypeName,
+            };
+
+        var left = Build("global::System.Int32");
+        var equal = Build("global::System.Int32");
+        var different = Build("global::System.String");
+
+        static ComponentSlotNode BuildExpanded(string contextTypeName) =>
+            new ComponentSlotNode(
+                "RowTemplate",
+                new TextContentNode(ExpressionTemplate.Literal("\"x\"")))
+            {
+                Kind = ComponentSlotKind.GenericContextIgnored,
+                ContextTypeName = contextTypeName,
+            };
+
+        var expandedLeft = BuildExpanded("global::System.Int32");
+        var expandedEqual = BuildExpanded("global::System.Int32");
+        var expandedDifferent = BuildExpanded("global::System.String");
+
+        Assert.Equal(left, equal);
+        Assert.Equal(left.GetHashCode(), equal.GetHashCode());
+        Assert.NotEqual(left, different);
+        Assert.Equal(expandedLeft, expandedEqual);
+        Assert.Equal(expandedLeft.GetHashCode(), expandedEqual.GetHashCode());
+        Assert.NotEqual(expandedLeft, expandedDifferent);
+    }
 }

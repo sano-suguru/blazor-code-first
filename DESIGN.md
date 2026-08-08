@@ -328,8 +328,57 @@ protected override View Body =>
 ```
 
 `T` が `ChildContent`(settable な `[Parameter]`、型は非ジェネリックの `RenderFragment`)を持たない場合は
-BCF3013 です。`RenderFragment<TContext>` は受け取れません。生成されるラムダは非ジェネリックであり、
-実行時にキャスト失敗となるためです。同じパラメータを children と `.Param` の両方で与えると BCF3007 です。
+BCF3013 です。この規則は変わっていません。`[...]` が `RenderFragment<TContext>` を受け取ることはできず、
+children から生成されるラムダは非ジェネリックで、実行時にキャスト失敗となるためです。同じパラメータを
+children と `.Param` の両方で与えると BCF3007 です。
+
+ジェネリックなフラグメントは括弧ではなく `.Template` で名前を指して渡します。綴りは2つあり、コンテキストを
+使わない側は `View` をそのまま渡して、コンテキストを捨てる外側のラムダを生成側が補います。コンテキストを
+読む側はインラインの式ラムダで名前を与えます。`EditForm.ChildContent`(`RenderFragment<EditContext>`)が
+その代表例です。
+
+```csharp
+// コンテキストを使わない
+Component<EditForm>()
+    .Param(form => form.Model, _model)
+    .Template(form => form.ChildContent,
+        Component<NameFields>().Param(fields => fields.Value, _model))
+
+// コンテキストを読む
+Component<EditForm>()
+    .Param(form => form.Model, _model)
+    .Template(form => form.ChildContent, editContext =>
+        Fragment(
+            Span[editContext.IsModified() ? "変更あり" : "変更なし"],
+            Component<NameFields>().Param(fields => fields.Value, _model)))
+```
+
+後者の例には注意が要ります。`IsModified()` はテンプレートが走った時点の値を読みますが、`EditForm` と
+その下の `CascadingValue` は `OnFieldChanged` で再描画しません。フィールドへの入力は `EditContext` へ
+通知されるものの、その通知を購読しているものが無く、テンプレートを抱えるコンポーネントは再描画されない
+ため、上の表示は最初に描かれたままになります。これはBlazorの
+再描画の伝播の話であり、テンプレートが受け取るコンテキストの制限ではありません。テンプレートは走るたびに
+生きた `EditContext` を渡されます(実測)。
+
+したがって、変化するコンテキストの状態をテンプレートが読むなら、フォームを抱えるコンポーネント自身が
+再描画する必要があります。`Model` に作らせるのではなく `EditContext` を自分で構築し、`OnFieldChanged` を
+購読して `StateHasChanged` を呼び、`Dispose` で解除します(`.Param(form => form.Model, _model)` の代わりに
+`.Param(form => form.EditContext, _editContext)` を渡す形になります)。動く例は
+`tests/BlazorCodeFirst.IntegrationTests/Components/GenericTemplateForms.cs` の
+`ContextReadingTemplateForm` です。コンテキストを使わないテンプレートや、フォームが開いている間に変化しない
+状態しか読まないテンプレートには、この手当ては要りません。
+
+第2引数はインラインの式ラムダでなければならず、メソッドグループや変数に入れたデリゲートを渡すと BCF3022 です。
+生成コードへ移植するのはラムダ本体の構文であり、宣言の見えないデリゲートには移植すべき構文が無いためです。
+`.Param` / `.Template` / コンポーネントの `.Bind` は、対象の選び方と対象パラメータについて同じ3つの診断
+(BCF3005 / BCF3006 / BCF3007)に従います。
+
+すでに `RenderFragment<TContext>` の**値**を持っている場合は、`.Template` ではなくスカラーの `.Param` へ
+そのまま渡します。両者は同じパラメータへ届きますが、デリゲートの同一性が異なります。`.Template` の内容が
+状態を読めばラムダは捕捉を持ち、レンダーごとに新しいデリゲートになるため、受け取り側はパラメータが変化した
+ものとして子コンテンツを描き直します(何も捕捉しないラムダはC#コンパイラがデリゲートをキャッシュします)。
+呼び出し側が1つのデリゲートを保持して `.Param` で渡せば参照が安定し、この描き直しは起きません。どちらを
+選ぶかは、この同一性を作者が持ちたいかどうかで決まります。
 
 ---
 

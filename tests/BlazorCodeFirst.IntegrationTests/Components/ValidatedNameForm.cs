@@ -39,8 +39,11 @@ public sealed class NameModel
 /// <c>Component&lt;EditForm&gt;()[…]</c> reports BCF3013 (measured). The fields therefore go through
 /// <c>.Param</c> with the fragment written out by hand — the one thing here that is not the surface
 /// under test, and kept to rendering <see cref="NameFields"/> and nothing else, so everything the
-/// assertions look at is still generated from a BlazorCodeFirst <c>Body</c>. Closing that gap is
-/// issue #161; until then this file is the shape to copy for an <c>EditForm</c>.
+/// assertions look at is still generated from a BlazorCodeFirst <c>Body</c>. #161 closed that gap with
+/// <c>.Template</c>, so this is no longer the shape to copy for an <c>EditForm</c> — see
+/// <see cref="ContextIgnoringTemplateForm"/> for the one that is. It stays here as the regression
+/// fixture for a caller-owned cached <c>RenderFragment&lt;EditContext&gt;</c> through the scalar
+/// <c>.Param</c>, which remains the way to give the parameter a stable delegate identity.
 /// </remarks>
 public partial class ValidatedNameForm : BodyComponentBase
 {

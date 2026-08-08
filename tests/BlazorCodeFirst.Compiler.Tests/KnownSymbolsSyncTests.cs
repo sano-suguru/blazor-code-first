@@ -438,16 +438,26 @@ public sealed class KnownSymbolsSyncTests
     }
 
     [Fact]
-    public void Param_BothOverloads_AreResolvedSeparately()
+    public void ComponentParameterMethods_AllFourStructuralShapesAreResolvedSeparately()
     {
         var (symbols, _) = ResolveHtml();
+        Assert.NotNull(symbols.ComponentViewType);
 
-        Assert.NotNull(symbols.ParamMethod);
-        Assert.NotNull(symbols.FragmentParamMethod);
+        var kinds = symbols.ComponentViewType!.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Select(symbols.ClassifyComponentParameterMethod)
+            .Where(static kind => kind != ComponentParameterMethodKind.None)
+            .OrderBy(static kind => kind)
+            .ToArray();
 
-        // The generic overload has a type parameter; the fragment overload does not.
-        Assert.Equal(1, symbols.ParamMethod!.Arity);
-        Assert.Equal(0, symbols.FragmentParamMethod!.Arity);
+        Assert.Equal(
+            [
+                ComponentParameterMethodKind.ScalarParam,
+                ComponentParameterMethodKind.FragmentParam,
+                ComponentParameterMethodKind.GenericTemplateIgnored,
+                ComponentParameterMethodKind.GenericTemplateContextual,
+            ],
+            kinds);
     }
 
     /// <summary>

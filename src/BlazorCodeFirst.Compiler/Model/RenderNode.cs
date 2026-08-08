@@ -38,11 +38,19 @@ internal sealed record ForEachNode(
 internal sealed record ComponentParameter(string Name, ExpressionTemplate Value);
 
 /// <summary>A RenderFragment-typed component parameter whose content is an expanded node subtree.</summary>
-/// <remarks>Expanded counterpart of <see cref="ComponentSlot"/> (holes substituted).</remarks>
-internal sealed record ComponentSlotNode(string Name, RenderNode Content);
+/// <remarks>
+/// Expanded counterpart of <see cref="ComponentSlot"/> (holes substituted). Contextual generic slots
+/// carry the deterministic generated lambda parameter name; all metadata remains primitive/string data.
+/// </remarks>
+internal sealed record ComponentSlotNode(string Name, RenderNode Content)
+{
+    public ComponentSlotKind Kind { get; init; }
+    public string? ContextTypeName { get; init; }
+    public string? ContextVariableName { get; init; }
+}
 
 /// <summary>
-/// Represents a <c>Component&lt;T&gt;().Param(...)</c> call. Emits <c>OpenComponent&lt;T&gt;</c> followed by
+/// Represents a <c>Component&lt;T&gt;()</c> parameter chain. Emits <c>OpenComponent&lt;T&gt;</c> followed by
 /// one <c>AddComponentParameter</c> per scalar parameter (in source order), then one
 /// <c>AddComponentParameter</c> per fragment slot carrying a statically sequenced lambda, and
 /// <c>CloseComponent</c>.

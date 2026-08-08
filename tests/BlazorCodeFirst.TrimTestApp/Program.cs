@@ -25,6 +25,7 @@ public partial class TrimCounter : BodyComponentBase
     // invoked at runtime, so the trim tests assert none of their MethodDefs survive publishing — and
     // those assertions only mean anything for an overload that is called here, since an overload no
     // call site reaches would be trimmed as dead code whether or not the generator folded it away.
+    // Both ComponentView<T>.Template overloads are reached on the same terms.
     protected override View Body =>
         Div[
             CountLabel($"Count: {_count}"),
@@ -51,6 +52,8 @@ public partial class TrimCounter : BodyComponentBase
                 _name = v ?? "";
                 await Task.Yield();
             }),
+            Component<TrimTemplate>().Template(c => c.RowTemplate, Span["ignored context"]),
+            Component<TrimTemplate>().Template(c => c.RowTemplate, row => Span[$"Row {row}"]),
             ForEach(_rows, key: r => r.Id, content: r => Component<DummyRow>().Param(c => c.Text, r.Label))];
 
     [Composable]
@@ -65,6 +68,14 @@ public partial class TrimCounter : BodyComponentBase
 public sealed class DummyRow : ComponentBase
 {
     [Parameter] public string Text { get; set; } = "";
+}
+
+// The target of both ComponentView<T>.Template overloads. Hand-written in C# rather than declared as a
+// .razor component because a source generator cannot observe another generator's output, so a
+// same-project Razor type could not be named as the type argument at all (BCF3012, #145).
+public sealed class TrimTemplate : ComponentBase
+{
+    [Parameter] public RenderFragment<int>? RowTemplate { get; set; }
 }
 
 // A layout exercises the same trimming contract as a component: Chrome is the inert design-time

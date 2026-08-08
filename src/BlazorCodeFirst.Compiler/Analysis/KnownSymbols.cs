@@ -48,24 +48,14 @@ internal sealed class KnownSymbols
     /// </summary>
     public IPropertySymbol? ComponentIndexer { get; }
 
-    /// <summary>Resolved symbol for <c>ComponentView&lt;T&gt;.Param&lt;TValue&gt;(...)</c>, or null.</summary>
-    public IMethodSymbol? ParamMethod { get; }
-
-    /// <summary>
-    /// Resolved symbol for <c>ComponentView&lt;T&gt;.Param(Func&lt;T, RenderFragment?&gt;, View)</c>, or null.
-    /// </summary>
-    public IMethodSymbol? FragmentParamMethod { get; }
-
     /// <summary>Resolved <c>Microsoft.AspNetCore.Components.ParameterAttribute</c>, or null.</summary>
     public INamedTypeSymbol? ParameterAttributeType { get; }
 
     /// <summary>Resolved symbol for <c>Microsoft.AspNetCore.Components.RenderFragment</c>, or null.</summary>
-    /// <remarks>
-    /// The non-generic delegate only. <c>RenderFragment&lt;T&gt;</c> has metadata name
-    /// <c>RenderFragment`1</c> and has no conversion to View, so it is rejected by the C# compiler
-    /// (CS1503) and never reaches the analyzer.
-    /// </remarks>
     public INamedTypeSymbol? RenderFragmentType { get; }
+
+    /// <summary>Resolved unbound generic <c>Microsoft.AspNetCore.Components.RenderFragment&lt;T&gt;</c>, or null.</summary>
+    public INamedTypeSymbol? RenderFragmentGenericType { get; }
 
     /// <summary>
     /// Resolved unbound generic <c>Microsoft.AspNetCore.Components.EventCallback&lt;TValue&gt;</c>, or null.
@@ -88,6 +78,8 @@ internal sealed class KnownSymbols
     /// type is <c>Expression&lt;Func&lt;TValue&gt;&gt;</c>.
     /// </summary>
     public INamedTypeSymbol? FuncType { get; }
+
+    private readonly Dictionary<ISymbol, ComponentParameterMethodKind> _componentParameterMethods;
 
     /// <summary>
     /// Resolved symbol for <c>BlazorCodeFirst.Decorations.Class(this ElementBuilder, string)</c>, or null.
@@ -367,11 +359,8 @@ internal sealed class KnownSymbols
     /// All <c>ComponentView&lt;T&gt;.Bind&lt;TValue&gt;</c> overloads.
     /// </summary>
     /// <remarks>
-    /// Held unnormalized, exactly as <see cref="ParamMethod"/> is: these are members of the unbound
-    /// generic <see cref="ComponentViewType"/>, so they are already original definitions and there is no
-    /// reduced extension form to unwrap. A consumer matches with
-    /// <c>SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, …)</c>, which is what the
-    /// <c>.Param</c> arm does.
+    /// Held unnormalized: these are members of the unbound generic <see cref="ComponentViewType"/>, so
+    /// they are already original definitions and there is no reduced extension form to unwrap.
     /// </remarks>
     public IReadOnlyCollection<ISymbol> ComponentBindMethods { get; }
 
@@ -418,25 +407,34 @@ internal sealed class KnownSymbols
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderFragment");
+        RenderFragmentGenericType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderFragment`1");
         EventCallbackType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallback`1");
         ExpressionType = compilation.GetTypeByMetadataName("System.Linq.Expressions.Expression`1");
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
 
+        var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
+        _componentParameterMethods = new Dictionary<ISymbol, ComponentParameterMethodKind>(
+            SymbolEqualityComparer.Default);
+
         var componentBindMethods = new List<ISymbol>();
         if (ComponentViewType is not null)
         {
-            foreach (var member in ComponentViewType.GetMembers("Param"))
+            foreach (var member in ComponentViewType.GetMembers())
             {
-                if (member is not IMethodSymbol { Parameters.Length: 2 } paramMethod)
+                if (member is not IMethodSymbol method)
                     continue;
 
-                // Arity discriminates the two overloads: the scalar one is Param<TValue>, the fragment
-                // one is non-generic. Do not break early, both must be captured.
-                if (paramMethod.Arity == 1)
-                    ParamMethod = paramMethod;
-                else if (paramMethod.Arity == 0)
-                    FragmentParamMethod = paramMethod;
+                var kind = ClassifyComponentParameterDefinition(
+                    method,
+                    ComponentViewType,
+                    ViewType,
+                    RenderFragmentType,
+                    RenderFragmentGenericType,
+                    funcWithArgumentType);
+                if (kind != ComponentParameterMethodKind.None)
+                    _componentParameterMethods[Normalize(method)] = kind;
             }
 
             // All three overloads, which differ only in their setter parameter; the analyzer reads the
@@ -571,6 +569,90 @@ internal sealed class KnownSymbols
             }
         }
         ElementTags = elementTags;
+    }
+
+    /// <summary>
+    /// Classifies one component parameter syntax method by the structurally verified definition captured
+    /// from the current runtime assembly. The map is compilation-local transient state; no symbol crosses
+    /// into an incremental model.
+    /// </summary>
+    public ComponentParameterMethodKind ClassifyComponentParameterMethod(IMethodSymbol method) =>
+        _componentParameterMethods.TryGetValue(Normalize(method), out var kind)
+            ? kind
+            : ComponentParameterMethodKind.None;
+
+    private static ComponentParameterMethodKind ClassifyComponentParameterDefinition(
+        IMethodSymbol method,
+        INamedTypeSymbol componentViewType,
+        INamedTypeSymbol? viewType,
+        INamedTypeSymbol? renderFragmentType,
+        INamedTypeSymbol? renderFragmentGenericType,
+        INamedTypeSymbol? funcWithArgumentType)
+    {
+        if (funcWithArgumentType is null
+            || method.IsStatic
+            || method.Parameters.Length != 2
+            || method.ContainingType.TypeArguments.Length != 1
+            || method.ReturnType is not INamedTypeSymbol { TypeArguments.Length: 1 } returnType
+            || !SymbolEqualityComparer.Default.Equals(returnType.OriginalDefinition, componentViewType)
+            || !SymbolEqualityComparer.Default.Equals(
+                returnType.TypeArguments[0], method.ContainingType.TypeArguments[0])
+            || method.Parameters[0].Type is not INamedTypeSymbol { TypeArguments.Length: 2 } selector
+            || !SymbolEqualityComparer.Default.Equals(selector.OriginalDefinition, funcWithArgumentType)
+            || !SymbolEqualityComparer.Default.Equals(
+                selector.TypeArguments[0], method.ContainingType.TypeArguments[0]))
+        {
+            return ComponentParameterMethodKind.None;
+        }
+
+        var selectedType = selector.TypeArguments[1];
+        if (method.Name == "Param")
+        {
+            if (method.Arity == 1
+                && SymbolEqualityComparer.Default.Equals(selectedType, method.TypeParameters[0])
+                && SymbolEqualityComparer.Default.Equals(
+                    method.Parameters[1].Type, method.TypeParameters[0]))
+            {
+                return ComponentParameterMethodKind.ScalarParam;
+            }
+
+            if (method.Arity == 0
+                && renderFragmentType is not null
+                && viewType is not null
+                && SymbolEqualityComparer.Default.Equals(selectedType, renderFragmentType)
+                && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, viewType))
+            {
+                return ComponentParameterMethodKind.FragmentParam;
+            }
+
+            return ComponentParameterMethodKind.None;
+        }
+
+        if (method.Name != "Template"
+            || method.Arity != 1
+            || renderFragmentGenericType is null
+            || viewType is null
+            || selectedType is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
+            || !SymbolEqualityComparer.Default.Equals(
+                genericFragment.OriginalDefinition, renderFragmentGenericType)
+            || !SymbolEqualityComparer.Default.Equals(
+                genericFragment.TypeArguments[0], method.TypeParameters[0]))
+        {
+            return ComponentParameterMethodKind.None;
+        }
+
+        if (SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, viewType))
+            return ComponentParameterMethodKind.GenericTemplateIgnored;
+
+        if (method.Parameters[1].Type is INamedTypeSymbol { TypeArguments.Length: 2 } content
+            && SymbolEqualityComparer.Default.Equals(content.OriginalDefinition, funcWithArgumentType)
+            && SymbolEqualityComparer.Default.Equals(content.TypeArguments[0], method.TypeParameters[0])
+            && SymbolEqualityComparer.Default.Equals(content.TypeArguments[1], viewType))
+        {
+            return ComponentParameterMethodKind.GenericTemplateContextual;
+        }
+
+        return ComponentParameterMethodKind.None;
     }
 
     /// <summary>

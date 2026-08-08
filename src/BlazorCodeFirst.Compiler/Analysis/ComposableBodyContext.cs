@@ -9,16 +9,17 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
 /// Carries the shared state required to normalize the expressions inside a single composable
-/// definition body: the semantic model, the containing type, the parameter-to-ordinal map, the
-/// resolved runtime symbols, and the accumulating access-requirement and diagnostic builders.
+/// definition body: the semantic model, the containing type, the parameter-to-ordinal map and scoped
+/// render-variable overlay, the resolved runtime symbols, and the accumulating access-requirement and
+/// diagnostic builders.
 /// </summary>
 internal sealed class ComposableBodyContext
 {
     private readonly ImmutableDictionary<ISymbol, int> _parameterOrdinals;
-    private readonly Dictionary<ISymbol, int> _iterationOverlay =
+    private readonly Dictionary<ISymbol, int> _renderVariableOverlay =
         new(SymbolEqualityComparer.Default);
     private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
-    private int _iterationDepth;
+    private int _renderVariableDepth;
 
     public ComposableBodyContext(
         SemanticModel semanticModel,
@@ -87,29 +88,29 @@ internal sealed class ComposableBodyContext
     {
         if (_parameterOrdinals.TryGetValue(symbol, out ordinal))
             return true;
-        return _iterationOverlay.TryGetValue(symbol, out ordinal);
+        return _renderVariableOverlay.TryGetValue(symbol, out ordinal);
     }
 
     /// <summary>
-    /// Registers a ForEach iteration variable (its content and key lambda parameters denote the same
-    /// loop variable) at the next free ordinal, base parameter count plus current nesting depth, so a
-    /// reference to it becomes a parameter hole at that ordinal. Returns that ordinal.
+    /// Registers one scoped render variable at the next free ordinal. Multiple symbols may denote the
+    /// same variable, as the content and key parameters of a <c>ForEach</c> do. A reference to any of the
+    /// symbols becomes a parameter hole at the returned ordinal.
     /// </summary>
-    public int PushIterationVariable(ISymbol contentParameter, ISymbol keyParameter)
+    public int PushRenderVariable(params ISymbol[] symbols)
     {
-        var ordinal = _parameterOrdinals.Count + _iterationDepth;
-        _iterationOverlay[contentParameter] = ordinal;
-        _iterationOverlay[keyParameter] = ordinal;
-        _iterationDepth++;
+        var ordinal = _parameterOrdinals.Count + _renderVariableDepth;
+        foreach (var symbol in symbols)
+            _renderVariableOverlay[symbol] = ordinal;
+        _renderVariableDepth++;
         return ordinal;
     }
 
-    /// <summary>Removes an iteration variable registered by <see cref="PushIterationVariable"/>.</summary>
-    public void PopIterationVariable(ISymbol contentParameter, ISymbol keyParameter)
+    /// <summary>Removes a scoped render variable registered by <see cref="PushRenderVariable"/>.</summary>
+    public void PopRenderVariable(params ISymbol[] symbols)
     {
-        _iterationOverlay.Remove(contentParameter);
-        _iterationOverlay.Remove(keyParameter);
-        _iterationDepth--;
+        foreach (var symbol in symbols)
+            _renderVariableOverlay.Remove(symbol);
+        _renderVariableDepth--;
     }
 
     /// <summary>

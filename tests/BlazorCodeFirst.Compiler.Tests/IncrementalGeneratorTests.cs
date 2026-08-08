@@ -804,6 +804,56 @@ public sealed class IncrementalGeneratorTests
                 $"Expected Cached or Unchanged but got {output.Reason}"));
     }
 
+    [Fact]
+    public void IncrementalGenerator_OnIdenticalRerun_CachesGenericTemplateContextualSlotModel()
+    {
+        const string target = """
+            using Microsoft.AspNetCore.Components;
+            namespace T;
+            public class Target : ComponentBase
+            {
+                [Parameter] public RenderFragment<int>? RowTemplate { get; set; }
+            }
+            """;
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Build();
+
+                [Composable]
+                private static View Build() =>
+                    Div[Fragment(If(true, () =>
+                        Component<Target>().Template(
+                            c => c.RowTemplate,
+                            context => Span[context.ToString()])))];
+            }
+            """;
+
+        var compilation = CreateCompilation(
+            ParseTree(target, "Target.cs"),
+            ParseTree(host, "Host.cs"));
+        GeneratorDriver driver = CreateDriver();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+
+        var contextualOutputs = driver.GetRunResult().Results[0].TrackedSteps["ComponentModeling"]
+            .SelectMany(static step => step.Outputs)
+            .Where(static output =>
+                output.Value is ComponentModelResult { Model.RootNode: { } root }
+                && ContainsContextualSlot(root))
+            .ToImmutableArray();
+
+        Assert.NotEmpty(contextualOutputs);
+        Assert.All(contextualOutputs, output =>
+            Assert.True(
+                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"Expected contextual generic-template model reuse but got {output.Reason}"));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
@@ -820,6 +870,22 @@ public sealed class IncrementalGeneratorTests
             driverOptions: new GeneratorDriverOptions(
                 disabledOutputs: default,
                 trackIncrementalGeneratorSteps: true));
+
+    private static bool ContainsContextualSlot(RenderNode node) =>
+        node switch
+        {
+            ComponentNode component => component.Slots.Any(static slot =>
+                slot.Kind == ComponentSlotKind.GenericContextual
+                || ContainsContextualSlot(slot.Content)),
+            ElementNode element => element.Children.Any(ContainsContextualSlot),
+            FragmentNode fragment => fragment.Children.Any(ContainsContextualSlot),
+            IfNode conditional => ContainsContextualSlot(conditional.Then)
+                || conditional.Otherwise is not null
+                && ContainsContextualSlot(conditional.Otherwise),
+            ForEachNode forEach => ContainsContextualSlot(forEach.Content),
+            ExpansionNode expansion => ContainsContextualSlot(expansion.Body),
+            _ => false,
+        };
 
     /// <summary>
     /// A component that translates cleanly must stay cached when an edit shifts its absolute offsets

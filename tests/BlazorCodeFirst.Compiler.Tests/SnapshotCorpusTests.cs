@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// These 26 baselines were captured on the pre-#87 method surface and reproduced unchanged when every input
+/// These 28 baselines were captured on the pre-#87 method surface and reproduced unchanged when every input
 /// here was re-spelled to the bracket form. That is what makes them a safety net rather than a restatement
 /// of current behaviour: a baseline is evidence about a surface that no longer exists in the tree. Re-record
 /// them only with a reason written down; <c>BLAZORCODEFIRST_UPDATE_SNAPSHOTS</c> will overwrite that evidence in
@@ -23,6 +23,12 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// for, and the diff of that commit is the primary review surface for the fold. What the baselines still
 /// guard is unchanged: a case's input may be re-spelled, but a case must never be renamed or dropped to
 /// make a baseline agree.
+/// </para>
+/// <para>
+/// One of the 28, <c>component-generic-templates</c>, was added afterwards rather than captured on the pre-#87
+/// surface: the <c>.Template</c> channel did not exist then. It is a baseline of current behaviour, so it
+/// carries none of the migration evidence the others do; what it pins is the emitted shape of both overloads,
+/// including the generated context parameter name that the contextual form's holes refer to.
 /// </para>
 /// <para>
 /// Coverage is chosen for what the migration can break, not for what the emitter can emit: every element
@@ -41,6 +47,8 @@ public sealed class SnapshotCorpusTests
             [Parameter] public string Title { get; set; } = "";
             [Parameter] public RenderFragment? ChildContent { get; set; }
             [Parameter] public RenderFragment? Footer { get; set; }
+            [Parameter] public RenderFragment<int>? HeaderTemplate { get; set; }
+            [Parameter] public RenderFragment<int>? RowTemplate { get; set; }
         }
         """;
 
@@ -111,6 +119,10 @@ public sealed class SnapshotCorpusTests
                 """Component<Card>().Param(c => c.Title, "t")[Div["x"]]"""),
             ["component-fragment-slot"] = HostWithCard(
                 """Component<Card>().Param(c => c.Footer, Div["f"])"""),
+            // Two independent generic parameters, one per .Template overload, so the baseline pins both the
+            // context-ignoring outer lambda and the named-context one without binding either parameter twice.
+            ["component-generic-templates"] = HostWithCard(
+                """Component<Card>().Param(c => c.Title, "t").Template(c => c.HeaderTemplate, Span["heading"]).Template(c => c.RowTemplate, row => Span[$"Row {row}"])"""),
             ["component-nested-in-element"] = HostWithCard(
                 """Div.Class("shell")[Component<Card>().Param(c => c.Title, "t")]"""),
 

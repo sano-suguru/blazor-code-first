@@ -243,7 +243,7 @@ internal static class RenderExpressionAnalyzer
             // item, so it is normalized before the iteration variable is registered.
             var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
-            var itemOrdinal = context.PushIterationVariable(contentParamSymbol, keyParamSymbol);
+            var itemOrdinal = context.PushRenderVariable(contentParamSymbol, keyParamSymbol);
             try
             {
                 var key = ExpressionTemplateFactory.Create(keyBody, context);
@@ -267,7 +267,7 @@ internal static class RenderExpressionAnalyzer
             }
             finally
             {
-                context.PopIterationVariable(contentParamSymbol, keyParamSymbol);
+                context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
             }
         }
 
@@ -317,17 +317,15 @@ internal static class RenderExpressionAnalyzer
             return new FragmentTemplateNode(children.Value);
         }
 
-        bool isScalarParam =
-            SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.ParamMethod);
-        bool isFragmentParam = symbols.FragmentParamMethod is not null
-            && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, symbols.FragmentParamMethod);
+        var componentParameterKind = symbols.ClassifyComponentParameterMethod(method);
         bool isComponentBind = Contains(symbols.ComponentBindMethods, method.OriginalDefinition);
-        if (isScalarParam || isFragmentParam || isComponentBind)
+        if (componentParameterKind != ComponentParameterMethodKind.None || isComponentBind)
         {
-            // Chained: <ComponentView<T> receiver>.Param(selector, value), or .Bind(selector, get[, set]).
-            // Recurse into the receiver to reach the base Component<T>() (or an inner .Param), then append
-            // this parameter in source order. Both spellings share everything up to the selected property:
-            // they take the same selector in the same position and answer to the same three rules about it.
+            // Chained: <ComponentView<T> receiver>.Param/Template(selector, value), or
+            // .Bind(selector, get[, set]). Recurse into the receiver to reach the base Component<T>() (or
+            // an inner parameter call), then append this binding in source order. All spellings share
+            // everything up to the selected property: they take the same selector in the same position
+            // and answer to the same three rules about it.
             if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
                 || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
             {
@@ -380,7 +378,7 @@ internal static class RenderExpressionAnalyzer
 
             var valueExpression = valueArg.Expression;
 
-            if (isFragmentParam)
+            if (componentParameterKind == ComponentParameterMethodKind.FragmentParam)
             {
                 var slotContent = Analyze(valueExpression, context);
                 if (slotContent is null)
@@ -391,7 +389,81 @@ internal static class RenderExpressionAnalyzer
                 return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
             }
 
-            if (isScalarParam && IsInertDesignTimeType(
+            if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateIgnored)
+            {
+                if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
+                    || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
+                    || !SymbolEqualityComparer.Default.Equals(
+                        genericFragment.OriginalDefinition, renderFragmentGenericType))
+                {
+                    return null;
+                }
+
+                var slotContent = Analyze(valueExpression, context);
+                if (slotContent is null)
+                    return null;
+
+                var contextTypeName = genericFragment.TypeArguments[0]
+                    .ToDisplayString(FullyQualifiedTypeName);
+                var appendedSlots = inner.Slots.AsImmutableArray()
+                    .Add(new ComponentSlot(property.Name, slotContent)
+                    {
+                        Kind = ComponentSlotKind.GenericContextIgnored,
+                        ContextTypeName = contextTypeName,
+                    });
+                return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+            }
+
+            if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateContextual)
+            {
+                if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
+                    || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
+                    || !SymbolEqualityComparer.Default.Equals(
+                        genericFragment.OriginalDefinition, renderFragmentGenericType))
+                {
+                    return null;
+                }
+
+                // The content has to be an inline expression lambda twice over: the body is what gets
+                // sequenced, and the parameter symbol is what the generated context variable is
+                // substituted for. A method group, an anonymous method, and a block-bodied lambda supply
+                // neither. Arity is not checked here: a lambda with no parameter or with two does not
+                // convert to Func<TContext, View>, so C# has already rejected the call.
+                if (!TryExtractSingleParameterLambda(
+                        valueExpression, out var contextParameter, out var contextBody)
+                    || context.SemanticModel.GetDeclaredSymbol(
+                        contextParameter, context.CancellationToken) is not { } contextParameterSymbol)
+                {
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BCF3022, valueArg.GetLocation(), []));
+                    return null;
+                }
+
+                var contextTypeName = genericFragment.TypeArguments[0]
+                    .ToDisplayString(FullyQualifiedTypeName);
+                context.PushRenderVariable(contextParameterSymbol);
+                try
+                {
+                    var slotContent = Analyze(contextBody, context);
+                    if (slotContent is null)
+                        return null;
+
+                    var appendedSlots = inner.Slots.AsImmutableArray()
+                        .Add(new ComponentSlot(property.Name, slotContent)
+                        {
+                            Kind = ComponentSlotKind.GenericContextual,
+                            ContextTypeName = contextTypeName,
+                        });
+                    return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+                }
+                finally
+                {
+                    context.PopRenderVariable(contextParameterSymbol);
+                }
+            }
+
+            if (componentParameterKind == ComponentParameterMethodKind.ScalarParam && IsInertDesignTimeType(
                     context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
                     context))
             {
@@ -723,7 +795,7 @@ internal static class RenderExpressionAnalyzer
     /// appending the two or three component parameters the binding lowers to, or reports why it cannot be.
     /// </summary>
     /// <param name="property">The parameter the selector resolved to, already checked by the shared
-    /// <c>.Param</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
+    /// <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
     /// <param name="getterArg">The getter argument, already required non-<see langword="null"/> by the same
     /// shared prologue (as <c>valueArg</c>); passed through rather than re-derived from <paramref
     /// name="args"/>.</param>
@@ -747,8 +819,9 @@ internal static class RenderExpressionAnalyzer
     /// remarks give.
     /// </para>
     /// <para>
-    /// The duplicate check the shared <c>.Param</c> prologue runs (see the caller) spans <c>{name}</c> and,
-    /// via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but not <c>{name}Expression</c>. So
+    /// The duplicate check the shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue runs (see the
+    /// caller) spans <c>{name}</c> and, via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but
+    /// not <c>{name}Expression</c>. So
     /// <c>.Param(c =&gt; c.ValueExpression, …).Bind(c =&gt; c.Value, …)</c>, written in that order, does not
     /// become BCF3007: both calls append a <c>ValueExpression</c> parameter frame, and the later one silently
     /// wins. The reverse order is caught, because then it is the <c>.Param</c> arm's own duplicate check that

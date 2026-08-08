@@ -169,12 +169,23 @@ reference. A component under an `EditForm` resolves a `FieldIdentifier` from tha
 identifier is what ties the input to a property of your model, so validation messages land on the right
 field. No other spelling could supply it.
 
-The `EditForm` itself is the part you cannot yet write here. `EditForm.ChildContent` is a
-`RenderFragment<EditContext>`, and `.Param` takes BlazorCodeFirst content only for a non-generic
-`RenderFragment`, so `Component<EditForm>()[…]` reports BCF3013. Until
-[issue #161](https://github.com/sano-suguru/blazor-code-first/issues/161) closes, put the bound inputs
-in their own component and hand that to `EditForm.ChildContent` as a `RenderFragment<EditContext>`
-written by hand — the binding above, and the `ValueExpression` it supplies, are unaffected.
+The `EditForm` around it is written the same way, once you know which channel its content goes
+through. `EditForm.ChildContent` is a `RenderFragment<EditContext>`, so the brackets cannot supply it
+— `Component<EditForm>()[…]` reports BCF3013, which is about the non-generic `ChildContent` only.
+Name the parameter with `.Template`:
+
+```csharp
+protected override View Body =>
+    Component<EditForm>()
+        .Param(form => form.Model, _model)
+        .Template(form => form.ChildContent,
+            Component<NameFields>().Param(fields => fields.Value, _model));
+```
+
+The bound inputs may sit directly in that template or in their own component; the binding above, and
+the `ValueExpression` it supplies, are unaffected either way. See
+[generic fragment parameters](./components-and-reuse.md#generic-fragment-parameters) for the spelling
+that reads the `EditContext`, and for when a cached delegate through `.Param` is the better choice.
 
 An explicit setter and an `async` setter are available here too, with the same meaning as on an
 element. `TValue` is not restricted to `string` and `bool`, because the value goes to a parameter

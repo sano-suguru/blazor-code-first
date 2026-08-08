@@ -86,19 +86,25 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (Is(method, symbols.ParamMethod))
+        var componentParameterKind = symbols.ClassifyComponentParameterMethod(method);
+        if (componentParameterKind != ComponentParameterMethodKind.None)
         {
             ScanRenderExpression(Receiver(invocation), context);
             if (recoverOwnValue)
-                ReportValue(args.At(1)?.Expression, context);
-            return;
-        }
-
-        if (Is(method, symbols.FragmentParamMethod))
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (recoverOwnValue)
-                ScanRenderExpression(args.At(1)?.Expression, context);
+            {
+                switch (componentParameterKind)
+                {
+                    case ComponentParameterMethodKind.ScalarParam:
+                        ReportValue(args.At(1)?.Expression, context);
+                        break;
+                    case ComponentParameterMethodKind.GenericTemplateContextual:
+                        ScanLambdaBody(args.At(1)?.Expression, context);
+                        break;
+                    default:
+                        ScanRenderExpression(args.At(1)?.Expression, context);
+                        break;
+                }
+            }
             return;
         }
 
@@ -185,8 +191,8 @@ internal static class UnresolvedValueTypeScanner
     /// <summary>
     /// Scans an element access whose indexer is one of the design-time surface's. Both indexers,
     /// <c>ElementBuilder</c>'s and <c>ComponentView&lt;T&gt;</c>'s, take the same route: the receiver carries
-    /// the tag, the decoration chain or the <c>.Param</c> chain and is scanned as an expression in its own
-    /// right, and the bracketed arguments are the children.
+    /// the tag, the decoration chain or the component parameter chain and is scanned as an expression in
+    /// its own right, and the bracketed arguments are the children.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -676,8 +682,7 @@ internal static class UnresolvedValueTypeScanner
             || UnresolvedComponentTypeScanner.IsComponentFactory(method, symbols.HtmlComponent)
             || Is(method, symbols.HtmlRaw)
             || Is(method, symbols.HtmlFragment)
-            || Is(method, symbols.ParamMethod)
-            || Is(method, symbols.FragmentParamMethod)
+            || symbols.ClassifyComponentParameterMethod(method) != ComponentParameterMethodKind.None
             || (symbols.ClassMethod is not null
                 && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod)))
             || symbols.AttributeShortcuts.ContainsKey(normalized)

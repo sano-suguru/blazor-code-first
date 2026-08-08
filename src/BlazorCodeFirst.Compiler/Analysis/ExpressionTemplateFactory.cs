@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
@@ -25,9 +26,13 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// qualified static call, or reported as BCF1002 when that rewrite cannot be made semantics-preserving;</item>
 /// <item>references to non-public members, whether unqualified or accessed through a receiver, record an
 /// accessibility requirement;</item>
+/// <item>unqualified containing-instance members whose names overlap the generated contextual-variable
+/// prefix gain an explicit <c>this.</c> receiver so the generated lambda parameter cannot shadow them;</item>
 /// <item>references to source-local constructs (local functions or locals from an enclosing scope)
 /// that cannot exist in generated code report a single declaration BCF1002;</item>
-/// <item>local, lambda, and unrecognized identifiers plus all trivia are preserved as literal text.</item>
+/// <item>local and lambda identifiers plus all trivia are preserved as literal text, except authored
+/// declarations that could capture a generated contextual-fragment parameter after hole substitution;
+/// those declarations and their symbol-bound references receive a deterministic collision-free name.</item>
 /// </list>
 /// </summary>
 internal static class ExpressionTemplateFactory
@@ -38,7 +43,13 @@ internal static class ExpressionTemplateFactory
     private static readonly SymbolDisplayFormat QualifiedNameWithoutTypeArguments =
         SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None);
 
-    public static ExpressionTemplate Create(ExpressionSyntax expression, ComposableBodyContext context)
+    public static ExpressionTemplate Create(ExpressionSyntax expression, ComposableBodyContext context) =>
+        CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
+
+    private static ExpressionTemplate CreateCore(
+        ExpressionSyntax expression,
+        ComposableBodyContext context,
+        AuthoredContextNameHygiene authoredNameHygiene)
     {
         var replacements = new List<Replacement>();
         var replacedSpans = new List<TextSpan>();
@@ -77,12 +88,35 @@ internal static class ExpressionTemplateFactory
                     continue;
                 }
 
-                if (TryCreateExtensionMethodCall(invocation, extensionMethod, context, out var extensionSegments))
+                if (TryCreateExtensionMethodCall(
+                    invocation,
+                    extensionMethod,
+                    context,
+                    authoredNameHygiene,
+                    out var extensionSegments))
+                {
                     replacements.Add(new Replacement(invocation.Span, extensionSegments));
+                }
 
                 // Whether normalized or rejected (a BCF1002 was recorded inside), the invocation is fully
                 // handled here; record its span so the second pass leaves its inner names untouched.
                 replacedSpans.Add(invocation.Span);
+            }
+        }
+
+        // Declaration identifiers are tokens rather than SimpleNameSyntax nodes, so splice their safe
+        // names explicitly. A declaration inside a whole-invocation rewrite is handled by that rewrite's
+        // recursive CreateCore call with the same symbol-aware plan.
+        foreach (var declaration in authoredNameHygiene.Declarations)
+        {
+            if (expression.Span.Contains(declaration.Span)
+                && !IsNestedInReplaced(declaration.Span, replacedSpans))
+            {
+                AddReplacement(
+                    replacements,
+                    replacedSpans,
+                    declaration.Span,
+                    new LiteralExpressionSegment(declaration.Name));
             }
         }
 
@@ -129,6 +163,19 @@ internal static class ExpressionTemplateFactory
             if (symbol is null)
                 continue;
 
+            // This branch precedes source-local rejection because a recursively normalized subexpression
+            // may reference a declaration owned by the outer expression. The shared plan proves that the
+            // declaration travels with the complete expression and supplies its deterministic safe name.
+            if (authoredNameHygiene.TryGetName(symbol, out var authoredName))
+            {
+                AddReplacement(
+                    replacements,
+                    replacedSpans,
+                    IdentifierSpan(name),
+                    new LiteralExpressionSegment(authoredName));
+                continue;
+            }
+
             if (IsUnsupportedSourceLocalReference(symbol, expression, out var unsupportedReason))
             {
                 context.ReportUnsupportedReference(name.GetLocation(), unsupportedReason);
@@ -140,6 +187,17 @@ internal static class ExpressionTemplateFactory
             {
                 AddReplacement(replacements, replacedSpans, name.Span,
                     new ParameterHoleExpressionSegment(ordinal));
+                continue;
+            }
+
+            if (NeedsGeneratedContextCollisionQualification(name, symbol, context))
+            {
+                RecordAccessRequirement(symbol, context);
+                AddReplacement(
+                    replacements,
+                    replacedSpans,
+                    IdentifierSpan(name),
+                    new LiteralExpressionSegment($"this.{name.Identifier.ValueText}"));
                 continue;
             }
 
@@ -546,6 +604,7 @@ internal static class ExpressionTemplateFactory
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         ComposableBodyContext context,
+        AuthoredContextNameHygiene authoredNameHygiene,
         out ImmutableArray<ExpressionSegment> segments)
     {
         segments = [];
@@ -583,13 +642,13 @@ internal static class ExpressionTemplateFactory
         builder.Add(new LiteralExpressionSegment(prefix.ToString()));
 
         // The reduced receiver becomes the first argument; supplied arguments keep their original order.
-        foreach (var segment in Create(memberAccess.Expression, context).Segments)
+        foreach (var segment in CreateCore(memberAccess.Expression, context, authoredNameHygiene).Segments)
             builder.Add(segment);
 
         foreach (var argument in invocation.ArgumentList.Arguments)
         {
             builder.Add(new LiteralExpressionSegment(", " + LeadingArgumentText(argument)));
-            foreach (var segment in Create(argument.Expression, context).Segments)
+            foreach (var segment in CreateCore(argument.Expression, context, authoredNameHygiene).Segments)
                 builder.Add(segment);
         }
 
@@ -708,6 +767,48 @@ internal static class ExpressionTemplateFactory
     private static bool IsQualifiedReference(SimpleNameSyntax name) =>
         name.Parent is MemberAccessExpressionSyntax or QualifiedNameSyntax or MemberBindingExpressionSyntax;
 
+    /// <summary>
+    /// Whether an unqualified author member would be shadowed by a generated contextual-fragment lambda
+    /// parameter. The operation's instance kind distinguishes the component's implicit <c>this</c> from
+    /// another implicit receiver, notably the left side of an object initializer, where inserting
+    /// <c>this.</c> would be invalid.
+    /// </summary>
+    private static bool NeedsGeneratedContextCollisionQualification(
+        SimpleNameSyntax name,
+        ISymbol symbol,
+        ComposableBodyContext context)
+    {
+        if (!name.Identifier.ValueText.StartsWith("__bcf_context_", System.StringComparison.Ordinal)
+            || symbol.IsStatic
+            || symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol)
+            || IsQualifiedReference(name))
+        {
+            return false;
+        }
+
+        if (context.SemanticModel.GetOperation(name, context.CancellationToken)
+            is IMemberReferenceOperation
+            {
+                Instance: IInstanceReferenceOperation
+                {
+                    ReferenceKind: InstanceReferenceKind.ContainingTypeInstance,
+                },
+            })
+        {
+            return true;
+        }
+
+        return name.Parent is InvocationExpressionSyntax invocation
+            && context.SemanticModel.GetOperation(invocation, context.CancellationToken)
+                is IInvocationOperation
+            {
+                Instance: IInstanceReferenceOperation
+                {
+                    ReferenceKind: InstanceReferenceKind.ContainingTypeInstance,
+                },
+            };
+    }
+
     private static bool IsInsideNameof(SyntaxNode node)
     {
         for (var current = node.Parent; current is not null; current = current.Parent)
@@ -736,6 +837,113 @@ internal static class ExpressionTemplateFactory
 
         return false;
     }
+
+    /// <summary>
+    /// Builds a transient symbol-aware rename plan for authored declarations whose source names could
+    /// equal a generated contextual-fragment parameter at an expansion site. Only rewritten strings flow
+    /// into <see cref="ExpressionTemplate"/>; symbols and spans remain confined to this analysis call.
+    /// </summary>
+    private sealed class AuthoredContextNameHygiene
+    {
+        private const string GeneratedContextPrefix = "__bcf_context_";
+        private const string AuthoredContextPrefix = "__bcf_authored_context_";
+
+        private readonly Dictionary<ISymbol, string> _names;
+
+        private AuthoredContextNameHygiene(
+            Dictionary<ISymbol, string> names,
+            ImmutableArray<AuthoredDeclarationRename> declarations)
+        {
+            _names = names;
+            Declarations = declarations;
+        }
+
+        public ImmutableArray<AuthoredDeclarationRename> Declarations { get; }
+
+        public static AuthoredContextNameHygiene Create(
+            ExpressionSyntax expression,
+            ComposableBodyContext context)
+        {
+            var usedNames = new HashSet<string>(System.StringComparer.Ordinal);
+            foreach (var token in expression.DescendantTokens())
+            {
+                if (token.IsKind(SyntaxKind.IdentifierToken))
+                    usedNames.Add(token.ValueText);
+            }
+
+            var names = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
+            var declarations = ImmutableArray.CreateBuilder<AuthoredDeclarationRename>();
+            var renameOrdinal = 0;
+
+            foreach (var node in expression.DescendantNodesAndSelf())
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+
+                if (!TryGetDeclaredIdentifier(node, out var identifier)
+                    || !IsGeneratedContextName(identifier.ValueText)
+                    || context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                        is not { } symbol
+                    || names.ContainsKey(symbol))
+                {
+                    continue;
+                }
+
+                var baseName = $"{AuthoredContextPrefix}{renameOrdinal++}";
+                var name = baseName;
+                var disambiguator = 0;
+                while (!usedNames.Add(name))
+                    name = $"{baseName}_{++disambiguator}";
+
+                names.Add(symbol, name);
+                declarations.Add(new AuthoredDeclarationRename(identifier.Span, name));
+            }
+
+            return new AuthoredContextNameHygiene(names, declarations.ToImmutable());
+        }
+
+        public bool TryGetName(ISymbol symbol, out string name) =>
+            _names.TryGetValue(symbol, out name!);
+
+        private static bool IsGeneratedContextName(string name)
+        {
+            if (!name.StartsWith(GeneratedContextPrefix, System.StringComparison.Ordinal)
+                || name.Length == GeneratedContextPrefix.Length)
+            {
+                return false;
+            }
+
+            for (var index = GeneratedContextPrefix.Length; index < name.Length; index++)
+            {
+                if (name[index] is < '0' or > '9')
+                    return false;
+            }
+
+            return true;
+        }
+
+        private static bool TryGetDeclaredIdentifier(SyntaxNode node, out SyntaxToken identifier)
+        {
+            identifier = node switch
+            {
+                ParameterSyntax parameter => parameter.Identifier,
+                VariableDeclaratorSyntax variable => variable.Identifier,
+                SingleVariableDesignationSyntax designation => designation.Identifier,
+                ForEachStatementSyntax forEach => forEach.Identifier,
+                CatchDeclarationSyntax catchDeclaration => catchDeclaration.Identifier,
+                LocalFunctionStatementSyntax localFunction => localFunction.Identifier,
+                FromClauseSyntax fromClause => fromClause.Identifier,
+                LetClauseSyntax letClause => letClause.Identifier,
+                JoinClauseSyntax joinClause => joinClause.Identifier,
+                JoinIntoClauseSyntax joinIntoClause => joinIntoClause.Identifier,
+                QueryContinuationSyntax continuation => continuation.Identifier,
+                _ => default,
+            };
+
+            return identifier.RawKind != 0;
+        }
+    }
+
+    private readonly record struct AuthoredDeclarationRename(TextSpan Span, string Name);
 
     private readonly record struct Replacement(
         TextSpan Span,

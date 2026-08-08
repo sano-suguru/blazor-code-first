@@ -289,9 +289,36 @@ internal static class RenderViewEmitter
             // mean threading a builder name through all of them. Shadowing is legal and warning-free to
             // arbitrary depth, verified with nested slots, generated foreach loops, and local
             // declarations, on every LangVersion from 8 to 14. Do not "fix" it.
-            writer.AppendLine(
-                $"__builder.AddComponentParameter({next}, \"{slot.Name}\", "
-                    + $"({RenderFragmentType})((__builder) =>");
+            switch (slot.Kind)
+            {
+                case ComponentSlotKind.NonGeneric:
+                    writer.AppendLine(
+                        $"__builder.AddComponentParameter({next}, \"{slot.Name}\", "
+                            + $"({RenderFragmentType})((__builder) =>");
+                    break;
+                case ComponentSlotKind.GenericContextIgnored when slot.ContextTypeName is { } contextTypeName:
+                    writer.AppendLine(
+                        $"__builder.AddComponentParameter({next}, \"{slot.Name}\", "
+                            + $"({RenderFragmentType}<{contextTypeName}>)((_) => (__builder) =>");
+                    break;
+                case ComponentSlotKind.GenericContextIgnored:
+                    throw new InvalidOperationException(
+                        $"A {nameof(ComponentSlotKind.GenericContextIgnored)} slot requires a context type.");
+                case ComponentSlotKind.GenericContextual
+                    when slot.ContextTypeName is { } contextTypeName
+                        && slot.ContextVariableName is { } contextVariableName:
+                    writer.AppendLine(
+                        $"__builder.AddComponentParameter({next}, \"{slot.Name}\", "
+                            + $"({RenderFragmentType}<{contextTypeName}>)"
+                            + $"(({contextVariableName}) => (__builder) =>");
+                    break;
+                case ComponentSlotKind.GenericContextual:
+                    throw new InvalidOperationException(
+                        $"A {nameof(ComponentSlotKind.GenericContextual)} slot requires a context type and variable name.");
+                default:
+                    throw new NotSupportedException(
+                        $"Emission for component slot kind '{slot.Kind}' is not yet implemented.");
+            }
             writer.AppendLine("{");
             writer.Indent++;
             // Sequence numbering continues flatly from `next + 1`: a slot must not restart its own

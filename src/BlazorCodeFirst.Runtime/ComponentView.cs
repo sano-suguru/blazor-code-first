@@ -45,6 +45,39 @@ public readonly struct ComponentView<TComponent>
         View content) => this;
 
     /// <summary>
+    /// Design-time syntax binding a <c>RenderFragment&lt;TContext&gt;</c>-typed parameter to BlazorCodeFirst
+    /// content that ignores its context.
+    /// </summary>
+    /// <typeparam name="TContext">The template context type, inferred from the selected parameter.</typeparam>
+    /// <param name="selector">Must name a settable <c>[Parameter]</c> of <c>RenderFragment&lt;TContext&gt;</c>.</param>
+    /// <param name="content">The BlazorCodeFirst content rendered for every context; the context is ignored.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    /// <remarks>
+    /// A real <c>RenderFragment&lt;TContext&gt;</c> value remains a scalar <see cref="Param{TValue}"/> value.
+    /// This method is inert and returns <c>this</c>.
+    /// </remarks>
+    public ComponentView<TComponent> Template<TContext>(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?> selector,
+        View content) => this;
+
+    /// <summary>
+    /// Design-time syntax binding a <c>RenderFragment&lt;TContext&gt;</c>-typed parameter to BlazorCodeFirst
+    /// content that receives its context.
+    /// </summary>
+    /// <typeparam name="TContext">The template context type, inferred from the selected parameter.</typeparam>
+    /// <param name="selector">Must name a settable <c>[Parameter]</c> of <c>RenderFragment&lt;TContext&gt;</c>.</param>
+    /// <param name="content">An inline expression lambda from the template context to BlazorCodeFirst content.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    /// <remarks>
+    /// <paramref name="content"/> must be an inline expression lambda or BCF3022 is reported. A real
+    /// <c>RenderFragment&lt;TContext&gt;</c> value remains a scalar <see cref="Param{TValue}"/> value.
+    /// This method is inert and returns <c>this</c>.
+    /// </remarks>
+    public ComponentView<TComponent> Template<TContext>(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?> selector,
+        System.Func<TContext, View> content) => this;
+
+    /// <summary>
     /// Design-time syntax two-way binding the parameter selected by <paramref name="selector"/>, which
     /// is Razor's <c>@bind-Value</c>. Unlike the element decoration, the names here are derived rather
     /// than written: the generator appends <c>{name}Changed</c>, and <c>{name}Expression</c> when

@@ -37,6 +37,10 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 `tests/diagnostic-fixtures` is deliberately outside the solution: every project
 there fails to compile by design. See its README before adding one.
 
+`tests/msbuild-fixtures` contains projects expected to build successfully under nested real MSBuild.
+They are separate from `tests/diagnostic-fixtures`, where every project must fail. The Razor interop
+fixtures verify both ProjectReference and isolated NuGet-package delivery and inspect generated source.
+
 `tests/BlazorCodeFirst.TrimTests` and `tests/BlazorCodeFirst.TrimTestApp` live in the
 repository but stay outside the solution until the package-based trimming
 workflow lands.
@@ -58,7 +62,8 @@ dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.
 dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj \
   --filter FullyQualifiedName~GeneratorTests
 
-# Diagnostics as a real build reports them (packs the runtime and builds four fixtures)
+# Diagnostics as a real build reports them (packs delivery packages, builds four failure fixtures,
+# and runs the Razor interop success fixtures under tests/msbuild-fixtures)
 dotnet test tests/BlazorCodeFirst.DiagnosticTests/BlazorCodeFirst.DiagnosticTests.csproj
 
 # The measurements published in DESIGN.md §7.2 (diff cost and component teardown)
@@ -68,6 +73,11 @@ dotnet test tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTe
 # The measurements published in DESIGN.md §7.1 (allocations per render)
 dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*'
 ```
+
+Only the `BlazorCodeFirst.DiagnosticTests` command builds the successful Razor interop fixtures under
+`tests/msbuild-fixtures`, the ones that must build rather than fail. The two measurement commands
+that follow it in the block above do not, so a break in those fixtures surfaces from the diagnostic
+test project alone.
 
 These deliberately omit `--no-build`, which reuses whatever was compiled last and
 so reports a pass for code that was never compiled. CI can pass it
@@ -289,7 +299,11 @@ renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
   rendering and DOM diff application.
 - Keep the SSC path free of runtime UI trees, reflection, and runtime
   expression compilation. `Component<T>().Param(...)` must compile to static
-  parameter setters and stay trimming/AOT safe.
+  parameter setters and stay trimming/AOT safe. `.Template(...)` is held to the
+  same standard: the generator writes the `RenderFragment<TContext>` lambda
+  itself, so nothing generic is constructed reflectively and the method leaves no
+  runtime caller. `TrimmedOutputTests` asserts that absence from metadata, which
+  only means something while `TrimTestApp`'s `Body` reaches both overloads.
 - Decorator chains collapse into the owning element's emitted attributes rather
   than introducing wrapper nodes or extra frame widths.
 - Preserve bidirectional Razor compatibility. A BlazorCodeFirst component stays a
@@ -302,7 +316,11 @@ renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
   Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` 付録B.4).
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence
-  off the shapes that cannot work; 付録A states the exact conditions.
+  off the shapes that cannot work; 付録A states the exact conditions. `BCF3013`
+  keeps its meaning: the brackets require a settable `[Parameter]` named
+  `ChildContent` of the *non-generic* `RenderFragment` type. A
+  `RenderFragment<TContext>` parameter is never reached through brackets and is
+  always named with `.Template`, so do not widen `BCF3013` to cover it.
 - Value expressions copied into generated code must be lexical-context
   independent, because the generated file carries no `using` directives.
   Resolved type names are normalized to `global::`-qualified names and an

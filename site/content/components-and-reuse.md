@@ -25,15 +25,17 @@ The generator turns each `.Param` into a static parameter setter, emitted as
 `AddComponentParameter` calls. Nothing is reflected over and no expression tree is compiled at
 runtime, which is what keeps the path trimming- and AOT-safe.
 
-That is also why the shape is fenced in by diagnostics:
+That is also why the shape is fenced in by diagnostics. These three govern every channel that names
+a parameter with a selector lambda — `.Param`, `.Template`, and the component `.Bind` — not `.Param`
+alone:
 
 - The selector must be a plain property selection. A cast, a method call, or a member of a
   captured variable reports BCF3005, because none of those name a property the generator can emit
   a setter for.
 - The target must be a settable `[Parameter]` property, or BCF3006 is reported. Blazor would
   otherwise throw at runtime, so the rejection is moved to compile time.
-- Binding the same property twice reports BCF3007. Blazor applies only the last value, so the
-  earlier binding would silently die.
+- Binding the same property twice reports BCF3007, whichever channels the two bindings came from.
+  Blazor applies only the last value, so the earlier binding would silently die.
 
 ## Passing child content
 
@@ -48,10 +50,12 @@ protected override View Body =>
 ```
 
 This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`;
-otherwise BCF3013 is reported. A `RenderFragment<TContext>` parameter cannot receive the children,
-because the generated lambda is non-generic and would fail an invalid cast at runtime.
+otherwise BCF3013 is reported. The brackets never reach a `RenderFragment<TContext>` parameter,
+because the lambda they generate is non-generic and would fail an invalid cast at runtime. A generic
+fragment is named with `.Template` instead — see [Generic fragment parameters](#generic-fragment-parameters)
+below.
 
-Other `RenderFragment` parameters (such as `Footer` or `Header`) bind through
+Other non-generic `RenderFragment` parameters (such as `Footer` or `Header`) bind through
 `.Param(c => c.Footer, content)`, naming the parameter explicitly:
 
 ```csharp
@@ -72,6 +76,89 @@ through the generic `.Param<TValue>` overload and is emitted verbatim.
 
 For unresolved type names inside parameter values, see
 [Values copied into generated code](./getting-started.md#values-copied-into-generated-code).
+
+## Generic fragment parameters
+
+A `RenderFragment<TContext>` parameter takes a *template*: the component invokes it once per context
+value it wants rendered. `EditForm.ChildContent` is the one most authors meet first — it is a
+`RenderFragment<EditContext>`, which is why brackets cannot supply it.
+
+`.Template` names such a parameter. It has two spellings, and which one you want depends only on
+whether the content reads the context.
+
+Ignore the context, and pass content directly:
+
+```csharp
+protected override View Body =>
+    Component<EditForm>()
+        .Param(form => form.Model, _model)
+        .Template(form => form.ChildContent,
+            Component<NameFields>().Param(fields => fields.Value, _model));
+```
+
+Or name it, with a lambda from the context to content:
+
+```csharp
+protected override View Body =>
+    Component<EditForm>()
+        .Param(form => form.Model, _model)
+        .Template(form => form.ChildContent, editContext =>
+            Fragment(
+                Span[editContext.IsModified() ? "Unsaved changes" : "No changes"],
+                Component<NameFields>().Param(fields => fields.Value, _model)));
+```
+
+That second example needs one caveat, or the badge will never change. `IsModified()` is read when the
+template runs, and nothing in the `EditForm` / `CascadingValue` chain re-renders on `OnFieldChanged`.
+Typing into a field does notify the `EditContext`, but with nothing subscribed to that notification
+the component holding the template never re-renders, so the badge keeps the text it was first
+rendered with. This is Blazor's render propagation, not a limit on
+the context the template receives: the template is handed the live `EditContext` every time it runs.
+
+So if a template reads context state that changes, the component owning the form has to re-render
+itself. Construct the `EditContext` rather than letting `Model` create it, subscribe to
+`OnFieldChanged`, call `StateHasChanged`, and unsubscribe in `Dispose`:
+
+```csharp
+public ContextReadingForm()
+{
+    _editContext = new EditContext(_model);
+    _editContext.OnFieldChanged += OnFieldChanged;
+}
+
+private void OnFieldChanged(object? sender, FieldChangedEventArgs e) => StateHasChanged();
+
+public void Dispose() => _editContext.OnFieldChanged -= OnFieldChanged;
+
+// ...then pass .Param(form => form.EditContext, _editContext) instead of .Param(form => form.Model, …)
+```
+
+A template that ignores its context, or reads only state that does not change while the form is open,
+needs none of this.
+
+The generator writes the `RenderFragment<TContext>` lambda for you, so the content inside is ordinary
+BlazorCodeFirst and its sequence numbers continue the surrounding ones. The context parameter's name
+is yours to choose; the generated code uses a name of its own and rewrites the places you referred to
+it, so a field that happens to share the name is not disturbed.
+
+The second argument must be an inline lambda. A method group, or a delegate held in a variable or
+field, reports **BCF3022**: what gets copied into the generated code is the lambda's body syntax, and
+a delegate whose declaration is elsewhere has no body to copy.
+
+If you already hold a `RenderFragment<TContext>` *value*, pass it through the scalar
+`.Param` instead. Both channels reach the same parameter, but they differ in delegate identity, and
+that difference is visible:
+
+```csharp
+// Built once, in the constructor. The parameter reference stays stable across renders.
+private readonly RenderFragment<EditContext> _fields;
+```
+
+`.Template` content that reads state captures it, so the lambda becomes a new delegate on every
+render. The receiving component sees a changed parameter and re-renders the template. A cached
+delegate passed through `.Param` does not change, so it does not. Reach for the cached form only when
+you want that stability; `.Template` is otherwise the shorter and safer spelling, because it cannot
+be forgotten the way caching can.
 
 ## Calling an existing Razor or third-party component
 
