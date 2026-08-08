@@ -58,3 +58,56 @@ jobs:
       - run: dotnet test tests/BlazorCodeFirst.TrimTests/BlazorCodeFirst.TrimTests.csproj
         env:
           BLAZORCODEFIRST_TRIM_OUTPUT: ${{ github.workspace }}/tests/BlazorCodeFirst.TrimTestApp/bin/Release/net10.0/${{ matrix.rid }}/publish
+
+  browser:
+    # The two specs in tests/BlazorCodeFirst.WebAppTests/browser measure Blazor's JS renderer:
+    # insertMarkup against createTextNode, and the DOM resynchronization SetUpdatesAttributeName
+    # turns on. Neither is visible from dotnet test, and neither is OS-dependent, so this runs on
+    # one OS with one browser rather than joining the build-test matrix -- a second OS would double
+    # the browser download and measure nothing new. It is a separate job so it runs alongside
+    # build-test instead of extending it.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/BlazorCodeFirst.WebAppTests/browser/package-lock.json
+
+      # Build the host up front. The webServer block in playwright.config.ts runs `dotnet run`
+      # without --no-build, so MSBuild still runs its up-to-date check, but an already-built host
+      # keeps that inside the webServer timeout instead of a full build. Only this project is
+      # needed; the solution is build-test's job.
+      - run: dotnet build tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj
+
+      - run: npm ci
+        working-directory: tests/BlazorCodeFirst.WebAppTests/browser
+
+      # package-lock.json pins playwright-core exactly, and the browser revision is a function of
+      # that version, so its hash is the right key for the downloaded browser.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/BlazorCodeFirst.WebAppTests/browser/package-lock.json') }}
+
+      # Not split on a cache hit. --with-deps has to run apt every time (the cache restores the
+      # browser binary, not the shared libraries), and the download is skipped on its own when the
+      # binary is already there, so a conditional pair of steps would do the same work in two lines.
+      - run: npx playwright install --with-deps chromium
+        working-directory: tests/BlazorCodeFirst.WebAppTests/browser
+
+      - run: npx playwright test
+        working-directory: tests/BlazorCodeFirst.WebAppTests/browser
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: tests/BlazorCodeFirst.WebAppTests/browser/test-results
