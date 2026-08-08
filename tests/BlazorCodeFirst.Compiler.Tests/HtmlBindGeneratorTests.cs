@@ -243,4 +243,24 @@ public sealed class HtmlBindGeneratorTests
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
         Assert.Contains("__builder.CloseElement();", generated);
     }
+
+    [Fact]
+    public void TwoBindings_OnOneElement_CompileAndEmitBothPairs()
+    {
+        const string body = """
+            private string _live = "";
+            private string _committed = "";
+            protected override View Body =>
+                Html.Input
+                    .Bind("value", "oninput", () => _live)
+                    .Bind("data-committed", "onchange", () => _committed);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains("__builder.AddAttribute(1, \"value\", _live);", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"data-committed\", _committed);", generated);
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+        Assert.DoesNotContain("SetUpdatesAttributeName(\"data-committed\")", generated);
+    }
 }

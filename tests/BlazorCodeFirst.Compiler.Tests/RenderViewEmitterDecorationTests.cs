@@ -237,4 +237,53 @@ public sealed class RenderViewEmitterDecorationTests
 
         Assert.DoesNotContain("SetUpdatesAttributeName", generated);
     }
+
+    [Fact]
+    public void Emit_TwoBindings_EmitsBothPairsInSourceOrderWithOneUpdatesName()
+    {
+        var node = new ElementNode("input", default, default, default, default)
+        {
+            Bindings = ImmutableArray.Create(
+                new BindTemplate(
+                    "value", "oninput",
+                    ExpressionTemplate.Literal("_live"),
+                    ExpressionTemplate.Literal("LIVE_BINDER")),
+                new BindTemplate(
+                    "data-committed", "onchange",
+                    ExpressionTemplate.Literal("_committed"),
+                    ExpressionTemplate.Literal("COMMITTED_BINDER"))),
+        };
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.AddAttribute(1, \"value\", _live);", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"oninput\", LIVE_BINDER);", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"data-committed\", _committed);", generated);
+        Assert.Contains("__builder.AddAttribute(4, \"onchange\", COMMITTED_BINDER);", generated);
+
+        // Exactly one, and it names the first binding's attribute. At most one binding per element can
+        // resynchronize, because "value" and "checked" never belong to the same interaction.
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+        Assert.DoesNotContain("SetUpdatesAttributeName(\"data-committed\")", generated);
+    }
+
+    [Fact]
+    public void Emit_TwoBindings_EmittedSequenceArguments_AreDense()
+    {
+        var node = new ElementNode(
+            "input",
+            default,
+            ImmutableArray.Create(new AttributeTemplate("type", ExpressionTemplate.Literal("\"text\""))),
+            default,
+            default)
+        {
+            Bindings = ImmutableArray.Create(
+                new BindTemplate("value", "oninput",
+                    ExpressionTemplate.Literal("_live"), ExpressionTemplate.Literal("A")),
+                new BindTemplate("data-committed", "onchange",
+                    ExpressionTemplate.Literal("_committed"), ExpressionTemplate.Literal("B"))),
+        };
+
+        SequenceArguments.AssertDense(EmitRoot(node));
+    }
 }
