@@ -138,6 +138,22 @@ public sealed class RenderViewEmitterSequenceTests
                             Code("_items"), Code("item"),
                             Element("li", new TextContentNode(Code("item"))), "item"))))),
                 Span("\"after\"")),
+            ["component-mixed-scalar-and-slot-kinds"] = new ComponentNode(
+                "global::T.Card",
+                ImmutableArray.Create(new ComponentParameter("Title", Code("\"t\""))),
+                ImmutableArray.Create(
+                    new ComponentSlotNode("ChildContent", new TextContentNode(Code("\"plain\""))),
+                    new ComponentSlotNode("Ignored", new TextContentNode(Code("\"ignored\"")))
+                    {
+                        Kind = ComponentSlotKind.GenericContextIgnored,
+                        ContextTypeName = "global::System.Int32",
+                    },
+                    new ComponentSlotNode("Contextual", new TextContentNode(Code("__bcf_context_6")))
+                    {
+                        Kind = ComponentSlotKind.GenericContextual,
+                        ContextTypeName = "global::System.String",
+                        ContextVariableName = "__bcf_context_6",
+                    })),
 
             // --- Composable expansion: locals consume no sequence ---------------------------------
             ["expansion-with-locals"] = new ExpansionNode(
@@ -211,6 +227,22 @@ public sealed class RenderViewEmitterSequenceTests
         Assert.Contains("__builder.OpenElement(6, \"span\");", code, StringComparison.Ordinal);
         Assert.Contains("__builder.AddContent(7, \"f\");", code, StringComparison.Ordinal);
         Assert.Contains("__builder.OpenElement(8, \"span\");", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EmitComponent_MixedSlotKinds_ContinueOneDenseFlatSequence()
+    {
+        var code = EmitRoot(Cases["component-mixed-scalar-and-slot-kinds"]);
+
+        Assert.Contains("__builder.OpenComponent<global::T.Card>(0);", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Title\", \"t\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(2, \"ChildContent\", ", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(3, \"plain\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(4, \"Ignored\", ", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(5, \"ignored\");", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddComponentParameter(6, \"Contextual\", ", code, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(7, __bcf_context_6);", code, StringComparison.Ordinal);
+        SequenceArguments.AssertDense(code);
     }
 
     [Fact]

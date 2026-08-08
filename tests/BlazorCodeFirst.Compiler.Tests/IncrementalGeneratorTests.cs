@@ -804,6 +804,50 @@ public sealed class IncrementalGeneratorTests
                 $"Expected Cached or Unchanged but got {output.Reason}"));
     }
 
+    [Fact]
+    public void IncrementalGenerator_OnIdenticalRerun_CachesGenericTemplateContextualSlotModel()
+    {
+        const string target = """
+            using Microsoft.AspNetCore.Components;
+            namespace T;
+            public class Target : ComponentBase
+            {
+                [Parameter] public RenderFragment<int>? RowTemplate { get; set; }
+            }
+            """;
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<Target>().Template(c => c.RowTemplate, context => Span[context.ToString()]);
+            }
+            """;
+
+        var compilation = CreateCompilation(
+            ParseTree(target, "Target.cs"),
+            ParseTree(host, "Host.cs"));
+        GeneratorDriver driver = CreateDriver();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+
+        var contextualOutputs = driver.GetRunResult().Results[0].TrackedSteps["ComponentModeling"]
+            .SelectMany(static step => step.Outputs)
+            .Where(static output =>
+                output.Value is ComponentModelResult { Model.RootNode: ComponentNode component }
+                && component.Slots.Any(static slot => slot.Kind == ComponentSlotKind.GenericContextual))
+            .ToImmutableArray();
+
+        Assert.NotEmpty(contextualOutputs);
+        Assert.All(contextualOutputs, output =>
+            Assert.True(
+                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"Expected contextual generic-template model reuse but got {output.Reason}"));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------

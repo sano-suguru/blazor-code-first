@@ -243,7 +243,7 @@ internal static class RenderExpressionAnalyzer
             // item, so it is normalized before the iteration variable is registered.
             var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
-            var itemOrdinal = context.PushIterationVariable(contentParamSymbol, keyParamSymbol);
+            var itemOrdinal = context.PushRenderVariable(contentParamSymbol, keyParamSymbol);
             try
             {
                 var key = ExpressionTemplateFactory.Create(keyBody, context);
@@ -267,7 +267,7 @@ internal static class RenderExpressionAnalyzer
             }
             finally
             {
-                context.PopIterationVariable(contentParamSymbol, keyParamSymbol);
+                context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
             }
         }
 
@@ -415,7 +415,41 @@ internal static class RenderExpressionAnalyzer
             }
 
             if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateContextual)
-                return null;
+            {
+                if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
+                    || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
+                    || !SymbolEqualityComparer.Default.Equals(
+                        genericFragment.OriginalDefinition, renderFragmentGenericType)
+                    || !TryExtractSingleParameterLambda(
+                        valueExpression, out var contextParameter, out var contextBody)
+                    || context.SemanticModel.GetDeclaredSymbol(
+                        contextParameter, context.CancellationToken) is not { } contextParameterSymbol)
+                {
+                    return null;
+                }
+
+                var contextTypeName = genericFragment.TypeArguments[0]
+                    .ToDisplayString(FullyQualifiedTypeName);
+                context.PushRenderVariable(contextParameterSymbol);
+                try
+                {
+                    var slotContent = Analyze(contextBody, context);
+                    if (slotContent is null)
+                        return null;
+
+                    var appendedSlots = inner.Slots.AsImmutableArray()
+                        .Add(new ComponentSlot(property.Name, slotContent)
+                        {
+                            Kind = ComponentSlotKind.GenericContextual,
+                            ContextTypeName = contextTypeName,
+                        });
+                    return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+                }
+                finally
+                {
+                    context.PopRenderVariable(contextParameterSymbol);
+                }
+            }
 
             if (componentParameterKind == ComponentParameterMethodKind.ScalarParam && IsInertDesignTimeType(
                     context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,

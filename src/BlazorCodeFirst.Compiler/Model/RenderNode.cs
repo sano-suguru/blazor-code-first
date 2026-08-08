@@ -38,7 +38,10 @@ internal sealed record ForEachNode(
 internal sealed record ComponentParameter(string Name, ExpressionTemplate Value);
 
 /// <summary>A RenderFragment-typed component parameter whose content is an expanded node subtree.</summary>
-/// <remarks>Expanded counterpart of <see cref="ComponentSlot"/> (holes substituted).</remarks>
+/// <remarks>
+/// Expanded counterpart of <see cref="ComponentSlot"/> (holes substituted). Contextual generic slots
+/// carry the deterministic generated lambda parameter name; all metadata remains primitive/string data.
+/// </remarks>
 internal sealed record ComponentSlotNode(string Name, RenderNode Content)
 {
     public ComponentSlotKind Kind { get; init; }

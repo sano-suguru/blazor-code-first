@@ -11,7 +11,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 public sealed class ComposableBodyContextTests
 {
     [Fact]
-    public void PushIterationVariable_WithZeroBaseParameters_AssignsOrdinalZeroThenOne()
+    public void PushRenderVariable_WithZeroBaseParameters_AssignsOrdinalZeroThenOne()
     {
         var compilation = CompilationTestHost.CreateCompilation(
             "class C { void M(object a, object b, object c, object d) { } }");
@@ -30,16 +30,60 @@ public sealed class ComposableBodyContextTests
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
             CancellationToken.None);
 
-        var outer = context.PushIterationVariable(symbols[0], symbols[1]);
-        var inner = context.PushIterationVariable(symbols[2], symbols[3]);
+        var outer = context.PushRenderVariable(symbols[0], symbols[1]);
+        var inner = context.PushRenderVariable(symbols[2], symbols[3]);
 
         Assert.Equal(0, outer);
         Assert.Equal(1, inner);
         Assert.True(context.TryGetParameterOrdinal(symbols[0], out var o0) && o0 == 0);
         Assert.True(context.TryGetParameterOrdinal(symbols[3], out var o3) && o3 == 1);
 
-        context.PopIterationVariable(symbols[2], symbols[3]);
+        context.PopRenderVariable(symbols[2], symbols[3]);
         Assert.False(context.TryGetParameterOrdinal(symbols[3], out _));
-        Assert.Equal(1, context.PushIterationVariable(symbols[2], symbols[3]));
+        Assert.Equal(1, context.PushRenderVariable(symbols[2], symbols[3]));
+    }
+
+    [Fact]
+    public void Analyze_ContextualTemplateBodyFails_PopsTheScopedRenderVariable()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCodeFirst.Html;
+
+            public sealed class Target : ComponentBase
+            {
+                [Parameter] public RenderFragment<int>? RowTemplate { get; set; }
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<Target>().Template(c => c.RowTemplate, context => MissingView());
+
+                private View MissingView() => default;
+            }
+            """;
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var tree = compilation.SyntaxTrees.Single();
+        var model = compilation.GetSemanticModel(tree);
+        var root = tree.GetRoot();
+        var host = root.DescendantNodes().OfType<ClassDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "Host");
+        var body = root.DescendantNodes().OfType<PropertyDeclarationSyntax>()
+            .Single(static property => property.Identifier.ValueText == "Body");
+        var contextParameter = body.DescendantNodes().OfType<ParameterSyntax>()
+            .Single(static parameter => parameter.Identifier.ValueText == "context");
+        var contextParameterSymbol = model.GetDeclaredSymbol(contextParameter)!;
+        var context = new ComposableBodyContext(
+            model,
+            (INamedTypeSymbol)model.GetDeclaredSymbol(host)!,
+            "Body",
+            KnownSymbols.TryCreate(compilation)!,
+            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            CancellationToken.None);
+
+        Assert.Null(RenderExpressionAnalyzer.Analyze(body.ExpressionBody!.Expression, context));
+        Assert.False(context.TryGetParameterOrdinal(contextParameterSymbol, out _));
     }
 }

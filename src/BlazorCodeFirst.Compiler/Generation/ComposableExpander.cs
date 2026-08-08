@@ -18,10 +18,10 @@ internal readonly record struct ExpansionResult(
 /// <summary>
 /// Statically expands <c>[Composable]</c> call template nodes into the emittable <see cref="RenderNode"/>
 /// tree. Every template node, including composable call nodes that consume no render sequence, is
-/// assigned a global logical preorder ordinal used only to name the typed argument locals, so repeated
-/// helpers at different depths cannot collide. Expansion is a pure function of the template tree, the
-/// registry, and the generated component's containing-type key; it performs no rendering and evaluates no
-/// runtime composable calls.
+/// assigned a global logical preorder ordinal used to name typed argument locals and contextual-fragment
+/// parameters, so repeated helpers and nested templates at different depths cannot collide. Expansion is
+/// a pure function of the template tree, the registry, and the generated component's containing-type key;
+/// it performs no rendering and evaluates no runtime composable calls.
 /// </summary>
 internal static class ComposableExpander
 {
@@ -139,11 +139,20 @@ internal static class ComposableExpander
                     var slots = ImmutableArray.CreateBuilder<ComponentSlotNode>(component.Slots.Length);
                     foreach (var slot in component.Slots)
                     {
+                        string? contextVariableName = null;
+                        var slotSubstitution = substitution;
+                        if (slot.Kind == ComponentSlotKind.GenericContextual)
+                        {
+                            contextVariableName = $"__bcf_context_{nextLogicalPreorderOrdinal}";
+                            slotSubstitution = substitution.Add(
+                                new SubstitutedArgument(contextVariableName, Constant: null));
+                        }
+
                         // Slot content is a real subtree: it consumes preorder ordinals and may itself
                         // contain ForEach/[Composable] calls, so it expands through the same recursion.
                         var content = ExpandNode(
                             slot.Content,
-                            substitution,
+                            slotSubstitution,
                             ref nextLogicalPreorderOrdinal,
                             activeMethodStack,
                             registry,
@@ -156,6 +165,7 @@ internal static class ComposableExpander
                         {
                             Kind = slot.Kind,
                             ContextTypeName = slot.ContextTypeName,
+                            ContextVariableName = contextVariableName,
                         });
                     }
 

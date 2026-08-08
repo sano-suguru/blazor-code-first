@@ -152,6 +152,30 @@ public sealed class KeyabilityResolverTests
     }
 
     [Fact]
+    public void CollectForEachContentDiagnostics_WalksIntoContextualGenericSlots()
+    {
+        var forEach = new ForEachTemplateNode(
+            Lit("_items"),
+            Lit("__bcf_item_0"),
+            new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null),
+            new TemplateLocation("f", default, default));
+        var slot = new ComponentSlot("RowTemplate", forEach)
+        {
+            Kind = ComponentSlotKind.GenericContextual,
+            ContextTypeName = "global::System.Int32",
+        };
+        var node = new ComponentTemplateNode(
+            "global::X.C",
+            EquatableArray<ComponentParameter>.Empty,
+            ImmutableArray.Create(slot));
+
+        var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
+        KeyabilityResolver.CollectForEachContentDiagnostics(node, ComposableRegistry.Empty, sink);
+
+        Assert.Single(sink, diagnostic => diagnostic.Id == "BCF3003");
+    }
+
+    [Fact]
     public void ResolveRootKind_ComponentWithSlots_IsStillElement()
     {
         // SetKey lands right after OpenComponent, before any parameter, so slots do not affect keyability.

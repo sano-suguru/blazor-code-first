@@ -92,10 +92,18 @@ internal static class UnresolvedValueTypeScanner
             ScanRenderExpression(Receiver(invocation), context);
             if (recoverOwnValue)
             {
-                if (componentParameterKind == ComponentParameterMethodKind.ScalarParam)
-                    ReportValue(args.At(1)?.Expression, context);
-                else
-                    ScanRenderExpression(args.At(1)?.Expression, context);
+                switch (componentParameterKind)
+                {
+                    case ComponentParameterMethodKind.ScalarParam:
+                        ReportValue(args.At(1)?.Expression, context);
+                        break;
+                    case ComponentParameterMethodKind.GenericTemplateContextual:
+                        ScanLambdaBody(args.At(1)?.Expression, context);
+                        break;
+                    default:
+                        ScanRenderExpression(args.At(1)?.Expression, context);
+                        break;
+                }
             }
             return;
         }

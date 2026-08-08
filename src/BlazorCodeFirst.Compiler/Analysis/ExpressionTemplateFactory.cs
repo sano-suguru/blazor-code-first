@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
@@ -25,6 +26,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// qualified static call, or reported as BCF1002 when that rewrite cannot be made semantics-preserving;</item>
 /// <item>references to non-public members, whether unqualified or accessed through a receiver, record an
 /// accessibility requirement;</item>
+/// <item>unqualified containing-instance members whose names overlap the generated contextual-variable
+/// prefix gain an explicit <c>this.</c> receiver so the generated lambda parameter cannot shadow them;</item>
 /// <item>references to source-local constructs (local functions or locals from an enclosing scope)
 /// that cannot exist in generated code report a single declaration BCF1002;</item>
 /// <item>local, lambda, and unrecognized identifiers plus all trivia are preserved as literal text.</item>
@@ -140,6 +143,17 @@ internal static class ExpressionTemplateFactory
             {
                 AddReplacement(replacements, replacedSpans, name.Span,
                     new ParameterHoleExpressionSegment(ordinal));
+                continue;
+            }
+
+            if (NeedsGeneratedContextCollisionQualification(name, symbol, context))
+            {
+                RecordAccessRequirement(symbol, context);
+                AddReplacement(
+                    replacements,
+                    replacedSpans,
+                    IdentifierSpan(name),
+                    new LiteralExpressionSegment($"this.{name.Identifier.ValueText}"));
                 continue;
             }
 
@@ -707,6 +721,48 @@ internal static class ExpressionTemplateFactory
 
     private static bool IsQualifiedReference(SimpleNameSyntax name) =>
         name.Parent is MemberAccessExpressionSyntax or QualifiedNameSyntax or MemberBindingExpressionSyntax;
+
+    /// <summary>
+    /// Whether an unqualified author member would be shadowed by a generated contextual-fragment lambda
+    /// parameter. The operation's instance kind distinguishes the component's implicit <c>this</c> from
+    /// another implicit receiver, notably the left side of an object initializer, where inserting
+    /// <c>this.</c> would be invalid.
+    /// </summary>
+    private static bool NeedsGeneratedContextCollisionQualification(
+        SimpleNameSyntax name,
+        ISymbol symbol,
+        ComposableBodyContext context)
+    {
+        if (!name.Identifier.ValueText.StartsWith("__bcf_context_", System.StringComparison.Ordinal)
+            || symbol.IsStatic
+            || symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol)
+            || IsQualifiedReference(name))
+        {
+            return false;
+        }
+
+        if (context.SemanticModel.GetOperation(name, context.CancellationToken)
+            is IMemberReferenceOperation
+            {
+                Instance: IInstanceReferenceOperation
+                {
+                    ReferenceKind: InstanceReferenceKind.ContainingTypeInstance,
+                },
+            })
+        {
+            return true;
+        }
+
+        return name.Parent is InvocationExpressionSyntax invocation
+            && context.SemanticModel.GetOperation(invocation, context.CancellationToken)
+                is IInvocationOperation
+            {
+                Instance: IInstanceReferenceOperation
+                {
+                    ReferenceKind: InstanceReferenceKind.ContainingTypeInstance,
+                },
+            };
+    }
 
     private static bool IsInsideNameof(SyntaxNode node)
     {

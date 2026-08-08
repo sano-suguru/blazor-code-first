@@ -304,6 +304,17 @@ internal static class RenderViewEmitter
                 case ComponentSlotKind.GenericContextIgnored:
                     throw new InvalidOperationException(
                         $"A {nameof(ComponentSlotKind.GenericContextIgnored)} slot requires a context type.");
+                case ComponentSlotKind.GenericContextual
+                    when slot.ContextTypeName is { } contextTypeName
+                        && slot.ContextVariableName is { } contextVariableName:
+                    writer.AppendLine(
+                        $"__builder.AddComponentParameter({next}, \"{slot.Name}\", "
+                            + $"({RenderFragmentType}<{contextTypeName}>)"
+                            + $"(({contextVariableName}) => (__builder) =>");
+                    break;
+                case ComponentSlotKind.GenericContextual:
+                    throw new InvalidOperationException(
+                        $"A {nameof(ComponentSlotKind.GenericContextual)} slot requires a context type and variable name.");
                 default:
                     throw new NotSupportedException(
                         $"Emission for component slot kind '{slot.Kind}' is not yet implemented.");

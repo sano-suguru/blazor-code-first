@@ -153,7 +153,7 @@ internal sealed record ExpressionTemplate
     {
         System.Diagnostics.Debug.Assert(
             hole.ParameterOrdinal < arguments.Length,
-            $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {arguments.Length}; the ForEach/composable ordinal invariant is broken.");
+            $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {arguments.Length}; the scoped render-variable/composable ordinal invariant is broken.");
         return arguments[hole.ParameterOrdinal];
     }
 
