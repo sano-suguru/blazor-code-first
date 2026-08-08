@@ -309,7 +309,11 @@ renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
   unresolved one reports `BCF3015`. Keep this separate from `BCF3012`, which is
   reserved for the render-node type argument of `Component<T>()`.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
-  specification contracts, so do not repurpose or remove them. New IDs and public
+  specification contracts, so do not repurpose or remove them. An ID recorded in
+  `DiagnosticExpectations.RetiredIds` is burned rather than free: it shipped, was
+  withdrawn (付録B records why), and must not be handed to a different rule, so a
+  new diagnostic takes the next number above every allocated *and* retired ID.
+  `DiagnosticTableTests` enforces that. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
   the analyzer build gates (RS2000/RS0016) fail.
 - `ARCHITECTURE.md` 付録A is the canonical diagnostic table, and

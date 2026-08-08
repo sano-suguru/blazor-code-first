@@ -6,8 +6,8 @@ order: 60
 A two-way binding is one decoration that writes a value out to the DOM and reads the user's edit back
 into your state. `.Bind` is Razor's `@bind`, spelled so that everything it needs is an argument you can
 see. The generator lowers it to an attribute frame, an event frame carrying Blazor's own
-`CreateBinder`, and the DOM resynchronization that keeps the element honest — no reflection and no
-expression tree compiled at runtime.
+`CreateBinder`, and — when the bound attribute is `value` or `checked` — the DOM resynchronization
+that keeps the element honest. No reflection, and no expression tree compiled at runtime.
 
 ## Binding an element
 
@@ -105,8 +105,16 @@ any expression will do.
 
 A normalizing setter creates a divergence: the element shows what was typed, while your field holds
 the trimmed value. Ordinary diffing writes nothing, because the render tree has not changed since the
-last render. `.Bind` registers the bound attribute for DOM resynchronization to close that gap, so the
-element is corrected to show the normalized value. You get this without asking for it.
+last render. On a `value` or `checked` binding, `.Bind` registers that attribute for DOM
+resynchronization to close the gap, so the element is corrected to show the normalized value. You get
+this without asking for it.
+
+Those two names are the whole of it. Blazor's client sends back a form element's own `value` — or
+`checked` for a checkbox — and nothing else, so those are the only two names the generator registers.
+A binding to any other attribute registers nothing; `.Bind("hue", "onhuechange", () => _hue, Normalize)`
+on a custom element is the usual shape. The setter still runs and the new value still reaches the DOM
+by ordinary diffing on the next render. What is missing is the repair above, for the case where
+normalizing leaves the render tree unchanged and the element goes on showing what was typed.
 
 The setter receives `""` for an emptied text input, never `null` — which is why it takes a
 non-nullable `string`. Writing to your own state from the setter is allowed, even though writing to
