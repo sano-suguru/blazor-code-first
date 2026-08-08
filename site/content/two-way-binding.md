@@ -189,12 +189,11 @@ components such as `InputText`, and hand-written C# components, always resolve.
   attribute and the handler would never fire, so this is what catches the two names swapped.
 - **BCF3020** — the component's `{Name}Changed` parameter is missing or is not an
   `EventCallback<TValue>`.
-- **BCF3021** — an element carries more than one `.Bind`. This surface binds one value per element, so
-  the second is rejected even when both of its names are free — which is why it is not a duplicate
-  name and BCF3010 cannot express it. Blazor itself does not require this; it is a deliberate
-  narrowing, and whether to keep it is
-  [issue #162](https://github.com/sano-suguru/blazor-code-first/issues/162). Bind the second value on a
-  different element, or write it as `.Attr` plus `.On`.
+
+An element may carry more than one `.Bind`. If two of them share an attribute name or an event name,
+that is BCF3010, the same duplicate any two decorations would report. DOM resynchronization — the
+repair that puts a normalized value back over what the user typed — applies to `value` and `checked`
+only, because those are the only two the browser sends back with the event.
 
 ## Next
 

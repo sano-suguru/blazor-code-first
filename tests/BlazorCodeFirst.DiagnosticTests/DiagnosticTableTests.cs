@@ -66,6 +66,23 @@ public sealed class DiagnosticTableTests
     }
 
     [Fact]
+    public void RetiredIds_AreNeitherDeclaredNorDocumented()
+    {
+        var documented = AppendixA.DocumentedIds.ToImmutableHashSet(StringComparer.Ordinal);
+
+        var revived = DiagnosticExpectations.RetiredIds
+            .Where(entry => DeclaredDescriptors.Ids.Contains(entry.Id) || documented.Contains(entry.Id))
+            .Select(static entry => entry.Id)
+            .Order(StringComparer.Ordinal)
+            .ToImmutableArray();
+
+        Assert.True(
+            revived.IsEmpty,
+            $"These IDs were retired and must not be reused: {string.Join(", ", revived)}. " +
+            "付録B records why each was withdrawn. Allocate the next free number instead.");
+    }
+
+    [Fact]
     public void AppendixA_ListsEachDiagnosticOnce()
     {
         var repeated = AppendixA.DocumentedIds

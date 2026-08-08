@@ -157,6 +157,18 @@ public static class DiagnosticExpectations
             "descriptor lands with it (#57)."),
     ];
 
+    /// <summary>
+    /// IDs that were implemented and then withdrawn. The number is retired, not freed: a reader who hits
+    /// the old error in a preview build and searches for it must not find a different rule wearing the
+    /// same name. <c>CONTRIBUTING.md</c>'s prohibition covers IDs listed in
+    /// <c>AnalyzerReleases.Shipped.md</c>, which is empty, so this is what enforces the decision.
+    /// 付録B records the withdrawal itself.
+    /// </summary>
+    public static ImmutableArray<(string Id, string Reason)> RetiredIds { get; } =
+    [
+        ("BCF3021", "One binding per element. Withdrawn in #162; the justification was false and no break stood behind the rule."),
+    ];
+
     public static TheoryData<string> Ids
     {
         get
