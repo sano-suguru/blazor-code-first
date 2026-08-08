@@ -354,12 +354,27 @@ internal static class RenderViewEmitter
             // Blazor resynchronizes the DOM from this attribute when a re-render produces the value the
             // element already shows. Without it, a setter that normalizes or rejects the incoming value
             // leaves the element displaying the rejected text while the field holds something else.
-            writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
+            //
+            // Only "value" and "checked" are named. EventFieldInfo.getFormFieldData sends back the
+            // element's own value — checked on a checkbox — for an input, select or textarea, and null
+            // for everything else, and RenderTreeUpdater.UpdateToMatchClientState writes that value into
+            // whichever frame this names. A third attribute name is therefore dead on a custom element
+            // and actively wrong on a form element, where it would overwrite an unrelated frame of the
+            // retained tree and leave the real attribute stranded (#162).
+            if (ResynchronizesFromDom(bind.AttributeName))
+                writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
         }
         next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;
     }
+
+    /// <summary>
+    /// Whether Blazor's DOM resynchronization can act on <paramref name="attributeName"/>. These are the
+    /// only two names <c>EventFieldInfo</c> can produce, so they are the only two worth recording.
+    /// </summary>
+    private static bool ResynchronizesFromDom(string attributeName) =>
+        attributeName is "value" or "checked";
 
     private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)
     {

@@ -170,6 +170,41 @@ public sealed class RenderViewEmitterDecorationTests
     }
 
     [Fact]
+    public void Emit_BoundToAttributeOtherThanValueOrChecked_EmitsNoUpdatesAttributeName()
+    {
+        // EventFieldInfo sends back the element's own value (or checked, on a checkbox) and nothing
+        // else, and RenderTreeUpdater writes that value into whichever frame this names. On a form
+        // element, naming a third attribute writes the input's value into an unrelated frame of the
+        // retained tree and strands the real one; on any other element the call is dead, because
+        // EventFieldInfo.fromEvent returns null there. Neither is worth emitting.
+        var node = BoundInput(new BindTemplate(
+            "data-x",
+            "onfocus",
+            ExpressionTemplate.Literal("_x"),
+            ExpressionTemplate.Literal("BINDER")));
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.AddAttribute(1, \"data-x\", _x);", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"onfocus\", BINDER);", generated);
+        Assert.DoesNotContain("SetUpdatesAttributeName", generated);
+    }
+
+    [Fact]
+    public void Emit_BoundCheckbox_EmitsUpdatesAttributeNameForChecked()
+    {
+        var node = BoundInput(new BindTemplate(
+            "checked",
+            "onchange",
+            ExpressionTemplate.Literal("_agreed"),
+            ExpressionTemplate.Literal("BINDER")));
+
+        var generated = EmitRoot(node);
+
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"checked\");", generated);
+    }
+
+    [Fact]
     public void Emit_BoundElementWithOtherDecorations_NumbersBindFramesAfterThem()
     {
         var node = new ElementNode(
