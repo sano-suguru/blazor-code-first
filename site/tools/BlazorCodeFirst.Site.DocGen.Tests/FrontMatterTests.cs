@@ -37,6 +37,44 @@ public class FrontMatterTests
     }
 
     [Theory]
+    [InlineData(" ---\ntitle: T\norder: 1\n---\n")]
+    [InlineData("--- \ntitle: T\norder: 1\n---\n")]
+    [InlineData("----\ntitle: T\norder: 1\n---\n")]
+    [InlineData("---x\ntitle: T\norder: 1\n---\n")]
+    [InlineData("---")]
+    public void Split_MalformedOpeningDelimiter_Throws(string raw)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => FrontMatter.Split(raw, "sample.md"));
+
+        Assert.Contains("opening", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("---", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("sample.md", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("---\ntitle: T\norder: 1\n--- \n")]
+    [InlineData("---\ntitle: T\norder: 1\n ---\n")]
+    [InlineData("---\ntitle: T\norder: 1\n----\n")]
+    [InlineData("---\ntitle: T\norder: 1\n---x\n")]
+    public void Split_MalformedClosingDelimiter_Throws(string raw)
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => FrontMatter.Split(raw, "sample.md"));
+
+        Assert.Contains("closing", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("must be exactly", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("---", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("sample.md", ex.Message);
+    }
+
+    [Fact]
+    public void Split_DelimiterLookingTextAfterClosingLine_RemainsBody()
+    {
+        var (_, body) = FrontMatter.Split("---\ntitle: T\norder: 1\n---\n--- \n", "sample.md");
+
+        Assert.Equal("--- \n", body);
+    }
+
+    [Theory]
     [InlineData("## No front matter\n", "front matter")]              // no front matter block at all
     [InlineData("---\norder: 1\n---\n", "title")]                     // missing title
     [InlineData("---\ntitle: T\n---\n", "order")]                     // missing order
