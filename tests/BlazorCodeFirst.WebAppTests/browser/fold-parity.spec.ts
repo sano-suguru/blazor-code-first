@@ -45,8 +45,23 @@ test('prerendering is off, so the containers are only ever populated by the inte
   // HTML just fetched above) and present only once the interactive circuit's first render batch runs.
   // If it appeared only after this point, it was built by the client-side renderer
   // (createElement/setAttribute/createTextNode or insertMarkup), not copied verbatim from server HTML.
+  //
+  // The circuit is blocked for that first navigation rather than raced against. page.goto resolves on
+  // `load`, and App.razor's blazor.web.js is a synchronous script that starts before it, so an absence
+  // check placed after the goto is a race — and one that mostly loses: measured over 20 repetitions
+  // under the default worker count, it went red 16 times with the container already present. Nothing
+  // about that is a defect in the page; the assertion just has no way to name the moment it means.
+  // Aborting the circuit's HTTP negotiation gives it one. The suite runs with retries: 0 on purpose
+  // (see playwright.config.ts), so this is made deterministic rather than retried — a retry here would
+  // also hide a real intermittent regression in the two behaviours this directory exists to measure.
+  await page.route('**/_blazor/**', (route) => route.abort());
   await page.goto('/fold-parity');
   await expect(page.locator('#folded-table-fragment')).toHaveCount(0);
+
+  // Let the circuit through and load again, so the rest of the assertion sees a normal interactive
+  // render. The reload is what makes the count below measure the client-side renderer's own work.
+  await page.unroute('**/_blazor/**');
+  await page.reload();
 
   await page.waitForSelector('#interactive-marker');
   await expect(page.locator('#folded-table-fragment')).toHaveCount(1);

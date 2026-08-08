@@ -91,3 +91,14 @@ updates:
           - Microsoft.NET.Test.Sdk
           - bunit
           - AngleSharp
+
+  - package-ecosystem: npm
+    # The browser suite became a CI gate in #163, so a Playwright update that breaks it has to
+    # surface as a red pull request rather than sit unnoticed until someone runs it by hand. The
+    # lockfile is also the cache key for the downloaded browser in ci.yml's browser job, which only
+    # stays correct while the file moves with the package.
+    directory: "/tests/BlazorCodeFirst.WebAppTests/browser"
+    schedule:
+      interval: weekly
+    labels:
+      - "area: build"
