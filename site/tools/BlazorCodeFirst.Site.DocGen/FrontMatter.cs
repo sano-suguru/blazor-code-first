@@ -35,22 +35,35 @@ public static class FrontMatter
         // Normalize CRLF so authoring on Windows behaves identically; the body keeps LF only.
         string text = raw.Replace("\r\n", "\n", StringComparison.Ordinal);
 
-        if (!text.StartsWith(Fence + "\n", StringComparison.Ordinal))
+        int openingNewline = text.IndexOf('\n', StringComparison.Ordinal);
+        string openingLine = openingNewline < 0 ? text : text[..openingNewline];
+        if (openingNewline < 0 || openingLine != Fence)
         {
+            if (openingLine.Trim() == Fence ||
+                openingLine.TrimStart().StartsWith(Fence, StringComparison.Ordinal))
+            {
+                throw Invalid(fileName, "the opening front matter delimiter must be exactly '---' followed by a newline.");
+            }
+
             throw Invalid(fileName, "the file must start with a '---' front matter block declaring 'title' and 'order'.");
         }
 
         int bodyStart = -1;
         var lines = new List<string>();
-        int cursor = Fence.Length + 1;
+        int cursor = openingNewline + 1;
         while (cursor <= text.Length)
         {
             int newline = text.IndexOf('\n', cursor);
             string line = newline < 0 ? text[cursor..] : text[cursor..newline];
-            if (line.Trim() == Fence)
+            if (line == Fence)
             {
                 bodyStart = newline < 0 ? text.Length : newline + 1;
                 break;
+            }
+
+            if (line.TrimStart().StartsWith(Fence, StringComparison.Ordinal))
+            {
+                throw Invalid(fileName, "the closing front matter delimiter must be exactly '---'.");
             }
 
             lines.Add(line);
