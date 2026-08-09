@@ -603,6 +603,72 @@ public sealed class UnresolvedEmittedTypeTests
         AssertSingleBCF3015(result, source);
     }
 
+    [Theory]
+    [InlineData("""Component<Card>().Bind(c => c.Title, () => _titles[typeof(Probe).Name])["x"]""")]
+    [InlineData("""Input.Bind("value", "onchange", () => _titles[typeof(Probe).Name])["x"]""")]
+    [InlineData(
+        """Input.Bind("value", "onchange", () => _titles["k"], v => _titles[typeof(Probe).Name] = v)["x"]""")]
+    [InlineData(
+        """Input.Bind(attributeName: "value", eventName: "onchange", get: () => _titles[typeof(Probe).Name])["x"]""")]
+    public void BindValueUnresolvedType_ReportsBCF3015(string body)
+    {
+        // The unresolved type is what makes the .Bind itself fail to bind, so recovery has to name the
+        // method from a whole overload group rather than from a selected symbol (#197). The root is the
+        // children indexer, which recovers through the receiver's type, so the sweep reaches the .Bind and
+        // only the .Bind's own recovery is under test.
+        var source = $$"""
+            using System;
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly Dictionary<string, string> _titles = [];
+
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Host.cs", source), ("Card.cs", CardSource));
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    [Theory]
+    [InlineData(
+        """
+        Component<Card>()
+                        .Param(c => c.ChildContent, Div.Class(typeof(Probe).Name)["x"])
+                        .Bind(c => c.Title)
+        """)]
+    [InlineData("""Div.Class(typeof(Probe).Name).Bind("value")""")]
+    public void BindArgumentsMatchNoOverload_ReportsBCF3015OnTheReceiver(string body)
+    {
+        // Neither call fills any overload, so recovery cannot name one and its arguments go unread. Its
+        // receiver does not: which overload was written says nothing about what the receiver is, so the
+        // sweep walks it and the value below is still named (#197). Refusing the whole expression is what
+        // #191 fixed for a selected .Bind, and an unselectable one deserves the same.
+        var source = $$"""
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Host.cs", source), ("Card.cs", CardSource));
+
+        AssertSingleBCF3015(result, source);
+    }
+
     [Fact]
     public void ForEachParameterDeclarationUnresolvedType_DoesNotReportBCF3015()
     {
