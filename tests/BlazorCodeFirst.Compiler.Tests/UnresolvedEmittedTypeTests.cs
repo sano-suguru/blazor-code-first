@@ -363,6 +363,44 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
     }
 
+    /// <summary>
+    /// The receiver of a fluently written <c>[Composable]</c> extension is scanned, the same as the
+    /// arguments beside it: nothing forbids a composable being an extension method, and its receiver is the
+    /// argument the declaration numbers 0 (#200).
+    /// </summary>
+    /// <remarks>
+    /// The call itself cannot expand — the call site's reduced symbol keys differently from the declaration
+    /// (#203) — so this body is an error either way, and what the scan decides is only whether the specific
+    /// BCF3015 is reported in place of the generic BCF1003.
+    /// </remarks>
+    [Fact]
+    public void ComposableExtensionReceiver_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public static class Helpers
+            {
+                [Composable]
+                public static View Label(this string value) => Span[value];
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => typeof(Probe).Name.Label();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void LayoutChrome_UnresolvedType_ReportsBCF3015()
     {
