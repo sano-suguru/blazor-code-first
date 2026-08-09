@@ -148,19 +148,11 @@ internal static class UnresolvedValueTypeScanner
 
         switch (kind)
         {
-            // The getter and, where written, the setter: both are transplanted into generated code and
-            // can therefore name a type that does not resolve. Their positions come from the same
-            // helper the emitter arm reads, so this scan and the translation it stands in for cannot
-            // drift apart when the overload set grows (#206). The selector is not a value position — it
-            // is read for the property it names and never emitted, so a bad one is BCF3005's to report.
-            // That is the same split the element-level .Bind arm makes.
+            // The selector is not a value position — it is read for the property it names and never
+            // emitted, so a bad one is BCF3005's to report. That is the same split the element-level
+            // .Bind arm makes, and both reach it through ReportBindArguments.
             case SurfaceMethodKind.ComponentBind:
-                if (KnownSymbols.TryGetBindParameters(method, out var componentBind))
-                {
-                    ReportValue(args.At(componentBind.GetterIndex)?.Expression, context);
-                    ReportValue(args.At(componentBind.SetterIndex)?.Expression, context);
-                }
-
+                ReportBindArguments(method, args, context);
                 return;
 
             case SurfaceMethodKind.ScalarParam:
@@ -213,23 +205,45 @@ internal static class UnresolvedValueTypeScanner
 
         if (kind == SurfaceMethodKind.Bind)
         {
-            // The getter and the setter, both of which are transplanted into generated code and can
-            // therefore name a type that does not resolve, at the positions the emitter arm reads them
-            // from (#206). The two name arguments are not value positions: a non-constant one is
-            // BCF3011's to report, and that rejection has already cleared recoverOwnValue by the time
-            // this runs.
-            if (KnownSymbols.TryGetBindParameters(method, out var elementBind))
-            {
-                ReportValue(args.At(elementBind.GetterIndex)?.Expression, context);
-                ReportValue(args.At(elementBind.SetterIndex)?.Expression, context);
-            }
-
+            // The two name arguments are not value positions: a non-constant one is BCF3011's to
+            // report, and that rejection has already cleared recoverOwnValue by the time this runs.
+            ReportBindArguments(method, args, context);
             return;
         }
 
         // .Class, a named attribute shortcut and a named event shortcut each carry their one value in
         // argument 0, the name being the decoration's own spelling rather than something written.
         ReportValue(args.At(0)?.Expression, context);
+    }
+
+    /// <summary>
+    /// Reports on a binding's getter and, where written, its setter: the two arguments transplanted into
+    /// generated code, and therefore the two that can name a type that does not resolve.
+    /// </summary>
+    /// <remarks>
+    /// One body for both surfaces, reading the positions off
+    /// <see cref="KnownSymbols.TryGetBindParameters"/> rather than from ordinals written here, so this
+    /// scan follows the overload set instead of having to be transcribed alongside it (#206).
+    /// <para>
+    /// That holds this scan to the element emitter exactly: <c>ClassifyBind</c> reads the same two
+    /// indices. The component emitter is aligned on the setter only — it takes its getter from the
+    /// shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue, which is a position those three
+    /// spellings share rather than one this overload set owns. The two agree today, and an overload that
+    /// parted them would be moving a position the prologue also reads.
+    /// </para>
+    /// <para>
+    /// A method this compiler was not written against reports nothing rather than reporting at a guessed
+    /// position. The body is already BCF1003 by then, so the cost is a report not made, not a wrong one.
+    /// </para>
+    /// </remarks>
+    private static void ReportBindArguments(
+        IMethodSymbol method, BoundArguments args, ComposableBodyContext context)
+    {
+        if (!KnownSymbols.TryGetBindParameters(method, out var bind))
+            return;
+
+        ReportValue(args.At(bind.GetterIndex)?.Expression, context);
+        ReportValue(args.At(bind.SetterIndex)?.Expression, context);
     }
 
     /// <summary>
@@ -687,10 +701,10 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// <para>
     /// Only the accepting half of that is covered by a test, and deliberately so rather than by oversight.
-    /// Every overload group on this surface is prefix-aligned — the setter, when one of a method's
-    /// overloads declares one, sits at the same argument position across every overload of that method —
-    /// and every recognized name resolves to a single method, so no call site can currently be written
-    /// whose reading changes with the survivor picked. Answering
+    /// Every overload group on this surface is prefix-aligned — an argument position means the same
+    /// thing across every overload of one method, so <c>.Bind</c>'s getter and setter land alike
+    /// whichever survivor is picked — and every recognized name resolves to a single method, so no call
+    /// site can currently be written whose reading changes with the survivor picked. Answering
     /// the first candidate that merely binds passes the whole suite. What this buys is that adding an
     /// overload that breaks either property costs a refused diagnostic rather than a silently misread one,
     /// which is the trade #197 asked for; a later reader finding it untested should weigh it on that, not

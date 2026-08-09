@@ -604,7 +604,8 @@ internal sealed class KnownSymbols
     /// <c>GetSymbolInfo</c> with the reduced method for a fluent call and the unreduced one for the
     /// static call, while an operation's <c>IArgumentOperation.Parameter</c> is always unreduced; the
     /// positions are normalized instead, by <see cref="BindParameters.ArgumentIndex"/>, which is the one
-    /// rule this whole helper exists to hold. Normalizing the method would additionally make
+    /// rule this whole helper exists to hold — including the receiver skip, which asks it rather than
+    /// restating it. Normalizing the method would additionally make
     /// <see cref="BindParameters.ValueType"/> an unsubstituted type parameter, since
     /// <c>ReducedFrom</c> answers the generic definition.
     /// </para>
@@ -622,10 +623,18 @@ internal sealed class KnownSymbols
     {
         bind = default;
 
-        var offset = method.IsExtensionMethod && method.ReducedFrom is null ? 1 : 0;
-        for (var index = offset; index < method.Parameters.Length; index++)
+        for (var index = 0; index < method.Parameters.Length; index++)
         {
-            if (method.Parameters[index].Type
+            var getter = method.Parameters[index];
+
+            // A negative index is an extension method's receiver, which argument space excludes. Asking
+            // the same rule that places the roles below, rather than spelling the receiver test a second
+            // time here, is what keeps the two from ever disagreeing about which parameter is skipped.
+            var getterIndex = BindParameters.ArgumentIndex(getter);
+            if (getterIndex < 0)
+                continue;
+
+            if (getter.Type
                 is not INamedTypeSymbol
                 {
                     DelegateInvokeMethod: { Parameters.Length: 0, ReturnsVoid: false } getterInvoke,
@@ -635,29 +644,24 @@ internal sealed class KnownSymbols
             }
 
             var valueType = getterInvoke.ReturnType;
-            var setterIndex = index + 1;
-            if (setterIndex >= method.Parameters.Length)
+            var setterIndex = -1;
+            var setterIsAsynchronous = false;
+
+            if (index + 1 < method.Parameters.Length)
             {
-                bind = new BindParameters(
-                    BindParameters.ArgumentIndex(method.Parameters[index]),
-                    -1,
-                    valueType,
-                    setterIsAsynchronous: false);
-                return true;
+                var setter = method.Parameters[index + 1];
+                if (setter.Type
+                    is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke }
+                    || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
+                {
+                    return false;
+                }
+
+                setterIndex = BindParameters.ArgumentIndex(setter);
+                setterIsAsynchronous = !setterInvoke.ReturnsVoid;
             }
 
-            if (method.Parameters[setterIndex].Type
-                is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke }
-                || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
-            {
-                return false;
-            }
-
-            bind = new BindParameters(
-                BindParameters.ArgumentIndex(method.Parameters[index]),
-                BindParameters.ArgumentIndex(method.Parameters[setterIndex]),
-                valueType,
-                !setterInvoke.ReturnsVoid);
+            bind = new BindParameters(getterIndex, setterIndex, valueType, setterIsAsynchronous);
             return true;
         }
 
