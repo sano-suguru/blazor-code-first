@@ -42,14 +42,20 @@ internal static class UnresolvedValueTypeScanner
         if (!recognized.IsSurfaceCall)
             return;
 
-        // A recognized call this scanner could not read through — its overload group named no single
-        // overload, or the arguments did not bind to the one it named. Neither failure says anything about
-        // the receiver, which is the same expression either way, so the chain below is still walked. It is
-        // only the arguments that go unread, because only the overload says what each of them means (#197).
+        // Recognizing the call is the whole of what walking its receiver depends on, so the walk is stated
+        // once, here, rather than by each arm that has a chain to climb. A receiver is the same expression
+        // whichever overload was written (#197) and the same expression whichever arm reads the arguments,
+        // and on the arms whose call is static it is a type name the walk returns from at once. Reading the
+        // arguments is what still needs the overload, because only the overload says what each of them
+        // means. ScanChildrenIndexer takes the same shape for the same reason.
+        ScanRenderExpression(Receiver(invocation), context);
+
+        // A recognized call this scanner could not read through: its overload group named no single
+        // overload, or the arguments did not bind to the one it named. The receiver is already walked, so
+        // only the arguments go unread.
         if (recognized.Method is not { } method
             || (recognized.Arguments ?? BindArguments(invocation, method, context)) is not { } args)
         {
-            ScanRenderExpression(Receiver(invocation), context);
             return;
         }
 
@@ -96,7 +102,7 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.GenericTemplateIgnored:
             case SurfaceMethodKind.GenericTemplateContextual:
             case SurfaceMethodKind.ComponentBind:
-                ScanComponentParameter(invocation, kind, args, recoverOwnValue, context);
+                ScanComponentParameter(kind, args, recoverOwnValue, context);
                 return;
 
             case SurfaceMethodKind.Class:
@@ -108,6 +114,13 @@ internal static class UnresolvedValueTypeScanner
                 ScanDecoration(invocation, method, kind, args, recoverOwnValue, context);
                 return;
 
+            // A [Composable] call. Nothing here forbids the method being an extension, which is static and
+            // so passes ComposableDefinitionFactory, and the walk above therefore reaches the receiver of
+            // one written fluently. That is the answer this arm would want anyway: the receiver of a
+            // composable extension is its declared argument 0, and this arm reports every other argument.
+            // The fluent spelling does not expand today — the call site's reduced symbol produces a
+            // different MethodKey from the declaration's, so it is BCF1002 (#203) — which is why walking it
+            // can only ever replace the generic BCF1003 with a specific report, never emit anything new.
             case SurfaceMethodKind.None:
                 if (IsComposable(method, context))
                 {
@@ -122,17 +135,15 @@ internal static class UnresolvedValueTypeScanner
     /// <summary>
     /// Scans a <c>.Param</c>, <c>.Template</c> or <c>.Bind</c> written on a component. The three share a
     /// route, as they do in <c>RenderExpressionAnalyzer.Classify</c>: all of them chain off a
-    /// <c>ComponentView&lt;T&gt;</c> receiver that has to be walked, and all of them take the selector in
-    /// the same position. Only what follows the selector differs.
+    /// <c>ComponentView&lt;T&gt;</c> receiver, which the caller has already walked, and all of them take
+    /// the selector in the same position. Only what follows the selector differs.
     /// </summary>
     private static void ScanComponentParameter(
-        InvocationExpressionSyntax invocation,
         SurfaceMethodKind kind,
         BoundArguments args,
         bool recoverOwnValue,
         ComposableBodyContext context)
     {
-        ScanRenderExpression(Receiver(invocation), context);
         if (!recoverOwnValue)
             return;
 
@@ -164,13 +175,16 @@ internal static class UnresolvedValueTypeScanner
     }
 
     /// <summary>
-    /// Scans one element decoration: the receiver, which carries the element and everything decorated onto
-    /// it before this call, and then whichever of this decoration's own arguments reaches generated code.
+    /// Scans whichever of one element decoration's own arguments reaches generated code. The chain it is
+    /// written onto, carrying the element and everything decorated before this call, is the receiver the
+    /// caller has already walked.
     /// </summary>
     /// <remarks>
-    /// A decoration spelled as a static call, <c>Decorations.Class(builder, "c")</c>, is left alone
-    /// entirely: its receiver is a type name rather than an element, so there is no chain to walk and the
-    /// arguments sit one position further along than the fluent spelling this reads.
+    /// A decoration spelled as a static call, <c>Decorations.Class(builder, "c")</c>, has no argument read
+    /// here at all: its arguments sit one position further along than the fluent spelling this reads. Its
+    /// receiver is a type name, so the caller's walk returns from it without reaching anything, and the
+    /// element it decorates is written as that first argument, which this route deliberately leaves unread
+    /// rather than reading at a second set of positions.
     /// </remarks>
     private static void ScanDecoration(
         InvocationExpressionSyntax invocation,
@@ -180,11 +194,7 @@ internal static class UnresolvedValueTypeScanner
         bool recoverOwnValue,
         ComposableBodyContext context)
     {
-        if (!IsFluentExtensionInvocation(invocation, method, context))
-            return;
-
-        ScanRenderExpression(Receiver(invocation), context);
-        if (!recoverOwnValue)
+        if (!recoverOwnValue || !IsFluentExtensionInvocation(invocation, method, context))
             return;
 
         if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.On)
