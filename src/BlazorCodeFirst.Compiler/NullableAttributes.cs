@@ -1,6 +1,10 @@
 // Polyfill required for nullable-analysis attributes targeting netstandard2.0.
-// System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute is not available in the netstandard2.0
-// reference assemblies; it can be provided inline for the compiler to honor on public APIs.
+// System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute is not available in the netstandard2.0 reference
+// assemblies; it can be provided inline for the compiler to honor on public APIs.
+//
+// One attribute is enough because every Try-pattern here spells the same contract the same way:
+// [MaybeNullWhen(false)] on the out parameter. NotNullWhen(true) on a nullable out parameter says exactly
+// that, so adding it would ship a second type for a contract already expressed.
 namespace System.Diagnostics.CodeAnalysis;
 
 /// <summary>Specifies that when a method returns <see cref="ReturnValue"/>, the parameter may be <see langword="null"/>.</summary>

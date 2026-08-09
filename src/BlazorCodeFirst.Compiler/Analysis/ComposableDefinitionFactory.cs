@@ -124,7 +124,7 @@ internal static class ComposableDefinitionFactory
             // A parameter (or optional-default) type that cannot be named from another file, a file-local
             // type or one otherwise unnameable, would produce invalid generated C# at the expansion site,
             // so reject the declaration with BCF1002 instead.
-            if (IsUnnameableType(parameter.Type))
+            if (!TypeSymbolFacts.IsNameableInGeneratedCode(parameter.Type))
             {
                 diagnostics = [BuildDiagnostic(
                     declaration,
@@ -134,16 +134,9 @@ internal static class ComposableDefinitionFactory
             }
 
             ordinals[parameter] = parameter.Ordinal;
-            var typeName = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             parameters.Add(new ComposableParameter(
                 parameter.Ordinal,
-                parameter.Name,
-                typeName,
-                ComposableParameterKind.Value,
-                parameter.HasExplicitDefaultValue,
-                parameter.HasExplicitDefaultValue
-                    ? ConstantTemplate.ForParameterDefault(parameter, typeName)
-                    : null));
+                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
         }
 
         var context = new ComposableBodyContext(
@@ -183,9 +176,6 @@ internal static class ComposableDefinitionFactory
         // warnings are still surfaced.
         diagnostics = context.Diagnostics.ToImmutable();
         return new ComposableDefinition(
-            MethodKey.Create(method),
-            method.Name,
-            method.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             parameters.ToImmutable(),
             context.AccessRequirements.ToImmutable(),
             body);
@@ -212,46 +202,4 @@ internal static class ComposableDefinitionFactory
             declaration.Identifier.GetLocation(),
             [displayName, reason]);
 
-    /// <summary>
-    /// Determines whether <paramref name="type"/> (or a component of it, array element, pointed-at type,
-    /// generic type argument, or an enclosing type) cannot be referenced by a fully qualified name in a
-    /// generated file, for example a <c>file</c>-local type or an otherwise unnameable type. Such a type
-    /// would emit invalid C# in a typed argument local, so its composable is rejected at the declaration.
-    /// </summary>
-    private static bool IsUnnameableType(ITypeSymbol type)
-    {
-        switch (type)
-        {
-            case IArrayTypeSymbol array:
-                return IsUnnameableType(array.ElementType);
-
-            case IPointerTypeSymbol pointer:
-                return IsUnnameableType(pointer.PointedAtType);
-
-            case ITypeParameterSymbol:
-                // Composables are validated as non-generic before reaching here.
-                return false;
-
-            case INamedTypeSymbol named:
-                if (named.IsFileLocal || !named.CanBeReferencedByName)
-                    return true;
-
-                for (var containing = named.ContainingType; containing is not null; containing = containing.ContainingType)
-                {
-                    if (containing.IsFileLocal || !containing.CanBeReferencedByName)
-                        return true;
-                }
-
-                foreach (var argument in named.TypeArguments)
-                {
-                    if (IsUnnameableType(argument))
-                        return true;
-                }
-
-                return false;
-
-            default:
-                return false;
-        }
-    }
 }

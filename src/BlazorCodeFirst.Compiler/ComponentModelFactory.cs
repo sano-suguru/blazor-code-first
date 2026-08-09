@@ -69,27 +69,31 @@ internal static class ComponentModelFactory
         if (elected is null || elected.Parent != classDeclaration)
             return null;
 
+        // The three rejections below differ only in which diagnostic they carry: each names the component
+        // the same way and each declines to translate. FailureLocation is null in all three because every
+        // one of them is located and therefore suppresses Expand's BCF1003, which exists to say "something
+        // failed and here is no reason". A member added to ComponentAnalysis is described once here rather
+        // than in three blocks that have to be diffed against each other to see that they agree.
+        ComponentAnalysis DiagnosticOnly(DiagnosticInfo diagnostic) => new(
+            HintName: hintName,
+            ClassName: symbol.Name,
+            TypeParameters: BuildTypeParameters(symbol),
+            Namespace: namespaceName,
+            DesignTimeExpressionName: expressionName,
+            InheritanceKeys: BuildInheritanceKeys(symbol),
+            Template: null,
+            BodyDiagnostics: ImmutableArray.Create(diagnostic),
+            FailureLocation: null);
+
         // Emitting into a nested type would mean reproducing the enclosing type chain; unsupported.
         // Reported here rather than at the top of the method so a nested class that merely inherits a
         // BlazorCodeFirst base without declaring the expression is not told that nesting is its problem.
         if (symbol.ContainingType is not null)
         {
-            return new ComponentAnalysis(
-                HintName: hintName,
-                ClassName: symbol.Name,
-                TypeParameters: BuildTypeParameters(symbol),
-                Namespace: namespaceName,
-                DesignTimeExpressionName: expressionName,
-                InheritanceKeys: BuildInheritanceKeys(symbol),
-                Template: null,
-                BodyDiagnostics: ImmutableArray.Create(
-                    DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF1005,
-                        elected.Identifier.GetLocation(),
-                        [symbol.Name, expressionName])),
-                // Rejected before the design-time expression was classified, and BCF1005 above is located,
-                // so Expand's BCF1003 is suppressed rather than reported without one.
-                FailureLocation: null);
+            return DiagnosticOnly(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF1005,
+                elected.Identifier.GetLocation(),
+                [symbol.Name, expressionName]));
         }
 
         // The generated RenderView joins this class, which requires `partial`. Reported here, from the
@@ -100,21 +104,10 @@ internal static class ComponentModelFactory
         // add a modifier that would change nothing.
         if (!IsDeclaredPartial(symbol, cancellationToken))
         {
-            return new ComponentAnalysis(
-                HintName: hintName,
-                ClassName: symbol.Name,
-                TypeParameters: BuildTypeParameters(symbol),
-                Namespace: namespaceName,
-                DesignTimeExpressionName: expressionName,
-                InheritanceKeys: BuildInheritanceKeys(symbol),
-                Template: null,
-                BodyDiagnostics: ImmutableArray.Create(
-                    DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF1001,
-                        classDeclaration.Identifier.GetLocation(),
-                        [symbol.Name, expressionName, designTimeBase.Name])),
-                // As above: BCF1001 is located and suppresses BCF1003.
-                FailureLocation: null);
+            return DiagnosticOnly(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF1001,
+                classDeclaration.Identifier.GetLocation(),
+                [symbol.Name, expressionName, designTimeBase.Name]));
         }
 
         var shape = FindDesignTimeExpression(
@@ -128,22 +121,12 @@ internal static class ComponentModelFactory
         // routes it through Expand's existing dedup, which suppresses BCF1003 when an error is present.
         if (shape == DesignTimeExpressionShape.NotTranslatable)
         {
-            return new ComponentAnalysis(
-                HintName: hintName,
-                ClassName: symbol.Name,
-                TypeParameters: BuildTypeParameters(symbol),
-                Namespace: namespaceName,
-                DesignTimeExpressionName: expressionName,
-                InheritanceKeys: BuildInheritanceKeys(symbol),
-                Template: null,
-                BodyDiagnostics: ImmutableArray.Create(
-                    DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF1004,
-                        getterLocation ?? Location.None,
-                        [symbol.Name, expressionName])),
-                // As above: BCF1004 is located and suppresses BCF1003. There is also no expression to
-                // blame here, the getter never reduced to one, which is what BCF1004 says.
-                FailureLocation: null);
+            // There is also no expression to blame here, the getter never reduced to one, which is what
+            // BCF1004 says.
+            return DiagnosticOnly(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF1004,
+                getterLocation ?? Location.None,
+                [symbol.Name, expressionName]));
         }
 
         // Resolve the BlazorCodeFirst.Html factory symbols only once the candidate is confirmed to be a

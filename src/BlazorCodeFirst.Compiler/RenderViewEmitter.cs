@@ -77,21 +77,55 @@ internal static class RenderViewEmitter
         // only caller that passes a non-null key (for the loop content root), so this check is what keeps
         // a ForEach content root out of the fold; there is no separate predicate to keep in step
         // (ARCHITECTURE.md §2.7(D)).
-        if (key is null && TryEmitFolded(writer, [node], startSeq, out var afterFold))
+        if (key is null
+            && StaticMarkupSerializer.IsFoldable(node)
+            && TryEmitFolded(writer, [node], startSeq, out var afterFold))
+        {
             return afterFold;
+        }
+
+        return EmitUnfolded(writer, node, startSeq, key);
+    }
+
+    /// <summary>
+    /// Dispatches <paramref name="node"/> to its emitter without attempting a fold, and returns the next
+    /// available sequence number. Separate from <see cref="EmitNode"/> so that a caller which already knows
+    /// folding is not on the table can say so instead of paying to rediscover it: <see cref="EmitChildren"/>
+    /// reaches here for a run it has just seen declined, where a second attempt is not merely wasteful but
+    /// provably futile — <see cref="StaticMarkupSerializer.WriteTo"/> sums the absorbed count over the run,
+    /// so a run declined for absorbing fewer than two frames has every member absorbing fewer than two on
+    /// its own.
+    /// </summary>
+    /// <param name="key">As <see cref="EmitNode"/>.</param>
+    private static int EmitUnfolded(IndentedWriter writer, RenderNode node, int startSeq, string? key)
+    {
+        // Only three node kinds can receive a threaded key: the two that open a keyable frame and consume
+        // it, and the expansion that forwards it to its body's root. Everything else is region-rooted or
+        // frameless, and BCF3003 blocks region-rooted content from reaching emission at all, so a key
+        // arriving at one of them means a keyable node was wired to this dispatch without updating that
+        // contract. Asserted once here, where the split is already visible, rather than restated at each
+        // arm that would otherwise take a key it cannot honour. The test guards the assertion rather than
+        // riding inside it because the message is interpolated: as an argument it would be built on every
+        // node in a DEBUG build, and only a ForEach content root ever arrives with a key.
+        if (key is not null)
+        {
+            Debug.Assert(
+                node is ElementNode or ComponentNode or ExpansionNode,
+                $"A key reached '{node.GetType().Name}', which opens no keyable frame; SetKey would be silently dropped.");
+        }
 
         return node switch
         {
-            IfNode ifNode => EmitIf(writer, ifNode, startSeq, key),
+            IfNode ifNode => EmitIf(writer, ifNode, startSeq),
             ExpansionNode expansion => EmitExpansion(writer, expansion, startSeq, key),
-            ForEachNode forEach => EmitForEach(writer, forEach, startSeq, key),
+            ForEachNode forEach => EmitForEach(writer, forEach, startSeq),
             ComponentNode component => EmitComponent(writer, component, startSeq, key),
             ElementNode element => EmitElement(writer, element, startSeq, key),
             TextContentNode text => EmitTextContent(writer, text, startSeq),
-            FragmentNode fragment => EmitFragment(writer, fragment, startSeq, key),
-            RawMarkupNode raw => EmitRawMarkup(writer, raw, startSeq, key),
+            FragmentNode fragment => EmitFragment(writer, fragment, startSeq),
+            RawMarkupNode raw => EmitRawMarkup(writer, raw, startSeq),
             RenderFragmentContentNode fragmentContent =>
-                EmitRenderFragmentContent(writer, fragmentContent, startSeq, key),
+                EmitRenderFragmentContent(writer, fragmentContent, startSeq),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
@@ -120,16 +154,18 @@ internal static class RenderViewEmitter
             while (runEnd < nodes.Length && StaticMarkupSerializer.IsFoldable(nodes[runEnd]))
                 runEnd++;
 
-            var run = ImmutableArray.CreateRange(nodes, index, runEnd - index, static node => node);
+            var run = ImmutableArray.Create(nodes, index, runEnd - index);
             if (TryEmitFolded(writer, run, seq, out var afterFold))
             {
                 seq = afterFold;
             }
             else
             {
-                // Foldable but not worth folding: emit the run's nodes as they stand.
+                // Foldable but not worth folding: emit the run's nodes as they stand. Straight to
+                // EmitUnfolded, because routing them back through EmitNode would walk each subtree for
+                // IsFoldable again and re-serialize it into a StringBuilder only to decline a second time.
                 for (var inner = index; inner < runEnd; inner++)
-                    seq = EmitNode(writer, nodes[inner], seq);
+                    seq = EmitUnfolded(writer, nodes[inner], seq, key: null);
             }
 
             index = runEnd;
@@ -139,26 +175,35 @@ internal static class RenderViewEmitter
     }
 
     /// <summary>
-    /// Emits <paramref name="run"/> as one <c>AddMarkupContent</c> frame when every node in it is
-    /// foldable and doing so replaces at least two frames, and reports the next sequence number through
-    /// <paramref name="next"/>. A run worth one frame is left alone: folding it would change the shape
-    /// without reducing anything.
+    /// Emits <paramref name="run"/> as one <c>AddMarkupContent</c> frame when doing so replaces at least
+    /// two frames, and reports the next sequence number through <paramref name="next"/>. A run worth one
+    /// frame is left alone: folding it would change the shape without reducing anything.
     /// </summary>
+    /// <param name="run">
+    /// Nodes that all satisfy <see cref="StaticMarkupSerializer.IsFoldable"/>. Both callers have already
+    /// established that — <see cref="EmitChildren"/> because partitioning into runs is how it finds them,
+    /// <see cref="EmitNode"/> by testing the single node — so this does not re-derive it. Passing an
+    /// unfoldable node throws out of the serializer rather than being quietly declined.
+    /// </param>
+    /// <remarks>
+    /// Whether a fold pays for itself is only known after serializing the run, so the losing case is
+    /// unavoidable work. What it need not include is the markup string: the count comes back from
+    /// <see cref="StaticMarkupSerializer.WriteTo"/> while the text is still in the builder, and a run that
+    /// cannot win is abandoned there. This matters because the losing case is not rare — a lone static text
+    /// child absorbs exactly one frame, so every one of them is attempted, declined, and then emitted as a
+    /// frame by its caller.
+    /// </remarks>
     private static bool TryEmitFolded(
         IndentedWriter writer, ImmutableArray<RenderNode> run, int seq, out int next)
     {
         next = seq;
-        foreach (var node in run)
-        {
-            if (!StaticMarkupSerializer.IsFoldable(node))
-                return false;
-        }
 
-        var (markup, absorbed) = StaticMarkupSerializer.Write(run);
-        if (absorbed < 2)
+        var markup = new StringBuilder();
+        if (StaticMarkupSerializer.WriteTo(markup, run) < 2)
             return false;
 
-        var literal = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(markup, quote: true);
+        var literal = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
+            markup.ToString(), quote: true);
         writer.AppendLine($"__builder.AddMarkupContent({seq}, {literal});");
         next = seq + 1;
         return true;
@@ -186,13 +231,8 @@ internal static class RenderViewEmitter
         return seq + 1;
     }
 
-    private static int EmitIf(IndentedWriter writer, IfNode node, int seq, string? key = null)
+    private static int EmitIf(IndentedWriter writer, IfNode node, int seq)
     {
-        // Region-rooted nodes never carry a threaded key: BCF3003 blocks region-rooted content from
-        // reaching emission, so a non-null key here would mean a keyable node was wired to this branch
-        // without updating that contract. Fail fast in tests instead of silently dropping SetKey.
-        Debug.Assert(key is null, $"{nameof(EmitIf)} does not support a threaded key; SetKey would be silently dropped.");
-
         // seq is consumed by OpenRegion.
         // then  branch occupies [seq+1, seq+1+W(then)).
         // else  branch occupies [seq+1+W(then), seq+1+W(then)+W(else)).
@@ -226,13 +266,8 @@ internal static class RenderViewEmitter
         return next;
     }
 
-    private static int EmitForEach(IndentedWriter writer, ForEachNode node, int seq, string? key = null)
+    private static int EmitForEach(IndentedWriter writer, ForEachNode node, int seq)
     {
-        // Region-rooted nodes never carry a threaded key: BCF3003 blocks region-rooted content from
-        // reaching emission, so a non-null key here would mean a keyable node was wired to this branch
-        // without updating that contract. Fail fast in tests instead of silently dropping SetKey.
-        Debug.Assert(key is null, $"{nameof(EmitForEach)} does not support a threaded key; SetKey would be silently dropped.");
-
         // seq is consumed by OpenRegion. The content template occupies [seq+1, seq+1+W(content)) and
         // those sequence numbers are re-emitted every iteration; SetKey carries per-item identity.
         writer.AppendLine($"__builder.OpenRegion({seq});");
@@ -409,27 +444,18 @@ internal static class RenderViewEmitter
         return seq + 1;
     }
 
-    private static int EmitFragment(IndentedWriter writer, FragmentNode node, int seq, string? key = null)
-    {
-        // A fragment is non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be
-        // silently dropped, fail fast, mirroring EmitIf/EmitForEach.
-        Debug.Assert(key is null, $"{nameof(EmitFragment)} does not support a threaded key; SetKey would be silently dropped.");
-        return EmitChildren(writer, node.Children, seq);
-    }
+    private static int EmitFragment(IndentedWriter writer, FragmentNode node, int seq) =>
+        EmitChildren(writer, node.Children, seq);
 
-    private static int EmitRawMarkup(IndentedWriter writer, RawMarkupNode node, int seq, string? key = null)
+    private static int EmitRawMarkup(IndentedWriter writer, RawMarkupNode node, int seq)
     {
-        Debug.Assert(key is null, $"{nameof(EmitRawMarkup)} does not support a threaded key; SetKey would be silently dropped.");
         writer.AppendLine($"__builder.AddMarkupContent({seq}, {node.Content.ToCode()});");
         return seq + 1;
     }
 
     private static int EmitRenderFragmentContent(
-        IndentedWriter writer, RenderFragmentContentNode node, int seq, string? key = null)
+        IndentedWriter writer, RenderFragmentContentNode node, int seq)
     {
-        // Non-keyable (BCF3003 blocks it as a ForEach content root), so a threaded key would be silently
-        // dropped, fail fast, mirroring EmitFragment/EmitRawMarkup.
-        Debug.Assert(key is null, $"{nameof(EmitRenderFragmentContent)} does not support a threaded key; SetKey would be silently dropped.");
         writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
         return seq + 1;
     }

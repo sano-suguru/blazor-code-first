@@ -134,7 +134,14 @@ internal static class ExpressionTemplateFactory
             if (IsNestedInReplaced(name.Span, replacedSpans))
                 continue;
 
-            if (TryReportUnresolvedType(name, context))
+            // The semantic model is asked about this name exactly once, here. Everything below wants the
+            // same two answers, and when each helper fetched its own, a member-access name cost five
+            // semantic queries to answer two questions. Semantic queries dominate this transform's cost and
+            // it runs over every identifier of every component and every composable body.
+            var alias = context.SemanticModel.GetAliasInfo(name, context.CancellationToken);
+            var symbol = context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol;
+
+            if (TryReportUnresolvedType(name, alias, symbol, context))
                 continue;
 
             // A name inside a nameof(...) belongs to an invocation already collapsed above; it must never
@@ -152,14 +159,13 @@ internal static class ExpressionTemplateFactory
                 // path fully qualified, because the generated file has no using/namespace context to
                 // resolve the left-hand namespace. When the name is not such a reference this is a no-op
                 // and the accessibility requirement is recorded as before.
-                if (TryQualifyNamespaceQualifiedType(name, context, replacements, replacedSpans))
+                if (TryQualifyNamespaceQualifiedType(name, symbol, context, replacements, replacedSpans))
                     continue;
 
-                RecordMemberAccessRequirement(name, context);
+                RecordMemberAccessRequirement(symbol, context);
                 continue;
             }
 
-            var symbol = context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol;
             if (symbol is null)
                 continue;
 
@@ -270,12 +276,32 @@ internal static class ExpressionTemplateFactory
         };
     }
 
+    /// <summary>
+    /// As <see cref="TryReportUnresolvedType(SimpleNameSyntax, IAliasSymbol?, ISymbol?, ComposableBodyContext)"/>,
+    /// for the two callers that reach a name outside the normalization loop and so hold neither answer yet.
+    /// </summary>
     internal static bool TryReportUnresolvedType(
         SimpleNameSyntax name,
+        ComposableBodyContext context) =>
+        TryReportUnresolvedType(
+            name,
+            context.SemanticModel.GetAliasInfo(name, context.CancellationToken),
+            context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol,
+            context);
+
+    /// <param name="alias">
+    /// <paramref name="name"/>'s alias info, already read by the caller.
+    /// </param>
+    /// <param name="symbol">
+    /// The symbol <paramref name="name"/> binds to, already read by the caller.
+    /// </param>
+    private static bool TryReportUnresolvedType(
+        SimpleNameSyntax name,
+        IAliasSymbol? alias,
+        ISymbol? symbol,
         ComposableBodyContext context)
     {
-        var alias = context.SemanticModel.GetAliasInfo(name, context.CancellationToken);
-        var type = GetReferencedType(name, context);
+        var type = GetReferencedType(name, alias, symbol, context);
         if (type is null
             || !TypeSymbolFacts.ContainsUnresolvedType(type)
             || (alias is null && type.TypeKind != TypeKind.Error)
@@ -290,19 +316,15 @@ internal static class ExpressionTemplateFactory
 
     private static ITypeSymbol? GetReferencedType(
         SimpleNameSyntax name,
+        IAliasSymbol? alias,
+        ISymbol? symbol,
         ComposableBodyContext context)
     {
-        if (context.SemanticModel.GetAliasInfo(name, context.CancellationToken)
-            is { Target: ITypeSymbol aliasType })
-        {
+        if (alias is { Target: ITypeSymbol aliasType })
             return aliasType;
-        }
 
-        if (context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol
-            is ITypeSymbol symbolType)
-        {
+        if (symbol is ITypeSymbol symbolType)
             return symbolType;
-        }
 
         if (FindTypeOnlySyntax(name) is not { } typeSyntax)
             return null;
@@ -476,9 +498,8 @@ internal static class ExpressionTemplateFactory
     /// constrains where the inlined body may legally be placed, so without this the expansion site would
     /// emit CS0122 instead of the intended BCF1002.
     /// </summary>
-    private static void RecordMemberAccessRequirement(SimpleNameSyntax name, ComposableBodyContext context)
+    private static void RecordMemberAccessRequirement(ISymbol? symbol, ComposableBodyContext context)
     {
-        var symbol = context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol;
         if (symbol is IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol)
             RecordAccessRequirement(symbol, context);
     }
@@ -495,15 +516,13 @@ internal static class ExpressionTemplateFactory
     /// </summary>
     private static bool TryQualifyNamespaceQualifiedType(
         SimpleNameSyntax name,
+        ISymbol? symbol,
         ComposableBodyContext context,
         List<Replacement> replacements,
         List<TextSpan> replacedSpans)
     {
-        if (context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol
-            is not INamedTypeSymbol typeSymbol)
-        {
+        if (symbol is not INamedTypeSymbol typeSymbol)
             return false;
-        }
 
         SyntaxNode qualifiedNode;
         ExpressionSyntax leftSide;
@@ -621,7 +640,7 @@ internal static class ExpressionTemplateFactory
 
         foreach (var typeArgument in method.TypeArguments)
         {
-            if (!IsNameableType(typeArgument))
+            if (!TypeSymbolFacts.IsNameableInGeneratedCode(typeArgument))
             {
                 context.ReportUnsupportedReference(
                     invocation.GetLocation(),
@@ -705,51 +724,6 @@ internal static class ExpressionTemplateFactory
     {
         var offset = argument.Expression.SpanStart - argument.SpanStart;
         return offset > 0 ? argument.ToString().Substring(0, offset) : string.Empty;
-    }
-
-    /// <summary>
-    /// Determines whether <paramref name="type"/> can be written as a fully qualified type name in a
-    /// generated file with no <c>using</c> directives. Anonymous types, pointer types, open type
-    /// parameters, file-local types, and otherwise unnameable types cannot, so an extension method that
-    /// fixes such a type argument cannot be normalized in a semantics-preserving way.
-    /// </summary>
-    private static bool IsNameableType(ITypeSymbol type)
-    {
-        switch (type)
-        {
-            case IArrayTypeSymbol array:
-                return IsNameableType(array.ElementType);
-
-            case IPointerTypeSymbol:
-                return false;
-
-            case ITypeParameterSymbol:
-                return false;
-
-            case IDynamicTypeSymbol:
-                return true;
-
-            case INamedTypeSymbol named:
-                if (named.IsAnonymousType || named.IsFileLocal || !named.CanBeReferencedByName)
-                    return false;
-
-                for (var containing = named.ContainingType; containing is not null; containing = containing.ContainingType)
-                {
-                    if (containing.IsFileLocal || !containing.CanBeReferencedByName)
-                        return false;
-                }
-
-                foreach (var argument in named.TypeArguments)
-                {
-                    if (!IsNameableType(argument))
-                        return false;
-                }
-
-                return true;
-
-            default:
-                return false;
-        }
     }
 
     private static TextSpan IdentifierSpan(SimpleNameSyntax name) =>
@@ -864,12 +838,12 @@ internal static class ExpressionTemplateFactory
             ExpressionSyntax expression,
             ComposableBodyContext context)
         {
-            var usedNames = new HashSet<string>(System.StringComparer.Ordinal);
-            foreach (var token in expression.DescendantTokens())
-            {
-                if (token.IsKind(SyntaxKind.IdentifierToken))
-                    usedNames.Add(token.ValueText);
-            }
+            // Built on the first rename, not up front. Its only reader is the disambiguation loop below,
+            // which runs only for an authored declaration literally spelled __bcf_context_<digits> — the
+            // collision this class exists for, and one almost no expression contains. Eagerly, every
+            // expression in every body paid a full DescendantTokens() walk plus a string hash per
+            // identifier to fill a set nothing went on to read.
+            HashSet<string>? usedNames = null;
 
             var names = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
             var declarations = ImmutableArray.CreateBuilder<AuthoredDeclarationRename>();
@@ -888,6 +862,8 @@ internal static class ExpressionTemplateFactory
                     continue;
                 }
 
+                usedNames ??= CollectIdentifierNames(expression);
+
                 var baseName = $"{AuthoredContextPrefix}{renameOrdinal++}";
                 var name = baseName;
                 var disambiguator = 0;
@@ -903,6 +879,19 @@ internal static class ExpressionTemplateFactory
 
         public bool TryGetName(ISymbol symbol, out string name) =>
             _names.TryGetValue(symbol, out name!);
+
+        /// <summary>Every identifier spelled anywhere in <paramref name="expression"/>.</summary>
+        private static HashSet<string> CollectIdentifierNames(ExpressionSyntax expression)
+        {
+            var names = new HashSet<string>(System.StringComparer.Ordinal);
+            foreach (var token in expression.DescendantTokens())
+            {
+                if (token.IsKind(SyntaxKind.IdentifierToken))
+                    names.Add(token.ValueText);
+            }
+
+            return names;
+        }
 
         private static bool IsGeneratedContextName(string name)
         {

@@ -384,45 +384,30 @@ internal static class RenderExpressionAnalyzer
                 if (slotContent is null)
                     return null;
 
-                var appendedSlots = inner.Slots.AsImmutableArray()
-                    .Add(new ComponentSlot(property.Name, slotContent));
-                return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+                return AppendSlot(inner, property.Name, slotContent);
             }
 
             if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateIgnored)
             {
-                if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
-                    || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
-                    || !SymbolEqualityComparer.Default.Equals(
-                        genericFragment.OriginalDefinition, renderFragmentGenericType))
-                {
+                if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
                     return null;
-                }
 
                 var slotContent = Analyze(valueExpression, context);
                 if (slotContent is null)
                     return null;
 
-                var contextTypeName = genericFragment.TypeArguments[0]
-                    .ToDisplayString(FullyQualifiedTypeName);
-                var appendedSlots = inner.Slots.AsImmutableArray()
-                    .Add(new ComponentSlot(property.Name, slotContent)
-                    {
-                        Kind = ComponentSlotKind.GenericContextIgnored,
-                        ContextTypeName = contextTypeName,
-                    });
-                return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+                return AppendSlot(
+                    inner,
+                    property.Name,
+                    slotContent,
+                    ComponentSlotKind.GenericContextIgnored,
+                    contextTypeName);
             }
 
             if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateContextual)
             {
-                if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
-                    || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
-                    || !SymbolEqualityComparer.Default.Equals(
-                        genericFragment.OriginalDefinition, renderFragmentGenericType))
-                {
+                if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
                     return null;
-                }
 
                 // The content has to be an inline expression lambda twice over: the body is what gets
                 // sequenced, and the parameter symbol is what the generated context variable is
@@ -440,8 +425,6 @@ internal static class RenderExpressionAnalyzer
                     return null;
                 }
 
-                var contextTypeName = genericFragment.TypeArguments[0]
-                    .ToDisplayString(FullyQualifiedTypeName);
                 context.PushRenderVariable(contextParameterSymbol);
                 try
                 {
@@ -449,13 +432,12 @@ internal static class RenderExpressionAnalyzer
                     if (slotContent is null)
                         return null;
 
-                    var appendedSlots = inner.Slots.AsImmutableArray()
-                        .Add(new ComponentSlot(property.Name, slotContent)
-                        {
-                            Kind = ComponentSlotKind.GenericContextual,
-                            ContextTypeName = contextTypeName,
-                        });
-                    return new ComponentTemplateNode(inner.TypeName, inner.Parameters, appendedSlots);
+                    return AppendSlot(
+                        inner,
+                        property.Name,
+                        slotContent,
+                        ComponentSlotKind.GenericContextual,
+                        contextTypeName);
                 }
                 finally
                 {
@@ -526,74 +508,43 @@ internal static class RenderExpressionAnalyzer
 
             if (isEventShortcut || isOn)
             {
-                // Shortcut: name is implied; .On: name is arg[0] (constant required), handler is arg[1].
-                string? eventName;
-                ExpressionSyntax handlerExpr;
-                if (isEventShortcut)
+                if (!TryResolveDecorationName(
+                        invocation, args, firstArg, shortcutEventName, context,
+                        out var eventName, out var handlerExpr))
                 {
-                    eventName = shortcutEventName;
-                    handlerExpr = firstArg.Expression;
-                }
-                else if (TryGetConstantName(firstArg.Expression, context, out eventName))
-                {
-                    if (args.At(1) is not { } secondArg)
-                        return null;
-
-                    handlerExpr = secondArg.Expression;
-                }
-                else
-                {
-                    context.RejectUnresolvedValueRecovery(invocation.Span);
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
                     return null;
                 }
 
                 // The event-shortcut path supplies its own name from a literal table and never reaches
                 // here with a bad one, so only the .On / .Bind string path is checked.
-                if (!isEventShortcut && !eventName!.StartsWith("on", System.StringComparison.Ordinal))
+                if (!isEventShortcut && !eventName.StartsWith("on", System.StringComparison.Ordinal))
                 {
                     context.RejectUnresolvedValueRecovery(invocation.Span);
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3019, firstArg.GetLocation(), [eventName!]));
+                        DiagnosticDescriptors.BCF3019, firstArg.GetLocation(), [eventName]));
                     return null;
                 }
 
-                if (HasBinding(element, eventName!))
+                if (HasBinding(element, eventName))
                 {
                     context.RejectUnresolvedValueRecovery(invocation.Span);
                     context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [eventName!]));
+                        DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [eventName]));
                     return null;
                 }
 
                 return element with
                 {
                     Events = element.Events.AsImmutableArray().Add(
-                        new EventTemplate(eventName!, ExpressionTemplateFactory.Create(handlerExpr, context))),
+                        new EventTemplate(eventName, ExpressionTemplateFactory.Create(handlerExpr, context))),
                 };
             }
 
             // Attribute shortcut or generic .Attr.
-            string? attrName;
-            ExpressionSyntax valueExpr;
-            if (isAttrShortcut)
+            if (!TryResolveDecorationName(
+                    invocation, args, firstArg, shortcutAttrName, context,
+                    out var attrName, out var valueExpr))
             {
-                attrName = shortcutAttrName;
-                valueExpr = firstArg.Expression;
-            }
-            else if (TryGetConstantName(firstArg.Expression, context, out attrName))
-            {
-                if (args.At(1) is not { } secondArg)
-                    return null;
-
-                valueExpr = secondArg.Expression;
-            }
-            else
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
                 return null;
             }
 
@@ -619,18 +570,18 @@ internal static class RenderExpressionAnalyzer
 
             // Reject before normalizing the value, as the event channel does: normalization reports on the
             // value's own types, and a rejected decoration's value never reaches generated code.
-            if (HasBinding(element, attrName!))
+            if (HasBinding(element, attrName))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [attrName!]));
+                    DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [attrName]));
                 return null;
             }
 
             return element with
             {
                 Attributes = element.Attributes.AsImmutableArray().Add(
-                    new AttributeTemplate(attrName!, ExpressionTemplateFactory.Create(valueExpr, context))),
+                    new AttributeTemplate(attrName, ExpressionTemplateFactory.Create(valueExpr, context))),
             };
         }
 
@@ -1478,7 +1429,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static bool TryGetConstantName(
-        ExpressionSyntax expression, ComposableBodyContext context, out string? name)
+        ExpressionSyntax expression, ComposableBodyContext context, [MaybeNullWhen(false)] out string name)
     {
         var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
         if (constant is { HasValue: true, Value: string value } && !string.IsNullOrWhiteSpace(value))
@@ -1486,7 +1437,7 @@ internal static class RenderExpressionAnalyzer
             name = value;
             return true;
         }
-        name = null;
+        name = null!;
         return false;
     }
 
@@ -1527,13 +1478,16 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             var isImplicitDefault = argument.ArgumentKind == ArgumentKind.DefaultValue;
-            var parameterTypeName = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
             ExpressionTemplate value;
             int sourceOrder;
             if (isImplicitDefault)
             {
-                value = ConstantTemplate.ForParameterDefault(parameter, parameterTypeName);
+                // The only argument that needs the parameter's type name: the default's cast is spelled
+                // from it. A supplied argument carries the author's own syntax and never asks.
+                value = ConstantTemplate.ForParameterDefault(
+                    parameter,
+                    parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
                 // Strictly increasing in parameter ordinal and always greater than any source
                 // position (a small non-negative span start), so implicit defaults sort after every
@@ -1561,7 +1515,6 @@ internal static class RenderExpressionAnalyzer
             builder.Add(new ComposableInvocationArgument(
                 parameter.Ordinal,
                 sourceOrder,
-                parameterTypeName,
                 isImplicitDefault,
                 value));
         }
@@ -1612,6 +1565,103 @@ internal static class RenderExpressionAnalyzer
 
         return false;
     }
+
+    /// <summary>
+    /// Resolves the name a decoration targets and the argument carrying its value, reporting BCF3011 when a
+    /// non-shortcut spelling names it with something that is not a constant.
+    /// </summary>
+    /// <param name="shortcutName">
+    /// The name a named shortcut implies (<c>.Href</c> → <c>href</c>, <c>.OnClick</c> → <c>onclick</c>),
+    /// or <see langword="null"/> for the generic <c>.Attr</c>/<c>.On</c> spellings that take the name as
+    /// their first argument. Non-null exactly when the resolved method was found in
+    /// <see cref="KnownSymbols.AttributeShortcuts"/> or <see cref="KnownSymbols.EventShortcuts"/>, whose
+    /// values are never null.
+    /// </param>
+    /// <remarks>
+    /// The attribute channel and the event channel ask the same question here and must answer it the same
+    /// way: the two ladders this replaces were an eighteen-line transcription of each other, so a change to
+    /// how a non-constant name is diagnosed had to be made twice or the two would disagree about the same
+    /// mistake. What genuinely differs between them — that an event name must begin with <c>on</c>, that
+    /// <c>class</c> routes to its own channel — stays at the call sites.
+    /// </remarks>
+    private static bool TryResolveDecorationName(
+        InvocationExpressionSyntax invocation,
+        FactoryArguments args,
+        ArgumentSyntax firstArg,
+        string? shortcutName,
+        ComposableBodyContext context,
+        [MaybeNullWhen(false)] out string name,
+        [MaybeNullWhen(false)] out ExpressionSyntax value)
+    {
+        value = null!;
+
+        if (shortcutName is not null)
+        {
+            name = shortcutName;
+            value = firstArg.Expression;
+            return true;
+        }
+
+        if (!TryGetConstantName(firstArg.Expression, context, out name))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
+            return false;
+        }
+
+        if (args.At(1) is not { } secondArg)
+        {
+            name = null;
+            return false;
+        }
+
+        value = secondArg.Expression;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the context type of a <c>RenderFragment&lt;TContext&gt;</c>-typed slot property, failing when the
+    /// selected property is not one.
+    /// </summary>
+    /// <remarks>
+    /// Both <c>.Template</c> arms ask this, and the answer must be the same for both: they differ in whether
+    /// the author names the context, not in what the context is. The check is not redundant with
+    /// <see cref="KnownSymbols.ClassifyComponentParameterMethod"/>, which proves the <em>method</em> is a
+    /// <c>Template</c> overload; this proves the <em>selected property</em> is generic, and a selector may
+    /// name any property on the component.
+    /// </remarks>
+    private static bool TryGetFragmentContextTypeName(
+        IPropertySymbol property, KnownSymbols symbols, out string contextTypeName)
+    {
+        if (property.Type is not INamedTypeSymbol { TypeArguments.Length: 1 } genericFragment
+            || symbols.RenderFragmentGenericType is not { } renderFragmentGenericType
+            || !SymbolEqualityComparer.Default.Equals(
+                genericFragment.OriginalDefinition, renderFragmentGenericType))
+        {
+            contextTypeName = string.Empty;
+            return false;
+        }
+
+        contextTypeName = genericFragment.TypeArguments[0].ToDisplayString(FullyQualifiedTypeName);
+        return true;
+    }
+
+    /// <summary>
+    /// Returns <paramref name="inner"/> with one more slot appended, preserving source order. The three slot
+    /// arms differ only in the kind and context type they pass here.
+    /// </summary>
+    private static ComponentTemplateNode AppendSlot(
+        ComponentTemplateNode inner,
+        string name,
+        RenderTemplateNode content,
+        ComponentSlotKind kind = ComponentSlotKind.NonGeneric,
+        string? contextTypeName = null) =>
+        new(
+            inner.TypeName,
+            inner.Parameters,
+            inner.Slots.AsImmutableArray().Add(
+                new ComponentSlot(name, content) { Kind = kind, ContextTypeName = contextTypeName }));
 
     /// <summary>
     /// Succeeds only when <paramref name="selector"/> is <c>p =&gt; p.Property</c>, a member access whose

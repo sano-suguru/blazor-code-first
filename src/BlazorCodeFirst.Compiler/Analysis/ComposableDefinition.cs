@@ -1,23 +1,14 @@
 namespace BlazorCodeFirst.Compiler.Analysis;
 
-/// <summary>Distinguishes value parameters from view-subtree parameters of a composable method.</summary>
-internal enum ComposableParameterKind
-{
-    /// <summary>An ordinary value parameter substituted into the expanded body.</summary>
-    Value,
-
-    /// <summary>A parameter that supplies a nested view subtree (not yet supported for expansion).</summary>
-    ViewSubtree,
-}
-
 /// <summary>A single parameter of a composable definition, captured as symbol-free value data.</summary>
-internal sealed record ComposableParameter(
-    int Ordinal,
-    string Name,
-    string TypeName,
-    ComposableParameterKind Kind,
-    bool HasExplicitDefaultValue,
-    ExpressionTemplate? DefaultValue);
+/// <remarks>
+/// Only what expansion reads. <c>ComposableExpander</c> needs the ordinal to place the substituted
+/// argument and the type name to declare the local that holds it; a parameter's source name, its default
+/// value, and whether it had one are all resolved at the <em>call</em> site instead
+/// (<c>RenderExpressionAnalyzer.CreateInvocationArguments</c> recomputes the default from the callee's
+/// own symbol), so carrying them here paid for a second copy that nothing consulted.
+/// </remarks>
+internal sealed record ComposableParameter(int Ordinal, string TypeName);
 
 /// <summary>Classifies why a referenced member forces an accessibility requirement on the caller.</summary>
 internal enum ComposableAccessRequirementKind
@@ -42,13 +33,19 @@ internal sealed record ComposableAccessRequirement(
     string SymbolDisplayName);
 
 /// <summary>
-/// The symbol-free, value-equal model of a valid composable definition: its stable identity, the
-/// parameters it accepts, the accessibility it requires at expansion sites, and its normalized body.
+/// The symbol-free, value-equal model of a valid composable definition: the parameters it accepts, the
+/// accessibility it requires at expansion sites, and its normalized body.
 /// </summary>
+/// <remarks>
+/// Identity lives on <see cref="ComposableDefinitionEntry"/>, not here. A definition is only ever reached
+/// through its entry, which is what the registry keys and what every reader (the expander's cycle chain,
+/// <c>KeyabilityResolver</c>) takes the method key and display name from, so a second copy on the
+/// definition could only ever disagree with the one in use. Note also that the containing-type key it used
+/// to carry was not the one expansion validates against: that is
+/// <see cref="ComposableAccessRequirement.RequiredContainingTypeKey"/>, the <em>declaring</em> type of each
+/// referenced member.
+/// </remarks>
 internal sealed record ComposableDefinition(
-    string MethodKey,
-    string DisplayName,
-    string ContainingTypeKey,
     EquatableArray<ComposableParameter> Parameters,
     EquatableArray<ComposableAccessRequirement> AccessRequirements,
     RenderTemplateNode Body);

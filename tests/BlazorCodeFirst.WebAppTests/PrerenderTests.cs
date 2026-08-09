@@ -118,7 +118,7 @@ public sealed class PrerenderTests
         // generator's #140 fold is expected to coalesce it into one AddMarkupContent frame; without
         // this assertion, if the page ever stopped folding, the escaping test below would keep passing
         // through the ordinary AddContent/AddAttribute path instead — the .NET HtmlRenderer escapes
-        // those byte-identically to StaticMarkupSerializer.Write for every character asserted there, so
+        // those byte-identically to StaticMarkupSerializer.WriteTo for every character asserted there, so
         // that test alone cannot tell the two paths apart.
         var builder = new RenderTreeBuilder();
         new FoldEscapingPage().Build(builder);
@@ -131,7 +131,7 @@ public sealed class PrerenderTests
     {
         // The .NET HtmlRenderer writes markup frames verbatim, so given the single-frame fold pinned by
         // FoldEscaping_page_folds_to_a_single_markup_frame above, this is the one place in the suite
-        // that would catch StaticMarkupSerializer.Write emitting an unescaped '&', '<', '>', or '"' into
+        // that would catch StaticMarkupSerializer.WriteTo emitting an unescaped '&', '<', '>', or '"' into
         // that frame: bUnit's MarkupMatches compares parsed DOM trees, which treats raw and escaped
         // markup as equivalent once parsed.
         var document = await GetDocumentAsync("fold-escaping");
