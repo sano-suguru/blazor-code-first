@@ -941,7 +941,14 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        var setter = args.At(2)?.Expression;
+        // The getter argument arrives from the shared .Param / .Template / .Bind prologue, which reads
+        // argument 1 for all three: that position belongs to the three spellings sharing a selector,
+        // not to the Bind overload set, and routing it through a Bind-only helper would mean branching
+        // a check that exists to serve all three. Only the setter is this overload set's own.
+        if (!KnownSymbols.TryGetBindParameters(method, out var bind))
+            return null;
+
+        var setter = args.At(bind.SetterIndex)?.Expression;
 
         // Only the inverted form needs an assignable target, exactly as on the element surface: with an
         // explicit setter the getter is read and never written.
@@ -955,24 +962,6 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // The setter's kind is read off the overload the C# compiler picked rather than guessed from the
-        // syntax, as ClassifyBind does. These are instance methods, so there is no receiver offset, and
-        // the guard is for a runtime whose ComponentView declares a Bind this compiler was not written
-        // against: refusing to translate costs a BCF1003, where indexing past the end would crash.
-        var setterIsAsynchronous = false;
-        if (setter is not null)
-        {
-            if (method.Parameters.Length < 3
-                || method.Parameters[2].Type
-                    is not INamedTypeSymbol { DelegateInvokeMethod: { } setterInvoke })
-            {
-                return null;
-            }
-
-            // Action<T> returns void, Func<T, Task> does not; the surface declares no other setter type.
-            setterIsAsynchronous = !setterInvoke.ReturnsVoid;
-        }
-
         var valueTypeName = valueType.ToDisplayString(FullyQualifiedTypeName);
         var value = ExpressionTemplateFactory.Create(getterBody!, context);
 
@@ -980,7 +969,7 @@ internal static class RenderExpressionAnalyzer
             .Add(new ComponentParameter(property.Name, value))
             .Add(new ComponentParameter(
                 changedName,
-                BuildChangeCallback(value, valueTypeName, setter, setterIsAsynchronous, context)));
+                BuildChangeCallback(value, valueTypeName, setter, bind.SetterIsAsynchronous, context)));
 
         // Emitted only when the component declares it. This is Razor's measured behaviour: a component
         // without the parameter receives two, one with it receives three. Always emitting it would fail to
