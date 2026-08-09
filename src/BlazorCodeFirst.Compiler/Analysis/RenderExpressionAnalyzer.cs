@@ -519,13 +519,7 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             if (isClass)
-            {
-                return element with
-                {
-                    Classes = element.Classes.AsImmutableArray().Add(
-                        ExpressionTemplateFactory.Create(firstArg.Expression, context)),
-                };
-            }
+                return FoldIntoClassChannel(invocation, decoAccess, element, firstArg.Expression, context);
 
             if (isBind)
                 return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
@@ -603,8 +597,8 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            // 'class' folds (case-sensitive, ordinal), same channel as .Class, may repeat.
-            if (string.Equals(attrName, "class", System.StringComparison.Ordinal))
+            // 'class' routes to the channel rather than to Attributes, the same as .Class, and may repeat.
+            if (ClassChannel.Owns(attrName))
             {
                 // The channel joins its decorations into one value, so the bool overload means two
                 // different things there depending on how many others the element carries (#159). Which
@@ -620,11 +614,7 @@ internal static class RenderExpressionAnalyzer
                     return null;
                 }
 
-                return element with
-                {
-                    Classes = element.Classes.AsImmutableArray().Add(
-                        ExpressionTemplateFactory.Create(valueExpr, context)),
-                };
+                return FoldIntoClassChannel(invocation, decoAccess, element, valueExpr, context);
             }
 
             // Reject before normalizing the value, as the event channel does: normalization reports on the
@@ -658,6 +648,42 @@ internal static class RenderExpressionAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Adds <paramref name="value"/> to <paramref name="element"/>'s class channel, or reports BCF3024 if
+    /// the element already carries a binding on the channel's name.
+    /// </summary>
+    /// <remarks>
+    /// Both spellings that fold — <c>.Class</c> and <c>.Attr("class", …)</c> — arrive here, so the check
+    /// is written once and the answer does not depend on which of them was used. It is also the half of
+    /// BCF3024 that catches the decorations written in the other order: a <c>.Class</c> never reaches
+    /// <see cref="ClassifyBind"/>, so the bind arm alone would report only the chains where the binding
+    /// came last. <see cref="HasBinding(ElementTemplateNode, string)"/> can answer for this name because
+    /// nothing but a binding can put it in either of the other two channels — the folding spellings never
+    /// reach <see cref="ElementTemplateNode.Attributes"/>, and an event name is BCF3019 unless it starts
+    /// with <c>on</c>.
+    /// </remarks>
+    private static ElementTemplateNode? FoldIntoClassChannel(
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax decoAccess,
+        ElementTemplateNode element,
+        ExpressionSyntax value,
+        ComposableBodyContext context)
+    {
+        if (HasBinding(element, ClassChannel.AttributeName))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3024, decoAccess.Name.GetLocation(), []));
+            return null;
+        }
+
+        return element with
+        {
+            Classes = element.Classes.AsImmutableArray().Add(
+                ExpressionTemplateFactory.Create(value, context)),
+        };
     }
 
     /// <summary>
@@ -732,6 +758,18 @@ internal static class RenderExpressionAnalyzer
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [duplicate]));
+            return null;
+        }
+
+        // The same question for the one name the check above must let through. HasBinding cannot ask it,
+        // because the folding spellings leave nothing in the channels it reads; the class channel has to be
+        // read directly. A binding does not fold, so it collides with the whole of it rather than with a
+        // particular decoration.
+        if (ClassChannel.Owns(attrName) && element.Classes.Length > 0)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3024, decoAccess.Name.GetLocation(), []));
             return null;
         }
 
@@ -1383,9 +1421,11 @@ internal static class RenderExpressionAnalyzer
     /// element's attributes and events share one name space once emitted, both become
     /// <c>AddAttribute</c> frames, and Blazor resolves each name to a single value no matter which
     /// channel produced it, so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
-    /// duplicate as two <c>.OnClick</c>. 'class' never reaches this check: both <c>.Class</c> and
-    /// <c>.Attr("class", …)</c> fold into <see cref="ElementTemplateNode.Classes"/> first, which is how
-    /// the one repeatable attribute stays legal.
+    /// duplicate as two <c>.OnClick</c>. The folding spellings of <c>class</c> never reach this check —
+    /// both <c>.Class</c> and <c>.Attr("class", …)</c> route to <see cref="ElementTemplateNode.Classes"/>
+    /// first, which is how the one repeatable attribute stays legal — so a <see langword="true"/> for that
+    /// name can only have come from a <c>.Bind</c>, the one spelling of it that does not fold.
+    /// <see cref="FoldIntoClassChannel"/> asks exactly that and reports BCF3024.
     /// <para>
     /// A binding occupies both names it was given, and both are checked here rather than only in the
     /// bind arm, so that the answer does not depend on decoration order:

@@ -208,6 +208,9 @@ components such as `InputText`, and hand-written C# components, always resolve.
   attribute and the handler would never fire, so this is what catches the two names swapped.
 - **BCF3020** — the component's `{Name}Changed` parameter is missing or is not an
   `EventCallback<TValue>`.
+- **BCF3024** — the attribute name is `class` and the element also carries a `.Class` or an
+  `.Attr("class", …)`. Those fold into one attribute and the binding does not join them, so the
+  element would carry `class` twice.
 
 An element may carry more than one `.Bind`. If two of them share an attribute name or an event name,
 that is BCF3010, the same duplicate any two decorations would report. DOM resynchronization — the

@@ -192,6 +192,10 @@ cannot take, and `.Attr("class", flag)` reports BCF3023. Write a conditional cla
 Div.Class("card").Class(_selected ? "is-selected" : "")
 ```
 
+`.Bind("class", …)` is the third way to write the name and the one that does not fold, so an element
+carrying both it and a `.Class` would be emitted with `class` twice. That reports BCF3024, whichever
+order they are written in. Bind it alone and let the getter supply the whole value.
+
 A decoration must target a single element. Applying one to `If`, `ForEach`, `Fragment`, `Raw`, or a
 component result reports diagnostic BCF3008, because those constructs open no element to attach to.
 Writing the chain after the children (`Div["text"].Class("card")`) reports BCF3008 for the same

@@ -598,6 +598,41 @@ internal static class DiagnosticDescriptors
             "the class channel, where values are concatenated. Use .Class or the string overload of .Attr.");
 
     /// <summary>
+    /// BCF3024: an element carries both a class-channel decoration (<c>.Class</c> or
+    /// <c>.Attr("class", …)</c>) and a <c>.Bind</c> whose attribute name is <c>class</c>. The channel folds
+    /// its decorations into one frame; the binding emits its own from the bindings loop and joins nothing.
+    /// The element is therefore emitted with the attribute twice.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the duplicate BCF3010 exists for, arriving at the one name BCF3010 must let through. That
+    /// exception is what the channel buys: <c>.Class("a").Class("b")</c> is a single attribute, so the
+    /// duplicate check cannot be asked about the name alone. It is asked about the channel instead — a
+    /// binding is the third spelling that reaches <c>class</c> and the only one that does not fold, so it
+    /// collides with every other decoration of the name and with nothing else (#188).
+    /// </para>
+    /// <para>
+    /// Which of the two frames wins is left unsaid, because it is not one answer. Duplicate attributes in
+    /// prerendered markup are resolved by the HTML parser, which keeps the first; an interactive render
+    /// applies them through the DOM, where the last write stands. Reporting does not require settling it,
+    /// and the shape has no reading under which both frames were wanted.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3024 = new(
+        id: "BCF3024",
+        title: "Class channel and a bound 'class' on one element",
+        messageFormat: "'class' is bound with .Bind on an element that also decorates the class channel; the binding does not fold into it, so the element is emitted with the attribute twice; write every class through one of them",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "'class' is the one attribute a decoration may repeat, because .Class and .Attr(\"class\", …) " +
+            "fold into a single space-joined attribute. A .Bind on the same name does not join that fold; " +
+            "it emits its own attribute frame, so the element carries 'class' twice and which value " +
+            "survives depends on how the component is rendered. Supply the whole class value from one " +
+            "place: the binding's getter, or the .Class decorations without the binding.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static
