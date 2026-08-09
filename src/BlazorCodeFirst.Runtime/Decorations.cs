@@ -99,6 +99,12 @@ public static class Decorations
     /// generator could never fold it. Write such a value out at the call site instead, where the culture
     /// is a visible choice: <c>.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))</c>. A
     /// <see langword="bool"/> has nothing to format and neither problem.
+    /// <para>
+    /// One name is closed to this overload: <c>"class"</c> folds into the class channel, which joins its
+    /// decorations into one value as text, so a <see langword="bool"/> there means one thing on an element
+    /// carrying a single class decoration and another on an element carrying two (#159). That is BCF3023;
+    /// write a conditional class as a string expression, <c>.Class(active ? "on" : "")</c>.
+    /// </para>
     /// </remarks>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>

@@ -107,6 +107,32 @@ public sealed class HtmlAttributeGeneratorTests
         Assert.DoesNotContain("\"class\", _b)", code); // not a second class frame
     }
 
+    /// <summary>
+    /// The <see langword="bool"/> overload written on the class channel is BCF3023. Both counts are
+    /// asserted because the count is what used to decide the meaning (#159): one class decoration reached
+    /// <c>AddAttribute(int, string, bool)</c> and emptied the class list, two or more concatenated the
+    /// <see langword="bool"/> into the joined value and rendered <c>class="a True"</c>.
+    /// </summary>
+    [Fact]
+    public void BooleanValueOnClassChannel_ReportsBCF3023()
+    {
+        Assert.Contains(Diags("""Html.Div.Attr("class", true)["x"]"""), d => d.Id == "BCF3023");
+        Assert.Contains(Diags("""Html.Div.Class("a").Attr("class", true)["x"]"""), d => d.Id == "BCF3023");
+    }
+
+    /// <summary>
+    /// The rule is about the class channel, not about the <see langword="bool"/> overload:
+    /// <c>.Attr("class", …)</c> with a string still folds. The other half — that the overload keeps
+    /// working under every other name — needs no assertion here, because
+    /// <see cref="ConstantTrueAttr_FoldsToAnEmptyAttributeValue"/> compiles that exact body through
+    /// <c>Run</c>, which rejects any error diagnostic.
+    /// </summary>
+    [Fact]
+    public void StringValueOnClassChannel_ReportsNothing()
+    {
+        Assert.DoesNotContain(Diags("""Html.Div.Attr("class", "a")["x"]"""), d => d.Id == "BCF3023");
+    }
+
     [Fact]
     public void ValueHole_IsSubstituted()
     {

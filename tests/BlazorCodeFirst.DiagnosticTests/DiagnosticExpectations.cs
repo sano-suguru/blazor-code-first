@@ -142,6 +142,16 @@ public static class DiagnosticExpectations
             "Render",
             Note: "Anchors the complete contextual-template content argument; the argument shape is what " +
                 "must be rewritten."),
+        new(
+            "BCF3023",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3023.cs",
+            "true",
+            Note: "Anchors the value argument rather than the name. Either half could change, but the " +
+                "author who reached this wanted a class conditionally applied, and that is written on " +
+                "the value side as a string expression; renaming the attribute would abandon the " +
+                "intent instead of expressing it."),
     ];
 
     /// <summary>
