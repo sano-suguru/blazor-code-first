@@ -85,12 +85,7 @@ public sealed class RazorInteropFixtures
             $"Building '{consumer}' failed with exit code {exitCode}.{Environment.NewLine}{output}");
 
         var generatedFiles = Directory.GetFiles(generatedOutputDirectory, "*Host*.g.cs", SearchOption.AllDirectories);
-        Assert.True(
-            generatedFiles.Length == 1,
-            $"Expected exactly one generated '*Host*.g.cs' under '{generatedOutputDirectory}' but found " +
-            $"{generatedFiles.Length}.{Environment.NewLine}{output}");
-
-        var generatedFile = generatedFiles[0];
+        var generatedFile = Assert.Single(generatedFiles);
         Assert.StartsWith(
             Path.GetFullPath(generatedOutputDirectory) + Path.DirectorySeparatorChar,
             Path.GetFullPath(generatedFile),
