@@ -36,9 +36,45 @@ public sealed class ComposableDefinitionTests
             }
             """;
 
+        AssertSingleBCF1002(source, message);
+    }
+
+    /// <summary>
+    /// An extension member is not a composable (<c>DESIGN.md</c> §4.3, #203), and which spelling declared
+    /// it does not change the answer: the classic <c>this</c> parameter and both members of a C# 14
+    /// <c>extension</c> block report the one reason that is true of them. A separate theory because an
+    /// extension member needs a <c>static</c> containing class, which the rows above cannot share (one of
+    /// them declares an instance method). The static extension member is the row the second half of the
+    /// predicate exists for — it is static and non-generic and would otherwise pass every remaining test.
+    /// </summary>
+    [Theory]
+    [InlineData("[Composable] public static View Label(this string value) => Span[value];")]
+    [InlineData("extension(string value) { [Composable] public View Label() => Span[value]; }")]
+    [InlineData("extension(string value) { [Composable] public static View Make() => Span[\"x\"]; }")]
+    public void ComposableDefinition_ExtensionMember_ReportsBCF1002(string declaration)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public static class Helpers
+            {
+                {{declaration}}
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => Span["Body"];
+            }
+            """;
+
+        AssertSingleBCF1002(source, "must not be an extension member");
+    }
+
+    private static void AssertSingleBCF1002(string source, string message)
+    {
         var result = CompilationTestHost.RunGenerator(source);
-        var diagnostic = Assert.Single(
-            result.Diagnostics, static d => d.Id == "BCF1002");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
 
         Assert.Contains(message, diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }

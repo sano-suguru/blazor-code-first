@@ -114,13 +114,11 @@ internal static class UnresolvedValueTypeScanner
                 ScanDecoration(invocation, method, kind, args, recoverOwnValue, context);
                 return;
 
-            // A [Composable] call. Nothing here forbids the method being an extension, which is static and
-            // so passes ComposableDefinitionFactory, and the walk above therefore reaches the receiver of
-            // one written fluently. That is the answer this arm would want anyway: the receiver of a
-            // composable extension is its declared argument 0, and this arm reports every other argument.
-            // The fluent spelling does not expand today — the call site's reduced symbol produces a
-            // different MethodKey from the declaration's, so it is BCF1002 (#203) — which is why walking it
-            // can only ever replace the generic BCF1003 with a specific report, never emit anything new.
+            // A [Composable] call. The walk above reaches the receiver of one written fluently, which is
+            // the answer this arm wants: a receiver is an expression the author wrote, and this arm reports
+            // on what the author wrote. Such a call never expands — a composable is never an extension
+            // member (DESIGN.md §4.3, #203) — so walking it can only ever replace the generic BCF1003 with
+            // a specific report, never emit anything new.
             case SurfaceMethodKind.None:
                 if (IsComposable(method, context))
                 {

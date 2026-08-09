@@ -1560,11 +1560,22 @@ internal static class RenderExpressionAnalyzer
                 // innermost operand instead, so look for the enclosing ArgumentSyntax rather than
                 // requiring an exact cast. Mirrors FactoryArguments.Bind's default arm, which the
                 // design-time syntax path already uses for the same elision.
-                var argumentExpression = argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>()?.Expression;
-                if (argumentExpression is null)
+                //
+                // The walk is confined to this call's own list, which is what makes it safe for every
+                // ArgumentKind rather than only for the ones some other file keeps away. An argument
+                // Roslyn synthesizes carries the whole invocation as its Syntax — the receiver of a
+                // reduced extension call (#203) and a params argument both do — and that sits under no
+                // ArgumentSyntax of this call, so an unconfined walk climbs to an *enclosing* call's
+                // argument and binds an unrelated expression to the parameter. FactoryArguments.Bind
+                // keeps the same walk safe by diverting each such kind ahead of it; confining the walk
+                // answers for all of them at once, so no caller stays disciplined on this loop's behalf.
+                if (argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>() is not { } written
+                    || written.Parent != invocation.ArgumentList)
+                {
                     return null;
+                }
 
-                value = ExpressionTemplateFactory.Create(argumentExpression, context);
+                value = ExpressionTemplateFactory.Create(written.Expression, context);
                 sourceOrder = argument.Syntax.SpanStart;
             }
 
