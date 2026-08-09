@@ -638,7 +638,11 @@ internal sealed class KnownSymbols
             var setterIndex = index + 1;
             if (setterIndex >= method.Parameters.Length)
             {
-                bind = new BindParameters(index - offset, -1, valueType, setterIsAsynchronous: false);
+                bind = new BindParameters(
+                    BindParameters.ArgumentIndex(method.Parameters[index]),
+                    -1,
+                    valueType,
+                    setterIsAsynchronous: false);
                 return true;
             }
 
@@ -650,7 +654,10 @@ internal sealed class KnownSymbols
             }
 
             bind = new BindParameters(
-                index - offset, setterIndex - offset, valueType, !setterInvoke.ReturnsVoid);
+                BindParameters.ArgumentIndex(method.Parameters[index]),
+                BindParameters.ArgumentIndex(method.Parameters[setterIndex]),
+                valueType,
+                !setterInvoke.ReturnsVoid);
             return true;
         }
 

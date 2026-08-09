@@ -31,7 +31,10 @@ internal readonly struct BindParameters
     /// <summary>
     /// The setter's argument index, or <c>-1</c> when the overload declares no setter.
     /// <see cref="FactoryArguments.At"/> answers <see langword="null"/> for <c>-1</c>, so a call site
-    /// reading the setter argument needs no branch of its own.
+    /// reading the setter argument needs no branch of its own. This encoding holds only when
+    /// <see cref="KnownSymbols.TryGetBindParameters"/> answered <see langword="true"/>; the
+    /// <see langword="default"/> value of this struct (as left behind on a <see langword="false"/>
+    /// answer) carries no meaning and must not be read.
     /// </summary>
     public int SetterIndex { get; }
 
@@ -39,7 +42,7 @@ internal readonly struct BindParameters
     public ITypeSymbol ValueType { get; }
 
     /// <summary>
-    /// Whether the setter returns a <c>Task</c> rather than <see langword="void"/>. Meaningless when
+    /// Whether the setter returns something other than <see langword="void"/>. Meaningless when
     /// <see cref="SetterIndex"/> is <c>-1</c>.
     /// </summary>
     public bool SetterIsAsynchronous { get; }

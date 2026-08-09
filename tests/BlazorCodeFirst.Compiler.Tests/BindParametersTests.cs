@@ -171,6 +171,15 @@ public sealed class BindParametersTests
         Assert.Equal(-1, bind.SetterIndex);
     }
 
+    [Fact]
+    public void ComponentAsynchronousSetter_IsAsynchronous()
+    {
+        var bind = Bind("Html.Component<Probe>().Bind(c => c.Value, () => _s, SetAsync)");
+
+        Assert.Equal(2, bind.SetterIndex);
+        Assert.True(bind.SetterIsAsynchronous);
+    }
+
     /// <summary>
     /// The selector is never the setter, even when its single delegate parameter has the bound value's
     /// type — which is what a component declaring a parameter of its own type produces, and what the
