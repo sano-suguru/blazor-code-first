@@ -566,6 +566,38 @@ internal static class DiagnosticDescriptors
             "Method groups, anonymous methods, and block-bodied lambdas cannot be statically sequenced.");
 
     /// <summary>
+    /// BCF3023: <c>.Attr("class", …)</c> was written with the <see langword="bool"/> overload. That name
+    /// folds into the class channel, which joins its decorations into one value, and a
+    /// <see langword="bool"/> has no meaning there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unlike its siblings, this rule is not about a value that fails to translate; the value translates
+    /// two different ways. With one class decoration on the element the channel emits the value alone, so
+    /// <c>AddAttribute(int, string, bool)</c> binds and <see langword="true"/> renders <c>class=""</c>,
+    /// emptying the class list. With two or more the channel joins them with <c>+</c>, so the same
+    /// <see langword="true"/> is string-concatenated and renders <c>class="a True"</c> (both measured,
+    /// #159). One spelling therefore means two things depending on a count written elsewhere in the chain,
+    /// which is the translation defect BCF3016's principle names, arrived at from the generator's own fold
+    /// rather than from the HTML parser.
+    /// </para>
+    /// <para>
+    /// The name is what makes this reachable, not the overload: <c>.Attr("disabled", flag)</c> is exactly
+    /// what the <see langword="bool"/> overload exists for (#158), and only <c>"class"</c> folds.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3023 = new(
+        id: "BCF3023",
+        title: "Class attribute value must be a string",
+        messageFormat: "'class' folds into the class channel, which joins its values as text, so a bool has no meaning there; write the condition as a string expression such as .Class(condition ? \"name\" : \"\")",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The bool overload of .Attr is Blazor's conditional-attribute form and does not carry over to " +
+            "the class channel, where values are concatenated. Use .Class or the string overload of .Attr.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

@@ -606,6 +606,20 @@ internal static class RenderExpressionAnalyzer
             // 'class' folds (case-sensitive, ordinal), same channel as .Class, may repeat.
             if (string.Equals(attrName, "class", System.StringComparison.Ordinal))
             {
+                // The channel joins its decorations into one value, so the bool overload means two
+                // different things there depending on how many others the element carries (#159). Which
+                // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
+                // shape; the value expression's own type is not consulted. The last parameter is the
+                // value in both the reduced fluent spelling and the static-call one, and the shortcut
+                // route never spells 'class', so only .Attr reaches this test.
+                if (method.Parameters[method.Parameters.Length - 1].Type.SpecialType == SpecialType.System_Boolean)
+                {
+                    context.RejectUnresolvedValueRecovery(invocation.Span);
+                    context.Diagnostics.Add(DiagnosticInfo.Create(
+                        DiagnosticDescriptors.BCF3023, valueExpr.GetLocation(), []));
+                    return null;
+                }
+
                 return element with
                 {
                     Classes = element.Classes.AsImmutableArray().Add(

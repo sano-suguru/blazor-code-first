@@ -181,9 +181,16 @@ That pair — an attribute out, an event back — is what [`.Bind`](./two-way-bi
 decoration.
 
 `class` is the one attribute that folds: chaining `.Class` more than once merges the values into a
-single `class` attribute. Every other attribute and event is a single binding, and binding one twice
-on the same element reports BCF3010. There is no `style` shortcut, so prefer an external stylesheet
-and `.Class`.
+single `class` attribute, and `.Attr("class", …)` joins the same channel. Every other attribute and
+event is a single binding, and binding one twice on the same element reports BCF3010. There is no
+`style` shortcut, so prefer an external stylesheet and `.Class`.
+
+Because that channel joins its values as text, `class` is also the one name the `bool` overload
+cannot take, and `.Attr("class", flag)` reports BCF3023. Write a conditional class as a string:
+
+```csharp
+Div.Class("card").Class(_selected ? "is-selected" : "")
+```
 
 A decoration must target a single element. Applying one to `If`, `ForEach`, `Fragment`, `Raw`, or a
 component result reports diagnostic BCF3008, because those constructs open no element to attach to.
