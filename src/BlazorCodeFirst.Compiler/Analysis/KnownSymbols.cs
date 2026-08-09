@@ -585,6 +585,78 @@ internal sealed class KnownSymbols
     public SurfaceMethodKind ClassifySurfaceMethod(IMethodSymbol method) =>
         _surfaceMethods.TryGetValue(Normalize(method), out var kind) ? kind : SurfaceMethodKind.None;
 
+    /// <summary>
+    /// The parameter roles of a resolved <c>Bind</c> overload, element or component, or
+    /// <see langword="false"/> when <paramref name="method"/> is not a shape this compiler was written
+    /// against.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Static, like <see cref="IsVoidTag"/> and <see cref="Normalize(IMethodSymbol)"/>: the answer is a
+    /// property of the resolved symbol and there is nothing to look up in a compilation. Callers must
+    /// have classified the method as <see cref="SurfaceMethodKind.Bind"/> or
+    /// <see cref="SurfaceMethodKind.ComponentBind"/> first — this answers from shape and does not
+    /// re-ask.
+    /// </para>
+    /// <para>
+    /// <paramref name="method"/> is read in whatever spelling it arrives in, and is deliberately
+    /// <em>not</em> normalized through <see cref="IMethodSymbol.ReducedFrom"/>. Roslyn answers
+    /// <c>GetSymbolInfo</c> with the reduced method for a fluent call and the unreduced one for the
+    /// static call, while an operation's <c>IArgumentOperation.Parameter</c> is always unreduced; the
+    /// positions are normalized instead, by <see cref="BindParameters.ArgumentIndex"/>, which is the one
+    /// rule this whole helper exists to hold. Normalizing the method would additionally make
+    /// <see cref="BindParameters.ValueType"/> an unsubstituted type parameter, since
+    /// <c>ReducedFrom</c> answers the generic definition.
+    /// </para>
+    /// <para>
+    /// The getter is found by shape rather than at an ordinal, so a new <c>(value type, setter shape)</c>
+    /// pair does not have to be transcribed here. <c>ReturnsVoid: false</c> is load-bearing: a
+    /// zero-argument <c>Action</c> is a delegate whose invoke method has a non-null <c>void</c> return
+    /// type, so without it a callback parameter written ahead of the getter would be read as the getter.
+    /// The setter is required to be both in position and in shape — the parameter after the getter, and
+    /// a one-argument delegate over the same value — which makes this stricter than either convention it
+    /// replaces.
+    /// </para>
+    /// </remarks>
+    public static bool TryGetBindParameters(IMethodSymbol method, out BindParameters bind)
+    {
+        bind = default;
+
+        var offset = method.IsExtensionMethod && method.ReducedFrom is null ? 1 : 0;
+        for (var index = offset; index < method.Parameters.Length; index++)
+        {
+            if (method.Parameters[index].Type
+                is not INamedTypeSymbol
+                {
+                    DelegateInvokeMethod: { Parameters.Length: 0, ReturnsVoid: false } getterInvoke,
+                })
+            {
+                continue;
+            }
+
+            var valueType = getterInvoke.ReturnType;
+            var setterIndex = index + 1;
+            if (setterIndex >= method.Parameters.Length)
+            {
+                bind = new BindParameters(index - offset, -1, valueType, setterIsAsynchronous: false);
+                return true;
+            }
+
+            if (method.Parameters[setterIndex].Type
+                is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke }
+                || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
+            {
+                return false;
+            }
+
+            bind = new BindParameters(
+                index - offset, setterIndex - offset, valueType, !setterInvoke.ReturnsVoid);
+            return true;
+        }
+
+        return false;
+    }
+
     private static SurfaceMethodKind ClassifyComponentParameterDefinition(
         IMethodSymbol method,
         INamedTypeSymbol componentViewType,
