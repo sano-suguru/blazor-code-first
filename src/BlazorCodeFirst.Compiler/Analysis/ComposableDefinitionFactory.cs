@@ -56,6 +56,14 @@ internal static class ComposableDefinitionFactory
         MethodDeclarationSyntax declaration,
         KnownSymbols? knownSymbols)
     {
+        // A composable is never an extension member (DESIGN.md §4.3, #203). Rejected ahead of the static
+        // test so both spellings answer with the reason that is true of them rather than the instance form
+        // answering "must be static". The disjunction is one question the language splits in two: Roslyn
+        // answers the classic 'this' parameter with IsExtensionMethod and the C# 14 extension block with
+        // ContainingType.IsExtension, and neither answers for the other.
+        if (method.IsExtensionMethod || method.ContainingType.IsExtension)
+            return "must not be an extension member";
+
         if (!method.IsStatic)
             return "must be static";
 

@@ -255,6 +255,13 @@ in a non-generic type, and its parameters must be ordinary by-value parameters w
 named from generated code. `View` and `ElementBuilder` parameters, `params`, and by-reference
 parameters are all rejected.
 
+It also must not be an extension member — neither a `this` parameter nor a member of an `extension`
+block. A call is written as a plain call (`AppHeader("My Application")`), the way this surface writes
+every call that is not a decoration on an element. The fluent spelling would put something that is
+not a decoration in the position the surface reserves for one, and the receiver could only ever be
+some other type's value, which would turn `[Composable]` into a way to grow *that* type's API rather
+than to split up a `Body`.
+
 BCF1002 also fires at the *call site*, and one of its conditions is worth stating plainly:
 
 **a `[Composable]` cannot cross an assembly boundary.** Expanding a call needs the declaration's

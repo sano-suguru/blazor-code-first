@@ -1682,6 +1682,101 @@ public sealed class GeneratorTests
         Assert.Empty(result.GeneratedSources);
     }
 
+    /// <summary>
+    /// However an extension composable is called, the only BCF1002 is the declaration's and nothing is
+    /// generated. The static spelling expanded until #203 decided the declaration is unsupported — nothing
+    /// promised it, and it was the spelling nobody writes. The fluent spellings never bound their arguments:
+    /// the receiver, which <c>IInvocationOperation</c> carries as the argument for the <c>this</c>
+    /// parameter, sits under no <c>ArgumentSyntax</c> of its own call, so the call is untranslatable syntax
+    /// and lands on BCF1003 at the invocation like any other call this compiler cannot expand. The nested
+    /// spelling used to report a second BCF1002 there instead, reading "no source declaration is available"
+    /// — the message for a metadata-only method — because that receiver bound the *enclosing* call's
+    /// argument to parameter 0.
+    /// </summary>
+    [Theory]
+    [InlineData("Helpers.Label(\"x\")", null)]
+    [InlineData("\"x\".Label()", "\"x\".Label()")]
+    [InlineData("Div[\"x\".Label()]", "\"x\".Label()")]
+    public void Generator_ComposableExtensionMemberCalled_ReportsDeclarationBCF1002Only(
+        string body,
+        string? failedCallText)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public static class Helpers
+            {
+                [Composable]
+                public static View Label(this string value) => Span[value];
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var declaration = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains(
+            "must not be an extension member",
+            declaration.GetMessage(CultureInfo.InvariantCulture));
+        Assert.Empty(result.GeneratedSources);
+
+        // The static spelling is a composable call the expander recognizes, so it stays silent on a
+        // declaration already diagnosed; a fluent one is not a call this analyzer can read at all.
+        if (failedCallText is null)
+        {
+            Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
+            return;
+        }
+
+        var call = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.Equal(
+            failedCallText,
+            Microsoft.CodeAnalysis.Text.SourceText.From(source).ToString(call.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// The other argument Roslyn synthesizes with the whole invocation as its <c>Syntax</c>: a params
+    /// argument. It fails to bind for the same reason a reduced receiver does, and it fails the same way
+    /// whether the call stands alone or is nested. Nested, it used to bind the *enclosing* call's argument
+    /// to parameter 0 and report nothing, so the two spellings of one shape disagreed.
+    /// </summary>
+    [Theory]
+    [InlineData("Helper(\"a\", \"b\")")]
+    [InlineData("Div[Helper(\"a\", \"b\")]")]
+    public void Generator_ParamsComposableCalled_ReportsBCF1003AtCallForEitherSpelling(string body)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                [Composable]
+                private static View Helper(params string[] values) => Span[values[0]];
+
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var declaration = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains(
+            "params parameters are unsupported",
+            declaration.GetMessage(CultureInfo.InvariantCulture));
+
+        var call = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.Equal(
+            "Helper(\"a\", \"b\")",
+            Microsoft.CodeAnalysis.Text.SourceText.From(source).ToString(call.Location.SourceSpan));
+        Assert.Empty(result.GeneratedSources);
+    }
+
     [Fact]
     public void Generator_UnnameableParameterType_ReportsBCF1002AndEmitsNoSource()
     {

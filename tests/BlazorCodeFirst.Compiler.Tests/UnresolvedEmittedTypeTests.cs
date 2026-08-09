@@ -365,13 +365,14 @@ public sealed class UnresolvedEmittedTypeTests
 
     /// <summary>
     /// The receiver of a fluently written <c>[Composable]</c> extension is scanned, the same as the
-    /// arguments beside it: nothing forbids a composable being an extension method, and its receiver is the
-    /// argument the declaration numbers 0 (#200).
+    /// arguments beside it: it is an expression the author wrote, and the sweep answers for what the author
+    /// wrote rather than for what the call could have expanded to (#200).
     /// </summary>
     /// <remarks>
-    /// The call itself cannot expand — the call site's reduced symbol keys differently from the declaration
-    /// (#203) — so this body is an error either way, and what the scan decides is only whether the specific
-    /// BCF3015 is reported in place of the generic BCF1003.
+    /// The call itself never expands — #203 decided a composable is not an extension member, so the
+    /// declaration is BCF1002, and the receiver the reduced invocation carries as argument 0 binds to no
+    /// <c>ArgumentSyntax</c> of that call — so this body is an error either way, and what the scan decides
+    /// is only whether the specific BCF3015 is reported in place of the generic BCF1003.
     /// </remarks>
     [Fact]
     public void ComposableExtensionReceiver_UnresolvedType_ReportsBCF3015()
