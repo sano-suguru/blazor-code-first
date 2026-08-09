@@ -97,9 +97,19 @@ internal sealed record ExpressionTemplate
     /// substituted code's type. A hole with surrounding text is left alone, because recomputing the value
     /// would need expression evaluation.
     /// </summary>
+    /// <remarks>
+    /// A hole-free template is returned as it stands. Substitution cannot change one — every segment would
+    /// be copied to an equal value — and the expander begins every component with an empty substitution, so
+    /// without this a component that calls no composable still rebuilt a template for each of its attribute
+    /// values, class channels, handlers, text, keys, and conditions. The scan it costs is one pass over the
+    /// segments, which the loop below performs anyway.
+    /// </remarks>
     public ExpressionTemplate Substitute(ImmutableArray<SubstitutedArgument> arguments)
     {
         var segments = Segments.AsImmutableArray();
+        if (!ContainsHole(segments))
+            return this;
+
         if (segments.Length == 1
             && segments[0] is ParameterHoleExpressionSegment loneHole
             && ArgumentAt(loneHole, arguments) is { Constant: StringConstant { Text: var constantText } constant })
@@ -145,6 +155,17 @@ internal sealed record ExpressionTemplate
         }
 
         return builder.ToString();
+    }
+
+    private static bool ContainsHole(ImmutableArray<ExpressionSegment> segments)
+    {
+        foreach (var segment in segments)
+        {
+            if (segment is ParameterHoleExpressionSegment)
+                return true;
+        }
+
+        return false;
     }
 
     private static SubstitutedArgument ArgumentAt(

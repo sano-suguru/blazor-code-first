@@ -79,11 +79,29 @@ internal static class StaticMarkupSerializer
     public static (string Markup, int AbsorbedFrameCount) Write(ImmutableArray<RenderNode> run)
     {
         var builder = new StringBuilder();
+        var absorbed = WriteTo(builder, run);
+        return (builder.ToString(), absorbed);
+    }
+
+    /// <summary>
+    /// As <see cref="Write(ImmutableArray{RenderNode})"/>, appending into <paramref name="builder"/> and
+    /// returning the absorbed frame count without materializing the markup.
+    /// </summary>
+    /// <remarks>
+    /// The frame count is only knowable by walking the run, and the walk that knows it is the one that
+    /// writes: which attributes append a frame is decided case by case as they are serialized, so a
+    /// separate counting pass would be a second implementation of that rule and free to disagree with this
+    /// one. Splitting the string out instead lets <c>RenderViewEmitter</c> learn the count, discover the
+    /// fold is not worth taking, and abandon the builder without paying for the copy
+    /// <see cref="StringBuilder.ToString"/> makes — which is what the discarded case always was.
+    /// </remarks>
+    public static int WriteTo(StringBuilder builder, ImmutableArray<RenderNode> run)
+    {
         var absorbed = 0;
         foreach (var node in run)
             WriteNode(builder, node, ref absorbed);
 
-        return (builder.ToString(), absorbed);
+        return absorbed;
     }
 
     private static void WriteNode(StringBuilder builder, RenderNode node, ref int absorbed)

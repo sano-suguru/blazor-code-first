@@ -22,10 +22,20 @@ internal readonly record struct TemplateLocation(
     public Location ToLocation() => Location.Create(FilePath, Span, LineSpan);
 }
 
+/// <summary>
+/// One argument of a <c>[Composable]</c> call, in the callee's parameter order, carrying the source order
+/// that expansion evaluates the arguments in.
+/// </summary>
+/// <remarks>
+/// The parameter's type name is deliberately absent: expansion declares each local from the
+/// <em>definition</em>'s <see cref="Analysis.ComposableParameter.TypeName"/>, so a per-argument copy was
+/// written at every call site and read nowhere. The only place the callee's type name is still needed is
+/// an omitted optional, where <c>ConstantTemplate.ForParameterDefault</c> spells the default's cast, and
+/// that is computed in the branch that uses it.
+/// </remarks>
 internal sealed record ComposableInvocationArgument(
     int ParameterOrdinal,
     int SourceOrder,
-    string ParameterTypeName,
     bool IsImplicitDefault,
     ExpressionTemplate Value);
 
