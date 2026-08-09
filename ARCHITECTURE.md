@@ -593,7 +593,7 @@ BCF1001 はこの規則に違反していました(#76)。`partial` の欠落は
 | BCF1004 | Error   | 設計時表現(`Body` / `Chrome`)の override が、ジェネレータの翻訳できないゲッターを宣言している(文を含むゲッター、または本体を持たない自動プロパティ)。`=> expr` / `get => expr` / `get { return expr; }` のいずれかに書き直すか、`RenderView` を手書きする。再abstract化(`abstract override`)は対象外。実装部を持たない partial プロパティも対象外(CS9248 が原因を名指す) |
 | BCF1005 | Error   | ネストしたクラスが設計時表現を宣言している。生成コードは外側の型宣言の連鎖を再現できないため、トップレベルの型へ移す必要がある |
 | BCF2001 | Info    | Opaque構文を検出。動的リージョンへ縮退し、当該領域の静的差分最適化が失われる(将来の対象範囲: `AddContent(seq, RenderFragment?)` を発行する `RenderFragmentContentNode` は仕様上のOpaque経路であり、BCF2001実装時の対象に含まれる想定。未実装。なお #32 の `ComponentSlot` は `AddComponentParameter` と静的採番済みラムダのみで構成される完全なSSC経路であり、BCF2001の対象ではない。名前が似ている `RenderFragmentContentNode`(Razor→BlazorCodeFirst 方向)とは逆向きの構文である) |
-| BCF3001 | Error   | 現行実装では設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。`.OnClick`/`.On` の遅延イベントハンドラ引数(入れ子ラムダを含む)内は除外。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
+| BCF3001 | Error   | 現行実装では設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)本体内での状態変更(単一方向データフロー違反)。初期検出範囲: コンポーネントインスタンスメンバーへの直接書き込み(代入/複合代入/インクリメント/デクリメント)。遅延ハンドラ引数(入れ子ラムダを含む)内は除外。除外対象はイベントデコレーション(`.OnClick` 等のイベント短縮形と `.On`)のハンドラ引数と `.Bind` のセッター引数であり、これは名前の列挙ではなく `KnownSymbols` の分類そのものから導かれる。`.Bind` のゲッター引数はフレーム生成中に評価されるため除外しない。任意の副作用の完全検出は保証しない。`[Composable]` 本体への適用は将来拡張候補 |
 | BCF3002 | Warning | `ForEach` の `key` セレクタが要素の恒等性を保証しない可能性(インデックスベースキー等) |
 | BCF3003 | Error   | `ForEach` の `content` が単一の要素/コンポーネントを根に持たず、キーを適用できない(根がリージョンになる裸の `if`/`ForEach`、`Fragment`、`Raw` 等)。内側を容器要素で包む(例: `Div[...]`)必要がある |
 | BCF3004 | Error   | `ForEach` の `content`/`key` がインライン式ラムダでない(ブロック本体ラムダ/メソッドグループ等)ため静的解析できない |

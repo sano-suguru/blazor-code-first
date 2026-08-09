@@ -110,8 +110,9 @@ internal static class RejectedDecorationScanner
     /// proves nothing on its own, since any type may declare a <c>Class</c> or a <c>Title</c>. Its own names
     /// come from symbols resolved out of the referenced runtime assembly, so a user-defined
     /// <c>Some.BlazorCodeFirst.Decorations</c> contributes none of them, see
-    /// <see cref="KnownSymbols.DeclaresDecorationNamed"/>, and compare <c>RenderMutationAnalyzer</c>, which
-    /// tests a name and then anchors it by resolving the containing type's namespace.
+    /// <see cref="KnownSymbols.DeclaresDecorationNamed"/>. A name test is admissible here only because the
+    /// call did not resolve, so there is no symbol to classify; every recognition of a call that did resolve
+    /// asks <see cref="KnownSymbols.ClassifySurfaceMethod"/> instead.
     /// </para>
     /// <para>
     /// <c>RenderFragment</c> is named in the receiver test rather than covered by <c>View</c>, even though it

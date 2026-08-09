@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using BlazorCodeFirst.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -16,14 +17,21 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// <para>
 /// The initial detectable boundary covers statically identifiable direct writes: field assignments,
 /// property assignments, and increment/decrement operators whose target is an instance member of the
-/// containing component. The recognized deferred event handlers — the handler argument of a
-/// Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c> call, and the setter argument of a
-/// two-way <c>.Bind(...)</c> call — are excluded because state mutations there are the correct
+/// containing component. The recognized deferred event handlers — the handler argument of an event
+/// decoration (<c>.OnClick(...)</c> or <c>.On(...)</c>), and the setter argument of a two-way
+/// <c>.Bind(...)</c> call — are excluded because state mutations there are the correct
 /// location for imperative state transitions and execute after rendering, not during it. The getter
 /// argument of a <c>.Bind(...)</c> call is not exempt: it is evaluated while the frames are built, so
 /// a mutation there is still a one-way-flow break. A mutation is exempt when <em>any</em> enclosing
 /// lambda (not just the innermost) is such a handler argument, so nested lambdas inside a deferred
 /// handler body remain exempt as well.
+/// </para>
+/// <para>
+/// Which calls those are is asked of <see cref="Analysis.KnownSymbols.ClassifySurfaceMethod"/> — the one
+/// place the compiler records what a surface method is — rather than decided from the method's name here.
+/// The exemption set is therefore a consequence of what the referenced runtime declares and the generator
+/// already recognizes: a decoration added there is exempt without an edit to this file, and a decoration
+/// this compiler does not recognize cannot claim the exemption by sharing a name with one that is (#194).
 /// </para>
 /// <para>
 /// Arbitrary interprocedural side effects (mutations inside a helper method called from Body) are
@@ -44,19 +52,35 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
 
-        context.RegisterOperationAction(
-            AnalyzeMutation,
-            OperationKind.Increment,
-            OperationKind.Decrement,
-            OperationKind.SimpleAssignment,
-            OperationKind.CompoundAssignment);
+        context.RegisterCompilationStartAction(static startContext =>
+        {
+            // The surface is resolved out of the referenced runtime once per compilation and every
+            // recognition below is by symbol identity against it. Nothing here reads a method name: the
+            // exemptions follow from what KnownSymbols classified, so a decoration added to the runtime
+            // becomes exempt by being registered there rather than by being listed here as well.
+            //
+            // Nothing is analyzed at all when the surface does not resolve, which happens when
+            // BlazorCodeFirst.Html is absent or ambiguous between two references. Both leave the whole
+            // body reported as BCF1003 already (see KnownSymbols's constructor), and neither leaves any
+            // way to tell a deferred handler from a render-time mutation — so a missing BCF3001 is the
+            // right degradation and a spurious one on a correct handler would be the wrong one.
+            if (KnownSymbols.TryCreate(startContext.Compilation) is not { } knownSymbols)
+                return;
+
+            startContext.RegisterOperationAction(
+                operationContext => AnalyzeMutation(operationContext, knownSymbols),
+                OperationKind.Increment,
+                OperationKind.Decrement,
+                OperationKind.SimpleAssignment,
+                OperationKind.CompoundAssignment);
+        });
     }
 
     // ---------------------------------------------------------------------------
     // Core analysis
     // ---------------------------------------------------------------------------
 
-    private static void AnalyzeMutation(OperationAnalysisContext ctx)
+    private static void AnalyzeMutation(OperationAnalysisContext ctx, KnownSymbols knownSymbols)
     {
         // Condition 1: The operation targets an instance field or property.
         var targetSymbol = GetInstanceMemberTarget(ctx.Operation);
@@ -76,10 +100,10 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         // The target must belong to the same component (not a field on a nested type, etc.).
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
 
-        // Condition 3: The operation must not be inside a recognized deferred event handler lambda
-        // (classified as DeferredEventHandler, mutations there execute after rendering): the
-        // Html-mirror View.OnClick(...) argument lambda.
-        if (IsInsideDeferredEventHandlerLambda(ctx.Operation.Syntax, semanticModel)) return;
+        // Condition 3: The operation must not be inside a recognized deferred handler lambda, where
+        // mutations execute after rendering rather than during it: an event decoration's handler argument
+        // or a .Bind setter argument.
+        if (IsInsideDeferredEventHandlerLambda(ctx.Operation.Syntax, semanticModel, knownSymbols)) return;
 
         ctx.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.BCF3001,
@@ -161,24 +185,22 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed, at any
-    /// nesting depth, by a lambda that is syntactically a recognized deferred event handler
-    /// argument: the handler argument of a Html-mirror <c>View.OnClick(...)</c> or <c>View.On(...)</c>
-    /// call, or the setter argument of a two-way <c>.Bind(...)</c> call. Every enclosing lambda is
-    /// checked (not just the innermost), so a mutation inside a nested lambda that itself lives
+    /// nesting depth, by a lambda that is a recognized deferred handler argument. Every enclosing lambda
+    /// is checked (not just the innermost), so a mutation inside a nested lambda that itself lives
     /// inside a recognized handler lambda (e.g. <c>OnClick(async () => items.ForEach(i => total +=
     /// i))</c>) is still exempt. If-content lambdas and other non-handler lambdas do not match and
     /// analysis continues outward.
     /// </summary>
     private static bool IsInsideDeferredEventHandlerLambda(
         SyntaxNode operationSyntax,
-        SemanticModel semanticModel)
+        SemanticModel semanticModel,
+        KnownSymbols knownSymbols)
     {
         var node = operationSyntax.Parent;
         while (node is not null)
         {
             if (node is LambdaExpressionSyntax lambda &&
-                (IsDeferredEventHandlerArgument(lambda, semanticModel) ||
-                 IsBindSetterArgument(lambda, semanticModel)))
+                IsDeferredHandlerArgument(lambda, semanticModel, knownSymbols))
             {
                 return true;
             }
@@ -188,95 +210,48 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the handler argument of a
-    /// Html-mirror <c>Decorations.OnClick(...)</c> or <c>Decorations.On(...)</c> invocation. The handler
-    /// is identified by the parameter it binds to, not by its position: a named argument
-    /// (<c>.On(handler: h, eventName: "onclick")</c>) can put it anywhere in the list.
+    /// Returns <see langword="true"/> when <paramref name="lambda"/> is a deferred handler argument: the
+    /// handler of an event decoration (a named event shortcut such as <c>.OnClick(...)</c>, or
+    /// <c>.On(...)</c>), or the setter of a two-way <c>.Bind(...)</c> — the element decoration
+    /// <c>Decorations.Bind(...)</c> or the component decoration
+    /// <c>ComponentView&lt;TComponent&gt;.Bind(...)</c>.
     /// </summary>
-    private static bool IsDeferredEventHandlerArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
+    /// <remarks>
+    /// <para>
+    /// One predicate over the classification rather than one per decoration group: which lambda counts as
+    /// the deferred one is the only thing that differs between them, and both groups reach it the same way
+    /// — unwrap the lambda to its argument, resolve the invocation, ask
+    /// <see cref="KnownSymbols.ClassifySurfaceMethod"/>. Two predicates meant resolving the same
+    /// invocation twice whenever the first declined, and two copies of that prologue to keep in step.
+    /// </para>
+    /// <para>
+    /// Each arm identifies its lambda by the parameter it binds to, never by argument position: a named
+    /// argument (<c>.On(handler: h, eventName: "onclick")</c>) can put the handler anywhere in the list.
+    /// The <c>.Bind</c> getter is deliberately not a deferred position — it is evaluated while the frames
+    /// are built, so a mutation there must still be reported — which is what
+    /// <see cref="IsSetterParameter"/> separates it from.
+    /// </para>
+    /// </remarks>
+    private static bool IsDeferredHandlerArgument(
+        LambdaExpressionSyntax lambda, SemanticModel semanticModel, KnownSymbols knownSymbols)
     {
         if (lambda.Parent is not ArgumentSyntax arg ||
             arg.Parent is not ArgumentListSyntax argList ||
-            argList.Parent is not InvocationExpressionSyntax invocation)
+            argList.Parent is not InvocationExpressionSyntax invocation ||
+            semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
         {
             return false;
         }
 
-        // Anchor the namespace to the global root so a user-defined Some.BlazorCodeFirst.Decorations
-        // cannot spoof the exclusion.
-        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { IsExtensionMethod: true } method ||
-            method.Name is not ("OnClick" or "On") ||
-            (method.ReducedFrom ?? method).ContainingType is not { Name: "Decorations" } decorationsType ||
-            decorationsType.ContainingNamespace is not { IsGlobalNamespace: false, Name: "BlazorCodeFirst" } ns ||
-            !ns.ContainingNamespace.IsGlobalNamespace)
+        return knownSymbols.ClassifySurfaceMethod(method) switch
         {
-            return false;
-        }
-
-        return BindsToDelegateParameter(arg, invocation, semanticModel);
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="argument"/> binds to a delegate-typed
-    /// parameter of <paramref name="invocation"/>, the <c>Action</c> or <c>Func&lt;Task&gt;</c> handler of
-    /// <c>OnClick</c>/<c>On</c>, as opposed to the <c>string</c> event name.
-    /// </summary>
-    private static bool BindsToDelegateParameter(
-        ArgumentSyntax argument, InvocationExpressionSyntax invocation, SemanticModel semanticModel) =>
-        GetBoundParameter(argument, invocation, semanticModel)?.Type.TypeKind == TypeKind.Delegate;
-
-    // ---------------------------------------------------------------------------
-    // Helpers, Bind setter argument detection
-    // ---------------------------------------------------------------------------
-
-    /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="lambda"/> is the setter argument of a
-    /// two-way <c>.Bind(...)</c> call: the element decoration <c>Decorations.Bind(...)</c> (an
-    /// extension method on the element builder) or the component decoration
-    /// <c>ComponentView&lt;TComponent&gt;.Bind(...)</c> (an instance method on the component
-    /// builder). The setter runs after the render, in response to the bound event, so a mutation
-    /// there is not a one-way-flow break. The getter argument of the same call is deliberately not
-    /// recognized here: it is evaluated while the frames are built, so a mutation there must still
-    /// be reported.
-    /// </summary>
-    private static bool IsBindSetterArgument(LambdaExpressionSyntax lambda, SemanticModel semanticModel)
-    {
-        if (lambda.Parent is not ArgumentSyntax arg ||
-            arg.Parent is not ArgumentListSyntax argList ||
-            argList.Parent is not InvocationExpressionSyntax invocation)
-        {
-            return false;
-        }
-
-        if (semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
-            method.Name != "Bind" ||
-            !IsRecognizedBindMethod(method))
-        {
-            return false;
-        }
-
-        return IsSetterParameter(method, GetBoundParameter(arg, invocation, semanticModel));
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="method"/> is one of the two known
-    /// <c>Bind</c> declarations. Anchored the same way as the OnClick/On check above: the namespace
-    /// is rooted at the global namespace, and the declaring type name plus extension-method-ness
-    /// together rule out an unrelated same-named <c>Bind</c> method.
-    /// </summary>
-    private static bool IsRecognizedBindMethod(IMethodSymbol method)
-    {
-        var declaringType = (method.ReducedFrom ?? method).ContainingType;
-        if (declaringType is not { ContainingNamespace: { IsGlobalNamespace: false, Name: "BlazorCodeFirst" } ns } ||
-            !ns.ContainingNamespace.IsGlobalNamespace)
-        {
-            return false;
-        }
-
-        // The element decoration is an extension method declared on Decorations; the component
-        // decoration is an instance method declared on ComponentView<TComponent>.
-        return (method.IsExtensionMethod && declaringType.Name == "Decorations") ||
-               (!method.IsExtensionMethod && declaringType.Name == "ComponentView");
+            // The handler, as opposed to .On's string event name.
+            SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On =>
+                GetBoundParameter(arg, invocation, semanticModel)?.Type.TypeKind == TypeKind.Delegate,
+            SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind =>
+                IsSetterParameter(method, GetBoundParameter(arg, invocation, semanticModel)),
+            _ => false,
+        };
     }
 
     /// <summary>
@@ -317,6 +292,14 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// (<c>Func&lt;TComponent, TValue&gt;</c>) whose own single delegate parameter would otherwise be
     /// mistaken for a setter by arity alone.
     /// </summary>
+    /// <remarks>
+    /// The third derivation of one fact. <c>RenderExpressionAnalyzer.ClassifyBind</c> reads the setter as
+    /// <c>ReducedFrom</c> plus a receiver offset plus 3, <c>ClassifyComponentBind</c> reads it as the fixed
+    /// ordinal 2, and this searches for the getter's delegate shape — three conventions for "which
+    /// parameter of a resolved <c>Bind</c> overload is the setter". #194 recorded the duplication and left
+    /// it, since consolidating it is separable work with no behavioural change of its own; #206 carries it,
+    /// and this paragraph goes when that lands.
+    /// </remarks>
     private static bool IsSetterParameter(IMethodSymbol bindMethod, IParameterSymbol? candidate)
     {
         if (candidate?.Type is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke })

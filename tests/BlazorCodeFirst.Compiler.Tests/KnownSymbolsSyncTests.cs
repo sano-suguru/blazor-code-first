@@ -291,8 +291,7 @@ public sealed class KnownSymbolsSyncTests
     public void EveryCapturedDecoration_ExtendsElementBuilder()
     {
         var (symbols, html) = ResolveHtml();
-        var elementBuilder = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
-        Assert.NotNull(elementBuilder);
+        var elementBuilder = ResolveElementBuilder(html);
 
         var captured = symbols.SurfaceMethods
             .Where(entry => entry.Value is SurfaceMethodKind.Class
@@ -380,6 +379,70 @@ public sealed class KnownSymbolsSyncTests
         // A resolution failure would otherwise make the whole guard vacuous rather than red.
         Assert.NotEmpty(names);
         return names;
+    }
+
+    /// <summary>
+    /// Every decoration shaped like an event shortcut is registered as one, with an event name.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The shape carries the rule and the table supplies only what the shape cannot: an extension on
+    /// <c>ElementBuilder</c> whose sole non-receiver parameter is a delegate takes a handler and no event
+    /// name, so the event it stands for has to come from somewhere, and that somewhere is
+    /// <c>EventShortcutNames</c>. The rule therefore needs no name knowledge of its own and cannot be
+    /// satisfied by transcribing the table it checks.
+    /// </para>
+    /// <para>
+    /// It is not the net that catches a missing row. <see cref="DecorationNames_CoverEveryDecorationTheRuntimeDeclares"/>
+    /// already does, in both directions and for every decoration group, because a member the constructor's
+    /// switch does not classify never reaches <c>_decorationNames</c> either — measured by adding
+    /// <c>.OnInput(Action)</c> to the runtime, which fails that test by name and by count. What this adds is
+    /// narrower: that an event shortcut is classified as <see cref="SurfaceMethodKind.EventShortcut"/>
+    /// specifically and not, say, mis-filed under <c>AttributeShortcutNames</c>, that it carries an event
+    /// name at all, and that the name is spelled as an event.
+    /// </para>
+    /// <para>
+    /// That no other decoration has this shape is a fact about today's surface, not a law. A capability
+    /// like <c>@ref</c> (#72) would naturally be spelled <c>Ref(this ElementBuilder, Action&lt;ElementReference&gt;)</c>
+    /// and match it while standing for no event. That is why the failure message below states the shape it
+    /// matched rather than instructing the reader to add a row: the answer for such a decoration is a new
+    /// classification and a revision of this rule, not an <c>EventShortcutNames</c> entry.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryEventShortcutShapedDecoration_IsRegisteredWithAnEventName()
+    {
+        var (symbols, html) = ResolveHtml();
+        var elementBuilder = ResolveElementBuilder(html);
+        var decorations = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.Decorations");
+        Assert.NotNull(decorations);
+
+        var shortcuts = decorations!.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(method => method is { IsExtensionMethod: true, Parameters.Length: 2 }
+                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder)
+                && method.Parameters[1].Type.TypeKind == TypeKind.Delegate)
+            .ToList();
+
+        // A resolution or shape-rule failure would otherwise make the whole guard vacuous rather than red.
+        Assert.NotEmpty(shortcuts);
+
+        foreach (var method in shortcuts)
+        {
+            var key = KnownSymbols.Normalize(method);
+            Assert.Equal(SurfaceMethodKind.EventShortcut, symbols.ClassifySurfaceMethod(method));
+            Assert.True(
+                symbols.EventShortcuts.TryGetValue(key, out var eventName),
+                $"'.{method.Name}({method.Parameters[1].Type.Name})' extends ElementBuilder and takes a " +
+                $"handler and nothing else, but KnownSymbols registered no event name for it. Either it " +
+                $"stands for an event and needs an EventShortcutNames row, or it stands for something " +
+                $"else and needs a classification of its own plus a revision of this rule.");
+
+            // The same rule BCF3019 holds a hand-written .Bind event name to. Nothing derives the name from
+            // the method's, deliberately: an event whose HTML spelling is not the member name minus "On"
+            // (ondblclick, say) is a table row, not a special case.
+            Assert.StartsWith("on", eventName, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -538,6 +601,22 @@ public sealed class KnownSymbolsSyncTests
         Assert.True(KnownSymbols.IsCuratedTag("div"));
         Assert.False(KnownSymbols.IsCuratedTag("DIV"));
         Assert.False(KnownSymbols.IsCuratedTag("marquee"));
+    }
+
+    /// <summary>
+    /// <c>BlazorCodeFirst.ElementBuilder</c>, resolved out of the runtime assembly directly rather than read
+    /// off <c>KnownSymbols.ElementBuilderType</c>.
+    /// </summary>
+    /// <remarks>
+    /// The two guards that call this exist to check <c>KnownSymbols</c>'s receiver filter, and that filter is
+    /// only meaningful while the type it filters on is resolved independently; sourcing it from
+    /// <c>KnownSymbols</c> would have the guard compare that object against itself.
+    /// </remarks>
+    private static INamedTypeSymbol ResolveElementBuilder(INamedTypeSymbol html)
+    {
+        var elementBuilder = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
+        Assert.NotNull(elementBuilder);
+        return elementBuilder!;
     }
 
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()

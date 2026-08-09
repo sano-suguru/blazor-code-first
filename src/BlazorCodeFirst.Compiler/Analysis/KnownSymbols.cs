@@ -271,6 +271,25 @@ internal sealed class KnownSymbols
         ["Role"] = "role",
     };
 
+    /// <summary>Named event shortcut method name → HTML event name.</summary>
+    /// <remarks>
+    /// A table rather than a <c>case</c> arm in the constructor's member switch, for the reason the
+    /// attribute side has always been one: adding a shortcut is a row, and everything that reads the event
+    /// side — the decoration arm of <c>RenderExpressionAnalyzer</c>, <see cref="DeclaresDecorationNamed"/>,
+    /// and <c>RenderMutationAnalyzer</c>'s deferred-handler exemption — follows from the registration
+    /// instead of naming the shortcut again. <c>KnownSymbolsSyncTests</c> holds it against every decoration
+    /// the runtime declares in that shape, so a row omitted for a new one is red rather than silent.
+    /// <para>
+    /// The event name is written out rather than derived from the method name: an event whose HTML spelling
+    /// is not the member name minus <c>On</c>, <c>ondblclick</c> for instance, is then an ordinary row and
+    /// not a special case.
+    /// </para>
+    /// </remarks>
+    private static readonly Dictionary<string, string> EventShortcutNames = new(System.StringComparer.Ordinal)
+    {
+        ["OnClick"] = "onclick",
+    };
+
     /// <summary>Normalizes a method to the comparable key used in every map: reduced extension methods
     /// (fluent decorations) are unreduced, then the original definition is taken.</summary>
     public static ISymbol Normalize(IMethodSymbol method) => (method.ReducedFrom ?? method).OriginalDefinition;
@@ -305,9 +324,11 @@ internal sealed class KnownSymbols
     /// <para>
     /// It is nevertheless only a name test, and is <em>never</em> sufficient on its own: any type may
     /// declare a <c>Class</c> or a <c>Title</c>. Every caller must pair it with symbol-identity checks on
-    /// the types involved; it exists to narrow those, not to replace them. Compare
-    /// <c>RenderMutationAnalyzer</c>, which likewise tests a name and then anchors it by resolving the
-    /// containing type and its namespace.
+    /// the types involved; it exists to narrow those, not to replace them. It answers a question the
+    /// classification cannot — whether a <em>failed</em> call was reaching for a decoration, where there is
+    /// no resolved symbol to look up. Every recognition of a call that <em>did</em> resolve goes through
+    /// <see cref="ClassifySurfaceMethod"/> instead, <c>RenderMutationAnalyzer</c>'s deferred-handler
+    /// exemption included (#194).
     /// </para>
     /// </remarks>
     public bool DeclaresDecorationNamed(string name) => _decorationNames.Contains(name);
@@ -457,13 +478,6 @@ internal sealed class KnownSymbols
                         && method.Parameters[1].Type.SpecialType == SpecialType.System_String:
                         kind = SurfaceMethodKind.Class;
                         break;
-                    case "OnClick":
-                        // Both overloads map to "onclick"; the analyzer's decoration branch dispatches
-                        // on the classification and reads the name out of EventShortcuts, so no separate
-                        // first-overload symbol is retained.
-                        eventShortcuts[key] = "onclick";
-                        kind = SurfaceMethodKind.EventShortcut;
-                        break;
                     case "On": kind = SurfaceMethodKind.On; break;               // all four overloads
                     case "Attr": kind = SurfaceMethodKind.Attr; break;
                     // An ordinary classification beside On and Attr, and read the same way: the decoration
@@ -472,6 +486,17 @@ internal sealed class KnownSymbols
                     // .Bind(…) as BCF3008 rather than BCF1003.
                     case "Bind": kind = SurfaceMethodKind.Bind; break;           // all six overloads
                     default:
+                        // Every overload of a shortcut lands on the same row: .OnClick(Action) and
+                        // .OnClick(Func<Task>) both stand for "onclick", and the decoration arm of
+                        // RenderExpressionAnalyzer reads the name out of EventShortcuts after dispatching
+                        // on the classification, so no per-overload symbol is retained.
+                        if (EventShortcutNames.TryGetValue(method.Name, out var eventName))
+                        {
+                            eventShortcuts[key] = eventName;
+                            kind = SurfaceMethodKind.EventShortcut;
+                            break;
+                        }
+
                         if (!AttributeShortcutNames.TryGetValue(method.Name, out var attr))
                             continue;
 
@@ -644,8 +669,8 @@ internal sealed class KnownSymbols
     /// type is not the children channel, and matching it would read unrelated arguments as children.
     /// The span type is resolved by identity rather than matched by name, as this class exists to do: a
     /// differently namespaced type also called <c>ReadOnlySpan&lt;T&gt;</c> must not be read as the children
-    /// channel. Compare <c>RenderMutationAnalyzer</c>, which anchors <c>BlazorCodeFirst.Decorations</c> to the
-    /// global namespace for the same reason.
+    /// channel. That is the same reason the decoration capture below filters on the <c>ElementBuilder</c>
+    /// receiver rather than on the member's name.
     /// </remarks>
     private static IPropertySymbol? FindChildrenIndexer(
         INamedTypeSymbol? type, INamedTypeSymbol? viewType, INamedTypeSymbol? readOnlySpanType)
