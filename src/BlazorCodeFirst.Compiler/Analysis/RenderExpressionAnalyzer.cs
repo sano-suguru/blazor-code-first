@@ -713,8 +713,8 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/> span for the whole invocation, as
     /// the sibling decoration arms do: the getter and setter are dynamic argument expressions, and a
     /// rejected binding never reaches generated code, so the failure scanner must not go on to report on
-    /// their types. The defensive <see langword="null"/> returns (a missing argument, the
-    /// <c>declaredCount</c> guard, and the two delegate-shape guards) do not, and need not: each answers a
+    /// their types. The defensive <see langword="null"/> returns (a missing argument, and a
+    /// <see cref="KnownSymbols.TryGetBindParameters"/> that declines) do not, and need not: each answers a
     /// call this compiler was not written against, none of them reports anything of its own, and the
     /// unregistered span costs at most a second report on a body that is already BCF1003.
     /// </para>
@@ -734,7 +734,16 @@ internal static class RenderExpressionAnalyzer
         ArgumentSyntax attributeArg,
         ComposableBodyContext context)
     {
-        if (args.At(1) is not { } eventArg || args.At(2) is not { } getterArg)
+        // The roles first, because the getter's index is needed before BCF3017 reads it. An overload
+        // this compiler was not written against therefore leaves the call untranslated (BCF1003)
+        // rather than drawing a surface rule it cannot have meant; the guard this replaced sat further
+        // down and let those reports out first.
+        if (!KnownSymbols.TryGetBindParameters(method, out var bind))
+            return null;
+
+        // The attribute and event names stay at their own positions. They are not delegate roles, and
+        // the overload set does not move them: every Bind takes them ahead of the getter.
+        if (args.At(1) is not { } eventArg || args.At(bind.GetterIndex) is not { } getterArg)
             return null;
 
         if (!TryGetConstantName(attributeArg.Expression, context, out var attrName))
@@ -799,7 +808,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        var setter = args.At(3)?.Expression;
+        var setter = args.At(bind.SetterIndex)?.Expression;
 
         // Only the inverted form needs an assignable target. With an explicit setter the getter is read
         // and never written, so a call or a get-only property is a legitimate thing to show.
@@ -813,44 +822,17 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // The bound type and the setter's kind are read off the overload the C# compiler picked rather
-        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape), so
-        // the resolved symbol already answers both questions exactly.
-        // Unreduced plus the receiver offset, exactly as FactoryArguments computes it, so that a parameter
-        // index and an argument index mean the same position whichever syntax the call was written in.
-        var declared = method.ReducedFrom ?? method;
-        var receiverOffset = declared.IsExtensionMethod ? 1 : 0;
-        var declaredCount = declared.Parameters.Length - receiverOffset;
-
-        // Every declared overload has at least the three, and four when a setter was written. The guard is
-        // for a runtime whose Decorations declares a Bind this compiler was not written against: refusing
-        // to translate costs a BCF1003, where indexing past the end would crash the generator.
-        if (declaredCount < 3 || (setter is not null && declaredCount < 4))
-            return null;
-
-        if (declared.Parameters[receiverOffset + 2].Type
-            is not INamedTypeSymbol { DelegateInvokeMethod.ReturnType: { } valueType })
-        {
-            return null;
-        }
-
-        var setterIsAsynchronous = false;
-        if (setter is not null)
-        {
-            if (declared.Parameters[receiverOffset + 3].Type
-                is not INamedTypeSymbol { DelegateInvokeMethod: { } setterInvoke })
-            {
-                return null;
-            }
-
-            // Action<T> returns void, Func<T, Task> does not. Nothing else can be written here, because
-            // these are the only two setter parameter types the surface declares.
-            setterIsAsynchronous = !setterInvoke.ReturnsVoid;
-        }
-
         var value = ExpressionTemplateFactory.Create(getterBody!, context);
+
+        // The bound type and the setter's kind are read off the overload the C# compiler picked rather
+        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape),
+        // so the resolved symbol already answers both questions exactly.
         var binder = BuildBinder(
-            value, valueType.ToDisplayString(FullyQualifiedTypeName), setter, setterIsAsynchronous, context);
+            value,
+            bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
+            setter,
+            bind.SetterIsAsynchronous,
+            context);
 
         return element with
         {
