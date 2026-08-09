@@ -179,13 +179,20 @@ public static class CompilationTestHost
     /// Parses <paramref name="source"/>, creates a test compilation, runs the analyzer
     /// <typeparamref name="T"/>, and returns the analyzer-owned diagnostics only.
     /// </summary>
-    public static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<T>(string source)
+    public static Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<T>(string source)
+        where T : DiagnosticAnalyzer, new() =>
+        RunAnalyzerAsync<T>(CreateCompilation(source));
+
+    /// <summary>
+    /// Runs the analyzer <typeparamref name="T"/> against a pre-built compilation and returns the
+    /// analyzer-owned diagnostics only, so a test can supply a compilation whose <c>BlazorCodeFirst</c>
+    /// surface is declared in-source (see <see cref="CreateCompilationWithoutRuntime"/>) rather than
+    /// referenced.
+    /// </summary>
+    internal static async Task<ImmutableArray<Diagnostic>> RunAnalyzerAsync<T>(CSharpCompilation compilation)
         where T : DiagnosticAnalyzer, new()
     {
-        var compilation = CreateCompilation(source);
-        var analyzer = new T();
-        var compilationWithAnalyzers = compilation.WithAnalyzers(
-            [analyzer]);
+        var compilationWithAnalyzers = compilation.WithAnalyzers([new T()]);
         return await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
     }
 

@@ -318,9 +318,11 @@ public sealed class RenderMutationAnalyzerTests
     [Fact]
     public async Task RenderMutationAnalyzer_SpoofedDecorationsNamespace_StillReportsBCF3001()
     {
-        // The exemption is anchored to the global BlazorCodeFirst.Decorations. A user-defined type with
-        // the same name in another namespace must not be able to claim it. This property predates the
-        // positional fix and must survive it.
+        // A user-defined type sharing the name must not be able to claim the exemption. Since #194 that
+        // follows from the exemption being keyed on the symbols resolved out of the referenced runtime,
+        // rather than from the namespace walk this test was written against; it is kept because it is the
+        // only spoof test that runs against a compilation where the real runtime IS referenced, which the
+        // in-source surface tests below cannot be.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -346,6 +348,91 @@ public sealed class RenderMutationAnalyzerTests
 
         Assert.Single(diagnostics, d => d.Id == "BCF3001");
     }
+
+    // -----------------------------------------------------------------------
+    // Receiver anchoring: a decoration is defined by the builder it extends, not by its name. These are
+    // the only tests that can exercise that guard, because the shipped runtime declares every decoration
+    // on ElementBuilder and so can only prove the positive side — hence the in-source surface, which has
+    // to be the only BlazorCodeFirst in scope. Compare MembersWithTheWrongDeclaredTypes_AreNotRecognized
+    // in BracketSurfaceGeneratorTests.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// A <c>BlazorCodeFirst</c> surface declared in-source whose <c>Decorations</c> members carry the right
+    /// names and delegate shapes on <paramref name="receiver"/>, written on <c>_receiver</c> of that same
+    /// type. <paramref name="call"/> becomes the component's design-time expression and <c>_n</c> is the
+    /// state it may mutate.
+    /// </summary>
+    /// <remarks>
+    /// One template with the receiver as its only variable, so the two receivers differ in nothing else:
+    /// what a test proves about <c>View</c> is otherwise as likely to come from the in-source surface
+    /// itself as from the receiver being wrong.
+    /// </remarks>
+    private static ImmutableArray<Diagnostic> SurfaceDiagnostics(string receiver, string call)
+    {
+        var compilation = CompilationTestHost.CreateCompilationWithoutRuntime(("Surface.cs", $$"""
+            namespace BlazorCodeFirst;
+
+            public readonly struct View { }
+
+            public readonly struct ElementBuilder { }
+
+            public abstract class BodyComponentBase
+            {
+                protected abstract View Body { get; }
+            }
+
+            // Declared and empty: KnownSymbols.TryCreate keys on BlazorCodeFirst.Html, and without it the
+            // analyzer registers nothing, which would make the ElementBuilder case below pass vacuously.
+            public static class Html { }
+
+            public static class Decorations
+            {
+                public static View OnClick(this {{receiver}} target, System.Action handler) => default;
+
+                public static View On(this {{receiver}} target, string eventName, System.Action handler) =>
+                    default;
+
+                public static View Bind<T>(
+                    this {{receiver}} target,
+                    string attribute,
+                    string eventName,
+                    System.Func<T> get,
+                    System.Action<T> set) => default;
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                private int _n;
+                private {{receiver}} _receiver;
+
+                protected override View Body => _receiver.{{call}};
+            }
+            """));
+
+        return CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(compilation)
+            .GetAwaiter().GetResult();
+    }
+
+    /// <summary>Every decoration call the surface above can be asked for, as written on <c>_receiver</c>.</summary>
+    public static TheoryData<string> DecorationCallsWithAMutatingHandler { get; } = BuildTheoryData(
+        "OnClick(() => _n++)",
+        """On("onclick", () => _n++)""",
+        """Bind("value", "oninput", () => _n, v => _n = v)""");
+
+    [Theory]
+    [MemberData(nameof(DecorationCallsWithAMutatingHandler))]
+    public void HandlerOnADecorationExtendingElementBuilder_DoesNotReportBcf3001(string call) =>
+        Assert.DoesNotContain(SurfaceDiagnostics("ElementBuilder", call), d => d.Id == "BCF3001");
+
+    [Theory]
+    [MemberData(nameof(DecorationCallsWithAMutatingHandler))]
+    public void HandlerOnADecorationExtendingSomethingElse_StillReportsBcf3001(string call) =>
+        // The name, the namespace and the delegate parameters match the real decoration exactly; only the
+        // receiver differs, and a decoration is defined by the builder it extends. A name-and-namespace
+        // test cannot tell the two apart, so it exempted the mutation and BCF3001 went quiet for a call
+        // the compiler never recognized as a decoration in the first place.
+        Assert.Contains(SurfaceDiagnostics("View", call), d => d.Id == "BCF3001");
 
     // -----------------------------------------------------------------------
     // Bind setter exemption: the setter runs after the render, so it is a deferred handler like
