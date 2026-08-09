@@ -182,7 +182,7 @@ internal static class RenderViewEmitter
             ? array[0].ToCode()
             : string.Join(" + \" \" + ", array.Select(static c => $"({c.ToCode()})"));
 
-        writer.AppendLine($"__builder.AddAttribute({seq}, \"class\", {value});");
+        writer.AppendLine($"__builder.AddAttribute({seq}, \"{ClassChannel.AttributeName}\", {value});");
         return seq + 1;
     }
 

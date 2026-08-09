@@ -231,6 +231,62 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
+    public void Bind_OnClassBesideClassDecoration_ReportsBcf3024()
+    {
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Class("card").Bind("class", "oninput", () => _name)["x"];
+            """;
+
+        AssertDiagnostic(body, "BCF3024");
+    }
+
+    [Fact]
+    public void Bind_OnClassBeforeClassDecoration_ReportsBcf3024()
+    {
+        // The reverse order, for the reason Bind_BeforeAttrOnSameName_ReportsBcf3010 gives: the element
+        // carries the same two frames either way, so the answer must not depend on which was written
+        // first. The channel's own arm asks the question here, since a .Class never reaches ClassifyBind.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Bind("class", "oninput", () => _name).Class("card")["x"];
+            """;
+
+        AssertDiagnostic(body, "BCF3024");
+    }
+
+    [Fact]
+    public void Bind_OnClassBesideAttrClass_ReportsBcf3024()
+    {
+        // The channel's other spelling. .Attr("class", …) folds into the same array as .Class, so it
+        // reaches the same check, and this is the shape that would otherwise look like the BCF3010 it
+        // is not: two decorations, one name, and no report.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Attr("class", "card").Bind("class", "oninput", () => _name)["x"];
+            """;
+
+        AssertDiagnostic(body, "BCF3024");
+    }
+
+    [Fact]
+    public void Bind_OnClassAlone_ReportsNothing()
+    {
+        // Where the rule stops. One binding and no other class decoration emits one class frame, which is
+        // what the author wrote; the duplicate is what BCF3024 is about, not the name.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Bind("class", "oninput", () => _name)["x"];
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    [Fact]
     public void Bind_NonConstantAttributeName_ReportsBcf3011()
     {
         const string body = """

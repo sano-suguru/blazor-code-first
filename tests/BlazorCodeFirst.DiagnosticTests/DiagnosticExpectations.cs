@@ -152,6 +152,15 @@ public static class DiagnosticExpectations
                 "author who reached this wanted a class conditionally applied, and that is written on " +
                 "the value side as a string expression; renaming the attribute would abandon the " +
                 "intent instead of expressing it."),
+        new(
+            "BCF3024",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3024.cs",
+            "Bind",
+            Note: "Anchors the decoration the check runs on, as BCF3010 does. Which of the two that " +
+                "makes depends on the order they were written, and the rule holds either way; the " +
+                "alternative is a location on a decoration the author has already passed."),
     ];
 
     /// <summary>

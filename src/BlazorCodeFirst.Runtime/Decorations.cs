@@ -212,6 +212,13 @@ public static class Decorations
     /// not receive. The framework's own binder helper still annotates its own parameter nullable
     /// defensively; the generated file's preamble accounts for that, not this surface.
     /// </para>
+    /// <para>
+    /// <paramref name="attributeName"/> may be <c>"class"</c>, but not on an element that also carries
+    /// <see cref="Class(ElementBuilder, string)"/> or <c>.Attr("class", …)</c>. Those two fold into one
+    /// attribute and a binding does not join them, so the element would be emitted carrying <c>class</c>
+    /// twice. That is BCF3024; supply the whole class value from <paramref name="get"/>, or drop the
+    /// binding (#188).
+    /// </para>
     /// </remarks>
     /// <param name="element">The element being decorated (<c>Input</c>, <c>Textarea</c>, …).</param>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
