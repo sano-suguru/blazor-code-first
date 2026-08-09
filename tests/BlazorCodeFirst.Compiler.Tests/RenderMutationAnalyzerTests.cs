@@ -509,6 +509,16 @@ public sealed class RenderMutationAnalyzerTests
     /// a bound parameter whose type is the component's own, is where the derivation #206 replaced
     /// answered otherwise.
     /// </summary>
+    /// <remarks>
+    /// The selector here is a block body that mutates state before returning <c>c.Self</c>, not
+    /// <c>p =&gt; p.Property</c>, so the generator's own selector check rejects it and reports BCF3005
+    /// independently (<c>TryGetSelectorProperty</c>,
+    /// src/BlazorCodeFirst.Compiler/Analysis/RenderExpressionAnalyzer.cs:397-401). The fixture is
+    /// therefore already an error on the generator path; BCF3001 only adds a second diagnostic to a
+    /// compile that was already wrong, and never rescues one that would otherwise compile silently.
+    /// BCF3005 comes from the generator and does not suppress this analyzer, which is why both fire
+    /// and the assertion above is real.
+    /// </remarks>
     [Fact]
     public void Bind_ComponentSelectorMutatingState_ReportsBcf3001()
     {

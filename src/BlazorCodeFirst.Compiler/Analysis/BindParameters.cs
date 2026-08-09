@@ -29,9 +29,11 @@ internal readonly struct BindParameters
     public int GetterIndex { get; }
 
     /// <summary>
-    /// The setter's argument index, or <c>-1</c> when the overload declares no setter.
-    /// <see cref="FactoryArguments.At"/> answers <see langword="null"/> for <c>-1</c>, so a call site
-    /// reading the setter argument needs no branch of its own. This encoding holds only when
+    /// The setter's argument index, or <c>-1</c> when the overload declares no setter. The argument
+    /// readers on both paths (<see cref="FactoryArguments.At"/> and the failure scanner's
+    /// <c>BoundArguments.At</c>) gate on an unsigned range comparison, so both answer
+    /// <see langword="null"/> for <c>-1</c> and a call site reading the setter argument needs no
+    /// branch of its own. This encoding holds only when
     /// <see cref="KnownSymbols.TryGetBindParameters"/> answered <see langword="true"/>; the
     /// <see langword="default"/> value of this struct (as left behind on a <see langword="false"/>
     /// answer) carries no meaning and must not be read.

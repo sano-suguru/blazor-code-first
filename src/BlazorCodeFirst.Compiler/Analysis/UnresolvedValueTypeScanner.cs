@@ -687,9 +687,10 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// <para>
     /// Only the accepting half of that is covered by a test, and deliberately so rather than by oversight.
-    /// Every overload group on this surface is prefix-aligned — <c>.Bind</c>'s fourth parameter is the
-    /// setter on every overload that declares one — and every recognized name resolves to a single method,
-    /// so no call site can currently be written whose reading changes with the survivor picked. Answering
+    /// Every overload group on this surface is prefix-aligned — the setter, when one of a method's
+    /// overloads declares one, sits at the same argument position across every overload of that method —
+    /// and every recognized name resolves to a single method, so no call site can currently be written
+    /// whose reading changes with the survivor picked. Answering
     /// the first candidate that merely binds passes the whole suite. What this buys is that adding an
     /// overload that breaks either property costs a refused diagnostic rather than a silently misread one,
     /// which is the trade #197 asked for; a later reader finding it untested should weigh it on that, not

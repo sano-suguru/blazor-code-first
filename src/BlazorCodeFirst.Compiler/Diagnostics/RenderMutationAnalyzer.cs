@@ -282,5 +282,4 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
         return null;
     }
-
 }

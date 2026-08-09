@@ -734,10 +734,12 @@ internal static class RenderExpressionAnalyzer
         ArgumentSyntax attributeArg,
         ComposableBodyContext context)
     {
-        // The roles first, because the getter's index is needed before BCF3017 reads it. An overload
-        // this compiler was not written against therefore leaves the call untranslated (BCF1003)
-        // rather than drawing a surface rule it cannot have meant; the guard this replaced sat further
-        // down and let those reports out first.
+        // Roles first: the argument guard right below needs the getter's index, and BCF3017 later
+        // reads that same argument. An overload this compiler was not written against therefore
+        // leaves the call untranslated (BCF1003) rather than drawing surface rules about arguments
+        // whose roles it has just admitted it cannot establish. The guard this replaced sat below the
+        // four name diagnostics; narrowing them away here is accepted, not incidental — splitting the
+        // guard to run those diagnostics first would buy nothing for a call already headed for BCF1003.
         if (!KnownSymbols.TryGetBindParameters(method, out var bind))
             return null;
 
