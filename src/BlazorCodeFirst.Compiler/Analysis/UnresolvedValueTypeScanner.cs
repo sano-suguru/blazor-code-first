@@ -102,7 +102,7 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.GenericTemplateIgnored:
             case SurfaceMethodKind.GenericTemplateContextual:
             case SurfaceMethodKind.ComponentBind:
-                ScanComponentParameter(kind, args, recoverOwnValue, context);
+                ScanComponentParameter(method, kind, args, recoverOwnValue, context);
                 return;
 
             case SurfaceMethodKind.Class:
@@ -137,6 +137,7 @@ internal static class UnresolvedValueTypeScanner
     /// the selector in the same position. Only what follows the selector differs.
     /// </summary>
     private static void ScanComponentParameter(
+        IMethodSymbol method,
         SurfaceMethodKind kind,
         BoundArguments args,
         bool recoverOwnValue,
@@ -147,13 +148,19 @@ internal static class UnresolvedValueTypeScanner
 
         switch (kind)
         {
-            // The getter and, where written, the setter: both are transplanted into generated code and can
-            // therefore name a type that does not resolve. The selector is not a value position — it is
-            // read for the property it names and never emitted, so a bad one is BCF3005's to report. That
-            // is the same split the element-level .Bind arm makes.
+            // The getter and, where written, the setter: both are transplanted into generated code and
+            // can therefore name a type that does not resolve. Their positions come from the same
+            // helper the emitter arm reads, so this scan and the translation it stands in for cannot
+            // drift apart when the overload set grows (#206). The selector is not a value position — it
+            // is read for the property it names and never emitted, so a bad one is BCF3005's to report.
+            // That is the same split the element-level .Bind arm makes.
             case SurfaceMethodKind.ComponentBind:
-                ReportValue(args.At(1)?.Expression, context);
-                ReportValue(args.At(2)?.Expression, context);
+                if (KnownSymbols.TryGetBindParameters(method, out var componentBind))
+                {
+                    ReportValue(args.At(componentBind.GetterIndex)?.Expression, context);
+                    ReportValue(args.At(componentBind.SetterIndex)?.Expression, context);
+                }
+
                 return;
 
             case SurfaceMethodKind.ScalarParam:
@@ -207,11 +214,16 @@ internal static class UnresolvedValueTypeScanner
         if (kind == SurfaceMethodKind.Bind)
         {
             // The getter and the setter, both of which are transplanted into generated code and can
-            // therefore name a type that does not resolve. The two name arguments are not value
-            // positions: a non-constant one is BCF3011's to report, and that rejection has already
-            // cleared recoverOwnValue by the time this runs.
-            ReportValue(args.At(2)?.Expression, context);
-            ReportValue(args.At(3)?.Expression, context);
+            // therefore name a type that does not resolve, at the positions the emitter arm reads them
+            // from (#206). The two name arguments are not value positions: a non-constant one is
+            // BCF3011's to report, and that rejection has already cleared recoverOwnValue by the time
+            // this runs.
+            if (KnownSymbols.TryGetBindParameters(method, out var elementBind))
+            {
+                ReportValue(args.At(elementBind.GetterIndex)?.Expression, context);
+                ReportValue(args.At(elementBind.SetterIndex)?.Expression, context);
+            }
+
             return;
         }
 
