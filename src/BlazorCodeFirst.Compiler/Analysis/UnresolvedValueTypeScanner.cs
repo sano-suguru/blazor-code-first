@@ -35,14 +35,23 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (expression is not InvocationExpressionSyntax invocation
-            || TryGetRecognizedMethod(invocation, context) is not { } method)
+        if (expression is not InvocationExpressionSyntax invocation)
+            return;
+
+        var recognized = Recognize(invocation, context);
+        if (!recognized.IsSurfaceCall)
+            return;
+
+        // A recognized call this scanner could not read through — its overload group named no single
+        // overload, or the arguments did not bind to the one it named. Neither failure says anything about
+        // the receiver, which is the same expression either way, so the chain below is still walked. It is
+        // only the arguments that go unread, because only the overload says what each of them means (#197).
+        if (recognized.Method is not { } method
+            || (recognized.Arguments ?? BindArguments(invocation, method, context)) is not { } args)
         {
+            ScanRenderExpression(Receiver(invocation), context);
             return;
         }
-
-        if (BindArguments(invocation, method, context) is not { } args)
-            return;
 
         var symbols = context.KnownSymbols;
         var recoverOwnValue = context.ShouldRecoverUnresolvedValue(invocation.Span);
@@ -349,9 +358,12 @@ internal static class UnresolvedValueTypeScanner
     private static bool IsInsideUnselectedInvocation(SimpleNameSyntax name, ComposableBodyContext context) =>
         name.Ancestors().Any(ancestor => ancestor switch
         {
+            // Asked of the call, not of its overload: a recognized call whose overload could not be named
+            // is one the sweep walks through, so a value under it is reached and must not be suppressed
+            // here on the way out.
             InvocationExpressionSyntax invocation =>
                 context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null
-                    && TryGetRecognizedMethod(invocation, context) is null,
+                    && !IsSurfaceCall(invocation, context),
             ElementAccessExpressionSyntax elementAccess =>
                 context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken).Symbol is null
                     && TryGetRecognizedIndexer(elementAccess, context) is null,
@@ -376,7 +388,7 @@ internal static class UnresolvedValueTypeScanner
                 InvocationExpressionSyntax invocation
                     when context.SemanticModel.GetSymbolInfo(
                             invocation, context.CancellationToken).Symbol is IMethodSymbol
-                        && TryGetRecognizedMethod(invocation, context) is null =>
+                        && !IsSurfaceCall(invocation, context) =>
                     invocation.ArgumentList.Arguments,
                 ElementAccessExpressionSyntax elementAccess
                     when context.SemanticModel.GetSymbolInfo(
@@ -519,16 +531,36 @@ internal static class UnresolvedValueTypeScanner
         return method.Parameters.Length - (method.IsExtensionMethod ? 1 : 0);
     }
 
-    private static IMethodSymbol? TryGetRecognizedMethod(
+    /// <summary>
+    /// Whether <paramref name="invocation"/> names a method of the design-time surface, asked without
+    /// naming which overload. Selecting the overload costs a binding attempt against every candidate, and
+    /// the answer to this question never depends on it: a group that named no overload is a surface call
+    /// all the same.
+    /// </summary>
+    private static bool IsSurfaceCall(
+        InvocationExpressionSyntax invocation, ComposableBodyContext context) =>
+        Recognize(invocation, context, selectOverload: false).IsSurfaceCall;
+
+    /// <summary>
+    /// What failure recovery can make of <paramref name="invocation"/>. Pass
+    /// <paramref name="selectOverload"/> as <see langword="false"/> to leave
+    /// <see cref="RecognizedInvocation.Method"/> unanswered, which callers that only ask
+    /// <see cref="RecognizedInvocation.IsSurfaceCall"/> should do; see <see cref="IsSurfaceCall"/>.
+    /// </summary>
+    private static RecognizedInvocation Recognize(
         InvocationExpressionSyntax invocation,
-        ComposableBodyContext context)
+        ComposableBodyContext context,
+        bool selectOverload = true)
     {
         var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
         if (symbolInfo.Symbol is IMethodSymbol method && IsRecognized(method, context))
-            return method;
+            return RecognizedInvocation.Named(method);
 
-        if (IsHtmlForEachInScope(invocation, context.KnownSymbols.HtmlForEach, context))
-            return context.KnownSymbols.HtmlForEach;
+        if (context.KnownSymbols.HtmlForEach is { } forEach
+            && IsHtmlForEachInScope(invocation, forEach, context))
+        {
+            return RecognizedInvocation.Named(forEach);
+        }
 
         var candidates = new List<IMethodSymbol>();
         foreach (var symbol in symbolInfo.CandidateSymbols)
@@ -541,29 +573,203 @@ internal static class UnresolvedValueTypeScanner
         foreach (var symbol in expressionInfo.CandidateSymbols)
             AddRecognizedCandidate(symbol, candidates, context);
 
-        if (candidates.Count == 1)
-            return candidates[0];
-
-        if (candidates.Count > 1
-            || invocation.Expression is not SimpleNameSyntax invocationName)
+        // The name is looked up only when nothing else offered a candidate. A second HtmlForEach test used
+        // to sit after this, and could never answer differently from the one above: nothing between them
+        // reaches anything the test reads.
+        if (candidates.Count == 0 && invocation.Expression is SimpleNameSyntax invocationName)
         {
-            return null;
+            foreach (var symbol in context.SemanticModel.LookupSymbols(
+                         invocation.SpanStart,
+                         name: invocationName.Identifier.ValueText,
+                         includeReducedExtensionMethods: true))
+            {
+                AddRecognizedCandidate(symbol, candidates, context);
+            }
         }
 
-        foreach (var symbol in context.SemanticModel.LookupSymbols(
-                     invocation.SpanStart,
-                     name: invocationName.Identifier.ValueText,
-                     includeReducedExtensionMethods: true))
+        if (candidates.Count == 0)
+            return RecognizedInvocation.None;
+
+        return selectOverload
+            ? TrySelectCandidate(invocation, candidates, context)
+            : RecognizedInvocation.FromGroup(selected: null, arguments: null);
+    }
+
+    /// <summary>
+    /// What failure recovery could make of an invocation: whether it names a method of the design-time
+    /// surface at all, and which overload of it, where one could be named.
+    /// </summary>
+    /// <remarks>
+    /// The two answers are separate because they gate different things. Reading an argument needs the
+    /// overload, since only the parameter it landed on says what the argument means. Walking the receiver
+    /// needs no more than the first answer: a receiver is the same expression whichever overload was
+    /// written, so a call that is recognized but unselectable must still be walked through rather than
+    /// abandoned (#197).
+    /// </remarks>
+    private readonly struct RecognizedInvocation
+    {
+        private RecognizedInvocation(
+            IMethodSymbol? method, BoundArguments? arguments, bool isSurfaceCall)
         {
-            AddRecognizedCandidate(symbol, candidates, context);
+            Method = method;
+            Arguments = arguments;
+            IsSurfaceCall = isSurfaceCall;
         }
 
-        if (candidates.Count == 1)
-            return candidates[0];
+        /// <summary>Not a call this scanner knows: none of the answers is available.</summary>
+        public static RecognizedInvocation None => default;
 
-        return IsHtmlForEachInScope(invocation, context.KnownSymbols.HtmlForEach, context)
-            ? context.KnownSymbols.HtmlForEach
-            : null;
+        /// <summary>The overload this call selects, or <see langword="null"/> when none could be named.</summary>
+        public IMethodSymbol? Method { get; }
+
+        /// <summary>
+        /// <see cref="Method"/>'s arguments where naming it already bound them, so that the caller does
+        /// not bind the same call a second time. Null whenever the overload was named without binding.
+        /// </summary>
+        public BoundArguments? Arguments { get; }
+
+        /// <summary>
+        /// Whether the call names a surface method, whether or not one overload of it could be named.
+        /// </summary>
+        public bool IsSurfaceCall { get; }
+
+        public static RecognizedInvocation Named(IMethodSymbol method) =>
+            new(method, arguments: null, isSurfaceCall: true);
+
+        /// <summary>
+        /// The answer for a non-empty group of recognized candidates: the overload
+        /// <see cref="TrySelectCandidate"/> named and the arguments it bound to reach that answer, both
+        /// null when it named none or was never asked. Either way the call is a surface call.
+        /// </summary>
+        public static RecognizedInvocation FromGroup(IMethodSymbol? selected, BoundArguments? arguments) =>
+            new(selected, arguments, isSurfaceCall: true);
+    }
+
+    /// <summary>
+    /// The one candidate in <paramref name="candidates"/> that the call's written arguments select, with
+    /// the arguments bound to it, or neither when the group leaves the choice open.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A single candidate is returned as it stands. Beyond that, an unresolved type inside a <c>.Bind</c>
+    /// argument is what makes the invocation fail to bind, and failed overload resolution hands back the
+    /// whole overload group — six for <c>Decorations.Bind</c>, three for <c>ComponentView&lt;T&gt;.Bind</c>
+    /// — including the ones no argument count could have selected. Refusing the group outright is what left
+    /// BCF3015 unreachable on both <c>.Bind</c> surfaces (#197).
+    /// </para>
+    /// <para>
+    /// So the survivors are those the written arguments fill exactly, which keeps a longer overload from
+    /// answering a shorter call. Filling is not on its own enough to name one: the element surface declares
+    /// its getter-only <c>.Bind</c> twice, once per bindable type, and four written arguments fill four
+    /// overloads. Those survivors are accepted anyway, because overloads of one method agree about what
+    /// each argument position means and this scanner never reads a parameter's type. Survivors from two
+    /// <em>different</em> surface methods would not agree, and refuse.
+    /// </para>
+    /// <para>
+    /// Only the accepting half of that is covered by a test, and deliberately so rather than by oversight.
+    /// Every overload group on this surface is prefix-aligned — <c>.Bind</c>'s fourth parameter is the
+    /// setter on every overload that declares one — and every recognized name resolves to a single method,
+    /// so no call site can currently be written whose reading changes with the survivor picked. Answering
+    /// the first candidate that merely binds passes the whole suite. What this buys is that adding an
+    /// overload that breaks either property costs a refused diagnostic rather than a silently misread one,
+    /// which is the trade #197 asked for; a later reader finding it untested should weigh it on that, not
+    /// take the absent test for a gap to fill.
+    /// </para>
+    /// </remarks>
+    private static RecognizedInvocation TrySelectCandidate(
+        InvocationExpressionSyntax invocation,
+        List<IMethodSymbol> candidates,
+        ComposableBodyContext context)
+    {
+        if (candidates.Count == 1)
+            return RecognizedInvocation.FromGroup(candidates[0], arguments: null);
+
+        IMethodSymbol? selected = null;
+        BoundArguments? selectedArguments = null;
+
+        foreach (var candidate in candidates)
+        {
+            if (BindArguments(invocation, candidate, context) is not { } args
+                || !FillsEveryParameter(args, candidate))
+            {
+                continue;
+            }
+
+            if (selected is null)
+            {
+                // Kept rather than rebound by the caller: deciding this candidate fills the call is the
+                // same work as reading its arguments, and this route runs where every overload of a
+                // six-way group has to be tried before one is named.
+                selected = candidate;
+                selectedArguments = args;
+            }
+            else if (!AreInterchangeableOverloads(selected, candidate))
+            {
+                return RecognizedInvocation.FromGroup(selected: null, arguments: null);
+            }
+        }
+
+        return RecognizedInvocation.FromGroup(selected, selectedArguments);
+    }
+
+    /// <summary>
+    /// Whether every parameter <paramref name="method"/> declares that the author had to write carries an
+    /// argument. A <c>params</c> parameter is exempt, its elements living outside
+    /// <see cref="BoundArguments.At"/>, and so is an optional one: leaving either unwritten is a call the
+    /// author made, not an unfilled slot. <c>Html.If</c> is the optional case — its <c>otherwise</c> is
+    /// omitted far more often than it is written.
+    /// </summary>
+    private static bool FillsEveryParameter(BoundArguments args, IMethodSymbol method)
+    {
+        var declared = method.ReducedFrom ?? method;
+        var offset = declared.IsExtensionMethod ? 1 : 0;
+
+        for (var index = 0; index < declared.Parameters.Length - offset; index++)
+        {
+            var parameter = declared.Parameters[index + offset];
+            if (!parameter.IsParams && !parameter.IsOptional && !args.HasArgumentAt(index))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="left"/> and <paramref name="right"/> are overloads of one method that bind
+    /// arguments the same way, which is the whole of what this scanner reads of a candidate.
+    /// </summary>
+    /// <remarks>
+    /// Sameness is asked of the declaration, not of the arm: two overloads of one surface method reach one
+    /// arm by construction, whereas checking the arm alone would call <c>.Class</c> and an attribute
+    /// shortcut interchangeable on nothing sturdier than their both reading argument 0. Parameter types are
+    /// deliberately not compared, since no arm reads one — that is what lets the <see langword="string"/>
+    /// and <see langword="bool"/> spellings of <c>.Bind</c> answer as one.
+    /// </remarks>
+    private static bool AreInterchangeableOverloads(IMethodSymbol left, IMethodSymbol right)
+    {
+        var leftDeclared = left.ReducedFrom ?? left;
+        var rightDeclared = right.ReducedFrom ?? right;
+
+        if (leftDeclared.Name != rightDeclared.Name
+            || !SymbolEqualityComparer.Default.Equals(
+                leftDeclared.ContainingType?.OriginalDefinition,
+                rightDeclared.ContainingType?.OriginalDefinition)
+            || leftDeclared.IsExtensionMethod != rightDeclared.IsExtensionMethod
+            || leftDeclared.Parameters.Length != rightDeclared.Parameters.Length)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < leftDeclared.Parameters.Length; index++)
+        {
+            if (leftDeclared.Parameters[index].Name != rightDeclared.Parameters[index].Name
+                || leftDeclared.Parameters[index].IsParams != rightDeclared.Parameters[index].IsParams)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -571,7 +777,7 @@ internal static class UnresolvedValueTypeScanner
     /// other indexer, an unrelated <c>_dict["k"]</c> must not be read as children.
     /// </summary>
     /// <remarks>
-    /// Mirrors <see cref="TryGetRecognizedMethod"/>'s failure recovery, for the same reason: this scanner runs
+    /// Mirrors <see cref="Recognize"/>'s failure recovery, for the same reason: this scanner runs
     /// on compilations where resolution failed, so the selected symbol is often absent. The last resort is
     /// the receiver's type, which still resolves when the access itself does not.
     /// </remarks>
@@ -793,6 +999,14 @@ internal static class UnresolvedValueTypeScanner
                     yield return argument;
             }
         }
+
+        /// <summary>
+        /// Whether a written argument landed on declared parameter <paramref name="index"/>. Answers what
+        /// <see cref="At"/> answers without its walk back up to the <see cref="ArgumentSyntax"/>, for
+        /// callers weighing a parameter list rather than reading an argument.
+        /// </summary>
+        public bool HasArgumentAt(int index) =>
+            (uint)index < (uint)_byDeclaredParameter.Length && _byDeclaredParameter[index] is not null;
 
         public ArgumentSyntax? At(int index) =>
             (uint)index < (uint)_byDeclaredParameter.Length && _byDeclaredParameter[index] is { } expression
