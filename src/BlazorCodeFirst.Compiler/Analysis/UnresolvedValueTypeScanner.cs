@@ -86,25 +86,41 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
+        // .Param, .Template and .Bind share a route, as they do in RenderExpressionAnalyzer.Classify: all
+        // three chain off a ComponentView<T> receiver that has to be walked, and all three take the
+        // selector in the same position. Only what follows the selector differs.
         var componentParameterKind = symbols.ClassifyComponentParameterMethod(method);
-        if (componentParameterKind != ComponentParameterMethodKind.None)
+        var isComponentBind = Contains(symbols.ComponentBindMethods, method.OriginalDefinition);
+        if (componentParameterKind != ComponentParameterMethodKind.None || isComponentBind)
         {
             ScanRenderExpression(Receiver(invocation), context);
-            if (recoverOwnValue)
+            if (!recoverOwnValue)
+                return;
+
+            if (isComponentBind)
             {
-                switch (componentParameterKind)
-                {
-                    case ComponentParameterMethodKind.ScalarParam:
-                        ReportValue(args.At(1)?.Expression, context);
-                        break;
-                    case ComponentParameterMethodKind.GenericTemplateContextual:
-                        ScanLambdaBody(args.At(1)?.Expression, context);
-                        break;
-                    default:
-                        ScanRenderExpression(args.At(1)?.Expression, context);
-                        break;
-                }
+                // The getter and, where written, the setter: both are transplanted into generated code and
+                // can therefore name a type that does not resolve. The selector is not a value position —
+                // it is read for the property it names and never emitted, so a bad one is BCF3005's to
+                // report. That is the same split the element-level .Bind arm below makes.
+                ReportValue(args.At(1)?.Expression, context);
+                ReportValue(args.At(2)?.Expression, context);
+                return;
             }
+
+            switch (componentParameterKind)
+            {
+                case ComponentParameterMethodKind.ScalarParam:
+                    ReportValue(args.At(1)?.Expression, context);
+                    break;
+                case ComponentParameterMethodKind.GenericTemplateContextual:
+                    ScanLambdaBody(args.At(1)?.Expression, context);
+                    break;
+                default:
+                    ScanRenderExpression(args.At(1)?.Expression, context);
+                    break;
+            }
+
             return;
         }
 
@@ -683,6 +699,7 @@ internal static class UnresolvedValueTypeScanner
             || Is(method, symbols.HtmlRaw)
             || Is(method, symbols.HtmlFragment)
             || symbols.ClassifyComponentParameterMethod(method) != ComponentParameterMethodKind.None
+            || Contains(symbols.ComponentBindMethods, method.OriginalDefinition)
             || (symbols.ClassMethod is not null
                 && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod)))
             || symbols.AttributeShortcuts.ContainsKey(normalized)

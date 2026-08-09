@@ -554,6 +554,55 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1003" or "BCF3015");
     }
 
+    /// <summary>
+    /// A component carrying the parameters the <c>.Bind</c> theory below selects against: the bound name,
+    /// the <c>{name}Changed</c> the surface derives from it, and a slot to hang the failing sibling on.
+    /// </summary>
+    private const string CardSource = """
+        using Microsoft.AspNetCore.Components;
+
+        namespace T;
+
+        public sealed class Card : ComponentBase
+        {
+            [Parameter] public string Title { get; set; } = "";
+            [Parameter] public EventCallback<string> TitleChanged { get; set; }
+            [Parameter] public RenderFragment? ChildContent { get; set; }
+        }
+        """;
+
+    [Theory]
+    [InlineData("""() => _title""")]
+    [InlineData("""() => _title, v => _title = v""")]
+    public void ComponentBindReceiver_UnresolvedType_ReportsBCF3015(string bindArguments)
+    {
+        // The sweep starts at the body's root and an unrecognized root returns before the receiver chain is
+        // walked, so a ComponentView<T>.Bind sitting there silenced every value beneath it and the body
+        // reported the bare BCF1003 with nothing naming the cause (#191). Both spellings are exercised
+        // because they are separate overloads, and the recovery route that recognizes them reads the
+        // overload the call site selected.
+        var source = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _title = "";
+
+                protected override View Body =>
+                    Component<Card>()
+                        .Param(c => c.ChildContent, Div.Class(MissingMethod() + typeof(Probe).Name)["x"])
+                        .Bind(c => c.Title, {{bindArguments}});
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Host.cs", source), ("Card.cs", CardSource));
+
+        AssertSingleBCF3015(result, source);
+    }
+
     [Fact]
     public void ForEachParameterDeclarationUnresolvedType_DoesNotReportBCF3015()
     {
