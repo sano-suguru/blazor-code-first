@@ -8,7 +8,6 @@ public sealed class RazorInteropDeliveryTests(RazorInteropFixtures fixtures)
     {
         var build = fixtures.ProjectReference;
 
-        Assert.True(build.ExitCode == 0, build.Output);
         Assert.Contains(
             "__builder.OpenComponent<global::RazorInteropFixture.ReferencedRazorComponent>(0);",
             build.GeneratedSource,
@@ -21,7 +20,6 @@ public sealed class RazorInteropDeliveryTests(RazorInteropFixtures fixtures)
     {
         var build = fixtures.Package;
 
-        Assert.True(build.ExitCode == 0, build.Output);
         Assert.Contains(
             "__builder.OpenComponent<global::RazorInteropFixture.ReferencedRazorComponent>(0);",
             build.GeneratedSource,

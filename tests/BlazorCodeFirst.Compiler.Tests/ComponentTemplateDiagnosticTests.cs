@@ -83,8 +83,20 @@ public sealed class ComponentTemplateDiagnosticTests
     {
         // Neither shape converts to Func<TContext, View>, so C# rejects the call before this rule
         // could apply. Reporting BCF3022 on top would name a fix the author has already been given.
+        //
+        // CS1660 is asserted alongside BCF3022's silence because it is the reason for that silence.
+        // With the contextual overload discarded on arity, the lambda is measured against the
+        // context-ignoring overload's View parameter and fails to convert, and GetSymbolInfo on the
+        // invocation then reports the implicit ComponentView<T>-to-View conversion rather than
+        // Template. No arm of RenderExpressionAnalyzer's classifier matches a conversion operator, so
+        // the contextual branch is never entered. Without pinning that, this test stays green for a
+        // compilation that bound the call to Template and then declined to report, which is a
+        // different behavior under the same assertion.
         var result = Run($"Component<TemplateTarget>().Template(c => c.RowTemplate, {content})");
 
+        Assert.Contains(
+            result.OutputCompilation.GetDiagnostics(),
+            static d => d.Severity == DiagnosticSeverity.Error && d.Id == "CS1660");
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3022");
     }
 

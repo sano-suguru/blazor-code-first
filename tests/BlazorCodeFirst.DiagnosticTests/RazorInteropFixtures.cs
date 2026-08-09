@@ -1,7 +1,11 @@
 namespace BlazorCodeFirst.DiagnosticTests;
 
+/// <summary>
+/// A nested build of one Razor interop fixture that succeeded. <see cref="RazorInteropFixtures"/>
+/// asserts the exit code before it reads any artifact, so a consumer of this record never has to
+/// re-establish that the build worked, and never inspects the leftovers of one that did not.
+/// </summary>
 public sealed record RazorInteropBuild(
-    int ExitCode,
     string Output,
     string GeneratedSource,
     string AssetsFilePath);
@@ -70,6 +74,16 @@ public sealed class RazorInteropFixtures
             arguments.Add("-p:RestoreForce=true");
 
         var (exitCode, output) = NestedDotnet.Run(arguments, projectDirectory);
+
+        // Before any artifact is inspected. The regression these fixtures exist to catch is
+        // Component<T>() failing to resolve the referenced Razor component, which reports BCF3012,
+        // generates no RenderView, and so writes no *Host*.g.cs. Reading the output directory first
+        // would fail on an empty collection and discard the nested build's output, which is the only
+        // place BCF3012 is named.
+        Assert.True(
+            exitCode == 0,
+            $"Building '{consumer}' failed with exit code {exitCode}.{Environment.NewLine}{output}");
+
         var generatedFiles = Directory.GetFiles(generatedOutputDirectory, "*Host*.g.cs", SearchOption.AllDirectories);
         var generatedFile = Assert.Single(generatedFiles);
         Assert.StartsWith(
@@ -88,7 +102,6 @@ public sealed class RazorInteropFixtures
         }
 
         return new RazorInteropBuild(
-            exitCode,
             output,
             generatedSource,
             assetsFilePath);
