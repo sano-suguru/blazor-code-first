@@ -139,260 +139,346 @@ internal static class RenderExpressionAnalyzer
         if (expression is not InvocationExpressionSyntax invocation || symbol is not IMethodSymbol method)
             return null;
 
-        static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
-            known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
+        // One arm per SurfaceMethodKind, dispatching on the single lookup that says which method of the
+        // design-time surface this is. A switch expression rather than the chain of predicates it
+        // replaces: a kind added to the enum without an arm here stops the compiler, where a predicate
+        // missing from one copy of that chain used to leave the method silently unhandled (#191, #201).
+        var kind = symbols.ClassifySurfaceMethod(method);
 
-        // Element(tag) is the escape hatch for a tag outside the curated table. It carries no children of
-        // its own, those are written in brackets on the ElementBuilder it returns, which arrives here as
-        // an element access, not an invocation, so this arm only has to resolve the tag.
-        if (symbols.IsElementFactory(method))
+        // CS8524 asks for a discard arm to cover an integer cast into the enum, and a discard arm is
+        // exactly what would silence CS8509 — the error that makes an added kind impossible to forget.
+        // Every value reaching here comes from KnownSymbols' own table, so the case it warns about has no
+        // route in, and the check worth keeping is the other one.
+#pragma warning disable CS8524
+        return kind switch
         {
-            if (FactoryArguments.Bind(invocation, context) is not { } args
-                || args.At(0) is not { } tagArgument)
-            {
-                return null;
-            }
+            SurfaceMethodKind.Element => ClassifyElementFactory(invocation, context),
+            SurfaceMethodKind.If => ClassifyIf(invocation, context),
+            SurfaceMethodKind.ForEach => ClassifyForEach(invocation, context),
+            SurfaceMethodKind.Component => ClassifyComponentFactory(method),
+            SurfaceMethodKind.Raw => ClassifyRaw(invocation, context),
+            SurfaceMethodKind.Fragment => ClassifyFragment(invocation, context),
+            SurfaceMethodKind.ScalarParam
+                or SurfaceMethodKind.FragmentParam
+                or SurfaceMethodKind.GenericTemplateIgnored
+                or SurfaceMethodKind.GenericTemplateContextual
+                or SurfaceMethodKind.ComponentBind =>
+                ClassifyComponentParameter(invocation, method, kind, context),
+            SurfaceMethodKind.Class
+                or SurfaceMethodKind.AttributeShortcut
+                or SurfaceMethodKind.EventShortcut
+                or SurfaceMethodKind.Attr
+                or SurfaceMethodKind.On
+                or SurfaceMethodKind.Bind =>
+                ClassifyDecoration(invocation, method, kind, context),
+            SurfaceMethodKind.None => ClassifyComposableCall(invocation, method, context),
+        };
+#pragma warning restore CS8524
+    }
 
-            var tagArg = tagArgument.Expression;
-            var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
-            if (constant is not { HasValue: true, Value: string tagValue }
-                || string.IsNullOrWhiteSpace(tagValue))
-            {
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3009, tagArg.GetLocation(), []));
-                return null;
-            }
-
-            return new ElementTemplateNode(tagValue);
+    /// <summary>
+    /// <c>Element(tag)</c>, the escape hatch for a tag outside the curated table. It carries no children
+    /// of its own, those are written in brackets on the <c>ElementBuilder</c> it returns, which arrives at
+    /// <see cref="Classify"/> as an element access and not an invocation, so this arm only has to resolve
+    /// the tag.
+    /// </summary>
+    private static ElementTemplateNode? ClassifyElementFactory(
+        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+    {
+        if (FactoryArguments.Bind(invocation, context) is not { } args
+            || args.At(0) is not { } tagArgument)
+        {
+            return null;
         }
 
-        if (Is(method, symbols.HtmlIf))
+        var tagArg = tagArgument.Expression;
+        var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
+        if (constant is not { HasValue: true, Value: string tagValue }
+            || string.IsNullOrWhiteSpace(tagValue))
         {
-            if (FactoryArguments.Bind(invocation, context) is not { } args)
-                return null;
-
-            if (args.At(0) is not { } conditionArg || args.At(1) is not { } thenArg)
-                return null;
-
-            var thenExpr = ExtractLambdaBody(thenArg.Expression);
-            if (thenExpr is null)
-                return null;
-
-            var thenNode = Analyze(thenExpr, context);
-            if (thenNode is null)
-                return null;
-
-            RenderTemplateNode? otherwiseNode = null;
-
-            // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
-            // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
-            // An explicitly passed null literal still means "no else branch".
-            if (args.At(2) is { } otherwiseArg &&
-                otherwiseArg.Expression is not LiteralExpressionSyntax
-                { Token.RawKind: (int)SyntaxKind.NullKeyword })
-            {
-                var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
-                if (otherwiseExpr is null)
-                    return null;
-
-                otherwiseNode = Analyze(otherwiseExpr, context);
-                if (otherwiseNode is null)
-                    return null;
-            }
-
-            return new IfTemplateNode(
-                ExpressionTemplateFactory.Create(conditionArg.Expression, context),
-                thenNode,
-                otherwiseNode);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3009, tagArg.GetLocation(), []));
+            return null;
         }
 
-        if (Is(method, symbols.HtmlForEach))
+        return new ElementTemplateNode(tagValue);
+    }
+
+    private static IfTemplateNode? ClassifyIf(
+        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+    {
+        if (FactoryArguments.Bind(invocation, context) is not { } args)
+            return null;
+
+        if (args.At(0) is not { } conditionArg || args.At(1) is not { } thenArg)
+            return null;
+
+        var thenExpr = ExtractLambdaBody(thenArg.Expression);
+        if (thenExpr is null)
+            return null;
+
+        var thenNode = Analyze(thenExpr, context);
+        if (thenNode is null)
+            return null;
+
+        RenderTemplateNode? otherwiseNode = null;
+
+        // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
+        // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
+        // An explicitly passed null literal still means "no else branch".
+        if (args.At(2) is { } otherwiseArg &&
+            otherwiseArg.Expression is not LiteralExpressionSyntax
+            { Token.RawKind: (int)SyntaxKind.NullKeyword })
         {
-            if (FactoryArguments.Bind(invocation, context) is not { } args)
+            var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
+            if (otherwiseExpr is null)
                 return null;
 
-            if (args.At(0) is not { } sourceArg ||
-                args.At(1) is not { } keyArg ||
-                args.At(2) is not { } contentArg)
-            {
+            otherwiseNode = Analyze(otherwiseExpr, context);
+            if (otherwiseNode is null)
                 return null;
-            }
+        }
 
-            if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
-                || !TryExtractSingleParameterLambda(
-                    contentArg.Expression, out var contentParameter, out var contentBody))
+        return new IfTemplateNode(
+            ExpressionTemplateFactory.Create(conditionArg.Expression, context),
+            thenNode,
+            otherwiseNode);
+    }
+
+    private static ForEachTemplateNode? ClassifyForEach(
+        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+    {
+        if (FactoryArguments.Bind(invocation, context) is not { } args)
+            return null;
+
+        if (args.At(0) is not { } sourceArg ||
+            args.At(1) is not { } keyArg ||
+            args.At(2) is not { } contentArg)
+        {
+            return null;
+        }
+
+        if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
+            || !TryExtractSingleParameterLambda(
+                contentArg.Expression, out var contentParameter, out var contentBody))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3004,
+                invocation.GetLocation(),
+                []));
+            return null;
+        }
+
+        if (context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken) is not { } keyParamSymbol
+            || context.SemanticModel.GetDeclaredSymbol(contentParameter, context.CancellationToken) is not { } contentParamSymbol)
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3004,
+                invocation.GetLocation(),
+                []));
+            return null;
+        }
+
+        // Source references the enclosing scope (fields, composable params, outer items), never this
+        // item, so it is normalized before the iteration variable is registered.
+        var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
+
+        var itemOrdinal = context.PushRenderVariable(contentParamSymbol, keyParamSymbol);
+        try
+        {
+            var key = ExpressionTemplateFactory.Create(keyBody, context);
+            var content = Analyze(contentBody, context);
+            if (content is null)
+                return null;
+
+            if (!KeyReferencesItemOrdinal(key, itemOrdinal))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3004,
-                    invocation.GetLocation(),
+                    DiagnosticDescriptors.BCF3002,
+                    keyArg.GetLocation(),
                     []));
-                return null;
             }
 
-            if (context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken) is not { } keyParamSymbol
-                || context.SemanticModel.GetDeclaredSymbol(contentParameter, context.CancellationToken) is not { } contentParamSymbol)
+            return new ForEachTemplateNode(
+                source,
+                key,
+                content,
+                TemplateLocation.From(invocation.GetLocation()));
+        }
+        finally
+        {
+            context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
+        }
+    }
+
+    private static ComponentTemplateNode? ClassifyComponentFactory(IMethodSymbol method)
+    {
+        // An unresolved type argument cannot be emitted: the display string of an unresolved type is
+        // the written name with no qualification, and the generated file has no using directives, so
+        // OpenComponent<T> would either fail with a CS0246 the author cannot reach or bind silently
+        // to a different same-named type. Fail translation instead; the failure-path sweep in
+        // ComponentModelFactory/ComposableDefinitionFactory then reports BCF3012 once. Returning null
+        // here also stops the Param branch from drawing a spurious BCF3005 on the selector.
+        if (TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
+            return null;
+
+        // Base case: Html.Component<T>() with no children and no .Param yet. Children and parameters
+        // both arrive on the ComponentView<T> this returns, through its indexer and .Param, so this
+        // arm never sees either.
+        return new ComponentTemplateNode(
+            method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            EquatableArray<ComponentParameter>.Empty);
+    }
+
+    private static RawMarkupTemplateNode? ClassifyRaw(
+        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+    {
+        if (FactoryArguments.Bind(invocation, context) is not { } args ||
+            args.At(0) is not { } markupArg)
+        {
+            return null;
+        }
+
+        return new RawMarkupTemplateNode(
+            ExpressionTemplateFactory.Create(markupArg.Expression, context));
+    }
+
+    private static FragmentTemplateNode? ClassifyFragment(
+        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+    {
+        if (FactoryArguments.Bind(invocation, context) is not { } args)
+            return null;
+
+        if (args.HasUnanalyzableParamsArgument)
+            return null;
+
+        var children = AnalyzeChildren(args.ParamsElements, context);
+        if (children is null)
+            return null;
+
+        return new FragmentTemplateNode(children.Value);
+    }
+
+    /// <summary>
+    /// A <c>.Param</c>, <c>.Template</c> or <c>.Bind</c> written on a component, <paramref name="kind"/>
+    /// saying which.
+    /// </summary>
+    private static ComponentTemplateNode? ClassifyComponentParameter(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        ComposableBodyContext context)
+    {
+        var symbols = context.KnownSymbols;
+
+        // Chained: <ComponentView<T> receiver>.Param/Template(selector, value), or
+        // .Bind(selector, get[, set]). Recurse into the receiver to reach the base Component<T>() (or
+        // an inner parameter call), then append this binding in source order. All spellings share
+        // everything up to the selected property: they take the same selector in the same position
+        // and answer to the same three rules about it.
+        if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
+            || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            return null;
+        }
+
+        // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
+        var paramArgs = FactoryArguments.Bind(invocation, context);
+        if (paramArgs is not { } args ||
+            args.At(0) is not { } selectorArg ||
+            args.At(1) is not { } valueArg)
+        {
+            return null;
+        }
+
+        var selector = selectorArg.Expression;
+
+        if (!TryGetSelectorProperty(selector, context, out var property))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3005, selector.GetLocation(), []));
+            return null;
+        }
+
+        if (!IsSettableParameter(property, context))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3006, selector.GetLocation(), [property.Name]));
+            return null;
+        }
+
+        // Duplicate detection spans BOTH channels, not just the parameter one: `null` binds to the
+        // scalar overload (View is a struct, so `View v = null` is CS0037), so
+        // .Param(c => c.ChildContent, Div["y"]).Param(c => c.ChildContent, null) really can put one
+        // name in each channel. The children-then-.Param direction cannot reach here, the indexer
+        // returns View, so nothing follows the brackets, and is checked by ClassifyComponentIndexer.
+        if (HasBinding(inner, property.Name))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3007, selector.GetLocation(), [property.Name]));
+            return null;
+        }
+
+        if (kind == SurfaceMethodKind.ComponentBind)
+            return ClassifyComponentBind(invocation, method, inner, property, selector, args, valueArg, context);
+
+        var valueExpression = valueArg.Expression;
+
+        if (kind == SurfaceMethodKind.FragmentParam)
+        {
+            var slotContent = Analyze(valueExpression, context);
+            if (slotContent is null)
+                return null;
+
+            return AppendSlot(inner, property.Name, slotContent);
+        }
+
+        if (kind == SurfaceMethodKind.GenericTemplateIgnored)
+        {
+            if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
+                return null;
+
+            var slotContent = Analyze(valueExpression, context);
+            if (slotContent is null)
+                return null;
+
+            return AppendSlot(
+                inner,
+                property.Name,
+                slotContent,
+                ComponentSlotKind.GenericContextIgnored,
+                contextTypeName);
+        }
+
+        if (kind == SurfaceMethodKind.GenericTemplateContextual)
+        {
+            if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
+                return null;
+
+            // The content has to be an inline expression lambda twice over: the body is what gets
+            // sequenced, and the parameter symbol is what the generated context variable is
+            // substituted for. A method group, an anonymous method, and a block-bodied lambda supply
+            // neither. Arity is not checked here: a lambda with no parameter or with two does not
+            // convert to Func<TContext, View>, so C# has already rejected the call.
+            if (!TryExtractSingleParameterLambda(
+                    valueExpression, out var contextParameter, out var contextBody)
+                || context.SemanticModel.GetDeclaredSymbol(
+                    contextParameter, context.CancellationToken) is not { } contextParameterSymbol)
             {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3004,
-                    invocation.GetLocation(),
-                    []));
+                    DiagnosticDescriptors.BCF3022, valueArg.GetLocation(), []));
                 return null;
             }
 
-            // Source references the enclosing scope (fields, composable params, outer items), never this
-            // item, so it is normalized before the iteration variable is registered.
-            var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
-
-            var itemOrdinal = context.PushRenderVariable(contentParamSymbol, keyParamSymbol);
+            context.PushRenderVariable(contextParameterSymbol);
             try
             {
-                var key = ExpressionTemplateFactory.Create(keyBody, context);
-                var content = Analyze(contentBody, context);
-                if (content is null)
-                    return null;
-
-                if (!KeyReferencesItemOrdinal(key, itemOrdinal))
-                {
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3002,
-                        keyArg.GetLocation(),
-                        []));
-                }
-
-                return new ForEachTemplateNode(
-                    source,
-                    key,
-                    content,
-                    TemplateLocation.From(invocation.GetLocation()));
-            }
-            finally
-            {
-                context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
-            }
-        }
-
-        if (Is(method, symbols.HtmlComponent))
-        {
-            // An unresolved type argument cannot be emitted: the display string of an unresolved type is
-            // the written name with no qualification, and the generated file has no using directives, so
-            // OpenComponent<T> would either fail with a CS0246 the author cannot reach or bind silently
-            // to a different same-named type. Fail translation instead; the failure-path sweep in
-            // ComponentModelFactory/ComposableDefinitionFactory then reports BCF3012 once. Returning null
-            // here also stops the Param branch from drawing a spurious BCF3005 on the selector.
-            if (TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
-                return null;
-
-            // Base case: Html.Component<T>() with no children and no .Param yet. Children and parameters
-            // both arrive on the ComponentView<T> this returns, through its indexer and .Param, so this
-            // arm never sees either.
-            return new ComponentTemplateNode(
-                method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                EquatableArray<ComponentParameter>.Empty);
-        }
-
-        if (Is(method, symbols.HtmlRaw))
-        {
-            if (FactoryArguments.Bind(invocation, context) is not { } args ||
-                args.At(0) is not { } markupArg)
-            {
-                return null;
-            }
-
-            return new RawMarkupTemplateNode(
-                ExpressionTemplateFactory.Create(markupArg.Expression, context));
-        }
-
-        if (Is(method, symbols.HtmlFragment))
-        {
-            if (FactoryArguments.Bind(invocation, context) is not { } args)
-                return null;
-
-            if (args.HasUnanalyzableParamsArgument)
-                return null;
-
-            var children = AnalyzeChildren(args.ParamsElements, context);
-            if (children is null)
-                return null;
-
-            return new FragmentTemplateNode(children.Value);
-        }
-
-        var componentParameterKind = symbols.ClassifyComponentParameterMethod(method);
-        bool isComponentBind = Contains(symbols.ComponentBindMethods, method.OriginalDefinition);
-        if (componentParameterKind != ComponentParameterMethodKind.None || isComponentBind)
-        {
-            // Chained: <ComponentView<T> receiver>.Param/Template(selector, value), or
-            // .Bind(selector, get[, set]). Recurse into the receiver to reach the base Component<T>() (or
-            // an inner parameter call), then append this binding in source order. All spellings share
-            // everything up to the selected property: they take the same selector in the same position
-            // and answer to the same three rules about it.
-            if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
-                || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                return null;
-            }
-
-            // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
-            var paramArgs = FactoryArguments.Bind(invocation, context);
-            if (paramArgs is not { } args ||
-                args.At(0) is not { } selectorArg ||
-                args.At(1) is not { } valueArg)
-            {
-                return null;
-            }
-
-            var selector = selectorArg.Expression;
-
-            if (!TryGetSelectorProperty(selector, context, out var property))
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3005, selector.GetLocation(), []));
-                return null;
-            }
-
-            if (!IsSettableParameter(property, context))
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3006, selector.GetLocation(), [property.Name]));
-                return null;
-            }
-
-            // Duplicate detection spans BOTH channels, not just the parameter one: `null` binds to the
-            // scalar overload (View is a struct, so `View v = null` is CS0037), so
-            // .Param(c => c.ChildContent, Div["y"]).Param(c => c.ChildContent, null) really can put one
-            // name in each channel. The children-then-.Param direction cannot reach here, the indexer
-            // returns View, so nothing follows the brackets, and is checked by ClassifyComponentIndexer.
-            if (HasBinding(inner, property.Name))
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3007, selector.GetLocation(), [property.Name]));
-                return null;
-            }
-
-            if (isComponentBind)
-                return ClassifyComponentBind(invocation, method, inner, property, selector, args, valueArg, context);
-
-            var valueExpression = valueArg.Expression;
-
-            if (componentParameterKind == ComponentParameterMethodKind.FragmentParam)
-            {
-                var slotContent = Analyze(valueExpression, context);
-                if (slotContent is null)
-                    return null;
-
-                return AppendSlot(inner, property.Name, slotContent);
-            }
-
-            if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateIgnored)
-            {
-                if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
-                    return null;
-
-                var slotContent = Analyze(valueExpression, context);
+                var slotContent = Analyze(contextBody, context);
                 if (slotContent is null)
                     return null;
 
@@ -400,205 +486,185 @@ internal static class RenderExpressionAnalyzer
                     inner,
                     property.Name,
                     slotContent,
-                    ComponentSlotKind.GenericContextIgnored,
+                    ComponentSlotKind.GenericContextual,
                     contextTypeName);
             }
-
-            if (componentParameterKind == ComponentParameterMethodKind.GenericTemplateContextual)
+            finally
             {
-                if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
-                    return null;
-
-                // The content has to be an inline expression lambda twice over: the body is what gets
-                // sequenced, and the parameter symbol is what the generated context variable is
-                // substituted for. A method group, an anonymous method, and a block-bodied lambda supply
-                // neither. Arity is not checked here: a lambda with no parameter or with two does not
-                // convert to Func<TContext, View>, so C# has already rejected the call.
-                if (!TryExtractSingleParameterLambda(
-                        valueExpression, out var contextParameter, out var contextBody)
-                    || context.SemanticModel.GetDeclaredSymbol(
-                        contextParameter, context.CancellationToken) is not { } contextParameterSymbol)
-                {
-                    context.RejectUnresolvedValueRecovery(invocation.Span);
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3022, valueArg.GetLocation(), []));
-                    return null;
-                }
-
-                context.PushRenderVariable(contextParameterSymbol);
-                try
-                {
-                    var slotContent = Analyze(contextBody, context);
-                    if (slotContent is null)
-                        return null;
-
-                    return AppendSlot(
-                        inner,
-                        property.Name,
-                        slotContent,
-                        ComponentSlotKind.GenericContextual,
-                        contextTypeName);
-                }
-                finally
-                {
-                    context.PopRenderVariable(contextParameterSymbol);
-                }
+                context.PopRenderVariable(contextParameterSymbol);
             }
-
-            if (componentParameterKind == ComponentParameterMethodKind.ScalarParam && IsInertDesignTimeType(
-                    context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
-                    context))
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3014,
-                    valueExpression.GetLocation(),
-                    [valueExpression.ToString()]));
-                return null;
-            }
-
-            var value = ExpressionTemplateFactory.Create(valueExpression, context);
-            var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
-            return new ComponentTemplateNode(inner.TypeName, appended, inner.Slots);
         }
 
-        // --- Decoration chain: class fold / attribute shortcut / generic .Attr / event shortcut / .On ---
-        var normalized = KnownSymbols.Normalize(method);
-        bool isClass = symbols.ClassMethod is not null
-            && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod));
-        bool isAttrShortcut = symbols.AttributeShortcuts.TryGetValue(normalized, out var shortcutAttrName);
-        bool isEventShortcut = symbols.EventShortcuts.TryGetValue(normalized, out var shortcutEventName);
-        bool isAttr = Contains(symbols.AttrMethods, normalized);
-        bool isOn = Contains(symbols.OnMethods, normalized);
-        bool isBind = Contains(symbols.BindMethods, normalized);
-
-        if (isClass || isAttrShortcut || isEventShortcut || isAttr || isOn || isBind)
+        if (kind == SurfaceMethodKind.ScalarParam && IsInertDesignTimeType(
+                context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
+                context))
         {
-            if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
-                return null;
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3014,
+                valueExpression.GetLocation(),
+                [valueExpression.ToString()]));
+            return null;
+        }
 
-            var inner = Analyze(decoAccess.Expression, context);
-            // null: unanalyzable or already diagnosed, propagate silently (no double report).
-            if (inner is null)
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                return null;
-            }
+        var value = ExpressionTemplateFactory.Create(valueExpression, context);
+        var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
+        return new ComponentTemplateNode(inner.TypeName, appended, inner.Slots);
+    }
 
-            // Unreachable: a decoration takes an ElementBuilder receiver, so anything that opens no element
-            // frame is a CS1929 and never resolves to a decoration here. Kept so that if some route ever does
-            // arrive, translation fails safely instead of decorating a node that cannot carry attributes.
-            if (inner is not ElementTemplateNode element)
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                return null;
-            }
+    /// <summary>
+    /// A decoration written onto an element: the class fold, an attribute shortcut, the generic
+    /// <c>.Attr</c>, an event shortcut, <c>.On</c>, or <c>.Bind</c>.
+    /// </summary>
+    private static ElementTemplateNode? ClassifyDecoration(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        ComposableBodyContext context)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
+            return null;
 
-            if (FactoryArguments.Bind(invocation, context) is not { } args)
-                return null;
+        var inner = Analyze(decoAccess.Expression, context);
+        // null: unanalyzable or already diagnosed, propagate silently (no double report).
+        if (inner is null)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            return null;
+        }
 
-            if (args.At(0) is not { } firstArg)
-                return null;
+        // Unreachable: a decoration takes an ElementBuilder receiver, so anything that opens no element
+        // frame is a CS1929 and never resolves to a decoration here. Kept so that if some route ever does
+        // arrive, translation fails safely instead of decorating a node that cannot carry attributes.
+        if (inner is not ElementTemplateNode element)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            return null;
+        }
 
-            if (isClass)
-                return FoldIntoClassChannel(invocation, decoAccess, element, firstArg.Expression, context);
+        if (FactoryArguments.Bind(invocation, context) is not { } args)
+            return null;
 
-            if (isBind)
-                return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
+        if (args.At(0) is not { } firstArg)
+            return null;
 
-            if (isEventShortcut || isOn)
-            {
-                if (!TryResolveDecorationName(
-                        invocation, args, firstArg, shortcutEventName, context,
-                        out var eventName, out var handlerExpr))
-                {
-                    return null;
-                }
+        if (kind == SurfaceMethodKind.Class)
+            return FoldIntoClassChannel(invocation, decoAccess, element, firstArg.Expression, context);
 
-                // The event-shortcut path supplies its own name from a literal table and never reaches
-                // here with a bad one, so only the .On / .Bind string path is checked.
-                if (!isEventShortcut && !eventName.StartsWith("on", System.StringComparison.Ordinal))
-                {
-                    context.RejectUnresolvedValueRecovery(invocation.Span);
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3019, firstArg.GetLocation(), [eventName]));
-                    return null;
-                }
+        if (kind == SurfaceMethodKind.Bind)
+            return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
 
-                if (HasBinding(element, eventName))
-                {
-                    context.RejectUnresolvedValueRecovery(invocation.Span);
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [eventName]));
-                    return null;
-                }
+        // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an
+        // argument. The lookup cannot miss: the kind and the map entry are written by the same arm of
+        // KnownSymbols' member switch.
+        var normalized = KnownSymbols.Normalize(method);
+        var shortcutName = kind switch
+        {
+            SurfaceMethodKind.AttributeShortcut => context.KnownSymbols.AttributeShortcuts[normalized],
+            SurfaceMethodKind.EventShortcut => context.KnownSymbols.EventShortcuts[normalized],
+            _ => null,
+        };
 
-                return element with
-                {
-                    Events = element.Events.AsImmutableArray().Add(
-                        new EventTemplate(eventName, ExpressionTemplateFactory.Create(handlerExpr, context))),
-                };
-            }
-
-            // Attribute shortcut or generic .Attr.
+        if (kind is SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On)
+        {
             if (!TryResolveDecorationName(
-                    invocation, args, firstArg, shortcutAttrName, context,
-                    out var attrName, out var valueExpr))
+                    invocation, args, firstArg, shortcutName, context,
+                    out var eventName, out var handlerExpr))
             {
                 return null;
             }
 
-            // 'class' routes to the channel rather than to Attributes, the same as .Class, and may repeat.
-            if (ClassChannel.Owns(attrName))
-            {
-                // The channel joins its decorations into one value, so the bool overload means two
-                // different things there depending on how many others the element carries (#159). Which
-                // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
-                // shape; the value expression's own type is not consulted. The last parameter is the
-                // value in both the reduced fluent spelling and the static-call one, and the shortcut
-                // route never spells 'class', so only .Attr reaches this test.
-                if (method.Parameters[method.Parameters.Length - 1].Type.SpecialType == SpecialType.System_Boolean)
-                {
-                    context.RejectUnresolvedValueRecovery(invocation.Span);
-                    context.Diagnostics.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3023, valueExpr.GetLocation(), []));
-                    return null;
-                }
-
-                return FoldIntoClassChannel(invocation, decoAccess, element, valueExpr, context);
-            }
-
-            // Reject before normalizing the value, as the event channel does: normalization reports on the
-            // value's own types, and a rejected decoration's value never reaches generated code.
-            if (HasBinding(element, attrName))
+            // The event-shortcut path supplies its own name from a literal table and never reaches
+            // here with a bad one, so only the .On / .Bind string path is checked.
+            if (kind != SurfaceMethodKind.EventShortcut
+                && !eventName.StartsWith("on", System.StringComparison.Ordinal))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [attrName]));
+                    DiagnosticDescriptors.BCF3019, firstArg.GetLocation(), [eventName]));
+                return null;
+            }
+
+            if (HasBinding(element, eventName))
+            {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [eventName]));
                 return null;
             }
 
             return element with
             {
-                Attributes = element.Attributes.AsImmutableArray().Add(
-                    new AttributeTemplate(attrName, ExpressionTemplateFactory.Create(valueExpr, context))),
+                Events = element.Events.AsImmutableArray().Add(
+                    new EventTemplate(eventName, ExpressionTemplateFactory.Create(handlerExpr, context))),
             };
         }
 
-        if (IsComposable(method, context))
+        // Attribute shortcut or generic .Attr.
+        if (!TryResolveDecorationName(
+                invocation, args, firstArg, shortcutName, context,
+                out var attrName, out var valueExpr))
         {
-            var arguments = CreateInvocationArguments(invocation, method, context);
-            if (arguments is null)
-                return null;
-
-            return new ComposableCallTemplateNode(
-                MethodKey.Create(method),
-                method.Name,
-                arguments.Value,
-                TemplateLocation.From(invocation.GetLocation()));
+            return null;
         }
 
-        return null;
+        // 'class' routes to the channel rather than to Attributes, the same as .Class, and may repeat.
+        if (ClassChannel.Owns(attrName))
+        {
+            // The channel joins its decorations into one value, so the bool overload means two
+            // different things there depending on how many others the element carries (#159). Which
+            // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
+            // shape; the value expression's own type is not consulted. The last parameter is the
+            // value in both the reduced fluent spelling and the static-call one, and the shortcut
+            // route never spells 'class', so only .Attr reaches this test.
+            if (method.Parameters[method.Parameters.Length - 1].Type.SpecialType == SpecialType.System_Boolean)
+            {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3023, valueExpr.GetLocation(), []));
+                return null;
+            }
+
+            return FoldIntoClassChannel(invocation, decoAccess, element, valueExpr, context);
+        }
+
+        // Reject before normalizing the value, as the event channel does: normalization reports on the
+        // value's own types, and a rejected decoration's value never reaches generated code.
+        if (HasBinding(element, attrName))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3010, decoAccess.Name.GetLocation(), [attrName]));
+            return null;
+        }
+
+        return element with
+        {
+            Attributes = element.Attributes.AsImmutableArray().Add(
+                new AttributeTemplate(attrName, ExpressionTemplateFactory.Create(valueExpr, context))),
+        };
+    }
+
+    /// <summary>
+    /// A call that is not surface syntax at all, which is a translatable expression only when the method
+    /// it names carries <c>[Composable]</c>. That attribute sits on a user method rather than on a symbol
+    /// resolved out of the runtime, so it cannot be part of the classification and is tested here.
+    /// </summary>
+    private static ComposableCallTemplateNode? ClassifyComposableCall(
+        InvocationExpressionSyntax invocation, IMethodSymbol method, ComposableBodyContext context)
+    {
+        if (!IsComposable(method, context))
+            return null;
+
+        var arguments = CreateInvocationArguments(invocation, method, context);
+        if (arguments is null)
+            return null;
+
+        return new ComposableCallTemplateNode(
+            MethodKey.Create(method),
+            method.Name,
+            arguments.Value,
+            TemplateLocation.From(invocation.GetLocation()));
     }
 
     /// <summary>
@@ -1336,16 +1402,6 @@ internal static class RenderExpressionAnalyzer
         return true;
     }
 
-    private static bool Contains(IReadOnlyCollection<ISymbol> set, ISymbol symbol)
-    {
-        foreach (var s in set)
-        {
-            if (SymbolEqualityComparer.Default.Equals(s, symbol))
-                return true;
-        }
-        return false;
-    }
-
     /// <summary>
     /// Whether <paramref name="node"/> already binds <paramref name="name"/> in either channel. Blazor
     /// applies the last write, so a duplicate across channels is as dead as one within a channel.
@@ -1627,7 +1683,7 @@ internal static class RenderExpressionAnalyzer
     /// <remarks>
     /// Both <c>.Template</c> arms ask this, and the answer must be the same for both: they differ in whether
     /// the author names the context, not in what the context is. The check is not redundant with
-    /// <see cref="KnownSymbols.ClassifyComponentParameterMethod"/>, which proves the <em>method</em> is a
+    /// <see cref="KnownSymbols.ClassifySurfaceMethod"/>, which proves the <em>method</em> is a
     /// <c>Template</c> overload; this proves the <em>selected property</em> is generic, and a selector may
     /// name any property on the component.
     /// </remarks>

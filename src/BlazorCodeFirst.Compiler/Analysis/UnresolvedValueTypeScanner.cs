@@ -53,124 +53,142 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        var symbols = context.KnownSymbols;
         var recoverOwnValue = context.ShouldRecoverUnresolvedValue(invocation.Span);
 
-        // Element(tag) carries no children on this surface: they are written in brackets on the
-        // ElementBuilder it returns, and ScanChildrenIndexer handles that. The tag itself is never reported
-        // on, whether or not it is constant.
-        if (symbols.IsElementFactory(method))
-            return;
-
-        if (Is(method, symbols.HtmlIf))
+        // One arm per SurfaceMethodKind, dispatching on the same lookup that recognized the call, so an
+        // arm and its recognition cannot disagree the way the three predicate chains this replaced could
+        // (#191, #201). A kind added to the enum without an arm here falls out of the switch and is
+        // scanned as nothing; what makes that hard to miss is RenderExpressionAnalyzer.Classify, whose
+        // twin of this dispatch is a switch expression and stops compiling until it is handled.
+        var kind = context.KnownSymbols.ClassifySurfaceMethod(method);
+        switch (kind)
         {
-            ReportValue(args.At(0)?.Expression, context);
-            ScanLambdaBody(args.At(1)?.Expression, context);
-            ScanLambdaBody(args.At(2)?.Expression, context);
-            return;
-        }
-
-        if (Is(method, symbols.HtmlForEach))
-        {
-            ReportValue(args.At(0)?.Expression, context);
-            ReportLambdaValueBody(args.At(1)?.Expression, context);
-            ScanLambdaBody(args.At(2)?.Expression, context);
-            return;
-        }
-
-        // As with Element(tag): Component<T>() takes no arguments at all, and its children arrive on the
-        // ComponentView<T> indexer, which ScanChildrenIndexer handles.
-        if (UnresolvedComponentTypeScanner.IsComponentFactory(method, symbols.HtmlComponent))
-            return;
-
-        if (Is(method, symbols.HtmlRaw))
-        {
-            ReportValue(args.At(0)?.Expression, context);
-            return;
-        }
-
-        if (Is(method, symbols.HtmlFragment))
-        {
-            ScanChildren(args, context);
-            return;
-        }
-
-        // .Param, .Template and .Bind share a route, as they do in RenderExpressionAnalyzer.Classify: all
-        // three chain off a ComponentView<T> receiver that has to be walked, and all three take the
-        // selector in the same position. Only what follows the selector differs.
-        var componentParameterKind = symbols.ClassifyComponentParameterMethod(method);
-        var isComponentBind = Contains(symbols.ComponentBindMethods, method.OriginalDefinition);
-        if (componentParameterKind != ComponentParameterMethodKind.None || isComponentBind)
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (!recoverOwnValue)
+            // Element(tag) carries no children on this surface: they are written in brackets on the
+            // ElementBuilder it returns, and ScanChildrenIndexer handles that. The tag itself is never
+            // reported on, whether or not it is constant. Component<T>() is the same shape twice over: it
+            // takes no arguments at all, and its children likewise arrive on an indexer.
+            case SurfaceMethodKind.Element:
+            case SurfaceMethodKind.Component:
                 return;
 
-            if (isComponentBind)
-            {
-                // The getter and, where written, the setter: both are transplanted into generated code and
-                // can therefore name a type that does not resolve. The selector is not a value position —
-                // it is read for the property it names and never emitted, so a bad one is BCF3005's to
-                // report. That is the same split the element-level .Bind arm below makes.
+            case SurfaceMethodKind.If:
+                ReportValue(args.At(0)?.Expression, context);
+                ScanLambdaBody(args.At(1)?.Expression, context);
+                ScanLambdaBody(args.At(2)?.Expression, context);
+                return;
+
+            case SurfaceMethodKind.ForEach:
+                ReportValue(args.At(0)?.Expression, context);
+                ReportLambdaValueBody(args.At(1)?.Expression, context);
+                ScanLambdaBody(args.At(2)?.Expression, context);
+                return;
+
+            case SurfaceMethodKind.Raw:
+                ReportValue(args.At(0)?.Expression, context);
+                return;
+
+            case SurfaceMethodKind.Fragment:
+                ScanChildren(args, context);
+                return;
+
+            case SurfaceMethodKind.ScalarParam:
+            case SurfaceMethodKind.FragmentParam:
+            case SurfaceMethodKind.GenericTemplateIgnored:
+            case SurfaceMethodKind.GenericTemplateContextual:
+            case SurfaceMethodKind.ComponentBind:
+                ScanComponentParameter(invocation, kind, args, recoverOwnValue, context);
+                return;
+
+            case SurfaceMethodKind.Class:
+            case SurfaceMethodKind.AttributeShortcut:
+            case SurfaceMethodKind.EventShortcut:
+            case SurfaceMethodKind.Attr:
+            case SurfaceMethodKind.On:
+            case SurfaceMethodKind.Bind:
+                ScanDecoration(invocation, method, kind, args, recoverOwnValue, context);
+                return;
+
+            case SurfaceMethodKind.None:
+                if (IsComposable(method, context))
+                {
+                    foreach (var argument in args.ExplicitArguments)
+                        ReportValue(argument, context);
+                }
+
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Scans a <c>.Param</c>, <c>.Template</c> or <c>.Bind</c> written on a component. The three share a
+    /// route, as they do in <c>RenderExpressionAnalyzer.Classify</c>: all of them chain off a
+    /// <c>ComponentView&lt;T&gt;</c> receiver that has to be walked, and all of them take the selector in
+    /// the same position. Only what follows the selector differs.
+    /// </summary>
+    private static void ScanComponentParameter(
+        InvocationExpressionSyntax invocation,
+        SurfaceMethodKind kind,
+        BoundArguments args,
+        bool recoverOwnValue,
+        ComposableBodyContext context)
+    {
+        ScanRenderExpression(Receiver(invocation), context);
+        if (!recoverOwnValue)
+            return;
+
+        switch (kind)
+        {
+            // The getter and, where written, the setter: both are transplanted into generated code and can
+            // therefore name a type that does not resolve. The selector is not a value position — it is
+            // read for the property it names and never emitted, so a bad one is BCF3005's to report. That
+            // is the same split the element-level .Bind arm makes.
+            case SurfaceMethodKind.ComponentBind:
                 ReportValue(args.At(1)?.Expression, context);
                 ReportValue(args.At(2)?.Expression, context);
                 return;
-            }
 
-            switch (componentParameterKind)
-            {
-                case ComponentParameterMethodKind.ScalarParam:
-                    ReportValue(args.At(1)?.Expression, context);
-                    break;
-                case ComponentParameterMethodKind.GenericTemplateContextual:
-                    ScanLambdaBody(args.At(1)?.Expression, context);
-                    break;
-                default:
-                    ScanRenderExpression(args.At(1)?.Expression, context);
-                    break;
-            }
-
-            return;
-        }
-
-        var normalized = KnownSymbols.Normalize(method);
-        if (IsDecorationMethod(normalized, symbols)
-            && !IsFluentExtensionInvocation(invocation, method, context))
-        {
-            return;
-        }
-
-        if (symbols.ClassMethod is not null
-            && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod)))
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (recoverOwnValue)
-                ReportValue(args.At(0)?.Expression, context);
-            return;
-        }
-
-        if (symbols.AttributeShortcuts.ContainsKey(normalized))
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (recoverOwnValue)
-                ReportValue(args.At(0)?.Expression, context);
-            return;
-        }
-
-        if (symbols.EventShortcuts.ContainsKey(normalized))
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (recoverOwnValue)
-                ReportValue(args.At(0)?.Expression, context);
-            return;
-        }
-
-        if (Contains(symbols.AttrMethods, normalized))
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (!recoverOwnValue)
+            case SurfaceMethodKind.ScalarParam:
+                ReportValue(args.At(1)?.Expression, context);
                 return;
 
+            case SurfaceMethodKind.GenericTemplateContextual:
+                ScanLambdaBody(args.At(1)?.Expression, context);
+                return;
+
+            // .Param onto a RenderFragment slot and the .Template spelling that ignores its context: both
+            // take a View, which is scanned as an expression of its own.
+            default:
+                ScanRenderExpression(args.At(1)?.Expression, context);
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Scans one element decoration: the receiver, which carries the element and everything decorated onto
+    /// it before this call, and then whichever of this decoration's own arguments reaches generated code.
+    /// </summary>
+    /// <remarks>
+    /// A decoration spelled as a static call, <c>Decorations.Class(builder, "c")</c>, is left alone
+    /// entirely: its receiver is a type name rather than an element, so there is no chain to walk and the
+    /// arguments sit one position further along than the fluent spelling this reads.
+    /// </remarks>
+    private static void ScanDecoration(
+        InvocationExpressionSyntax invocation,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        BoundArguments args,
+        bool recoverOwnValue,
+        ComposableBodyContext context)
+    {
+        if (!IsFluentExtensionInvocation(invocation, method, context))
+            return;
+
+        ScanRenderExpression(Receiver(invocation), context);
+        if (!recoverOwnValue)
+            return;
+
+        if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.On)
+        {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);
             else
@@ -178,25 +196,8 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (Contains(symbols.OnMethods, normalized))
+        if (kind == SurfaceMethodKind.Bind)
         {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (!recoverOwnValue)
-                return;
-
-            if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
-                ReportValue(args.At(1)?.Expression, context);
-            else
-                ReportSelectedInvocationValues(args.At(1)?.Expression, context);
-            return;
-        }
-
-        if (Contains(symbols.BindMethods, normalized))
-        {
-            ScanRenderExpression(Receiver(invocation), context);
-            if (!recoverOwnValue)
-                return;
-
             // The getter and the setter, both of which are transplanted into generated code and can
             // therefore name a type that does not resolve. The two name arguments are not value
             // positions: a non-constant one is BCF3011's to report, and that rejection has already
@@ -206,11 +207,9 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (IsComposable(method, context))
-        {
-            foreach (var argument in args.ExplicitArguments)
-                ReportValue(argument, context);
-        }
+        // .Class, a named attribute shortcut and a named event shortcut each carry their one value in
+        // argument 0, the name being the decoration's own spelling rather than something written.
+        ReportValue(args.At(0)?.Expression, context);
     }
 
     /// <summary>
@@ -279,7 +278,8 @@ internal static class UnresolvedValueTypeScanner
                 return false;
             }
 
-            if (context.KnownSymbols.IsElementFactory(method))
+            var kind = context.KnownSymbols.ClassifySurfaceMethod(method);
+            if (kind == SurfaceMethodKind.Element)
             {
                 // The tag has to be reached before it can be called non-constant. A binding failure is not
                 // evidence of a rejected tag, and answering true on one would suppress the children's
@@ -288,7 +288,7 @@ internal static class UnresolvedValueTypeScanner
                     && !IsNonEmptyConstantString(tag, context);
             }
 
-            if (!IsDecorationMethod(KnownSymbols.Normalize(method), context.KnownSymbols))
+            if (!IsElementDecoration(kind))
                 return false;
 
             receiver = Receiver(invocation);
@@ -703,7 +703,7 @@ internal static class UnresolvedValueTypeScanner
                 selected = candidate;
                 selectedArguments = args;
             }
-            else if (!AreInterchangeableOverloads(selected, candidate))
+            else if (!AreInterchangeableOverloads(selected, candidate, context.KnownSymbols))
             {
                 return RecognizedInvocation.FromGroup(selected: null, arguments: null);
             }
@@ -735,30 +735,44 @@ internal static class UnresolvedValueTypeScanner
     }
 
     /// <summary>
-    /// Whether <paramref name="left"/> and <paramref name="right"/> are overloads of one method that bind
-    /// arguments the same way, which is the whole of what this scanner reads of a candidate.
+    /// Whether <paramref name="left"/> and <paramref name="right"/> reach the same arm and bind arguments
+    /// the same way, which together are the whole of what this scanner reads of a candidate.
     /// </summary>
     /// <remarks>
-    /// Sameness is asked of the declaration, not of the arm: two overloads of one surface method reach one
-    /// arm by construction, whereas checking the arm alone would call <c>.Class</c> and an attribute
-    /// shortcut interchangeable on nothing sturdier than their both reading argument 0. Parameter types are
-    /// deliberately not compared, since no arm reads one — that is what lets the <see langword="string"/>
-    /// and <see langword="bool"/> spellings of <c>.Bind</c> answer as one.
+    /// <para>
+    /// The arm is asked for directly, as the classification it dispatches on. This used to be inferred
+    /// from the declaration — same name, same containing type, same extension-ness — on the ground that
+    /// two overloads of one surface method reach one arm by construction; the name half of that could
+    /// never fire, since every source feeding the candidate list yields symbols sharing one identifier,
+    /// and the containing type was what actually separated <c>Decorations.Bind</c> from
+    /// <c>ComponentView&lt;T&gt;.Bind</c>. A <see cref="SurfaceMethodKind"/> answers both at once and
+    /// keeps <c>.Class</c> apart from an attribute shortcut, which reading the arm's argument positions
+    /// alone would not.
+    /// </para>
+    /// <para>
+    /// Two <c>[Composable]</c> candidates both classify as <see cref="SurfaceMethodKind.None"/> and are
+    /// interchangeable in fact as well as by this test: that arm reports every written argument and reads
+    /// no position, so which of them is named cannot change what is scanned.
+    /// </para>
+    /// <para>
+    /// The parameter shape is still compared, because reaching one arm is not on its own reaching it with
+    /// the same arguments: a named argument binds by parameter name, and a position read out of one
+    /// overload has to mean the same in the other. Parameter <em>types</em> are deliberately not compared,
+    /// since no arm reads one — that is what lets the <see langword="string"/> and <see langword="bool"/>
+    /// spellings of <c>.Bind</c> answer as one.
+    /// </para>
     /// </remarks>
-    private static bool AreInterchangeableOverloads(IMethodSymbol left, IMethodSymbol right)
+    private static bool AreInterchangeableOverloads(
+        IMethodSymbol left, IMethodSymbol right, KnownSymbols symbols)
     {
+        if (symbols.ClassifySurfaceMethod(left) != symbols.ClassifySurfaceMethod(right))
+            return false;
+
         var leftDeclared = left.ReducedFrom ?? left;
         var rightDeclared = right.ReducedFrom ?? right;
 
-        if (leftDeclared.Name != rightDeclared.Name
-            || !SymbolEqualityComparer.Default.Equals(
-                leftDeclared.ContainingType?.OriginalDefinition,
-                rightDeclared.ContainingType?.OriginalDefinition)
-            || leftDeclared.IsExtensionMethod != rightDeclared.IsExtensionMethod
-            || leftDeclared.Parameters.Length != rightDeclared.Parameters.Length)
-        {
+        if (leftDeclared.Parameters.Length != rightDeclared.Parameters.Length)
             return false;
-        }
 
         for (var index = 0; index < leftDeclared.Parameters.Length; index++)
         {
@@ -891,30 +905,20 @@ internal static class UnresolvedValueTypeScanner
         candidates.Add(method);
     }
 
-    private static bool IsRecognized(IMethodSymbol method, ComposableBodyContext context)
-    {
-        var symbols = context.KnownSymbols;
-        var normalized = KnownSymbols.Normalize(method);
-
-        // No ElementTags lookup here, unlike the property route: every curated key is an IPropertySymbol and
-        // `normalized` is keyed from an IMethodSymbol, so the lookup could only ever answer false.
-        return symbols.IsElementFactory(method)
-            || Is(method, symbols.HtmlIf)
-            || Is(method, symbols.HtmlForEach)
-            || UnresolvedComponentTypeScanner.IsComponentFactory(method, symbols.HtmlComponent)
-            || Is(method, symbols.HtmlRaw)
-            || Is(method, symbols.HtmlFragment)
-            || symbols.ClassifyComponentParameterMethod(method) != ComponentParameterMethodKind.None
-            || Contains(symbols.ComponentBindMethods, method.OriginalDefinition)
-            || (symbols.ClassMethod is not null
-                && SymbolEqualityComparer.Default.Equals(normalized, KnownSymbols.Normalize(symbols.ClassMethod)))
-            || symbols.AttributeShortcuts.ContainsKey(normalized)
-            || symbols.EventShortcuts.ContainsKey(normalized)
-            || Contains(symbols.AttrMethods, normalized)
-            || Contains(symbols.OnMethods, normalized)
-            || Contains(symbols.BindMethods, normalized)
-            || IsComposable(method, context);
-    }
+    /// <summary>
+    /// Whether <paramref name="method"/> is something this scanner has an arm for: a method of the
+    /// design-time surface, or a <c>[Composable]</c> call.
+    /// </summary>
+    /// <remarks>
+    /// The surface half is the same single lookup <see cref="ScanRenderExpression"/> dispatches on, which
+    /// is the point of the classification: a method this answers <see langword="true"/> for is a method
+    /// that switch has a case for, and neither can quietly stop agreeing with the other. No
+    /// <c>ElementTags</c> lookup is folded in, unlike the property route, since every curated key is an
+    /// <see cref="IPropertySymbol"/> and this is asked of an <see cref="IMethodSymbol"/>.
+    /// </remarks>
+    private static bool IsRecognized(IMethodSymbol method, ComposableBodyContext context) =>
+        context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.None
+        || IsComposable(method, context);
 
     private static bool IsComposable(IMethodSymbol method, ComposableBodyContext context)
     {
@@ -923,28 +927,17 @@ internal static class UnresolvedValueTypeScanner
             SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, attribute));
     }
 
-    private static bool Is(IMethodSymbol method, IMethodSymbol? known) =>
-        known is not null && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, known);
-
-    private static bool Contains(IReadOnlyCollection<ISymbol> symbols, ISymbol symbol)
-    {
-        foreach (var candidate in symbols)
-        {
-            if (SymbolEqualityComparer.Default.Equals(candidate, symbol))
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsDecorationMethod(ISymbol method, KnownSymbols symbols) =>
-        (symbols.ClassMethod is not null
-            && SymbolEqualityComparer.Default.Equals(method, KnownSymbols.Normalize(symbols.ClassMethod)))
-        || symbols.AttributeShortcuts.ContainsKey(method)
-        || symbols.EventShortcuts.ContainsKey(method)
-        || Contains(symbols.AttrMethods, method)
-        || Contains(symbols.OnMethods, method)
-        || Contains(symbols.BindMethods, method);
+    /// <summary>
+    /// Whether <paramref name="kind"/> is one of the decorations written onto an element, the group
+    /// <see cref="ScanDecoration"/> serves.
+    /// </summary>
+    private static bool IsElementDecoration(SurfaceMethodKind kind) =>
+        kind is SurfaceMethodKind.Class
+            or SurfaceMethodKind.AttributeShortcut
+            or SurfaceMethodKind.EventShortcut
+            or SurfaceMethodKind.Attr
+            or SurfaceMethodKind.On
+            or SurfaceMethodKind.Bind;
 
     private static bool IsFluentExtensionInvocation(
         InvocationExpressionSyntax invocation,

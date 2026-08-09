@@ -79,12 +79,7 @@ internal sealed class KnownSymbols
     /// </summary>
     public INamedTypeSymbol? FuncType { get; }
 
-    private readonly Dictionary<ISymbol, ComponentParameterMethodKind> _componentParameterMethods;
-
-    /// <summary>
-    /// Resolved symbol for <c>BlazorCodeFirst.Decorations.Class(this ElementBuilder, string)</c>, or null.
-    /// </summary>
-    public IMethodSymbol? ClassMethod { get; }
+    private readonly Dictionary<ISymbol, SurfaceMethodKind> _surfaceMethods;
 
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
     /// runtime helper declarations are kept in sync by KnownSymbolsSyncTests.</summary>
@@ -253,8 +248,8 @@ internal sealed class KnownSymbols
 
     /// <summary>Whether <paramref name="tag"/> is a void element, so children on it are BCF3016.</summary>
     /// <remarks>
-    /// Static, unlike <see cref="IsElementFactory"/>: the answer is a property of the HTML standard and
-    /// not of the referenced runtime, so there is nothing to resolve out of a compilation. Ordinal, like
+    /// Static, unlike <see cref="ClassifySurfaceMethod"/>: the answer is a property of the HTML standard
+    /// and not of the referenced runtime, so there is nothing to resolve out of a compilation. Ordinal, like
     /// every other tag comparison in the compiler: a curated helper's tag comes from
     /// <see cref="CuratedTags"/> already lowercase, and an <c>Element</c> tag is emitted as written, so
     /// <c>Element("IMG")</c> renders <c>&lt;IMG&gt;</c> and is deliberately not this check's business.
@@ -291,22 +286,6 @@ internal sealed class KnownSymbols
     /// its reduced symbol, which no map contains.
     /// </remarks>
     public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
-
-    /// <summary>
-    /// Whether <paramref name="method"/> is <see cref="HtmlElement"/>, the escape hatch for a tag outside the
-    /// curated table.
-    /// </summary>
-    /// <remarks>
-    /// The null guard is defensive consistency, not a correctness requirement:
-    /// <see cref="ISymbol.OriginalDefinition"/> is never null, so an unguarded comparison against a null
-    /// <see cref="HtmlElement"/> would already answer <see langword="false"/>. The guard is load-bearing
-    /// only where the <em>left</em> operand can be null, a receiver's unresolved <c>GetTypeInfo().Type</c>,
-    /// as <see cref="ElementBuilderType"/>'s remarks describe, and the two shapes are kept alike so neither
-    /// is read as the other's rule.
-    /// </remarks>
-    public bool IsElementFactory(IMethodSymbol method) =>
-        HtmlElement is not null
-        && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, HtmlElement);
 
     /// <summary>
     /// The names of every decoration the referenced runtime declares, for
@@ -346,47 +325,32 @@ internal sealed class KnownSymbols
     /// <summary>Named event shortcut decoration method (e.g. <c>OnClick</c> overloads) → HTML event name.</summary>
     public IReadOnlyDictionary<ISymbol, string> EventShortcuts { get; }
 
-    /// <summary>All <c>Decorations.Attr</c> overloads.</summary>
-    public IReadOnlyCollection<ISymbol> AttrMethods { get; }
-
-    /// <summary>All <c>Decorations.On</c> overloads.</summary>
-    public IReadOnlyCollection<ISymbol> OnMethods { get; }
-
-    /// <summary>All <c>Decorations.Bind</c> overloads.</summary>
-    public IReadOnlyCollection<ISymbol> BindMethods { get; }
-
     /// <summary>
-    /// All <c>ComponentView&lt;T&gt;.Bind&lt;TValue&gt;</c> overloads.
+    /// The classification table <see cref="ClassifySurfaceMethod"/> answers from, keyed by
+    /// <see cref="Normalize(IMethodSymbol)"/>, for <c>KnownSymbolsSyncTests</c> to hold against what the
+    /// referenced runtime declares. Nothing in the compiler reads it directly; ask
+    /// <see cref="ClassifySurfaceMethod"/>, which normalizes the method first.
     /// </summary>
-    /// <remarks>
-    /// Held unnormalized: these are members of the unbound generic <see cref="ComponentViewType"/>, so
-    /// they are already original definitions and there is no reduced extension form to unwrap.
-    /// </remarks>
-    public IReadOnlyCollection<ISymbol> ComponentBindMethods { get; }
-
-    /// <summary>
-    /// Resolved symbol for <c>BlazorCodeFirst.Html.Element(string)</c>, which returns an
-    /// <c>ElementBuilder</c> and carries no children of its own, or null.
-    /// </summary>
-    public IMethodSymbol? HtmlElement { get; }
-
-    /// <summary>Resolved symbol for <c>BlazorCodeFirst.Html.If(bool, Func&lt;View&gt;, Func&lt;View&gt;?)</c>, or null.</summary>
-    public IMethodSymbol? HtmlIf { get; }
+    public IReadOnlyDictionary<ISymbol, SurfaceMethodKind> SurfaceMethods => _surfaceMethods;
 
     /// <summary>Resolved symbol for <c>BlazorCodeFirst.Html.ForEach&lt;T&gt;(...)</c>, or null.</summary>
+    /// <remarks>
+    /// Kept as a symbol, where the other structural <c>Html</c> members are only rows in
+    /// <see cref="SurfaceMethods"/>, because the failure scanner looks this one up <em>by name in scope</em>
+    /// to recover a call whose own symbol did not resolve, and a name lookup needs the name.
+    /// </remarks>
     public IMethodSymbol? HtmlForEach { get; }
 
     /// <summary>
     /// Resolved symbol for <c>BlazorCodeFirst.Html.Component&lt;T&gt;()</c>, the only component syntax:
     /// children arrive through <see cref="ComponentIndexer"/>, not through an overload. Null if unavailable.
     /// </summary>
+    /// <remarks>
+    /// Kept as a symbol for the reason <see cref="HtmlForEach"/>'s remarks give, differently applied:
+    /// <c>UnresolvedComponentTypeScanner</c> sweeps every invocation under a failed body and needs
+    /// something to compare a candidate symbol against before any classification is asked for.
+    /// </remarks>
     public IMethodSymbol? HtmlComponent { get; }
-
-    /// <summary>Resolved symbol for <c>BlazorCodeFirst.Html.Raw(string)</c>, or null.</summary>
-    public IMethodSymbol? HtmlRaw { get; }
-
-    /// <summary>Resolved symbol for <c>BlazorCodeFirst.Html.Fragment(params ReadOnlySpan&lt;View&gt;)</c>, or null.</summary>
-    public IMethodSymbol? HtmlFragment { get; }
 
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
@@ -415,10 +379,8 @@ internal sealed class KnownSymbols
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
 
         var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
-        _componentParameterMethods = new Dictionary<ISymbol, ComponentParameterMethodKind>(
-            SymbolEqualityComparer.Default);
+        _surfaceMethods = new Dictionary<ISymbol, SurfaceMethodKind>(SymbolEqualityComparer.Default);
 
-        var componentBindMethods = new List<ISymbol>();
         if (ComponentViewType is not null)
         {
             foreach (var member in ComponentViewType.GetMembers())
@@ -433,29 +395,27 @@ internal sealed class KnownSymbols
                     RenderFragmentType,
                     RenderFragmentGenericType,
                     funcWithArgumentType);
-                if (kind != ComponentParameterMethodKind.None)
-                    _componentParameterMethods[Normalize(method)] = kind;
+                if (kind != SurfaceMethodKind.None)
+                    _surfaceMethods[Normalize(method)] = kind;
             }
 
             // All three overloads, which differ only in their setter parameter; the analyzer reads the
             // setter's own type to tell the synchronous one from the asynchronous one, so nothing here
-            // has to discriminate them.
+            // has to discriminate them. The name gate above answers None for every one of them, so this
+            // registration cannot overwrite a parameter-syntax classification.
             foreach (var member in ComponentViewType.GetMembers("Bind"))
             {
                 if (member is IMethodSymbol bindMethod)
-                    componentBindMethods.Add(bindMethod);
+                    _surfaceMethods[Normalize(bindMethod)] = SurfaceMethodKind.ComponentBind;
             }
         }
-        ComponentBindMethods = componentBindMethods;
 
         var decorationsType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.Decorations");
 
         var attributeShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         var eventShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
-        var attrMethods = new List<ISymbol>();
-        var onMethods = new List<ISymbol>();
-        var bindMethods = new List<ISymbol>();
+        _decorationNames = new HashSet<string>(System.StringComparer.Ordinal);
         if (decorationsType is not null)
         {
             // A decoration is defined by its receiver, not by its name: Decorations declares extension
@@ -485,54 +445,47 @@ internal sealed class KnownSymbols
                 }
 
                 var key = Normalize(method);
+                SurfaceMethodKind kind;
                 switch (method.Name)
                 {
                     // Receiver plus second parameter fully determines (ElementBuilder, string), so this
-                    // single slot cannot take an arbitrary overload. Decorations declares exactly one.
-                    // Not a list pattern: this project targets netstandard2.0 without a System.Index/Range
-                    // polyfill, and the list-pattern lowering requires those types even without a slice.
+                    // single classification cannot take an arbitrary overload. Decorations declares exactly
+                    // one. Not a list pattern: this project targets netstandard2.0 without a
+                    // System.Index/Range polyfill, and the list-pattern lowering requires those types even
+                    // without a slice.
                     case "Class" when method.Parameters.Length == 2
                         && method.Parameters[1].Type.SpecialType == SpecialType.System_String:
-                        ClassMethod = method;
+                        kind = SurfaceMethodKind.Class;
                         break;
                     case "OnClick":
                         // Both overloads map to "onclick"; the analyzer's decoration branch dispatches
-                        // on EventShortcuts, so no separate first-overload symbol is retained.
+                        // on the classification and reads the name out of EventShortcuts, so no separate
+                        // first-overload symbol is retained.
                         eventShortcuts[key] = "onclick";
+                        kind = SurfaceMethodKind.EventShortcut;
                         break;
-                    case "On": onMethods.Add(key); break;                     // all four overloads
-                    case "Attr": attrMethods.Add(key); break;
-                    // An ordinary registration beside On and Attr, and read the same way: the decoration
-                    // arm in RenderExpressionAnalyzer matches a normalized method against this bucket to
-                    // recognize a binding, and the names folded out of it below are what let
-                    // DeclaresDecorationNamed report a misplaced .Bind(…) as BCF3008 rather than BCF1003.
-                    case "Bind": bindMethods.Add(key); break;                    // all six overloads
+                    case "On": kind = SurfaceMethodKind.On; break;               // all four overloads
+                    case "Attr": kind = SurfaceMethodKind.Attr; break;
+                    // An ordinary classification beside On and Attr, and read the same way: the decoration
+                    // arm in RenderExpressionAnalyzer dispatches on it to recognize a binding, and the name
+                    // folded out of it below is what lets DeclaresDecorationNamed report a misplaced
+                    // .Bind(…) as BCF3008 rather than BCF1003.
+                    case "Bind": kind = SurfaceMethodKind.Bind; break;           // all six overloads
                     default:
-                        if (AttributeShortcutNames.TryGetValue(method.Name, out var attr))
-                            attributeShortcuts[key] = attr;
+                        if (!AttributeShortcutNames.TryGetValue(method.Name, out var attr))
+                            continue;
+
+                        attributeShortcuts[key] = attr;
+                        kind = SurfaceMethodKind.AttributeShortcut;
                         break;
                 }
+
+                _surfaceMethods[key] = kind;
+                _decorationNames.Add(method.Name);
             }
         }
         AttributeShortcuts = attributeShortcuts;
         EventShortcuts = eventShortcuts;
-        AttrMethods = attrMethods;
-        OnMethods = onMethods;
-        BindMethods = bindMethods;
-
-        _decorationNames = new HashSet<string>(System.StringComparer.Ordinal);
-        if (ClassMethod is not null)
-            _decorationNames.Add(ClassMethod.Name);
-        foreach (var shortcut in attributeShortcuts.Keys)
-            _decorationNames.Add(shortcut.Name);
-        foreach (var shortcut in eventShortcuts.Keys)
-            _decorationNames.Add(shortcut.Name);
-        foreach (var attr in attrMethods)
-            _decorationNames.Add(attr.Name);
-        foreach (var on in onMethods)
-            _decorationNames.Add(on.Name);
-        foreach (var bind in bindMethods)
-            _decorationNames.Add(bind.Name);
 
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
@@ -554,34 +507,60 @@ internal sealed class KnownSymbols
 
             if (member is not IMethodSymbol method)
                 continue;
+
+            SurfaceMethodKind kind;
             switch (method.Name)
             {
                 // Element(string tag) returns an ElementBuilder and is the only arity: children are written
                 // in brackets on that builder rather than passed to a second overload.
-                case "Element" when method.Parameters.Length == 1: HtmlElement = method; break;
-                case "If" when method.Parameters.Length == 3: HtmlIf = method; break;
-                case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1: HtmlForEach = method; break;
+                case "Element" when method.Parameters.Length == 1:
+                    kind = SurfaceMethodKind.Element;
+                    break;
+                case "If" when method.Parameters.Length == 3:
+                    kind = SurfaceMethodKind.If;
+                    break;
+                case "ForEach" when method.Parameters.Length == 3 && method.Arity == 1:
+                    HtmlForEach = method;
+                    kind = SurfaceMethodKind.ForEach;
+                    break;
                 case "Component" when method.Arity == 1 && method.Parameters.Length == 0:
                     HtmlComponent = method;
+                    kind = SurfaceMethodKind.Component;
                     break;
-                case "Raw" when method.Parameters.Length == 1: HtmlRaw = method; break;
-                case "Fragment" when method.Parameters.Length == 1: HtmlFragment = method; break;
+                case "Raw" when method.Parameters.Length == 1:
+                    kind = SurfaceMethodKind.Raw;
+                    break;
+                case "Fragment" when method.Parameters.Length == 1:
+                    kind = SurfaceMethodKind.Fragment;
+                    break;
+                default:
+                    continue;
             }
+
+            _surfaceMethods[Normalize(method)] = kind;
         }
         ElementTags = elementTags;
     }
 
     /// <summary>
-    /// Classifies one component parameter syntax method by the structurally verified definition captured
-    /// from the current runtime assembly. The map is compilation-local transient state; no symbol crosses
-    /// into an incremental model.
+    /// Which method of the design-time surface <paramref name="method"/> is, in one lookup against the
+    /// table built at construction from the referenced runtime's own declarations.
     /// </summary>
-    public ComponentParameterMethodKind ClassifyComponentParameterMethod(IMethodSymbol method) =>
-        _componentParameterMethods.TryGetValue(Normalize(method), out var kind)
-            ? kind
-            : ComponentParameterMethodKind.None;
+    /// <remarks>
+    /// <para>
+    /// The single place that answers this question, for the reason <see cref="SurfaceMethodKind"/>'s
+    /// remarks record. There is no null guard on an absent known symbol anywhere in it: a member the
+    /// runtime does not declare simply has no row, so it answers <see cref="SurfaceMethodKind.None"/>,
+    /// which is what every caller already does with an unrecognized method.
+    /// </para>
+    /// <para>
+    /// The map is compilation-local transient state; no symbol crosses into an incremental model.
+    /// </para>
+    /// </remarks>
+    public SurfaceMethodKind ClassifySurfaceMethod(IMethodSymbol method) =>
+        _surfaceMethods.TryGetValue(Normalize(method), out var kind) ? kind : SurfaceMethodKind.None;
 
-    private static ComponentParameterMethodKind ClassifyComponentParameterDefinition(
+    private static SurfaceMethodKind ClassifyComponentParameterDefinition(
         IMethodSymbol method,
         INamedTypeSymbol componentViewType,
         INamedTypeSymbol? viewType,
@@ -602,7 +581,7 @@ internal sealed class KnownSymbols
             || !SymbolEqualityComparer.Default.Equals(
                 selector.TypeArguments[0], method.ContainingType.TypeArguments[0]))
         {
-            return ComponentParameterMethodKind.None;
+            return SurfaceMethodKind.None;
         }
 
         var selectedType = selector.TypeArguments[1];
@@ -613,7 +592,7 @@ internal sealed class KnownSymbols
                 && SymbolEqualityComparer.Default.Equals(
                     method.Parameters[1].Type, method.TypeParameters[0]))
             {
-                return ComponentParameterMethodKind.ScalarParam;
+                return SurfaceMethodKind.ScalarParam;
             }
 
             if (method.Arity == 0
@@ -622,10 +601,10 @@ internal sealed class KnownSymbols
                 && SymbolEqualityComparer.Default.Equals(selectedType, renderFragmentType)
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, viewType))
             {
-                return ComponentParameterMethodKind.FragmentParam;
+                return SurfaceMethodKind.FragmentParam;
             }
 
-            return ComponentParameterMethodKind.None;
+            return SurfaceMethodKind.None;
         }
 
         if (method.Name != "Template"
@@ -638,21 +617,21 @@ internal sealed class KnownSymbols
             || !SymbolEqualityComparer.Default.Equals(
                 genericFragment.TypeArguments[0], method.TypeParameters[0]))
         {
-            return ComponentParameterMethodKind.None;
+            return SurfaceMethodKind.None;
         }
 
         if (SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, viewType))
-            return ComponentParameterMethodKind.GenericTemplateIgnored;
+            return SurfaceMethodKind.GenericTemplateIgnored;
 
         if (method.Parameters[1].Type is INamedTypeSymbol { TypeArguments.Length: 2 } content
             && SymbolEqualityComparer.Default.Equals(content.OriginalDefinition, funcWithArgumentType)
             && SymbolEqualityComparer.Default.Equals(content.TypeArguments[0], method.TypeParameters[0])
             && SymbolEqualityComparer.Default.Equals(content.TypeArguments[1], viewType))
         {
-            return ComponentParameterMethodKind.GenericTemplateContextual;
+            return SurfaceMethodKind.GenericTemplateContextual;
         }
 
-        return ComponentParameterMethodKind.None;
+        return SurfaceMethodKind.None;
     }
 
     /// <summary>
