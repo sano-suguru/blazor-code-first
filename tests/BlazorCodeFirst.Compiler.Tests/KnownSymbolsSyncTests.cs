@@ -253,9 +253,16 @@ public sealed class KnownSymbolsSyncTests
         foreach (var expected in new[] { "href", "src", "alt", "id", "type", "title", "role" })
             Assert.Contains(expected, attrNames);
         Assert.Contains("onclick", symbols.EventShortcuts.Values);
-        Assert.NotEmpty(symbols.AttrMethods);
-        Assert.NotEmpty(symbols.OnMethods);
+        Assert.NotEmpty(SurfaceMethodsOfKind(symbols, SurfaceMethodKind.Attr));
+        Assert.NotEmpty(SurfaceMethodsOfKind(symbols, SurfaceMethodKind.On));
     }
+
+    /// <summary>
+    /// The methods <c>KnownSymbols</c> classified as <paramref name="kind"/>, which is the only place the
+    /// compiler now records what a surface method is.
+    /// </summary>
+    private static List<ISymbol> SurfaceMethodsOfKind(KnownSymbols symbols, SurfaceMethodKind kind) =>
+        [.. symbols.SurfaceMethods.Where(entry => entry.Value == kind).Select(entry => entry.Key)];
 
     /// <summary>
     /// Every decoration <c>KnownSymbols</c> captured is an extension on <c>ElementBuilder</c>.
@@ -287,13 +294,15 @@ public sealed class KnownSymbolsSyncTests
         var elementBuilder = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
         Assert.NotNull(elementBuilder);
 
-        var captured = new List<ISymbol>();
-        if (symbols.ClassMethod is not null)
-            captured.Add(KnownSymbols.Normalize(symbols.ClassMethod));
-        captured.AddRange(symbols.AttributeShortcuts.Keys);
-        captured.AddRange(symbols.EventShortcuts.Keys);
-        captured.AddRange(symbols.AttrMethods);
-        captured.AddRange(symbols.OnMethods);
+        var captured = symbols.SurfaceMethods
+            .Where(entry => entry.Value is SurfaceMethodKind.Class
+                or SurfaceMethodKind.AttributeShortcut
+                or SurfaceMethodKind.EventShortcut
+                or SurfaceMethodKind.Attr
+                or SurfaceMethodKind.On
+                or SurfaceMethodKind.Bind)
+            .Select(entry => entry.Key)
+            .ToList();
 
         Assert.NotEmpty(captured);
         foreach (var symbol in captured)
@@ -378,9 +387,10 @@ public sealed class KnownSymbolsSyncTests
     {
         var (symbols, _) = ResolveHtml();
         // .On(string,Action), .On(string,Func<Task>), .On<TArgs>(string,Action<TArgs>) and
-        // .On<TArgs>(string,Func<TArgs,Task>) => 4 OnMethods. The generic pair keys correctly because
-        // Normalize takes OriginalDefinition, so a constructed call site lands on the open definition.
-        Assert.Equal(4, symbols.OnMethods.Count);
+        // .On<TArgs>(string,Func<TArgs,Task>) => 4 classified as On. The generic pair keys correctly
+        // because Normalize takes OriginalDefinition, so a constructed call site lands on the open
+        // definition.
+        Assert.Equal(4, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.On).Count);
         // .OnClick(Action) and .OnClick(Func<Task>) both map to "onclick" => 2 EventShortcuts entries.
         Assert.Equal(2, symbols.EventShortcuts.Count(kvp => kvp.Value == "onclick"));
     }
@@ -396,21 +406,45 @@ public sealed class KnownSymbolsSyncTests
     {
         var (symbols, _) = ResolveHtml();
 
-        Assert.Equal(2, symbols.AttrMethods.Count);
+        Assert.Equal(2, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.Attr).Count);
     }
 
+    /// <summary>
+    /// Every structural <c>Html</c> member is classified. The classification is the only place the
+    /// compiler records that a method is surface syntax, so a runtime that renamed one, or changed its
+    /// shape past the constructor's guards, would leave that member falling through to BCF1003 with
+    /// nothing else to notice.
+    /// </summary>
+    /// <remarks>
+    /// One <see cref="FactAttribute"/> over a local table rather than a <see cref="TheoryAttribute"/>
+    /// taking the kind: <c>SurfaceMethodKind</c> is internal, and a public test method cannot declare an
+    /// internal parameter (CS0051).
+    /// </remarks>
     [Fact]
-    public void Raw_IsResolved()
+    public void StructuralHtmlMembers_AreClassified()
     {
         var (symbols, _) = ResolveHtml();
-        Assert.NotNull(symbols.HtmlRaw);
-    }
 
-    [Fact]
-    public void Fragment_IsResolved()
-    {
-        var (symbols, _) = ResolveHtml();
-        Assert.NotNull(symbols.HtmlFragment);
+        var expected = new (string Name, SurfaceMethodKind Kind)[]
+        {
+            ("Element", SurfaceMethodKind.Element),
+            ("If", SurfaceMethodKind.If),
+            ("ForEach", SurfaceMethodKind.ForEach),
+            ("Component", SurfaceMethodKind.Component),
+            ("Raw", SurfaceMethodKind.Raw),
+            ("Fragment", SurfaceMethodKind.Fragment),
+        };
+
+        // Held against the list the tag tests already read structural membership off, so a member added
+        // to one and not the other cannot pass here.
+        Assert.Equal(StructuralHtml.Length, expected.Length);
+
+        foreach (var (name, kind) in expected)
+        {
+            var classified = Assert.Single(SurfaceMethodsOfKind(symbols, kind));
+            Assert.Equal(name, classified.Name);
+            Assert.Contains(name, StructuralHtml);
+        }
     }
 
     [Fact]
@@ -418,9 +452,10 @@ public sealed class KnownSymbolsSyncTests
     {
         var (symbols, _) = ResolveHtml();
 
-        Assert.NotNull(symbols.HtmlElement);
-        Assert.Single(symbols.HtmlElement!.Parameters);
-        Assert.Equal(SpecialType.System_String, symbols.HtmlElement.Parameters[0].Type.SpecialType);
+        var element = Assert.IsAssignableFrom<IMethodSymbol>(
+            Assert.Single(SurfaceMethodsOfKind(symbols, SurfaceMethodKind.Element)));
+        Assert.Single(element.Parameters);
+        Assert.Equal(SpecialType.System_String, element.Parameters[0].Type.SpecialType);
     }
 
     [Fact]
@@ -445,19 +480,34 @@ public sealed class KnownSymbolsSyncTests
 
         var kinds = symbols.ComponentViewType!.GetMembers()
             .OfType<IMethodSymbol>()
-            .Select(symbols.ClassifyComponentParameterMethod)
-            .Where(static kind => kind != ComponentParameterMethodKind.None)
+            .Select(symbols.ClassifySurfaceMethod)
+            .Where(static kind => kind is SurfaceMethodKind.ScalarParam
+                or SurfaceMethodKind.FragmentParam
+                or SurfaceMethodKind.GenericTemplateIgnored
+                or SurfaceMethodKind.GenericTemplateContextual)
             .OrderBy(static kind => kind)
             .ToArray();
 
         Assert.Equal(
             [
-                ComponentParameterMethodKind.ScalarParam,
-                ComponentParameterMethodKind.FragmentParam,
-                ComponentParameterMethodKind.GenericTemplateIgnored,
-                ComponentParameterMethodKind.GenericTemplateContextual,
+                SurfaceMethodKind.ScalarParam,
+                SurfaceMethodKind.FragmentParam,
+                SurfaceMethodKind.GenericTemplateIgnored,
+                SurfaceMethodKind.GenericTemplateContextual,
             ],
             kinds);
+    }
+
+    /// <summary>
+    /// Every <c>ComponentView&lt;T&gt;.Bind</c> overload is classified, since the arm that reads a
+    /// component binding is reached by the classification alone.
+    /// </summary>
+    [Fact]
+    public void ComponentBind_RegistersAllThreeOverloads()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.Equal(3, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.ComponentBind).Count);
     }
 
     /// <summary>
