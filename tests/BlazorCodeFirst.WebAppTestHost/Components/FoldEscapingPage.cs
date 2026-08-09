@@ -16,7 +16,7 @@ namespace BlazorCodeFirst.WebAppTestHost.Components;
 /// keeps folding to one frame, which
 /// <c>PrerenderTests.FoldEscaping_page_folds_to_a_single_markup_frame</c> pins directly: an ordinary,
 /// unfolded <c>AddContent</c>/<c>AddAttribute</c> pair would be escaped by the .NET <c>HtmlRenderer</c>
-/// itself, byte-identically to <c>StaticMarkupSerializer.Write</c> for every character asserted here, so
+/// itself, byte-identically to <c>StaticMarkupSerializer.WriteTo</c> for every character asserted here, so
 /// the escaping test alone cannot tell the two paths apart.
 /// </summary>
 [Route("/fold-escaping")]

@@ -64,9 +64,22 @@ internal readonly record struct SubstitutedArgument(string Code, ConstantInfo? C
 
 internal sealed record ExpressionTemplate
 {
+    private readonly bool _containsHole;
+
+    /// <remarks>
+    /// Both derived facts are settled here because the record is immutable, so neither can change after
+    /// construction and neither is worth recomputing per read. Coalescing adjacent literals is what makes
+    /// <see cref="Segments"/> a canonical form — the same code text always the same segment array — which
+    /// matters because <see cref="Segments"/> participates in the value equality the incremental generator
+    /// caches on. <see cref="Analysis.ExpressionTemplateFactory"/> builds segments one gap and one
+    /// replacement at a time and would otherwise hand out several spellings of one expression, differing
+    /// only in where the source happened to be split.
+    /// </remarks>
     private ExpressionTemplate(ImmutableArray<ExpressionSegment> segments, ConstantInfo? constant)
     {
-        Segments = segments;
+        var canonical = CoalesceLiterals(segments);
+        Segments = canonical;
+        _containsHole = ContainsHole(canonical);
         Constant = constant;
     }
 
@@ -99,17 +112,17 @@ internal sealed record ExpressionTemplate
     /// </summary>
     /// <remarks>
     /// A hole-free template is returned as it stands. Substitution cannot change one — every segment would
-    /// be copied to an equal value — and the expander begins every component with an empty substitution, so
-    /// without this a component that calls no composable still rebuilt a template for each of its attribute
-    /// values, class channels, handlers, text, keys, and conditions. The scan it costs is one pass over the
-    /// segments, which the loop below performs anyway.
+    /// be copied to an equal value, and the segments are already canonical — and the expander begins every
+    /// component with an empty substitution, so without this a component that calls no composable still
+    /// rebuilt a template for each of its attribute values, class channels, handlers, text, keys, and
+    /// conditions. The test costs nothing: the answer was settled at construction.
     /// </remarks>
     public ExpressionTemplate Substitute(ImmutableArray<SubstitutedArgument> arguments)
     {
-        var segments = Segments.AsImmutableArray();
-        if (!ContainsHole(segments))
+        if (!_containsHole)
             return this;
 
+        var segments = Segments.AsImmutableArray();
         if (segments.Length == 1
             && segments[0] is ParameterHoleExpressionSegment loneHole
             && ArgumentAt(loneHole, arguments) is { Constant: StringConstant { Text: var constantText } constant })
@@ -137,7 +150,7 @@ internal sealed record ExpressionTemplate
         // a hole is created only for an identifier bound to a composable parameter, and a parameter
         // reference is not a compile-time constant. So there is nothing here that substitution could
         // invalidate.
-        return new ExpressionTemplate(CoalesceLiterals(builder.MoveToImmutable()), Constant);
+        return new ExpressionTemplate(builder.MoveToImmutable(), Constant);
     }
 
     public string ToCode()
@@ -178,9 +191,18 @@ internal sealed record ExpressionTemplate
         return arguments[hole.ParameterOrdinal];
     }
 
+    /// <summary>
+    /// Merges runs of adjacent literals so one expression has one segment array. Returns
+    /// <paramref name="segments"/> unchanged when there is nothing to merge, which is the common case and
+    /// the reason this can run on every construction: a template built as a single literal, or as strictly
+    /// alternating literals and holes, is already canonical and allocates nothing here.
+    /// </summary>
     private static ImmutableArray<ExpressionSegment> CoalesceLiterals(
         ImmutableArray<ExpressionSegment> segments)
     {
+        if (!HasAdjacentLiterals(segments))
+            return segments;
+
         var result = ImmutableArray.CreateBuilder<ExpressionSegment>();
         var text = new StringBuilder();
 
@@ -205,5 +227,19 @@ internal sealed record ExpressionTemplate
             result.Add(new LiteralExpressionSegment(text.ToString()));
 
         return result.ToImmutable();
+    }
+
+    private static bool HasAdjacentLiterals(ImmutableArray<ExpressionSegment> segments)
+    {
+        for (var index = 1; index < segments.Length; index++)
+        {
+            if (segments[index] is LiteralExpressionSegment
+                && segments[index - 1] is LiteralExpressionSegment)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

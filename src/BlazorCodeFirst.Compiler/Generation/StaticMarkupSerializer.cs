@@ -60,38 +60,30 @@ internal static class StaticMarkupSerializer
     };
 
     /// <summary>
-    /// Serializes a run of consecutive foldable siblings into one markup string.
+    /// Serializes a run of consecutive foldable siblings into one markup string, appending it to
+    /// <paramref name="builder"/>.
     /// </summary>
+    /// <param name="builder">Receives the markup. Written into, never cleared, and left as it stands
+    /// when the caller decides not to take the fold.</param>
     /// <param name="run">Nodes that all satisfy <see cref="IsFoldable"/>.</param>
     /// <returns>
-    /// The markup, and the number of frames the element path would have emitted for the same run. The
-    /// count is advisory: <see cref="RenderViewEmitter"/> uses it only to decide whether folding is a win
-    /// (a run worth less than two frames is emitted node by node). It takes no part in sequence
-    /// arithmetic, because a markup frame consumes exactly one sequence number whatever the count says,
-    /// so a disagreement with the emitter costs a missed or pointless fold and can never corrupt
-    /// numbering.
+    /// The number of frames the element path would have emitted for the same run. The count is advisory:
+    /// <see cref="RenderViewEmitter"/> uses it only to decide whether folding is a win (a run worth less
+    /// than two frames is emitted node by node). It takes no part in sequence arithmetic, because a markup
+    /// frame consumes exactly one sequence number whatever the count says, so a disagreement with the
+    /// emitter costs a missed or pointless fold and can never corrupt numbering.
     /// </returns>
     /// <exception cref="System.NotSupportedException">
     /// A node in <paramref name="run"/> is not foldable. Callers partition on <see cref="IsFoldable"/>
     /// first; reaching here means the two have drifted, which is a bug and not a case to absorb, matching
-    /// the exhaustiveness contract in <c>RenderViewEmitter.EmitNode</c>.
+    /// the exhaustiveness contract in <c>RenderViewEmitter.EmitNode</c>. The builder may already hold part
+    /// of the run when this throws, which costs nothing: the exception leaves the generator.
     /// </exception>
-    public static (string Markup, int AbsorbedFrameCount) Write(ImmutableArray<RenderNode> run)
-    {
-        var builder = new StringBuilder();
-        var absorbed = WriteTo(builder, run);
-        return (builder.ToString(), absorbed);
-    }
-
-    /// <summary>
-    /// As <see cref="Write(ImmutableArray{RenderNode})"/>, appending into <paramref name="builder"/> and
-    /// returning the absorbed frame count without materializing the markup.
-    /// </summary>
     /// <remarks>
     /// The frame count is only knowable by walking the run, and the walk that knows it is the one that
     /// writes: which attributes append a frame is decided case by case as they are serialized, so a
     /// separate counting pass would be a second implementation of that rule and free to disagree with this
-    /// one. Splitting the string out instead lets <c>RenderViewEmitter</c> learn the count, discover the
+    /// one. Returning the count rather than the string lets <c>RenderViewEmitter</c> learn it, discover the
     /// fold is not worth taking, and abandon the builder without paying for the copy
     /// <see cref="StringBuilder.ToString"/> makes — which is what the discarded case always was.
     /// </remarks>

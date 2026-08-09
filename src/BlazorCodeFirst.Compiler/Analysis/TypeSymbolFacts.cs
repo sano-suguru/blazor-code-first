@@ -61,6 +61,16 @@ internal static class TypeSymbolFacts
     /// composable route validates its methods as non-generic before reaching here, so that arm is unreachable
     /// from it and only the extension-method route depends on the answer.
     /// </para>
+    /// <para>
+    /// A function pointer changes answer for the same reason and by the same route, though nothing in the
+    /// switch names it: <see cref="IFunctionPointerTypeSymbol"/> matches no case above and falls to
+    /// <c>default</c>, where the composable copy's <c>default</c> used to mean "nameable". It is left to fall
+    /// through rather than given an arm, because an arm would suggest the type needs handling when what it
+    /// needs is the default answer. Like the pointer arm it is unreachable in practice — a
+    /// <c>delegate*&lt;…&gt;</c> parameter requires an <c>unsafe</c> context — and untested for the same
+    /// reason: covering it would mean turning on <c>AllowUnsafeBlocks</c> across
+    /// <c>CompilationTestHost</c>, changing what every other test compiles under.
+    /// </para>
     /// </remarks>
     public static bool IsNameableInGeneratedCode(ITypeSymbol type)
     {

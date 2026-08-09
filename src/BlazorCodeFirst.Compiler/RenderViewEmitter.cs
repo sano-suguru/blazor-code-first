@@ -84,15 +84,35 @@ internal static class RenderViewEmitter
             return afterFold;
         }
 
+        return EmitUnfolded(writer, node, startSeq, key);
+    }
+
+    /// <summary>
+    /// Dispatches <paramref name="node"/> to its emitter without attempting a fold, and returns the next
+    /// available sequence number. Separate from <see cref="EmitNode"/> so that a caller which already knows
+    /// folding is not on the table can say so instead of paying to rediscover it: <see cref="EmitChildren"/>
+    /// reaches here for a run it has just seen declined, where a second attempt is not merely wasteful but
+    /// provably futile — <see cref="StaticMarkupSerializer.WriteTo"/> sums the absorbed count over the run,
+    /// so a run declined for absorbing fewer than two frames has every member absorbing fewer than two on
+    /// its own.
+    /// </summary>
+    /// <param name="key">As <see cref="EmitNode"/>.</param>
+    private static int EmitUnfolded(IndentedWriter writer, RenderNode node, int startSeq, string? key)
+    {
         // Only three node kinds can receive a threaded key: the two that open a keyable frame and consume
         // it, and the expansion that forwards it to its body's root. Everything else is region-rooted or
         // frameless, and BCF3003 blocks region-rooted content from reaching emission at all, so a key
         // arriving at one of them means a keyable node was wired to this dispatch without updating that
         // contract. Asserted once here, where the split is already visible, rather than restated at each
-        // arm that would otherwise take a key it cannot honour.
-        Debug.Assert(
-            key is null || node is ElementNode or ComponentNode or ExpansionNode,
-            $"A key reached '{node.GetType().Name}', which opens no keyable frame; SetKey would be silently dropped.");
+        // arm that would otherwise take a key it cannot honour. The test guards the assertion rather than
+        // riding inside it because the message is interpolated: as an argument it would be built on every
+        // node in a DEBUG build, and only a ForEach content root ever arrives with a key.
+        if (key is not null)
+        {
+            Debug.Assert(
+                node is ElementNode or ComponentNode or ExpansionNode,
+                $"A key reached '{node.GetType().Name}', which opens no keyable frame; SetKey would be silently dropped.");
+        }
 
         return node switch
         {
@@ -141,9 +161,11 @@ internal static class RenderViewEmitter
             }
             else
             {
-                // Foldable but not worth folding: emit the run's nodes as they stand.
+                // Foldable but not worth folding: emit the run's nodes as they stand. Straight to
+                // EmitUnfolded, because routing them back through EmitNode would walk each subtree for
+                // IsFoldable again and re-serialize it into a StringBuilder only to decline a second time.
                 for (var inner = index; inner < runEnd; inner++)
-                    seq = EmitNode(writer, nodes[inner], seq);
+                    seq = EmitUnfolded(writer, nodes[inner], seq, key: null);
             }
 
             index = runEnd;

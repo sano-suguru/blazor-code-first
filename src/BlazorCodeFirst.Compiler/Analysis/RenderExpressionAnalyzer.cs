@@ -1429,7 +1429,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static bool TryGetConstantName(
-        ExpressionSyntax expression, ComposableBodyContext context, [NotNullWhen(true)] out string? name)
+        ExpressionSyntax expression, ComposableBodyContext context, [MaybeNullWhen(false)] out string name)
     {
         var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
         if (constant is { HasValue: true, Value: string value } && !string.IsNullOrWhiteSpace(value))
@@ -1437,7 +1437,7 @@ internal static class RenderExpressionAnalyzer
             name = value;
             return true;
         }
-        name = null;
+        name = null!;
         return false;
     }
 

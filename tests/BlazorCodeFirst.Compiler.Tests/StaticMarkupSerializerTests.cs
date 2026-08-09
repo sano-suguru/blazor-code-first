@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using BlazorCodeFirst.Compiler.Analysis;
 using BlazorCodeFirst.Compiler.Generation;
 
@@ -441,8 +442,12 @@ public sealed class StaticMarkupSerializerTests
 
     // --- serialization ------------------------------------------------------------------------
 
-    private static (string Markup, int Absorbed) Write(params RenderNode[] run) =>
-        StaticMarkupSerializer.Write(ImmutableArray.Create(run));
+    private static (string Markup, int Absorbed) Write(params RenderNode[] run)
+    {
+        var builder = new StringBuilder();
+        var absorbed = StaticMarkupSerializer.WriteTo(builder, ImmutableArray.Create(run));
+        return (builder.ToString(), absorbed);
+    }
 
     [Fact]
     public void Write_TextContent_EmitsTheValue() =>
