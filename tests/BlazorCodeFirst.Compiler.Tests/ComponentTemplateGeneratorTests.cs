@@ -255,6 +255,137 @@ public sealed class ComponentTemplateGeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// The test above covers the collision qualification for a field. The remaining instance-member
+    /// kinds the rule accepts — property, method, and event — are covered here. Each declaration is
+    /// spelled exactly like the generated contextual parameter, so an unqualified reference in the
+    /// generated lambda would bind to that parameter instead of the containing instance's member. The
+    /// context is <c>int</c> and every member is reached through a <c>string</c>- or
+    /// <c>Action</c>-typed overload, so a missing <c>this.</c> is a compile error rather than a silent
+    /// rebinding.
+    /// </summary>
+    [Theory]
+    [InlineData("private string __bcf_context_1 => \"member\";", "__bcf_context_1")]
+    [InlineData("private string __bcf_context_1() => \"member\";", "__bcf_context_1()")]
+    [InlineData("private event System.Action? __bcf_context_1;", "__bcf_context_1")]
+    public void ContextualTemplate_CollidingInstanceMember_IsQualifiedWithThis(
+        string declaration,
+        string reference)
+    {
+        var host = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+
+            public static class Sink
+            {
+                public static string Read(string value) => value;
+                public static string Read(System.Action? handler) => handler is null ? "null" : "handler";
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                {{declaration}}
+
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Span[Sink.Read({{reference}}) + context.ToString()]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("((__bcf_context_1) => (__builder) =>", code);
+        Assert.Contains($"this.{reference}", code);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// A colliding method named as a handler rather than invoked. The rule's invocation fallback does
+    /// not apply here — the identifier's parent is an argument, not an invocation — so qualification
+    /// rests entirely on <c>GetOperation</c> yielding a member reference for a method group in a
+    /// delegate-conversion position. It does, and this pins that it keeps doing so.
+    /// </summary>
+    [Fact]
+    public void ContextualTemplate_CollidingMethodGroupHandler_IsQualifiedWithThis()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                private void __bcf_context_1() { }
+
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Button.OnClick(__bcf_context_1)[context.ToString()]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("((__bcf_context_1) => (__builder) =>", code);
+        Assert.Contains("this.__bcf_context_1", code);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// The member name on the left of an object- or nested-initializer assignment names a member of the
+    /// object being initialized, not of the containing instance, so <c>this.</c> would not compile there
+    /// even though the spelling collides. The same spelling as a bare reference in the same expression is
+    /// qualified, which is what distinguishes the two positions.
+    /// </summary>
+    [Fact]
+    public void ContextualTemplate_CollidingInitializerMemberName_IsLeftUnqualified()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+
+            public sealed class Nested
+            {
+                public string __bcf_context_1 { get; set; } = "";
+            }
+
+            public sealed class Bag
+            {
+                public string __bcf_context_1 { get; set; } = "";
+                public Nested Inner { get; } = new();
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly string __bcf_context_1 = "member";
+
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Span[new Bag { __bcf_context_1 = "x", Inner = { __bcf_context_1 = "y" } }.Inner.__bcf_context_1
+                            + __bcf_context_1
+                            + context.ToString()]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("((__bcf_context_1) => (__builder) =>", code);
+        Assert.Contains("__bcf_context_1 = \"x\"", code);
+        Assert.Contains("__bcf_context_1 = \"y\"", code);
+        Assert.DoesNotContain("this.__bcf_context_1 =", code);
+
+        // The containing-instance field in the same expression is still qualified, so the assertion
+        // above is about the initializer position and not about qualification being off altogether.
+        Assert.Contains("this.__bcf_context_1", code);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     [Fact]
     public void ContextualTemplate_NestedLambdaParameterCannotCaptureGeneratedContextName()
     {

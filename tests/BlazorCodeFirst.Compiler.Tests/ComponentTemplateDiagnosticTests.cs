@@ -77,14 +77,23 @@ public sealed class ComponentTemplateDiagnosticTests
     }
 
     [Theory]
-    [InlineData("() => Span[\"x\"]")]
-    [InlineData("(int x, int y) => Span[x.ToString()]")]
-    public void ContextualTemplate_WrongArity_IsLeftToCSharp(string content)
+    [InlineData("() => Span[\"x\"]", "CS1660")]
+    [InlineData("(int x, int y) => Span[x.ToString()]", "CS1660")]
+    public void ContextualTemplate_WrongArity_IsLeftToCSharp(string content, string csharpError)
     {
         // Neither shape converts to Func<TContext, View>, so C# rejects the call before this rule
         // could apply. Reporting BCF3022 on top would name a fix the author has already been given.
         var result = Run($"Component<TemplateTarget>().Template(c => c.RowTemplate, {content})");
 
+        // The C# error is asserted alongside BCF3022's silence because it is the reason for that
+        // silence. CS1660 is reported against the context-ignoring overload, whose second parameter
+        // is View: the contextual overload was discarded on arity, overload resolution failed, and so
+        // GetSymbolInfo yields no symbol and RenderExpressionAnalyzer returns before its contextual
+        // branch. Without pinning that, this test stays green for a compilation that bound the call
+        // and then declined to report, which is a different behavior under the same assertion.
+        Assert.Contains(
+            result.OutputCompilation.GetDiagnostics(),
+            d => d.Severity == DiagnosticSeverity.Error && d.Id == csharpError);
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3022");
     }
 
