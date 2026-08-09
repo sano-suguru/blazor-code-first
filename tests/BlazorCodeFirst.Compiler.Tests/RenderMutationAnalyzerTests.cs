@@ -453,6 +453,13 @@ public sealed class RenderMutationAnalyzerTests
                 [Microsoft.AspNetCore.Components.Parameter] public string Value { get; set; } = "";
                 [Microsoft.AspNetCore.Components.Parameter]
                 public Microsoft.AspNetCore.Components.EventCallback<string> ValueChanged { get; set; }
+
+                // A parameter of the component's own type, so TValue and TComponent coincide. That is
+                // the shape under which the type-comparing derivation replaced by #206 read the
+                // selector as the setter.
+                [Microsoft.AspNetCore.Components.Parameter] public Probe? Self { get; set; }
+                [Microsoft.AspNetCore.Components.Parameter]
+                public Microsoft.AspNetCore.Components.EventCallback<Probe> SelfChanged { get; set; }
             }
 
             public partial class Counter : BodyComponentBase
@@ -493,6 +500,26 @@ public sealed class RenderMutationAnalyzerTests
             """;
 
         AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
+    /// The selector is not a deferred position. It is evaluated for the parameter it names while the
+    /// frames are built, exactly as the getter is, so a mutation written in it is BCF3001 — which is
+    /// what ARCHITECTURE.md 付録A's BCF3001 row says by naming only the setter argument. This shape,
+    /// a bound parameter whose type is the component's own, is where the derivation #206 replaced
+    /// answered otherwise.
+    /// </summary>
+    [Fact]
+    public void Bind_ComponentSelectorMutatingState_ReportsBcf3001()
+    {
+        const string body = """
+            private Probe? _p;
+            private bool _touched;
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => { _touched = true; return c.Self; }, () => _p, v => _p = v);
+            """;
+
+        AssertDiagnostic(body, "BCF3001");
     }
 
     [Fact]
