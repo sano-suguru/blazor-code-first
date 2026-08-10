@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
-using System.Linq;
 using System.Text;
 using BlazorCodeFirst.Compiler.Generation;
 using Microsoft.CodeAnalysis.Text;
@@ -211,23 +210,19 @@ internal static class RenderViewEmitter
 
     /// <summary>
     /// Emits the folded <c>class</c> attribute for a decorated element and returns the next sequence
-    /// number. All <c>.Class</c> decorations collapse into one attribute frame (ARCHITECTURE.md §2.7(A)):
-    /// a single class is emitted verbatim; N≥2 classes are concatenated as <c>(e0) + " " + (e1) + …</c>
-    /// with each expression parenthesized so operator precedence (e.g. a ternary or <c>??</c>) is
-    /// preserved. When every class is a string literal the C# compiler constant-folds this to one string.
-    /// When there is no decoration, no frame is emitted and the sequence is unchanged.
+    /// number. All <c>.Class</c> decorations collapse into one attribute frame (ARCHITECTURE.md §2.7(A)),
+    /// and <see cref="ClassChannel.JoinAsCode"/> writes the value they collapse to. What this method
+    /// decides is the framing: one frame however many decorations there are, and no frame at all when
+    /// there are none, which is why the empty case is tested here rather than left to the join.
     /// </summary>
     private static int EmitClassAttribute(IndentedWriter writer, EquatableArray<ExpressionTemplate> classes, int seq)
     {
         if (classes.Length == 0)
             return seq;
 
-        var array = classes.AsImmutableArray();
-        string value = array.Length == 1
-            ? array[0].ToCode()
-            : string.Join(" + \" \" + ", array.Select(static c => $"({c.ToCode()})"));
-
-        writer.AppendLine($"__builder.AddAttribute({seq}, \"{ClassChannel.AttributeName}\", {value});");
+        writer.AppendLine(
+            $"__builder.AddAttribute({seq}, \"{ClassChannel.AttributeName}\", "
+                + $"{ClassChannel.JoinAsCode(classes)});");
         return seq + 1;
     }
 

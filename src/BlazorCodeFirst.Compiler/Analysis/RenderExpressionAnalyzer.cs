@@ -548,9 +548,6 @@ internal static class RenderExpressionAnalyzer
         if (args.At(0) is not { } firstArg)
             return null;
 
-        if (kind == SurfaceMethodKind.Class)
-            return FoldIntoClassChannel(invocation, decoAccess, element, firstArg.Expression, context);
-
         if (kind == SurfaceMethodKind.Bind)
             return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
 
@@ -614,12 +611,20 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        // Attribute shortcut or generic .Attr. The value is the last parameter in both spellings — the
-        // name, where it is written at all, is the one ahead of it — and that single derivation answers
-        // both readings below: the argument index the value is carried at, and whether the overload picked
-        // is the bool one. Two derivations of "where the value sits" in one arm is the shape #221 was
-        // filed about, even where no second reader has to agree with this one.
+        // .Class, an attribute shortcut, or the generic .Attr. The value is the last parameter of all
+        // three — the name, where it is written at all, is the one ahead of it — and this one derivation
+        // answers both readings below: the argument index the value is carried at, and the value's type,
+        // which is what the class channel admits or refuses on. Deriving it once is what puts .Class and
+        // .Attr("class", …) under the same admission, where the type used to be read on the .Attr route
+        // alone (#193).
         var attributeValue = method.Parameters[method.Parameters.Length - 1];
+
+        // .Class is the channel and carries no name to resolve, so it routes before the name is read.
+        if (kind == SurfaceMethodKind.Class)
+        {
+            return FoldIntoClassChannel(
+                invocation, decoAccess, element, attributeValue.Type, firstArg.Expression, context);
+        }
 
         if (!TryResolveDecorationName(
                 invocation, args, firstArg, shortcutName, KnownSymbols.ArgumentIndex(attributeValue),
@@ -629,23 +634,9 @@ internal static class RenderExpressionAnalyzer
         }
 
         // 'class' routes to the channel rather than to Attributes, the same as .Class, and may repeat.
+        // The shortcut route never spells the name, so only .Attr arrives here.
         if (ClassChannel.Owns(attrName))
-        {
-            // The channel joins its decorations into one value, so the bool overload means two
-            // different things there depending on how many others the element carries (#159). Which
-            // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
-            // shape; the value expression's own type is not consulted. The shortcut route never spells
-            // 'class', so only .Attr reaches this test.
-            if (attributeValue.Type.SpecialType == SpecialType.System_Boolean)
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3023, valueExpr.GetLocation(), []));
-                return null;
-            }
-
-            return FoldIntoClassChannel(invocation, decoAccess, element, valueExpr, context);
-        }
+            return FoldIntoClassChannel(invocation, decoAccess, element, attributeValue.Type, valueExpr, context);
 
         // Reject before normalizing the value, as the event channel does: normalization reports on the
         // value's own types, and a rejected decoration's value never reaches generated code.
@@ -687,32 +678,44 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Adds <paramref name="value"/> to <paramref name="element"/>'s class channel, or reports BCF3024 if
-    /// the element already carries a binding on the channel's name.
+    /// Offers <paramref name="value"/> to <paramref name="element"/>'s class channel, adding it when the
+    /// channel admits it and reporting the refusal otherwise.
     /// </summary>
+    /// <param name="valueType">
+    /// The type of the value parameter on the resolved overload, which is what the channel admits or
+    /// refuses on. Passed rather than derived here, because the caller has already had to derive it to
+    /// find the value argument at all.
+    /// </param>
     /// <remarks>
-    /// Both spellings that fold — <c>.Class</c> and <c>.Attr("class", …)</c> — arrive here, so the check
-    /// is written once and the answer does not depend on which of them was used. It is also the half of
-    /// BCF3024 that catches the decorations written in the other order: a <c>.Class</c> never reaches
+    /// Both spellings that fold — <c>.Class</c> and <c>.Attr("class", …)</c> — arrive here, so every rule
+    /// about the channel is asked once and the answer does not depend on which of them was used.
+    /// <see cref="ClassChannel.Admit"/> holds the rules; this method only maps a refusal onto the
+    /// diagnostic and the location that report it. It is also the half of BCF3024 that catches the
+    /// decorations written in the other order: a <c>.Class</c> never reaches
     /// <see cref="ClassifyBind"/>, so the bind arm alone would report only the chains where the binding
-    /// came last. <see cref="HasBinding(ElementTemplateNode, string)"/> can answer for this name because
-    /// nothing but a binding can put it in either of the other two channels — the folding spellings never
-    /// reach <see cref="ElementTemplateNode.Attributes"/>, and an event name is BCF3019 unless it starts
-    /// with <c>on</c>.
+    /// came last.
     /// </remarks>
     private static ElementTemplateNode? FoldIntoClassChannel(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
         ElementTemplateNode element,
+        ITypeSymbol valueType,
         ExpressionSyntax value,
         ComposableBodyContext context)
     {
-        if (HasBinding(element, ClassChannel.AttributeName))
+        switch (ClassChannel.Admit(element, valueType))
         {
-            context.RejectUnresolvedValueRecovery(invocation.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3024, decoAccess.Name.GetLocation(), []));
-            return null;
+            case ClassChannelAdmission.ValueDoesNotJoin:
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3023, value.GetLocation(), []));
+                return null;
+
+            case ClassChannelAdmission.NameAlreadyBound:
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3024, decoAccess.Name.GetLocation(), []));
+                return null;
         }
 
         return element with
@@ -809,10 +812,9 @@ internal static class RenderExpressionAnalyzer
         }
 
         // The same question for the one name the check above must let through. HasBinding cannot ask it,
-        // because the folding spellings leave nothing in the channels it reads; the class channel has to be
-        // read directly. A binding does not fold, so it collides with the whole of it rather than with a
-        // particular decoration.
-        if (ClassChannel.Owns(attrName) && element.Classes.Length > 0)
+        // because the folding spellings leave nothing in the channels it reads; the channel is asked
+        // directly instead, and answers from its own side of BCF3024.
+        if (ClassChannel.Owns(attrName) && ClassChannel.IsFolded(element))
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -1422,9 +1424,9 @@ internal static class RenderExpressionAnalyzer
     /// channel produced it, so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
     /// duplicate as two <c>.OnClick</c>. The folding spellings of <c>class</c> never reach this check —
     /// both <c>.Class</c> and <c>.Attr("class", …)</c> route to <see cref="ElementTemplateNode.Classes"/>
-    /// first, which is how the one repeatable attribute stays legal — so a <see langword="true"/> for that
-    /// name can only have come from a <c>.Bind</c>, the one spelling of it that does not fold.
-    /// <see cref="FoldIntoClassChannel"/> asks exactly that and reports BCF3024.
+    /// first, which is how the one repeatable attribute stays legal — so this is never asked about that
+    /// name at all. What collides there is the channel rather than the name, and
+    /// <see cref="ClassChannel"/> answers it from both sides as BCF3024.
     /// <para>
     /// A binding occupies both names it was given, and both are checked here rather than only in the
     /// bind arm, so that the answer does not depend on decoration order:

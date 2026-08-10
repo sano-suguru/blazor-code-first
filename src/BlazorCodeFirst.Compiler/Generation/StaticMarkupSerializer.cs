@@ -134,13 +134,15 @@ internal static class StaticMarkupSerializer
         if (element.Classes.Length > 0)
         {
             // All .Class decorations collapse into one class attribute (ARCHITECTURE.md §2.7(A)), which is
-            // one frame however many there are.
-            builder.Append(" class=\"");
+            // one frame however many there are. The name and the separator come from the channel, not from
+            // literals written here: this markup and the emitter's concatenation have to reach the same
+            // DOM, so neither of them gets to spell them for itself (#193).
+            builder.Append(' ').Append(ClassChannel.AttributeName).Append("=\"");
             var first = true;
             foreach (var @class in element.Classes)
             {
                 if (!first)
-                    builder.Append(' ');
+                    builder.Append(ClassChannel.Separator);
                 AppendEscapedAttributeValue(builder, ConstantTextOf(@class, element));
                 first = false;
             }
@@ -244,8 +246,9 @@ internal static class StaticMarkupSerializer
         if (element.Bindings.Length > 0)
             return false;
 
-        // The class channel folds by concatenation, so it needs a constant string and nothing else will
-        // do: a constant null has no text to join, and a bool has no meaning as part of a class list.
+        // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
+        // left here is not the value's type but whether it is a constant this markup can carry: a constant
+        // null has no text to join and no attribute to write, and a non-constant has no text at all.
         foreach (var @class in element.Classes)
         {
             if (@class.Constant is not StringConstant { Text: var value } || !CanRoundTrip(value))
