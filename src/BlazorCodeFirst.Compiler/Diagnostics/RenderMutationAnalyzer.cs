@@ -228,8 +228,9 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// Each arm identifies its lambda by the parameter it binds to, never by argument position: a named
     /// argument (<c>.On(handler: h, eventName: "onclick")</c>) can put the handler anywhere in the list.
     /// The <c>.Bind</c> getter is deliberately not a deferred position — it is evaluated while the frames
-    /// are built, so a mutation there must still be reported — which is what
-    /// <see cref="IsSetterParameter"/> separates it from.
+    /// are built, so a mutation there must still be reported — and neither is the component spelling's
+    /// selector, which names a parameter rather than carrying a value. <see cref="BindParameters.IsSetter"/>
+    /// separates the setter from both, by position rather than by delegate shape (#206).
     /// </para>
     /// </remarks>
     private static bool IsDeferredHandlerArgument(
@@ -249,7 +250,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On =>
                 GetBoundParameter(arg, invocation, semanticModel)?.Type.TypeKind == TypeKind.Delegate,
             SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind =>
-                IsSetterParameter(method, GetBoundParameter(arg, invocation, semanticModel)),
+                KnownSymbols.TryGetBindParameters(method, out var bind)
+                    && bind.IsSetter(GetBoundParameter(arg, invocation, semanticModel)),
             _ => false,
         };
     }
@@ -279,41 +281,5 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="candidate"/> is the setter parameter of
-    /// <paramref name="bindMethod"/>: a delegate taking exactly the bound value
-    /// (<c>Action&lt;T&gt;</c> or <c>Func&lt;T, Task&gt;</c>). Identified by finding the same
-    /// overload's getter parameter — a zero-argument <c>Func&lt;T&gt;</c> — and comparing
-    /// <paramref name="candidate"/>'s single delegate parameter against the getter's return type T,
-    /// rather than by argument position: the element and component surfaces put the setter at a
-    /// different ordinal, and the component surface additionally declares a selector parameter
-    /// (<c>Func&lt;TComponent, TValue&gt;</c>) whose own single delegate parameter would otherwise be
-    /// mistaken for a setter by arity alone.
-    /// </summary>
-    /// <remarks>
-    /// The third derivation of one fact. <c>RenderExpressionAnalyzer.ClassifyBind</c> reads the setter as
-    /// <c>ReducedFrom</c> plus a receiver offset plus 3, <c>ClassifyComponentBind</c> reads it as the fixed
-    /// ordinal 2, and this searches for the getter's delegate shape — three conventions for "which
-    /// parameter of a resolved <c>Bind</c> overload is the setter". #194 recorded the duplication and left
-    /// it, since consolidating it is separable work with no behavioural change of its own; #206 carries it,
-    /// and this paragraph goes when that lands.
-    /// </remarks>
-    private static bool IsSetterParameter(IMethodSymbol bindMethod, IParameterSymbol? candidate)
-    {
-        if (candidate?.Type is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke })
-            return false;
-
-        foreach (var parameter in bindMethod.Parameters)
-        {
-            if (parameter.Type is INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 0 } getterInvoke })
-            {
-                return SymbolEqualityComparer.Default.Equals(
-                    setterInvoke.Parameters[0].Type, getterInvoke.ReturnType);
-            }
-        }
-
-        return false;
     }
 }
