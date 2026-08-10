@@ -28,9 +28,12 @@ internal enum ExecutionContextKind
     Opaque,
 
     /// <summary>
-    /// Deferred event handler: the recognized (sole, reduced) argument of a Html-mirror
-    /// <c>View.OnClick(...)</c> call. Code in this context executes after rendering (in response to a
-    /// DOM event), so state mutations are expected and must not be reported as BCF3001.
+    /// Deferred event handler: the handler argument of a recognized event decoration (a named shortcut
+    /// such as <c>.OnClick(...)</c>, or <c>.On(...)</c>) and the setter argument of a two-way
+    /// <c>.Bind(...)</c>, in either anonymous-function spelling. Code in this context executes after
+    /// rendering (in response to a DOM event), so state mutations are expected and must not be reported
+    /// as BCF3001. Which calls those are is decided by <see cref="KnownSymbols.ClassifySurfaceMethod"/>;
+    /// see <c>RenderMutationAnalyzer</c> for the positions within each.
     /// </summary>
     DeferredEventHandler,
 }
