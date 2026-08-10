@@ -188,12 +188,27 @@ internal static class ExpressionTemplateFactory
                 continue;
             }
 
-            if (name is IdentifierNameSyntax
-                && context.TryGetParameterOrdinal(symbol, out var ordinal))
+            if (name is IdentifierNameSyntax)
             {
-                AddReplacement(replacements, replacedSpans, name.Span,
-                    new ParameterHoleExpressionSegment(ordinal));
-                continue;
+                switch (context.ResolveHole(symbol, out var ordinal))
+                {
+                    case BodyHoleKind.Value:
+                        AddReplacement(replacements, replacedSpans, name.Span,
+                            new ParameterHoleExpressionSegment(ordinal));
+                        continue;
+
+                    // Caller content in a value position: Div.Attr("x", Describe(header)),
+                    // ForEach(xs, x => Slot, …). There is no expression text to substitute -- content is a
+                    // node subtree spliced by ComposableExpander -- so a hole minted here would be
+                    // unsubstitutable. Reported as the unsupported reference it is, rather than left to fail
+                    // during expansion, where it would surface as a generator crash with no location.
+                    case BodyHoleKind.Content:
+                        context.ReportUnsupportedReference(
+                            name.GetLocation(),
+                            $"'{name.Identifier.ValueText}' is caller-supplied content, which has no value; "
+                                + "content can only be placed as a child");
+                        continue;
+                }
             }
 
             if (NeedsGeneratedContextCollisionQualification(name, symbol, context))

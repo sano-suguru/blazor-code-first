@@ -86,8 +86,16 @@ internal static class ComposableDefinitionFactory
             return "must be expression-bodied";
 
         var viewType = knownSymbols?.ViewType;
-        if (viewType is null || !SymbolEqualityComparer.Default.Equals(method.ReturnType, viewType))
+        if (viewType is null)
             return "must return BlazorCodeFirst.View";
+
+        // Two return types, and the choice is the whole of how a part declares whether it takes content
+        // (#176). View is the part that does not, and is called bare; ContentView is the part that does, and
+        // is called with brackets. Nothing else is a composable.
+        var takesContent = knownSymbols!.TakesContent(method);
+
+        if (!takesContent && !SymbolEqualityComparer.Default.Equals(method.ReturnType, viewType))
+            return "must return BlazorCodeFirst.View, or BlazorCodeFirst.ContentView to take content";
 
         foreach (var parameter in method.Parameters)
         {
@@ -100,14 +108,32 @@ internal static class ComposableDefinitionFactory
             if (parameter.RefKind != RefKind.None)
                 return "by-reference parameters are unsupported";
 
-            if (SymbolEqualityComparer.Default.Equals(parameter.Type, viewType))
-                return "View parameters are unsupported";
+            if (knownSymbols.IsContentType(parameter.Type))
+            {
+                // A View parameter is an additional content slot (#34), and only a part that already takes
+                // content may have one. Allowing it on a View-returning part would readmit the positional
+                // spelling that #176 decided against -- Card("Profile", P["本文"]) -- as a second way to write
+                // what brackets write, which is the one thing that decision rules out.
+                if (!takesContent)
+                {
+                    return "View parameters are content slots and require a ContentView return type; "
+                        + "a part returning View takes no content";
+                }
 
-            // ElementBuilder is rejected symmetrically: a childless element is an ElementBuilder rather than
-            // a View, so accepting it would readmit exactly the case the View rejection exists for. Guarded
-            // on the type resolving, because it is absent from a runtime without the bracket surface and
-            // SymbolEqualityComparer.Default.Equals(x, null) answers true for a null x.
-            if (knownSymbols?.ElementBuilderType is { } elementBuilderType
+                // An omitted optional would have to mean "no content", and default(View) is not that: it is
+                // the inert marker, which the expander has no subtree for. Requiring the argument keeps the
+                // question from arising, and C# then reports a forgotten slot at the call site.
+                if (parameter.IsOptional)
+                    return $"View parameter '{parameter.Name}' must not be optional";
+
+                continue;
+            }
+
+            // ElementBuilder is rejected symmetrically to the *old* View rejection: a childless element is an
+            // ElementBuilder rather than a View, so admitting it would give content a second parameter type
+            // and, with it, a second spelling. A caller passes Div as content by writing Div[…] or
+            // Fragment(Div), both of which are Views.
+            if (knownSymbols.ElementBuilderType is { } elementBuilderType
                 && SymbolEqualityComparer.Default.Equals(parameter.Type, elementBuilderType))
             {
                 return "ElementBuilder parameters are unsupported";
@@ -126,6 +152,7 @@ internal static class ComposableDefinitionFactory
         out ImmutableArray<DiagnosticInfo> diagnostics)
     {
         var ordinals = ImmutableDictionary.CreateBuilder<ISymbol, int>(SymbolEqualityComparer.Default);
+        var contentOrdinals = ImmutableHashSet.CreateBuilder<int>();
         var parameters = ImmutableArray.CreateBuilder<ComposableParameter>(method.Parameters.Length);
         foreach (var parameter in method.Parameters)
         {
@@ -141,10 +168,49 @@ internal static class ComposableDefinitionFactory
                 return null;
             }
 
+            var isContent = knownSymbols.IsContentType(parameter.Type);
+
             ordinals[parameter] = parameter.Ordinal;
+            if (isContent)
+                contentOrdinals.Add(parameter.Ordinal);
+
             parameters.Add(new ComposableParameter(
                 parameter.Ordinal,
-                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                isContent));
+        }
+
+        // The slot takes the ordinal after the last parameter, and is registered in the same map so that
+        // ComposableBodyContext.PushRenderVariable's ordinal arithmetic (_parameterOrdinals.Count plus the
+        // render-variable depth) accounts for it without being told about it. The ordinal space therefore
+        // reads: parameters, then the slot, then the scoped render variables. What separates a content
+        // ordinal from a value ordinal is the set below, not which map it lives in.
+        var hasSlot = knownSymbols.TakesContent(method) && knownSymbols.SlotProperty is not null;
+        if (hasSlot)
+        {
+            var slotOrdinal = method.Parameters.Length;
+            ordinals[knownSymbols.SlotProperty!] = slotOrdinal;
+            contentOrdinals.Add(slotOrdinal);
+
+            // Counted from syntax rather than from the classified body, which would only see the slots that
+            // reached a translatable position. Asked only when there is a slot to count: a part returning View
+            // cannot have one, and a Slot written in its body is reported at the reference by ClassifySlot.
+            var slotReferences = CountSlotReferences(
+                declaration.ExpressionBody!.Expression,
+                attributeContext.SemanticModel,
+                knownSymbols,
+                cancellationToken);
+
+            if (slotReferences != 1)
+            {
+                diagnostics = [DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3025,
+                    declaration.Identifier.GetLocation(),
+                    [slotReferences == 0
+                        ? $"is never named in '{method.Name}', whose ContentView return type requires it"
+                        : $"is named {slotReferences} times in '{method.Name}'"])];
+                return null;
+            }
         }
 
         var context = new ComposableBodyContext(
@@ -153,7 +219,8 @@ internal static class ComposableDefinitionFactory
             method.Name,
             knownSymbols,
             ordinals.ToImmutable(),
-            cancellationToken);
+            cancellationToken,
+            contentOrdinals.ToImmutable());
 
         var body = RenderExpressionAnalyzer.Analyze(declaration.ExpressionBody!.Expression, context);
         if (body is null)
@@ -186,7 +253,43 @@ internal static class ComposableDefinitionFactory
         return new ComposableDefinition(
             parameters.ToImmutable(),
             context.AccessRequirements.ToImmutable(),
-            body);
+            body,
+            hasSlot);
+    }
+
+    /// <summary>
+    /// How many times <paramref name="expression"/> names <c>Html.Slot</c>, counting both the unqualified
+    /// spelling under <c>using static</c> and the qualified escape hatch, and counting references inside
+    /// nested lambdas (an <c>If</c> branch) as well.
+    /// </summary>
+    /// <remarks>
+    /// Prefiltered on the name so the semantic query is asked only of candidates: a body of any size holds
+    /// far more identifiers than it holds slots. The symbol comparison is what decides — a member of the
+    /// author's own named <c>Slot</c> is not this hole, which is the shadowing case #127 records for element
+    /// helpers.
+    /// </remarks>
+    private static int CountSlotReferences(
+        ExpressionSyntax expression,
+        SemanticModel semanticModel,
+        KnownSymbols knownSymbols,
+        CancellationToken cancellationToken)
+    {
+        var count = 0;
+        foreach (var name in expression.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
+        {
+            if (name.Identifier.ValueText != "Slot")
+                continue;
+
+            // The qualified form is a MemberAccessExpressionSyntax whose Name is this node; asking for the
+            // symbol of the name itself answers for both spellings and counts neither twice.
+            if (semanticModel.GetSymbolInfo(name, cancellationToken).Symbol is IPropertySymbol resolved
+                && knownSymbols.IsSlot(resolved))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static ComposableDiscoveryResult Invalid(

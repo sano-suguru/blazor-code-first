@@ -253,6 +253,39 @@ internal static class ComposableExpander
                     generatedTypeInheritanceKeys,
                     diagnostics);
 
+            case ContentHoleTemplateNode hole:
+                {
+                    // Lazy substitution: the caller's subtree is expanded here, where the callee names the
+                    // hole, rather than at the call site. That is what makes zero, one, and many references
+                    // each work -- every reference expands the argument again and consumes fresh preorder
+                    // ordinals, so no two expansions can name the same local or loop variable.
+                    var content = hole.ParameterOrdinal < substitution.Length
+                        ? substitution[hole.ParameterOrdinal].Content
+                        : null;
+
+                    if (content is null)
+                    {
+                        // Unreachable through source: a slot ordinal is bound by every call that can be
+                        // written (ContentView has no conversion to View, so the brackets are mandatory) and a
+                        // View parameter cannot be optional. Failing to expand rather than asserting keeps a
+                        // model defect from emitting a body with the hole silently dropped.
+                        return null;
+                    }
+
+                    // Expanded under the *caller's* substitution and cycle stack, because the argument is an
+                    // expression written there. Carrying the caller's stack is what keeps
+                    // Wrap()[Wrap()[…]] from being reported as recursion: at the moment the inner call is
+                    // expanded, the outer one is not on its own path.
+                    return ExpandNode(
+                        content.Template,
+                        content.Substitution,
+                        ref nextLogicalPreorderOrdinal,
+                        content.ActiveMethodStack,
+                        registry,
+                        generatedTypeInheritanceKeys,
+                        diagnostics);
+                }
+
             default:
                 throw new NotSupportedException(
                     $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
@@ -314,15 +347,38 @@ internal static class ComposableExpander
 
         var parameters = definition.Parameters;
 
-        // One typed local per parameter, named from the call's logical preorder ordinal and the
+        // The substitution the body is expanded under: one slot per parameter, plus one for the slot ordinal
+        // when the definition declares one. That ordering is the definition's own (SlotOrdinal is always
+        // Parameters.Length), so the array is indexed by exactly the ordinals the holes carry.
+        var innerArguments = new SubstitutedArgument[parameters.Length + (definition.HasSlot ? 1 : 0)];
+
+        // One typed local per value parameter, named from the call's logical preorder ordinal and the
         // parameter ordinal so names are unique across the whole component. The argument's constant
         // travels with the name so a pass-through body (Span[title]) keeps its constant and can fold.
-        var innerArguments = new SubstitutedArgument[parameters.Length];
+        // A content parameter gets no local: content is a subtree, not a value, so there is nothing to bind.
         foreach (var parameter in parameters)
         {
+            if (parameter.IsContent)
+                continue;
+
             innerArguments[parameter.Ordinal] = new SubstitutedArgument(
                 CreateLocalName(callPreorderOrdinal, parameter.Ordinal),
                 Constant: null);
+        }
+
+        // Every content channel captures the caller's substitution and cycle stack, because the argument is an
+        // expression written here. The bracket content is one of these entries, at the slot ordinal, so the
+        // two kinds need no reconciling.
+        foreach (var contentArgument in call.ContentArguments)
+        {
+            // The only mismatch left to guard: a call built against a definition whose shape the registry
+            // reports differently. Unreachable from source, and an out-of-range write would be an
+            // IndexOutOfRangeException escaping the generator rather than a failed expansion.
+            if (contentArgument.ParameterOrdinal >= innerArguments.Length)
+                return null;
+
+            innerArguments[contentArgument.ParameterOrdinal] = SubstitutedArgument.ForContent(
+                new ContentArgument(contentArgument.Content, substitution, activeMethodStack));
         }
 
         // Emit the locals in source evaluation order (supplied arguments by source position, then implicit

@@ -11,6 +11,16 @@ public sealed class KnownSymbolsSyncTests
     // Structural Html members that are NOT curated element tags.
     private static readonly string[] StructuralHtml = ["Element", "If", "ForEach", "Component", "Fragment", "Raw"];
 
+    /// <summary>
+    /// Structural <c>Html</c> members that carry no <see cref="SurfaceMethodKind"/> either, because they are
+    /// not methods. <c>Slot</c> is a property and a hole rather than a construct: the compiler recognizes it
+    /// by symbol identity through <see cref="KnownSymbols.SlotProperty"/> and looks up the ordinal the
+    /// enclosing <c>[Composable]</c> bound it at (#176), so there is no classification row to check it
+    /// against. Kept separate from <see cref="StructuralHtml"/> so
+    /// <c>StructuralHtmlMembers_AreClassified</c> is not asked for a row that cannot exist.
+    /// </summary>
+    private static readonly string[] StructuralHtmlProperties = ["Slot"];
+
     /// <summary>The number of curated element helpers <c>KnownSymbols</c> owns the table for.</summary>
     /// <remarks>
     /// Not the guard against a missing entry, despite reading like one: this constant is edited in the
@@ -233,7 +243,8 @@ public sealed class KnownSymbolsSyncTests
             if (name is null)
                 continue;
 
-            bool structural = System.Array.IndexOf(StructuralHtml, name) >= 0;
+            bool structural = System.Array.IndexOf(StructuralHtml, name) >= 0
+                || System.Array.IndexOf(StructuralHtmlProperties, name) >= 0;
             if (structural)
                 Assert.DoesNotContain(name, tagged);
             else
@@ -594,6 +605,36 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotNull(symbols.ComponentIndexer);
         Assert.NotNull(symbols.ElementIndexer);
         Assert.NotNull(symbols.ElementBuilderType);
+    }
+
+    /// <summary>
+    /// The content-slot surface resolves whole (#34, #176). All three are guarded because each degrades
+    /// silently on its own: without <c>ContentViewType</c> a content-taking declaration is rejected as
+    /// returning the wrong type, without <c>ContentIndexer</c> every <c>Card("t")[…]</c> falls through to
+    /// BCF1003, and without <c>SlotProperty</c> no declaration binds a slot ordinal, so every correct
+    /// <c>Slot</c> is reported as BCF3025 instead.
+    /// </summary>
+    [Fact]
+    public void ContentSlotSurface_ResolvesTheMarkerTypeItsIndexerAndTheSlotHole()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.NotNull(symbols.ContentViewType);
+        Assert.NotNull(symbols.ContentIndexer);
+        Assert.NotNull(symbols.SlotProperty);
+
+        // The hole is View-typed, which is what keeps it disjoint from the element helpers (they return
+        // ElementBuilder) and out of ElementTags.
+        Assert.True(SymbolEqualityComparer.Default.Equals(symbols.SlotProperty!.Type, symbols.ViewType));
+        Assert.DoesNotContain(
+            KnownSymbols.Normalize(symbols.SlotProperty!),
+            symbols.ElementTags.Keys);
+
+        // The content channel is the same one ElementBuilder and ComponentView<T> declare: params
+        // ReadOnlySpan<View>. A differently shaped indexer would not be found by FindChildrenIndexer at all,
+        // so this asserts the shape the compiler matched rather than restating the declaration.
+        var contentIndexerParameter = Assert.Single(symbols.ContentIndexer!.Parameters);
+        Assert.True(contentIndexerParameter.IsParams);
     }
 
     [Fact]

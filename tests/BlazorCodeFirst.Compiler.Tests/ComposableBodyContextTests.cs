@@ -35,11 +35,11 @@ public sealed class ComposableBodyContextTests
 
         Assert.Equal(0, outer);
         Assert.Equal(1, inner);
-        Assert.True(context.TryGetParameterOrdinal(symbols[0], out var o0) && o0 == 0);
-        Assert.True(context.TryGetParameterOrdinal(symbols[3], out var o3) && o3 == 1);
+        Assert.True(context.ResolveHole(symbols[0], out var o0) == BodyHoleKind.Value && o0 == 0);
+        Assert.True(context.ResolveHole(symbols[3], out var o3) == BodyHoleKind.Value && o3 == 1);
 
         context.PopRenderVariable(symbols[2], symbols[3]);
-        Assert.False(context.TryGetParameterOrdinal(symbols[3], out _));
+        Assert.Equal(BodyHoleKind.None, context.ResolveHole(symbols[3], out _));
         Assert.Equal(1, context.PushRenderVariable(symbols[2], symbols[3]));
     }
 
@@ -84,6 +84,6 @@ public sealed class ComposableBodyContextTests
             CancellationToken.None);
 
         Assert.Null(RenderExpressionAnalyzer.Analyze(body.ExpressionBody!.Expression, context));
-        Assert.False(context.TryGetParameterOrdinal(contextParameterSymbol, out _));
+        Assert.Equal(BodyHoleKind.None, context.ResolveHole(contextParameterSymbol, out _));
     }
 }

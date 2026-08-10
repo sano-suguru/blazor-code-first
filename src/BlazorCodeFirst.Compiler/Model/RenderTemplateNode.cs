@@ -39,7 +39,32 @@ internal sealed record ComposableInvocationArgument(
     bool IsImplicitDefault,
     ExpressionTemplate Value);
 
+/// <summary>
+/// One <c>View</c>-typed argument of a <c>[Composable]</c> call: an additional content slot, bound to the
+/// callee's parameter ordinal (#34).
+/// </summary>
+/// <remarks>
+/// A channel separate from <see cref="ComposableInvocationArgument"/>, for the reason
+/// <see cref="ComponentSlot"/> is separate from <see cref="ComponentParameter"/>: the content is a node
+/// tree, and it takes part in hole substitution, sequence allocation, and expansion, none of which are
+/// defined over <see cref="ExpressionTemplate"/>. It also carries no source order, because there is no
+/// local to bind and therefore no evaluation to order — the subtree is spliced where the callee names it.
+/// </remarks>
+internal sealed record ComposableContentArgument(int ParameterOrdinal, RenderTemplateNode Content);
+
 internal abstract record RenderTemplateNode;
+
+/// <summary>
+/// A hole where a <c>[Composable]</c> body names content its caller supplies: <c>Html.Slot</c>, or a
+/// reference to one of the definition's own <c>View</c>-typed parameters. Expansion replaces it with the
+/// argument's own subtree, so no <see cref="RenderNode"/> counterpart exists and none reaches the emitter.
+/// </summary>
+/// <remarks>
+/// One node type for both spellings because they are the same thing at different ordinals: the bracket
+/// content is bound at <see cref="Analysis.ComposableDefinition.SlotOrdinal"/> and a <c>View</c> parameter
+/// at its own, and both are indices into the one substitution the expander carries.
+/// </remarks>
+internal sealed record ContentHoleTemplateNode(int ParameterOrdinal) : RenderTemplateNode;
 
 internal sealed record IfTemplateNode(
     ExpressionTemplate Condition,
@@ -50,7 +75,21 @@ internal sealed record ComposableCallTemplateNode(
     string MethodKey,
     string DisplayName,
     EquatableArray<ComposableInvocationArgument> Arguments,
-    TemplateLocation Location) : RenderTemplateNode;
+    TemplateLocation Location) : RenderTemplateNode
+{
+    /// <summary>
+    /// Every piece of content this call supplies, bound to the callee's ordinals: one entry per
+    /// <c>View</c>-typed argument, plus the bracket content at the slot ordinal when the call has brackets
+    /// (#34, #176).
+    /// </summary>
+    /// <remarks>
+    /// One channel and not two. The bracket is not an argument, but it is content bound to an ordinal exactly
+    /// as an argument's is, and the site that builds this node has the callee's symbol in hand, so it can
+    /// name the slot ordinal itself rather than leaving the expander to reconcile two transports. That
+    /// reconciliation was where the mismatch guards came from.
+    /// </remarks>
+    public EquatableArray<ComposableContentArgument> ContentArguments { get; init; }
+}
 
 internal sealed record ForEachTemplateNode(
     ExpressionTemplate Source,

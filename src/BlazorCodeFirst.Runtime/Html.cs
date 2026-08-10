@@ -36,6 +36,24 @@ public static partial class Html
     /// decorations apply to <see cref="ElementBuilder"/>, and Raw is a <see cref="View"/>.</summary>
     public static View Raw(string rawHtml) => default;
 
+    /// <summary>
+    /// Design-time syntax marking where a <c>[Composable]</c> part places the content its caller supplied
+    /// in brackets. Legal only in the body of a <c>[Composable]</c> method returning
+    /// <see cref="ContentView"/>, and exactly once there; anywhere else it is BCF3025.
+    /// </summary>
+    /// <remarks>
+    /// Named for HTML's own <c>&lt;slot&gt;</c>, which means the same thing. That element has no helper of
+    /// its own — it is exclusion group 3 in <c>DESIGN.md</c> §4.1, because Blazor creates no shadow root and
+    /// nothing would fill it — so the name is free, and taking it collides with no element.
+    /// <para>
+    /// Inert: the generator splices the caller's own child expressions into this position at compile time.
+    /// Nothing is captured and nothing is invoked, so content that is written twice in a body is emitted
+    /// twice rather than shared; a part therefore names its slot once. At runtime this always yields the
+    /// default View.
+    /// </para>
+    /// </remarks>
+    public static View Slot => default;
+
     /// <summary>Design-time syntax for conditional rendering with an optional else branch.</summary>
     public static View If(bool condition, System.Func<View> then, System.Func<View>? otherwise = null) => default;
 

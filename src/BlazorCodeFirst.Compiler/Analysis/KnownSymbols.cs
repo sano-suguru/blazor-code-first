@@ -48,6 +48,37 @@ internal sealed class KnownSymbols
     /// </summary>
     public IPropertySymbol? ComponentIndexer { get; }
 
+    /// <summary>
+    /// Resolved symbol for <c>BlazorCodeFirst.ContentView</c>, the return type of a <c>[Composable]</c> part
+    /// that takes caller-supplied content (#176), or <see langword="null"/> against a runtime that predates
+    /// it.
+    /// </summary>
+    /// <remarks>
+    /// Guard on this being non-null before comparing against it, for the reason
+    /// <see cref="ElementBuilderType"/>'s remarks give: <c>SymbolEqualityComparer.Default.Equals(x, null)</c>
+    /// answers <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would read an
+    /// unrelated return type as a content-taking part.
+    /// </remarks>
+    public INamedTypeSymbol? ContentViewType { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>ContentView</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is the
+    /// one channel content reaches a <c>[Composable]</c> part through, or null.
+    /// </summary>
+    public IPropertySymbol? ContentIndexer { get; }
+
+    /// <summary>
+    /// Resolved symbol for <c>BlazorCodeFirst.Html.Slot</c>, the marker naming where a content-taking part
+    /// places its caller's content, or null.
+    /// </summary>
+    /// <remarks>
+    /// Kept as a symbol rather than as a row in <see cref="ElementTags"/> or
+    /// <see cref="SurfaceMethods"/> because it is neither an element nor a method: it is a hole, and the
+    /// analyzer has to answer "is this identifier that hole" by identity before it can look up the ordinal
+    /// the enclosing definition bound it at.
+    /// </remarks>
+    public IPropertySymbol? SlotProperty { get; }
+
     /// <summary>Resolved <c>Microsoft.AspNetCore.Components.ParameterAttribute</c>, or null.</summary>
     public INamedTypeSymbol? ParameterAttributeType { get; }
 
@@ -421,6 +452,7 @@ internal sealed class KnownSymbols
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComponentView`1");
         ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
+        ContentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ContentView");
 
         // GetTypeByMetadataName answers null for an *ambiguous* type as well as a missing one, two
         // references both declaring System.ReadOnlySpan<T>, say. Both indexers would then resolve to null and
@@ -429,6 +461,7 @@ internal sealed class KnownSymbols
         var readOnlySpanType = compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
         ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType, readOnlySpanType);
         ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType, readOnlySpanType);
+        ContentIndexer = FindChildrenIndexer(ContentViewType, ViewType, readOnlySpanType);
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
@@ -568,6 +601,17 @@ internal sealed class KnownSymbols
                     elementTags[Normalize(elementProperty)] = propertyTag;
                 }
 
+                // Slot is a View-typed property, so it cannot collide with an element helper (those return
+                // ElementBuilder) and the two arms are disjoint. The return type is checked as well as the
+                // name for the same reason it is above: a property that merely shares the name is not the
+                // hole.
+                if (elementProperty.Name == "Slot"
+                    && ViewType is not null
+                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ViewType))
+                {
+                    SlotProperty = elementProperty;
+                }
+
                 continue;
             }
 
@@ -625,6 +669,36 @@ internal sealed class KnownSymbols
     /// </remarks>
     public SurfaceMethodKind ClassifySurfaceMethod(IMethodSymbol method) =>
         _surfaceMethods.TryGetValue(Normalize(method), out var kind) ? kind : SurfaceMethodKind.None;
+
+    /// <summary>
+    /// Whether <paramref name="property"/> is <c>Html.Slot</c>, the hole naming where a content-taking part
+    /// places its caller's content (#176).
+    /// </summary>
+    /// <remarks>
+    /// The three content-surface questions live here for the reason
+    /// <see cref="ClassifySurfaceMethod"/> does: each is asked from more than one layer — this one from the
+    /// analyzer's property arm and from the declaration's slot count — and each needs the null guard this
+    /// class's remarks warn about, <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answering
+    /// <see langword="true"/> for a null <c>x</c>. Stated once, they cannot drift apart.
+    /// </remarks>
+    public bool IsSlot(IPropertySymbol property) =>
+        SlotProperty is { } slotProperty
+        && SymbolEqualityComparer.Default.Equals(Normalize(property), Normalize(slotProperty));
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is <c>View</c>, which in a <c>[Composable]</c> parameter position makes
+    /// that parameter a content slot rather than a value (#34).
+    /// </summary>
+    public bool IsContentType(ITypeSymbol type) =>
+        ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType);
+
+    /// <summary>
+    /// Whether <paramref name="method"/> is declared to take caller content, which is exactly whether it
+    /// returns <c>ContentView</c> (#176).
+    /// </summary>
+    public bool TakesContent(IMethodSymbol method) =>
+        ContentViewType is { } contentViewType
+        && SymbolEqualityComparer.Default.Equals(method.ReturnType, contentViewType);
 
     /// <summary>
     /// The parameter roles of a resolved <c>Bind</c> overload, element or component, or

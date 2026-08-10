@@ -89,7 +89,10 @@ Available today:
   content renders an existing Razor component, and a BlazorCodeFirst component is an ordinary
   component that Razor can use.
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
-- Reusable `[Composable]` methods, expanded statically into the caller.
+- Reusable `[Composable]` methods, expanded statically into the caller. One that wraps caller-supplied
+  content returns `ContentView` and writes `Slot` where the content belongs, so the call takes brackets
+  the way an element does: `Card("Profile")[P["body"]]`. Further slots are `View` parameters —
+  `Panel(H2["Title"])[P["body"]]`.
 
 Not covered yet, tracked as a single surface-area inventory in
 [#72](https://github.com/sano-suguru/blazor-code-first/issues/72): `preventDefault` /

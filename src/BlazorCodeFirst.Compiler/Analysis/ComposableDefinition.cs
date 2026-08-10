@@ -8,7 +8,13 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// (<c>RenderExpressionAnalyzer.CreateInvocationArguments</c> recomputes the default from the callee's
 /// own symbol), so carrying them here paid for a second copy that nothing consulted.
 /// </remarks>
-internal sealed record ComposableParameter(int Ordinal, string TypeName);
+/// <param name="IsContent">
+/// Whether this parameter is a <c>View</c>-typed content slot (#34) rather than a value. Expansion declares
+/// no local for one — content is a node subtree and there is nothing to bind — so the flag is carried here
+/// rather than inferred from <paramref name="TypeName"/>, which would make the decision a string comparison
+/// against a display format.
+/// </param>
+internal sealed record ComposableParameter(int Ordinal, string TypeName, bool IsContent = false);
 
 /// <summary>Classifies why a referenced member forces an accessibility requirement on the caller.</summary>
 internal enum ComposableAccessRequirementKind
@@ -45,10 +51,25 @@ internal sealed record ComposableAccessRequirement(
 /// <see cref="ComposableAccessRequirement.RequiredContainingTypeKey"/>, the <em>declaring</em> type of each
 /// referenced member.
 /// </remarks>
+/// <param name="HasSlot">
+/// Whether this definition names <c>Html.Slot</c>, which is exactly whether it returns <c>ContentView</c>
+/// (#176). The ordinal that slot is bound at is <see cref="SlotOrdinal"/>, derived rather than stored: it is
+/// always the ordinal after the last parameter, so storing it would put a second copy of that invariant into
+/// a value-equal model that the incremental generator caches on.
+/// </param>
 internal sealed record ComposableDefinition(
     EquatableArray<ComposableParameter> Parameters,
     EquatableArray<ComposableAccessRequirement> AccessRequirements,
-    RenderTemplateNode Body);
+    RenderTemplateNode Body,
+    bool HasSlot = false)
+{
+    /// <summary>
+    /// The substitution ordinal the slot is bound at, or <c>-1</c> when there is none. The ordinal space reads
+    /// parameters, then the slot, then the scoped render variables
+    /// <c>ComposableBodyContext.PushRenderVariable</c> appends.
+    /// </summary>
+    public int SlotOrdinal => HasSlot ? Parameters.Length : -1;
+}
 
 /// <summary>
 /// A registry slot for one source-declared composable. Invalid declarations remain present with

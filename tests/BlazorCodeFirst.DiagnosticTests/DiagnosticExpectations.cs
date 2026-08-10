@@ -161,6 +161,16 @@ public static class DiagnosticExpectations
             Note: "Anchors the decoration the check runs on, as BCF3010 does. Which of the two that " +
                 "makes depends on the order they were written, and the rule holds either way; the " +
                 "alternative is a location on a decoration the author has already passed."),
+        new(
+            "BCF3025",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3025.cs",
+            "Slot",
+            Note: "Anchors the Slot itself, which is the misplacement half of the rule. The arity half " +
+                "(a ContentView part naming its slot zero times or twice) reports at the declaration " +
+                "identifier instead, because the count is a property of the declaration and not of any " +
+                "one Slot; that half is covered in-process."),
     ];
 
     /// <summary>

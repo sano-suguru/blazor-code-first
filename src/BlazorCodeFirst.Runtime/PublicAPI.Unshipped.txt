@@ -15,6 +15,10 @@ BlazorCodeFirst.View
 BlazorCodeFirst.View.View() -> void
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(string! text) -> BlazorCodeFirst.View
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(Microsoft.AspNetCore.Components.RenderFragment? fragment) -> BlazorCodeFirst.View
+BlazorCodeFirst.ContentView
+BlazorCodeFirst.ContentView.ContentView() -> void
+BlazorCodeFirst.ContentView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
+static BlazorCodeFirst.ContentView.implicit operator BlazorCodeFirst.ContentView(BlazorCodeFirst.View view) -> BlazorCodeFirst.ContentView
 BlazorCodeFirst.Decorations
 static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementBuilder element, string! class) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
@@ -138,6 +142,7 @@ static BlazorCodeFirst.Html.Summary.get -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Html.Element(string! tag) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Html.Fragment(params System.ReadOnlySpan<BlazorCodeFirst.View> children) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.Raw(string! rawHtml) -> BlazorCodeFirst.View
+static BlazorCodeFirst.Html.Slot.get -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.If(bool condition, System.Func<BlazorCodeFirst.View>! then, System.Func<BlazorCodeFirst.View>? otherwise = null) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>! key, System.Func<T, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.Component<TComponent>() -> BlazorCodeFirst.ComponentView<TComponent>
