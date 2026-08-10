@@ -147,13 +147,28 @@ Available decorations are `.Class`, `.Id`, `.Href`, `.Src`, `.Alt`, `.Type`, `.T
 prefixed for you. The name given to `.Attr` or `.On` must be a non-empty compile-time constant, or
 the generator reports BCF3011.
 
-`.Attr` takes a `string` or a `bool`. A `bool` is Blazor's conditional attribute: `true` renders the
+`.Attr` takes a `string?` or a `bool`. A `bool` is Blazor's conditional attribute: `true` renders the
 attribute with an empty value, which is how HTML reads `disabled`, `checked` and `hidden` as set, and
-`false` leaves the attribute out entirely.
+`false` leaves the attribute out entirely. Where the attribute is always present, write it bare, as HTML
+does — the `bool` is for the conditional case.
 
 ```csharp
-Input.Type("checkbox").Attr("checked", _agreed).Attr("disabled", _submitting)
+Input.Type("checkbox").Attr("checked")                    // <input type="checkbox" checked>
+Button.Attr("disabled", _submitting)["Save"]              // conditional
 ```
+
+A `null` string value leaves the attribute out too, so an attribute that carries a value only sometimes
+needs no branch around the element:
+
+```csharp
+Span.Attr("title", _hasTip ? _tip : null)["Hover me"]
+```
+
+`null` and `""` are different values at every stage — frames, prerendered HTML, and a re-render — so
+`""` gives you `title=""` and `null` gives you no `title` at all. When a re-render turns a value null,
+Blazor removes the attribute from the element already in the DOM rather than replacing the element.
+Every decoration that takes one value accepts `null` this way: `.Class`, `.Href`, `.Src`, `.Alt`,
+`.Id`, `.Type`, `.Title`, `.Role`, and `.Attr`.
 
 There is deliberately no `object` overload. A value of any other type is formatted at render time
 under the formatting thread's culture rather than the one your component ran under, so write it out
@@ -186,11 +201,18 @@ event is a single binding, and binding one twice on the same element reports BCF
 `style` shortcut, so prefer an external stylesheet and `.Class`.
 
 Because that channel joins its values as text, `class` is also the one name the `bool` overload
-cannot take, and `.Attr("class", flag)` reports BCF3023. Write a conditional class as a string:
+cannot take, and `.Attr("class", flag)` reports BCF3023 — as does `.Attr("class")`, whose bare spelling
+stands for a presence and so has no text to join either. Write a conditional class as a string, using
+`null` for the term you want gone:
 
 ```csharp
 Div.Class("card").Class(_selected ? "is-selected" : "")
 ```
+
+A `null` term drops out of the join, so an element carrying one class decoration loses the attribute
+entirely when the term is null. It still leaves the separator behind when there is another term to join
+against: `Div.Class("card").Class(_selected ? "is-selected" : null)` renders `class="card "` while
+`_selected` is false, which the browser reads as the single class `card`.
 
 `.Bind("class", …)` is the third way to write the name and the one that does not fold, so an element
 carrying both it and a `.Class` would be emitted with `class` twice. That reports BCF3024, whichever
