@@ -87,10 +87,11 @@ internal readonly struct FactoryArguments
         var method = operation.TargetMethod;
 
         // TargetMethod is unreduced even for a fluent extension-method call, so parameter 0 is the
-        // receiver. Skip it so callers index the parameters they actually wrote.
-        var offset = method.IsExtensionMethod ? 1 : 0;
-
-        return Bind(operation.Arguments, method.Parameters.Length, offset);
+        // receiver. Skip it so callers index the parameters they actually wrote. The skip is asked of
+        // KnownSymbols rather than derived here, which is what keeps this in step with the readers that
+        // index into what it returns (#211).
+        return Bind(
+            operation.Arguments, method.Parameters.Length, KnownSymbols.ReceiverOffset(method));
     }
 
     /// <summary>

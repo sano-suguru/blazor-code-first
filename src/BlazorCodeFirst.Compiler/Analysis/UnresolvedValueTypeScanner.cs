@@ -492,10 +492,16 @@ internal static class UnresolvedValueTypeScanner
         IMethodSymbol selectedMethod,
         ComposableBodyContext context)
     {
+        // The whole declared list, receiver included, is what an argument list is checked against, because
+        // the static spelling writes the receiver as an argument; only the fluent spelling skips it. That
+        // condition is this site's own, and the receiver rule underneath it is KnownSymbols' (#211). The
+        // offset is read first so the fluent test's semantic query is only paid by a method that has a
+        // receiver to skip at all.
         var method = selectedMethod.ReducedFrom ?? selectedMethod;
-        var offset = method.IsExtensionMethod
+        var receiverOffset = KnownSymbols.ReceiverOffset(method);
+        var offset = receiverOffset != 0
             && IsFluentExtensionInvocation(invocation, selectedMethod, context)
-                ? 1
+                ? receiverOffset
                 : 0;
 
         return HasValidArgumentOrder(invocation.ArgumentList, method.Parameters, offset);
@@ -559,11 +565,18 @@ internal static class UnresolvedValueTypeScanner
         return -1;
     }
 
-    private static int WrittenParameterCount(IMethodSymbol method)
-    {
-        method = method.ReducedFrom ?? method;
-        return method.Parameters.Length - (method.IsExtensionMethod ? 1 : 0);
-    }
+    /// <summary>
+    /// How many parameters of <paramref name="method"/> lie in argument space, which is the space
+    /// <see cref="BoundArguments.At"/> indexes in.
+    /// </summary>
+    /// <remarks>
+    /// No <c>ReducedFrom</c> step: <see cref="KnownSymbols.ReceiverOffset"/> answers 0 for a reduced
+    /// method, whose parameter list already excludes the receiver, and 1 for an unreduced one, whose does
+    /// not — so the count is the same either way and unreducing first would only be a second spelling of
+    /// the same rule (#211).
+    /// </remarks>
+    private static int WrittenParameterCount(IMethodSymbol method) =>
+        method.Parameters.Length - KnownSymbols.ReceiverOffset(method);
 
     /// <summary>
     /// Whether <paramref name="invocation"/> names a method of the design-time surface, asked without
@@ -756,12 +769,11 @@ internal static class UnresolvedValueTypeScanner
     /// </summary>
     private static bool FillsEveryParameter(BoundArguments args, IMethodSymbol method)
     {
-        var declared = method.ReducedFrom ?? method;
-        var offset = declared.IsExtensionMethod ? 1 : 0;
+        var offset = KnownSymbols.ReceiverOffset(method);
 
-        for (var index = 0; index < declared.Parameters.Length - offset; index++)
+        for (var index = 0; index < method.Parameters.Length - offset; index++)
         {
-            var parameter = declared.Parameters[index + offset];
+            var parameter = method.Parameters[index + offset];
             if (!parameter.IsParams && !parameter.IsOptional && !args.HasArgumentAt(index))
                 return false;
         }
@@ -1057,9 +1069,13 @@ internal static class UnresolvedValueTypeScanner
             InvocationExpressionSyntax invocation,
             IMethodSymbol selectedMethod)
         {
-            var method = selectedMethod.ReducedFrom ?? selectedMethod;
+            // Argument space is all this binds into, so the parameter list is taken in whatever spelling
+            // arrived and the receiver skip asked of it: 0 for a reduced method, whose list already
+            // excludes the receiver, 1 for an unreduced one (#211).
             return TryBindFallback(
-                invocation.ArgumentList, method.Parameters, method.IsExtensionMethod ? 1 : 0);
+                invocation.ArgumentList,
+                selectedMethod.Parameters,
+                KnownSymbols.ReceiverOffset(selectedMethod));
         }
 
         /// <summary>
