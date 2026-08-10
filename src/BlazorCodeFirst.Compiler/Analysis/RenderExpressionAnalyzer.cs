@@ -25,31 +25,15 @@ internal static class RenderExpressionAnalyzer
     private const string ChildContentParameterName = "ChildContent";
 
     /// <summary>
-    /// <c>CreateBinder</c> written as the static call it is. It is an extension method on
-    /// <c>EventCallbackFactory</c>, declared by this class, and the generated file carries no
-    /// <c>using</c> directives, so the instance spelling Razor uses
-    /// (<c>EventCallback.Factory.CreateBinder(…)</c>) fails with CS1061 here. This is the same
-    /// normalization <see cref="ExpressionTemplateFactory"/> applies to any extension method an author
-    /// writes in instance syntax, for the same reason (<c>ARCHITECTURE.md</c> §2). Its sibling
-    /// <c>EventCallback.Factory.Create</c>, which the event channel emits, needs no such treatment
-    /// because <c>Create</c> is an instance method.
-    /// </summary>
-    private const string CreateBinderCall =
-        "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
-        + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, ";
-
-    /// <summary>
     /// <c>EventCallback.Factory.Create&lt;TValue&gt;</c> up to its type argument, which a component
-    /// binding's <c>{name}Changed</c> parameter carries. Written in the instance syntax Razor uses, and
-    /// needing none of <see cref="CreateBinderCall"/>'s treatment: <c>Create</c> is a real instance method
-    /// on <c>EventCallbackFactory</c>, not an extension method, so the absence of <c>using</c> directives
-    /// in the generated file costs it nothing. This is the same spelling the event channel emits.
+    /// binding's <c>{name}Changed</c> parameter carries. Written in the instance syntax Razor uses:
+    /// <c>Create</c> is a real instance method on <c>EventCallbackFactory</c>, not an extension method,
+    /// so the absence of <c>using</c> directives in the generated file costs it nothing — unlike
+    /// <c>CreateBinder</c>, which <see cref="RenderViewEmitter"/> has to spell as the static call it is.
+    /// This is the same spelling the event channel emits.
     /// </summary>
     private const string CreateCall =
         "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<";
-
-    private const string RuntimeHelpers =
-        "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers";
 
     /// <summary>
     /// Fully qualified with no special-type spellings, so <c>string</c> is written
@@ -847,20 +831,24 @@ internal static class RenderExpressionAnalyzer
 
         var value = ExpressionTemplateFactory.Create(getterBody!, context);
 
-        // The bound type and the setter's kind are read off the overload the C# compiler picked rather
-        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape),
-        // so the resolved symbol already answers both questions exactly.
-        var binder = BuildBinder(
-            value,
-            bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
-            setter,
-            bind.SetterIsAsynchronous,
-            context);
+        // The bound type and the setter's shape are read off the overload the C# compiler picked rather
+        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape), so
+        // the resolved symbol already answers both questions exactly. That reading is the whole of this
+        // layer's part in the binder — the call built around it is the emitter's (#195).
+        var setterKind =
+            setter is null ? BindSetterKind.InvertedGetter
+            : bind.SetterIsAsynchronous ? BindSetterKind.Asynchronous
+            : BindSetterKind.Synchronous;
 
         return element with
         {
-            Bindings = element.Bindings.AsImmutableArray()
-                .Add(new BindTemplate(attrName!, eventName, value, binder)),
+            Bindings = element.Bindings.AsImmutableArray().Add(new BindTemplate(
+                attrName!,
+                eventName,
+                value,
+                bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
+                setterKind,
+                setter is null ? null : ExpressionTemplateFactory.Create(setter, context))),
         };
     }
 
@@ -1017,8 +1005,9 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
-    /// <c>ToCode()</c>, for the reason <see cref="BuildBinder"/> records: inside a <c>[Composable]</c>
-    /// body the getter still holds unbound parameter holes.
+    /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
+    /// and <c>ToCode()</c> throws on those. The value's segments are spliced in wherever the call needs
+    /// them, which is what puts the same hole in each place for <c>ComposableExpander</c> to substitute.
     /// <para>
     /// The cast around the setter is required for the same reason the element side needs one: a lambda
     /// written in an argument position has no natural type, and <c>Create</c>'s own overloads cannot pick
@@ -1133,65 +1122,6 @@ internal static class RenderExpressionAnalyzer
             && tree.TypeArguments[0] is INamedTypeSymbol { TypeArguments.Length: 1 } getter
             && SymbolEqualityComparer.Default.Equals(getter.OriginalDefinition, funcType)
             && SymbolEqualityComparer.Default.Equals(getter.TypeArguments[0], valueType);
-    }
-
-    /// <summary>
-    /// Builds the whole <c>CreateBinder(this, setter, current)</c> expression around the getter's own
-    /// segments, so that a parameter hole inside the getter survives into the binder.
-    /// </summary>
-    /// <remarks>
-    /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
-    /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
-    /// and <c>ToCode()</c> throws on those. The value's segments are spliced in twice, which is what puts
-    /// the same hole on both sides of the binding for <c>ComposableExpander</c> to substitute.
-    /// </remarks>
-    private static ExpressionTemplate BuildBinder(
-        ExpressionTemplate value,
-        string valueTypeName,          // "global::System.String" or "global::System.Boolean"
-        ExpressionSyntax? setter,      // null = invert the getter
-        bool setterIsAsynchronous,
-        ComposableBodyContext context)
-    {
-        var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
-        var valueSegments = value.Segments.AsImmutableArray();
-
-        if (setter is null)
-        {
-            // CreateBinder(this, __value => <value> = __value, <value>)
-            segments.Add(new LiteralExpressionSegment($"{CreateBinderCall}__value => "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(" = __value, "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(")"));
-        }
-        else if (setterIsAsynchronous)
-        {
-            // CreateBinder(this, RuntimeHelpers.CreateInferredBindSetter(callback: <setter>, value: <value>), <value>)
-            var setterTemplate = ExpressionTemplateFactory.Create(setter, context);
-            segments.Add(new LiteralExpressionSegment(
-                $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter(callback: "));
-            segments.AddRange(setterTemplate.Segments.AsImmutableArray());
-            segments.Add(new LiteralExpressionSegment(", value: "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment("), "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(")"));
-        }
-        else
-        {
-            // CreateBinder(this, (Action<T>)(<setter>), <value>)
-            // The cast is required: a lambda written in the argument position has no natural type, and
-            // CreateBinder's own overloads cannot pick one for it once it travels through this template.
-            var setterTemplate = ExpressionTemplateFactory.Create(setter, context);
-            segments.Add(new LiteralExpressionSegment(
-                $"{CreateBinderCall}(global::System.Action<{valueTypeName}>)("));
-            segments.AddRange(setterTemplate.Segments.AsImmutableArray());
-            segments.Add(new LiteralExpressionSegment("), "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(")"));
-        }
-
-        return ExpressionTemplate.Create(segments.ToImmutable());
     }
 
     /// <summary>

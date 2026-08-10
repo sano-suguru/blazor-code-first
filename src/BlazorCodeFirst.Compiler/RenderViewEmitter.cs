@@ -16,6 +16,24 @@ internal static class RenderViewEmitter
     private const string EventCallbackFactory =
         "global::Microsoft.AspNetCore.Components.EventCallback.Factory";
 
+    /// <summary>
+    /// A binding's <c>CreateBinder</c> call up to its setter argument, written as the static call it is.
+    /// It is an extension method on <c>EventCallbackFactory</c>, and the generated file carries no
+    /// <c>using</c> directives, so the instance spelling Razor uses
+    /// (<c>EventCallback.Factory.CreateBinder(…)</c>) fails with CS1061 here. This is the same
+    /// normalization <c>ExpressionTemplateFactory</c> applies to any extension method an author writes in
+    /// instance syntax, for the same reason (<c>ARCHITECTURE.md</c> §2). Its sibling
+    /// <see cref="EventCallbackFactory"/><c>.Create</c>, which the event channel emits, needs no such
+    /// treatment because <c>Create</c> is an instance method — and the receiver both of them name is read
+    /// from that one constant, so the two spellings cannot drift apart.
+    /// </summary>
+    private const string CreateBinderCall =
+        "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
+        + EventCallbackFactory + ", this, ";
+
+    private const string RuntimeHelpers =
+        "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers";
+
     private const string RenderFragmentType =
         "global::Microsoft.AspNetCore.Components.RenderFragment";
 
@@ -396,16 +414,18 @@ internal static class RenderViewEmitter
             writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {bind.Value.ToCode()});");
             next++;
             // The framework's own CreateBinder overload for string annotates its setter parameter
-            // Action<string?> defensively; the binder this template builds — the inverted getter, the
-            // explicit-setter cast, CreateInferredBindSetter — is synthesized here and nowhere else, so
+            // Action<string?> defensively; the binder Binder() writes — the inverted getter, the
+            // explicit-setter cast, CreateInferredBindSetter — is synthesized there and nowhere else, so
             // this is the one place that annotation can disagree with a non-nullable <value> or setter.
+            // The suppression and the text it applies to are owned by the same layer, which is what #195
+            // was about: a binder shape decided elsewhere could leave this stale with nothing failing.
             // Measured against a real dispatch (BindRenderingTests, EmptyInput_DeliversEmptyStringNotNull):
             // an empty text input's oninput never actually delivers null, so there is no runtime defect
             // to fix, only this static mismatch to silence. Scoped to the one line it is about, not the
             // whole file: an author's own null assignment inside a transplanted Body expression is not
             // this binder, and must keep failing in the author's own file.
             writer.AppendLine("#pragma warning disable CS8601, CS8620");
-            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {bind.Binder.ToCode()});");
+            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {Binder(bind)});");
             writer.AppendLine("#pragma warning restore CS8601, CS8620");
             next++;
             // Blazor resynchronizes the DOM from this attribute when a re-render produces the value the
@@ -432,6 +452,52 @@ internal static class RenderViewEmitter
     /// </summary>
     private static bool ResynchronizesFromDom(string attributeName) =>
         attributeName is "value" or "checked";
+
+    /// <summary>
+    /// The <c>CreateBinder</c> call a binding's event frame carries: the current value, and the setter in
+    /// whichever of the three shapes <see cref="BindTemplate.SetterKind"/> records. All three pass the
+    /// current value as the last argument, and all three are one frame, so the shape changes nothing the
+    /// sequence arithmetic above depends on.
+    /// </summary>
+    /// <remarks>
+    /// Assembled here rather than in the analyzer, beside the event channel's <c>Create</c> — the same
+    /// factory call for the same job — and inside the suppression the caller writes for it. The analyzer
+    /// supplies the facts it alone can read and nothing more (#195).
+    /// <para>
+    /// The cast on a synchronous setter is required: a lambda written in an argument position has no
+    /// natural type, and <c>CreateBinder</c>'s own overloads cannot pick one for it once the setter has
+    /// travelled through a template. The asynchronous shape needs none, because
+    /// <c>CreateInferredBindSetter</c> infers it.
+    /// </para>
+    /// </remarks>
+    private static string Binder(BindTemplate bind)
+    {
+        var value = bind.Value.ToCode();
+
+        return bind.SetterKind switch
+        {
+            // CreateBinder(this, __value => <value> = __value, <value>)
+            BindSetterKind.InvertedGetter =>
+                $"{CreateBinderCall}__value => {value} = __value, {value})",
+
+            // CreateBinder(this, (Action<T>)(<setter>), <value>)
+            BindSetterKind.Synchronous when bind.Setter is { } setter =>
+                $"{CreateBinderCall}(global::System.Action<{bind.ValueTypeName}>)({setter.ToCode()}), "
+                    + $"{value})",
+
+            // CreateBinder(this, RuntimeHelpers.CreateInferredBindSetter(callback: <setter>, value: <value>), <value>)
+            BindSetterKind.Asynchronous when bind.Setter is { } setter =>
+                $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter(callback: {setter.ToCode()}, "
+                    + $"value: {value}), {value})",
+
+            BindSetterKind.Synchronous or BindSetterKind.Asynchronous =>
+                throw new InvalidOperationException(
+                    $"A {bind.SetterKind} binding requires a setter expression."),
+
+            _ => throw new NotSupportedException(
+                $"Emission for bind setter kind '{bind.SetterKind}' is not yet implemented."),
+        };
+    }
 
     private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)
     {

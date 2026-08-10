@@ -96,13 +96,13 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
-    public void Bind_InsideComposable_SubstitutesBothTheValueAndTheBinder()
+    public void Bind_InsideComposable_SubstitutesTheValueOnBothSidesOfTheBinding()
     {
         // Closes a gap Task 3's review found: ComposableExpander substitutes parameter holes into
-        // BindTemplate.Value and BindTemplate.Binder, and nothing exercises that branch. The emitter
-        // tests build ElementNode directly and never reach the expander. If either .Substitute call is
-        // dropped, ToCode() throws "Expression template still contains unbound parameter holes" and only
-        // a test shaped like this one sees it.
+        // BindTemplate.Value, and nothing exercises that branch. The emitter tests build ElementNode
+        // directly and never reach the expander. If the .Substitute call is dropped, ToCode() throws
+        // "Expression template still contains unbound parameter holes" and only a test shaped like this
+        // one sees it. The setter channel has its own case below.
         //
         // The hole is a *member* of the composable's parameter, not the parameter itself. Expansion
         // replaces the parameter with a generated local holding a copy of the caller's argument, so an
@@ -127,6 +127,32 @@ public sealed class HtmlBindGeneratorTests
         Assert.Contains("__builder.AddAttribute(2, \"value\", __bcf_arg_1_0.Name);", generated);
         Assert.Contains(
             "__value => __bcf_arg_1_0.Name = __value, __bcf_arg_1_0.Name)", generated);
+    }
+
+    [Fact]
+    public void Bind_ExplicitSetterInsideComposable_SubstitutesTheSetterToo()
+    {
+        // The setter is the binding's second expression channel and its own .Substitute call in the
+        // expander. The inverted case above cannot see it: with no setter written there is nothing on
+        // that channel to leave unsubstituted, and ToCode() would go on to throw only for the value.
+        const string body = """
+            private sealed class FormModel { public string Name { get; set; } = ""; }
+            private readonly FormModel _form = new();
+
+            [Composable]
+            private static View Field(FormModel model) =>
+                Html.Input.Bind("value", "oninput", () => model.Name, v => model.Name = v.Trim());
+
+            protected override View Body => Html.Div[Field(_form)];
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains(
+            CreateBinder
+            + "(global::System.Action<global::System.String>)"
+            + "(v => __bcf_arg_1_0.Name = v.Trim()), __bcf_arg_1_0.Name)",
+            generated);
     }
 
     [Fact]
