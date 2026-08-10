@@ -23,8 +23,9 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// location for imperative state transitions and execute after rendering, not during it. The getter
 /// argument of a <c>.Bind(...)</c> call is not exempt: it is evaluated while the frames are built, so
 /// a mutation there is still a one-way-flow break. A mutation is exempt when <em>any</em> enclosing
-/// lambda (not just the innermost) is such a handler argument, so nested lambdas inside a deferred
-/// handler body remain exempt as well.
+/// anonymous function (not just the innermost) is such a handler argument, so nested lambdas inside a
+/// deferred handler body remain exempt as well. Both spellings count: a lambda and the
+/// <c>delegate(T v) { … }</c> anonymous method are the same argument to the same parameter.
 /// </para>
 /// <para>
 /// Which calls those are is asked of <see cref="Analysis.KnownSymbols.ClassifySurfaceMethod"/> — the one
@@ -100,10 +101,10 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         // The target must belong to the same component (not a field on a nested type, etc.).
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
 
-        // Condition 3: The operation must not be inside a recognized deferred handler lambda, where
-        // mutations execute after rendering rather than during it: an event decoration's handler argument
-        // or a .Bind setter argument.
-        if (IsInsideDeferredEventHandlerLambda(ctx.Operation.Syntax, semanticModel, knownSymbols)) return;
+        // Condition 3: The operation must not be inside a recognized deferred handler, where mutations
+        // execute after rendering rather than during it: an event decoration's handler argument or a
+        // .Bind setter argument.
+        if (IsInsideDeferredEventHandler(ctx.Operation.Syntax, semanticModel, knownSymbols)) return;
 
         ctx.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.BCF3001,
@@ -185,13 +186,21 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="operationSyntax"/> is enclosed, at any
-    /// nesting depth, by a lambda that is a recognized deferred handler argument. Every enclosing lambda
-    /// is checked (not just the innermost), so a mutation inside a nested lambda that itself lives
-    /// inside a recognized handler lambda (e.g. <c>OnClick(async () => items.ForEach(i => total +=
-    /// i))</c>) is still exempt. If-content lambdas and other non-handler lambdas do not match and
-    /// analysis continues outward.
+    /// nesting depth, by an anonymous function that is a recognized deferred handler argument. Every
+    /// enclosing one is checked (not just the innermost), so a mutation inside a nested lambda that
+    /// itself lives inside a recognized handler lambda (e.g. <c>OnClick(async () => items.ForEach(i =>
+    /// total += i))</c>) is still exempt. If-content lambdas and other non-handler lambdas do not match
+    /// and analysis continues outward.
     /// </summary>
-    private static bool IsInsideDeferredEventHandlerLambda(
+    /// <remarks>
+    /// The test is on <see cref="AnonymousFunctionExpressionSyntax"/>, the common base of both spellings
+    /// C# has for writing a handler inline. <c>delegate(T v) { … }</c> is an
+    /// <c>AnonymousMethodExpressionSyntax</c>, a sibling of <c>LambdaExpressionSyntax</c> rather than a
+    /// subtype, and naming only the latter here let the walk pass a deferred handler written that way
+    /// without ever asking the classification about it (#209). A method group handler is outside the walk
+    /// too, but harmlessly: its body is another member, which the analyzer visits on its own terms.
+    /// </remarks>
+    private static bool IsInsideDeferredEventHandler(
         SyntaxNode operationSyntax,
         SemanticModel semanticModel,
         KnownSymbols knownSymbols)
@@ -199,8 +208,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var node = operationSyntax.Parent;
         while (node is not null)
         {
-            if (node is LambdaExpressionSyntax lambda &&
-                IsDeferredHandlerArgument(lambda, semanticModel, knownSymbols))
+            if (node is AnonymousFunctionExpressionSyntax anonymousFunction &&
+                IsDeferredHandlerArgument(anonymousFunction, semanticModel, knownSymbols))
             {
                 return true;
             }
@@ -210,22 +219,22 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>
-    /// Returns <see langword="true"/> when <paramref name="lambda"/> is a deferred handler argument: the
-    /// handler of an event decoration (a named event shortcut such as <c>.OnClick(...)</c>, or
-    /// <c>.On(...)</c>), or the setter of a two-way <c>.Bind(...)</c> — the element decoration
+    /// Returns <see langword="true"/> when <paramref name="anonymousFunction"/> is a deferred handler
+    /// argument: the handler of an event decoration (a named event shortcut such as <c>.OnClick(...)</c>,
+    /// or <c>.On(...)</c>), or the setter of a two-way <c>.Bind(...)</c> — the element decoration
     /// <c>Decorations.Bind(...)</c> or the component decoration
     /// <c>ComponentView&lt;TComponent&gt;.Bind(...)</c>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// One predicate over the classification rather than one per decoration group: which lambda counts as
+    /// One predicate over the classification rather than one per decoration group: which argument counts as
     /// the deferred one is the only thing that differs between them, and both groups reach it the same way
-    /// — unwrap the lambda to its argument, resolve the invocation, ask
+    /// — unwrap the anonymous function to its argument, resolve the invocation, ask
     /// <see cref="KnownSymbols.ClassifySurfaceMethod"/>. Two predicates meant resolving the same
     /// invocation twice whenever the first declined, and two copies of that prologue to keep in step.
     /// </para>
     /// <para>
-    /// Each arm identifies its lambda by the parameter it binds to, never by argument position: a named
+    /// Each arm identifies its argument by the parameter it binds to, never by argument position: a named
     /// argument (<c>.On(handler: h, eventName: "onclick")</c>) can put the handler anywhere in the list.
     /// The <c>.Bind</c> getter is deliberately not a deferred position — it is evaluated while the frames
     /// are built, so a mutation there must still be reported — and neither is the component spelling's
@@ -234,9 +243,11 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// </para>
     /// </remarks>
     private static bool IsDeferredHandlerArgument(
-        LambdaExpressionSyntax lambda, SemanticModel semanticModel, KnownSymbols knownSymbols)
+        AnonymousFunctionExpressionSyntax anonymousFunction,
+        SemanticModel semanticModel,
+        KnownSymbols knownSymbols)
     {
-        if (lambda.Parent is not ArgumentSyntax arg ||
+        if (anonymousFunction.Parent is not ArgumentSyntax arg ||
             arg.Parent is not ArgumentListSyntax argList ||
             argList.Parent is not InvocationExpressionSyntax invocation ||
             semanticModel.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
@@ -271,9 +282,9 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             // Reference equality is safe here even though FactoryArguments.Bind's default arm cannot
             // rely on it (see the comment there): the elision that defeats a raw Syntax comparison only
             // strips a bare null-forgiving suppression from the operation tree, and `argument` is
-            // always a lambda literal on both paths into this method, never a suppressed identifier, so
-            // operationArgument.Syntax always points back at the same ArgumentSyntax the caller matched
-            // on.
+            // always an anonymous function literal on both paths into this method, never a suppressed
+            // identifier, so operationArgument.Syntax always points back at the same ArgumentSyntax the
+            // caller matched on.
             if (operationArgument.Syntax != argument)
                 continue;
 

@@ -8,7 +8,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// <summary>
 /// Tests for <see cref="RenderMutationAnalyzer"/> (BCF3001).
 /// Verifies that direct state mutations in the Body rendering path are diagnosed,
-/// while mutations inside recognized deferred event handler lambdas are not.
+/// while mutations inside recognized deferred event handlers are not.
 /// </summary>
 public sealed class RenderMutationAnalyzerTests
 {
@@ -97,6 +97,23 @@ public sealed class RenderMutationAnalyzerTests
         }
         """;
 
+    /// <summary>
+    /// The same negative control in the <c>delegate</c> spelling: reaching an anonymous method is not
+    /// itself the exemption. The If content is evaluated while the frames are built, so the
+    /// classification declines it however it is written.
+    /// </summary>
+    private const string IncrementInHtmlIfContentAnonymousMethodSource = """
+        using BlazorCodeFirst;
+
+        public partial class Counter : BodyComponentBase
+        {
+            private bool _flag = true;
+            private int _count;
+            protected override View Body =>
+                Html.If(_flag, delegate { return Html.Span[(_count++).ToString()]; });
+        }
+        """;
+
     // -----------------------------------------------------------------------
     // Sources that must NOT report BCF3001
     // -----------------------------------------------------------------------
@@ -124,6 +141,21 @@ public sealed class RenderMutationAnalyzerTests
         {
             private int Count { get; set; }
             protected override View Body => Html.Button.OnClick(() => Count++)["Increment"];
+        }
+        """;
+
+    /// <summary>
+    /// Same exemption, but the handler is written with the <c>delegate</c> keyword. Both spellings are
+    /// the same argument to the same parameter, and the walk must reach the classification for either
+    /// (#209).
+    /// </summary>
+    private const string IncrementInHtmlOnClickAnonymousMethodSource = """
+        using BlazorCodeFirst;
+
+        public partial class Counter : BodyComponentBase
+        {
+            private int _count;
+            protected override View Body => Html.Button.OnClick(delegate { _count++; })["Increment"];
         }
         """;
 
@@ -157,12 +189,14 @@ public sealed class RenderMutationAnalyzerTests
         DecrementInTextSource,
         PropertyAssignmentInTextSource,
         PropertyIncrementInTextSource,
-        IncrementInHtmlIfContentLambdaSource);
+        IncrementInHtmlIfContentLambdaSource,
+        IncrementInHtmlIfContentAnonymousMethodSource);
 
     /// <summary>Deferred mutations (event handlers, helper methods) that must not report BCF3001.</summary>
     public static TheoryData<string> MutationSourcesThatDoNotReportBCF3001 { get; } = BuildTheoryData(
         IncrementInHtmlOnClickHandlerSource,
         PropertyIncrementInHtmlOnClickHandlerSource,
+        IncrementInHtmlOnClickAnonymousMethodSource,
         HelperMutationSource);
 
     private static TheoryData<string> BuildTheoryData(params string[] sources)
@@ -484,6 +518,20 @@ public sealed class RenderMutationAnalyzerTests
             private string _name = "";
             protected override View Body =>
                 Html.Input.Bind("value", "oninput", () => _name, v => _name = v.Trim());
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>The setter above in the <c>delegate</c> spelling: the same argument bound to the same
+    /// <c>Action&lt;T&gt;</c> parameter, and exempt for the same reason (#209).</summary>
+    [Fact]
+    public void Bind_ExplicitSetterAnonymousMethod_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _name, delegate(string v) { _name = v; });
             """;
 
         AssertNoDiagnostics(body);
