@@ -36,6 +36,17 @@ internal readonly struct EventParameters
     /// </summary>
     public int EventNameIndex { get; }
 
+    /// <summary>
+    /// Whether an argument carries the event's name, as opposed to the decoration naming it itself.
+    /// </summary>
+    /// <remarks>
+    /// The sentinel test, named once. Every reader that only needs to know <em>whether</em> a name argument
+    /// exists asks this; <see cref="EventNameIndex"/> is left to the two that use it as an index — the
+    /// failure-path scanner, which reads that argument, and the decoration arm, which pins it to 0 because
+    /// it reads the name from the first argument and needs that to stay true.
+    /// </remarks>
+    public bool CarriesEventName => EventNameIndex >= 0;
+
     internal EventParameters(int handlerIndex, int eventNameIndex)
     {
         HandlerIndex = handlerIndex;

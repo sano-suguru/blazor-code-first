@@ -430,7 +430,7 @@ public sealed class KnownSymbolsSyncTests
             .Where(method => method is { IsExtensionMethod: true, Parameters.Length: > 0 }
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder)
                 && KnownSymbols.TryGetEventParameters(method, out var eventParameters)
-                && eventParameters.EventNameIndex < 0)
+                && !eventParameters.CarriesEventName)
             .ToList();
 
         // A resolution or shape-rule failure would otherwise make the whole guard vacuous rather than red.

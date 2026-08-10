@@ -235,7 +235,7 @@ internal static class UnresolvedValueTypeScanner
     /// <para>
     /// The event's name is not a value position, so a non-constant one only changes <em>how</em> the
     /// handler is reported, exactly as the merged <c>.Attr</c> arm above still does for its own value.
-    /// A named shortcut carries no name argument at all, which is what <c>EventNameIndex</c> answers.
+    /// A named shortcut carries no name argument at all, which is what <c>CarriesEventName</c> answers.
     /// </para>
     /// <para>
     /// A shape this compiler was not written against reports nothing rather than reporting at a guessed
@@ -250,7 +250,7 @@ internal static class UnresolvedValueTypeScanner
 
         var handler = args.At(eventParameters.HandlerIndex)?.Expression;
 
-        if (eventParameters.EventNameIndex >= 0
+        if (eventParameters.CarriesEventName
             && !IsNonEmptyConstantString(args.At(eventParameters.EventNameIndex)?.Expression, context))
         {
             ReportSelectedInvocationValues(handler, context);
