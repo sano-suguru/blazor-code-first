@@ -9,7 +9,6 @@ namespace BlazorCodeFirst.TrimTests;
 public sealed class PackageContentsTests
 {
     private const string PackageId = "BlazorCodeFirst";
-    private const string PackageVersion = "0.1.0-dev";
     private const string PackageReadmePath = "README.md";
 
     private static readonly string[] ExpectedPayloadFiles =
@@ -24,7 +23,6 @@ public sealed class PackageContentsTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var packageOutputDirectory = Path.Combine(repositoryRoot, "artifacts", "package-tests", nameof(Package_WhenPacked_ContainsOnlyExpectedPayloadAndMetadata));
-        var packagePath = Path.Combine(packageOutputDirectory, $"{PackageId}.{PackageVersion}.nupkg");
         var runtimeProjectPath = Path.Combine(repositoryRoot, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj");
         var verificationScriptPath = Path.Combine(repositoryRoot, "eng", "verify-package.sh");
 
@@ -36,6 +34,9 @@ public sealed class PackageContentsTests
         Directory.CreateDirectory(packageOutputDirectory);
 
         RunDotNetPack(runtimeProjectPath, packageOutputDirectory, repositoryRoot);
+
+        var packagePath = FindPackedPackage(packageOutputDirectory);
+
         RunBash(verificationScriptPath, packagePath, repositoryRoot);
 
         using var packageStream = File.OpenRead(packagePath);
@@ -51,7 +52,6 @@ public sealed class PackageContentsTests
         var packageOutputRoot = Path.Combine(repositoryRoot, "artifacts", "package-tests", nameof(RepeatedPack_WhenStagedCompilerOutputIsStale_RebuildsCompilerAnalyzer));
         var firstPackageOutputDirectory = Path.Combine(packageOutputRoot, "first");
         var secondPackageOutputDirectory = Path.Combine(packageOutputRoot, "second");
-        var secondPackagePath = Path.Combine(secondPackageOutputDirectory, $"{PackageId}.{PackageVersion}.nupkg");
         var runtimeProjectPath = Path.Combine(repositoryRoot, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj");
         var verificationScriptPath = Path.Combine(repositoryRoot, "eng", "verify-package.sh");
         var compilerOutputPath = GetPackCompilerAssemblyPath(repositoryRoot);
@@ -83,6 +83,8 @@ public sealed class PackageContentsTests
             }
         }
 
+        var secondPackagePath = FindPackedPackage(secondPackageOutputDirectory);
+
         RunBash(verificationScriptPath, secondPackagePath, repositoryRoot);
 
         using var packageStream = File.OpenRead(secondPackagePath);
@@ -106,7 +108,6 @@ public sealed class PackageContentsTests
     {
         var repositoryRoot = FindRepositoryRoot();
         var packageOutputDirectory = Path.Combine(repositoryRoot, "artifacts", "package-tests", nameof(PackWithoutBuild_WhenStagedCompilerAnalyzerIsMissing_RegeneratesCompilerAnalyzer));
-        var packagePath = Path.Combine(packageOutputDirectory, $"{PackageId}.{PackageVersion}.nupkg");
         var runtimeProjectPath = Path.Combine(repositoryRoot, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj");
         var verificationScriptPath = Path.Combine(repositoryRoot, "eng", "verify-package.sh");
         var compilerOutputPath = GetPackCompilerAssemblyPath(repositoryRoot);
@@ -126,12 +127,30 @@ public sealed class PackageContentsTests
         }
 
         RunDotNetPack(runtimeProjectPath, packageOutputDirectory, repositoryRoot, noBuild: true);
+
+        var packagePath = FindPackedPackage(packageOutputDirectory);
+
         RunBash(verificationScriptPath, packagePath, repositoryRoot);
 
         using var packageStream = File.OpenRead(packagePath);
         using var packageArchive = new ZipArchive(packageStream, ZipArchiveMode.Read);
 
         AssertPackageContents(packageArchive);
+    }
+
+    /// <summary>
+    /// The single package <c>dotnet pack</c> left in <paramref name="packageOutputDirectory"/>. Found
+    /// rather than composed from a version literal (#228), which also makes "pack produced exactly one
+    /// package" an assertion instead of an assumption. The pattern cannot pick up the sibling
+    /// <c>.snupkg</c>: that name ends in <c>.snupkg</c>, not <c>.nupkg</c>.
+    /// </summary>
+    private static string FindPackedPackage(string packageOutputDirectory)
+    {
+        var packages = Directory.GetFiles(packageOutputDirectory, $"{PackageId}.*.nupkg");
+
+        Assert.Single(packages);
+
+        return packages[0];
     }
 
     private static string FindRepositoryRoot()
@@ -274,8 +293,12 @@ public sealed class PackageContentsTests
 
         Assert.NotNull(metadata);
         Assert.Equal(PackageId, metadata.Element(packageNamespace + "id")?.Value);
-        Assert.Equal(PackageVersion, metadata.Element(packageNamespace + "version")?.Value);
         Assert.Equal(PackageReadmePath, metadata.Element(packageNamespace + "readme")?.Value);
+
+        // The nuspec version is not asserted here. eng/verify-package.sh, which every test in this
+        // class runs before reaching this method, compares it against the one declaration of the
+        // version in eng/Versions.props (#228). A copy here could only restate that comparison
+        // against a second literal, which is what this class used to carry.
 
         var dependencyElements = metadata
             .Descendants()

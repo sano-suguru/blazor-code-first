@@ -3,7 +3,7 @@
   <PropertyGroup>
     <!-- See GeneratorDelivery.Package for why restore is isolated and the dev version is purged. -->
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/nuget-packages</RestorePackagesPath>
-    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/0.1.0-dev</_BlazorCodeFirstDevCachePath>
+    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
   </PropertyGroup>
 
   <!-- The analyzer-reported half of the package delivery path: the same source as

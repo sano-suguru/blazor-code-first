@@ -1,0 +1,20 @@
+<Project>
+
+  <!-- The one place the package's version is written (#228).
+
+       It lives here rather than in Directory.Build.props because Directory.Packages.props needs it
+       too, and a .props file cannot import Directory.Build.props without importing it twice. Both
+       import this instead, so there is one literal and no ordering question.
+
+       BlazorCodeFirstPackageVersion, and not $(Version), is what every consumer of this value reads.
+       $(Version) is normally computed by the SDK in Microsoft.NET.DefaultAssemblyInfo.targets, so it
+       is empty while a .props file or a csproj PropertyGroup is being evaluated — which is exactly
+       where the fixture cache paths and the central PackageVersion need it. Setting $(Version) here
+       as well keeps the packed version and the assembly version in step; the SDK only computes it
+       when it is unset. -->
+  <PropertyGroup>
+    <BlazorCodeFirstPackageVersion>0.1.0-dev</BlazorCodeFirstPackageVersion>
+    <Version>$(BlazorCodeFirstPackageVersion)</Version>
+  </PropertyGroup>
+
+</Project>

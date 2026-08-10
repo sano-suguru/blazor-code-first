@@ -130,7 +130,7 @@ A new diagnostic needs a fixture shape and an entry in
 listed there or excluded with a reason.
 
 Three projects (the TrimTestApp and both `diagnostic-fixtures/*.Package`
-fixtures) purge an isolated `blazorcodefirst/0.1.0-dev` NuGet cache before
+fixtures) purge an isolated `blazorcodefirst/<version>` NuGet cache before
 restoring, so a rebuilt package is never shadowed by a stale one. Get that path
 wrong and nothing fails: the tests pass against the old package contents. If you
 change it, prove the purge still fires with a direct restore, which prints
@@ -198,9 +198,9 @@ and reviewed act.
 Packaging and trimming:
 
 ```bash
-# Pack the runtime and verify its layout
+# Pack the runtime and verify its layout, its metadata, and its symbol package
 dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
-bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.0.1.0-dev.nupkg
+bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.$(bash eng/package-version.sh).nupkg
 
 # Publish trimmed and run the trim tests (osx-arm64 shown; linux-x64 also supported)
 dotnet publish tests/BlazorCodeFirst.TrimTestApp/BlazorCodeFirst.TrimTestApp.csproj \
@@ -220,6 +220,33 @@ emitted output a diagnostic does not describe:
 dotnet build <project> -t:Rebuild \
   -p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedFilesOutputPath=gen
 ```
+
+## The package version
+
+`eng/Versions.props` is the only place the version is written. `Directory.Build.props` and
+`Directory.Packages.props` both import it, under a condition so the second import is a no-op rather
+than an MSB4011; every project therefore sees `$(BlazorCodeFirstPackageVersion)`, including the
+fixtures outside the solution, whose isolated cache paths are built from it.
+
+Nothing else may hold a copy. `eng/package-version.sh` prints what MSBuild resolves, and that is what
+`ci.yml` and `release.yml` read to name the packed file; `eng/verify-package.sh` reads
+`eng/Versions.props` itself and asserts the packed nuspec agrees, which is the check that the package
+carries the version the repository declares. `PackageContentsTests` finds the packed file rather than
+composing its name, so it asserts that `dotnet pack` produced exactly one package instead of assuming
+which one. The README files still name a concrete version in prose, because installation
+instructions have to.
+
+## Releasing
+
+`release.yml` runs on a `v*` tag and is staged by reversibility. The first job fails immediately
+unless the tag equals `v$(bash eng/package-version.sh)`, then builds, tests, packs, and verifies, and
+uploads the verified package as a workflow artifact so no later job repacks it. The second creates
+the GitHub Release. The third pushes to nuget.org and is the only irreversible step, so it sits behind
+a GitHub Environment named `nuget.org` that waits for a reviewer.
+
+Two things must exist before the first release and neither can be created from a pull request: that
+environment, with a required reviewer, and a `NUGET_API_KEY` secret from an nuget.org key scoped to
+*Push new packages and package versions* for the `BlazorCodeFirst` glob.
 
 ## Code style
 

@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Restore into an isolated folder so the fixed 0.1.0-dev version can never be served from the
+    <!-- Restore into an isolated folder so the fixed dev version can never be served from the
          developer's global package cache, and purge that version before every restore so a rebuilt
          package is actually re-extracted. Same reasoning as BlazorCodeFirst.TrimTestApp. -->
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/nuget-packages</RestorePackagesPath>
-    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/0.1.0-dev</_BlazorCodeFirstDevCachePath>
+    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
   </PropertyGroup>
 
   <!-- The same broken source as GeneratorDelivery.ProjectReference, compiled against the analyzer as

@@ -11,7 +11,7 @@
     <!-- Top-level statements synthesize a Program class outside any namespace; CA1050 is irrelevant here. -->
     <NoWarn>CA1050</NoWarn>
     <!-- Computed path to the dev-version cache that must be cleared before restore. -->
-    <_BlazorCodeFirstDevCachePath>$(MSBuildThisFileDirectory)../../artifacts/nuget-packages/blazorcodefirst/0.1.0-dev</_BlazorCodeFirstDevCachePath>
+    <_BlazorCodeFirstDevCachePath>$(MSBuildThisFileDirectory)../../artifacts/nuget-packages/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
@@ -34,7 +34,7 @@
     <_ILLinkSuppressions Include="ILLink.LinkAttributes.xml" />
   </ItemGroup>
 
-  <!-- Cross-platform cache purge: delete only the isolated 0.1.0-dev cache before restore
+  <!-- Cross-platform cache purge: delete only the isolated dev-version cache before restore
        so NuGet cannot reuse stale package contents for the fixed development version.
        Only fires during actual NuGet restore (MSBuildRestoreSessionId is set). -->
   <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">

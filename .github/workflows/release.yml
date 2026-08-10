@@ -1,0 +1,158 @@
+name: Release
+
+# A tag is the trigger, so the published package is always traceable to a named commit (#229).
+# Nothing here runs on a branch push: ci.yml covers those, and a release that could happen from an
+# unnamed commit would defeat the point of the tag.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Two runs for the same tag would race on the GitHub Release and on the nuget.org push, and the
+# second cannot succeed. Queue rather than cancel: cancelling mid-push would leave the release
+# half-made with no record of why.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Everything reversible. The tag/version check runs first so a mistyped tag fails in seconds
+  # rather than after a full build.
+  build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.package-version.outputs.value }}
+      prerelease: ${{ steps.package-version.outputs.prerelease }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - run: dotnet restore BlazorCodeFirst.slnx
+
+      # The tag must name the version the build will actually produce. Without this a `v0.2.0` tag on
+      # a tree still declaring an older version would publish that one under a release page naming
+      # the tag's, and nuget.org cannot be corrected afterwards: a published version can only be
+      # unlisted.
+      #
+      # The tag arrives through env rather than through ${{ }} interpolation into the script body:
+      # a tag name is attacker-supplied text as far as the shell is concerned.
+      - id: package-version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version=$(bash eng/package-version.sh)
+          expected_tag="v${version}"
+
+          if [ "$TAG_NAME" != "$expected_tag" ]; then
+            echo "Tag '$TAG_NAME' does not match the declared version '$version' (expected '$expected_tag')." >&2
+            echo "Update eng/Versions.props or retag; do not publish a mismatch." >&2
+            exit 1
+          fi
+
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+          # A version with a prerelease label is marked as one on the release page, so a prerelease
+          # cannot present itself as stable.
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - run: dotnet build BlazorCodeFirst.slnx --no-restore
+
+      # A release is gated on the suite passing at the tagged commit rather than on ci.yml having
+      # passed at some point. Single OS: the cross-OS matrix and the trimming and browser jobs are
+      # ci.yml's, and a tag on a commit that never went through CI is exactly the case this catches.
+      - run: dotnet test BlazorCodeFirst.slnx --no-build
+
+      - run: dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
+
+      # The same verification ci.yml runs, not a second implementation of it.
+      - run: bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.${{ steps.package-version.outputs.value }}.nupkg
+
+      # Carried to the later jobs as an artifact so neither repacks. A second pack would produce a
+      # second set of bytes, and the one that was verified is the one that must be published.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package
+          path: |
+            artifacts/package/*.nupkg
+            artifacts/package/*.snupkg
+          if-no-files-found: error
+
+  # Still reversible: a GitHub Release can be deleted and a tag re-cut.
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: artifacts/package
+
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+          PRERELEASE: ${{ needs.build.outputs.prerelease }}
+        run: |
+          prerelease_flag=()
+          if [ "$PRERELEASE" = "true" ]; then
+            prerelease_flag=(--prerelease)
+          fi
+
+          gh release create "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$VERSION" \
+            --generate-notes \
+            "${prerelease_flag[@]}" \
+            artifacts/package/*.nupkg \
+            artifacts/package/*.snupkg
+
+  # The only irreversible step in the workflow: a version pushed to nuget.org cannot be replaced,
+  # only unlisted. It is a separate job behind a GitHub Environment so it waits for a human.
+  #
+  # Before the first run, two things have to exist and neither can be created from a pull request:
+  #   - the `nuget.org` environment, with a required reviewer
+  #   - the NUGET_API_KEY secret, from an nuget.org key scoped to "Push new packages and package
+  #     versions" for the BlazorCodeFirst glob
+  nuget-push:
+    needs: [build, github-release]
+    runs-on: ubuntu-latest
+
+    environment: nuget.org
+
+    steps:
+      # Checked out only for global.json, so the push runs on the SDK the repository pins rather than
+      # on whatever the runner image happens to ship.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+          path: artifacts/package
+
+      # No --skip-duplicate: a version already on nuget.org means this release was cut twice, and
+      # that is worth failing on rather than passing over quietly.
+      - env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push 'artifacts/package/*.nupkg' \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "$NUGET_API_KEY"

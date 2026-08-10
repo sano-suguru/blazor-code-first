@@ -119,15 +119,28 @@ if [ "${#unexpected_files[@]}" -ne 0 ]; then
   exit 1
 fi
 
-python3 - "$workdir/BlazorCodeFirst.nuspec" <<'PY'
+python3 - "$workdir/BlazorCodeFirst.nuspec" "$repository_root/eng/Versions.props" <<'PY'
+import re
 import sys
 import xml.etree.ElementTree as ET
 
-nuspec_path = sys.argv[1]
+nuspec_path, versions_props_path = sys.argv[1], sys.argv[2]
 # Packing a <dependencies> group (added when Runtime moved from an unconditional
 # FrameworkReference to a granular PackageReference, see issue #23) makes the SDK
 # emit the 2013/05 nuspec schema instead of the dependency-less 2012/06 schema.
 namespace = {"n": "http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd"}
+
+# The expected version is read from the repository's one declaration of it rather than
+# repeated here (#228). That makes this assertion the check that the package the build
+# produced carries the version the repository declares -- which is the invariant worth
+# holding, and which a literal copy in this script could only restate.
+versions_root = ET.parse(versions_props_path).getroot()
+declared_version = versions_root.findtext(".//BlazorCodeFirstPackageVersion", default="").strip()
+
+if not declared_version:
+    raise SystemExit(
+        f"Could not read BlazorCodeFirstPackageVersion from {versions_props_path}."
+    )
 
 root = ET.parse(nuspec_path).getroot()
 metadata = root.find("n:metadata", namespace)
@@ -137,8 +150,15 @@ if metadata is None:
 
 expected_values = {
     "id": "BlazorCodeFirst",
-    "version": "0.1.0-dev",
+    "version": declared_version,
     "readme": "README.md",
+    # An SPDX expression, so nuget.org links the license instead of embedding a copy, and no
+    # license file lands in the payload (#226). NuGet emits a licenseUrl beside it for older
+    # clients; that one is derived and not asserted.
+    "license": "MIT",
+    "projectUrl": "https://blazor-code-first-site.pages.dev/",
+    "copyright": "Copyright (c) 2026 Sano Suguru",
+    "tags": "blazor razor source-generator html dsl aot trimming components",
 }
 
 for element_name, expected_value in expected_values.items():
@@ -147,6 +167,40 @@ for element_name, expected_value in expected_values.items():
         raise SystemExit(
             f"Unexpected nuspec {element_name!r}: expected {expected_value!r}, got {actual_value!r}."
         )
+
+license_element = metadata.find("n:license", namespace)
+if license_element is None or license_element.attrib.get("type") != "expression":
+    raise SystemExit(
+        "Package license must be declared as an SPDX expression "
+        f"(type=\"expression\"), got {license_element.attrib if license_element is not None else None}."
+    )
+
+# The repository element is what SourceLink produces (#227). Asserting the resolved commit is
+# present and is a full SHA is the only check that SourceLink actually ran: RepositoryUrl and
+# RepositoryType are set by hand in the csproj and would appear whether it did or not.
+repository = metadata.find("n:repository", namespace)
+if repository is None:
+    raise SystemExit("Package repository element is missing from nuspec.")
+
+expected_repository = {
+    "type": "git",
+    "url": "https://github.com/sano-suguru/blazor-code-first",
+}
+
+for attribute_name, expected_value in expected_repository.items():
+    actual_value = repository.attrib.get(attribute_name, "")
+    if actual_value != expected_value:
+        raise SystemExit(
+            f"Unexpected nuspec repository {attribute_name!r}: "
+            f"expected {expected_value!r}, got {actual_value!r}."
+        )
+
+commit = repository.attrib.get("commit", "")
+if not re.fullmatch(r"[0-9a-f]{40}", commit):
+    raise SystemExit(
+        f"Package repository commit is not a full git SHA: {commit!r}. "
+        "SourceLink did not resolve it."
+    )
 
 # Runtime must depend on the granular Microsoft.AspNetCore.Components package only,
 # never on the ASP.NET Core shared framework (which has no browser-wasm runtime
@@ -161,4 +215,33 @@ if dependency_ids != ["Microsoft.AspNetCore.Components"]:
     )
 PY
 
+# The symbol package (#227). SymbolPackageFormat=snupkg keeps the .pdb out of the .nupkg entirely,
+# which is why the exact payload match above still holds; the symbols are verified here instead.
+# Only the runtime has symbols: the generator half is staged into analyzers/dotnet/cs by the
+# PackCompilerAnalyzer target as a raw file, and giving it symbols is a separate question (#227).
+symbol_package_path="${package_path%.nupkg}.snupkg"
+
+if [ ! -f "$symbol_package_path" ]; then
+  echo "Symbol package not found beside the package: $symbol_package_path" >&2
+  exit 1
+fi
+
+symbol_workdir="$workdir/symbols"
+mkdir "$symbol_workdir"
+unzip -q "$symbol_package_path" -d "$symbol_workdir"
+
+symbol_payload_files=$(
+  cd "$symbol_workdir"
+  find . -type f -print | sed 's#^\./##' |
+    awk '/^(analyzers|lib|build|buildTransitive|contentFiles|tools|runtimes)\//' |
+    LC_ALL=C sort
+)
+
+if [ "$symbol_payload_files" != 'lib/net10.0/BlazorCodeFirst.Runtime.pdb' ]; then
+  echo "Unexpected files under symbol package payload roots:" >&2
+  printf '%s\n' "$symbol_payload_files" >&2
+  exit 1
+fi
+
 echo "Verified package contents: $package_path"
+echo "Verified symbol package contents: $symbol_package_path"

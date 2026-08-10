@@ -6,8 +6,9 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>BlazorCodeFirst</PackageId>
-    <Version>0.1.0-dev</Version>
+    <!-- Version comes from eng/Versions.props, the one place it is written (#228). -->
     <Authors>Sano Suguru</Authors>
+    <Copyright>Copyright (c) 2026 Sano Suguru</Copyright>
     <!-- The name says it is for Blazor and that you write it in C#, but not which vocabulary you
          write in. This is where that gap is covered, so it must state the HTML mirror explicitly. -->
     <Description>Blazor components written in C#, not .razor. HTML's own vocabulary as C# expressions, compiled to RenderTreeBuilder at build time.</Description>
@@ -15,6 +16,27 @@
     <IsTrimmable>true</IsTrimmable>
     <IsAotCompatible>true</IsAotCompatible>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- An SPDX expression rather than PackageLicenseFile: it needs no file in the payload, and
+         nuget.org renders it as a link to the license text instead of embedding a copy. The full text
+         is at the repository root in LICENSE (#226). -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://blazor-code-first-site.pages.dev</PackageProjectUrl>
+    <PackageTags>blazor;razor;source-generator;html;dsl;aot;trimming;components</PackageTags>
+    <RepositoryUrl>https://github.com/sano-suguru/blazor-code-first</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- SourceLink is built into the .NET SDK and needs no package reference, but it does need these
+         two: PublishRepositoryUrl writes the resolved commit into the package, and
+         EmbedUntrackedSources covers generated files that are not in git (#227). The third thing it
+         needs, ContinuousIntegrationBuild, is already set for CI in the root Directory.Build.props. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+    <!-- A separate symbol package, so a consumer can step into the runtime. snupkg keeps the .pdb out
+         of the .nupkg entirely, which is why eng/verify-package.sh's exact payload match still holds. -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCompilerAnalyzer</TargetsForTfmSpecificContentInPackage>
     <CompilerPackStagingDirectory>$(MSBuildThisFileDirectory)obj/compiler-pack/analyzers/dotnet/cs</CompilerPackStagingDirectory>
     <CompilerPackAssemblyPath>$(CompilerPackStagingDirectory)/BlazorCodeFirst.Compiler.dll</CompilerPackAssemblyPath>
