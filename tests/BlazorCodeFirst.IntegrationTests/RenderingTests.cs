@@ -178,6 +178,46 @@ public sealed class RenderingTests : BunitContext
     }
 
     /// <summary>
+    /// A null attribute value through real rendering and a real re-render diff (#171). Asserted with
+    /// GetAttribute, which answers null for an absent attribute and the empty string for a present empty
+    /// one, because MarkupMatches blurs exactly that distinction — and the distinction is the whole content
+    /// of the issue.
+    /// </summary>
+    [Fact]
+    public void NullAttributeComponent_WhenValueTurnsNull_RemovesTheAttributeButKeepsAnEmptyOne()
+    {
+        var cut = Render<NullAttributeComponent>();
+        var spans = cut.FindAll("span");
+
+        Assert.Equal("tip", spans[0].GetAttribute("title"));
+        Assert.Equal("tip", spans[1].GetAttribute("title"));
+
+        cut.Find("button").Click();
+
+        spans = cut.FindAll("span");
+        Assert.Null(spans[0].GetAttribute("title"));
+        Assert.Equal("", spans[1].GetAttribute("title"));
+    }
+
+    /// <summary>
+    /// The class channel's two shapes, measured rather than described. A lone null omits the attribute; a
+    /// null joined behind a constant leaves the separator, which is #236's subject and is asserted as the
+    /// exact string rather than through classList, because classList reads <c>"card "</c> as
+    /// <c>["card"]</c> and cannot see it.
+    /// </summary>
+    [Fact]
+    public void NullAttributeComponent_WhenClassTermTurnsNull_LeavesTheSeparatorButOmitsALoneClass()
+    {
+        var cut = Render<NullAttributeComponent>();
+
+        cut.Find("button").Click();
+
+        var spans = cut.FindAll("span");
+        Assert.Equal("card ", spans[2].GetAttribute("class"));
+        Assert.Null(spans[3].GetAttribute("class"));
+    }
+
+    /// <summary>
     /// A <c>bool</c> attribute value through real rendering and a real re-render diff. The compiler tests
     /// pin the emitted call and the browser gate pins the folded/element parity for a constant; this pins
     /// what the overload is actually for, that a runtime <see langword="false"/> removes the attribute
