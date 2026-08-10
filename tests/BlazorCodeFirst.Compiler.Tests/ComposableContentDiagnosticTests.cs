@@ -155,10 +155,115 @@ public sealed class ComposableContentDiagnosticTests
             diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
+    /// <summary>
+    /// Content has no value, so a reference to it in a value position is reported as the unsupported reference
+    /// it is. Before this was checked, such a reference minted an expression hole at a content ordinal and the
+    /// substitution threw, which the generator driver turned into CS8785 — no generated source, no location,
+    /// and nothing naming what the author had written.
+    /// </summary>
+    [Theory]
+    // A ForEach key is a value expression.
+    [InlineData(
+        """
+        private List<string> _xs = new();
+        [Composable] private static ContentView Rows(List<string> xs) => Ul[ForEach(xs, x => Slot, x => Li["a"])];
+        protected override View Body => Rows(_xs)[Li["c"]];
+        """,
+        "Slot")]
+    // So is an attribute value, here reached through a method call on a View parameter.
+    [InlineData(
+        """
+        private static string Describe(View v) => "x";
+        [Composable] private static ContentView Card(View header) => Div.Attr("data-x", Describe(header))[Slot];
+        protected override View Body => Card(Span["h"])[P["c"]];
+        """,
+        "header")]
+    public void CallerContentInAValuePosition_ReportsBCF1002(string members, string name)
+    {
+        var result = RunComponent(members);
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+
+        Assert.Contains(
+            $"'{name}' is caller-supplied content, which has no value",
+            diagnostic.GetMessage(CultureInfo.InvariantCulture));
+
+        // The point of reporting it here: the generator must not fall over.
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "CS8785");
+    }
+
+    /// <summary>
+    /// A slot as a ForEach content root is keyable when the caller supplied a keyable element there, and the
+    /// resolver has the call's content in hand at that point. Reporting BCF3003 anyway gave the author a
+    /// diagnostic they could only fix inside someone else's <c>[Composable]</c>.
+    /// </summary>
+    [Fact]
+    public void SlotRootedForEachContent_WhenTheCallerSuppliesAKeyableElement_IsNotReported()
+    {
+        var result = RunComponent("""
+            private List<string> _xs = new();
+            [Composable] private static ContentView Bare() => Slot;
+            protected override View Body => Ul[ForEach(_xs, x => x, x => Bare()[Li[x]])];
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3003");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// The other side of it: with no keyable element to find, the report still happens. Here the caller
+    /// supplies a bare <c>If</c>, which opens no frame of its own.
+    /// </summary>
+    [Fact]
+    public void SlotRootedForEachContent_WhenTheCallerSuppliesARegion_IsStillReported()
+    {
+        var result = RunComponent("""
+            private List<string> _xs = new();
+            private bool _flag;
+            [Composable] private static ContentView Bare() => Slot;
+            protected override View Body =>
+                Ul[ForEach(_xs, x => x, x => Bare()[If(_flag, () => Li[x])])];
+            """);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3003");
+    }
+
+    /// <summary>
+    /// <c>ContentView</c> is an inert design-time marker, so it belongs to BCF3014 beside <c>View</c>,
+    /// <c>ElementBuilder</c> and <c>ComponentView&lt;T&gt;</c>: a call before its brackets boxes to
+    /// <c>object</c> and would otherwise be emitted verbatim into a component parameter.
+    /// </summary>
+    [Fact]
+    public void ContentViewInAScalarParamValue_ReportsBCF3014()
+    {
+        var source = """
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCodeFirst.Html;
+
+            public class Target : ComponentBase
+            {
+                [Parameter] public object? Payload { get; set; }
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                [Composable] private static ContentView Card() => Div[Slot];
+
+                protected override View Body =>
+                    Component<Target>().Param(t => t.Payload, Card());
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3014");
+    }
+
     private static GeneratorRunResult RunComponent(string members)
     {
         var source = $$"""
             using BlazorCodeFirst;
+            using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
 
             public partial class C : BodyComponentBase

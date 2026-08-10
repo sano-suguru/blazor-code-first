@@ -51,17 +51,25 @@ internal sealed record ComposableAccessRequirement(
 /// <see cref="ComposableAccessRequirement.RequiredContainingTypeKey"/>, the <em>declaring</em> type of each
 /// referenced member.
 /// </remarks>
-/// <param name="SlotOrdinal">
-/// The substitution ordinal this definition's <c>Html.Slot</c> is bound at, or <c>-1</c> when it declares no
-/// slot — which is every part returning <c>View</c> rather than <c>ContentView</c> (#176). It is always
-/// <c>Parameters.Length</c> when present, so the ordinal space reads parameters, then the slot, then the
-/// scoped render variables <c>ComposableBodyContext.PushRenderVariable</c> appends.
+/// <param name="HasSlot">
+/// Whether this definition names <c>Html.Slot</c>, which is exactly whether it returns <c>ContentView</c>
+/// (#176). The ordinal that slot is bound at is <see cref="SlotOrdinal"/>, derived rather than stored: it is
+/// always the ordinal after the last parameter, so storing it would put a second copy of that invariant into
+/// a value-equal model that the incremental generator caches on.
 /// </param>
 internal sealed record ComposableDefinition(
     EquatableArray<ComposableParameter> Parameters,
     EquatableArray<ComposableAccessRequirement> AccessRequirements,
     RenderTemplateNode Body,
-    int SlotOrdinal = -1);
+    bool HasSlot = false)
+{
+    /// <summary>
+    /// The substitution ordinal the slot is bound at, or <c>-1</c> when there is none. The ordinal space reads
+    /// parameters, then the slot, then the scoped render variables
+    /// <c>ComposableBodyContext.PushRenderVariable</c> appends.
+    /// </summary>
+    public int SlotOrdinal => HasSlot ? Parameters.Length : -1;
+}
 
 /// <summary>
 /// A registry slot for one source-declared composable. Invalid declarations remain present with

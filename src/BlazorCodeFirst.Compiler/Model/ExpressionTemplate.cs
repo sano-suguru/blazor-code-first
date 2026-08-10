@@ -61,7 +61,7 @@ internal sealed record RuntimeFormattedConstant : ConstantInfo;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Substitution is lazy: the templates are expanded where the callee names the hole, not at the call site.
+/// Substitution is lazy: the template is expanded where the callee names the hole, not at the call site.
 /// That is what makes zero, one, and many references each work — every reference expands the subtree again
 /// and consumes fresh preorder ordinals, so the generated local and loop-variable names cannot collide.
 /// </para>
@@ -76,7 +76,7 @@ internal sealed record RuntimeFormattedConstant : ConstantInfo;
 /// </para>
 /// </remarks>
 internal sealed record ContentArgument(
-    ImmutableArray<RenderTemplateNode> Templates,
+    RenderTemplateNode Template,
     ImmutableArray<SubstitutedArgument> Substitution,
     ImmutableArray<string> ActiveMethodStack);
 

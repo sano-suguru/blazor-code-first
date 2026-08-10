@@ -77,21 +77,18 @@ internal sealed record ComposableCallTemplateNode(
     EquatableArray<ComposableInvocationArgument> Arguments,
     TemplateLocation Location) : RenderTemplateNode
 {
-    /// <summary>The call's <c>View</c>-typed arguments, its additional content slots (#34).</summary>
-    public EquatableArray<ComposableContentArgument> ContentArguments { get; init; }
-
     /// <summary>
-    /// The content written in brackets, <c>Card("Profile")[P["本文"]]</c>, in source order; empty when the
-    /// call has none, which is every call to a part returning <c>View</c> rather than <c>ContentView</c>.
+    /// Every piece of content this call supplies, bound to the callee's ordinals: one entry per
+    /// <c>View</c>-typed argument, plus the bracket content at the slot ordinal when the call has brackets
+    /// (#34, #176).
     /// </summary>
     /// <remarks>
-    /// A channel of its own rather than another <see cref="ComposableContentArgument"/>, because the bracket
-    /// is not an argument: it binds to no parameter, and which ordinal the callee holds it at is a fact
-    /// about the <em>definition</em> (<see cref="Analysis.ComposableDefinition.SlotOrdinal"/>). Keeping it
-    /// here means the call site never has to know the callee's arity, which it has no symbol-free way to
-    /// learn.
+    /// One channel and not two. The bracket is not an argument, but it is content bound to an ordinal exactly
+    /// as an argument's is, and the site that builds this node has the callee's symbol in hand, so it can
+    /// name the slot ordinal itself rather than leaving the expander to reconcile two transports. That
+    /// reconciliation was where the mismatch guards came from.
     /// </remarks>
-    public EquatableArray<RenderTemplateNode> SlotContent { get; init; }
+    public EquatableArray<ComposableContentArgument> ContentArguments { get; init; }
 }
 
 internal sealed record ForEachTemplateNode(

@@ -272,9 +272,15 @@ internal static class ComposableExpander
                         return null;
                     }
 
-                    return ExpandContent(
-                        content,
+                    // Expanded under the *caller's* substitution and cycle stack, because the argument is an
+                    // expression written there. Carrying the caller's stack is what keeps
+                    // Wrap()[Wrap()[…]] from being reported as recursion: at the moment the inner call is
+                    // expanded, the outer one is not on its own path.
+                    return ExpandNode(
+                        content.Template,
+                        content.Substitution,
                         ref nextLogicalPreorderOrdinal,
+                        content.ActiveMethodStack,
                         registry,
                         generatedTypeInheritanceKeys,
                         diagnostics);
@@ -284,48 +290,6 @@ internal static class ComposableExpander
                 throw new NotSupportedException(
                     $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
         }
-    }
-
-    /// <summary>
-    /// Expands one content hole's caller-supplied subtree, under the caller's own substitution and cycle
-    /// stack rather than the callee's.
-    /// </summary>
-    /// <remarks>
-    /// Carrying the caller's <c>ActiveMethodStack</c> is what keeps <c>A(A(P["z"]))</c> from being reported as
-    /// a recursion cycle. The inner call is an expression written at the outer call site, so at the moment it
-    /// is expanded <c>A</c> is not on its own path -- it is on the path of the body that named the hole, which
-    /// is a different thing.
-    /// <para>
-    /// A single child is spliced as itself, so wrapping a part around content emits exactly the frames writing
-    /// that content inline would. Several are grouped in a <see cref="FragmentNode"/>, which opens no frame of
-    /// its own, so the grouping costs nothing beyond what <c>Fragment(…)</c> costs.
-    /// </para>
-    /// </remarks>
-    private static RenderNode? ExpandContent(
-        ContentArgument content,
-        ref int nextLogicalPreorderOrdinal,
-        ComposableRegistry registry,
-        ImmutableArray<string> generatedTypeInheritanceKeys,
-        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
-    {
-        var expanded = ImmutableArray.CreateBuilder<RenderNode>(content.Templates.Length);
-        foreach (var template in content.Templates)
-        {
-            var node = ExpandNode(
-                template,
-                content.Substitution,
-                ref nextLogicalPreorderOrdinal,
-                content.ActiveMethodStack,
-                registry,
-                generatedTypeInheritanceKeys,
-                diagnostics);
-            if (node is null)
-                return null;
-
-            expanded.Add(node);
-        }
-
-        return expanded.Count == 1 ? expanded[0] : new FragmentNode(expanded.ToImmutable());
     }
 
     private static ExpansionNode? ExpandCall(
@@ -386,8 +350,7 @@ internal static class ComposableExpander
         // The substitution the body is expanded under: one slot per parameter, plus one for the slot ordinal
         // when the definition declares one. That ordering is the definition's own (SlotOrdinal is always
         // Parameters.Length), so the array is indexed by exactly the ordinals the holes carry.
-        var innerArguments = new SubstitutedArgument[
-            definition.SlotOrdinal >= 0 ? definition.SlotOrdinal + 1 : parameters.Length];
+        var innerArguments = new SubstitutedArgument[parameters.Length + (definition.HasSlot ? 1 : 0)];
 
         // One typed local per value parameter, named from the call's logical preorder ordinal and the
         // parameter ordinal so names are unique across the whole component. The argument's constant
@@ -404,32 +367,18 @@ internal static class ComposableExpander
         }
 
         // Every content channel captures the caller's substitution and cycle stack, because the argument is an
-        // expression written here. See ExpandContent.
+        // expression written here. The bracket content is one of these entries, at the slot ordinal, so the
+        // two kinds need no reconciling.
         foreach (var contentArgument in call.ContentArguments)
         {
+            // The only mismatch left to guard: a call built against a definition whose shape the registry
+            // reports differently. Unreachable from source, and an out-of-range write would be an
+            // IndexOutOfRangeException escaping the generator rather than a failed expansion.
             if (contentArgument.ParameterOrdinal >= innerArguments.Length)
                 return null;
 
             innerArguments[contentArgument.ParameterOrdinal] = SubstitutedArgument.ForContent(
-                new ContentArgument([contentArgument.Content], substitution, activeMethodStack));
-        }
-
-        if (definition.SlotOrdinal >= 0)
-        {
-            // The brackets are mandatory on a ContentView part, so an empty list here means the call was
-            // written against a definition whose slot the analyzer did not see. Fail rather than expand a
-            // body whose slot would silently vanish.
-            if (call.SlotContent.Length == 0)
-                return null;
-
-            innerArguments[definition.SlotOrdinal] = SubstitutedArgument.ForContent(
-                new ContentArgument(call.SlotContent.AsImmutableArray(), substitution, activeMethodStack));
-        }
-        else if (call.SlotContent.Length > 0)
-        {
-            // Brackets against a part that declares no slot. Unreachable from source -- such a part returns
-            // View, which has no indexer -- so this covers a registry/model mismatch only.
-            return null;
+                new ContentArgument(contentArgument.Content, substitution, activeMethodStack));
         }
 
         // Emit the locals in source evaluation order (supplied arguments by source position, then implicit

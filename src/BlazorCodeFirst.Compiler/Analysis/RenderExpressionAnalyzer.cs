@@ -103,18 +103,18 @@ internal static class RenderExpressionAnalyzer
         {
             if (!resolvedProperty.IsIndexer)
             {
-                if (symbols.SlotProperty is { } slotProperty
-                    && SymbolEqualityComparer.Default.Equals(
-                        KnownSymbols.Normalize(resolvedProperty), KnownSymbols.Normalize(slotProperty)))
+                // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
+                // element are unavoidable and this is the one that carries no children. Asked first because it
+                // is the overwhelmingly common answer -- every Div, Span and P in every body arrives here --
+                // and the two arms are disjoint: an element helper returns ElementBuilder and Slot is View.
+                if (symbols.ElementTags.TryGetValue(
+                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag))
                 {
-                    return ClassifySlot(expression, slotProperty, context);
+                    return new ElementTemplateNode(propertyTag);
                 }
 
-                // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
-                // element are unavoidable and this is the one that carries no children.
-                return symbols.ElementTags.TryGetValue(
-                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag)
-                    ? new ElementTemplateNode(propertyTag)
+                return symbols.IsSlot(resolvedProperty)
+                    ? ClassifySlot(expression, symbols.SlotProperty!, context)
                     : null;
             }
 
@@ -124,13 +124,10 @@ internal static class RenderExpressionAnalyzer
         }
 
         // A reference to one of the definition's own View-typed parameters: an additional content slot (#34).
-        // Asked of the parameter map only, never of the scoped render-variable overlay, for the reason
-        // TryGetContentOrdinal's remarks give -- a ForEach over Views binds a View-typed loop variable there,
-        // and that holds a runtime value rather than caller content.
-        if (symbol is IParameterSymbol contentParameter
-            && symbols.ViewType is { } parameterViewType
-            && SymbolEqualityComparer.Default.Equals(contentParameter.Type, parameterViewType)
-            && context.TryGetContentOrdinal(contentParameter, out var contentOrdinal))
+        // The kind comes from ResolveHole rather than from the parameter's type, so a View-typed *render
+        // variable* -- a ForEach over a sequence of Views binds one -- stays the value it is.
+        if (symbol is IParameterSymbol
+            && context.ResolveHole(symbol, out var contentOrdinal) == BodyHoleKind.Content)
         {
             return new ContentHoleTemplateNode(contentOrdinal);
         }
@@ -673,7 +670,7 @@ internal static class RenderExpressionAnalyzer
     private static ContentHoleTemplateNode? ClassifySlot(
         ExpressionSyntax expression, IPropertySymbol slotProperty, ComposableBodyContext context)
     {
-        if (context.TryGetContentOrdinal(slotProperty, out var slotOrdinal))
+        if (context.ResolveHole(slotProperty, out var slotOrdinal) == BodyHoleKind.Content)
             return new ContentHoleTemplateNode(slotOrdinal);
 
         context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -1214,10 +1211,15 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// The receiver is classified by the same arm that handles a bare call, so nothing about argument binding
-    /// is written twice. The children are attached as a channel rather than as an argument: which ordinal the
-    /// callee holds its slot at is a fact about the definition, and this site has no symbol-free way to learn
-    /// the callee's arity. <c>ComposableExpander</c> binds them to
-    /// <see cref="ComposableDefinition.SlotOrdinal"/>.
+    /// is written twice. The bracket content becomes one more <see cref="ComposableContentArgument"/>, at the
+    /// ordinal after the callee's last parameter, which is where the definition binds its slot: the receiver's
+    /// own symbol gives the arity, so the call site names the ordinal rather than leaving two transports for
+    /// the expander to reconcile.
+    /// <para>
+    /// Several children are grouped in a <see cref="FragmentTemplateNode"/> and a single one is kept as
+    /// itself, the rule <see cref="TryBuildChildContentSlot"/> already applies to the analogous case, so
+    /// wrapping a part around one child emits exactly the frames writing that child inline would.
+    /// </para>
     /// <para>
     /// There is no "brackets on a part that takes no content" case to diagnose. Such a part returns
     /// <c>View</c>, which declares no indexer, so the bracket is a CS0021 before the generator runs — the same
@@ -1230,16 +1232,27 @@ internal static class RenderExpressionAnalyzer
         if (Analyze(elementAccess.Expression, context) is not ComposableCallTemplateNode call)
             return null;
 
-        // One whole collection passed to the params indexer is not a list of children; leave it unanalyzable
-        // so it lands on BCF1003 instead of being mis-split. Same rule as the element indexer's.
-        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
+        // The callee's arity, which is the slot's ordinal. Taken from the receiver's own resolved symbol; the
+        // template node is symbol-free and cannot carry it.
+        if (context.SemanticModel.GetSymbolInfo(elementAccess.Expression, context.CancellationToken).Symbol
+            is not IMethodSymbol callee)
+        {
             return null;
+        }
 
-        var children = AnalyzeChildren(args.ParamsElements, context);
+        var children = TryAnalyzeBracketChildren(elementAccess, context);
         if (children is null)
             return null;
 
-        return call with { SlotContent = children.Value };
+        RenderTemplateNode content = children.Value.Length == 1
+            ? children.Value[0]
+            : new FragmentTemplateNode(children.Value);
+
+        return call with
+        {
+            ContentArguments = call.ContentArguments.AsImmutableArray()
+                .Add(new ComposableContentArgument(callee.Parameters.Length, content)),
+        };
     }
 
     /// <summary>
@@ -1275,12 +1288,7 @@ internal static class RenderExpressionAnalyzer
         if (Analyze(elementAccess.Expression, context) is not ElementTemplateNode element)
             return null;
 
-        // One whole collection passed to the params indexer (Div[arr]) is not a list of children; leave it
-        // unanalyzable so it lands on BCF1003 instead of being mis-split.
-        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
-            return null;
-
-        var children = AnalyzeChildren(args.ParamsElements, context);
+        var children = TryAnalyzeBracketChildren(elementAccess, context);
         if (children is null)
             return null;
 
@@ -1336,10 +1344,7 @@ internal static class RenderExpressionAnalyzer
         if (indexer.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
             return null;
 
-        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
-            return null;
-
-        var children = AnalyzeChildren(args.ParamsElements, context);
+        var children = TryAnalyzeBracketChildren(elementAccess, context);
         if (children is null)
             return null;
 
@@ -1476,6 +1481,25 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>Analyzes each child expression into a child template node, returning null if any child
     /// cannot be statically analyzed (propagated as translation failure).</summary>
+    /// <summary>
+    /// The children written in an element access's brackets, or <see langword="null"/> when they cannot be
+    /// analyzed. The one place the bracket channel's binding rule lives, shared by all three indexers that
+    /// carry it — the element's, <c>ComponentView&lt;T&gt;</c>'s, and <c>ContentView</c>'s.
+    /// </summary>
+    /// <remarks>
+    /// One whole collection passed to the params indexer (<c>Div[arr]</c>) is not a list of children, so it is
+    /// left unanalyzable and lands on BCF1003 rather than being mis-split. That rule held in three copies
+    /// before this was extracted, where it could be changed in one arm and missed in the others.
+    /// </remarks>
+    private static ImmutableArray<RenderTemplateNode>? TryAnalyzeBracketChildren(
+        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    {
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
+            return null;
+
+        return AnalyzeChildren(args.ParamsElements, context);
+    }
+
     private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
         ImmutableArray<ExpressionSyntax> children, ComposableBodyContext context)
     {
@@ -1551,22 +1575,41 @@ internal static class RenderExpressionAnalyzer
 
             var isImplicitDefault = argument.ArgumentKind == ArgumentKind.DefaultValue;
 
+            // Ordinarily argument.Syntax IS the ArgumentSyntax. But when the argument expression is a bare
+            // null-forgiving suppression with nothing else to convert (e.g. `Target(value!)`), Roslyn elides
+            // the suppression operator from the operation tree and Syntax points at the innermost operand
+            // instead, so look for the enclosing ArgumentSyntax rather than requiring an exact cast. Mirrors
+            // FactoryArguments.Bind's default arm, which the design-time syntax path already uses for the same
+            // elision.
+            //
+            // The walk is confined to this call's own list, which is what makes it safe for every ArgumentKind
+            // rather than only for the ones some other file keeps away. An argument Roslyn synthesizes carries
+            // the whole invocation as its Syntax -- the receiver of a reduced extension call (#203) and a params
+            // argument both do -- and that sits under no ArgumentSyntax of this call, so an unconfined walk
+            // climbs to an *enclosing* call's argument and binds an unrelated expression to the parameter.
+            // FactoryArguments.Bind keeps the same walk safe by diverting each such kind ahead of it; confining
+            // the walk answers for all of them at once, so no caller stays disciplined on this loop's behalf.
+            //
+            // Resolved once here rather than per arm below, so the confinement rule is stated in one place.
+            ArgumentSyntax? written = null;
+            if (!isImplicitDefault)
+            {
+                written = argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>();
+                if (written is null || written.Parent != invocation.ArgumentList)
+                    return null;
+            }
+
             // A View-typed parameter is a content slot, so its argument is classified as a node subtree and
             // routed to the content channel rather than lowered to a local (#34). An omitted one has no
             // subtree to route: the callee's own declaration forbids an optional View parameter, so this is
             // only reachable while that declaration is itself invalid, and leaving the call unanalyzable lets
             // the declaration's BCF1002 be the report.
-            if (context.KnownSymbols.ViewType is { } viewType
-                && SymbolEqualityComparer.Default.Equals(parameter.Type, viewType))
+            if (context.KnownSymbols.IsContentType(parameter.Type))
             {
-                if (isImplicitDefault
-                    || argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>() is not { } contentSyntax
-                    || contentSyntax.Parent != invocation.ArgumentList)
-                {
+                if (written is null)
                     return null;
-                }
 
-                var content = Analyze(contentSyntax.Expression, context);
+                var content = Analyze(written.Expression, context);
                 if (content is null)
                     return null;
 
@@ -1593,28 +1636,7 @@ internal static class RenderExpressionAnalyzer
             }
             else
             {
-                // Ordinarily argument.Syntax IS the ArgumentSyntax. But when the argument expression is
-                // a bare null-forgiving suppression with nothing else to convert (e.g. `Target(value!)`),
-                // Roslyn elides the suppression operator from the operation tree and Syntax points at the
-                // innermost operand instead, so look for the enclosing ArgumentSyntax rather than
-                // requiring an exact cast. Mirrors FactoryArguments.Bind's default arm, which the
-                // design-time syntax path already uses for the same elision.
-                //
-                // The walk is confined to this call's own list, which is what makes it safe for every
-                // ArgumentKind rather than only for the ones some other file keeps away. An argument
-                // Roslyn synthesizes carries the whole invocation as its Syntax — the receiver of a
-                // reduced extension call (#203) and a params argument both do — and that sits under no
-                // ArgumentSyntax of this call, so an unconfined walk climbs to an *enclosing* call's
-                // argument and binds an unrelated expression to the parameter. FactoryArguments.Bind
-                // keeps the same walk safe by diverting each such kind ahead of it; confining the walk
-                // answers for all of them at once, so no caller stays disciplined on this loop's behalf.
-                if (argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>() is not { } written
-                    || written.Parent != invocation.ArgumentList)
-                {
-                    return null;
-                }
-
-                value = ExpressionTemplateFactory.Create(written.Expression, context);
+                value = ExpressionTemplateFactory.Create(written!.Expression, context);
                 sourceOrder = argument.Syntax.SpanStart;
             }
 
@@ -1885,6 +1907,15 @@ internal static class RenderExpressionAnalyzer
         // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
         if (symbols.ElementBuilderType is { } elementBuilderType
             && SymbolEqualityComparer.Default.Equals(type, elementBuilderType))
+        {
+            return true;
+        }
+
+        // A content-taking part's call is a ContentView before its brackets, so .Param(c => c.Payload, Card("t"))
+        // type-checks through object and would otherwise emit `Card("t")` verbatim, exactly as the
+        // ElementBuilder arm above exists to prevent for `Div`.
+        if (symbols.ContentViewType is { } contentViewType
+            && SymbolEqualityComparer.Default.Equals(type, contentViewType))
         {
             return true;
         }

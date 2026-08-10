@@ -298,6 +298,10 @@ parameter. Nothing is captured or shared: each reference expands the caller's ex
 argument with side effects runs once per reference. That is the same behaviour a Blazor
 `RenderFragment` invoked twice has.
 
+Both kinds are content, though, and content has no value: it becomes frames, not an expression. So a
+slot can only be *placed* as a child. Reading one where a value is expected — as a `ForEach` key, or
+inside an attribute value — reports **BCF1002**.
+
 That is the whole trade-off:
 
 - **Reach for `[Composable]`** when the part is pure projection: it has no state of its own, and

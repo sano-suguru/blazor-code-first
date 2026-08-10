@@ -671,6 +671,36 @@ internal sealed class KnownSymbols
         _surfaceMethods.TryGetValue(Normalize(method), out var kind) ? kind : SurfaceMethodKind.None;
 
     /// <summary>
+    /// Whether <paramref name="property"/> is <c>Html.Slot</c>, the hole naming where a content-taking part
+    /// places its caller's content (#176).
+    /// </summary>
+    /// <remarks>
+    /// The three content-surface questions live here for the reason
+    /// <see cref="ClassifySurfaceMethod"/> does: each is asked from more than one layer — this one from the
+    /// analyzer's property arm and from the declaration's slot count — and each needs the null guard this
+    /// class's remarks warn about, <c>SymbolEqualityComparer.Default.Equals(x, null)</c> answering
+    /// <see langword="true"/> for a null <c>x</c>. Stated once, they cannot drift apart.
+    /// </remarks>
+    public bool IsSlot(IPropertySymbol property) =>
+        SlotProperty is { } slotProperty
+        && SymbolEqualityComparer.Default.Equals(Normalize(property), Normalize(slotProperty));
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is <c>View</c>, which in a <c>[Composable]</c> parameter position makes
+    /// that parameter a content slot rather than a value (#34).
+    /// </summary>
+    public bool IsContentType(ITypeSymbol type) =>
+        ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType);
+
+    /// <summary>
+    /// Whether <paramref name="method"/> is declared to take caller content, which is exactly whether it
+    /// returns <c>ContentView</c> (#176).
+    /// </summary>
+    public bool TakesContent(IMethodSymbol method) =>
+        ContentViewType is { } contentViewType
+        && SymbolEqualityComparer.Default.Equals(method.ReturnType, contentViewType);
+
+    /// <summary>
     /// The parameter roles of a resolved <c>Bind</c> overload, element or component, or
     /// <see langword="false"/> when <paramref name="method"/> is not a shape this compiler was written
     /// against.

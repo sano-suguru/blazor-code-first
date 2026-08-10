@@ -7,6 +7,29 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
 
+/// <summary>What a symbol referenced inside a composable body denotes.</summary>
+/// <remarks>
+/// The kind travels with the ordinal rather than being decided by which lookup method a caller reached
+/// for. Two lookups, one that admitted content and one that did not, put the choice on every caller and
+/// the pre-existing one — <see cref="ExpressionTemplateFactory"/>, which lowers value expressions — would
+/// have got it wrong: it would have minted a value hole at a content ordinal, whose substituted code does
+/// not exist.
+/// </remarks>
+internal enum BodyHoleKind
+{
+    /// <summary>Not a hole: an ordinary symbol the expression keeps as written.</summary>
+    None,
+
+    /// <summary>A value, substituted as code: a composable parameter or a scoped render variable.</summary>
+    Value,
+
+    /// <summary>
+    /// Caller-supplied content, substituted as a node subtree: <c>Html.Slot</c> or a <c>View</c> parameter
+    /// (#34). It has no expression text, so a value position must refuse it rather than lower it.
+    /// </summary>
+    Content,
+}
+
 /// <summary>
 /// Carries the shared state required to normalize the expressions inside a single composable
 /// definition body: the semantic model, the containing type, the parameter-to-ordinal map and scoped
@@ -16,6 +39,14 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 internal sealed class ComposableBodyContext
 {
     private readonly ImmutableDictionary<ISymbol, int> _parameterOrdinals;
+
+    /// <summary>
+    /// Which of <see cref="_parameterOrdinals"/>' ordinals hold caller content rather than a value: the
+    /// <c>View</c>-typed parameters and the slot (#34). Ordinals rather than symbols, because that is the form
+    /// every hole carries and the form <see cref="ResolveHole"/> has in hand once the dictionary has answered.
+    /// </summary>
+    private readonly ImmutableHashSet<int> _contentOrdinals;
+
     private readonly Dictionary<ISymbol, int> _renderVariableOverlay =
         new(SymbolEqualityComparer.Default);
     private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
@@ -27,13 +58,15 @@ internal sealed class ComposableBodyContext
         string methodDisplayName,
         KnownSymbols knownSymbols,
         ImmutableDictionary<ISymbol, int> parameterOrdinals,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ImmutableHashSet<int>? contentOrdinals = null)
     {
         SemanticModel = semanticModel;
         ContainingType = containingType;
         MethodDisplayName = methodDisplayName;
         KnownSymbols = knownSymbols;
         _parameterOrdinals = parameterOrdinals;
+        _contentOrdinals = contentOrdinals ?? [];
         CancellationToken = cancellationToken;
         AccessRequirements = ImmutableArray.CreateBuilder<ComposableAccessRequirement>();
         Diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
@@ -84,26 +117,30 @@ internal sealed class ComposableBodyContext
     public void RecordUntranslatable(SyntaxNode expression) =>
         UntranslatableLocation ??= expression.GetLocation();
 
-    public bool TryGetParameterOrdinal(ISymbol symbol, out int ordinal)
-    {
-        if (_parameterOrdinals.TryGetValue(symbol, out ordinal))
-            return true;
-        return _renderVariableOverlay.TryGetValue(symbol, out ordinal);
-    }
-
     /// <summary>
-    /// The ordinal <paramref name="symbol"/> is bound at as a content hole, consulting the definition's own
-    /// parameters and slot but <em>not</em> the scoped render-variable overlay.
+    /// What <paramref name="symbol"/> denotes in this body, and at which substitution ordinal.
     /// </summary>
     /// <remarks>
-    /// The overlay is what makes the exclusion necessary rather than merely tidy. A <c>ForEach</c> over a
-    /// sequence of <c>View</c>s binds a <c>View</c>-typed loop variable there, and that variable holds a
-    /// runtime value with a generated name — the substitution entry for it carries code, not content. Reading
-    /// it as a content hole would produce a node the expander has no subtree for. Only a parameter of the
-    /// composable, or its slot, is caller-supplied content.
+    /// One lookup answering both the ordinal and its kind, rather than one method per kind. The kind is a
+    /// property of the ordinal, so putting it in the answer keeps every caller from having to know which
+    /// question to ask: a value position that reached for the content-admitting lookup would mint a hole
+    /// whose substituted code does not exist (#34).
+    /// <para>
+    /// A scoped render variable is always <see cref="BodyHoleKind.Value"/>. It holds a runtime value under a
+    /// generated name, so a <c>ForEach</c> over a sequence of <c>View</c>s binds a <c>View</c>-typed loop
+    /// variable that is a value and not caller content; the overlay's ordinals are appended after the
+    /// parameters, so they fall outside <see cref="_contentOrdinals"/> by construction rather than by a test.
+    /// </para>
     /// </remarks>
-    public bool TryGetContentOrdinal(ISymbol symbol, out int ordinal) =>
-        _parameterOrdinals.TryGetValue(symbol, out ordinal);
+    public BodyHoleKind ResolveHole(ISymbol symbol, out int ordinal)
+    {
+        if (_parameterOrdinals.TryGetValue(symbol, out ordinal))
+            return _contentOrdinals.Contains(ordinal) ? BodyHoleKind.Content : BodyHoleKind.Value;
+
+        return _renderVariableOverlay.TryGetValue(symbol, out ordinal)
+            ? BodyHoleKind.Value
+            : BodyHoleKind.None;
+    }
 
     /// <summary>
     /// Registers one scoped render variable at the next free ordinal. Multiple symbols may denote the

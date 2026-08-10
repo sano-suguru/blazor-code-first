@@ -1,7 +1,4 @@
-using System.Collections.Immutable;
 using System.Globalization;
-using System.Linq;
-using Microsoft.CodeAnalysis;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -156,7 +153,7 @@ public sealed class ComposableContentGeneratorTests
         Assert.Contains("__bcf_arg_0_0 = _title;", generated);
         Assert.Contains("__builder.AddContent(3, __bcf_arg_0_0)", generated);
 
-        AssertNoBlazorCodeFirstDiagnostics(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -179,7 +176,7 @@ public sealed class ComposableContentGeneratorTests
         // A View parameter is a content slot, so no local is declared for it: there is no value to bind.
         Assert.DoesNotContain("__bcf_arg_0_0", generated);
 
-        AssertNoBlazorCodeFirstDiagnostics(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -199,7 +196,7 @@ public sealed class ComposableContentGeneratorTests
         Assert.Contains("__builder.OpenElement(4, \"span\")", generated);
         Assert.Contains("__builder.AddContent(5, _b)", generated);
 
-        AssertNoBlazorCodeFirstDiagnostics(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -223,7 +220,7 @@ public sealed class ComposableContentGeneratorTests
         Assert.Contains("__builder.OpenElement(5, \"p\")", generated);
         Assert.Contains("__builder.AddContent(6, _b)", generated);
 
-        AssertNoBlazorCodeFirstDiagnostics(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -244,7 +241,7 @@ public sealed class ComposableContentGeneratorTests
         Assert.Contains("__builder.OpenElement(2, \"span\")", generated);
         Assert.Contains("__builder.AddContent(3, _a)", generated);
 
-        AssertNoBlazorCodeFirstDiagnostics(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -286,17 +283,5 @@ public sealed class ComposableContentGeneratorTests
         var result = CompilationTestHost.RunGenerator(SlotAsForEachContentRootSource);
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3003");
-    }
-
-    private static void AssertNoBlazorCodeFirstDiagnostics(GeneratorRunResult result)
-    {
-        var reported = result.Diagnostics
-            .Where(static d => d.Id.StartsWith("BCF", System.StringComparison.Ordinal))
-            .ToImmutableArray();
-
-        Assert.True(
-            reported.IsEmpty,
-            "Expected no BlazorCodeFirst diagnostics but got: " +
-            string.Join("; ", reported.Select(static d => d.ToString())));
     }
 }

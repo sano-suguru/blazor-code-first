@@ -124,6 +124,20 @@ public static class CompilationTestHost
     }
 
     /// <summary>
+    /// Asserts that the generator reported nothing at all for <paramref name="result"/>. Companion to
+    /// <see cref="AssertOutputCompiles"/>: that one proves the emitted code compiles, this one proves the
+    /// input needed no complaint. On failure every diagnostic is named, so a test that expected a clean run
+    /// says which rule fired instead.
+    /// </summary>
+    public static void AssertNoDiagnostics(GeneratorRunResult result)
+    {
+        Assert.True(
+            result.Diagnostics.IsEmpty,
+            "Expected no BlazorCodeFirst diagnostics but got: " +
+            string.Join("; ", result.Diagnostics.Select(static d => d.ToString())));
+    }
+
+    /// <summary>
     /// Compiles <paramref name="source"/> into an in-memory assembly and returns it as a metadata
     /// reference so a consuming compilation can reference a <c>[Composable]</c> method that exists only in
     /// metadata (no source declaration), exercising the metadata-only expansion diagnostic path.

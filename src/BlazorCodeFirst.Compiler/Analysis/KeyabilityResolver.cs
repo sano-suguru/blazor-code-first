@@ -27,29 +27,51 @@ internal static class KeyabilityResolver
 {
     /// <summary>Resolves the root frame kind of <paramref name="node"/>, following composable calls transitively.</summary>
     public static ContentRootKind ResolveRootKind(RenderTemplateNode node, ComposableRegistry registry) =>
-        ResolveRootKind(node, registry, new HashSet<string>(System.StringComparer.Ordinal));
+        ResolveRootKind(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
 
+    /// <param name="content">
+    /// The content the enclosing call supplied, by callee ordinal, or <see langword="null"/> when this walk has
+    /// no call above it — which is the registry pass over a definition nobody calls.
+    /// </param>
     private static ContentRootKind ResolveRootKind(
         RenderTemplateNode node,
         ComposableRegistry registry,
-        HashSet<string> activeKeys) =>
+        HashSet<string> activeKeys,
+        IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
         node switch
         {
             ComponentTemplateNode or ElementTemplateNode => ContentRootKind.Element,
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
                 or FragmentTemplateNode or RawMarkupTemplateNode
                 or RenderFragmentContentTemplateNode => ContentRootKind.Region,
-            // A content hole's root is whatever the caller passes, which this walk cannot see and must not
-            // guess: it is reachability-independent by design, and the same definition may be called with a
-            // keyable element from one site and a bare If from another. Region is the answer that holds for
-            // both, so a ForEach whose content root *is* a slot or a View parameter is BCF3003 at the
-            // declaration -- the existing diagnostic, with no new one and no loss of the property.
-            // ForEach(items, k, x => Div[Slot]) is unaffected: Div is the root there.
-            ContentHoleTemplateNode => ContentRootKind.Region,
+            ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
             ComposableCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
                 $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRootKind case for it."),
         };
+
+    /// <summary>
+    /// A content hole's root is whatever the caller put there, so it is resolved against the enclosing call's
+    /// own content when there is one.
+    /// </summary>
+    /// <remarks>
+    /// Without this, <c>ForEach(xs, k, x =&gt; Bare()[Li[x]])</c> — where <c>Bare()</c> is <c>Slot</c> — reports
+    /// BCF3003 although the caller supplied a keyable <c>Li</c> at that very site, and the author cannot act on
+    /// it: the suggested container would have to be added inside someone else's <c>[Composable]</c>.
+    /// <para>
+    /// <see cref="ContentRootKind.Region"/> stays the answer when there is no call above the walk. That is the
+    /// registry pass over an uncalled definition, where no caller exists to ask and the conservative answer is
+    /// the only one available — the case the reachability-independence of this resolver is about.
+    /// </para>
+    /// </remarks>
+    private static ContentRootKind ResolveHole(
+        ContentHoleTemplateNode hole,
+        ComposableRegistry registry,
+        HashSet<string> activeKeys,
+        IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
+        content is not null && content.TryGetValue(hole.ParameterOrdinal, out var supplied)
+            ? ResolveRootKind(supplied, registry, activeKeys, content: null)
+            : ContentRootKind.Region;
 
     private static ContentRootKind ResolveCall(
         ComposableCallTemplateNode call,
@@ -66,7 +88,19 @@ internal static class KeyabilityResolver
             if (!registry.TryGet(call.MethodKey, out var entry) || entry.Definition is null)
                 return ContentRootKind.Unresolved;
 
-            return ResolveRootKind(entry.Definition.Body, registry, activeKeys);
+            // The callee's body is resolved with this call's content in hand, so a hole in it answers with what
+            // was actually passed. The supplied subtree is then resolved with no content of its own: it was
+            // written in the caller's scope, where this call's ordinals mean nothing.
+            IReadOnlyDictionary<int, RenderTemplateNode>? content = null;
+            if (call.ContentArguments.Length > 0)
+            {
+                var byOrdinal = new Dictionary<int, RenderTemplateNode>(call.ContentArguments.Length);
+                foreach (var contentArgument in call.ContentArguments.AsImmutableArray())
+                    byOrdinal[contentArgument.ParameterOrdinal] = contentArgument.Content;
+                content = byOrdinal;
+            }
+
+            return ResolveRootKind(entry.Definition.Body, registry, activeKeys, content);
         }
         finally
         {
@@ -118,17 +152,27 @@ internal static class KeyabilityResolver
             case ComposableCallTemplateNode call:
                 // The call's own body is walked once from the registry pass
                 // (CollectComposableForEachDiagnostics) and deliberately not re-walked here. What is walked
-                // here is the content the *call site* supplies, in brackets or as a View argument: those are
+                // here is the content the *call site* supplies, in brackets or as a View argument: both are
                 // subtrees written at this site, so a ForEach inside one belongs to this walk and would
                 // otherwise never be visited.
                 foreach (var contentArgument in call.ContentArguments.AsImmutableArray())
                     CollectForEachContentDiagnostics(contentArgument.Content, registry, sink);
-                foreach (var child in call.SlotContent.AsImmutableArray())
-                    CollectForEachContentDiagnostics(child, registry, sink);
                 break;
 
-                // TextContentTemplateNode/ContentHoleTemplateNode/RawMarkupTemplateNode/
-                // RenderFragmentContentTemplateNode have no nested template children to walk.
+            // No nested template children to walk. Listed as cases rather than left to fall through, so the
+            // default arm below can exist: this is the third exhaustive dispatch over the hierarchy, and the
+            // other two (ResolveRootKind above, ComposableExpander.ExpandNode) both throw on an unknown node.
+            // A node type added without a case here would mean a BCF3003 that never fires, which is invisible.
+            case TextContentTemplateNode:
+            case ContentHoleTemplateNode:
+            case RawMarkupTemplateNode:
+            case RenderFragmentContentTemplateNode:
+                break;
+
+            default:
+                throw new System.NotSupportedException(
+                    $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a "
+                        + $"{nameof(CollectForEachContentDiagnostics)} case for it.");
         }
     }
 
