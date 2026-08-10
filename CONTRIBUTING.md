@@ -234,6 +234,13 @@ dotnet format BlazorCodeFirst.slnx                                    # auto-fix
 Enable the shared pre-push hook once per clone so this runs automatically:
 `git config core.hooksPath eng/hooks`.
 
+One Roslyn idiom no tool enforces: ask a `SyntaxTokenList` for a modifier through its own
+`Any(SyntaxKind)` overload, never `Enumerable.Any(m => m.IsKind(...))`. The list is a struct the API
+hands out by value, so the LINQ shape boxes it and allocates an enumerator on a path the generator
+and the analyzers walk for every declaration they visit. Neither `AnalysisLevel=latest-all` nor the
+Roslyn SDK's own rules ship a check for it, and `src/BannedSymbols.txt` cannot express it either,
+since the symbol it would have to ban is `Enumerable.Any` itself (#215).
+
 ## Issue tracker
 
 Issues carry the current state and the plan. `DESIGN.md` and `ARCHITECTURE.md`

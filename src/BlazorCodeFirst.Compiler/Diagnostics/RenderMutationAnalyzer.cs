@@ -161,8 +161,6 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var node = operationSyntax.Parent;
         while (node is not null)
         {
-            // SyntaxTokenList's own Any(SyntaxKind): Enumerable.Any boxes the list and allocates an
-            // enumerator, and this was the last site in the compiler spelling it that way (#215).
             if (node is PropertyDeclarationSyntax propDecl &&
                 propDecl.Modifiers.Any(SyntaxKind.OverrideKeyword))
             {
