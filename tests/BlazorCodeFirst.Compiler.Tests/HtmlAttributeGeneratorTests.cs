@@ -11,6 +11,7 @@ public sealed class HtmlAttributeGeneratorTests
                 private string _url = "/x";
                 private string _a => "a";
                 private string _b => "b";
+                private string? _maybe => null;
                 private bool _flag => true;
                 protected override View Body => {{body}};
             }
@@ -193,6 +194,87 @@ public sealed class HtmlAttributeGeneratorTests
     public void EmptyOnEventName_ReportsBCF3011()
     {
         Assert.Contains(Diags("""Html.Div.On("", () => { })"""), d => d.Id == "BCF3011");
+    }
+
+    /// <summary>
+    /// A conditional attribute value, which is what the nullable widening exists for (#171). Measured in
+    /// Chromium: <c>AddAttribute</c> appends no frame for a null string, static SSR and prerender write no
+    /// attribute, and a re-render that turns the value null emits <c>RemoveAttribute</c>. The empty string
+    /// is a different value at every one of those stages, so the two spellings stay distinguishable here.
+    /// </summary>
+    [Fact]
+    public void NullableAttributeValue_IsPassedThroughToAddAttribute()
+    {
+        var code = Run("""Html.Span.Attr("title", _flag ? _a : null)["x"]""");
+        Assert.Contains("""__builder.AddAttribute(1, "title", _flag ? _a : null);""", code);
+    }
+
+    /// <summary>
+    /// The widening reaches the curated shortcuts too. Validity is not this surface's question
+    /// (<c>DESIGN.md</c> §4.1): an <c>img</c> with no <c>src</c> is written as the author wrote it.
+    /// </summary>
+    [Fact]
+    public void NullableShortcutValue_IsPassedThroughToAddAttribute()
+    {
+        var code = Run("""Html.Img.Src(_maybe)""");
+        Assert.Contains("""__builder.AddAttribute(1, "src", _maybe);""", code);
+    }
+
+    /// <summary>
+    /// The class channel takes a nullable term with no rule of its own: a null joins as the empty string,
+    /// leaving the separator behind (#236), and a lone null omits the attribute. Both are what the
+    /// previously recommended <c>.Class(on ? "on" : "")</c> spelling already produced, so the join is pinned
+    /// here unchanged rather than rewritten.
+    /// </summary>
+    [Fact]
+    public void NullableClassTerm_JoinsThroughTheExistingConcatenation()
+    {
+        var code = Run("""Html.Div.Class("card").Class(_maybe)[Html.Span["x"]]""");
+        Assert.Contains("""__builder.AddAttribute(1, "class", ("card") + " " + (_maybe));""", code);
+    }
+
+    /// <summary>
+    /// Every decoration that takes one value, written with a null-bearing argument and a bare
+    /// <see langword="null"/>, asserted to warn about nothing (#171). This is the assertion the widening is
+    /// answerable to: the three above pin what the generator emits, and the generator emitted that before
+    /// the parameters were widened — a <c>string?</c> reaching a <see langword="string"/> parameter is
+    /// CS8604 and a <see langword="null"/> literal is CS8625, both warnings, so nothing that asks only for
+    /// errors can tell the two surfaces apart. Under this repository's <c>TreatWarningsAsErrors</c> those
+    /// warnings are what an author actually hits.
+    /// </summary>
+    [Fact]
+    public void EveryValueDecoration_AcceptsANullableValueWithoutWarning()
+    {
+        // The nullable context is opted into here rather than in CompilationTestHost, because the test
+        // compilation leaves it off by default and this is the one test that is about nullability. A real
+        // project has it on — this repository's own Directory.Build.props does — so this is the setting an
+        // author writing the spellings below actually compiles under.
+        var result = CompilationTestHost.RunGenerator("""
+            #nullable enable
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private string? _maybe => null;
+
+                protected override View Body =>
+                    Html.Div
+                        .Class(_maybe)
+                        .Href(_maybe)
+                        .Src(_maybe)
+                        .Alt(_maybe)
+                        .Id(_maybe)
+                        .Type(_maybe)
+                        .Title(_maybe)
+                        .Role(_maybe)
+                        .Attr("data-a", _maybe)
+                        .Attr("data-b", null)[Html.Span[_maybe ?? "x"]];
+            }
+            """);
+
+        CompilationTestHost.AssertNoNullableWarnings(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
     }
 
     /// <summary>

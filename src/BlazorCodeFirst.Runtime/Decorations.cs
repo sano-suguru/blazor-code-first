@@ -20,7 +20,7 @@ public static class Decorations
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="class">The CSS class value; any string expression. Chain calls to add more.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Class(this ElementBuilder element, string @class) => element;
+    public static ElementBuilder Class(this ElementBuilder element, string? @class) => element;
 
     /// <summary>Design-time syntax adding an <c>onclick</c> handler to the owning element.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
@@ -32,43 +32,43 @@ public static class Decorations
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Href(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Href(this ElementBuilder element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>src</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Src(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Src(this ElementBuilder element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>alt</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Alt(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Alt(this ElementBuilder element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>id</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Id(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Id(this ElementBuilder element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>type</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Type(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Type(this ElementBuilder element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>title</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Title(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Title(this ElementBuilder element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>role</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Role(this ElementBuilder element, string value) => element;
+    public static ElementBuilder Role(this ElementBuilder element, string? value) => element;
 
     /// <summary>
     /// Design-time syntax setting an arbitrary attribute. <paramref name="name"/> must be a non-empty
@@ -82,7 +82,7 @@ public static class Decorations
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Attr(this ElementBuilder element, string name, string value) => element;
+    public static ElementBuilder Attr(this ElementBuilder element, string name, string? value) => element;
 
     /// <summary>
     /// Design-time syntax setting an attribute from a <see langword="bool"/>, which is Blazor's

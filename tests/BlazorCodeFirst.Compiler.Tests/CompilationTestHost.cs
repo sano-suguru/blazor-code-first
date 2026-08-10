@@ -124,6 +124,31 @@ public static class CompilationTestHost
     }
 
     /// <summary>
+    /// Asserts that nothing in <paramref name="result"/>'s compilation warned about nullability — the
+    /// author's own file included, which is what separates this from
+    /// <see cref="AssertGeneratedOutputHasNoWarnings"/>.
+    /// </summary>
+    /// <remarks>
+    /// What a widened surface parameter is for. Passing a <c>string?</c> to a <see langword="string"/>
+    /// parameter is CS8604 and passing a <see langword="null"/> literal is CS8625: warnings, so a test that
+    /// asks only for errors passes whether the parameter was widened or not (#171). The three nullable
+    /// warnings are named rather than every warning, because a test's input source may legitimately warn
+    /// about something else — an unassigned field, a never-read local.
+    /// </remarks>
+    public static void AssertNoNullableWarnings(GeneratorRunResult result)
+    {
+        var warnings = result.OutputCompilation
+            .GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Id is "CS8600" or "CS8604" or "CS8625")
+            .ToImmutableArray();
+
+        Assert.True(
+            warnings.IsEmpty,
+            "Nullability warned: " +
+            string.Join("; ", warnings.Select(static warning => warning.ToString())));
+    }
+
+    /// <summary>
     /// Asserts that the <em>generated</em> trees produced no warnings. Stricter than
     /// <see cref="AssertOutputCompiles"/>, which looks only at errors, and narrower than asking the whole
     /// compilation: a test's own input source is allowed to warn (an unassigned field, an unused local),

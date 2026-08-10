@@ -5,9 +5,11 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 
 public partial class NullClassComponent : BodyComponentBase
 {
-    // Yields null without tripping the null-forgiving-operator or nullable-reference-type analyzers:
-    // the property's declared type is nullable, so `.Class(NullClass!)` documents intent explicitly
-    // rather than suppressing a warning about an unexpectedly-null non-nullable value.
+    // The suppression is no longer required — .Class takes a string? since #171 — and is kept on purpose.
+    // FactoryArguments walks up from a bare null-forgiving operator to the enclosing ArgumentSyntax,
+    // because Roslyn elides the `!` from the operation tree, and this fixture plus Div[NullText!] are the
+    // only two regression guards that walk has. Dropping the `!` here for being redundant would leave it
+    // uncovered on the decoration side.
     private static string? NullClass => null;
 
     protected override View Body =>
