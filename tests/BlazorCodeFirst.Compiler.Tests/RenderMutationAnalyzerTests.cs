@@ -349,6 +349,71 @@ public sealed class RenderMutationAnalyzerTests
         Assert.Single(diagnostics, d => d.Id == "BCF3001");
     }
 
+    /// <summary>
+    /// A block-bodied accessor is the design-time expression as much as an expression-bodied one. The
+    /// condition is asked of the accessor symbol rather than of the declaration's syntax (#220), and
+    /// <c>MethodKind.PropertyGet</c> answers the same for either spelling — where a walk to the enclosing
+    /// <c>PropertyDeclarationSyntax</c> crossed a different set of nodes to get there.
+    /// </summary>
+    [Fact]
+    public async Task RenderMutationAnalyzer_MutationInBlockBodiedGetter_ReportsBCF3001()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                private int _n;
+
+                protected override View Body
+                {
+                    get
+                    {
+                        _n++;
+                        return Span[$"{_n}"];
+                    }
+                }
+            }
+            """;
+
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+
+        Assert.Single(diagnostics, d => d.Id == "BCF3001");
+    }
+
+    /// <summary>
+    /// Being an <c>override</c> is not the condition; being the design-time expression is. A component may
+    /// override anything its own bases declare, and a mutation in such an accessor runs when that member is
+    /// read, which is not the render path this diagnostic fences off.
+    /// </summary>
+    [Fact]
+    public async Task RenderMutationAnalyzer_MutationInAnUnrelatedOverriddenGetter_DoesNotReportBCF3001()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public abstract class Labelled : BodyComponentBase
+            {
+                protected abstract string Label { get; }
+            }
+
+            public partial class Counter : Labelled
+            {
+                private int _n;
+
+                protected override string Label => (_n++).ToString();
+
+                protected override View Body => Span[Label];
+            }
+            """;
+
+        var diagnostics = await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
+
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3001");
+    }
+
     [Fact]
     public async Task RenderMutationAnalyzer_SpoofedDecorationsNamespace_StillReportsBCF3001()
     {
@@ -427,6 +492,15 @@ public sealed class RenderMutationAnalyzerTests
                 public static View On(this {{receiver}} target, string eventName, System.Action handler) =>
                     default;
 
+                // An .On overload carrying a second delegate. Nothing the runtime declares has this shape;
+                // it is here because "the argument whose type is a delegate" selects both of these, which
+                // is the rule the deferred-handler exemption applied before it asked KnownSymbols (#221).
+                public static View On(
+                    this {{receiver}} target,
+                    string eventName,
+                    System.Action handler,
+                    System.Action<int> completed) => default;
+
                 public static View Bind<T>(
                     this {{receiver}} target,
                     string attribute,
@@ -467,6 +541,41 @@ public sealed class RenderMutationAnalyzerTests
         // test cannot tell the two apart, so it exempted the mutation and BCF3001 went quiet for a call
         // the compiler never recognized as a decoration in the first place.
         Assert.Contains(SurfaceDiagnostics("View", call), d => d.Id == "BCF3001");
+
+    // -----------------------------------------------------------------------
+    // Which argument of an event decoration the exemption belongs to. The runtime declares no overload
+    // with a second delegate parameter, so the in-source surface is the only place this can be asked —
+    // and KnownSymbolsSyncTests is what makes sure it stays that way, by going red if one is declared.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// A mutation in a second delegate argument is not exempt. Whether one written in an options or
+    /// completion callback is deferred is undecided, and the delegate-shape test this replaces answered
+    /// it "yes" for every delegate argument without anything having decided anything (#221).
+    /// </summary>
+    [Fact]
+    public void MutationInASecondDelegateArgument_StillReportsBcf3001() =>
+        Assert.Contains(
+            SurfaceDiagnostics("ElementBuilder", """On("onclick", () => { }, v => _n = v)"""),
+            d => d.Id == "BCF3001");
+
+    /// <summary>
+    /// The same overload's real handler is reported too, which is the deliberate cost of
+    /// <c>KnownSymbols.TryGetEventParameters</c> answering <see langword="false"/> for a shape it cannot
+    /// read rather than guessing at one of two delegates.
+    /// </summary>
+    /// <remarks>
+    /// Stated rather than left to be discovered, because a spurious BCF3001 on a correct handler is the
+    /// wrong degradation — the same asymmetry the analyzer's own remarks name for a missing surface. What
+    /// makes it acceptable here is that it cannot reach an author: this shape exists only in this fixture,
+    /// and <c>KnownSymbolsSyncTests.EveryEventDecoration_ResolvesItsHandlerArgument</c> fails the moment
+    /// the runtime declares one, naming the decision to be made instead of shipping either answer.
+    /// </remarks>
+    [Fact]
+    public void MutationInTheHandlerOfAnUnreadableEventShape_AlsoReportsBcf3001() =>
+        Assert.Contains(
+            SurfaceDiagnostics("ElementBuilder", """On("onclick", () => _n++, v => { })"""),
+            d => d.Id == "BCF3001");
 
     // -----------------------------------------------------------------------
     // Bind setter exemption: the setter runs after the render, so it is a deferred handler like

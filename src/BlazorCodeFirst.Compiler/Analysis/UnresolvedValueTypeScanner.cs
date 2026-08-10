@@ -194,7 +194,13 @@ internal static class UnresolvedValueTypeScanner
         if (!recoverOwnValue || !IsFluentExtensionInvocation(invocation, method, context))
             return;
 
-        if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.On)
+        if (kind is SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On)
+        {
+            ReportEventArguments(method, args, context);
+            return;
+        }
+
+        if (kind == SurfaceMethodKind.Attr)
         {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);
@@ -211,9 +217,47 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        // .Class, a named attribute shortcut and a named event shortcut each carry their one value in
-        // argument 0, the name being the decoration's own spelling rather than something written.
+        // .Class and a named attribute shortcut each carry their one value in argument 0, the name being
+        // the decoration's own spelling rather than something written.
         ReportValue(args.At(0)?.Expression, context);
+    }
+
+    /// <summary>
+    /// Reports on an event decoration's handler argument, the one transplanted into generated code.
+    /// </summary>
+    /// <remarks>
+    /// The event sibling of <see cref="ReportBindArguments"/>, and here for the same reason: the position
+    /// is read off <see cref="KnownSymbols.TryGetEventParameters"/> rather than written as an ordinal, so
+    /// this scan follows the overload set instead of having to be transcribed alongside it. #221 counted
+    /// three readers of "which argument is the handler" and this file held a fourth, one arm away from the
+    /// paragraph below stating the principle for <c>.Bind</c> — which is what a transcribed position looks
+    /// like when nobody is holding the copies together.
+    /// <para>
+    /// The event's name is not a value position, so a non-constant one only changes <em>how</em> the
+    /// handler is reported, exactly as the merged <c>.Attr</c> arm above still does for its own value.
+    /// A named shortcut carries no name argument at all, which is what <c>CarriesEventName</c> answers.
+    /// </para>
+    /// <para>
+    /// A shape this compiler was not written against reports nothing rather than reporting at a guessed
+    /// position. The body is already BCF1003 by then, so the cost is a report not made, not a wrong one.
+    /// </para>
+    /// </remarks>
+    private static void ReportEventArguments(
+        IMethodSymbol method, BoundArguments args, ComposableBodyContext context)
+    {
+        if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters))
+            return;
+
+        var handler = args.At(eventParameters.HandlerIndex)?.Expression;
+
+        if (eventParameters.CarriesEventName
+            && !IsNonEmptyConstantString(args.At(eventParameters.EventNameIndex)?.Expression, context))
+        {
+            ReportSelectedInvocationValues(handler, context);
+            return;
+        }
+
+        ReportValue(handler, context);
     }
 
     /// <summary>
@@ -492,10 +536,16 @@ internal static class UnresolvedValueTypeScanner
         IMethodSymbol selectedMethod,
         ComposableBodyContext context)
     {
+        // The whole declared list, receiver included, is what an argument list is checked against, because
+        // the static spelling writes the receiver as an argument; only the fluent spelling skips it. That
+        // condition is this site's own, and the receiver rule underneath it is KnownSymbols' (#211). The
+        // offset is read first so the fluent test's semantic query is only paid by a method that has a
+        // receiver to skip at all.
         var method = selectedMethod.ReducedFrom ?? selectedMethod;
-        var offset = method.IsExtensionMethod
+        var receiverOffset = KnownSymbols.ReceiverOffset(method);
+        var offset = receiverOffset != 0
             && IsFluentExtensionInvocation(invocation, selectedMethod, context)
-                ? 1
+                ? receiverOffset
                 : 0;
 
         return HasValidArgumentOrder(invocation.ArgumentList, method.Parameters, offset);
@@ -559,11 +609,18 @@ internal static class UnresolvedValueTypeScanner
         return -1;
     }
 
-    private static int WrittenParameterCount(IMethodSymbol method)
-    {
-        method = method.ReducedFrom ?? method;
-        return method.Parameters.Length - (method.IsExtensionMethod ? 1 : 0);
-    }
+    /// <summary>
+    /// How many parameters of <paramref name="method"/> lie in argument space, which is the space
+    /// <see cref="BoundArguments.At"/> indexes in.
+    /// </summary>
+    /// <remarks>
+    /// No <c>ReducedFrom</c> step: <see cref="KnownSymbols.ReceiverOffset"/> answers 0 for a reduced
+    /// method, whose parameter list already excludes the receiver, and 1 for an unreduced one, whose does
+    /// not — so the count is the same either way and unreducing first would only be a second spelling of
+    /// the same rule (#211).
+    /// </remarks>
+    private static int WrittenParameterCount(IMethodSymbol method) =>
+        method.Parameters.Length - KnownSymbols.ReceiverOffset(method);
 
     /// <summary>
     /// Whether <paramref name="invocation"/> names a method of the design-time surface, asked without
@@ -756,12 +813,11 @@ internal static class UnresolvedValueTypeScanner
     /// </summary>
     private static bool FillsEveryParameter(BoundArguments args, IMethodSymbol method)
     {
-        var declared = method.ReducedFrom ?? method;
-        var offset = declared.IsExtensionMethod ? 1 : 0;
+        var offset = KnownSymbols.ReceiverOffset(method);
 
-        for (var index = 0; index < declared.Parameters.Length - offset; index++)
+        for (var index = 0; index < method.Parameters.Length - offset; index++)
         {
-            var parameter = declared.Parameters[index + offset];
+            var parameter = method.Parameters[index + offset];
             if (!parameter.IsParams && !parameter.IsOptional && !args.HasArgumentAt(index))
                 return false;
         }
@@ -1057,9 +1113,13 @@ internal static class UnresolvedValueTypeScanner
             InvocationExpressionSyntax invocation,
             IMethodSymbol selectedMethod)
         {
-            var method = selectedMethod.ReducedFrom ?? selectedMethod;
+            // Argument space is all this binds into, so the parameter list is taken in whatever spelling
+            // arrived and the receiver skip asked of it: 0 for a reduced method, whose list already
+            // excludes the receiver, 1 for an unreduced one (#211).
             return TryBindFallback(
-                invocation.ArgumentList, method.Parameters, method.IsExtensionMethod ? 1 : 0);
+                invocation.ArgumentList,
+                selectedMethod.Parameters,
+                KnownSymbols.ReceiverOffset(selectedMethod));
         }
 
         /// <summary>

@@ -69,20 +69,7 @@ internal readonly struct BindParameters
     /// <see langword="false"/> for the setter it was handed.
     /// </remarks>
     public bool IsSetter(IParameterSymbol? candidate) =>
-        SetterIndex >= 0 && candidate is not null && ArgumentIndex(candidate) == SetterIndex;
-
-    /// <summary>
-    /// <paramref name="parameter"/>'s index in argument space, the receiver excluded.
-    /// </summary>
-    /// <remarks>
-    /// A classic <c>this</c> extension method carries its receiver at ordinal 0 only in its unreduced
-    /// spelling. The reduced spelling, an instance method, and a C# 14 extension member all exclude it
-    /// already — the last because Roslyn answers <see cref="IMethodSymbol.IsExtensionMethod"/> with
-    /// <see langword="false"/> for that declaration form and hangs the receiver off the containing
-    /// extension block instead (#203).
-    /// </remarks>
-    internal static int ArgumentIndex(IParameterSymbol parameter) =>
-        parameter.ContainingSymbol is IMethodSymbol { IsExtensionMethod: true, ReducedFrom: null }
-            ? parameter.Ordinal - 1
-            : parameter.Ordinal;
+        SetterIndex >= 0
+        && candidate is not null
+        && KnownSymbols.ArgumentIndex(candidate) == SetterIndex;
 }

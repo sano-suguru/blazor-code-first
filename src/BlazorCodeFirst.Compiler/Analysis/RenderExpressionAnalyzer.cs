@@ -567,8 +567,22 @@ internal static class RenderExpressionAnalyzer
 
         if (kind is SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On)
         {
+            // Which argument carries the handler is asked of KnownSymbols, not assumed from the position
+            // this arm happens to have been written against (#221). The event's name comes either from the
+            // classification's shortcut table or from the first argument, never from both and never from
+            // neither, so exactly one of the two must be present. That is pinned rather than assumed
+            // because the resolver below reads the name out of firstArg: requiring the index to be 0, and
+            // not merely to exist, is what keeps a widened TryGetEventParameters from moving the name
+            // somewhere this arm would go on reading past.
+            if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters)
+                || (shortcutName is not null) == (eventParameters.EventNameIndex == 0))
+            {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                return null;
+            }
+
             if (!TryResolveDecorationName(
-                    invocation, args, firstArg, shortcutName, context,
+                    invocation, args, firstArg, shortcutName, eventParameters.HandlerIndex, context,
                     out var eventName, out var handlerExpr))
             {
                 return null;
@@ -600,10 +614,16 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        // Attribute shortcut or generic .Attr.
+        // Attribute shortcut or generic .Attr. The value is the last parameter in both spellings — the
+        // name, where it is written at all, is the one ahead of it — and that single derivation answers
+        // both readings below: the argument index the value is carried at, and whether the overload picked
+        // is the bool one. Two derivations of "where the value sits" in one arm is the shape #221 was
+        // filed about, even where no second reader has to agree with this one.
+        var attributeValue = method.Parameters[method.Parameters.Length - 1];
+
         if (!TryResolveDecorationName(
-                invocation, args, firstArg, shortcutName, context,
-                out var attrName, out var valueExpr))
+                invocation, args, firstArg, shortcutName, KnownSymbols.ArgumentIndex(attributeValue),
+                context, out var attrName, out var valueExpr))
         {
             return null;
         }
@@ -614,10 +634,9 @@ internal static class RenderExpressionAnalyzer
             // The channel joins its decorations into one value, so the bool overload means two
             // different things there depending on how many others the element carries (#159). Which
             // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
-            // shape; the value expression's own type is not consulted. The last parameter is the
-            // value in both the reduced fluent spelling and the static-call one, and the shortcut
-            // route never spells 'class', so only .Attr reaches this test.
-            if (method.Parameters[method.Parameters.Length - 1].Type.SpecialType == SpecialType.System_Boolean)
+            // shape; the value expression's own type is not consulted. The shortcut route never spells
+            // 'class', so only .Attr reaches this test.
+            if (attributeValue.Type.SpecialType == SpecialType.System_Boolean)
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -1617,18 +1636,24 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="KnownSymbols.AttributeShortcuts"/> or <see cref="KnownSymbols.EventShortcuts"/>, whose
     /// values are never null.
     /// </param>
+    /// <param name="valueIndex">
+    /// The argument index the decoration's value is carried at, which the caller resolves: positionally for
+    /// the attribute channel, and out of <see cref="EventParameters.HandlerIndex"/> for the event channel,
+    /// whose readers have to agree with each other about it (#221).
+    /// </param>
     /// <remarks>
     /// The attribute channel and the event channel ask the same question here and must answer it the same
     /// way: the two ladders this replaces were an eighteen-line transcription of each other, so a change to
     /// how a non-constant name is diagnosed had to be made twice or the two would disagree about the same
-    /// mistake. What genuinely differs between them — that an event name must begin with <c>on</c>, that
-    /// <c>class</c> routes to its own channel — stays at the call sites.
+    /// mistake. What genuinely differs between them — where the value sits, that an event name must begin
+    /// with <c>on</c>, that <c>class</c> routes to its own channel — stays at the call sites.
     /// </remarks>
     private static bool TryResolveDecorationName(
         InvocationExpressionSyntax invocation,
         FactoryArguments args,
         ArgumentSyntax firstArg,
         string? shortcutName,
+        int valueIndex,
         ComposableBodyContext context,
         [MaybeNullWhen(false)] out string name,
         [MaybeNullWhen(false)] out ExpressionSyntax value)
@@ -1638,11 +1663,8 @@ internal static class RenderExpressionAnalyzer
         if (shortcutName is not null)
         {
             name = shortcutName;
-            value = firstArg.Expression;
-            return true;
         }
-
-        if (!TryGetConstantName(firstArg.Expression, context, out name))
+        else if (!TryGetConstantName(firstArg.Expression, context, out name))
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -1650,13 +1672,13 @@ internal static class RenderExpressionAnalyzer
             return false;
         }
 
-        if (args.At(1) is not { } secondArg)
+        if (args.At(valueIndex) is not { } valueArgument)
         {
             name = null;
             return false;
         }
 
-        value = secondArg.Expression;
+        value = valueArgument.Expression;
         return true;
     }
 

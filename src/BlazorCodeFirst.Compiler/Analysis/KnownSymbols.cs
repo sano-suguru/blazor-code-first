@@ -307,6 +307,47 @@ internal sealed class KnownSymbols
     public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
 
     /// <summary>
+    /// Whether <paramref name="method"/> carries an extension method's receiver at ordinal 0, as the
+    /// <c>1</c> or <c>0</c> to subtract from a parameter ordinal or from a parameter count.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one place that decides the receiver skip, beside <see cref="Normalize(IMethodSymbol)"/> because
+    /// it adapts the same thing: Roslyn hands one call's method out in more than one spelling and only one
+    /// of them carries the receiver. A classic <c>this</c> extension method has it at ordinal 0 unreduced,
+    /// while the reduced spelling, an instance method, and a C# 14 extension member all exclude it already
+    /// — the last because Roslyn answers <see cref="IMethodSymbol.IsExtensionMethod"/> with
+    /// <see langword="false"/> for that declaration form and hangs the receiver off the containing
+    /// extension block instead (#203).
+    /// </para>
+    /// <para>
+    /// It is therefore correct on whichever spelling it is handed, and a caller need not normalize first:
+    /// on an already-unreduced method it answers 1 exactly where there is a receiver to skip, and on a
+    /// reduced one it answers 0, which is what indexing that method's own parameter list wants. That is
+    /// what lets a caller reading argument space drop its <c>ReducedFrom ?? method</c> step. A caller that
+    /// needs the whole <em>declared</em> list still takes it, because the static spelling writes the
+    /// receiver as an argument and is checked against every parameter (#211).
+    /// </para>
+    /// </remarks>
+    public static int ReceiverOffset(IMethodSymbol method) =>
+        method is { IsExtensionMethod: true, ReducedFrom: null } ? 1 : 0;
+
+    /// <summary>
+    /// <paramref name="parameter"/>'s index in argument space, the receiver excluded, or <c>-1</c> for the
+    /// receiver itself, which argument space has no index for.
+    /// </summary>
+    /// <remarks>
+    /// The parameter-shaped form of <see cref="ReceiverOffset(IMethodSymbol)"/>, for the readers that hold
+    /// a parameter rather than the method that declared it — <see cref="BindParameters.IsSetter"/> and
+    /// <see cref="EventParameters.IsHandler"/>, both of which are handed one by an operation's
+    /// <c>IArgumentOperation.Parameter</c>. A parameter of anything but a method, an indexer's, has no
+    /// receiver ahead of it, so its ordinal is already its argument index.
+    /// </remarks>
+    public static int ArgumentIndex(IParameterSymbol parameter) =>
+        parameter.Ordinal
+            - (parameter.ContainingSymbol is IMethodSymbol method ? ReceiverOffset(method) : 0);
+
+    /// <summary>
     /// The names of every decoration the referenced runtime declares, for
     /// <see cref="DeclaresDecorationNamed"/>.
     /// </summary>
@@ -603,9 +644,8 @@ internal sealed class KnownSymbols
     /// <em>not</em> normalized through <see cref="IMethodSymbol.ReducedFrom"/>. Roslyn answers
     /// <c>GetSymbolInfo</c> with the reduced method for a fluent call and the unreduced one for the
     /// static call, while an operation's <c>IArgumentOperation.Parameter</c> is always unreduced; the
-    /// positions are normalized instead, by <see cref="BindParameters.ArgumentIndex"/>, which is the one
-    /// rule this whole helper exists to hold — including the receiver skip, which asks it rather than
-    /// restating it. Normalizing the method would additionally make
+    /// positions are normalized instead, by <see cref="ArgumentIndex(IParameterSymbol)"/>, so the receiver
+    /// skip is asked rather than restated. Normalizing the method would additionally make
     /// <see cref="BindParameters.ValueType"/> an unsubstituted type parameter, since
     /// <c>ReducedFrom</c> answers the generic definition.
     /// </para>
@@ -630,7 +670,7 @@ internal sealed class KnownSymbols
             // A negative index is an extension method's receiver, which argument space excludes. Asking
             // the same rule that places the roles below, rather than spelling the receiver test a second
             // time here, is what keeps the two from ever disagreeing about which parameter is skipped.
-            var getterIndex = BindParameters.ArgumentIndex(getter);
+            var getterIndex = ArgumentIndex(getter);
             if (getterIndex < 0)
                 continue;
 
@@ -657,12 +697,77 @@ internal sealed class KnownSymbols
                     return false;
                 }
 
-                setterIndex = BindParameters.ArgumentIndex(setter);
+                setterIndex = ArgumentIndex(setter);
                 setterIsAsynchronous = !setterInvoke.ReturnsVoid;
             }
 
             bind = new BindParameters(getterIndex, setterIndex, valueType, setterIsAsynchronous);
             return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The argument roles of a resolved event decoration, a named shortcut or <c>.On</c>, or
+    /// <see langword="false"/> when <paramref name="method"/> is not a shape this compiler was written
+    /// against.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Static, and answered from shape without re-asking the classification, exactly like
+    /// <see cref="TryGetBindParameters"/>: callers must have classified the method as
+    /// <see cref="SurfaceMethodKind.EventShortcut"/> or <see cref="SurfaceMethodKind.On"/> first. The
+    /// method is read in whatever spelling it arrives in and the positions are normalized instead, by
+    /// <see cref="ArgumentIndex(IParameterSymbol)"/>, for the reason
+    /// <see cref="TryGetBindParameters"/>'s remarks give at length.
+    /// </para>
+    /// <para>
+    /// The handler is required to be both in shape and in position: the one delegate-typed parameter, and
+    /// the last argument. The only thing allowed ahead of it is the event's name, a single
+    /// <see langword="string"/> — which is the whole of what separates <c>.On("onclick", h)</c> from
+    /// <c>.OnClick(h)</c>, read here off the declaration rather than off the classification that
+    /// distinguishes the two.
+    /// </para>
+    /// <para>
+    /// A second delegate parameter answers <see langword="false"/> rather than being ranked against the
+    /// first. Nothing here could pick between a handler and an options or completion callback, and
+    /// inventing a rule for it is how the three conventions this replaces would diverge again. The cost of
+    /// answering <see langword="false"/> is a spurious BCF3001 on such an overload's real handler, which
+    /// is the safe way round only because it cannot reach an author: <c>KnownSymbolsSyncTests</c> asks
+    /// this of every event decoration the runtime declares, so an overload outside this shape is red in
+    /// the compiler's own suite before it can ship, with the decision to be made named in the failure.
+    /// </para>
+    /// </remarks>
+    public static bool TryGetEventParameters(IMethodSymbol method, out EventParameters eventParameters)
+    {
+        eventParameters = default;
+        var eventNameIndex = -1;
+
+        for (var index = 0; index < method.Parameters.Length; index++)
+        {
+            var parameter = method.Parameters[index];
+
+            // A negative index is an extension method's receiver, which argument space excludes.
+            var argumentIndex = ArgumentIndex(parameter);
+            if (argumentIndex < 0)
+                continue;
+
+            if (parameter.Type.TypeKind == TypeKind.Delegate)
+            {
+                // Anything written after the handler leaves this a shape with no answer here, a second
+                // delegate included: that is the rejection the paragraph above is about.
+                if (index + 1 != method.Parameters.Length)
+                    return false;
+
+                eventParameters = new EventParameters(argumentIndex, eventNameIndex);
+                return true;
+            }
+
+            if (eventNameIndex >= 0 || parameter.Type.SpecialType != SpecialType.System_String)
+                return false;
+
+            eventNameIndex = argumentIndex;
         }
 
         return false;

@@ -908,6 +908,43 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// The handler argument of an event decoration is a value position on the failure path too, for both
+    /// argument layouts: a named shortcut carries it at argument 0 and <c>.On</c> at argument 1.
+    /// </summary>
+    /// <remarks>
+    /// The scanner used to write those two ordinals out, which made it a fourth reader of "which argument
+    /// is the handler" — in the same file whose binding scan reads the positions off
+    /// <c>KnownSymbols.TryGetBindParameters</c> and says why. It now asks
+    /// <c>KnownSymbols.TryGetEventParameters</c>, and this is what holds the two layouts to what the readers
+    /// on the success path resolve (#221). Nothing covered either ordinal before: the only event case here
+    /// asked about the <em>name</em> argument, in the negative direction.
+    /// </remarks>
+    [Theory]
+    [InlineData("""Div.OnClick(() => Consume(typeof(Probe)))""")]
+    [InlineData("""Div.On("onclick", () => Consume(typeof(Probe)))""")]
+    public void EventHandlerArgument_UnresolvedType_ReportsBCF3015(string body)
+    {
+        var source = $$"""
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private static void Consume(Type value) { }
+
+                protected override View Body => {{body}};
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     [Theory]
     [InlineData("typeof(Wrapper<Missing>)")]
     [InlineData("typeof(Outer<Missing>.Inner)")]

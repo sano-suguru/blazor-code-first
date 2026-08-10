@@ -393,6 +393,14 @@ public sealed class KnownSymbolsSyncTests
     /// satisfied by transcribing the table it checks.
     /// </para>
     /// <para>
+    /// That shape is read off <see cref="KnownSymbols.TryGetEventParameters"/> rather than spelled here as
+    /// <c>(ElementBuilder, delegate)</c>. This test used to be the third convention answering "which
+    /// argument is the handler", alongside BCF3001's exemption and the decoration arm, and being a
+    /// consumer of the one answer is what keeps it from drifting from them (#221). It is also what widens
+    /// it: the transcribed shape matched a two-parameter overload only, so it said nothing about
+    /// <c>.On</c> in either direction — see <see cref="EveryEventDecoration_ResolvesItsHandlerArgument"/>.
+    /// </para>
+    /// <para>
     /// It is not the net that catches a missing row. <see cref="DecorationNames_CoverEveryDecorationTheRuntimeDeclares"/>
     /// already does, in both directions and for every decoration group, because a member the constructor's
     /// switch does not classify never reaches <c>_decorationNames</c> either — measured by adding
@@ -419,9 +427,10 @@ public sealed class KnownSymbolsSyncTests
 
         var shortcuts = decorations!.GetMembers()
             .OfType<IMethodSymbol>()
-            .Where(method => method is { IsExtensionMethod: true, Parameters.Length: 2 }
+            .Where(method => method is { IsExtensionMethod: true, Parameters.Length: > 0 }
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder)
-                && method.Parameters[1].Type.TypeKind == TypeKind.Delegate)
+                && KnownSymbols.TryGetEventParameters(method, out var eventParameters)
+                && !eventParameters.CarriesEventName)
             .ToList();
 
         // A resolution or shape-rule failure would otherwise make the whole guard vacuous rather than red.
@@ -433,15 +442,67 @@ public sealed class KnownSymbolsSyncTests
             Assert.Equal(SurfaceMethodKind.EventShortcut, symbols.ClassifySurfaceMethod(method));
             Assert.True(
                 symbols.EventShortcuts.TryGetValue(key, out var eventName),
-                $"'.{method.Name}({method.Parameters[1].Type.Name})' extends ElementBuilder and takes a " +
-                $"handler and nothing else, but KnownSymbols registered no event name for it. Either it " +
-                $"stands for an event and needs an EventShortcutNames row, or it stands for something " +
-                $"else and needs a classification of its own plus a revision of this rule.");
+                $"'.{method.Name}({method.Parameters[method.Parameters.Length - 1].Type.Name})' extends " +
+                $"ElementBuilder and takes a handler and no event name, but KnownSymbols registered no " +
+                $"event name for it. Either it stands for an event and needs an EventShortcutNames row, " +
+                $"or it stands for something else and needs a classification of its own plus a revision " +
+                $"of this rule.");
 
             // The same rule BCF3019 holds a hand-written .Bind event name to. Nothing derives the name from
             // the method's, deliberately: an event whose HTML spelling is not the member name minus "On"
             // (ondblclick, say) is a table row, not a special case.
             Assert.StartsWith("on", eventName, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// Every event decoration the runtime declares has a handler argument this compiler can name, and the
+    /// two argument layouts are the ones its readers index into.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The coverage <c>(ElementBuilder, delegate)</c> never had. That transcription walked the
+    /// two-parameter shortcut shape only, so an <c>.On</c> overload was outside it in both directions: a
+    /// new one whose handler did not sit where <c>RenderExpressionAnalyzer</c> and BCF3001's exemption
+    /// assumed was not caught, and neither was one this rule could not read at all (#221).
+    /// </para>
+    /// <para>
+    /// Indices rather than a re-derivation of the shape rule, because the indices are what the readers
+    /// actually use: the exemption compares an argument's normalized position against
+    /// <c>HandlerIndex</c>, and the decoration arm reads its handler expression out of the argument list
+    /// at it. A layout that moved would be a silent change of meaning at both.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryEventDecoration_ResolvesItsHandlerArgument()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        var events = symbols.SurfaceMethods
+            .Where(entry => entry.Value is SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On)
+            .ToList();
+
+        // Both kinds, so neither half of the assertion below can pass by there being nothing of that kind.
+        Assert.Contains(events, entry => entry.Value == SurfaceMethodKind.EventShortcut);
+        Assert.Contains(events, entry => entry.Value == SurfaceMethodKind.On);
+
+        foreach (var entry in events)
+        {
+            var method = (IMethodSymbol)entry.Key;
+            Assert.True(
+                KnownSymbols.TryGetEventParameters(method, out var eventParameters),
+                $"'.{method.Name}' is classified {entry.Value}, but KnownSymbols cannot say which of its " +
+                $"arguments is the handler, so BCF3001's exemption and the decoration arm have no answer " +
+                $"to share. Its parameters are ({string.Join(", ", method.Parameters.Select(p => p.Type.Name))}). " +
+                $"A second delegate parameter is the expected cause: decide whether a mutation in it is " +
+                $"deferred, then widen TryGetEventParameters to say so.");
+
+            // .On takes the event's name as its first argument and the handler after it; a named shortcut
+            // stands for the name itself and takes the handler alone.
+            var (expectedHandler, expectedEventName) =
+                entry.Value == SurfaceMethodKind.On ? (1, 0) : (0, -1);
+            Assert.Equal(expectedHandler, eventParameters.HandlerIndex);
+            Assert.Equal(expectedEventName, eventParameters.EventNameIndex);
         }
     }
 

@@ -1,8 +1,7 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using BlazorCodeFirst.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
 
@@ -83,23 +82,22 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeMutation(OperationAnalysisContext ctx, KnownSymbols knownSymbols)
     {
-        // Condition 1: The operation targets an instance field or property.
+        // Condition 1: The operation is inside the design-time expression getter (Body or Chrome) of a
+        // BlazorCodeFirst base subclass. Asked first because it is both the cheapest of the three and by
+        // far the most selective: it is a property of the member being analyzed rather than of the
+        // operation, so it rejects every mutation in every ordinary method without looking at one. It was
+        // the second condition while it was a syntax walk, when asking it first would have meant walking
+        // for operations that condition 2 rules out (#220).
+        if (!TryGetDesignTimeExpression(ctx.ContainingSymbol, out var expression))
+            return;
+
+        // Condition 2: The operation targets an instance field or property.
         var targetSymbol = GetInstanceMemberTarget(ctx.Operation);
         if (targetSymbol is null) return;
 
-        // Condition 2: The operation is syntactically inside the design-time expression getter
-        // (Body or Chrome) of a BlazorCodeFirst base subclass.
-        var semanticModel = ctx.Operation.SemanticModel;
-        if (semanticModel is null) return;
-
-        if (!TryGetDesignTimeExpressionOwnerType(
-                ctx.Operation.Syntax, semanticModel, out var ownerType, out var expressionName))
-        {
-            return;
-        }
-
         // The target must belong to the same component (not a field on a nested type, etc.).
-        if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, ownerType)) return;
+        if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, expression.ContainingType))
+            return;
 
         // Condition 3: The operation must not be inside a recognized deferred handler, where mutations
         // execute after rendering rather than during it: an event decoration's handler argument or a
@@ -110,7 +108,7 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             DiagnosticDescriptors.BCF3001,
             ctx.Operation.Syntax.GetLocation(),
             targetSymbol.Name,
-            expressionName));
+            expression.Name));
     }
 
     // ---------------------------------------------------------------------------
@@ -146,38 +144,60 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     // ---------------------------------------------------------------------------
 
     /// <summary>
-    /// Walks the syntax ancestors of <paramref name="operationSyntax"/> to find an <c>override</c>
-    /// property declaration and verifies via the semantic model that it is the design-time expression
-    /// (<c>Body</c> or <c>Chrome</c>, resolved semantically) of a BlazorCodeFirst base subclass.
+    /// Whether <paramref name="containingSymbol"/> is the getter of a BlazorCodeFirst base subclass's
+    /// design-time expression override (<c>Body</c> or <c>Chrome</c>, resolved semantically), yielding the
+    /// overridden property it belongs to.
     /// </summary>
-    private static bool TryGetDesignTimeExpressionOwnerType(
-        SyntaxNode operationSyntax,
-        SemanticModel semanticModel,
-        out INamedTypeSymbol? ownerType,
-        out string? expressionName)
+    /// <remarks>
+    /// <para>
+    /// The symbol an operation is analyzed under, rather than a walk to its enclosing declaration. Roslyn
+    /// hands the analyzer the accessor directly, for an expression-bodied getter, a block-bodied one, and a
+    /// mutation nested inside a lambda inside either — where a lambda is a symbol of its own but never the
+    /// one an operation action is registered against (#220). What a walk to the first enclosing
+    /// <c>PropertyDeclarationSyntax</c> reconstructed from an <c>override</c> token and a
+    /// <c>GetDeclaredSymbol</c> call, this is handed, and it needs no <see cref="SemanticModel"/> at all —
+    /// which is what leaves this analyzer with no dependency on <c>Microsoft.CodeAnalysis.CSharp</c>.
+    /// </para>
+    /// <para>
+    /// This is the condition every mutation operation in the compilation is asked, the other two being
+    /// reached only once it has passed. So the cost that matters is the one paid by an ordinary
+    /// <c>_x = y</c> in an ordinary method, which is now a type test rather than a climb to the compilation
+    /// unit (the old walk had no upper bound: a non-<c>override</c> property did not stop it either). Being
+    /// a property of the member under analysis rather than of the operation is also what makes it the most
+    /// selective of the three, and therefore the one to ask first.
+    /// </para>
+    /// <para>
+    /// <see cref="MethodKind.PropertyGet"/> narrows to the getter where the syntax walk found the property
+    /// whichever accessor the mutation sat in. Nothing is lost by that: both bases declare their expression
+    /// <c>{ get; }</c> only, so an override carrying a setter does not compile. An auto-property initializer
+    /// is not a missing case either: Roslyn analyzes one under the property itself rather than under an
+    /// accessor, so it fails the <see cref="IMethodSymbol"/> test above — and C# forbids <c>this</c> there
+    /// in any case, so no instance-member mutation can appear in one.
+    /// </para>
+    /// </remarks>
+    private static bool TryGetDesignTimeExpression(
+        ISymbol containingSymbol, [MaybeNullWhen(false)] out IPropertySymbol expression)
     {
-        ownerType = null;
-        expressionName = null;
-        var node = operationSyntax.Parent;
-        while (node is not null)
-        {
-            if (node is PropertyDeclarationSyntax propDecl &&
-                propDecl.Modifiers.Any(SyntaxKind.OverrideKeyword))
+        expression = null!;
+
+        if (containingSymbol is not IMethodSymbol
             {
-                if (semanticModel.GetDeclaredSymbol(propDecl) is IPropertySymbol prop &&
-                    prop.ContainingType is INamedTypeSymbol type &&
-                    DesignTimeBaseFacts.FindDesignTimeExpressionName(type) is { } name &&
-                    prop.Name == name)
-                {
-                    ownerType = type;
-                    expressionName = name;
-                    return true;
-                }
-                return false;
-            }
-            node = node.Parent;
+                MethodKind: MethodKind.PropertyGet,
+                AssociatedSymbol: IPropertySymbol { IsOverride: true } property,
+            })
+        {
+            return false;
         }
-        return false;
+
+        // Asked of the base rather than compared against a literal, so the compiler still carries no
+        // "Body"/"Chrome" spelling of its own. The name the override answers is the base's by C#'s rule,
+        // which is why one property is enough to report with and no second out parameter is needed. A
+        // type that inherits no BlazorCodeFirst base answers null here, and no property is named null.
+        if (property.Name != DesignTimeBaseFacts.FindDesignTimeExpressionName(property.ContainingType))
+            return false;
+
+        expression = property;
+        return true;
     }
 
     // ---------------------------------------------------------------------------
@@ -247,6 +267,23 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// separates the setter from both, by position rather than by delegate shape (#206).
     /// </para>
     /// <para>
+    /// The event arm asks <see cref="EventParameters.IsHandler"/> for the same kind of answer, and for the
+    /// same kind of reason. It used to exempt whichever argument was delegate-typed, which is a rule that
+    /// selects every delegate argument and not the handler; an <c>.On</c> overload carrying a second one
+    /// would have been exempted in the wrong place, with nothing anywhere holding the readers of that
+    /// question together (#221).
+    /// </para>
+    /// <para>
+    /// Both arms answer <see langword="false"/> for a decoration whose shape the classification recognizes
+    /// but whose argument roles it cannot name, and that is the one place this analyzer knowingly spends
+    /// the asymmetry stated at the top of this file: it reports rather than stays quiet, so the cost is a
+    /// spurious BCF3001 on a correct handler or setter. It is spendable only because the shape cannot reach
+    /// an author. <c>KnownSymbolsSyncTests</c> asks
+    /// <see cref="KnownSymbols.TryGetEventParameters"/> of every event decoration the runtime declares, so
+    /// declaring one outside the readable shape is red in the compiler's own suite first, with the decision
+    /// to be made named in the failure.
+    /// </para>
+    /// <para>
     /// The chain below is read off the operation tree, which models the whole of it. Unwrapping it
     /// syntactically still had to cross into the operation tree for the last step — which parameter an
     /// argument binds to is not a syntactic fact — and paid for the crossing with a syntax-identity
@@ -278,9 +315,9 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
         return knownSymbols.ClassifySurfaceMethod(invocation.TargetMethod) switch
         {
-            // The handler, as opposed to .On's string event name.
             SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On =>
-                argument.Parameter?.Type.TypeKind == TypeKind.Delegate,
+                KnownSymbols.TryGetEventParameters(invocation.TargetMethod, out var eventParameters)
+                    && eventParameters.IsHandler(argument.Parameter),
             SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind =>
                 KnownSymbols.TryGetBindParameters(invocation.TargetMethod, out var bind)
                     && bind.IsSetter(argument.Parameter),
