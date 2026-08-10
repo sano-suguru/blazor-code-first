@@ -59,27 +59,12 @@ public sealed class BindParametersTests
         }
         """;
 
-    /// <summary>Compiles <paramref name="expression"/> and returns the named invocation's resolved
-    /// symbol (as <c>GetSymbolInfo</c> answers it) alongside its operation (whose argument parameters
-    /// come from the unreduced <c>TargetMethod</c>).</summary>
+    /// <summary>Compiles <paramref name="expression"/> into <see cref="Probes"/> and resolves the named
+    /// invocation through <see cref="SurfaceInvocationProbe"/>, which holds the both-spellings mechanics
+    /// this and <see cref="EventParametersTests"/> share.</summary>
     private static (IMethodSymbol Method, IInvocationOperation Operation) Resolve(
-        string expression, string methodName = "Bind")
-    {
-        var compilation = CompilationTestHost.CreateCompilation(
-            Probes.Replace("{{EXPRESSION}}", expression));
-        var tree = compilation.SyntaxTrees[0];
-        var model = compilation.GetSemanticModel(tree);
-
-        var invocation = tree.GetRoot()
-            .DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .First(node => model.GetSymbolInfo(node).Symbol is IMethodSymbol method
-                && method.Name == methodName);
-
-        var method = (IMethodSymbol)model.GetSymbolInfo(invocation).Symbol!;
-        var operation = (IInvocationOperation)model.GetOperation(invocation)!;
-        return (method, operation);
-    }
+        string expression, string methodName = "Bind") =>
+        SurfaceInvocationProbe.Resolve(Probes.Replace("{{EXPRESSION}}", expression), methodName);
 
     private static BindParameters Bind(string expression, string methodName = "Bind")
     {
@@ -88,16 +73,8 @@ public sealed class BindParametersTests
         return bind;
     }
 
-    /// <summary>The parameter the argument whose text is <paramref name="argumentText"/> binds to, read
-    /// off <see cref="IArgumentOperation.Parameter"/> as <c>RenderMutationAnalyzer</c> reads it. The
-    /// argument is located here by syntax text because the test names it that way; the analyzer arrives at
-    /// the same operation by walking up from the anonymous function instead (#216).</summary>
-    private static IParameterSymbol BoundParameter(IInvocationOperation operation, string argumentText)
-    {
-        var argument = operation.Arguments.Single(a => a.Syntax.ToString() == argumentText);
-        Assert.NotNull(argument.Parameter);
-        return argument.Parameter!;
-    }
+    private static IParameterSymbol BoundParameter(IInvocationOperation operation, string argumentText) =>
+        SurfaceInvocationProbe.BoundParameter(operation, argumentText);
 
     [Fact]
     public void ElementGetterOnly_DeclaresNoSetter()

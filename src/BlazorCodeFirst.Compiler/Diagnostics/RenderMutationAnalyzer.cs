@@ -82,14 +82,18 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 
     private static void AnalyzeMutation(OperationAnalysisContext ctx, KnownSymbols knownSymbols)
     {
-        // Condition 1: The operation targets an instance field or property.
-        var targetSymbol = GetInstanceMemberTarget(ctx.Operation);
-        if (targetSymbol is null) return;
-
-        // Condition 2: The operation is inside the design-time expression getter (Body or Chrome) of a
-        // BlazorCodeFirst base subclass.
+        // Condition 1: The operation is inside the design-time expression getter (Body or Chrome) of a
+        // BlazorCodeFirst base subclass. Asked first because it is both the cheapest of the three and by
+        // far the most selective: it is a property of the member being analyzed rather than of the
+        // operation, so it rejects every mutation in every ordinary method without looking at one. It was
+        // the second condition while it was a syntax walk, when asking it first would have meant walking
+        // for operations that condition 2 rules out (#220).
         if (!TryGetDesignTimeExpression(ctx.ContainingSymbol, out var expression))
             return;
+
+        // Condition 2: The operation targets an instance field or property.
+        var targetSymbol = GetInstanceMemberTarget(ctx.Operation);
+        if (targetSymbol is null) return;
 
         // The target must belong to the same component (not a field on a nested type, etc.).
         if (!SymbolEqualityComparer.Default.Equals(targetSymbol.ContainingType, expression.ContainingType))
@@ -155,17 +159,20 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// which is what leaves this analyzer with no dependency on <c>Microsoft.CodeAnalysis.CSharp</c>.
     /// </para>
     /// <para>
-    /// This is the condition every instance-member mutation in the compilation is asked, condition 3 being
+    /// This is the condition every mutation operation in the compilation is asked, the other two being
     /// reached only once it has passed. So the cost that matters is the one paid by an ordinary
     /// <c>_x = y</c> in an ordinary method, which is now a type test rather than a climb to the compilation
-    /// unit (the old walk had no upper bound: a non-<c>override</c> property did not stop it either).
+    /// unit (the old walk had no upper bound: a non-<c>override</c> property did not stop it either). Being
+    /// a property of the member under analysis rather than of the operation is also what makes it the most
+    /// selective of the three, and therefore the one to ask first.
     /// </para>
     /// <para>
     /// <see cref="MethodKind.PropertyGet"/> narrows to the getter where the syntax walk found the property
     /// whichever accessor the mutation sat in. Nothing is lost by that: both bases declare their expression
     /// <c>{ get; }</c> only, so an override carrying a setter does not compile. An auto-property initializer
-    /// is not a missing case either — C# forbids <c>this</c> there, so an instance-member mutation, which
-    /// condition 1 has already required, cannot appear in one.
+    /// is not a missing case either: Roslyn analyzes one under the property itself rather than under an
+    /// accessor, so it fails the <see cref="IMethodSymbol"/> test above — and C# forbids <c>this</c> there
+    /// in any case, so no instance-member mutation can appear in one.
     /// </para>
     /// </remarks>
     private static bool TryGetDesignTimeExpression(
@@ -263,8 +270,18 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// The event arm asks <see cref="EventParameters.IsHandler"/> for the same kind of answer, and for the
     /// same kind of reason. It used to exempt whichever argument was delegate-typed, which is a rule that
     /// selects every delegate argument and not the handler; an <c>.On</c> overload carrying a second one
-    /// would have been exempted in the wrong place, with nothing anywhere holding the three readers of that
+    /// would have been exempted in the wrong place, with nothing anywhere holding the readers of that
     /// question together (#221).
+    /// </para>
+    /// <para>
+    /// Both arms answer <see langword="false"/> for a decoration whose shape the classification recognizes
+    /// but whose argument roles it cannot name, and that is the one place this analyzer knowingly spends
+    /// the asymmetry stated at the top of this file: it reports rather than stays quiet, so the cost is a
+    /// spurious BCF3001 on a correct handler or setter. It is spendable only because the shape cannot reach
+    /// an author. <c>KnownSymbolsSyncTests</c> asks
+    /// <see cref="KnownSymbols.TryGetEventParameters"/> of every event decoration the runtime declares, so
+    /// declaring one outside the readable shape is red in the compiler's own suite first, with the decision
+    /// to be made named in the failure.
     /// </para>
     /// <para>
     /// The chain below is read off the operation tree, which models the whole of it. Unwrapping it
@@ -299,8 +316,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         return knownSymbols.ClassifySurfaceMethod(invocation.TargetMethod) switch
         {
             SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On =>
-                KnownSymbols.TryGetEventParameters(invocation.TargetMethod, out var handler)
-                    && handler.IsHandler(argument.Parameter),
+                KnownSymbols.TryGetEventParameters(invocation.TargetMethod, out var eventParameters)
+                    && eventParameters.IsHandler(argument.Parameter),
             SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind =>
                 KnownSymbols.TryGetBindParameters(invocation.TargetMethod, out var bind)
                     && bind.IsSetter(argument.Parameter),

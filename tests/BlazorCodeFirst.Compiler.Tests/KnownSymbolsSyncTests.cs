@@ -429,8 +429,8 @@ public sealed class KnownSymbolsSyncTests
             .OfType<IMethodSymbol>()
             .Where(method => method is { IsExtensionMethod: true, Parameters.Length: > 0 }
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder)
-                && KnownSymbols.TryGetEventParameters(method, out var handler)
-                && handler.EventNameIndex < 0)
+                && KnownSymbols.TryGetEventParameters(method, out var eventParameters)
+                && eventParameters.EventNameIndex < 0)
             .ToList();
 
         // A resolution or shape-rule failure would otherwise make the whole guard vacuous rather than red.
@@ -490,7 +490,7 @@ public sealed class KnownSymbolsSyncTests
         {
             var method = (IMethodSymbol)entry.Key;
             Assert.True(
-                KnownSymbols.TryGetEventParameters(method, out var handler),
+                KnownSymbols.TryGetEventParameters(method, out var eventParameters),
                 $"'.{method.Name}' is classified {entry.Value}, but KnownSymbols cannot say which of its " +
                 $"arguments is the handler, so BCF3001's exemption and the decoration arm have no answer " +
                 $"to share. Its parameters are ({string.Join(", ", method.Parameters.Select(p => p.Type.Name))}). " +
@@ -501,8 +501,8 @@ public sealed class KnownSymbolsSyncTests
             // stands for the name itself and takes the handler alone.
             var (expectedHandler, expectedEventName) =
                 entry.Value == SurfaceMethodKind.On ? (1, 0) : (0, -1);
-            Assert.Equal(expectedHandler, handler.HandlerIndex);
-            Assert.Equal(expectedEventName, handler.EventNameIndex);
+            Assert.Equal(expectedHandler, eventParameters.HandlerIndex);
+            Assert.Equal(expectedEventName, eventParameters.EventNameIndex);
         }
     }
 

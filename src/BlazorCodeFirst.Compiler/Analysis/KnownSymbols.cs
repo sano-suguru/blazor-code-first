@@ -739,9 +739,9 @@ internal sealed class KnownSymbols
     /// the compiler's own suite before it can ship, with the decision to be made named in the failure.
     /// </para>
     /// </remarks>
-    public static bool TryGetEventParameters(IMethodSymbol method, out EventParameters handler)
+    public static bool TryGetEventParameters(IMethodSymbol method, out EventParameters eventParameters)
     {
-        handler = default;
+        eventParameters = default;
         var eventNameIndex = -1;
 
         for (var index = 0; index < method.Parameters.Length; index++)
@@ -760,7 +760,7 @@ internal sealed class KnownSymbols
                 if (index + 1 != method.Parameters.Length)
                     return false;
 
-                handler = new EventParameters(argumentIndex, eventNameIndex);
+                eventParameters = new EventParameters(argumentIndex, eventNameIndex);
                 return true;
             }
 

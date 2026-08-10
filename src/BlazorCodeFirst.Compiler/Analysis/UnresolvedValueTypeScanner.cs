@@ -194,7 +194,13 @@ internal static class UnresolvedValueTypeScanner
         if (!recoverOwnValue || !IsFluentExtensionInvocation(invocation, method, context))
             return;
 
-        if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.On)
+        if (kind is SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On)
+        {
+            ReportEventArguments(method, args, context);
+            return;
+        }
+
+        if (kind == SurfaceMethodKind.Attr)
         {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);
@@ -211,9 +217,47 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        // .Class, a named attribute shortcut and a named event shortcut each carry their one value in
-        // argument 0, the name being the decoration's own spelling rather than something written.
+        // .Class and a named attribute shortcut each carry their one value in argument 0, the name being
+        // the decoration's own spelling rather than something written.
         ReportValue(args.At(0)?.Expression, context);
+    }
+
+    /// <summary>
+    /// Reports on an event decoration's handler argument, the one transplanted into generated code.
+    /// </summary>
+    /// <remarks>
+    /// The event sibling of <see cref="ReportBindArguments"/>, and here for the same reason: the position
+    /// is read off <see cref="KnownSymbols.TryGetEventParameters"/> rather than written as an ordinal, so
+    /// this scan follows the overload set instead of having to be transcribed alongside it. #221 counted
+    /// three readers of "which argument is the handler" and this file held a fourth, one arm away from the
+    /// paragraph below stating the principle for <c>.Bind</c> — which is what a transcribed position looks
+    /// like when nobody is holding the copies together.
+    /// <para>
+    /// The event's name is not a value position, so a non-constant one only changes <em>how</em> the
+    /// handler is reported, exactly as the merged <c>.Attr</c> arm above still does for its own value.
+    /// A named shortcut carries no name argument at all, which is what <c>EventNameIndex</c> answers.
+    /// </para>
+    /// <para>
+    /// A shape this compiler was not written against reports nothing rather than reporting at a guessed
+    /// position. The body is already BCF1003 by then, so the cost is a report not made, not a wrong one.
+    /// </para>
+    /// </remarks>
+    private static void ReportEventArguments(
+        IMethodSymbol method, BoundArguments args, ComposableBodyContext context)
+    {
+        if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters))
+            return;
+
+        var handler = args.At(eventParameters.HandlerIndex)?.Expression;
+
+        if (eventParameters.EventNameIndex >= 0
+            && !IsNonEmptyConstantString(args.At(eventParameters.EventNameIndex)?.Expression, context))
+        {
+            ReportSelectedInvocationValues(handler, context);
+            return;
+        }
+
+        ReportValue(handler, context);
     }
 
     /// <summary>

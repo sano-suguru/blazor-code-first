@@ -43,60 +43,39 @@ public sealed class EventParametersTests
         }
         """;
 
-    /// <summary>Compiles <paramref name="expression"/> and returns the named invocation's resolved symbol
-    /// (as <c>GetSymbolInfo</c> answers it, so reduced for the fluent spelling) alongside its operation,
-    /// whose argument parameters come from the unreduced <c>TargetMethod</c>.</summary>
+    /// <summary>Compiles <paramref name="expression"/> into <see cref="Probes"/> and resolves the named
+    /// invocation through <see cref="SurfaceInvocationProbe"/>, which holds the both-spellings mechanics
+    /// this and <see cref="BindParametersTests"/> share.</summary>
     private static (IMethodSymbol Method, IInvocationOperation Operation) Resolve(
-        string expression, string methodName)
-    {
-        var compilation = CompilationTestHost.CreateCompilation(
-            Probes.Replace("{{EXPRESSION}}", expression));
-        var tree = compilation.SyntaxTrees[0];
-        var model = compilation.GetSemanticModel(tree);
-
-        var invocation = tree.GetRoot()
-            .DescendantNodes()
-            .OfType<InvocationExpressionSyntax>()
-            .First(node => model.GetSymbolInfo(node).Symbol is IMethodSymbol method
-                && method.Name == methodName);
-
-        var method = (IMethodSymbol)model.GetSymbolInfo(invocation).Symbol!;
-        var operation = (IInvocationOperation)model.GetOperation(invocation)!;
-        return (method, operation);
-    }
+        string expression, string methodName) =>
+        SurfaceInvocationProbe.Resolve(Probes.Replace("{{EXPRESSION}}", expression), methodName);
 
     private static EventParameters Events(string expression, string methodName)
     {
         var (method, _) = Resolve(expression, methodName);
-        Assert.True(KnownSymbols.TryGetEventParameters(method, out var handler));
-        return handler;
+        Assert.True(KnownSymbols.TryGetEventParameters(method, out var eventParameters));
+        return eventParameters;
     }
 
-    /// <summary>The parameter the argument whose text is <paramref name="argumentText"/> binds to, read off
-    /// <see cref="IArgumentOperation.Parameter"/> as <c>RenderMutationAnalyzer</c> reads it.</summary>
-    private static IParameterSymbol BoundParameter(IInvocationOperation operation, string argumentText)
-    {
-        var argument = operation.Arguments.Single(a => a.Syntax.ToString() == argumentText);
-        Assert.NotNull(argument.Parameter);
-        return argument.Parameter!;
-    }
+    private static IParameterSymbol BoundParameter(IInvocationOperation operation, string argumentText) =>
+        SurfaceInvocationProbe.BoundParameter(operation, argumentText);
 
     [Fact]
     public void NamedShortcut_TakesTheHandlerAloneAndNamesTheEventItself()
     {
-        var handler = Events("Html.Button.OnClick(() => _n++)", "OnClick");
+        var eventParameters = Events("Html.Button.OnClick(() => _n++)", "OnClick");
 
-        Assert.Equal(0, handler.HandlerIndex);
-        Assert.Equal(-1, handler.EventNameIndex);
+        Assert.Equal(0, eventParameters.HandlerIndex);
+        Assert.Equal(-1, eventParameters.EventNameIndex);
     }
 
     [Fact]
     public void On_TakesTheEventNameAheadOfTheHandler()
     {
-        var handler = Events("""Html.Div.On("onclick", () => _n++)""", "On");
+        var eventParameters = Events("""Html.Div.On("onclick", () => _n++)""", "On");
 
-        Assert.Equal(1, handler.HandlerIndex);
-        Assert.Equal(0, handler.EventNameIndex);
+        Assert.Equal(1, eventParameters.HandlerIndex);
+        Assert.Equal(0, eventParameters.EventNameIndex);
     }
 
     /// <summary>
@@ -107,12 +86,12 @@ public sealed class EventParametersTests
     [Fact]
     public void GenericOn_ResolvesItsHandlerLikeTheNonGenericOne()
     {
-        var handler = Events(
+        var eventParameters = Events(
             """Html.Div.On<Microsoft.AspNetCore.Components.MouseEventArgs>("onclick", a => _n++)""",
             "On");
 
-        Assert.Equal(1, handler.HandlerIndex);
-        Assert.Equal(0, handler.EventNameIndex);
+        Assert.Equal(1, eventParameters.HandlerIndex);
+        Assert.Equal(0, eventParameters.EventNameIndex);
     }
 
     /// <summary>
@@ -127,13 +106,13 @@ public sealed class EventParametersTests
     public void BothSpellings_AgreeOnTheHandler(string expression)
     {
         var (method, operation) = Resolve(expression, "On");
-        Assert.True(KnownSymbols.TryGetEventParameters(method, out var handler));
+        Assert.True(KnownSymbols.TryGetEventParameters(method, out var eventParameters));
 
-        Assert.Equal(1, handler.HandlerIndex);
-        Assert.True(handler.IsHandler(BoundParameter(operation, "() => _n++")));
-        Assert.False(handler.IsHandler(BoundParameter(operation, "\"onclick\"")));
+        Assert.Equal(1, eventParameters.HandlerIndex);
+        Assert.True(eventParameters.IsHandler(BoundParameter(operation, "() => _n++")));
+        Assert.False(eventParameters.IsHandler(BoundParameter(operation, "\"onclick\"")));
         // The receiver of the static spelling is an argument too, and argument space has no index for it.
-        Assert.False(handler.IsHandler(operation.Arguments[0].Parameter));
+        Assert.False(eventParameters.IsHandler(operation.Arguments[0].Parameter));
     }
 
     /// <summary>
@@ -144,18 +123,18 @@ public sealed class EventParametersTests
     public void ANamedHandlerArgument_IsStillTheHandler()
     {
         var (method, operation) = Resolve("""Html.Div.On(handler: () => _n++, eventName: "onclick")""", "On");
-        Assert.True(KnownSymbols.TryGetEventParameters(method, out var handler));
+        Assert.True(KnownSymbols.TryGetEventParameters(method, out var eventParameters));
 
-        Assert.True(handler.IsHandler(BoundParameter(operation, "handler: () => _n++")));
-        Assert.False(handler.IsHandler(BoundParameter(operation, "eventName: \"onclick\"")));
+        Assert.True(eventParameters.IsHandler(BoundParameter(operation, "handler: () => _n++")));
+        Assert.False(eventParameters.IsHandler(BoundParameter(operation, "eventName: \"onclick\"")));
     }
 
     [Fact]
     public void IsHandler_AnswersFalseForNull()
     {
-        var handler = Events("""Html.Div.On("onclick", () => _n++)""", "On");
+        var eventParameters = Events("""Html.Div.On("onclick", () => _n++)""", "On");
 
-        Assert.False(handler.IsHandler(null));
+        Assert.False(eventParameters.IsHandler(null));
     }
 
     /// <summary>
@@ -183,8 +162,9 @@ public sealed class EventParametersTests
         Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
     }
 
-    /// <summary>A decoration carrying no delegate at all is not an event decoration; <c>.Attr</c> is the
-    /// shape that would otherwise be read as one with its value mistaken for a handler.</summary>
+    /// <summary>A decoration carrying no delegate at all is not an event decoration. <c>.Attr</c> is the
+    /// nearest neighbour to read wrongly: it shares <c>.On</c>'s arity and its leading name argument, and
+    /// differs only in that its second argument carries a value rather than a handler.</summary>
     [Fact]
     public void ADecorationWithNoDelegate_HasNoAnswer()
     {

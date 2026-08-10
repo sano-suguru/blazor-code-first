@@ -1,6 +1,7 @@
 using System.Linq;
 using BlazorCodeFirst.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Xunit;
 
 namespace BlazorCodeFirst.Compiler.Tests;
@@ -69,12 +70,10 @@ public sealed class ReceiverOffsetTests
 
         var getter = tree.GetRoot()
             .DescendantNodes()
-            .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.PropertyDeclarationSyntax>()
+            .OfType<PropertyDeclarationSyntax>()
             .First(node => node.Identifier.ValueText == property);
 
-        var invocation = getter.DescendantNodes()
-            .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>()
-            .Last();
+        var invocation = getter.DescendantNodes().OfType<InvocationExpressionSyntax>().Last();
 
         var method = model.GetSymbolInfo(invocation).Symbol as IMethodSymbol;
         Assert.NotNull(method);

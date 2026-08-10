@@ -568,11 +568,14 @@ internal static class RenderExpressionAnalyzer
         if (kind is SurfaceMethodKind.EventShortcut or SurfaceMethodKind.On)
         {
             // Which argument carries the handler is asked of KnownSymbols, not assumed from the position
-            // this arm happens to have been written against (#221). The classification's shortcut table and
-            // the declaration's shape must agree about whether the event's name is an argument at all; a
-            // decoration where they disagree is not a shape this arm can read.
+            // this arm happens to have been written against (#221). The event's name comes either from the
+            // classification's shortcut table or from the first argument, never from both and never from
+            // neither, so exactly one of the two must be present. That is pinned rather than assumed
+            // because the resolver below reads the name out of firstArg: requiring the index to be 0, and
+            // not merely to exist, is what keeps a widened TryGetEventParameters from moving the name
+            // somewhere this arm would go on reading past.
             if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters)
-                || (shortcutName is null) != (eventParameters.EventNameIndex >= 0))
+                || (shortcutName is not null) == (eventParameters.EventNameIndex == 0))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 return null;
@@ -611,12 +614,16 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        // Attribute shortcut or generic .Attr. The attribute channel's layout is positional and stays so:
-        // its value is a string or a bool rather than a role a parameter's shape could name, and only the
-        // event channel has a second decoration group's worth of readers to keep in step (#221).
+        // Attribute shortcut or generic .Attr. The value is the last parameter in both spellings — the
+        // name, where it is written at all, is the one ahead of it — and that single derivation answers
+        // both readings below: the argument index the value is carried at, and whether the overload picked
+        // is the bool one. Two derivations of "where the value sits" in one arm is the shape #221 was
+        // filed about, even where no second reader has to agree with this one.
+        var attributeValue = method.Parameters[method.Parameters.Length - 1];
+
         if (!TryResolveDecorationName(
-                invocation, args, firstArg, shortcutName, shortcutName is null ? 1 : 0, context,
-                out var attrName, out var valueExpr))
+                invocation, args, firstArg, shortcutName, KnownSymbols.ArgumentIndex(attributeValue),
+                context, out var attrName, out var valueExpr))
         {
             return null;
         }
@@ -627,10 +634,9 @@ internal static class RenderExpressionAnalyzer
             // The channel joins its decorations into one value, so the bool overload means two
             // different things there depending on how many others the element carries (#159). Which
             // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
-            // shape; the value expression's own type is not consulted. The last parameter is the
-            // value in both the reduced fluent spelling and the static-call one, and the shortcut
-            // route never spells 'class', so only .Attr reaches this test.
-            if (method.Parameters[method.Parameters.Length - 1].Type.SpecialType == SpecialType.System_Boolean)
+            // shape; the value expression's own type is not consulted. The shortcut route never spells
+            // 'class', so only .Attr reaches this test.
+            if (attributeValue.Type.SpecialType == SpecialType.System_Boolean)
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
