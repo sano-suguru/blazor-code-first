@@ -128,3 +128,8 @@ to load it. That is a separate requirement from building this repository, which 
   algorithm, static sequence assignment, memory layout, and analyzer diagnostics.
 - [CONTRIBUTING.md](CONTRIBUTING.md): building, testing, diagnostics, and the issue-tracker
   conventions.
+
+## License
+
+MIT. See [LICENSE](LICENSE). The package declares it as the SPDX expression `MIT`, so nuget.org links
+the license rather than embedding a copy in the payload.

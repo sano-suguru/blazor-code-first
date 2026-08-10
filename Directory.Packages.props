@@ -1,11 +1,18 @@
 <Project>
+
+  <!-- The BlazorCodeFirst pin below is this repository's own package, so its version is not a pin to
+       maintain but the value the build is about to produce. It comes from the same file
+       Directory.Build.props reads. -->
+  <Import Project="$(MSBuildThisFileDirectory)eng/Versions.props"
+          Condition="'$(BlazorCodeFirstPackageVersion)' == ''" />
+
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="AngleSharp" Version="1.7.1" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="BlazorCodeFirst" Version="0.1.0-dev" />
+    <PackageVersion Include="BlazorCodeFirst" Version="$(BlazorCodeFirstPackageVersion)" />
     <PackageVersion Include="bunit" Version="2.9.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components" Version="10.0.10" />
     <!-- Tracks the Microsoft.AspNetCore.Components pin above: both ship in the same ASP.NET Core

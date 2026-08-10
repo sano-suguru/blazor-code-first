@@ -15,3 +15,7 @@ This package exists to validate that the BlazorCodeFirst runtime and compiler sh
 
 - .NET 10 / `net10.0`
 - A Blazor project that references the `BlazorCodeFirst` package
+
+## License
+
+MIT.

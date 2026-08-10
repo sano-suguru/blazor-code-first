@@ -97,8 +97,11 @@ public sealed class RazorInteropFixtures
         if (packageFeed is not null)
         {
             var assets = File.ReadAllText(assetsFilePath);
-            Assert.Contains("BlazorCodeFirst/0.1.0-dev", assets, StringComparison.Ordinal);
-            Assert.Contains("BlazorCodeFirst.RazorInteropFixture/0.1.0-dev", assets, StringComparison.Ordinal);
+            Assert.Contains($"BlazorCodeFirst/{RepoLayout.PackageVersion}", assets, StringComparison.Ordinal);
+            Assert.Contains(
+                $"BlazorCodeFirst.RazorInteropFixture/{RepoLayout.PackageVersion}",
+                assets,
+                StringComparison.Ordinal);
         }
 
         return new RazorInteropBuild(

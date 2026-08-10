@@ -27,7 +27,13 @@ public sealed class RazorInteropDeliveryTests(RazorInteropFixtures fixtures)
         Assert.DoesNotContain("BCF3012", build.Output, StringComparison.Ordinal);
 
         var assets = File.ReadAllText(build.AssetsFilePath);
-        Assert.Contains("blazorcodefirst.razorinteropfixture/0.1.0-dev", assets, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("blazorcodefirst/0.1.0-dev", assets, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"blazorcodefirst.razorinteropfixture/{RepoLayout.PackageVersion}",
+            assets,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            $"blazorcodefirst/{RepoLayout.PackageVersion}",
+            assets,
+            StringComparison.OrdinalIgnoreCase);
     }
 }
