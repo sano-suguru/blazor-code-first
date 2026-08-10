@@ -39,6 +39,13 @@ internal static class KeyabilityResolver
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
                 or FragmentTemplateNode or RawMarkupTemplateNode
                 or RenderFragmentContentTemplateNode => ContentRootKind.Region,
+            // A content hole's root is whatever the caller passes, which this walk cannot see and must not
+            // guess: it is reachability-independent by design, and the same definition may be called with a
+            // keyable element from one site and a bare If from another. Region is the answer that holds for
+            // both, so a ForEach whose content root *is* a slot or a View parameter is BCF3003 at the
+            // declaration -- the existing diagnostic, with no new one and no loss of the property.
+            // ForEach(items, k, x => Div[Slot]) is unaffected: Div is the root there.
+            ContentHoleTemplateNode => ContentRootKind.Region,
             ComposableCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
                 $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRootKind case for it."),
@@ -108,10 +115,20 @@ internal static class KeyabilityResolver
                     CollectForEachContentDiagnostics(slot.Content, registry, sink);
                 break;
 
-                // TextContentTemplateNode/ComposableCallTemplateNode/RawMarkupTemplateNode/
-                // RenderFragmentContentTemplateNode have no nested template children to walk. A
-                // composable call's own body is walked once from the registry pass
-                // (CollectComposableForEachDiagnostics), not re-walked at every call site.
+            case ComposableCallTemplateNode call:
+                // The call's own body is walked once from the registry pass
+                // (CollectComposableForEachDiagnostics) and deliberately not re-walked here. What is walked
+                // here is the content the *call site* supplies, in brackets or as a View argument: those are
+                // subtrees written at this site, so a ForEach inside one belongs to this walk and would
+                // otherwise never be visited.
+                foreach (var contentArgument in call.ContentArguments.AsImmutableArray())
+                    CollectForEachContentDiagnostics(contentArgument.Content, registry, sink);
+                foreach (var child in call.SlotContent.AsImmutableArray())
+                    CollectForEachContentDiagnostics(child, registry, sink);
+                break;
+
+                // TextContentTemplateNode/ContentHoleTemplateNode/RawMarkupTemplateNode/
+                // RenderFragmentContentTemplateNode have no nested template children to walk.
         }
     }
 

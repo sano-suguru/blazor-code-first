@@ -8,7 +8,13 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// (<c>RenderExpressionAnalyzer.CreateInvocationArguments</c> recomputes the default from the callee's
 /// own symbol), so carrying them here paid for a second copy that nothing consulted.
 /// </remarks>
-internal sealed record ComposableParameter(int Ordinal, string TypeName);
+/// <param name="IsContent">
+/// Whether this parameter is a <c>View</c>-typed content slot (#34) rather than a value. Expansion declares
+/// no local for one — content is a node subtree and there is nothing to bind — so the flag is carried here
+/// rather than inferred from <paramref name="TypeName"/>, which would make the decision a string comparison
+/// against a display format.
+/// </param>
+internal sealed record ComposableParameter(int Ordinal, string TypeName, bool IsContent = false);
 
 /// <summary>Classifies why a referenced member forces an accessibility requirement on the caller.</summary>
 internal enum ComposableAccessRequirementKind
@@ -45,10 +51,17 @@ internal sealed record ComposableAccessRequirement(
 /// <see cref="ComposableAccessRequirement.RequiredContainingTypeKey"/>, the <em>declaring</em> type of each
 /// referenced member.
 /// </remarks>
+/// <param name="SlotOrdinal">
+/// The substitution ordinal this definition's <c>Html.Slot</c> is bound at, or <c>-1</c> when it declares no
+/// slot — which is every part returning <c>View</c> rather than <c>ContentView</c> (#176). It is always
+/// <c>Parameters.Length</c> when present, so the ordinal space reads parameters, then the slot, then the
+/// scoped render variables <c>ComposableBodyContext.PushRenderVariable</c> appends.
+/// </param>
 internal sealed record ComposableDefinition(
     EquatableArray<ComposableParameter> Parameters,
     EquatableArray<ComposableAccessRequirement> AccessRequirements,
-    RenderTemplateNode Body);
+    RenderTemplateNode Body,
+    int SlotOrdinal = -1);
 
 /// <summary>
 /// A registry slot for one source-declared composable. Invalid declarations remain present with

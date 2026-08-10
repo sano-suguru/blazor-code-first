@@ -30,3 +30,4 @@ BCF3020 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3022 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3023 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3024 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3025 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator

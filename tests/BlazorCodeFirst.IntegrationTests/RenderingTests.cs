@@ -46,6 +46,35 @@ public sealed class RenderingTests : BunitContext
         Assert.Equal(2, cut.Instance.ArgumentEvaluations);
     }
 
+    /// <summary>
+    /// A content-taking part renders its caller's brackets inside its own markup, and an additional
+    /// <c>View</c> parameter fills a second slot (#34, #176). The click matters as much as the first
+    /// assertion: the spliced content is emitted into the part's sequence space, so a diff driven by state the
+    /// content reads is where a misnumbered splice would show up.
+    /// </summary>
+    [Fact]
+    public void ComposableContentComponent_WhenIncremented_RerendersContentInsideThePartsMarkup()
+    {
+        var cut = Render<ComposableContentComponent>();
+
+        const string Markup = """
+            <div class="page">
+              <div class="panel">
+                <div class="panel-head"><h2>Counter</h2></div>
+                <div class="panel-body">
+                  <span>Count: {0}</span><button>Increment</button>
+                </div>
+              </div>
+            </div>
+            """;
+
+        cut.MarkupMatches(string.Format(System.Globalization.CultureInfo.InvariantCulture, Markup, 0));
+
+        cut.Find("button").Click();
+
+        cut.MarkupMatches(string.Format(System.Globalization.CultureInfo.InvariantCulture, Markup, 1));
+    }
+
     [Fact]
     public void KeyedList_WhenRotateClicked_RerendersRowsInNewOrder()
     {

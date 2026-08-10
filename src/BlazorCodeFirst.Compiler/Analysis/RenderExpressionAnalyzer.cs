@@ -103,6 +103,13 @@ internal static class RenderExpressionAnalyzer
         {
             if (!resolvedProperty.IsIndexer)
             {
+                if (symbols.SlotProperty is { } slotProperty
+                    && SymbolEqualityComparer.Default.Equals(
+                        KnownSymbols.Normalize(resolvedProperty), KnownSymbols.Normalize(slotProperty)))
+                {
+                    return ClassifySlot(expression, slotProperty, context);
+                }
+
                 // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
                 // element are unavoidable and this is the one that carries no children.
                 return symbols.ElementTags.TryGetValue(
@@ -114,6 +121,18 @@ internal static class RenderExpressionAnalyzer
             return expression is ElementAccessExpressionSyntax elementAccess
                 ? ClassifyIndexer(elementAccess, resolvedProperty, context)
                 : null;
+        }
+
+        // A reference to one of the definition's own View-typed parameters: an additional content slot (#34).
+        // Asked of the parameter map only, never of the scoped render-variable overlay, for the reason
+        // TryGetContentOrdinal's remarks give -- a ForEach over Views binds a View-typed loop variable there,
+        // and that holds a runtime value rather than caller content.
+        if (symbol is IParameterSymbol contentParameter
+            && symbols.ViewType is { } parameterViewType
+            && SymbolEqualityComparer.Default.Equals(contentParameter.Type, parameterViewType)
+            && context.TryGetContentOrdinal(contentParameter, out var contentOrdinal))
+        {
+            return new ContentHoleTemplateNode(contentOrdinal);
         }
 
         // The method arm still requires an invocation. The early return this replaced also filtered method
@@ -640,6 +659,31 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// <c>Html.Slot</c>: the hole where a content-taking <c>[Composable]</c> places its caller's brackets.
+    /// Translatable only inside such a body, where the definition bound it to an ordinal; anywhere else it
+    /// is BCF3025 (#176).
+    /// </summary>
+    /// <remarks>
+    /// The two rejected cases both land here. A component's <c>Body</c> or <c>Chrome</c> is analyzed with an
+    /// empty parameter map, and a <c>[Composable]</c> returning <c>View</c> registers no slot ordinal, so
+    /// neither can look one up — and the message says which by naming what a slot requires rather than
+    /// guessing at the author's intent. The other arity failures, zero and two, are reported at the
+    /// declaration by <c>ComposableDefinitionFactory</c>, which is where the count is a property of.
+    /// </remarks>
+    private static ContentHoleTemplateNode? ClassifySlot(
+        ExpressionSyntax expression, IPropertySymbol slotProperty, ComposableBodyContext context)
+    {
+        if (context.TryGetContentOrdinal(slotProperty, out var slotOrdinal))
+            return new ContentHoleTemplateNode(slotOrdinal);
+
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3025,
+            expression.GetLocation(),
+            ["is written where no caller content is received"]));
+        return null;
+    }
+
+    /// <summary>
     /// A call that is not surface syntax at all, which is a translatable expression only when the method
     /// it names carries <c>[Composable]</c>. That attribute sits on a user method rather than on a symbol
     /// resolved out of the runtime, so it cannot be part of the classification and is tested here.
@@ -650,7 +694,7 @@ internal static class RenderExpressionAnalyzer
         if (!IsComposable(method, context))
             return null;
 
-        var arguments = CreateInvocationArguments(invocation, method, context);
+        var arguments = CreateInvocationArguments(invocation, method, context, out var contentArguments);
         if (arguments is null)
             return null;
 
@@ -658,7 +702,10 @@ internal static class RenderExpressionAnalyzer
             MethodKey.Create(method),
             method.Name,
             arguments.Value,
-            TemplateLocation.From(invocation.GetLocation()));
+            TemplateLocation.From(invocation.GetLocation()))
+        {
+            ContentArguments = contentArguments,
+        };
     }
 
     /// <summary>
@@ -1152,7 +1199,47 @@ internal static class RenderExpressionAnalyzer
             return ClassifyComponentIndexer(elementAccess, indexer, context);
         }
 
+        if (symbols.ContentIndexer is { } contentIndexer
+            && SymbolEqualityComparer.Default.Equals(definition, contentIndexer))
+        {
+            return ClassifyComposableContentIndexer(elementAccess, context);
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// Classifies <c>Card("Profile")[P["本文"]]</c>: the call and its value arguments come from the element
+    /// access's own receiver, the content from its bracketed arguments (#176).
+    /// </summary>
+    /// <remarks>
+    /// The receiver is classified by the same arm that handles a bare call, so nothing about argument binding
+    /// is written twice. The children are attached as a channel rather than as an argument: which ordinal the
+    /// callee holds its slot at is a fact about the definition, and this site has no symbol-free way to learn
+    /// the callee's arity. <c>ComposableExpander</c> binds them to
+    /// <see cref="ComposableDefinition.SlotOrdinal"/>.
+    /// <para>
+    /// There is no "brackets on a part that takes no content" case to diagnose. Such a part returns
+    /// <c>View</c>, which declares no indexer, so the bracket is a CS0021 before the generator runs — the same
+    /// property that makes <c>Div["text"].Class("card")</c> a CS1929 rather than a second supported style.
+    /// </para>
+    /// </remarks>
+    private static ComposableCallTemplateNode? ClassifyComposableContentIndexer(
+        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    {
+        if (Analyze(elementAccess.Expression, context) is not ComposableCallTemplateNode call)
+            return null;
+
+        // One whole collection passed to the params indexer is not a list of children; leave it unanalyzable
+        // so it lands on BCF1003 instead of being mis-split. Same rule as the element indexer's.
+        if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
+            return null;
+
+        var children = AnalyzeChildren(args.ParamsElements, context);
+        if (children is null)
+            return null;
+
+        return call with { SlotContent = children.Value };
     }
 
     /// <summary>
@@ -1433,11 +1520,18 @@ internal static class RenderExpressionAnalyzer
         return false;
     }
 
+    /// <param name="contentArguments">
+    /// The call's <c>View</c>-typed arguments, its additional content slots (#34), classified as node subtrees
+    /// rather than as expressions. Empty for a call that has none, which is every call to a part declared
+    /// before this surface existed.
+    /// </param>
     private static ImmutableArray<ComposableInvocationArgument>? CreateInvocationArguments(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        ComposableBodyContext context)
+        ComposableBodyContext context,
+        out ImmutableArray<ComposableContentArgument> contentArguments)
     {
+        contentArguments = [];
         if (context.SemanticModel.GetOperation(invocation, context.CancellationToken)
             is not IInvocationOperation operation)
         {
@@ -1448,6 +1542,7 @@ internal static class RenderExpressionAnalyzer
         // after every supplied argument. Operation arguments are parameter-ordered, so the enumeration
         // index cannot be used as source order.
         var builder = ImmutableArray.CreateBuilder<ComposableInvocationArgument>(operation.Arguments.Length);
+        var contentBuilder = ImmutableArray.CreateBuilder<ComposableContentArgument>();
         foreach (var argument in operation.Arguments)
         {
             var parameter = argument.Parameter;
@@ -1455,6 +1550,29 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             var isImplicitDefault = argument.ArgumentKind == ArgumentKind.DefaultValue;
+
+            // A View-typed parameter is a content slot, so its argument is classified as a node subtree and
+            // routed to the content channel rather than lowered to a local (#34). An omitted one has no
+            // subtree to route: the callee's own declaration forbids an optional View parameter, so this is
+            // only reachable while that declaration is itself invalid, and leaving the call unanalyzable lets
+            // the declaration's BCF1002 be the report.
+            if (context.KnownSymbols.ViewType is { } viewType
+                && SymbolEqualityComparer.Default.Equals(parameter.Type, viewType))
+            {
+                if (isImplicitDefault
+                    || argument.Syntax.FirstAncestorOrSelf<ArgumentSyntax>() is not { } contentSyntax
+                    || contentSyntax.Parent != invocation.ArgumentList)
+                {
+                    return null;
+                }
+
+                var content = Analyze(contentSyntax.Expression, context);
+                if (content is null)
+                    return null;
+
+                contentBuilder.Add(new ComposableContentArgument(parameter.Ordinal, content));
+                continue;
+            }
 
             ExpressionTemplate value;
             int sourceOrder;
@@ -1507,6 +1625,7 @@ internal static class RenderExpressionAnalyzer
                 value));
         }
 
+        contentArguments = contentBuilder.ToImmutable();
         return builder.ToImmutable();
     }
 

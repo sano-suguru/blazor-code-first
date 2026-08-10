@@ -92,6 +92,20 @@ internal sealed class ComposableBodyContext
     }
 
     /// <summary>
+    /// The ordinal <paramref name="symbol"/> is bound at as a content hole, consulting the definition's own
+    /// parameters and slot but <em>not</em> the scoped render-variable overlay.
+    /// </summary>
+    /// <remarks>
+    /// The overlay is what makes the exclusion necessary rather than merely tidy. A <c>ForEach</c> over a
+    /// sequence of <c>View</c>s binds a <c>View</c>-typed loop variable there, and that variable holds a
+    /// runtime value with a generated name — the substitution entry for it carries code, not content. Reading
+    /// it as a content hole would produce a node the expander has no subtree for. Only a parameter of the
+    /// composable, or its slot, is caller-supplied content.
+    /// </remarks>
+    public bool TryGetContentOrdinal(ISymbol symbol, out int ordinal) =>
+        _parameterOrdinals.TryGetValue(symbol, out ordinal);
+
+    /// <summary>
     /// Registers one scoped render variable at the next free ordinal. Multiple symbols may denote the
     /// same variable, as the content and key parameters of a <c>ForEach</c> do. A reference to any of the
     /// symbols becomes a parameter hole at the returned ordinal.

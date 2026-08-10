@@ -56,11 +56,53 @@ internal sealed record BooleanConstant(bool Value) : ConstantInfo;
 internal sealed record RuntimeFormattedConstant : ConstantInfo;
 
 /// <summary>
+/// The caller-side content bound to one content hole (<c>Html.Slot</c> or a <c>View</c> parameter), captured
+/// with everything needed to expand it later (#34).
+/// </summary>
+/// <remarks>
+/// <para>
+/// Substitution is lazy: the templates are expanded where the callee names the hole, not at the call site.
+/// That is what makes zero, one, and many references each work — every reference expands the subtree again
+/// and consumes fresh preorder ordinals, so the generated local and loop-variable names cannot collide.
+/// </para>
+/// <para>
+/// All three fields come from the <em>caller</em>, because the argument is an expression written there.
+/// <see cref="ActiveMethodStack"/> is the load-bearing one: expanding under the callee's stack instead
+/// reports <c>A(A(P["z"]))</c> as a recursion cycle, which it is not.
+/// </para>
+/// <para>
+/// Transient expansion state, never part of the cached incremental model, so the
+/// <see cref="ImmutableArray{T}"/> fields need no value-equal wrapper.
+/// </para>
+/// </remarks>
+internal sealed record ContentArgument(
+    ImmutableArray<RenderTemplateNode> Templates,
+    ImmutableArray<SubstitutedArgument> Substitution,
+    ImmutableArray<string> ActiveMethodStack);
+
+/// <summary>
 /// One value substituted for a parameter hole: the code text that replaces the hole, and that value's
 /// compile-time constant when it has one. The two travel together so they cannot fall out of step in
 /// length or order, which two parallel arrays would allow.
 /// </summary>
-internal readonly record struct SubstitutedArgument(string Code, ConstantInfo? Constant);
+/// <param name="Code">
+/// The expression text. Empty for a content entry, whose hole is a node position and not a value; nothing
+/// reads it there, and <see cref="ExpressionTemplate.Substitute"/> throws rather than emitting it.
+/// </param>
+internal readonly record struct SubstitutedArgument(string Code, ConstantInfo? Constant)
+{
+    /// <summary>
+    /// The caller's content when this ordinal is a content hole, or <see langword="null"/> when it is an
+    /// ordinary value. One array holds both kinds because holes of both kinds are indices into it; two
+    /// parallel arrays could fall out of step, which is the same reason <see cref="Constant"/> travels
+    /// beside <see cref="Code"/>.
+    /// </summary>
+    public ContentArgument? Content { get; init; }
+
+    /// <summary>The content entry for a node hole, whose <see cref="Code"/> is never emitted.</summary>
+    public static SubstitutedArgument ForContent(ContentArgument content) =>
+        new(string.Empty, Constant: null) { Content = content };
+}
 
 internal sealed record ExpressionTemplate
 {
@@ -188,7 +230,21 @@ internal sealed record ExpressionTemplate
         System.Diagnostics.Debug.Assert(
             hole.ParameterOrdinal < arguments.Length,
             $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {arguments.Length}; the scoped render-variable/composable ordinal invariant is broken.");
-        return arguments[hole.ParameterOrdinal];
+
+        var argument = arguments[hole.ParameterOrdinal];
+
+        // A content ordinal reached through an *expression* hole means the analyzer classified a View-typed
+        // reference as a value, which it must not: a content hole becomes a ContentHoleTemplateNode and is
+        // substituted by ComposableExpander, never here. Throwing keeps the empty Code from being emitted as
+        // silently valid-looking generated source.
+        if (argument.Content is not null)
+        {
+            throw new InvalidOperationException(
+                $"Parameter ordinal {hole.ParameterOrdinal} is bound to caller content, which has no "
+                    + "expression text. A content hole must be a ContentHoleTemplateNode.");
+        }
+
+        return argument;
     }
 
     /// <summary>

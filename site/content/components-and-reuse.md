@@ -242,6 +242,62 @@ The caller's generated `RenderView` contains the header's frames directly. There
 instance, no parameters, no lifecycle, and no diffing boundary — it is as if you had written the
 markup inline.
 
+### Wrapping content
+
+A part that wraps content the caller supplies returns `ContentView` instead of `View`, and writes
+`Slot` where that content belongs. The caller supplies it in brackets, exactly as it supplies an
+element's children:
+
+```csharp
+protected override View Body =>
+    Div[
+        Card("Profile")[P["Body text"]],
+        Section.Class("body")[P["…"]]];
+
+[Composable]
+private static ContentView Card(string title) =>
+    Div.Class("card")[
+        H2[title],
+        Slot];
+```
+
+That is the point of the spelling: a part you factored out reads the same way a built-in element
+reads. `Card("Profile")[…]` sits beside `Section.Class("body")[…]` without announcing that one of
+them is yours.
+
+The brackets are not optional, and nothing enforces that but C#. `ContentView` has no conversion to
+`View`, so `Div[Card("Profile")]` — the brackets forgotten — is a compile error rather than a card
+that renders silently empty. The same property rules out a decoration (`Card("t").Class("x")`, which
+finds no extension method) and the positional spelling (`Card("t", P["x"])`, which has no parameter
+to bind to).
+
+A second slot is an ordinary `View` parameter:
+
+```csharp
+protected override View Body =>
+    Panel(H2["Title"])[
+        P["Body text"]];
+
+[Composable]
+private static ContentView Panel(View header) =>
+    Div.Class("panel")[
+        Div.Class("panel-head")[header],
+        Div.Class("panel-body")[Slot]];
+```
+
+Named channels first, the main content in brackets — the shape `Div.Class("card")[…]` and
+`Component<T>().Template(…)[…]` already have on this surface.
+
+Two rules are worth knowing. A `ContentView` part must name `Slot` **exactly once**: naming it twice
+would emit the caller's content twice from one bracket, and never naming it would discard content the
+caller was required to supply. Either reports **BCF3025**, as does a `Slot` written anywhere that
+receives no caller content — a component's own `Body`, or a part returning `View`.
+
+A `View` parameter, by contrast, may be referenced any number of times, because it is an ordinary
+parameter. Nothing is captured or shared: each reference expands the caller's expression again, so an
+argument with side effects runs once per reference. That is the same behaviour a Blazor
+`RenderFragment` invoked twice has.
+
 That is the whole trade-off:
 
 - **Reach for `[Composable]`** when the part is pure projection: it has no state of its own, and
@@ -250,10 +306,13 @@ That is the whole trade-off:
   own, or is used from another assembly.
 
 A `[Composable]` has to satisfy a declaration contract the generator can expand, or it reports
-**BCF1002**. It must be a static, non-generic, expression-bodied method returning `View`, declared
-in a non-generic type, and its parameters must be ordinary by-value parameters whose types can be
-named from generated code. `View` and `ElementBuilder` parameters, `params`, and by-reference
-parameters are all rejected.
+**BCF1002**. It must be a static, non-generic, expression-bodied method returning `View` (or
+`ContentView`, to take content), declared in a non-generic type, and its parameters must be ordinary
+by-value parameters whose types can be named from generated code. `params`, by-reference parameters,
+and `ElementBuilder` parameters are all rejected — a childless element is passed as content by
+writing `Div[…]` or `Fragment(Div)`, both of which are `View`s. A `View` parameter is a content slot,
+so it requires the `ContentView` return type; on a part returning `View` it is BCF1002, and it may
+never be optional.
 
 It also must not be an extension member — neither a `this` parameter nor a member of an `extension`
 block. A call is written as a plain call (`AppHeader("My Application")`), the way this surface writes
