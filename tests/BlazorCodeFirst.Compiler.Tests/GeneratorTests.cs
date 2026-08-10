@@ -1101,6 +1101,45 @@ public sealed class GeneratorTests
         Assert.DoesNotContain("Label(", generated);
     }
 
+    /// <summary>
+    /// A <c>[Composable]</c> parameter declared nullable. Measured (#235): the expansion declared its local
+    /// as a non-nullable <see langword="string"/>, because
+    /// <c>SymbolDisplayFormat.FullyQualifiedFormat</c> carries no nullable modifier, so assigning a
+    /// null-bearing argument to it warned CS8600 — a build failure under this repository's
+    /// <c>TreatWarningsAsErrors</c>, and one the call site's author cannot fix.
+    /// </summary>
+    /// <remarks>
+    /// The warning assertion is the test; the declaration assertion says which spelling fixes it.
+    /// <see cref="CompilationTestHost.AssertOutputCompiles"/> alone cannot see this, which is why it sat
+    /// unnoticed: it stops at errors.
+    /// </remarks>
+    [Fact]
+    public void Generator_ComposableNullableStringParameter_DeclaresTheLocalNullable()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Chips : BodyComponentBase
+            {
+                [Composable]
+                private static View Chip(string? cls) => Span.Class(cls!)["chip"];
+
+                private bool _on;
+
+                protected override View Body => Div[Chip(_on ? "on" : null)];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+        CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
+        Assert.Contains(
+            "string? __bcf_arg_1_0 = _on ? \"on\" : null;",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
+    }
+
     [Fact]
     public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBCF1003()
     {
@@ -3134,13 +3173,20 @@ public sealed class GeneratorTests
             }
             """;
 
-        var generated = Assert.Single(CompilationTestHost.RunGenerator(source).GeneratedSources).SourceText.ToString();
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
+        // The annotation is part of the declaration. This assertion read `RenderFragment` without it until
+        // #235, and that was the defect rather than the contract: the parameter is declared
+        // RenderFragment?, the argument here is a RenderFragment? property, and a non-nullable local warned
+        // CS8600 on the assignment. Nothing failed, because no assertion about generated code looked past
+        // errors — which is what AssertGeneratedOutputHasNoWarnings is here to stop.
         Assert.Contains(
-            "global::Microsoft.AspNetCore.Components.RenderFragment __bcf_arg_0_0 = Slot;",
+            "global::Microsoft.AspNetCore.Components.RenderFragment? __bcf_arg_0_0 = Slot;",
             generated);
         Assert.Contains("__builder.OpenElement(0, \"div\");", generated);
         Assert.Contains("__builder.AddContent(1, __bcf_arg_0_0);", generated);
+        CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
     }
 
     [Fact]

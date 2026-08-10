@@ -124,6 +124,38 @@ public static class CompilationTestHost
     }
 
     /// <summary>
+    /// Asserts that the <em>generated</em> trees produced no warnings. Stricter than
+    /// <see cref="AssertOutputCompiles"/>, which looks only at errors, and narrower than asking the whole
+    /// compilation: a test's own input source is allowed to warn (an unassigned field, an unused local),
+    /// and only the generated file is this generator's to keep clean.
+    /// </summary>
+    /// <remarks>
+    /// Worth its own assertion because this repository builds with <c>TreatWarningsAsErrors</c>
+    /// (<c>Directory.Build.props</c>), so a warning inside generated code is a build failure for any
+    /// consumer that does the same — and one the consumer cannot fix, because they do not write that file.
+    /// #235 was exactly that shape and went unnoticed because every existing assertion about generated
+    /// code stopped at errors.
+    /// </remarks>
+    public static void AssertGeneratedOutputHasNoWarnings(GeneratorRunResult result)
+    {
+        var generatedTrees = result.GeneratedSources
+            .Select(static source => source.SyntaxTree)
+            .ToImmutableHashSet();
+
+        var warnings = result.OutputCompilation
+            .GetDiagnostics()
+            .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning)
+            .Where(diagnostic =>
+                diagnostic.Location.SourceTree is { } tree && generatedTrees.Contains(tree))
+            .ToImmutableArray();
+
+        Assert.True(
+            warnings.IsEmpty,
+            "Generated output warned: " +
+            string.Join("; ", warnings.Select(static warning => warning.ToString())));
+    }
+
+    /// <summary>
     /// Asserts that the generator reported nothing at all for <paramref name="result"/>. Companion to
     /// <see cref="AssertOutputCompiles"/>: that one proves the emitted code compiles, this one proves the
     /// input needed no complaint. On failure every diagnostic is named, so a test that expected a clean run

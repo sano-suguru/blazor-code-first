@@ -404,7 +404,11 @@ internal static class ComposableExpander
             // literal substituted in the body's hole (never converted at all). Every serializable slot in
             // the surface is string-typed today (Decorations.cs), but that is a fact about the surface, not
             // this file, so the gate is written here rather than assumed from elsewhere.
-            if (parameter.TypeName == "string")
+            //
+            // Both spellings of that one type. The name carries the nullable annotation since #235, and a
+            // string? parameter is the same type for this gate's purpose: what it guards against is a
+            // conversion on the way into the local, and there is none between string and string?.
+            if (parameter.TypeName is "string" or "string?")
             {
                 innerArguments[argument.ParameterOrdinal] =
                     innerArguments[argument.ParameterOrdinal] with { Constant = initializer.Constant };
