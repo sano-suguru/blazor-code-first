@@ -1,0 +1,10 @@
+@page "/null-attribute-prerender"
+@rendermode @(new InteractiveServerRenderMode(prerender: true))
+
+@*
+    The sibling of /null-attribute with prerendering left on. Two routes over one view because the two
+    tests want opposite things from it: null-attribute.spec.ts needs the first response empty, so the
+    client-side renderer is the only thing that could have written these attributes, and PrerenderTests
+    needs it full, so what it reads is the .NET HtmlRenderer's own output.
+*@
+<NullAttributeView />

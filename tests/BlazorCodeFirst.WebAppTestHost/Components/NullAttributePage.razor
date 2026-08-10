@@ -1,0 +1,14 @@
+@page "/null-attribute"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@*
+    Prerendering is off for the reason recorded on FoldParityPage.razor and NullAttributeView.cs: with it
+    on, the first HTML response already carries the final attributes, and a first render batch identical to
+    that DOM produces no edits, so the client-side renderer this page exists to exercise never runs. The
+    spec's first test fetches this URL with no browser involved and asserts the ids are absent, so the claim
+    stays true rather than being assumed.
+
+    /null-attribute-prerender is the sibling with prerendering left on, for PrerenderTests, which wants the
+    opposite from the same view.
+*@
+<NullAttributeView />
