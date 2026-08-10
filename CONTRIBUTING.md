@@ -310,6 +310,22 @@ issue, commit message, or review comment is today's `BCF1001`. The same change
 renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
 `ChromeLayoutBase`.
 
+## Pull requests
+
+`.github/PULL_REQUEST_TEMPLATE.md` has four sections, each explained in an HTML comment you delete
+along with the comment. Two of them are conditional and say so.
+
+The one rule worth stating outside the template: **a pull request says what the code does now, not how
+the decision was reached.** The reasoning belongs on the issue and, once settled, in `DESIGN.md` or
+`ARCHITECTURE.md`. Restating it in the description makes a third copy of one argument, and the copy
+nobody maintains is the one in the description.
+
+There are no checkboxes, deliberately. This repository's author and its maintainer are the same person,
+so `[ ] I have read CONTRIBUTING.md` asks the writer to confirm something to themselves, and
+`[ ] Tests added` is a weaker version of what CI already refuses to merge without. The
+conventional-commit prefix already carries the change type, so a "type of change" field would ask for
+it twice.
+
 ## Conventions the code must uphold
 
 - Sequence numbers are source syntax positions, never runtime generation order.
