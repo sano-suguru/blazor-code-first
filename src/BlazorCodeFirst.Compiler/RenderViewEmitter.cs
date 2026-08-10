@@ -411,7 +411,8 @@ internal static class RenderViewEmitter
                 global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.AttributeName, quote: true);
             var eventName =
                 global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.EventName, quote: true);
-            writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {bind.Value.ToCode()});");
+            var value = bind.Value.ToCode();
+            writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {value});");
             next++;
             // The framework's own CreateBinder overload for string annotates its setter parameter
             // Action<string?> defensively; the binder Binder() writes — the inverted getter, the
@@ -425,7 +426,7 @@ internal static class RenderViewEmitter
             // whole file: an author's own null assignment inside a transplanted Body expression is not
             // this binder, and must keep failing in the author's own file.
             writer.AppendLine("#pragma warning disable CS8601, CS8620");
-            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {Binder(bind)});");
+            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {Binder(bind, value)});");
             writer.AppendLine("#pragma warning restore CS8601, CS8620");
             next++;
             // Blazor resynchronizes the DOM from this attribute when a re-render produces the value the
@@ -454,11 +455,15 @@ internal static class RenderViewEmitter
         attributeName is "value" or "checked";
 
     /// <summary>
-    /// The <c>CreateBinder</c> call a binding's event frame carries: the current value, and the setter in
-    /// whichever of the three shapes <see cref="BindTemplate.SetterKind"/> records. All three pass the
+    /// The <c>CreateBinder</c> call a binding's event frame carries: the setter in whichever of its three
+    /// shapes the binding records, and <paramref name="value"/> as the current value. All three pass the
     /// current value as the last argument, and all three are one frame, so the shape changes nothing the
     /// sequence arithmetic above depends on.
     /// </summary>
+    /// <param name="value">
+    /// The bound value's code, which the caller has already written into the attribute frame. Passed in
+    /// rather than read again from <see cref="BindTemplate.Value"/>, which would rebuild the same string.
+    /// </param>
     /// <remarks>
     /// Assembled here rather than in the analyzer, beside the event channel's <c>Create</c> — the same
     /// factory call for the same job — and inside the suppression the caller writes for it. The analyzer
@@ -470,33 +475,20 @@ internal static class RenderViewEmitter
     /// <c>CreateInferredBindSetter</c> infers it.
     /// </para>
     /// </remarks>
-    private static string Binder(BindTemplate bind)
+    private static string Binder(BindTemplate bind, string value)
     {
-        var value = bind.Value.ToCode();
+        // CreateBinder(this, __value => <value> = __value, <value>)
+        if (bind.Setter is not { } setter)
+            return $"{CreateBinderCall}__value => {value} = __value, {value})";
 
-        return bind.SetterKind switch
-        {
-            // CreateBinder(this, __value => <value> = __value, <value>)
-            BindSetterKind.InvertedGetter =>
-                $"{CreateBinderCall}__value => {value} = __value, {value})",
+        var setterCode = setter.ToCode();
 
-            // CreateBinder(this, (Action<T>)(<setter>), <value>)
-            BindSetterKind.Synchronous when bind.Setter is { } setter =>
-                $"{CreateBinderCall}(global::System.Action<{bind.ValueTypeName}>)({setter.ToCode()}), "
-                    + $"{value})",
-
+        return bind.SetterIsAsynchronous
             // CreateBinder(this, RuntimeHelpers.CreateInferredBindSetter(callback: <setter>, value: <value>), <value>)
-            BindSetterKind.Asynchronous when bind.Setter is { } setter =>
-                $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter(callback: {setter.ToCode()}, "
-                    + $"value: {value}), {value})",
-
-            BindSetterKind.Synchronous or BindSetterKind.Asynchronous =>
-                throw new InvalidOperationException(
-                    $"A {bind.SetterKind} binding requires a setter expression."),
-
-            _ => throw new NotSupportedException(
-                $"Emission for bind setter kind '{bind.SetterKind}' is not yet implemented."),
-        };
+            ? $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter("
+                + $"callback: {setterCode}, value: {value}), {value})"
+            // CreateBinder(this, (Action<T>)(<setter>), <value>)
+            : $"{CreateBinderCall}(global::System.Action<{bind.ValueTypeName}>)({setterCode}), {value})";
     }
 
     private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)

@@ -834,12 +834,9 @@ internal static class RenderExpressionAnalyzer
         // The bound type and the setter's shape are read off the overload the C# compiler picked rather
         // than guessed from the syntax: the surface declares one Bind per (value type, setter shape), so
         // the resolved symbol already answers both questions exactly. That reading is the whole of this
-        // layer's part in the binder — the call built around it is the emitter's (#195).
-        var setterKind =
-            setter is null ? BindSetterKind.InvertedGetter
-            : bind.SetterIsAsynchronous ? BindSetterKind.Asynchronous
-            : BindSetterKind.Synchronous;
-
+        // layer's part in the binder — the call built around it is the emitter's (#195). The asynchrony
+        // flag is forced false without a setter, where BindParameters leaves it meaningless, so that one
+        // binding never has two spellings for the incremental cache to tell apart.
         return element with
         {
             Bindings = element.Bindings.AsImmutableArray().Add(new BindTemplate(
@@ -847,8 +844,8 @@ internal static class RenderExpressionAnalyzer
                 eventName,
                 value,
                 bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
-                setterKind,
-                setter is null ? null : ExpressionTemplateFactory.Create(setter, context))),
+                setter is null ? null : ExpressionTemplateFactory.Create(setter, context),
+                setter is not null && bind.SetterIsAsynchronous)),
         };
     }
 
@@ -1006,8 +1003,8 @@ internal static class RenderExpressionAnalyzer
     /// <remarks>
     /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
     /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
-    /// and <c>ToCode()</c> throws on those. The value's segments are spliced in wherever the call needs
-    /// them, which is what puts the same hole in each place for <c>ComposableExpander</c> to substitute.
+    /// and <c>ToCode()</c> throws on those, so the holes are carried through for
+    /// <c>ComposableExpander</c> to substitute.
     /// <para>
     /// The cast around the setter is required for the same reason the element side needs one: a lambda
     /// written in an argument position has no natural type, and <c>Create</c>'s own overloads cannot pick

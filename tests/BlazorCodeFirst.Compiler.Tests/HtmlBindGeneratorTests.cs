@@ -25,10 +25,6 @@ public sealed class HtmlBindGeneratorTests
         return Assert.Single(result.GeneratedSources).SourceText.ToString();
     }
 
-    private const string CreateBinder =
-        "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
-        + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, ";
-
     [Fact]
     public void Bind_StringGetterOnly_InvertsGetterIntoSetter()
     {
@@ -43,7 +39,7 @@ public sealed class HtmlBindGeneratorTests
         Assert.Contains("__builder.AddAttribute(2, \"value\", _name);", generated);
         Assert.Contains(
             "__builder.AddAttribute(3, \"oninput\", "
-            + CreateBinder + "__value => _name = __value, _name));",
+            + BindFixtures.CreateBinder + "__value => _name = __value, _name));",
             generated);
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
     }
@@ -91,7 +87,7 @@ public sealed class HtmlBindGeneratorTests
         var generated = GenerateBody(body);
 
         Assert.Contains(
-            CreateBinder + "(global::System.Action<global::System.String>)(v => Query = v.Trim()), Query)",
+            BindFixtures.CreateBinder + "(global::System.Action<global::System.String>)(v => Query = v.Trim()), Query)",
             generated);
     }
 
@@ -149,7 +145,7 @@ public sealed class HtmlBindGeneratorTests
         var generated = GenerateBody(body);
 
         Assert.Contains(
-            CreateBinder
+            BindFixtures.CreateBinder
             + "(global::System.Action<global::System.String>)"
             + "(v => __bcf_arg_1_0.Name = v.Trim()), __bcf_arg_1_0.Name)",
             generated);
@@ -172,8 +168,7 @@ public sealed class HtmlBindGeneratorTests
         var generated = GenerateBody(body);
 
         Assert.Contains(
-            "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers"
-            + ".CreateInferredBindSetter(callback: SetAsync, value: _name)",
+            BindFixtures.CreateInferredBindSetter + "callback: SetAsync, value: _name)",
             generated);
     }
 

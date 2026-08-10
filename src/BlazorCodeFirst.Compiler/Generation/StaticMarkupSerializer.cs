@@ -39,7 +39,7 @@ internal static class StaticMarkupSerializer
     /// </summary>
     public static bool IsFoldable(RenderNode node) => node switch
     {
-        TextContentNode text => IsFoldableText(text.Content),
+        TextContentNode text => IsFoldableConstantString(text.Content),
         ElementNode element => IsFoldableElement(element),
         FragmentNode fragment => AreAllFoldable(fragment.Children),
 
@@ -227,8 +227,13 @@ internal static class StaticMarkupSerializer
         }
     }
 
-    private static bool IsFoldableText(ExpressionTemplate content) =>
-        content.Constant is StringConstant { Text: var value } && CanRoundTrip(value);
+    /// <summary>
+    /// Whether <paramref name="template"/>'s value is a constant string this markup can carry unchanged.
+    /// Asked of a text node's content and of each term of the class channel, which are the two places a
+    /// value reaches markup as text rather than as an attribute value with its own constant cases.
+    /// </summary>
+    private static bool IsFoldableConstantString(ExpressionTemplate template) =>
+        template.Constant is StringConstant { Text: var value } && CanRoundTrip(value);
 
     private static bool IsFoldableElement(ElementNode element)
     {
@@ -248,10 +253,11 @@ internal static class StaticMarkupSerializer
 
         // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
         // left here is not the value's type but whether it is a constant this markup can carry: a constant
-        // null has no text to join and no attribute to write, and a non-constant has no text at all.
+        // null has no text to join and no attribute to write, and a non-constant has no text at all. That
+        // is the same question a text node answers, so it is asked with the same predicate.
         foreach (var @class in element.Classes)
         {
-            if (@class.Constant is not StringConstant { Text: var value } || !CanRoundTrip(value))
+            if (!IsFoldableConstantString(@class))
                 return false;
         }
 

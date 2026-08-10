@@ -45,6 +45,12 @@ internal enum ClassChannelAdmission
 /// while the frame path read it from here (#193). <c>.Bind("class", …)</c> is the third spelling that
 /// reaches the name and the one that does not fold — it emits its own frame from the bindings loop —
 /// which is the collision BCF3024 reports (#188).
+/// <para>
+/// It sits here rather than beside the node records in <c>Model/</c>, although the channel is one of their
+/// fields, because it reads a symbol and writes C# text. <c>Model/</c> holds symbol-free value-equal data
+/// (see <see cref="RenderNode"/>'s remarks and <c>ARCHITECTURE.md</c> §3), and a file there carrying
+/// <c>using Microsoft.CodeAnalysis</c> for anything but a location would make that boundary unreadable.
+/// </para>
 /// </remarks>
 internal static class ClassChannel
 {
@@ -58,6 +64,14 @@ internal static class ClassChannel
     /// itself would be a way for them to disagree.
     /// </summary>
     internal const char Separator = ' ';
+
+    /// <summary>
+    /// <see cref="Separator"/> as the frame path spells it, between two terms of the concatenation. Held
+    /// in a field because it cannot be a <c>const</c>: a constant interpolated string needs every hole to
+    /// be a constant <em>string</em>, and this one is a <see langword="char"/>, so writing it inline would
+    /// format it afresh for every element carrying two or more decorations.
+    /// </summary>
+    private static readonly string SeparatorCode = $" + \"{Separator}\" + ";
 
     /// <summary>
     /// Whether a decoration written with <paramref name="name"/> folds into the channel. Ordinal, like
@@ -112,7 +126,7 @@ internal static class ClassChannel
         var array = classes.AsImmutableArray();
         return array.Length == 1
             ? array[0].ToCode()
-            : string.Join($" + \"{Separator}\" + ", array.Select(static c => $"({c.ToCode()})"));
+            : string.Join(SeparatorCode, array.Select(static c => $"({c.ToCode()})"));
     }
 
     /// <summary>

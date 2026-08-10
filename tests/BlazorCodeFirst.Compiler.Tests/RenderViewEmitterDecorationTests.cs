@@ -142,30 +142,10 @@ public sealed class RenderViewEmitterDecorationTests
     private static ElementNode BoundInput(BindTemplate bind) =>
         new("input", default, default, default, default) { Bindings = ImmutableArray.Create(bind) };
 
-    /// <summary>
-    /// <c>CreateBinder</c> up to its setter argument, spelled as the static call it is: it is an extension
-    /// method on <c>EventCallbackFactory</c>, and the generated file carries no <c>using</c> directives, so
-    /// the instance spelling fails with CS1061 there. These tests do not compile their output, so the
-    /// spelling is held to the one <c>HtmlBindGeneratorTests</c> compiles.
-    /// </summary>
-    private const string CreateBinder =
-        "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
-        + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, ";
-
-    /// <summary>A binding of <paramref name="attributeName"/> whose setter inverts the getter.</summary>
-    private static BindTemplate InvertedBind(string attributeName, string eventName, string value) =>
-        new(
-            attributeName,
-            eventName,
-            ExpressionTemplate.Literal(value),
-            "global::System.String",
-            BindSetterKind.InvertedGetter,
-            Setter: null);
-
     [Fact]
     public void Emit_BoundElement_EmitsValueThenBinderThenUpdatesName()
     {
-        var node = BoundInput(InvertedBind("value", "oninput", "_name"));
+        var node = BoundInput(BindFixtures.Inverted("value", "oninput", "_name"));
 
         var generated = EmitRoot(node);
 
@@ -173,7 +153,7 @@ public sealed class RenderViewEmitterDecorationTests
         Assert.Contains("__builder.AddAttribute(1, \"value\", _name);", generated);
         Assert.Contains(
             "__builder.AddAttribute(2, \"oninput\", "
-            + CreateBinder + "__value => _name = __value, _name));",
+            + BindFixtures.CreateBinder + "__value => _name = __value, _name));",
             generated);
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
         Assert.Contains("__builder.CloseElement();", generated);
@@ -190,13 +170,13 @@ public sealed class RenderViewEmitterDecorationTests
             "oninput",
             ExpressionTemplate.Literal("Query"),
             "global::System.String",
-            BindSetterKind.Synchronous,
-            ExpressionTemplate.Literal("v => Query = v.Trim()")));
+            ExpressionTemplate.Literal("v => Query = v.Trim()"),
+            SetterIsAsynchronous: false));
 
         var generated = EmitRoot(node);
 
         Assert.Contains(
-            "__builder.AddAttribute(2, \"oninput\", " + CreateBinder
+            "__builder.AddAttribute(2, \"oninput\", " + BindFixtures.CreateBinder
             + "(global::System.Action<global::System.String>)(v => Query = v.Trim()), Query));",
             generated);
     }
@@ -211,35 +191,16 @@ public sealed class RenderViewEmitterDecorationTests
             "oninput",
             ExpressionTemplate.Literal("_name"),
             "global::System.String",
-            BindSetterKind.Asynchronous,
-            ExpressionTemplate.Literal("SetAsync")));
+            ExpressionTemplate.Literal("SetAsync"),
+            SetterIsAsynchronous: true));
 
         var generated = EmitRoot(node);
 
         Assert.Contains(
-            "__builder.AddAttribute(2, \"oninput\", " + CreateBinder
-            + "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers"
-            + ".CreateInferredBindSetter(callback: SetAsync, value: _name), _name));",
+            "__builder.AddAttribute(2, \"oninput\", " + BindFixtures.CreateBinder
+            + BindFixtures.CreateInferredBindSetter + "callback: SetAsync, value: _name), _name));",
             generated);
         Assert.DoesNotContain("global::System.Action<", generated);
-    }
-
-    [Fact]
-    public void Emit_BoundElementWithASetterKindAndNoSetter_Throws()
-    {
-        // The record's pairing invariant, which its type cannot express: a kind other than InvertedGetter
-        // has a setter. Reaching here means the analyzer wrote one without the other, and a binder built
-        // around a missing setter would be a call with an argument short — a CS-level failure in the
-        // author's build, reported against generated code they did not write.
-        var node = BoundInput(new BindTemplate(
-            "value",
-            "oninput",
-            ExpressionTemplate.Literal("_name"),
-            "global::System.String",
-            BindSetterKind.Synchronous,
-            Setter: null));
-
-        Assert.Throws<InvalidOperationException>(() => EmitRoot(node));
     }
 
     [Fact]
@@ -250,19 +211,19 @@ public sealed class RenderViewEmitterDecorationTests
         // element, naming a third attribute writes the input's value into an unrelated frame of the
         // retained tree and strands the real one; on any other element the call is dead, because
         // EventFieldInfo.fromEvent returns null there. Neither is worth emitting.
-        var node = BoundInput(InvertedBind("data-x", "onfocus", "_x"));
+        var node = BoundInput(BindFixtures.Inverted("data-x", "onfocus", "_x"));
 
         var generated = EmitRoot(node);
 
         Assert.Contains("__builder.AddAttribute(1, \"data-x\", _x);", generated);
-        Assert.Contains("__builder.AddAttribute(2, \"onfocus\", " + CreateBinder, generated);
+        Assert.Contains("__builder.AddAttribute(2, \"onfocus\", " + BindFixtures.CreateBinder, generated);
         Assert.DoesNotContain("SetUpdatesAttributeName", generated);
     }
 
     [Fact]
     public void Emit_BoundCheckbox_EmitsUpdatesAttributeNameForChecked()
     {
-        var node = BoundInput(InvertedBind("checked", "onchange", "_agreed"));
+        var node = BoundInput(BindFixtures.Inverted("checked", "onchange", "_agreed"));
 
         var generated = EmitRoot(node);
 
@@ -279,7 +240,7 @@ public sealed class RenderViewEmitterDecorationTests
             default,
             default)
         {
-            Bindings = ImmutableArray.Create(InvertedBind("value", "oninput", "_name")),
+            Bindings = ImmutableArray.Create(BindFixtures.Inverted("value", "oninput", "_name")),
         };
 
         var generated = EmitRoot(node);
@@ -287,7 +248,7 @@ public sealed class RenderViewEmitterDecorationTests
         Assert.Contains("__builder.AddAttribute(1, \"class\", \"field\");", generated);
         Assert.Contains("__builder.AddAttribute(2, \"type\", \"text\");", generated);
         Assert.Contains("__builder.AddAttribute(3, \"value\", _name);", generated);
-        Assert.Contains("__builder.AddAttribute(4, \"oninput\", " + CreateBinder, generated);
+        Assert.Contains("__builder.AddAttribute(4, \"oninput\", " + BindFixtures.CreateBinder, generated);
         Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
     }
 
@@ -305,20 +266,20 @@ public sealed class RenderViewEmitterDecorationTests
         var node = new ElementNode("input", default, default, default, default)
         {
             Bindings = ImmutableArray.Create(
-                InvertedBind("value", "oninput", "_live"),
-                InvertedBind("data-committed", "onchange", "_committed")),
+                BindFixtures.Inverted("value", "oninput", "_live"),
+                BindFixtures.Inverted("data-committed", "onchange", "_committed")),
         };
 
         var generated = EmitRoot(node);
 
         Assert.Contains("__builder.AddAttribute(1, \"value\", _live);", generated);
         Assert.Contains(
-            "__builder.AddAttribute(2, \"oninput\", " + CreateBinder
+            "__builder.AddAttribute(2, \"oninput\", " + BindFixtures.CreateBinder
             + "__value => _live = __value, _live));",
             generated);
         Assert.Contains("__builder.AddAttribute(3, \"data-committed\", _committed);", generated);
         Assert.Contains(
-            "__builder.AddAttribute(4, \"onchange\", " + CreateBinder
+            "__builder.AddAttribute(4, \"onchange\", " + BindFixtures.CreateBinder
             + "__value => _committed = __value, _committed));",
             generated);
 
@@ -342,8 +303,8 @@ public sealed class RenderViewEmitterDecorationTests
             default)
         {
             Bindings = ImmutableArray.Create(
-                InvertedBind("value", "oninput", "_live"),
-                InvertedBind("data-committed", "onchange", "_committed")),
+                BindFixtures.Inverted("value", "oninput", "_live"),
+                BindFixtures.Inverted("data-committed", "onchange", "_committed")),
         };
 
         SequenceArguments.AssertDense(EmitRoot(node));
