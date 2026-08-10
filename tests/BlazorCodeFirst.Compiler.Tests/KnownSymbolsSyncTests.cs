@@ -531,17 +531,22 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
-    /// <c>.Attr(string,string)</c> and <c>.Attr(string,bool)</c> are both captured. The registration is
-    /// by name, so it takes every overload without a change here; what this pins is that the runtime
-    /// still declares both, since dropping one would silently narrow the surface back to strings while
-    /// every other test kept passing.
+    /// <c>.Attr(string,string?)</c>, <c>.Attr(string,bool)</c> and <c>.Attr(string)</c> are all captured. The
+    /// registration is by name, so it takes every overload without a change here; what this pins is that the
+    /// runtime still declares all three, since dropping one would silently narrow the surface — back to
+    /// strings, or back to a written <see langword="bool"/> — while every other test kept passing.
     /// </summary>
+    /// <remarks>
+    /// The count also guards the shape #178 chose. The bare spelling is an overload of its own rather than a
+    /// default on the <see langword="bool"/> one, and a default is RS0027 while a fourth overload could steal
+    /// <c>.Attr("disabled")</c> from the arity-2 form silently. Adding one fails here first.
+    /// </remarks>
     [Fact]
-    public void Attr_RegistersBothOverloads()
+    public void Attr_RegistersEveryOverload()
     {
         var (symbols, _) = ResolveHtml();
 
-        Assert.Equal(2, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.Attr).Count);
+        Assert.Equal(3, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.Attr).Count);
     }
 
     /// <summary>

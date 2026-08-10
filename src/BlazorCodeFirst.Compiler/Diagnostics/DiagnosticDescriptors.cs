@@ -566,9 +566,9 @@ internal static class DiagnosticDescriptors
             "Method groups, anonymous methods, and block-bodied lambdas cannot be statically sequenced.");
 
     /// <summary>
-    /// BCF3023: <c>.Attr("class", …)</c> was written with the <see langword="bool"/> overload. That name
-    /// folds into the class channel, which joins its decorations into one value, and a
-    /// <see langword="bool"/> has no meaning there.
+    /// BCF3023: <c>.Attr("class", …)</c> carries a value the class channel cannot join as text — a
+    /// <see langword="bool"/>, whether the author wrote one or reached the bare <c>.Attr("class")</c>
+    /// spelling. That name folds into the channel, which joins its decorations into one value.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -582,20 +582,27 @@ internal static class DiagnosticDescriptors
     /// rather than from the HTML parser.
     /// </para>
     /// <para>
+    /// <c>.Attr("class")</c> reaches the same rule without the author writing a <see langword="bool"/>
+    /// anywhere: the bare spelling stands for a presence, and a presence has no text (#178). It is reported
+    /// at the decoration's name, there being no value argument to point at.
+    /// </para>
+    /// <para>
     /// The name is what makes this reachable, not the overload: <c>.Attr("disabled", flag)</c> is exactly
-    /// what the <see langword="bool"/> overload exists for (#158), and only <c>"class"</c> folds.
+    /// what the <see langword="bool"/> overload exists for (#158), <c>.Attr("disabled")</c> is what the bare
+    /// one exists for, and only <c>"class"</c> folds.
     /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3023 = new(
         id: "BCF3023",
         title: "Class attribute value must be a string",
-        messageFormat: "'class' folds into the class channel, which joins its values as text, so a bool has no meaning there; write the condition as a string expression such as .Class(condition ? \"name\" : \"\")",
+        messageFormat: "'class' folds into the class channel, which joins its values as text, so a bool has no meaning there; write the condition as a string expression such as .Class(condition ? \"name\" : null)",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The bool overload of .Attr is Blazor's conditional-attribute form and does not carry over to " +
-            "the class channel, where values are concatenated. Use .Class or the string overload of .Attr.");
+            "The bool overload of .Attr is Blazor's conditional-attribute form, and the bare .Attr(name) " +
+            "spelling stands for a presence; neither carries over to the class channel, where values are " +
+            "concatenated. Use .Class or the string overload of .Attr.");
 
     /// <summary>
     /// BCF3024: an element carries both a class-channel decoration (<c>.Class</c> or

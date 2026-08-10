@@ -201,6 +201,28 @@ public sealed class SnapshotCorpusTests
                     protected override View Chrome => Main.Class("shell")[Body];
                 }
                 """)],
+            // The two spellings #171 and #178 add, in one component: a bare valueless attribute that folds,
+            // a runtime bool and a runtime string? on the element path. The baseline is what says the bare
+            // form reaches the same constant as a written true, and that a nullable value is passed through
+            // untouched.
+            ["element-null-and-bare-attributes"] = [("NullAndBare.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace T;
+
+                public partial class NullAndBare : BodyComponentBase
+                {
+                    private bool _saving;
+
+                    private string? _tip;
+
+                    protected override View Body =>
+                        Form[
+                            Input.Type("checkbox").Attr("checked"),
+                            Button.Attr("disabled", _saving).Attr("title", _tip)["Save"]];
+                }
+                """)],
         };
 
     [Theory]

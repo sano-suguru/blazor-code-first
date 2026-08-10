@@ -278,6 +278,68 @@ public sealed class HtmlAttributeGeneratorTests
     }
 
     /// <summary>
+    /// The bare spelling of a valueless attribute, which is how HTML writes it (#178). A default on the
+    /// existing <see langword="bool"/> overload rather than a one-argument sibling, so the two spellings
+    /// travel one path and cannot emit different frames — the acceptance criterion becomes structural
+    /// rather than something to test. Asserted anyway, because the structure is only as good as the value
+    /// the analyzer synthesizes for the omitted argument, and comparing whole generated files is what
+    /// would catch a difference anywhere in it.
+    /// </summary>
+    [Fact]
+    public void BareAttr_EmitsTheSameSourceAsAnExplicitTrue()
+    {
+        var bare = Run("""Html.Button.Attr("disabled")["Save"]""");
+        var explicitTrue = Run("""Html.Button.Attr("disabled", true)["Save"]""");
+
+        Assert.Equal(explicitTrue, bare);
+    }
+
+    /// <summary>
+    /// The one name the bare form cannot take. <c>class</c> folds into a channel that joins its decorations
+    /// as text, and a presence has no text — the same rule BCF3023 already applies to the
+    /// <see langword="bool"/> overload, reached here without the author writing a <see langword="bool"/>
+    /// anywhere. The location is the decoration's name, there being no value argument to point at.
+    /// </summary>
+    [Fact]
+    public void BareAttrOnClassChannel_ReportsBCF3023AtTheDecorationName()
+    {
+        // The source is spelled out here rather than taken from Diags, because the span has to be read back
+        // against it: DiagnosticInfo reconstructs its location from a file path and a span and holds no
+        // SyntaxTree, which is how the incremental model avoids rooting one, so Location.SourceTree is null.
+        const string source = """
+            using BlazorCodeFirst;
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body => Html.Div.Attr("class")["x"];
+            }
+            """;
+
+        var diagnostic = Assert.Single(
+            CompilationTestHost.RunGenerator(source).Diagnostics,
+            d => d.Id == "BCF3023");
+
+        var span = diagnostic.Location.SourceSpan;
+        Assert.Equal("Attr", source.Substring(span.Start, span.Length));
+    }
+
+    /// <summary>
+    /// The bare form leaves the other channels alone. No event overload has an optional handler, so a
+    /// missing one is a call this compiler was not written against and must keep reaching BCF1003 rather
+    /// than picking up a synthesized <see langword="true"/> — which would emit
+    /// <c>AddAttribute(seq, "onclick", true)</c>, an attribute whose handler never fires. The synthesis
+    /// lives at the attribute call site for exactly this reason, not in the name resolver both channels
+    /// share.
+    /// </summary>
+    [Fact]
+    public void EventDecorationWithNoHandler_FallsToBCF1003WithoutSynthesizingAValue()
+    {
+        var diagnostics = Diags("""Html.Div.On("onclick")["x"]""");
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF1003");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3023");
+    }
+
+    /// <summary>
     /// A constant null attribute value on an element the fold cannot take. Measured (#234):
     /// <c>AddAttribute</c>'s value position is overloaded, so a bare <see langword="null"/> is CS0121
     /// between the <see langword="string"/> and <c>MulticastDelegate</c> overloads. The fold hides that —

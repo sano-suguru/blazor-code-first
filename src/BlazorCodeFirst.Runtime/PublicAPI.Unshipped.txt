@@ -31,6 +31,7 @@ static BlazorCodeFirst.Decorations.Title(this BlazorCodeFirst.ElementBuilder ele
 static BlazorCodeFirst.Decorations.Role(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, string? value) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, bool value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder

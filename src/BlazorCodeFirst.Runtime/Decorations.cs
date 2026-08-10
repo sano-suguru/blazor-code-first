@@ -92,6 +92,11 @@ public static class Decorations
     /// same rule as the string overload: a non-empty compile-time constant.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Write <see cref="Attr(ElementBuilder, string)"/> instead where the attribute is always present:
+    /// this overload is for the conditional case, and a literal <see langword="true"/> says nothing that
+    /// the bare spelling does not.
+    /// </para>
     /// This is the only non-<see langword="string"/> overload, and deliberately so (#158). A value of any
     /// other type is formatted under whatever culture the formatting thread carries at render time —
     /// measured, not under the culture in effect while the component builds its frames — so an
@@ -111,6 +116,36 @@ public static class Decorations
     /// <param name="value">The attribute's presence; any <see langword="bool"/> expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementBuilder Attr(this ElementBuilder element, string name, bool value) => element;
+
+    /// <summary>
+    /// Design-time syntax setting an attribute that is present with no value, which is how HTML writes one:
+    /// <c>&lt;button disabled&gt;</c>, <c>&lt;video controls&gt;</c>. Equivalent in every respect to
+    /// <see cref="Attr(ElementBuilder, string, bool)"/> with <see langword="true"/>, which is the spelling
+    /// for the conditional case. <paramref name="name"/> follows the same rule as the other overloads: a
+    /// non-empty compile-time constant.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An overload of its own rather than a default on the <see langword="bool"/> one (#178). A default
+    /// there is RS0027: an API carrying an optional parameter must have the most parameters among its
+    /// overloads, and the <see langword="string"/> overload has just as many. The rule's own hazard —
+    /// a shorter overload silently losing calls to the longer one — is what this shape avoids by being
+    /// that shorter overload outright.
+    /// </para>
+    /// <para>
+    /// One name is closed to it, for the reason on the <see langword="bool"/> overload: <c>.Attr("class")</c>
+    /// carries a presence into a channel that joins its decorations as text, and a presence has no text.
+    /// That is BCF3023, reported at the decoration's name because there is no value argument to point at.
+    /// </para>
+    /// <para>
+    /// The cost is that a value left off by accident, <c>.Attr("aria-label")</c>, is now a valueless
+    /// attribute rather than a compile error.
+    /// </para>
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementBuilder Attr(this ElementBuilder element, string name) => element;
 
     /// <summary>
     /// Design-time syntax adding an event handler. <paramref name="eventName"/> is the full HTML event
