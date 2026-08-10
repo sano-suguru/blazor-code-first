@@ -112,10 +112,13 @@ internal static class ClassChannel
 
     /// <summary>
     /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
-    /// emits. A single decoration is written as it stands; two or more are concatenated around
+    /// emits. A single decoration is written as it stands, through
+    /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
+    /// the cast that overloaded argument position needs (#234); two or more are concatenated around
     /// <see cref="Separator"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its own
-    /// precedence. When every term is a string literal the C# compiler constant-folds the result back to
-    /// one string.
+    /// precedence — and a concatenation is a <see langword="string"/> whatever its terms are, so it needs
+    /// no cast of its own. When every term is a string literal the C# compiler constant-folds the result
+    /// back to one string.
     /// </summary>
     /// <param name="classes">
     /// At least one decoration. An element carrying none emits no frame at all, which is the caller's
@@ -125,7 +128,7 @@ internal static class ClassChannel
     {
         var array = classes.AsImmutableArray();
         return array.Length == 1
-            ? array[0].ToCode()
+            ? array[0].ToAttributeValueCode()
             : string.Join(SeparatorCode, array.Select(static c => $"({c.ToCode()})"));
     }
 

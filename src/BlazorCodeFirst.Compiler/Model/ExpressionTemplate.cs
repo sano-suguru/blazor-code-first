@@ -212,6 +212,30 @@ internal sealed record ExpressionTemplate
         return builder.ToString();
     }
 
+    /// <summary>
+    /// The code for this value where <c>AddAttribute</c> takes it, which is not always
+    /// <see cref="ToCode"/>. That parameter is overloaded — <see langword="string"/>,
+    /// <c>MulticastDelegate</c>, <see langword="object"/>, <see langword="bool"/> — so a bare
+    /// <see langword="null"/> binds to none of them: measured (#234), the emitted
+    /// <c>AddAttribute(1, "title", null)</c> is CS0121 between the <see langword="string"/> and
+    /// <c>MulticastDelegate</c> overloads. A constant <see langword="null"/> therefore carries a cast,
+    /// which is the whole difference; every other value has a type of its own and is written unchanged.
+    /// </summary>
+    /// <remarks>
+    /// Asked by both paths that write an attribute value — the attribute channel and the class channel's
+    /// lone-decoration case — so neither can be the one that forgets. The channel's two-or-more case does
+    /// not ask: a concatenation is a <see langword="string"/> whatever its terms are.
+    /// <para>
+    /// The alternative was to emit no frame for a constant null, which would match the fold exactly.
+    /// Rejected because sequence numbers are allocated to <em>emitted</em> <c>RenderTreeBuilder</c> calls
+    /// (<c>ARCHITECTURE.md</c> §2.7's <c>FrameWidth</c>): suppressing the emission would split this case
+    /// from a constant <see langword="false"/> <see langword="bool"/>, which is emitted and appends no
+    /// frame at runtime.
+    /// </para>
+    /// </remarks>
+    public string ToAttributeValueCode() =>
+        Constant is NullConstant ? $"(global::System.String?)({ToCode()})" : ToCode();
+
     private static bool ContainsHole(ImmutableArray<ExpressionSegment> segments)
     {
         foreach (var segment in segments)

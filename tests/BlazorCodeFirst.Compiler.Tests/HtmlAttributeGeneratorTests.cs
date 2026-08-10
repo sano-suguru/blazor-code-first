@@ -194,4 +194,58 @@ public sealed class HtmlAttributeGeneratorTests
     {
         Assert.Contains(Diags("""Html.Div.On("", () => { })"""), d => d.Id == "BCF3011");
     }
+
+    /// <summary>
+    /// A constant null attribute value on an element the fold cannot take. Measured (#234):
+    /// <c>AddAttribute</c>'s value position is overloaded, so a bare <see langword="null"/> is CS0121
+    /// between the <see langword="string"/> and <c>MulticastDelegate</c> overloads. The fold hides that —
+    /// a foldable element writes no attribute at all — so the element here carries an event to keep it on
+    /// the element path, which is the only path that reaches the emitted call.
+    /// </summary>
+    [Fact]
+    public void ConstantNullAttributeValue_OnAnUnfoldableElement_EmitsCodeThatCompiles()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private int _n;
+                protected override View Body =>
+                    Html.Span.Attr("title", null!).OnClick(() => _n++)["a"];
+            }
+            """);
+
+        // The compile comes first: it is the defect, and the cast's exact spelling is how this fixes it.
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.Contains(
+            """__builder.AddAttribute(1, "title", (global::System.String?)(null!));""",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
+    }
+
+    /// <summary>
+    /// The class channel writes a lone decoration's value as it stands, so it reaches the same overloaded
+    /// position and needs the same cast. Two or more decorations concatenate, and a concatenation is a
+    /// <see langword="string"/> whatever its terms are, so only the lone case is at risk.
+    /// </summary>
+    [Fact]
+    public void ConstantNullClassValue_OnAnUnfoldableElement_EmitsCodeThatCompiles()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private int _n;
+                protected override View Body =>
+                    Html.Span.Class(null!).OnClick(() => _n++)["b"];
+            }
+            """);
+
+        // The compile comes first: it is the defect, and the cast's exact spelling is how this fixes it.
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.Contains(
+            """__builder.AddAttribute(1, "class", (global::System.String?)(null!));""",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
+    }
 }
