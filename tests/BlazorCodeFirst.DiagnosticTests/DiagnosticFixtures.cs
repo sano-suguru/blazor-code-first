@@ -76,7 +76,7 @@ public sealed class DiagnosticFixtures
         if (usesPackage)
         {
             // The package under test is the one packed for this run, and restore must actually re-run:
-            // the fixture purges the extracted 0.1.0-dev folder, and an up-to-date assets file would
+            // the fixture purges the extracted dev-version folder, and an up-to-date assets file would
             // otherwise leave nothing to compile against.
             _ = _packageDirectory.Value;
             arguments.Add("-p:RestoreConfigFile=" + Path.Combine(projectDirectory, "NuGet.config"));

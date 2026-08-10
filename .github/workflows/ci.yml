@@ -47,11 +47,17 @@ jobs:
 
       - run: dotnet test BlazorCodeFirst.slnx --no-build
 
+      # The version is declared once, in eng/Versions.props, and read here rather than repeated
+      # (#228). A literal copy in this file used to fail as "Package not found" from
+      # verify-package.sh, which names the symptom and not the cause.
+      - id: package-version
+        run: echo "value=$(bash eng/package-version.sh)" >> "$GITHUB_OUTPUT"
+
       - run: dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
 
-      - run: bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.0.1.0-dev.nupkg
+      - run: bash eng/verify-package.sh artifacts/package/BlazorCodeFirst.${{ steps.package-version.outputs.value }}.nupkg
 
-      - run: rm -rf artifacts/nuget-packages/blazorcodefirst/0.1.0-dev
+      - run: rm -rf artifacts/nuget-packages/blazorcodefirst/${{ steps.package-version.outputs.value }}
 
       - run: dotnet publish tests/BlazorCodeFirst.TrimTestApp/BlazorCodeFirst.TrimTestApp.csproj -c Release -r ${{ matrix.rid }} --self-contained true --configfile tests/BlazorCodeFirst.TrimTestApp/NuGet.config
 

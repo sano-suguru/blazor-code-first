@@ -1,4 +1,12 @@
 <Project>
+
+  <!-- The package version, shared with Directory.Packages.props. See eng/Versions.props.
+       Both files import it and MSBuild evaluates both, so the condition is what keeps the second one
+       from raising MSB4011. Guarding on the property the file defines makes the pair order-
+       independent: whichever is evaluated first does the import and the other skips it. -->
+  <Import Project="$(MSBuildThisFileDirectory)eng/Versions.props"
+          Condition="'$(BlazorCodeFirstPackageVersion)' == ''" />
+
   <PropertyGroup>
     <LangVersion>14.0</LangVersion>
     <Nullable>enable</Nullable>

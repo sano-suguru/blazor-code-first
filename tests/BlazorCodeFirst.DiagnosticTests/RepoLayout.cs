@@ -10,6 +10,15 @@ internal static class RepoLayout
     public static string ArtifactsDirectory { get; } = Path.Combine(Root, "artifacts", "diagnostic-tests");
 
     /// <summary>
+    /// The version the delivery packages are built and restored at, read from the one place the
+    /// repository declares it (#228). The interop assertions check that a restore resolved
+    /// BlazorCodeFirst at this version from the isolated local feed rather than from anywhere else, so
+    /// they need the value; reading it here keeps them from carrying a literal that a version bump
+    /// would silently strand.
+    /// </summary>
+    public static string PackageVersion { get; } = ReadPackageVersion();
+
+    /// <summary>
     /// The exact host that started this test run when MSBuild published it, so a nested build cannot
     /// resolve a different dotnet from PATH than the one running the suite.
     /// </summary>
@@ -17,6 +26,25 @@ internal static class RepoLayout
         Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") is { Length: > 0 } host && File.Exists(host)
             ? host
             : "dotnet";
+
+    private static string ReadPackageVersion()
+    {
+        var versionsPropsPath = Path.Combine(Root, "eng", "Versions.props");
+        var version = System.Xml.Linq.XDocument
+            .Load(versionsPropsPath)
+            .Descendants("BlazorCodeFirstPackageVersion")
+            .FirstOrDefault()
+            ?.Value
+            .Trim();
+
+        if (string.IsNullOrEmpty(version))
+        {
+            throw new InvalidOperationException(
+                $"Could not read BlazorCodeFirstPackageVersion from {versionsPropsPath}.");
+        }
+
+        return version;
+    }
 
     private static string FindRoot()
     {

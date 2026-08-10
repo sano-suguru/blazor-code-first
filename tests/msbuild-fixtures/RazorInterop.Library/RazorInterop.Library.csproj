@@ -3,7 +3,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
     <PackageId>BlazorCodeFirst.RazorInteropFixture</PackageId>
-    <Version>0.1.0-dev</Version>
+    <!-- Version comes from eng/Versions.props: this fixture package is delivered alongside
+         BlazorCodeFirst and the interop test asserts both resolve at the same version. -->
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
