@@ -88,8 +88,10 @@ public sealed class BindParametersTests
         return bind;
     }
 
-    /// <summary>The parameter the argument whose text is <paramref name="argumentText"/> binds to,
-    /// taken from the operation exactly as <c>RenderMutationAnalyzer.GetBoundParameter</c> takes it.</summary>
+    /// <summary>The parameter the argument whose text is <paramref name="argumentText"/> binds to, read
+    /// off <see cref="IArgumentOperation.Parameter"/> as <c>RenderMutationAnalyzer</c> reads it. The
+    /// argument is located here by syntax text because the test names it that way; the analyzer arrives at
+    /// the same operation by walking up from the anonymous function instead (#216).</summary>
     private static IParameterSymbol BoundParameter(IInvocationOperation operation, string argumentText)
     {
         var argument = operation.Arguments.Single(a => a.Syntax.ToString() == argumentText);
