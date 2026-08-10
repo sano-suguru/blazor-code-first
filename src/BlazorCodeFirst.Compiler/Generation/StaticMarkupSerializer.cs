@@ -39,7 +39,7 @@ internal static class StaticMarkupSerializer
     /// </summary>
     public static bool IsFoldable(RenderNode node) => node switch
     {
-        TextContentNode text => IsFoldableText(text.Content),
+        TextContentNode text => IsFoldableConstantString(text.Content),
         ElementNode element => IsFoldableElement(element),
         FragmentNode fragment => AreAllFoldable(fragment.Children),
 
@@ -134,13 +134,15 @@ internal static class StaticMarkupSerializer
         if (element.Classes.Length > 0)
         {
             // All .Class decorations collapse into one class attribute (ARCHITECTURE.md §2.7(A)), which is
-            // one frame however many there are.
-            builder.Append(" class=\"");
+            // one frame however many there are. The name and the separator come from the channel, not from
+            // literals written here: this markup and the emitter's concatenation have to reach the same
+            // DOM, so neither of them gets to spell them for itself (#193).
+            builder.Append(' ').Append(ClassChannel.AttributeName).Append("=\"");
             var first = true;
             foreach (var @class in element.Classes)
             {
                 if (!first)
-                    builder.Append(' ');
+                    builder.Append(ClassChannel.Separator);
                 AppendEscapedAttributeValue(builder, ConstantTextOf(@class, element));
                 first = false;
             }
@@ -225,8 +227,13 @@ internal static class StaticMarkupSerializer
         }
     }
 
-    private static bool IsFoldableText(ExpressionTemplate content) =>
-        content.Constant is StringConstant { Text: var value } && CanRoundTrip(value);
+    /// <summary>
+    /// Whether <paramref name="template"/>'s value is a constant string this markup can carry unchanged.
+    /// Asked of a text node's content and of each term of the class channel, which are the two places a
+    /// value reaches markup as text rather than as an attribute value with its own constant cases.
+    /// </summary>
+    private static bool IsFoldableConstantString(ExpressionTemplate template) =>
+        template.Constant is StringConstant { Text: var value } && CanRoundTrip(value);
 
     private static bool IsFoldableElement(ElementNode element)
     {
@@ -244,11 +251,13 @@ internal static class StaticMarkupSerializer
         if (element.Bindings.Length > 0)
             return false;
 
-        // The class channel folds by concatenation, so it needs a constant string and nothing else will
-        // do: a constant null has no text to join, and a bool has no meaning as part of a class list.
+        // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
+        // left here is not the value's type but whether it is a constant this markup can carry: a constant
+        // null has no text to join and no attribute to write, and a non-constant has no text at all. That
+        // is the same question a text node answers, so it is asked with the same predicate.
         foreach (var @class in element.Classes)
         {
-            if (@class.Constant is not StringConstant { Text: var value } || !CanRoundTrip(value))
+            if (!IsFoldableConstantString(@class))
                 return false;
         }
 

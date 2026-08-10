@@ -25,31 +25,15 @@ internal static class RenderExpressionAnalyzer
     private const string ChildContentParameterName = "ChildContent";
 
     /// <summary>
-    /// <c>CreateBinder</c> written as the static call it is. It is an extension method on
-    /// <c>EventCallbackFactory</c>, declared by this class, and the generated file carries no
-    /// <c>using</c> directives, so the instance spelling Razor uses
-    /// (<c>EventCallback.Factory.CreateBinder(…)</c>) fails with CS1061 here. This is the same
-    /// normalization <see cref="ExpressionTemplateFactory"/> applies to any extension method an author
-    /// writes in instance syntax, for the same reason (<c>ARCHITECTURE.md</c> §2). Its sibling
-    /// <c>EventCallback.Factory.Create</c>, which the event channel emits, needs no such treatment
-    /// because <c>Create</c> is an instance method.
-    /// </summary>
-    private const string CreateBinderCall =
-        "global::Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions.CreateBinder("
-        + "global::Microsoft.AspNetCore.Components.EventCallback.Factory, this, ";
-
-    /// <summary>
     /// <c>EventCallback.Factory.Create&lt;TValue&gt;</c> up to its type argument, which a component
-    /// binding's <c>{name}Changed</c> parameter carries. Written in the instance syntax Razor uses, and
-    /// needing none of <see cref="CreateBinderCall"/>'s treatment: <c>Create</c> is a real instance method
-    /// on <c>EventCallbackFactory</c>, not an extension method, so the absence of <c>using</c> directives
-    /// in the generated file costs it nothing. This is the same spelling the event channel emits.
+    /// binding's <c>{name}Changed</c> parameter carries. Written in the instance syntax Razor uses:
+    /// <c>Create</c> is a real instance method on <c>EventCallbackFactory</c>, not an extension method,
+    /// so the absence of <c>using</c> directives in the generated file costs it nothing — unlike
+    /// <c>CreateBinder</c>, which <see cref="RenderViewEmitter"/> has to spell as the static call it is.
+    /// This is the same spelling the event channel emits.
     /// </summary>
     private const string CreateCall =
         "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<";
-
-    private const string RuntimeHelpers =
-        "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers";
 
     /// <summary>
     /// Fully qualified with no special-type spellings, so <c>string</c> is written
@@ -548,9 +532,6 @@ internal static class RenderExpressionAnalyzer
         if (args.At(0) is not { } firstArg)
             return null;
 
-        if (kind == SurfaceMethodKind.Class)
-            return FoldIntoClassChannel(invocation, decoAccess, element, firstArg.Expression, context);
-
         if (kind == SurfaceMethodKind.Bind)
             return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
 
@@ -614,12 +595,20 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        // Attribute shortcut or generic .Attr. The value is the last parameter in both spellings — the
-        // name, where it is written at all, is the one ahead of it — and that single derivation answers
-        // both readings below: the argument index the value is carried at, and whether the overload picked
-        // is the bool one. Two derivations of "where the value sits" in one arm is the shape #221 was
-        // filed about, even where no second reader has to agree with this one.
+        // .Class, an attribute shortcut, or the generic .Attr. The value is the last parameter of all
+        // three — the name, where it is written at all, is the one ahead of it — and this one derivation
+        // answers both readings below: the argument index the value is carried at, and the value's type,
+        // which is what the class channel admits or refuses on. Deriving it once is what puts .Class and
+        // .Attr("class", …) under the same admission, where the type used to be read on the .Attr route
+        // alone (#193).
         var attributeValue = method.Parameters[method.Parameters.Length - 1];
+
+        // .Class is the channel and carries no name to resolve, so it routes before the name is read.
+        if (kind == SurfaceMethodKind.Class)
+        {
+            return FoldIntoClassChannel(
+                invocation, decoAccess, element, attributeValue.Type, firstArg.Expression, context);
+        }
 
         if (!TryResolveDecorationName(
                 invocation, args, firstArg, shortcutName, KnownSymbols.ArgumentIndex(attributeValue),
@@ -629,23 +618,9 @@ internal static class RenderExpressionAnalyzer
         }
 
         // 'class' routes to the channel rather than to Attributes, the same as .Class, and may repeat.
+        // The shortcut route never spells the name, so only .Attr arrives here.
         if (ClassChannel.Owns(attrName))
-        {
-            // The channel joins its decorations into one value, so the bool overload means two
-            // different things there depending on how many others the element carries (#159). Which
-            // overload C# picked is read off the resolved symbol, as ClassifyBind reads the setter's
-            // shape; the value expression's own type is not consulted. The shortcut route never spells
-            // 'class', so only .Attr reaches this test.
-            if (attributeValue.Type.SpecialType == SpecialType.System_Boolean)
-            {
-                context.RejectUnresolvedValueRecovery(invocation.Span);
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3023, valueExpr.GetLocation(), []));
-                return null;
-            }
-
-            return FoldIntoClassChannel(invocation, decoAccess, element, valueExpr, context);
-        }
+            return FoldIntoClassChannel(invocation, decoAccess, element, attributeValue.Type, valueExpr, context);
 
         // Reject before normalizing the value, as the event channel does: normalization reports on the
         // value's own types, and a rejected decoration's value never reaches generated code.
@@ -687,32 +662,44 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Adds <paramref name="value"/> to <paramref name="element"/>'s class channel, or reports BCF3024 if
-    /// the element already carries a binding on the channel's name.
+    /// Offers <paramref name="value"/> to <paramref name="element"/>'s class channel, adding it when the
+    /// channel admits it and reporting the refusal otherwise.
     /// </summary>
+    /// <param name="valueType">
+    /// The type of the value parameter on the resolved overload, which is what the channel admits or
+    /// refuses on. Passed rather than derived here, because the caller has already had to derive it to
+    /// find the value argument at all.
+    /// </param>
     /// <remarks>
-    /// Both spellings that fold — <c>.Class</c> and <c>.Attr("class", …)</c> — arrive here, so the check
-    /// is written once and the answer does not depend on which of them was used. It is also the half of
-    /// BCF3024 that catches the decorations written in the other order: a <c>.Class</c> never reaches
+    /// Both spellings that fold — <c>.Class</c> and <c>.Attr("class", …)</c> — arrive here, so every rule
+    /// about the channel is asked once and the answer does not depend on which of them was used.
+    /// <see cref="ClassChannel.Admit"/> holds the rules; this method only maps a refusal onto the
+    /// diagnostic and the location that report it. It is also the half of BCF3024 that catches the
+    /// decorations written in the other order: a <c>.Class</c> never reaches
     /// <see cref="ClassifyBind"/>, so the bind arm alone would report only the chains where the binding
-    /// came last. <see cref="HasBinding(ElementTemplateNode, string)"/> can answer for this name because
-    /// nothing but a binding can put it in either of the other two channels — the folding spellings never
-    /// reach <see cref="ElementTemplateNode.Attributes"/>, and an event name is BCF3019 unless it starts
-    /// with <c>on</c>.
+    /// came last.
     /// </remarks>
     private static ElementTemplateNode? FoldIntoClassChannel(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
         ElementTemplateNode element,
+        ITypeSymbol valueType,
         ExpressionSyntax value,
         ComposableBodyContext context)
     {
-        if (HasBinding(element, ClassChannel.AttributeName))
+        switch (ClassChannel.Admit(element, valueType))
         {
-            context.RejectUnresolvedValueRecovery(invocation.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3024, decoAccess.Name.GetLocation(), []));
-            return null;
+            case ClassChannelAdmission.ValueDoesNotJoin:
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3023, value.GetLocation(), []));
+                return null;
+
+            case ClassChannelAdmission.NameAlreadyBound:
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3024, decoAccess.Name.GetLocation(), []));
+                return null;
         }
 
         return element with
@@ -809,10 +796,9 @@ internal static class RenderExpressionAnalyzer
         }
 
         // The same question for the one name the check above must let through. HasBinding cannot ask it,
-        // because the folding spellings leave nothing in the channels it reads; the class channel has to be
-        // read directly. A binding does not fold, so it collides with the whole of it rather than with a
-        // particular decoration.
-        if (ClassChannel.Owns(attrName) && element.Classes.Length > 0)
+        // because the folding spellings leave nothing in the channels it reads; the channel is asked
+        // directly instead, and answers from its own side of BCF3024.
+        if (ClassChannel.Owns(attrName) && ClassChannel.IsFolded(element))
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -845,20 +831,21 @@ internal static class RenderExpressionAnalyzer
 
         var value = ExpressionTemplateFactory.Create(getterBody!, context);
 
-        // The bound type and the setter's kind are read off the overload the C# compiler picked rather
-        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape),
-        // so the resolved symbol already answers both questions exactly.
-        var binder = BuildBinder(
-            value,
-            bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
-            setter,
-            bind.SetterIsAsynchronous,
-            context);
-
+        // The bound type and the setter's shape are read off the overload the C# compiler picked rather
+        // than guessed from the syntax: the surface declares one Bind per (value type, setter shape), so
+        // the resolved symbol already answers both questions exactly. That reading is the whole of this
+        // layer's part in the binder — the call built around it is the emitter's (#195). The asynchrony
+        // flag is forced false without a setter, where BindParameters leaves it meaningless, so that one
+        // binding never has two spellings for the incremental cache to tell apart.
         return element with
         {
-            Bindings = element.Bindings.AsImmutableArray()
-                .Add(new BindTemplate(attrName!, eventName, value, binder)),
+            Bindings = element.Bindings.AsImmutableArray().Add(new BindTemplate(
+                attrName!,
+                eventName,
+                value,
+                bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
+                setter is null ? null : ExpressionTemplateFactory.Create(setter, context),
+                setter is not null && bind.SetterIsAsynchronous)),
         };
     }
 
@@ -1015,8 +1002,9 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
-    /// <c>ToCode()</c>, for the reason <see cref="BuildBinder"/> records: inside a <c>[Composable]</c>
-    /// body the getter still holds unbound parameter holes.
+    /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
+    /// and <c>ToCode()</c> throws on those, so the holes are carried through for
+    /// <c>ComposableExpander</c> to substitute.
     /// <para>
     /// The cast around the setter is required for the same reason the element side needs one: a lambda
     /// written in an argument position has no natural type, and <c>Create</c>'s own overloads cannot pick
@@ -1131,65 +1119,6 @@ internal static class RenderExpressionAnalyzer
             && tree.TypeArguments[0] is INamedTypeSymbol { TypeArguments.Length: 1 } getter
             && SymbolEqualityComparer.Default.Equals(getter.OriginalDefinition, funcType)
             && SymbolEqualityComparer.Default.Equals(getter.TypeArguments[0], valueType);
-    }
-
-    /// <summary>
-    /// Builds the whole <c>CreateBinder(this, setter, current)</c> expression around the getter's own
-    /// segments, so that a parameter hole inside the getter survives into the binder.
-    /// </summary>
-    /// <remarks>
-    /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
-    /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
-    /// and <c>ToCode()</c> throws on those. The value's segments are spliced in twice, which is what puts
-    /// the same hole on both sides of the binding for <c>ComposableExpander</c> to substitute.
-    /// </remarks>
-    private static ExpressionTemplate BuildBinder(
-        ExpressionTemplate value,
-        string valueTypeName,          // "global::System.String" or "global::System.Boolean"
-        ExpressionSyntax? setter,      // null = invert the getter
-        bool setterIsAsynchronous,
-        ComposableBodyContext context)
-    {
-        var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
-        var valueSegments = value.Segments.AsImmutableArray();
-
-        if (setter is null)
-        {
-            // CreateBinder(this, __value => <value> = __value, <value>)
-            segments.Add(new LiteralExpressionSegment($"{CreateBinderCall}__value => "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(" = __value, "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(")"));
-        }
-        else if (setterIsAsynchronous)
-        {
-            // CreateBinder(this, RuntimeHelpers.CreateInferredBindSetter(callback: <setter>, value: <value>), <value>)
-            var setterTemplate = ExpressionTemplateFactory.Create(setter, context);
-            segments.Add(new LiteralExpressionSegment(
-                $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter(callback: "));
-            segments.AddRange(setterTemplate.Segments.AsImmutableArray());
-            segments.Add(new LiteralExpressionSegment(", value: "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment("), "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(")"));
-        }
-        else
-        {
-            // CreateBinder(this, (Action<T>)(<setter>), <value>)
-            // The cast is required: a lambda written in the argument position has no natural type, and
-            // CreateBinder's own overloads cannot pick one for it once it travels through this template.
-            var setterTemplate = ExpressionTemplateFactory.Create(setter, context);
-            segments.Add(new LiteralExpressionSegment(
-                $"{CreateBinderCall}(global::System.Action<{valueTypeName}>)("));
-            segments.AddRange(setterTemplate.Segments.AsImmutableArray());
-            segments.Add(new LiteralExpressionSegment("), "));
-            segments.AddRange(valueSegments);
-            segments.Add(new LiteralExpressionSegment(")"));
-        }
-
-        return ExpressionTemplate.Create(segments.ToImmutable());
     }
 
     /// <summary>
@@ -1422,9 +1351,9 @@ internal static class RenderExpressionAnalyzer
     /// channel produced it, so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
     /// duplicate as two <c>.OnClick</c>. The folding spellings of <c>class</c> never reach this check —
     /// both <c>.Class</c> and <c>.Attr("class", …)</c> route to <see cref="ElementTemplateNode.Classes"/>
-    /// first, which is how the one repeatable attribute stays legal — so a <see langword="true"/> for that
-    /// name can only have come from a <c>.Bind</c>, the one spelling of it that does not fold.
-    /// <see cref="FoldIntoClassChannel"/> asks exactly that and reports BCF3024.
+    /// first, which is how the one repeatable attribute stays legal — so this is never asked about that
+    /// name at all. What collides there is the channel rather than the name, and
+    /// <see cref="ClassChannel"/> answers it from both sides as BCF3024.
     /// <para>
     /// A binding occupies both names it was given, and both are checked here rather than only in the
     /// bind arm, so that the answer does not depend on decoration order:

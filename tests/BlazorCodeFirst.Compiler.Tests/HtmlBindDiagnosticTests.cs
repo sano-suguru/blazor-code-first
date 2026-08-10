@@ -273,6 +273,38 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
+    public void Bind_OnClassBeforeAttrClass_ReportsBcf3024()
+    {
+        // The fourth corner of the pair of spellings times the pair of orders, and the one that reaches
+        // the channel's report through .Attr rather than .Class. Both fold, so both ask the channel the
+        // same question, and this is the case that would notice if the fold arm's answer came from
+        // somewhere that only knew about .Class.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Bind("class", "oninput", () => _name).Attr("class", "card")["x"];
+            """;
+
+        AssertDiagnostic(body, "BCF3024");
+    }
+
+    [Fact]
+    public void Bind_OnClassBeforeBoolAttrClass_ReportsBcf3023NotBcf3024()
+    {
+        // Both of the channel's rules are broken at once, and the value's is the one reported: what the
+        // author has to rewrite is the bool, and the collision is not worth naming until they have. The
+        // order is the channel's, not this arm's, so it holds for either folding spelling.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Bind("class", "oninput", () => _name).Attr("class", true)["x"];
+            """;
+
+        AssertDiagnostic(body, "BCF3023");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3024");
+    }
+
+    [Fact]
     public void Bind_OnClassAlone_ReportsNothing()
     {
         // Where the rule stops. One binding and no other class decoration emits one class frame, which is

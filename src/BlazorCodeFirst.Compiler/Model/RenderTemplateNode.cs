@@ -89,15 +89,22 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 
 /// <summary>
 /// A two-way binding on an element: the attribute carrying the current value, the event writing it
-/// back, the value expression, and the whole binder expression.
+/// back, the value expression, and the facts the binder call is assembled from.
 /// </summary>
 /// <remarks>
-/// <paramref name="Binder"/> holds the complete <c>CreateBinder(…)</c> call rather than just the
-/// setter, so that the three setter shapes (inverted, synchronous, asynchronous) are resolved in the
-/// analyzer and the emitter stays a single unconditional line. It is an
-/// <see cref="ExpressionTemplate"/> and not a string because the analyzer composes it around the
-/// author's own transplanted syntax, which may still contain unbound parameter holes from a
-/// <c>[Composable]</c> expansion.
+/// The <c>CreateBinder(…)</c> call itself is not here. It is written by <c>RenderViewEmitter</c>, beside
+/// the event channel's <c>EventCallback.Factory.Create</c> — which is the same call for the same job —
+/// and under the CS8601/CS8620 suppression that only exists because of its shape. This record carries
+/// what only the analyzer can supply: the resolved value type's name, the setter shape overload
+/// resolution picked, and the author's own setter syntax if there was one. Holding the assembled call
+/// instead put the text in one layer and the suppression for it in another, with nothing connecting them
+/// (#195).
+/// <para>
+/// The three setter shapes are spelled as a nullable setter plus one flag, matching
+/// <see cref="Analysis.BindParameters"/>, which reads the same three off the same overload one layer up.
+/// The alternative — a three-valued kind beside the nullable setter — would restate
+/// <c>Setter is null</c> as an enum member and let the two disagree.
+/// </para>
 /// <para>
 /// An element carries any number of these. <c>SetUpdatesAttributeName</c> writes to the immediately
 /// preceding attribute frame, and the emitter calls it right after the event frame, so the frame it
@@ -107,11 +114,30 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// grounds that they would collide; 付録B.5 records why that was withdrawn.
 /// </para>
 /// </remarks>
+/// <param name="ValueTypeName">
+/// The bound value's type, fully qualified with no special-type spellings. Read by the one setter shape
+/// whose binder needs a cast to name it.
+/// </param>
+/// <param name="Setter">
+/// The author's own setter, or <see langword="null"/> for the getter-only form, where the binder assigns
+/// back through the getter's own expression — which is why only that form requires an assignable target
+/// (BCF3018). An <see cref="ExpressionTemplate"/> and not a string for the reason
+/// <paramref name="Value"/> is: inside a <c>[Composable]</c> body either may still hold unbound parameter
+/// holes, which <c>ComposableExpander</c> substitutes before the emitter reads the code out.
+/// </param>
+/// <param name="SetterIsAsynchronous">
+/// Whether <paramref name="Setter"/> returns something other than <see langword="void"/>, and so is
+/// wrapped by <c>RuntimeHelpers.CreateInferredBindSetter</c> rather than cast to an
+/// <c>Action&lt;TValue&gt;</c>. Always <see langword="false"/> when there is no setter, so that one
+/// binding has one spelling for the incremental cache to compare.
+/// </param>
 internal sealed record BindTemplate(
     string AttributeName,
     string EventName,
     ExpressionTemplate Value,
-    ExpressionTemplate Binder);
+    string ValueTypeName,
+    ExpressionTemplate? Setter,
+    bool SetterIsAsynchronous);
 
 internal sealed record ElementTemplateNode(
     string Tag,

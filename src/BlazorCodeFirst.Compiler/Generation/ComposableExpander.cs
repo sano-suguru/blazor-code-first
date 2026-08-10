@@ -200,11 +200,14 @@ internal static class ComposableExpander
                     var bindings = ImmutableArray.CreateBuilder<BindTemplate>(element.Bindings.Length);
                     foreach (var b in element.Bindings.AsImmutableArray())
                     {
-                        bindings.Add(new BindTemplate(
-                            b.AttributeName,
-                            b.EventName,
-                            b.Value.Substitute(substitution),
-                            b.Binder.Substitute(substitution)));
+                        // Both expression channels of the binding, and only those: the rest of the record
+                        // is resolved facts. Written as a `with` so that a channel added to BindTemplate
+                        // is carried through rather than silently dropped here.
+                        bindings.Add(b with
+                        {
+                            Value = b.Value.Substitute(substitution),
+                            Setter = b.Setter?.Substitute(substitution),
+                        });
                     }
 
                     return new ElementNode(

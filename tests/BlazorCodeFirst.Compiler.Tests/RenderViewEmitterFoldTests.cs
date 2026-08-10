@@ -250,10 +250,8 @@ public sealed class RenderViewEmitterFoldTests
         var node = new ElementNode("input", default, default, default, default)
         {
             Bindings = ImmutableArray.Create(
-                new BindTemplate("value", "oninput",
-                    ExpressionTemplate.Literal("_live"), ExpressionTemplate.Literal("A")),
-                new BindTemplate("data-committed", "onchange",
-                    ExpressionTemplate.Literal("_committed"), ExpressionTemplate.Literal("B"))),
+                BindFixtures.Inverted("value", "oninput", "_live"),
+                BindFixtures.Inverted("data-committed", "onchange", "_committed")),
         };
 
         var emitted = EmitRoot(node);
