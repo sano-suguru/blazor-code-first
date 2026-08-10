@@ -161,9 +161,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
         var node = operationSyntax.Parent;
         while (node is not null)
         {
-            // SyntaxTokenList's own Any(SyntaxKind), not Enumerable.Any: the LINQ overload boxes the list
-            // and allocates an enumerator for every property declaration the walk visits, and this was the
-            // one site in the compiler still spelling it that way (#215).
+            // SyntaxTokenList's own Any(SyntaxKind): Enumerable.Any boxes the list and allocates an
+            // enumerator, and this was the last site in the compiler spelling it that way (#215).
             if (node is PropertyDeclarationSyntax propDecl &&
                 propDecl.Modifiers.Any(SyntaxKind.OverrideKeyword))
             {
@@ -217,8 +216,8 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     {
         for (var operation = mutation.Parent; operation is not null; operation = operation.Parent)
         {
-            if (operation is IAnonymousFunctionOperation &&
-                IsDeferredHandlerArgument(operation, knownSymbols))
+            if (operation is IAnonymousFunctionOperation anonymousFunction &&
+                IsDeferredHandlerArgument(anonymousFunction, knownSymbols))
             {
                 return true;
             }
@@ -250,25 +249,34 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// separates the setter from both, by position rather than by delegate shape (#206).
     /// </para>
     /// <para>
-    /// The chain is read off the operation tree, which models the whole of it: an inline handler argument
-    /// is an <see cref="IArgumentOperation"/> over an <see cref="IDelegateCreationOperation"/> over the
-    /// anonymous function, the enclosing <see cref="IInvocationOperation"/> carries the resolved
-    /// <see cref="IMethodSymbol"/> already, and <see cref="IArgumentOperation.Parameter"/> is the bound
-    /// parameter itself. Unwrapping that chain syntactically still had to cross into the operation tree
-    /// for the last step — which parameter an argument binds to is not a syntactic fact — and paid for the
-    /// crossing with a syntax-identity comparison that needed an argument to justify it (#216). The
-    /// delegate creation is unwrapped where present rather than required: it is how an anonymous function
-    /// reaches a delegate-typed parameter, and nothing below depends on that being the only way one can.
+    /// The chain below is read off the operation tree, which models the whole of it. Unwrapping it
+    /// syntactically still had to cross into the operation tree for the last step — which parameter an
+    /// argument binds to is not a syntactic fact — and paid for the crossing with a syntax-identity
+    /// comparison that needed a paragraph to justify (#216).
+    /// </para>
+    /// <para>
+    /// The <see cref="IDelegateCreationOperation"/> is required rather than tolerated. It is how an
+    /// anonymous function reaches a delegate-typed parameter, and it is present for every spelling the
+    /// surface accepts — lambda, <c>delegate</c>, an explicit cast to the delegate type, a null-forgiving
+    /// suppression, a named argument — because the cast and the suppression are elided from the tree
+    /// rather than modelled above the anonymous function. Shapes that do differ add a node <em>above</em>
+    /// the delegate creation, never in place of it: an <c>IConversionOperation</c> for a
+    /// <c>Delegate</c>- or <c>object</c>-typed parameter, an array or collection-expression node for a
+    /// <c>params</c> one. Requiring the node rejects those at a named place, which is what should happen
+    /// until a surface parameter is declared in one of those shapes and the exemption is decided for it.
     /// </para>
     /// </remarks>
-    private static bool IsDeferredHandlerArgument(IOperation anonymousFunction, KnownSymbols knownSymbols)
+    private static bool IsDeferredHandlerArgument(
+        IAnonymousFunctionOperation anonymousFunction, KnownSymbols knownSymbols)
     {
-        var converted = anonymousFunction.Parent is IDelegateCreationOperation delegateCreation
-            ? delegateCreation.Parent
-            : anonymousFunction.Parent;
-
-        if (converted is not IArgumentOperation { Parent: IInvocationOperation invocation } argument)
+        if (anonymousFunction.Parent
+            is not IDelegateCreationOperation
+            {
+                Parent: IArgumentOperation { Parent: IInvocationOperation invocation } argument,
+            })
+        {
             return false;
+        }
 
         return knownSymbols.ClassifySurfaceMethod(invocation.TargetMethod) switch
         {
