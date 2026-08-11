@@ -244,7 +244,7 @@ markup inline.
 
 ### Wrapping content
 
-A part that wraps content the caller supplies returns `ContentView` instead of `View`, and writes
+A part that wraps content the caller supplies returns `SlotView` instead of `View`, and writes
 `Slot` where that content belongs. The caller supplies it in brackets, exactly as it supplies an
 element's children:
 
@@ -255,7 +255,7 @@ protected override View Body =>
         Section.Class("body")[P["…"]]];
 
 [Composable]
-private static ContentView Card(string title) =>
+private static SlotView Card(string title) =>
     Div.Class("card")[
         H2[title],
         Slot];
@@ -265,7 +265,7 @@ That is the point of the spelling: a part you factored out reads the same way a 
 reads. `Card("Profile")[…]` sits beside `Section.Class("body")[…]` without announcing that one of
 them is yours.
 
-The brackets are not optional, and nothing enforces that but C#. `ContentView` has no conversion to
+The brackets are not optional, and nothing enforces that but C#. `SlotView` has no conversion to
 `View`, so `Div[Card("Profile")]` — the brackets forgotten — is a compile error rather than a card
 that renders silently empty. The same property rules out a decoration (`Card("t").Class("x")`, which
 finds no extension method) and the positional spelling (`Card("t", P["x"])`, which has no parameter
@@ -279,7 +279,7 @@ protected override View Body =>
         P["Body text"]];
 
 [Composable]
-private static ContentView Panel(View header) =>
+private static SlotView Panel(View header) =>
     Div.Class("panel")[
         Div.Class("panel-head")[header],
         Div.Class("panel-body")[Slot]];
@@ -288,7 +288,7 @@ private static ContentView Panel(View header) =>
 Named channels first, the main content in brackets — the shape `Div.Class("card")[…]` and
 `Component<T>().Template(…)[…]` already have on this surface.
 
-Two rules are worth knowing. A `ContentView` part must name `Slot` **exactly once**: naming it twice
+Two rules are worth knowing. A `SlotView` part must name `Slot` **exactly once**: naming it twice
 would emit the caller's content twice from one bracket, and never naming it would discard content the
 caller was required to supply. Either reports **BCF3025**, as does a `Slot` written anywhere that
 receives no caller content — a component's own `Body`, or a part returning `View`.
@@ -311,11 +311,11 @@ That is the whole trade-off:
 
 A `[Composable]` has to satisfy a declaration contract the generator can expand, or it reports
 **BCF1002**. It must be a static, non-generic, expression-bodied method returning `View` (or
-`ContentView`, to take content), declared in a non-generic type, and its parameters must be ordinary
+`SlotView`, to take content), declared in a non-generic type, and its parameters must be ordinary
 by-value parameters whose types can be named from generated code. `params`, by-reference parameters,
 and `ElementView` parameters are all rejected — a childless element is passed as content by
 writing `Div[…]` or `Fragment(Div)`, both of which are `View`s. A `View` parameter is a content slot,
-so it requires the `ContentView` return type; on a part returning `View` it is BCF1002, and it may
+so it requires the `SlotView` return type; on a part returning `View` it is BCF1002, and it may
 never be optional.
 
 It also must not be an extension member — neither a `this` parameter nor a member of an `extension`

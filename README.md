@@ -90,7 +90,7 @@ Available today:
   component that Razor can use.
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
 - Reusable `[Composable]` methods, expanded statically into the caller. One that wraps caller-supplied
-  content returns `ContentView` and writes `Slot` where the content belongs, so the call takes brackets
+  content returns `SlotView` and writes `Slot` where the content belongs, so the call takes brackets
   the way an element does: `Card("Profile")[P["body"]]`. Further slots are `View` parameters —
   `Panel(H2["Title"])[P["body"]]`.
 

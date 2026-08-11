@@ -113,7 +113,7 @@ public partial class CounterPage : BodyComponentBase
 - 除外した要素も `Element("script")` / `Element("svg")` / `Element("object")` / `Element("template")` としてそのまま書けます。失われる能力はありません。したがって `Element(string tag)` は標準タグを書くための通常経路ではなくなり、カスタム要素・Web Components・外来語彙、および上記6群のための構文になります。curatedヘルパーと `Element` はいずれも同一の統合ノードへ落ち、両者をあわせて要素ヘルパーと呼びます(プロパティとメソッドの双方を含むため、C#のメンバー種別を含意しない語を用います)。
 - 命名規則は、タグ名の先頭一文字を大文字にするだけで、それ以上の整形を行わないことです。`FigCaption` ではなく `Figcaption`、同様に `Colgroup` / `Optgroup` / `Datalist` / `Textarea` / `Blockquote` / `Fieldset` / `Hgroup` となります。conformingなHTMLタグ名は区切りを持たない全小文字であるため、この規則はcuratedな全ヘルパーに例外なく成り立ちます。成り立つのは第5群を除外しているからです。SVGとMathMLの要素名は全小文字ではなく、これらを入れれば規則も、その上に築いたテストの不変条件も同時に壊れます。
 - 属性とイベントは子と並べるのではなく、タグ直後の装飾チェーンで与えます(`Div.Class("card")["text"]`)。子は続く `[...]` に文字列と `View` を混在させて渡し、生の文字列は暗黙変換でテキストノードになるため専用の `Text()` 構文は持ちません。Blazorの `RenderFragment` もそのまま子になります。
-- `If` / `ForEach`(§4.2)、`Component<T>()`(§6.2)、`Fragment`、`Raw` はHTML要素にマップしない構文です。`Fragment` はラッパー要素を持たないグルーピング、`Raw` は信頼済みHTML文字列を `RenderTreeBuilder.AddMarkupContent` へ直接注入する構文です(`MarkupString` と同じ信頼境界であり、非信頼な文字列を通すとXSSベクタになります)。どちらも単一の要素フレームを開かないため、キーの付与と装飾ができません。コンテンツを取る `[Composable]` の呼び出し(§4.3)が返す `ContentView` も同じ理由で装飾できません。ただしこれは診断ではなく型で閉じています。装飾はすべて `ElementView` の拡張メソッドであるため、`Card("t").Class("x")` は `Div["x"].Class("y")` と同じくCS1929です。
+- `If` / `ForEach`(§4.2)、`Component<T>()`(§6.2)、`Fragment`、`Raw` はHTML要素にマップしない構文です。`Fragment` はラッパー要素を持たないグルーピング、`Raw` は信頼済みHTML文字列を `RenderTreeBuilder.AddMarkupContent` へ直接注入する構文です(`MarkupString` と同じ信頼境界であり、非信頼な文字列を通すとXSSベクタになります)。どちらも単一の要素フレームを開かないため、キーの付与と装飾ができません。コンテンツを取る `[Composable]` の呼び出し(§4.3)が返す `SlotView` も同じ理由で装飾できません。ただしこれは診断ではなく型で閉じています。装飾はすべて `ElementView` の拡張メソッドであるため、`Card("t").Class("x")` は `Div["x"].Class("y")` と同じくCS1929です。
 - レイアウトは `ChromeLayoutBase` を継承し、レイアウト自身が描く設計時表現を `Chrome` に書きます。Blazorがレイアウトに要求する `Body` パラメータ(`LayoutComponentBase.Body`)は `RenderFragment?` であり暗黙変換で `View` になるため、`Main[Body]` のようにそのまま要素の子として置けます。
 - 型安全の位置付けは、要素別の型・content model・属性適用可否をコンパイル時検査するkotlinx.html流ではなく、統一ノードと文字列タグを採るhiccup / ScalaTags流です。したがって本方式が言う「型安全」はC#レベル(`Body` 全体が型付きC#式であり、合成・リファクタリングが型を通じて伝わる)を指し、HTML妥当性レベルの検査は含みません。`Div.Href("/x")` / `Div.Attr("href", "/x")` / `Span[Div["x"]]` はいずれも書いたとおりに出力され、診断も出ません。
 - 検査するのは妥当性ではなく、翻訳の破れです。設計時ツリーを直列化して再度パースしたものが元へ戻らない形は、prerenderとinteractive描画で別のDOMになります。境界は、その判定が要素タグについての単項述語で決まるか、(親, 子) の二項関係を要求するかに置きます。単項側、すなわち要素が子を持てるかはcontent modelの一部ですが、有限で安定しており標準の索引から機械的に導けます。二項側は要素数の二乗規模で解釈が入り、正しいコードに対するパーサの正規化と混ざります。curatedな要素集合を列挙ではなく規則で定義しているのと同じ論法です。
@@ -185,7 +185,7 @@ private static View AppHeader(string title) =>
         Span[title]];
 ```
 
-コンテンツを包む部品は、戻り値を `ContentView` と宣言し、本体で `Slot` を書きます。呼び出し側はコンテンツを角括弧で与えます(2026-08-10決定、#176)。
+コンテンツを包む部品は、戻り値を `SlotView` と宣言し、本体で `Slot` を書きます。呼び出し側はコンテンツを角括弧で与えます(2026-08-10決定、#176)。
 
 ```csharp
 protected override View Body =>
@@ -194,7 +194,7 @@ protected override View Body =>
         Section.Class("body")[P["…"]]];
 
 [Composable]
-private static ContentView Card(string title) =>
+private static SlotView Card(string title) =>
     Div.Class("card")[
         H2[title],
         Slot];                             // 呼び出し側のコンテンツがここに入る
@@ -206,7 +206,7 @@ private static ContentView Card(string title) =>
 
 マーカー型に名前付きチャネルを置く形(`Panel().Slot("header", H2["題"])[P["本文"]]`)は採りませんでした。`Component<T>` が型付きセレクタを使っているところにスロット名を文字列として持ち込むうえ、未知名・重複名・欠落という3つの診断が必要になり、位置引数ならC#のオーバーロード解決が無償で与えるものを作り直すことになるためです。再検討には、位置引数では担えない事例が要ります。
 
-`ContentView` が `View` への変換を持たないことが、この表層の規則を診断ではなく型で閉じている点です。角括弧の書き忘れ(`Div[Card("x")]`)、装飾(`Card("t").Class("x")`)、#176が退けた位置引数の綴り(`Card("t", P["本文"])`)はいずれもC#が先に拒否します。新設が必要な診断はBCF3025だけで、これは型システムに見えないもの ── 受け取るコンテンツが無い場所に書かれた `Slot`、および `ContentView` を返す部品が `Slot` を1回以外書いている場合 ── を担います。角括弧を `View` 自身に持たせて戻り値型を1つに統一する案は、この配分を診断の側へ寄せ替えることになるため採っていません(`ARCHITECTURE.md` 付録B.9)。`View` パラメータは通常のパラメータであるため参照回数は自由ですが、捕獲も共有もせず参照ごとに呼び出し側の部分木を展開するため、副作用のある引数は参照回数だけ実行されます(`RenderFragment` を2回書いた場合と同じ挙動)。
+`SlotView` が `View` への変換を持たないことが、この表層の規則を診断ではなく型で閉じている点です。角括弧の書き忘れ(`Div[Card("x")]`)、装飾(`Card("t").Class("x")`)、#176が退けた位置引数の綴り(`Card("t", P["本文"])`)はいずれもC#が先に拒否します。新設が必要な診断はBCF3025だけで、これは型システムに見えないもの ── 受け取るコンテンツが無い場所に書かれた `Slot`、および `SlotView` を返す部品が `Slot` を1回以外書いている場合 ── を担います。角括弧を `View` 自身に持たせて戻り値型を1つに統一する案は、この配分を診断の側へ寄せ替えることになるため採っていません(`ARCHITECTURE.md` 付録B.9)。`View` パラメータは通常のパラメータであるため参照回数は自由ですが、捕獲も共有もせず参照ごとに呼び出し側の部分木を展開するため、副作用のある引数は参照回数だけ実行されます(`RenderFragment` を2回書いた場合と同じ挙動)。
 
 `[Composable]` の付かないメソッドが `View` を返す場合、Source Generatorはその内部を解析できないため、当該メソッドは実行時に評価される動的コンテンツとして扱われます(戻り値の `View` に `RenderFragment` を内包させる形式。§5.3)。
 

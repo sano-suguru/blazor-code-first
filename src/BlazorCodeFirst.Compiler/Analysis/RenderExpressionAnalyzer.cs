@@ -1577,7 +1577,7 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// The children written in an element access's brackets, or <see langword="null"/> when they cannot be
     /// analyzed. The one place the bracket channel's binding rule lives, shared by all three indexers that
-    /// carry it — the element's, <c>ComponentView&lt;T&gt;</c>'s, and <c>ContentView</c>'s.
+    /// carry it — the element's, <c>ComponentView&lt;T&gt;</c>'s, and <c>SlotView</c>'s.
     /// </summary>
     /// <remarks>
     /// One whole collection passed to the params indexer (<c>Div[arr]</c>) is not a list of children, so it is
@@ -1991,11 +1991,11 @@ internal static class RenderExpressionAnalyzer
             return true;
         }
 
-        // A content-taking part's call is a ContentView before its brackets, so .Param(c => c.Payload, Card("t"))
+        // A content-taking part's call is a SlotView before its brackets, so .Param(c => c.Payload, Card("t"))
         // type-checks through object and would otherwise emit `Card("t")` verbatim, exactly as the
         // ElementView arm above exists to prevent for `Div`.
-        if (symbols.ContentViewType is { } contentViewType
-            && SymbolEqualityComparer.Default.Equals(type, contentViewType))
+        if (symbols.SlotViewType is { } slotViewType
+            && SymbolEqualityComparer.Default.Equals(type, slotViewType))
         {
             return true;
         }

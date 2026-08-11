@@ -266,7 +266,7 @@ internal static class ComposableExpander
                     if (content is null)
                     {
                         // Unreachable through source: a slot ordinal is bound by every call that can be
-                        // written (ContentView has no conversion to View, so the brackets are mandatory) and a
+                        // written (SlotView has no conversion to View, so the brackets are mandatory) and a
                         // View parameter cannot be optional. Failing to expand rather than asserting keeps a
                         // model defect from emitting a body with the hole silently dropped.
                         return null;

@@ -3,7 +3,7 @@ using System.Globalization;
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
-/// The content-slot surface (#34, #176): a <c>[Composable]</c> part returning <c>ContentView</c> names
+/// The content-slot surface (#34, #176): a <c>[Composable]</c> part returning <c>SlotView</c> names
 /// <c>Slot</c> where its caller's bracketed content belongs, and may take further slots as <c>View</c>
 /// parameters.
 /// </summary>
@@ -23,7 +23,7 @@ public sealed class ComposableContentGeneratorTests
             private string _title => "Profile";
             private string _body => "text";
 
-            [Composable] private static ContentView Card(string title) =>
+            [Composable] private static SlotView Card(string title) =>
                 Div.Class("card")[H2[title], Slot];
 
             protected override View Body => Card(_title)[P[_body]];
@@ -39,7 +39,7 @@ public sealed class ComposableContentGeneratorTests
             private string _title => "Title";
             private string _body => "text";
 
-            [Composable] private static ContentView Panel(View header) =>
+            [Composable] private static SlotView Panel(View header) =>
                 Div.Class("panel")[Div.Class("head")[header], Div.Class("body")[Slot]];
 
             protected override View Body => Panel(H2[_title])[P[_body]];
@@ -55,7 +55,7 @@ public sealed class ComposableContentGeneratorTests
             private string _a => "a";
             private string _b => "b";
 
-            [Composable] private static ContentView Card() => Div.Class("card")[Slot];
+            [Composable] private static SlotView Card() => Div.Class("card")[Slot];
 
             protected override View Body => Card()[Span[_a], Span[_b]];
         }
@@ -70,7 +70,7 @@ public sealed class ComposableContentGeneratorTests
             private string _a => "a";
             private string _b => "b";
 
-            [Composable] private static ContentView Twice(View x) => Div[x, x, Slot];
+            [Composable] private static SlotView Twice(View x) => Div[x, x, Slot];
 
             protected override View Body => Twice(Span[_a])[P[_b]];
         }
@@ -84,7 +84,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private string _a => "a";
 
-            [Composable] private static ContentView Wrap() => Div[Slot];
+            [Composable] private static SlotView Wrap() => Div[Slot];
 
             protected override View Body => Wrap()[Wrap()[Span[_a]]];
         }
@@ -98,7 +98,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private string _a => "a";
 
-            [Composable] private static ContentView Loop() => Div[Loop()[Span["inner"]], Slot];
+            [Composable] private static SlotView Loop() => Div[Loop()[Span["inner"]], Slot];
 
             protected override View Body => Loop()[Span[_a]];
         }
@@ -113,7 +113,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private List<string> _xs = new();
 
-            [Composable] private static ContentView Rows(List<string> xs) =>
+            [Composable] private static SlotView Rows(List<string> xs) =>
                 Ul[ForEach(xs, x => x, x => Li[Slot])];
 
             protected override View Body => Rows(_xs)[Span["cell"]];
@@ -129,7 +129,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private List<string> _xs = new();
 
-            [Composable] private static ContentView Rows(List<string> xs) =>
+            [Composable] private static SlotView Rows(List<string> xs) =>
                 Ul[ForEach(xs, x => x, x => Slot)];
 
             protected override View Body => Rows(_xs)[Li["cell"]];

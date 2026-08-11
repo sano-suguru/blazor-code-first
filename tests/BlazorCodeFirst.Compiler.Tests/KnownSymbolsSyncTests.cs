@@ -614,7 +614,7 @@ public sealed class KnownSymbolsSyncTests
 
     /// <summary>
     /// The content-slot surface resolves whole (#34, #176). All three are guarded because each degrades
-    /// silently on its own: without <c>ContentViewType</c> a content-taking declaration is rejected as
+    /// silently on its own: without <c>SlotViewType</c> a content-taking declaration is rejected as
     /// returning the wrong type, without <c>ContentIndexer</c> every <c>Card("t")[…]</c> falls through to
     /// BCF1003, and without <c>SlotProperty</c> no declaration binds a slot ordinal, so every correct
     /// <c>Slot</c> is reported as BCF3025 instead.
@@ -624,7 +624,7 @@ public sealed class KnownSymbolsSyncTests
     {
         var (symbols, _) = ResolveHtml();
 
-        Assert.NotNull(symbols.ContentViewType);
+        Assert.NotNull(symbols.SlotViewType);
         Assert.NotNull(symbols.ContentIndexer);
         Assert.NotNull(symbols.SlotProperty);
 

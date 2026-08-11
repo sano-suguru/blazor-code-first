@@ -106,12 +106,12 @@ internal static class ComposableDefinitionFactory
             return "must return BlazorCodeFirst.View";
 
         // Two return types, and the choice is the whole of how a part declares whether it takes content
-        // (#176). View is the part that does not, and is called bare; ContentView is the part that does, and
+        // (#176). View is the part that does not, and is called bare; SlotView is the part that does, and
         // is called with brackets. Nothing else is a composable.
         var takesContent = knownSymbols!.TakesContent(method);
 
         if (!takesContent && !SymbolEqualityComparer.Default.Equals(method.ReturnType, viewType))
-            return "must return BlazorCodeFirst.View, or BlazorCodeFirst.ContentView to take content";
+            return "must return BlazorCodeFirst.View, or BlazorCodeFirst.SlotView to take content";
 
         foreach (var parameter in method.Parameters)
         {
@@ -132,7 +132,7 @@ internal static class ComposableDefinitionFactory
                 // what brackets write, which is the one thing that decision rules out.
                 if (!takesContent)
                 {
-                    return "View parameters are content slots and require a ContentView return type; "
+                    return "View parameters are content slots and require a SlotView return type; "
                         + "a part returning View takes no content";
                 }
 
@@ -223,7 +223,7 @@ internal static class ComposableDefinitionFactory
                     DiagnosticDescriptors.BCF3025,
                     declaration.Identifier.GetLocation(),
                     [slotReferences == 0
-                        ? $"is never named in '{method.Name}', whose ContentView return type requires it"
+                        ? $"is never named in '{method.Name}', whose SlotView return type requires it"
                         : $"is named {slotReferences} times in '{method.Name}'"])];
                 return null;
             }

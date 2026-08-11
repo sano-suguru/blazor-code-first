@@ -19,7 +19,7 @@ public partial class ComposableContentComponent : BodyComponentBase
                 Button.OnClick(() => _count++)["Increment"]]];
 
     [Composable]
-    private static ContentView Panel(View header) =>
+    private static SlotView Panel(View header) =>
         Div.Class("panel")[
             Div.Class("panel-head")[header],
             Div.Class("panel-body")[Slot]];

@@ -18,7 +18,7 @@ public sealed class ComposableDefinitionTests
     [InlineData("[Composable] private static View Helper() { return Span[\"x\"]; }", "must be expression-bodied")]
     [InlineData("[Composable] private static string Helper() => \"x\";", "must return BlazorCodeFirst.View")]
     [InlineData("[Composable] private static View Helper(params string[] values) => Span[values[0]];", "params parameters are unsupported")]
-    // A View parameter is a content slot now (#34) and needs the ContentView return type that says so;
+    // A View parameter is a content slot now (#34) and needs the SlotView return type that says so;
     // ComposableContentDiagnosticTests covers the surface it belongs to.
     [InlineData("[Composable] private static View Helper(View content) => content;", "View parameters are content slots")]
     [InlineData("[Composable] private static View Helper(ref int value) => Span[\"x\"];", "by-reference parameters are unsupported")]

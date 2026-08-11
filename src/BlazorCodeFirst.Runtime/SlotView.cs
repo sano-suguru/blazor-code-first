@@ -3,11 +3,15 @@ namespace BlazorCodeFirst;
 /// <summary>
 /// Inert design-time syntax for a <c>[Composable]</c> part that takes caller-supplied content: the result
 /// of calling one, before the content has been supplied. The indexer supplies it and completes the call.
+/// The name states an invariant that holds in both directions: a part declares this return type exactly
+/// when it has slots, and a part with this return type names <see cref="Html.Slot"/> exactly once
+/// (BCF3025). Both slot channels are covered, the bracket hole and the additional named slots, which are
+/// the <see cref="View"/> parameters a part returning <see cref="View"/> may not have (BCF1002).
 /// </summary>
 /// <remarks>
 /// <para>
 /// This is the <c>[Composable]</c> counterpart of <see cref="ComponentView{TComponent}"/>. A part that
-/// takes content declares <see cref="ContentView"/> as its return type and writes <see cref="Html.Slot"/>
+/// takes content declares <see cref="SlotView"/> as its return type and writes <see cref="Html.Slot"/>
 /// in its body where the content belongs, so the call reads the way an element reads —
 /// <c>Card("Profile")[P["本文"]]</c> beside <c>Div.Class("card")[P["本文"]]</c>. `DESIGN.md` §4.3 records
 /// why that spelling was chosen over a positional <c>View</c> argument (#176).
@@ -18,7 +22,7 @@ namespace BlazorCodeFirst;
 /// <c>Div[Card("x")]</c>, is not a <see cref="View"/> and so is not a child; and it cannot be a
 /// <c>Body</c> either. The conversion in the other direction exists because a part's expression body
 /// produces a <see cref="View"/> and has to reach this declared return type; being one-way, it cannot
-/// carry a <see cref="ContentView"/> anywhere a <see cref="View"/> is wanted.
+/// carry a <see cref="SlotView"/> anywhere a <see cref="View"/> is wanted.
 /// </para>
 /// <para>
 /// It cannot be decorated, for the reason <c>Fragment</c> and <c>Raw</c> cannot (`DESIGN.md` §4.1): no
@@ -41,7 +45,7 @@ namespace BlazorCodeFirst;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
-    Justification = "ContentView is an inert design-time marker carrying no state; it is read by the " +
+    Justification = "SlotView is an inert design-time marker carrying no state; it is read by the " +
         "source generator and is always the default value at runtime, so equality is structurally " +
         "determined and needs no override. Same rationale as View and ElementView.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -49,8 +53,8 @@ namespace BlazorCodeFirst;
     "CA2225:Operator overloads have named alternates",
     Justification = "The conversion is inert design-time syntax read by the source generator: it exists so " +
         "a [Composable] body, which is a View expression, converts to this declared return type, and it " +
-        "always yields the default ContentView at runtime. A named alternate would imply it does work.")]
-public readonly struct ContentView
+        "always yields the default SlotView at runtime. A named alternate would imply it does work.")]
+public readonly struct SlotView
 {
     /// <summary>
     /// Design-time syntax supplying the content this part wraps. Inert: the generator reads the original
@@ -63,8 +67,8 @@ public readonly struct ContentView
 
     /// <summary>
     /// Design-time syntax letting a <c>[Composable]</c> body, which is a <see cref="View"/> expression,
-    /// satisfy a <see cref="ContentView"/> return type. Inert: the generator reads the original expression;
-    /// at runtime this always yields the default ContentView.
+    /// satisfy a <see cref="SlotView"/> return type. Inert: the generator reads the original expression;
+    /// at runtime this always yields the default SlotView.
     /// </summary>
-    public static implicit operator ContentView(View view) => default;
+    public static implicit operator SlotView(View view) => default;
 }

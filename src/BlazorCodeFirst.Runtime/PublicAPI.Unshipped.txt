@@ -15,10 +15,10 @@ BlazorCodeFirst.View
 BlazorCodeFirst.View.View() -> void
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(string! text) -> BlazorCodeFirst.View
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(Microsoft.AspNetCore.Components.RenderFragment? fragment) -> BlazorCodeFirst.View
-BlazorCodeFirst.ContentView
-BlazorCodeFirst.ContentView.ContentView() -> void
-BlazorCodeFirst.ContentView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
-static BlazorCodeFirst.ContentView.implicit operator BlazorCodeFirst.ContentView(BlazorCodeFirst.View view) -> BlazorCodeFirst.ContentView
+BlazorCodeFirst.SlotView
+BlazorCodeFirst.SlotView.SlotView() -> void
+BlazorCodeFirst.SlotView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
+static BlazorCodeFirst.SlotView.implicit operator BlazorCodeFirst.SlotView(BlazorCodeFirst.View view) -> BlazorCodeFirst.SlotView
 BlazorCodeFirst.Decorations
 static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementView element, string? class) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementView element, System.Action! handler) -> BlazorCodeFirst.ElementView

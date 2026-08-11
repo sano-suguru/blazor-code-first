@@ -641,7 +641,7 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// The one diagnostic the content-slot surface needs (#34, #176). Everything else it has to refuse is
-    /// refused by C#, because <c>ContentView</c> declares no conversion to <c>View</c>: a call whose brackets
+    /// refused by C#, because <c>SlotView</c> declares no conversion to <c>View</c>: a call whose brackets
     /// were forgotten is not a child, a decorated one finds no extension method, and the positional spelling
     /// has no parameter to bind. What the type system cannot see is a <c>Slot</c> in a body that has no
     /// caller content to place — a component's <c>Body</c> or <c>Chrome</c>, or a part returning <c>View</c>
@@ -661,7 +661,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BCF3025 = new(
         id: "BCF3025",
         title: "Slot outside a content-taking [Composable] body",
-        messageFormat: "'Slot' {0}; a slot exists only in the body of a [Composable] method declared to return ContentView, and exactly once there",
+        messageFormat: "'Slot' {0}; a slot exists only in the body of a [Composable] method declared to return SlotView, and exactly once there",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -669,7 +669,7 @@ internal static class DiagnosticDescriptors
             "'Slot' marks where a [Composable] part places the content its caller supplied in brackets, so " +
             "it means nothing where there is no caller content to place: a component's Body or Chrome " +
             "receives no brackets, and a part returning View is called without them. A part that takes " +
-            "content declares ContentView as its return type and names Slot exactly once; naming it twice " +
+            "content declares SlotView as its return type and names Slot exactly once; naming it twice " +
             "would emit the caller's content twice, and not naming it at all would discard content the " +
             "caller was required to supply.");
 

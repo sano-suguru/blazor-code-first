@@ -49,7 +49,7 @@ internal sealed class KnownSymbols
     public IPropertySymbol? ComponentIndexer { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>BlazorCodeFirst.ContentView</c>, the return type of a <c>[Composable]</c> part
+    /// Resolved symbol for <c>BlazorCodeFirst.SlotView</c>, the return type of a <c>[Composable]</c> part
     /// that takes caller-supplied content (#176), or <see langword="null"/> against a runtime that predates
     /// it.
     /// </summary>
@@ -59,10 +59,10 @@ internal sealed class KnownSymbols
     /// answers <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would read an
     /// unrelated return type as a content-taking part.
     /// </remarks>
-    public INamedTypeSymbol? ContentViewType { get; }
+    public INamedTypeSymbol? SlotViewType { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>ContentView</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is the
+    /// Resolved symbol for <c>SlotView</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is the
     /// one channel content reaches a <c>[Composable]</c> part through, or null.
     /// </summary>
     public IPropertySymbol? ContentIndexer { get; }
@@ -452,7 +452,7 @@ internal sealed class KnownSymbols
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComponentView`1");
         ElementViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementView");
-        ContentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ContentView");
+        SlotViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.SlotView");
 
         // GetTypeByMetadataName answers null for an *ambiguous* type as well as a missing one, two
         // references both declaring System.ReadOnlySpan<T>, say. Both indexers would then resolve to null and
@@ -461,7 +461,7 @@ internal sealed class KnownSymbols
         var readOnlySpanType = compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
         ElementIndexer = FindChildrenIndexer(ElementViewType, ViewType, readOnlySpanType);
         ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType, readOnlySpanType);
-        ContentIndexer = FindChildrenIndexer(ContentViewType, ViewType, readOnlySpanType);
+        ContentIndexer = FindChildrenIndexer(SlotViewType, ViewType, readOnlySpanType);
         ParameterAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.ParameterAttribute");
         RenderFragmentType =
@@ -694,11 +694,11 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Whether <paramref name="method"/> is declared to take caller content, which is exactly whether it
-    /// returns <c>ContentView</c> (#176).
+    /// returns <c>SlotView</c> (#176).
     /// </summary>
     public bool TakesContent(IMethodSymbol method) =>
-        ContentViewType is { } contentViewType
-        && SymbolEqualityComparer.Default.Equals(method.ReturnType, contentViewType);
+        SlotViewType is { } slotViewType
+        && SymbolEqualityComparer.Default.Equals(method.ReturnType, slotViewType);
 
     /// <summary>
     /// The parameter roles of a resolved <c>Bind</c> overload, element or component, or

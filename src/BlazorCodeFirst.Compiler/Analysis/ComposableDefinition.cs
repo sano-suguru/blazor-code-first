@@ -52,7 +52,7 @@ internal sealed record ComposableAccessRequirement(
 /// referenced member.
 /// </remarks>
 /// <param name="HasSlot">
-/// Whether this definition names <c>Html.Slot</c>, which is exactly whether it returns <c>ContentView</c>
+/// Whether this definition names <c>Html.Slot</c>, which is exactly whether it returns <c>SlotView</c>
 /// (#176). The ordinal that slot is bound at is <see cref="SlotOrdinal"/>, derived rather than stored: it is
 /// always the ordinal after the last parameter, so storing it would put a second copy of that invariant into
 /// a value-equal model that the incremental generator caches on.

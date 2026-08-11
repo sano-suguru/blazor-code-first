@@ -39,12 +39,17 @@ public static partial class Html
     /// <summary>
     /// Design-time syntax marking where a <c>[Composable]</c> part places the content its caller supplied
     /// in brackets. Legal only in the body of a <c>[Composable]</c> method returning
-    /// <see cref="ContentView"/>, and exactly once there; anywhere else it is BCF3025.
+    /// <see cref="SlotView"/>, and exactly once there; anywhere else it is BCF3025.
     /// </summary>
     /// <remarks>
     /// Named for HTML's own <c>&lt;slot&gt;</c>, which means the same thing. That element has no helper of
     /// its own — it is exclusion group 3 in <c>DESIGN.md</c> §4.1, because Blazor creates no shadow root and
     /// nothing would fill it — so the name is free, and taking it collides with no element.
+    /// <para>
+    /// Its own type is <see cref="View"/>, not <see cref="SlotView"/>: this is a child expression, and it
+    /// composes where any child composes. <see cref="SlotView"/> is the return type of the part that
+    /// contains it, which is a different position, the one the caller's brackets attach to.
+    /// </para>
     /// <para>
     /// Inert: the generator splices the caller's own child expressions into this position at compile time.
     /// Nothing is captured and nothing is invoked, so content that is written twice in a body is emitted
