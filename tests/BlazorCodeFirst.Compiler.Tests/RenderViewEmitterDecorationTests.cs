@@ -39,7 +39,7 @@ public sealed class RenderViewEmitterDecorationTests
     }
 
     [Fact]
-    public void Emit_MultipleClassesSpan_FoldsIntoSingleParenthesizedConcatenation()
+    public void Emit_MultipleClassesSpan_FoldsIntoOneParenthesizedJoinCall()
     {
         var node = Span(
             ExpressionTemplate.Literal("\"Hi\""),
@@ -49,7 +49,9 @@ public sealed class RenderViewEmitterDecorationTests
 
         var generated = EmitRoot(node);
 
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (\"a\") + \" \" + (\"b\"));", generated);
+        Assert.Contains(
+            "__builder.AddAttribute(1, \"class\", __BlazorCodeFirstJoinClasses((\"a\"), (\"b\")));",
+            generated);
         Assert.Contains("__builder.AddContent(2, \"Hi\");", generated);
     }
 
@@ -77,7 +79,9 @@ public sealed class RenderViewEmitterDecorationTests
 
         var generated = EmitRoot(node);
 
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (\"btn\") + \" \" + (\"primary\"));", generated);
+        Assert.Contains(
+            "__builder.AddAttribute(1, \"class\", __BlazorCodeFirstJoinClasses((\"btn\"), (\"primary\")));",
+            generated);
         Assert.Contains("__builder.AddAttribute(2, \"onclick\", ", generated);
         Assert.Contains("__builder.AddContent(3, \"OK\");", generated);
 

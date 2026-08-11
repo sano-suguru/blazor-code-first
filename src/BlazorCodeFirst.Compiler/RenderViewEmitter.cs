@@ -71,6 +71,16 @@ internal static class RenderViewEmitter
 
         writer.Indent--;
         writer.AppendLine("}");
+
+        // The joins the body called, written after the method that calls them, from the widest call down
+        // to two: each arity's body defers to the one below it when a term is null, and below two is a
+        // term rather than a call. A class carrying no join writes none of this.
+        for (int arity = writer.WidestClassJoin; arity >= 2; arity--)
+        {
+            writer.AppendLine();
+            writer.AppendLine(ClassChannel.JoinHelperCode(arity));
+        }
+
         writer.Indent--;
         writer.Append("}");
 
@@ -231,16 +241,20 @@ internal static class RenderViewEmitter
     /// number. All <c>.Class</c> decorations collapse into one attribute frame (ARCHITECTURE.md §2.7(A)),
     /// and <see cref="ClassChannel.JoinAsCode"/> writes the value they collapse to. What this method
     /// decides is the framing: one frame however many decorations there are, and no frame at all when
-    /// there are none, which is why the empty case is tested here rather than left to the join.
+    /// there are none, which is why the empty case is tested here rather than left to the join. A
+    /// decoration whose value folds away is still a decoration, so a frame is emitted for it too (#234).
     /// </summary>
     private static int EmitClassAttribute(IndentedWriter writer, EquatableArray<ExpressionTemplate> classes, int seq)
     {
         if (classes.Length == 0)
             return seq;
 
+        int widestJoin = writer.WidestClassJoin;
+        string value = ClassChannel.JoinAsCode(classes, ref widestJoin);
+        writer.WidestClassJoin = widestJoin;
+
         writer.AppendLine(
-            $"__builder.AddAttribute({seq}, \"{ClassChannel.AttributeName}\", "
-                + $"{ClassChannel.JoinAsCode(classes)});");
+            $"__builder.AddAttribute({seq}, \"{ClassChannel.AttributeName}\", {value});");
         return seq + 1;
     }
 
@@ -532,6 +546,18 @@ internal static class RenderViewEmitter
 
         /// <summary>The current indentation depth, in units of four spaces.</summary>
         public int Indent { get; set; }
+
+        /// <summary>
+        /// The widest class-channel join this emission has written a call to, or zero when it has written
+        /// none. Read once the body is complete, to write the helper bodies those calls need.
+        /// </summary>
+        /// <remarks>
+        /// Emission state rather than text, kept here because the writer is the one object already
+        /// threaded through every emit method. The alternative is a second walk of the model to find the
+        /// joins, and that walk would have to re-derive which terms survive folding — a second reading of
+        /// <see cref="ClassChannel.JoinAsCode"/>'s rule, free to disagree with the first.
+        /// </remarks>
+        public int WidestClassJoin { get; set; }
 
         /// <summary>Appends a blank line, without leading indentation.</summary>
         public void AppendLine() => _sb.AppendLine();

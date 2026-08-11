@@ -2899,10 +2899,10 @@ public sealed class GeneratorTests
             }
             """);
 
-        // Non-constant classes: what is pinned here is the concatenation expression the class channel emits,
-        // and that expression exists only when the element is not folded.
+        // Non-constant classes: what is pinned here is the join expression the class channel emits, and
+        // that expression exists only when the element is not folded.
         var source = Assert.Single(result.GeneratedSources).SourceText.ToString();
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (_a) + \" \" + (_b));", source);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", __BlazorCodeFirstJoinClasses((_a), (_b)));", source);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

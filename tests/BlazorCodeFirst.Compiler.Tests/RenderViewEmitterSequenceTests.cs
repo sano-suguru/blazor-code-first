@@ -278,7 +278,7 @@ public sealed class RenderViewEmitterSequenceTests
         // One class attribute frame at 2 in both spellings, and the following sibling unmoved at 4.
         Assert.Contains("__builder.AddAttribute(2, \"class\", \"x\");", one, StringComparison.Ordinal);
         Assert.Contains(
-            "__builder.AddAttribute(2, \"class\", (\"x\") + \" \" + (\"y\") + \" \" + (\"z\"));",
+            "__builder.AddAttribute(2, \"class\", __BlazorCodeFirstJoinClasses((\"x\"), (\"y\"), (\"z\")));",
             three,
             StringComparison.Ordinal);
         Assert.Contains("__builder.OpenElement(4, \"span\");", one, StringComparison.Ordinal);

@@ -34,10 +34,10 @@ public sealed class NullAttributeFrameTests
     /// <summary>
     /// Three of the view's decorations stop appending a frame in the absent state: the null
     /// <c>title</c>, the lone null <c>class</c>, and the <see langword="false"/> <c>data-v</c>. The joined
-    /// class does <em>not</em> — it emits <c>("card") + " " + (null)</c>, which is the string
-    /// <c>"card "</c> — and pinning the count at exactly three fewer is what says so. A count of four
-    /// fewer would mean the joined class had started omitting itself too, and the browser test asserting
-    /// <c>class="card "</c> would then be the only thing standing between that and a silent change.
+    /// class does <em>not</em> — its null term is dropped from the join (#236), so what reaches
+    /// <c>AddAttribute</c> is <c>"card"</c> rather than the <c>"card "</c> it once was, and either way a
+    /// non-null string appends a frame. Pinning the count at exactly three fewer is what says the term
+    /// went and the attribute stayed.
     /// </summary>
     [Fact]
     public void NullAttributeView_InTheAbsentState_AppendsThreeFewerAttributeFrames()

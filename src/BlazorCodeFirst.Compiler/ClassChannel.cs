@@ -60,6 +60,13 @@ internal static class ClassChannel
     internal const string AttributeName = "class";
 
     /// <summary>
+    /// The name of the join the generated class carries for its own use. Private to that class and
+    /// spelled long enough that a hand-written member of the same signature is not a case worth
+    /// designing against.
+    /// </summary>
+    internal const string JoinHelperName = "__BlazorCodeFirstJoinClasses";
+
+    /// <summary>
     /// What the channel writes between two decorations. One character serving both paths: the markup path
     /// appends it, and the frame path spells it as a string literal inside the concatenation. The fold's
     /// whole contract is that the two produce the same DOM, so a separator either of them chose for
@@ -116,10 +123,10 @@ internal static class ClassChannel
     /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
     /// emits. One surviving term is written as it stands, through
     /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
-    /// the cast that overloaded argument position needs (#234); two or more are concatenated around
-    /// <see cref="Separator"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its own
-    /// precedence — and a concatenation is a <see langword="string"/> whatever its terms are, so it needs
-    /// no cast of its own.
+    /// the cast that overloaded argument position needs (#234); two or more are passed to
+    /// <see cref="JoinHelperName"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its
+    /// own precedence — and that call returns a <see cref="string"/> whatever its arguments are, so it
+    /// needs no cast of its own.
     /// </summary>
     /// <remarks>
     /// Terms the compiler can read are settled here rather than left to the concatenation: a constant
@@ -139,7 +146,12 @@ internal static class ClassChannel
     /// At least one decoration. An element carrying none emits no frame at all, which is the caller's
     /// decision to make: there is no expression that stands for an absent attribute.
     /// </param>
-    internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes)
+    /// <param name="widestJoin">
+    /// Raised to the number of terms the returned code joins, when that is two or more, so the emitter
+    /// knows which helper bodies to write. Left alone otherwise: a value the channel spells without a
+    /// join needs no helper.
+    /// </param>
+    internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes, ref int widestJoin)
     {
         var array = classes.AsImmutableArray();
         var terms = FoldReadableTerms(array);
@@ -150,11 +162,55 @@ internal static class ClassChannel
         if (terms.Length == 0)
             return array[0].ToAttributeValueCode();
 
-        return terms.Length == 1
-            ? terms[0].ToAttributeValueCode()
-            : string.Join(
-                $" + {SeparatorLiteral} + ",
-                terms.Select(static c => $"({c.ToCode()})"));
+        if (terms.Length == 1)
+            return terms[0].ToAttributeValueCode();
+
+        if (terms.Length > widestJoin)
+            widestJoin = terms.Length;
+
+        return $"{JoinHelperName}({string.Join(", ", terms.Select(static c => $"({c.ToCode()})"))})";
+    }
+
+    /// <summary>
+    /// The body of the join the generated class carries, for <paramref name="arity"/> terms, as one line
+    /// of C#. The emitter writes one per arity from the widest call it made down to two.
+    /// </summary>
+    /// <remarks>
+    /// A null term is not a term: it contributes neither text nor a separator, which is the whole of
+    /// #236. Each arm drops one null and defers to the arity below — or, where one term is left, to that
+    /// term itself — so several nulls resolve one at a time and the body stays linear in
+    /// <paramref name="arity"/> rather than doubling with it.
+    /// <para>
+    /// The last arm is what the cost rests on. With no null it is one <c>string.Concat</c> over the terms
+    /// and the separators, which is what the concatenation this replaced lowered to, so the spelling that
+    /// never carried a residue pays what it always paid and the ones that did pay less. Measured against
+    /// the rule it replaces by <c>ClassChannelBenchmarks</c>, which is what #236 required before the rule
+    /// could change at all: at three terms the call has five arguments and binds to
+    /// <c>Concat(params ReadOnlySpan&lt;string?&gt;)</c>, which stack-allocates, where the operator chain
+    /// it replaces allocated a <c>string[]</c> unless the leading term happened to be constant.
+    /// </para>
+    /// </remarks>
+    internal static string JoinHelperCode(int arity)
+    {
+        var parameters = string.Join(", ", Enumerable.Range(0, arity).Select(static i => $"string? a{i}"));
+        var code = new StringBuilder($"private static string? {JoinHelperName}({parameters}) =>");
+
+        for (var dropped = 0; dropped < arity; dropped++)
+        {
+            var rest = Enumerable.Range(0, arity)
+                .Where(i => i != dropped)
+                .Select(static i => $"a{i}")
+                .ToList();
+            var withoutIt = rest.Count == 1
+                ? rest[0]
+                : $"{JoinHelperName}({string.Join(", ", rest)})";
+            code.Append($" a{dropped} is null ? {withoutIt} :");
+        }
+
+        var joined = string.Join(
+            $", {SeparatorLiteral}, ",
+            Enumerable.Range(0, arity).Select(static i => $"a{i}"));
+        return code.Append($" string.Concat({joined});").ToString();
     }
 
     /// <summary>

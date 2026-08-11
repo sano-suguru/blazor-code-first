@@ -72,4 +72,42 @@ public sealed class ClassChannelJoinTests
             "__builder.AddAttribute(1, \"class\", (global::System.String?)(null));",
             generated);
     }
+
+    [Fact]
+    public void JoinAsCode_WhenTwoTermsSurvive_CallsTheJoinHelperInsteadOfConcatenating()
+    {
+        var generated = EmitRoot(Span(Constant("card"), Dynamic("_extra")));
+
+        Assert.Contains(
+            "__builder.AddAttribute(1, \"class\", __BlazorCodeFirstJoinClasses((\"card\"), (_extra)));",
+            generated);
+        Assert.DoesNotContain(" + \" \" + ", generated);
+    }
+
+    [Fact]
+    public void Emit_WhenAJoinIsEmitted_WritesTheHelperItCalls()
+    {
+        var generated = EmitRoot(Span(Constant("card"), Dynamic("_extra")));
+
+        Assert.Contains(
+            "private static string? __BlazorCodeFirstJoinClasses(string? a0, string? a1) =>",
+            generated);
+    }
+
+    [Fact]
+    public void Emit_WhenTheWidestJoinTakesThreeTerms_WritesTheHelperForTwoTermsAsWell()
+    {
+        var generated = EmitRoot(Span(Dynamic("_a"), Dynamic("_b"), Dynamic("_c")));
+
+        Assert.Contains("__BlazorCodeFirstJoinClasses(string? a0, string? a1) =>", generated);
+        Assert.Contains("__BlazorCodeFirstJoinClasses(string? a0, string? a1, string? a2) =>", generated);
+    }
+
+    [Fact]
+    public void Emit_WhenNoJoinIsEmitted_WritesNoHelper()
+    {
+        var generated = EmitRoot(Span(Dynamic("_only")));
+
+        Assert.DoesNotContain("__BlazorCodeFirstJoinClasses", generated);
+    }
 }

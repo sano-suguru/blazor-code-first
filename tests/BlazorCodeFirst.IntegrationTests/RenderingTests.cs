@@ -200,20 +200,21 @@ public sealed class RenderingTests : BunitContext
     }
 
     /// <summary>
-    /// The class channel's two shapes, measured rather than described. A lone null omits the attribute; a
-    /// null joined behind a constant leaves the separator, which is #236's subject and is asserted as the
-    /// exact string rather than through classList, because classList reads <c>"card "</c> as
-    /// <c>["card"]</c> and cannot see it.
+    /// The class channel's two shapes, measured rather than described. A lone null omits the attribute,
+    /// and a null joined behind a constant takes its separator with it (#236) rather than leaving
+    /// <c>"card "</c> behind. Asserted as the exact string rather than through classList, because
+    /// classList reads <c>"card "</c> as <c>["card"]</c> and so cannot tell the two apart — which is why
+    /// the residue survived unnoticed for as long as it did.
     /// </summary>
     [Fact]
-    public void NullAttributeComponent_WhenClassTermTurnsNull_LeavesTheSeparatorButOmitsALoneClass()
+    public void NullAttributeComponent_WhenClassTermTurnsNull_DropsTheTermAndOmitsALoneClass()
     {
         var cut = Render<NullAttributeComponent>();
 
         cut.Find("button").Click();
 
         var spans = cut.FindAll("span");
-        Assert.Equal("card ", spans[2].GetAttribute("class"));
+        Assert.Equal("card", spans[2].GetAttribute("class"));
         Assert.Null(spans[3].GetAttribute("class"));
     }
 

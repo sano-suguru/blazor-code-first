@@ -51,14 +51,14 @@ test.describe('a null attribute value', () => {
     await expect(page.locator('#bool')).not.toHaveAttribute('data-v', /.*/);
   });
 
-  test('leaves the separator behind in a joined class and omits a lone one', async ({ page }) => {
+  test('drops a null term from a joined class and omits a lone one', async ({ page }) => {
     await page.locator('#toggle').click();
     await expect(page.locator('#state')).toHaveText('absent');
 
-    // The exact string, not classList: classList reads "card " as ["card"] and cannot see the residue this
-    // pins (#236). The residue is not new — the spelling this replaced, .Class(on ? "on" : ""), produced
-    // it too — and normalizing it is deferred, so what a change to it would mean is recorded here.
-    await expect(page.locator('#class-join')).toHaveAttribute('class', 'card ');
+    // The exact string, not classList: classList reads "card " as ["card"] and so cannot tell the residue
+    // this used to carry from its absence (#236). Asserting the exact value is what makes "the separator
+    // went with the term" a measured claim rather than one classList silently agrees with either way.
+    await expect(page.locator('#class-join')).toHaveAttribute('class', 'card');
     await expect(page.locator('#class-single')).not.toHaveAttribute('class', /.*/);
   });
 

@@ -101,10 +101,10 @@ public sealed class HtmlAttributeGeneratorTests
     [Fact]
     public void ClassThenAttrClass_BothFoldIntoSingleClassAttribute()
     {
-        // Non-constant class values: what is pinned here is the concatenation expression the class channel
-        // emits into one frame, and that expression exists only in the frame form.
+        // Non-constant class values: what is pinned here is the join expression the class channel emits
+        // into one frame, and that expression exists only in the frame form.
         var code = Run("""Html.Div.Class(_a).Attr("class", _b)[Html.Span["x"]]""");
-        Assert.Contains("__builder.AddAttribute(1, \"class\", (_a) + \" \" + (_b))", code);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", __BlazorCodeFirstJoinClasses((_a), (_b)))", code);
         Assert.DoesNotContain("\"class\", _b)", code); // not a second class frame
     }
 
@@ -221,16 +221,21 @@ public sealed class HtmlAttributeGeneratorTests
     }
 
     /// <summary>
-    /// The class channel takes a nullable term with no rule of its own: a null joins as the empty string,
-    /// leaving the separator behind (#236), and a lone null omits the attribute. Both are what the
-    /// previously recommended <c>.Class(on ? "on" : "")</c> spelling already produced, so the join is pinned
-    /// here unchanged rather than rewritten.
+    /// The class channel takes a nullable term through a join that drops it (#236). A term that is null
+    /// at render time contributes neither text nor a separator, so the value reaching
+    /// <c>AddAttribute</c> is what the surviving terms spell and nothing more, and a join whose every
+    /// term is null is a null — which omits the attribute, exactly as a lone null does.
     /// </summary>
     [Fact]
-    public void NullableClassTerm_JoinsThroughTheExistingConcatenation()
+    public void NullableClassTerm_JoinsThroughTheHelperThatDropsIt()
     {
         var code = Run("""Html.Div.Class("card").Class(_maybe)[Html.Span["x"]]""");
-        Assert.Contains("""__builder.AddAttribute(1, "class", ("card") + " " + (_maybe));""", code);
+        Assert.Contains(
+            """__builder.AddAttribute(1, "class", __BlazorCodeFirstJoinClasses(("card"), (_maybe)));""",
+            code);
+        Assert.Contains(
+            """private static string? __BlazorCodeFirstJoinClasses(string? a0, string? a1) => a0 is null ? a1 : a1 is null ? a0 : string.Concat(a0, " ", a1);""",
+            code);
     }
 
     /// <summary>
