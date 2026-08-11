@@ -193,8 +193,28 @@ Input.Type("text").Attr("value", _name)
 Unlike Razor, the argument type is not inferred from the event name, so writing it on the parameter
 is what selects the overload. `ChangeEventArgs` lives in `Microsoft.AspNetCore.Components`;
 `MouseEventArgs`, `KeyboardEventArgs` and `FocusEventArgs` live in
-`Microsoft.AspNetCore.Components.Web`, which a Blazor app already references. Nothing checks that
-the type you name is the one the event delivers.
+`Microsoft.AspNetCore.Components.Web`, which a Blazor app already references.
+
+The type is not inferred, but it is checked. Naming one the event does not deliver reports BCF3028,
+read from the same `[EventHandler]` metadata Razor uses — so `.On("onclick", (KeyboardEventArgs e) => …)`
+stops at compile time instead of failing when the button is clicked. A base of the delivered type is
+accepted, because that is what the handler can actually receive:
+
+```csharp
+Button.On("onclick", (MouseEventArgs e) => Zoom(e.ClientX, e.ClientY))["Zoom"]   // the delivered type
+Button.On("onclick", (EventArgs e) => Save())["Save"]                            // a base of it: fine
+Button.On("onclick", (KeyboardEventArgs e) => Save())["Save"]                    // BCF3028
+```
+
+A type that is not an `EventArgs` at all — `.On("onclick", (int x) => …)` — is the same diagnostic; C#
+refuses that call outright, and BCF3028 is what names the reason. An event with no `[EventHandler]`
+registration has no mapping to check against, so a custom event you have not registered is left alone.
+Registering one is the ordinary Blazor mechanism, and a registration in your own project is read:
+
+```csharp
+[EventHandler("onrate", typeof(RatingEventArgs))]
+public static class AppEventHandlers;
+```
 
 That pair — an attribute out, an event back — is what [`.Bind`](./two-way-binding.md) writes as one
 decoration.
