@@ -1,5 +1,6 @@
 using BlazorCodeFirst;
 using BlazorCodeFirst.Site.Content;
+using BlazorCodeFirst.Site.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using static BlazorCodeFirst.Html;
@@ -37,12 +38,22 @@ public sealed partial class DocsPage : BodyComponentBase
     }
 
     // _html is build-time converted, repository-owned Markdown: the Html.Raw trust boundary.
+    //
+    // The rail is placed here rather than in the layout, so it renders on the documentation routes
+    // and nowhere else. The not-found branch drops it: an unknown slug is not a place in the guide.
+    //
+    // It follows the document in source order, and css/app.css lifts it into the first column at
+    // wide widths. Written the other way round, a reader on a phone would meet the whole table of
+    // contents before the page they asked for.
     protected override View Body =>
         If(_found,
-            () => Article.Class("prose")[
-                    Component<PageTitle>()[_title],
-                    H1[_title],
-                    Raw(_html)],
+            () => Div.Class("shell")[
+                    Div.Class("docs-shell")[
+                        Article.Class("prose docs-content")[
+                            Component<PageTitle>()[_title],
+                            H1[_title],
+                            Raw(_html)],
+                        Component<DocsNav>()]],
             // Shared with the "/404" route: after the SPA catch-all was removed, an unknown slug is
             // served as 404.html and then re-rendered here on hydration, so the two must match.
             () => NotFoundContent.NotFound());

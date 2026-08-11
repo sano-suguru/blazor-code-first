@@ -254,10 +254,16 @@ jobs:
             assert_not_grep 'b-prerendering' "$P/$f" "a prerendering wrapper div survived into the published HTML, which hides the prerendered content from humans until WASM starts"
             assert_not_grep 'BlazorCodeFirst\.Site\.styles\.css' "$P/$f" "the published HTML links the scoped-CSS bundle, which this project does not produce"
 
-            # Both stylesheet links and the boot script are hand-maintained lines in
+            # All three stylesheet links and the boot script are hand-maintained lines in
             # wwwroot/index.html, not SDK-injected. Every guard above them is an ABSENCE check, so
-            # deleting or mistyping one of these three lines would leave every existing assertion
+            # deleting or mistyping one of these four lines would leave every existing assertion
             # green while the deployment ships unstyled, unhighlighted, or fully inert.
+            #
+            # tokens.css is the worst of the four to lose: app.css reads every colour, font, size and
+            # duration through a var() declared there, so without it the page renders with every
+            # custom property unresolved -- readable text on a default background, which no other
+            # check here would notice.
+            assert_grep 'href="css/tokens\.css"' "$P/$f" "the published HTML no longer links css/tokens.css, so every var() in app.css resolves to nothing"
             assert_grep 'href="css/app\.css"' "$P/$f" "the published HTML no longer links css/app.css, so the page ships unstyled"
             assert_grep 'href="css/highlight\.css"' "$P/$f" "the published HTML no longer links css/highlight.css, so code blocks ship unhighlighted"
             assert_grep 'src="_framework/blazor\.webassembly[^"]*\.js"' "$P/$f" "the published HTML no longer loads the Blazor script, so nothing hydrates"
@@ -303,9 +309,14 @@ jobs:
           # above catches a MISSING title, not a WRONG one.
           assert_grep '<title>Documentation</title>' "$P/docs/index.html" "the /docs index has the wrong page title"
 
-          # The index must enumerate EVERY document. Count 2 per slug, not 1: the nav contributes one
-          # href per document on every page, so a "contains this href" check would pass even if the
-          # index body rendered nothing at all. The second occurrence is the index list item.
+          # The index must enumerate EVERY document. Count 2 per slug, not 1: the documentation rail
+          # contributes one href per document on this route, so a "contains this href" check would
+          # pass even if the index body rendered nothing at all. The second occurrence is the index
+          # list item.
+          #
+          # The rail renders on "/docs" and "/docs/{slug}" only -- it is placed by those two pages,
+          # not by the layout, so the home page and the counter demo no longer carry the whole table
+          # of contents. That is why this count is asserted here and nowhere else.
           for slug in $SLUGS; do
             assert_count "href=\"/docs/$slug\"" "$P/docs/index.html" 2 "the /docs index does not list this document (expected the nav link plus one index entry)"
           done

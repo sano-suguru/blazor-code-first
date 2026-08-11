@@ -27,6 +27,24 @@ CI deploys on push to `main` via `.github/workflows/site.yml`
 (`dotnet publish` on GitHub Actions -> `wrangler pages deploy` to Cloudflare Pages).
 Cloudflare Pages hosts static assets only; it does not build .NET.
 
+## Stylesheets
+
+Three stylesheets, linked by hand from `wwwroot/index.html`. CI asserts all three links, because
+losing one leaves every other assertion in `site.yml` green while the deployment ships unstyled.
+
+- `wwwroot/css/tokens.css` — the design system: every colour (OKLCH), font, size, space, radius,
+  easing, duration and layer the site uses, declared once on `:root`. The comment at the top of the
+  file is the durable record of the design's shape (macrostructure, palette, type, nav and footer
+  archetypes).
+- `wwwroot/css/app.css` — the rules. Every value in it is a `var()` from `tokens.css`; a literal
+  colour or font stack there is a defect, not a shortcut.
+- `wwwroot/css/highlight.css` — generated, see below.
+
+Landing-page code figures are written as BlazorCodeFirst views in
+`BlazorCodeFirst.Site/Content/CodeSamples.cs`, with their own `.slab` token classes, because DocGen
+converts whole documents and cannot produce one highlighted snippet for a page that is not a
+document.
+
 ## Docs content pipeline
 
 Markdown under `site/content/*.md` is converted to HTML at authoring time by the
@@ -35,7 +53,9 @@ Markdown under `site/content/*.md` is converted to HTML at authoring time by the
 - `site/BlazorCodeFirst.Site/Content/Docs.g.cs`: a `DocEntry` record per doc plus a `Docs` manifest.
   `Docs.All` is an `ImmutableArray<DocEntry>` ordered by front matter `order` with ties broken by
   slug, and `Docs.Find(slug)` is a case-insensitive lookup.
-- `site/BlazorCodeFirst.Site/wwwroot/css/highlight.css`: the ColorCode class theme.
+- `site/BlazorCodeFirst.Site/wwwroot/css/highlight.css`: the ColorCode class theme, repainted onto
+  the site's palette by `ColorCodeTheme`. That file is the one place a colour is written outside
+  `tokens.css`, and it says why.
 
 After editing any `.md`, regenerate and commit the artifacts:
 

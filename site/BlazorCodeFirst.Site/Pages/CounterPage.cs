@@ -5,6 +5,15 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.Site.Pages;
 
+/// <summary>
+/// The live demo: events, If, and a keyed ForEach in one component.
+/// </summary>
+/// <remarks>
+/// The buttons are visible and clickable before the WebAssembly runtime starts, and do nothing until
+/// it does. That is the accepted consequence of deleting the prerendering wrappers so the
+/// prerendered markup reaches a human rather than only a crawler; the reasoning is in the project
+/// file, next to BlazorWasmPrerenderingDeleteLoadingContents.
+/// </remarks>
 [Route("/counter")]
 public sealed partial class CounterPage : BodyComponentBase
 {
@@ -14,12 +23,24 @@ public sealed partial class CounterPage : BodyComponentBase
     private int _count;
 
     protected override View Body =>
-        Div[
-            Component<PageTitle>()["Counter"],
-            Span[$"Count: {_count}"],
-            If(_count >= 3, () => Span["Milestone reached"]),
-            Button.OnClick(() => _count++)["Increment"],
-            ForEach(Steps, key: step => step.Id, content: step => Button.OnClick(() => _count += step.Amount)[$"+{step.Amount}"])];
+        Div.Class("shell")[
+            Section.Class("demo")[
+                Component<PageTitle>()["Counter"],
+                H1["Counter"],
+                P["A component with state, an event handler, a conditional, and a keyed list."],
+                Div.Class("demo-readout")[
+                    Span.Class("demo-count")[$"{_count}"],
+                    If(_count >= 3, () => Span.Class("demo-milestone")["Milestone reached"])],
+                Div.Class("demo-buttons")[
+                    Button.Class("chip chip--primary").Attr("type", "button").OnClick(() => _count++)[
+                        "Increment"],
+                    ForEach(
+                        Steps,
+                        key: step => step.Id,
+                        content: step => Button
+                            .Class("chip")
+                            .Attr("type", "button")
+                            .OnClick(() => _count += step.Amount)[$"+{step.Amount}"])]]];
 
     private sealed record IncrementStep(int Id, int Amount);
 }

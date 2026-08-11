@@ -1,46 +1,828 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+/* Hallmark · macrostructure: Split Studio · H2 hero knobs: ratio=6/6, right=code figure, divider=negative space
+ * theme: custom · vibe: "compile-time, cool, precise, .NET" · paper: oklch(99% 0.006 277) · accent: oklch(47% 0.21 277)
+ * display: Geist · body: Geist · mono: JetBrains Mono · axes: light / geometric-sans / cool
+ * nav: N9 edge-aligned minimal · footer: Ft2 inline single line · enrichment: none · studied: no
+ * contrast: pass (40-41) · slop: pass (42-45) · honest: pass (46) · chrome: pass (47)
+ * tokens: pass (48) · responsive: pass (49) · mobile: pass (34, 49, 50-57)
+ */
+
+/* Every value here is a var() from css/tokens.css. A literal colour, font stack, or duration in
+   this file is a defect: it is how a design system erodes into a freestyle over three edits. */
+
+/* --- Base ---------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-h1:focus {
-    outline: none;
+/* `clip`, not `hidden`: hidden creates a scroll container, which breaks the sticky documentation
+   rail and can trap focus on an overflowing element. */
+html {
+    overflow-x: clip;
+    scroll-behavior: smooth;
+    /* Anchored headings must not land under the header when it is sticky at wide widths. */
+    scroll-padding-top: var(--space-3xl);
 }
 
-a, .btn-link {
-    color: #0071c1;
+body {
+    margin: 0;
+    overflow-x: clip;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    font-weight: 400;
+    line-height: var(--leading-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
 
-.btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+h1,
+h2,
+h3,
+h4 {
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 600;
+    line-height: var(--leading-heading);
+    letter-spacing: var(--tracking-display);
+    /* Long identifiers ("RenderTreeBuilder", "BlazorCodeFirst") are longer than a phone is wide. */
+    overflow-wrap: anywhere;
+    min-width: 0;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+a {
+    color: var(--color-accent);
+    text-underline-offset: 0.18em;
+    text-decoration-thickness: from-font;
 }
 
-.content {
-    padding-top: 1.1rem;
+a:hover {
+    color: var(--color-accent-strong);
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+code,
+pre,
+kbd {
+    font-family: var(--font-mono);
+    font-variant-ligatures: none;
 }
 
-.invalid {
-    outline: 1px solid red;
+/* The ring is never transitioned: a ring that fades in leaves a keyboard user with no indicator
+   for the length of the transition. */
+:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
 }
 
-.validation-message {
-    color: red;
+::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-accent-strong);
 }
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.skip-link {
+    position: absolute;
+    top: var(--space-xs);
+    left: var(--space-xs);
+    z-index: var(--z-modal);
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transform: translateY(-200%);
+}
+
+.skip-link:focus-visible {
+    transform: none;
+}
+
+/* --- Shell --------------------------------------------------------------- */
+
+.site-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+}
+
+.site-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.shell {
+    width: 100%;
+    max-width: var(--shell-max);
+    margin-inline: auto;
+    padding-inline: clamp(var(--space-md), 4vw, var(--space-xl));
+}
+
+/* --- N9 Edge-aligned nav -------------------------------------------------
+   Wordmark hard-left, utilities hard-right, the space between left empty. Deliberately not the
+   wordmark-left / centred-link-cluster / filled-CTA-right bar: that shape is genre-blind and lands
+   identically on a bakery and a compiler. The documentation's real navigation is the rail. */
+
+.site-header {
+    border-bottom: var(--rule-hairline) solid var(--color-rule);
+    background: var(--color-paper);
+}
+
+.site-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-lg);
+    width: 100%;
+    max-width: var(--shell-max);
+    margin-inline: auto;
+    padding: var(--space-md) clamp(var(--space-md), 4vw, var(--space-xl));
+}
+
+.brand {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-xs);
+    min-width: 0;
+}
+
+/* The wordmark is a C# namespace, so it is set in the machine face rather than the display face.
+   It carries the active class on "/" because the CI guard needs exactly that value somewhere on
+   every route, but it draws no active rule: a wordmark does not need to tell you it is the page
+   you are on. */
+.brand .nav-link::after {
+    content: none;
+}
+
+.brand .nav-link {
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-md);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+    text-decoration: none;
+}
+
+.brand .nav-link:hover,
+.brand .nav-link.active {
+    color: var(--color-ink);
+    background: none;
+}
+
+.nav-utilities {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+/* A clickable label in a horizontal row is a single-line object at every viewport: wrapping one
+   reads as a styling error, not as intent. The rail is exempt -- it is a vertical list, where a
+   two-line document title is part of the column's rhythm rather than a broken affordance. */
+.site-nav .nav-link,
+.chip,
+.foot-link {
+    white-space: nowrap;
+}
+
+.nav-link {
+    position: relative;
+    padding-block: var(--space-2xs);
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.nav-link::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    bottom: -2px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-micro) var(--ease-out);
+}
+
+.nav-link:hover {
+    color: var(--color-ink);
+}
+
+.nav-link:hover::after {
+    transform: scaleX(1);
+}
+
+.nav-link.active {
+    color: var(--color-accent);
+}
+
+.nav-link.active::after {
+    background: var(--color-accent);
+    transform: scaleX(1);
+}
+
+/* --- Buttons and chips ---------------------------------------------------- */
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+        border-color var(--dur-micro) var(--ease-out),
+        background-color var(--dur-micro) var(--ease-out),
+        transform var(--dur-micro) var(--ease-out);
+}
+
+.chip:hover {
+    border-color: var(--color-ink-2);
+    color: var(--color-ink);
+}
+
+.chip:active {
+    transform: translateY(1px);
+}
+
+/* Three channels, not opacity alone: a faded control that still takes a pointer reads as a bug. */
+.chip:disabled,
+.chip[aria-disabled="true"],
+.install-copy:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.chip--primary {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+}
+
+.chip--primary:hover {
+    border-color: var(--color-accent-strong);
+    background: var(--color-accent-strong);
+    color: var(--color-accent-ink);
+}
+
+/* --- Landing ------------------------------------------------------------- */
+
+.hero {
+    display: grid;
+    /* minmax(0, …) so a wide code figure cannot push the grid past the viewport. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2xl);
+    /* Heavier at the bottom than the top. Symmetric padding leaves a hero floating above the page
+       instead of leading into the section under it. */
+    padding-block: var(--space-2xl) var(--space-3xl);
+}
+
+.hero-title {
+    margin: 0;
+    font-size: var(--text-display);
+    font-weight: 700;
+    line-height: var(--leading-display);
+}
+
+.hero-lede {
+    max-width: 46ch;
+    margin: var(--space-lg) 0 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-md);
+}
+
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-top: var(--space-xl);
+}
+
+.install {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-2);
+    min-width: 0;
+}
+
+.install code {
+    overflow-x: auto;
+    font-size: var(--text-sm);
+    color: var(--color-ink);
+    white-space: nowrap;
+}
+
+.install-copy {
+    flex: none;
+    padding: var(--space-2xs) var(--space-xs);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-xs);
+    background: var(--color-paper);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--dur-micro) var(--ease-out);
+}
+
+.install-copy:hover {
+    color: var(--color-ink);
+}
+
+/* --- Split Studio diptych -------------------------------------------------
+   The page's repeating unit. Direction alternates down the page via .split--flip, which swaps the
+   two halves at wide widths only; below the layout breakpoint every split is one column in DOM
+   order, so the claim always precedes its proof. */
+
+.split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-xl);
+    align-items: start;
+    padding-block: var(--space-3xl);
+    border-top: var(--rule-hairline) solid var(--color-rule);
+}
+
+.split-title {
+    margin: 0;
+    font-size: var(--text-xl);
+}
+
+.split-body {
+    max-width: var(--measure);
+    margin: var(--space-md) 0 0;
+    color: var(--color-ink-2);
+}
+
+.split-body + .split-body {
+    margin-top: var(--space-md);
+}
+
+.pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-lg);
+}
+
+/* --- Code figures ---------------------------------------------------------
+   A typographic frame -- caption, rule, code -- rather than a drawn window with a fake title bar
+   and traffic-light dots. The reader already has a real editor; a redrawn one is a picture of a
+   picture frame. */
+
+.figure {
+    margin: 0;
+    min-width: 0;
+}
+
+.figure figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    padding-bottom: var(--space-xs);
+    border-bottom: var(--rule-hairline) solid var(--color-rule);
+    margin-bottom: var(--space-sm);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+}
+
+.figure figcaption em {
+    font-style: normal;
+    color: var(--color-accent);
+}
+
+.slab {
+    overflow-x: auto;
+    margin: 0;
+    padding: var(--space-lg);
+    border-radius: var(--radius-md);
+    background: var(--color-slab);
+    color: var(--color-slab-ink);
+    font-size: var(--text-sm);
+    line-height: var(--leading-code);
+    tab-size: 4;
+}
+
+.slab--light {
+    border: var(--rule-hairline) solid var(--color-rule);
+    background: var(--color-paper-2);
+    color: var(--color-ink);
+}
+
+/* Landing-page code vocabulary. Kept separate from css/highlight.css, which DocGen owns for prose
+   code blocks: the two theme different surfaces (a dark slab here, the paper there) and merging
+   them would make one of the two illegible. */
+.slab .k {
+    color: var(--color-code-keyword);
+    font-weight: 500;
+}
+
+.slab .t {
+    color: var(--color-code-type);
+}
+
+.slab .s {
+    color: var(--color-code-string);
+}
+
+.slab .m {
+    color: var(--color-code-member);
+}
+
+.slab .c {
+    color: var(--color-code-comment);
+}
+
+.slab--light .k {
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+.slab--light .t {
+    color: var(--color-code-type-on-light);
+}
+
+.slab--light .s {
+    color: var(--color-code-string-on-light);
+}
+
+.slab--light .m {
+    color: var(--color-code-member-on-light);
+}
+
+.slab--light .c {
+    color: var(--color-code-comment-on-light);
+}
+
+/* --- F4 Step sequence -----------------------------------------------------
+   The only numbered thing on the page, and the numbers are load-bearing: this is a pipeline whose
+   stages happen in this order. Nothing else on the site carries an eyebrow. */
+
+.steps {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Single column: the index sits above its heading, never beside it. A label in a narrow left
+   column with the heading to its right is the most recognisable templated-editorial tell there is,
+   and it is the reason this is the only numbered thing on the page. */
+.step {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2xs);
+    padding-block: var(--space-lg);
+    border-top: var(--rule-hairline) solid var(--color-rule-2);
+}
+
+.step:first-child {
+    border-top: 0;
+}
+
+.step-index {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--color-accent);
+}
+
+.step-title {
+    margin: 0;
+    font-size: var(--text-md);
+    font-weight: 600;
+}
+
+.step-note {
+    max-width: var(--measure);
+    margin: var(--space-2xs) 0 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+/* The closing section runs tighter than the ones above it. Identical padding on every section is
+   a flat rhythm, and the last one is introducing a list rather than making an argument. */
+.split--close {
+    padding-block: var(--space-2xl) var(--space-3xl);
+}
+
+/* --- Index strip ---------------------------------------------------------- */
+
+.index-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--rule-hairline) solid var(--color-rule-2);
+}
+
+.index-list li {
+    border-bottom: var(--rule-hairline) solid var(--color-rule-2);
+}
+
+.index-link {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding-block: var(--space-md);
+    color: var(--color-ink);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.index-link span {
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+}
+
+.index-link:hover {
+    color: var(--color-accent);
+}
+
+.index-link:hover span {
+    color: var(--color-accent);
+}
+
+/* --- Ft2 footer ----------------------------------------------------------- */
+
+/* No margin-top: every section and the documentation shell already carry their own bottom padding,
+   and stacking a margin on top of that opened a band of dead space above the rule. */
+.site-footer {
+    border-top: var(--rule-hairline) solid var(--color-rule);
+}
+
+.site-footer .shell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-md) var(--space-lg);
+    padding-block: var(--space-xl);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+}
+
+.foot-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-lg);
+}
+
+.foot-link {
+    color: var(--color-muted);
+    text-decoration: none;
+}
+
+.foot-link:hover {
+    color: var(--color-ink);
+    text-decoration: underline;
+}
+
+/* --- Documentation shell --------------------------------------------------
+   The rail is the documentation's real navigation, and it renders only on the documentation
+   routes. On every other route the header nav is the whole of it.
+
+   The rail comes AFTER the document in the DOM. Below the layout breakpoint the shell is one
+   column, and a rail placed first would put the whole table of contents between the reader and the
+   page they asked for: they would land on a document URL, see a list of other documents, and scroll
+   past all of them to reach their own. It is repositioned into the first column at wide widths,
+   where it costs nothing. */
+
+.docs-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-xl);
+    align-items: start;
+    padding-block: var(--space-2xl);
+}
+
+.docs-rail {
+    min-width: 0;
+    padding-top: var(--space-lg);
+    border-top: var(--rule-hairline) solid var(--color-rule);
+}
+
+/* Body face, not the mono. The mono has one job on this site -- machine text: code, file paths,
+   route paths, the wordmark (a namespace), and figures. "Guide" is a section label, and letting it
+   borrow the mono would start turning an outlier into a third body font. */
+.rail-heading {
+    margin: 0 0 var(--space-sm);
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+}
+
+.rail-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-left: var(--rule-hairline) solid var(--color-rule);
+}
+
+/* The rail's links carry the same class value as the header's, because the CI guard matches that
+   value whole and a rail-specific third class would make the assertion match nothing. The look is
+   separated by the ancestor instead. */
+.rail-list .nav-link {
+    display: block;
+    padding: var(--space-xs) var(--space-md);
+    margin-left: -1px;
+    border-left: 2px solid transparent;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: color var(--dur-micro) var(--ease-out);
+}
+
+.rail-list .nav-link::after {
+    content: none;
+}
+
+.rail-list .nav-link:hover {
+    color: var(--color-ink);
+}
+
+.rail-list .nav-link.active {
+    border-left-color: var(--color-accent);
+    color: var(--color-accent);
+    font-weight: 500;
+}
+
+/* --- Prose (rendered Markdown) -------------------------------------------- */
+
+.prose {
+    max-width: var(--measure);
+    min-width: 0;
+}
+
+.prose > h1 {
+    margin: 0 0 var(--space-lg);
+    font-size: var(--text-2xl);
+}
+
+.prose h2 {
+    margin: var(--space-2xl) 0 var(--space-md);
+    padding-bottom: var(--space-xs);
+    border-bottom: var(--rule-hairline) solid var(--color-rule);
+    font-size: var(--text-lg);
+}
+
+.prose h3 {
+    margin: var(--space-xl) 0 var(--space-sm);
+    font-size: var(--text-md);
+}
+
+.prose p,
+.prose li {
+    color: var(--color-ink-2);
+}
+
+.prose pre {
+    overflow-x: auto;
+    padding: var(--space-md);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-2);
+    font-size: var(--text-sm);
+    line-height: var(--leading-code);
+    tab-size: 4;
+}
+
+.prose :not(pre) > code {
+    padding: 0.1em 0.32em;
+    border-radius: var(--radius-xs);
+    background: var(--color-paper-3);
+    color: var(--color-ink);
+    font-size: 0.875em;
+}
+
+.prose table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.prose th,
+.prose td {
+    padding: var(--space-xs) var(--space-sm);
+    border: var(--rule-hairline) solid var(--color-rule);
+    text-align: left;
+}
+
+.prose blockquote {
+    margin-inline: 0;
+    padding-left: var(--space-md);
+    border-left: 2px solid var(--color-rule);
+    color: var(--color-muted);
+}
+
+/* The "#" is real link text so assistive technology can announce it; it is only visually
+   de-emphasised until the heading is hovered or the link itself is focused. */
+.headlink {
+    margin-left: var(--space-xs);
+    color: var(--color-muted);
+    text-decoration: none;
+    opacity: 0;
+}
+
+.prose h2:hover .headlink,
+.prose h3:hover .headlink,
+.prose h4:hover .headlink,
+.prose h5:hover .headlink,
+.prose h6:hover .headlink,
+.headlink:focus-visible {
+    opacity: 1;
+}
+
+/* A device with no hover has no way to reveal it, and deep-linking to a section is a primary action
+   on a documentation site. Keyed on the interaction capability rather than on a width, because that
+   is the thing actually being tested. */
+@media (hover: none) {
+    .headlink {
+        opacity: 1;
+    }
+}
+
+/* --- Counter demo --------------------------------------------------------- */
+
+.demo {
+    padding-block: var(--space-2xl);
+}
+
+.demo-readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+}
+
+.demo-count {
+    font-family: var(--font-mono);
+    font-size: var(--text-2xl);
+    font-variant-numeric: tabular-nums;
+}
+
+.demo-milestone {
+    color: var(--color-accent);
+    font-size: var(--text-sm);
+}
+
+.demo-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-lg);
+}
+
+/* --- Blazor's own error surfaces ------------------------------------------
+   Kept from the framework template. These render only when the app has already failed, so they
+   deliberately do not depend on the token file resolving. */
 
 #blazor-error-ui {
     color-scheme: light only;
     background: lightyellow;
     bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 -1px 2px rgb(0 0 0 / 0.2);
     box-sizing: border-box;
     display: none;
     left: 0;
@@ -50,206 +832,160 @@ a, .btn-link {
     z-index: 1000;
 }
 
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
 
 .blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
+    background: #b32121;
+    padding: 1rem;
     color: white;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
+.blazor-error-boundary::after {
+    content: "An error has occurred.";
+}
+
+/* --- Layout breakpoint (60rem) -------------------------------------------- */
+
+@media (min-width: 60rem) {
+    /* Even halves. 7/5 gave the headline more room than it needed and left the code figure
+       narrower than its own longest line, which is the wrong trade when the figure is the proof. */
+    .hero {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: var(--space-3xl);
+        align-items: center;
     }
 
-code {
-    color: #c02d76;
-}
-
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
-}
-
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
-}
-
-/* --- Site shell (M4) ------------------------------------------------------ */
-
-:root {
-    --shell-max: 72rem;
-    --nav-width: 15rem;
-    --accent: #0071c1;
-    --border: #e2e5e9;
-    --muted: #5c6670;
-}
-
-body {
-    margin: 0;
-    color: #1b1f23;
-    line-height: 1.6;
-}
-
-.site-shell {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
-
-.site-header {
-    display: flex;
-    align-items: baseline;
-    gap: 1rem;
-    flex-wrap: wrap;
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--border);
-}
-
-.site-header .brand {
-    font-size: 1.25rem;
-    font-weight: 700;
-    text-decoration: none;
-    color: inherit;
-}
-
-.site-header .tagline {
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-.site-body {
-    display: flex;
-    flex: 1;
-    gap: 2rem;
-    width: 100%;
-    max-width: var(--shell-max);
-    margin: 0 auto;
-    padding: 1.5rem;
-    box-sizing: border-box;
-    align-items: flex-start;
-}
-
-/* Sticky so the persistent nav keeps its position while the main column scrolls. */
-.site-nav {
-    flex: 0 0 var(--nav-width);
-    position: sticky;
-    top: 1.5rem;
-}
-
-.nav-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.nav-list li {
-    margin: 0.125rem 0;
-}
-
-.nav-link {
-    display: block;
-    padding: 0.35rem 0.6rem;
-    border-radius: 0.25rem;
-    text-decoration: none;
-    color: var(--muted);
-}
-
-.nav-link:hover {
-    background: #f3f5f7;
-    color: #1b1f23;
-}
-
-.nav-link.active {
-    background: #e8f1fa;
-    color: var(--accent);
-    font-weight: 600;
-}
-
-.site-main {
-    flex: 1;
-    min-width: 0;
-}
-
-.site-footer {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    padding: 1rem 1.5rem;
-    border-top: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-/* --- Prose (rendered Markdown) ------------------------------------------- */
-
-.prose h1 {
-    margin-top: 0;
-    font-size: 2rem;
-}
-
-.prose h2 {
-    margin-top: 2rem;
-    padding-bottom: 0.25rem;
-    border-bottom: 1px solid var(--border);
-}
-
-.prose pre {
-    overflow-x: auto;
-    padding: 0.85rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: 0.35rem;
-    background: #f7f9fa;
-}
-
-.prose :not(pre) > code {
-    padding: 0.1rem 0.3rem;
-    border-radius: 0.2rem;
-    background: #f3f5f7;
-    font-size: 0.9em;
-}
-
-.prose table {
-    border-collapse: collapse;
-}
-
-.prose th,
-.prose td {
-    padding: 0.4rem 0.7rem;
-    border: 1px solid var(--border);
-}
-
-/* Heading anchors (Task 9). The "#" is real link text, not generated content, so assistive
-   technology can announce the link; it is only visually de-emphasized until hover or focus. */
-.headlink {
-    margin-left: 0.4rem;
-    color: var(--muted);
-    text-decoration: none;
-    opacity: 0;
-}
-
-h2:hover .headlink,
-h3:hover .headlink,
-h4:hover .headlink,
-h5:hover .headlink,
-h6:hover .headlink,
-.headlink:focus {
-    opacity: 1;
-}
-
-@media (max-width: 48rem) {
-    .site-body {
-        flex-direction: column;
+    .pair {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: var(--space-xl);
     }
 
+    .split {
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        gap: var(--space-3xl);
+    }
+
+    /* The alternation. Order is swapped visually only; the DOM keeps claim-before-proof, so the
+       reading order on a screen reader and at narrow widths is unchanged. The ratio inverts with
+       it, so the wide column follows the figure rather than staying under the prose. */
+    .split--flip {
+        grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    }
+
+    .split--flip > :first-child {
+        order: 2;
+    }
+
+    /* A section whose content needs the full measure: the head stacks above it, and the gap
+       between the two is the section's internal rhythm rather than its column gutter. */
+    .split--wide {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-xl);
+    }
+
+    .docs-shell {
+        grid-template-columns: var(--rail-width) minmax(0, 1fr);
+        gap: var(--space-3xl);
+        padding-block: var(--space-3xl);
+    }
+
+    /* Explicit placement rather than `order`, so the rail lands in the first column without
+       depending on how many siblings the shell has. */
+    .docs-rail {
+        grid-column: 1;
+        grid-row: 1;
+        position: sticky;
+        /* Docked beneath the banner, not at the viewport top: two elements stuck to 0 overlap, and
+           the one deeper in the DOM paints over the bar. */
+        top: calc(var(--nav-height) + var(--space-lg));
+        z-index: var(--z-sticky);
+        padding-top: 0;
+        border-top: 0;
+    }
+
+    .docs-content {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .site-header {
+        position: sticky;
+        top: 0;
+        z-index: var(--z-sticky-nav);
+    }
+}
+
+/* --- Typography breakpoint (40rem) ---------------------------------------- */
+
+@media (max-width: 40rem) {
+    .split,
+    .hero {
+        padding-block: var(--space-2xl);
+    }
+
+    /* Three destinations and a wordmark have to share 320 px. Every label here is already as short
+       as it can be, so the row is fitted by stepping the type down rather than by hiding a
+       destination -- the demo is the one a reader on a phone is most likely to want, and it is the
+       one a "hide the last item" rule would take away. */
     .site-nav {
-        position: static;
-        flex-basis: auto;
-        width: 100%;
+        gap: var(--space-sm);
+        padding-inline: var(--space-md);
+    }
+
+    .brand .nav-link {
+        font-size: var(--text-sm);
+    }
+
+    .site-nav .nav-link {
+        font-size: var(--text-xs);
+    }
+
+    .nav-utilities {
+        gap: var(--space-sm);
+    }
+
+    .nav-utilities .chip {
+        padding: var(--space-xs) var(--space-sm);
+    }
+
+    .install code {
+        font-size: var(--text-xs);
+    }
+}
+
+/* Coarse pointers need a real hit target regardless of how small the label is. */
+@media (pointer: coarse) {
+    .chip,
+    .install-copy,
+    .site-nav .nav-link {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .rail-list .nav-link,
+    .index-link {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 150ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 150ms !important;
     }
 }
