@@ -608,6 +608,76 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
+    /// An extension method the consumer declared on <c>ElementView</c>. It binds, so there is no C# error at
+    /// all here, and the only diagnostic on the line was BCF1003 (#241).
+    /// </summary>
+    /// <remarks>
+    /// Run through <see cref="CompilationTestHost.RunGenerator(ValueTuple{string, string}[])"/> rather than
+    /// through <see cref="HostFiles"/>, because the extension has to be declared in a static class of its own
+    /// and <c>members</c> is spliced into the component's body. Adding a fourth file to
+    /// <see cref="HostFiles"/> would change the input of every test in this class.
+    /// </remarks>
+    [Fact]
+    public void UnrecognizedElementExtension_ReportsBCF3026()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace T;
+
+                public static class Hx
+                {
+                    public static ElementView HxGet(this ElementView element, string url) => element;
+                }
+
+                public partial class Host : BodyComponentBase
+                {
+                    protected override View Body => Div.HxGet("/x")["hi"];
+                }
+                """));
+
+        Assert.Contains(
+            result.Diagnostics,
+            static d => d.Id == "BCF3026" && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    /// <summary>
+    /// The same shape returning <c>View</c> is not reported, and keeps BCF1003.
+    /// </summary>
+    /// <remarks>
+    /// The return-type conjunct is what keeps ordinary calls on an element out of this diagnostic:
+    /// <c>Div.ToString()</c> has the same receiver and the same unrecognized name, and only the return type
+    /// tells the two apart. A method that returns <c>View</c> wraps rather than decorates, so it is left
+    /// outside on purpose; that is the residue recorded on #241 and not an oversight.
+    /// </remarks>
+    [Fact]
+    public void ElementExtensionReturningView_StaysBCF1003()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace T;
+
+                public static class Wrapper
+                {
+                    public static View Wrap(this ElementView element) => default;
+                }
+
+                public partial class Host : BodyComponentBase
+                {
+                    protected override View Body => Div.Wrap();
+                }
+                """));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3026");
+    }
+
+    /// <summary>
     /// The <c>Host.cs</c> source text <paramref name="diagnostic"/> is located on, which is its report anchor.
     /// </summary>
     /// <remarks>

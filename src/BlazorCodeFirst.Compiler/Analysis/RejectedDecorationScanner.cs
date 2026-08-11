@@ -224,8 +224,11 @@ internal static class RejectedDecorationScanner
     /// <see cref="IsMisplacedDecoration"/>'s, so the two conditions cannot both hold.
     /// </para>
     /// <para>
-    /// Only the unbound shape is covered here, the misspelling that binds to nothing. A call that does bind
-    /// falls through to BCF1003 exactly as before.
+    /// Both measured shapes of #241 arrive here. A misspelling binds to nothing, and an extension method the
+    /// consumer declared on <c>ElementView</c> binds cleanly and gives one back, so the return-type test is
+    /// what separates a decoration-shaped call from <c>ToString</c> and from any other ordinary member of an
+    /// element. A binding that returns <c>View</c> is left out on purpose: it wraps rather than decorates,
+    /// and it keeps reporting BCF1003.
     /// </para>
     /// </remarks>
     private static bool IsUnknownDecorationName(
@@ -245,6 +248,14 @@ internal static class RejectedDecorationScanner
         if (!SymbolEqualityComparer.Default.Equals(receiverType, symbols.ElementViewType))
             return false;
 
-        return context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null;
+        // Nothing bound: the name exists nowhere, which is the misspelling. Roslyn computes CS1061 for it and
+        // the author never sees that error, so this is the shape the diagnostic exists for.
+        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null)
+            return true;
+
+        // Something bound. It is a decoration in shape but not in declaration only when it takes an element
+        // and gives one back; anything else written on an element is an ordinary call this must not blame.
+        var reached = context.SemanticModel.GetTypeInfo(invocation, context.CancellationToken).Type;
+        return SymbolEqualityComparer.Default.Equals(reached, symbols.ElementViewType);
     }
 }

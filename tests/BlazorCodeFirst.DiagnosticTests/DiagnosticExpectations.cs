@@ -183,7 +183,10 @@ public static class DiagnosticExpectations
             Note: "The delivery claim is the whole point of this fixture. CS1061 is what would name the " +
                 "misspelling, and it is never computed, because the class carries CS0534 and csc stops " +
                 "after the declaration stage. Only a real build shows that, so the in-process assertion " +
-                "in BracketSurfaceDiagnosticTests cannot stand in for it."),
+                "in BracketSurfaceDiagnosticTests cannot stand in for it. The diagnostic's other shape, " +
+                "a bound extension method on ElementView that the runtime does not declare, is covered " +
+                "in-process: an id gets one fixture occurrence, and that shape raises no C# error for " +
+                "the cutoff to suppress, so it has no delivery claim of its own to make."),
     ];
 
     /// <summary>
