@@ -401,7 +401,7 @@ are what a reviewer can still disagree with, and left out of the description the
 `Why and what` asks for those first and the claim second, because the diff already carries what the
 code does.
 
-There are no checkboxes, deliberately. This repository's author and its maintainer are the same person,
+There are no checkboxes, deliberately. This repository is written and reviewed by the same person,
 so `[ ] I have read CONTRIBUTING.md` asks the writer to confirm something to themselves, and
 `[ ] Tests added` is a weaker version of what CI refuses to merge without. The
 conventional-commit prefix already carries the change type, so a "type of change" field would ask for
