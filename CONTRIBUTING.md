@@ -383,10 +383,13 @@ renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
 `.github/PULL_REQUEST_TEMPLATE.md` has four sections, each explained in an HTML comment you delete
 along with the comment. Two of them are conditional and say so.
 
-The one rule worth stating outside the template: **a pull request says what the code does now, not how
-the decision was reached.** The reasoning belongs on the issue and, once settled, in `DESIGN.md` or
-`ARCHITECTURE.md`. Restating it in the description makes a third copy of one argument, and the copy
-nobody maintains is the one in the description.
+Three kinds of "why" meet in a description and only one belongs there. Why the work exists is on the
+issue; why the design is the shape it is, once settled, is in `DESIGN.md` or `ARCHITECTURE.md`. Both
+have a maintained home, and a copy in a description is the copy nobody updates. The judgements taken
+while making this change have none: they are about the change rather than the finished design, they
+are what a reviewer can still disagree with, and left out of the description they are nowhere.
+`Why and what` asks for those first and the claim second, because the diff already carries what the
+code does.
 
 There are no checkboxes, deliberately. This repository's author and its maintainer are the same person,
 so `[ ] I have read CONTRIBUTING.md` asks the writer to confirm something to themselves, and
@@ -394,16 +397,13 @@ so `[ ] I have read CONTRIBUTING.md` asks the writer to confirm something to the
 conventional-commit prefix already carries the change type, so a "type of change" field would ask for
 it twice.
 
-`Verification` is the section that argument depends on, and until 2026-08 the dependency was
-unfunded: `main` had no branch protection and no ruleset, so nothing was refused and every pull
-request wrote out the commands from §Build and test by hand. A repository ruleset now requires
-`build-test (ubuntu-latest, linux-x64)`, `build-test (macos-latest, osx-arm64)`, and `browser`,
-which between them run the build, `dotnet format`, the whole slnx test run, the package and trim
-verification, and the browser specs. Those results are on the pull request already, so the section
-is for what they cannot reach: the two measurement commands no CI step runs, anything checked by
-hand or against a deployment, and `site.yml`, which is not a required check yet (#250). A command
-listed there and never run reads exactly like one that was, which is the reason to list fewer of
-them rather than more.
+`Verification` applies the same economy to results rather than to reasoning. A repository ruleset
+requires `build-test (ubuntu-latest, linux-x64)`, `build-test (macos-latest, osx-arm64)`, and
+`browser`, which between them run the build, `dotnet format`, the whole slnx test run, the package
+and trim verification, and the browser specs. Those results are on the pull request already, so the
+section is for what they cannot reach: the two measurement commands no CI step runs, anything
+checked by hand or against a deployment, and `site.yml`, which is not a required check yet (#250). A
+command listed there and never run reads exactly like one that was.
 
 ## Conventions the code must uphold
 
