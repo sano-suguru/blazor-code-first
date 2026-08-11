@@ -64,4 +64,26 @@ public class HighlightCssEmitterTests
             Assert.Matches(@"\." + Regex.Escape(cls) + @"\s*\{", css);
         }
     }
+
+    // ColorCodeTheme repaints DefaultLight onto the site's palette, and it has to write hex rather
+    // than a var() reference because ColorCode trims what it assumes is an alpha channel off the
+    // front of the value before emitting it. That trimming is the fragile part: it is undocumented,
+    // and a version that started parsing the value -- or one that renamed a scope so Repaint added
+    // a new entry instead of overwriting the old one -- would leave the Visual Studio palette in
+    // place with every other test here still green.
+    //
+    // Asserting both directions is the point. The presence check catches a repaint that stopped
+    // being applied; the absence check catches a repaint that was applied to a duplicate entry
+    // while the original rule survived alongside it.
+    [Theory]
+    [InlineData("keyword", "#463ECC", "#0000FF")]
+    [InlineData("string", "#006647", "#A31515")]
+    [InlineData("comment", "#676871", "#008000")]
+    public void Emit_RepaintsScopeOntoTheSitePalette(string cls, string expected, string defaultLight)
+    {
+        string css = HighlightCssEmitter.Emit();
+
+        Assert.Contains($".{cls}{{color:{expected};}}", css, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($".{cls}{{color:{defaultLight};}}", css, StringComparison.OrdinalIgnoreCase);
+    }
 }
