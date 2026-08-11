@@ -174,12 +174,20 @@ public static class Decorations
     /// event attribute name including the <c>on</c> prefix, a non-empty compile-time constant.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <typeparamref name="TArgs"/> is inferred from an explicitly typed lambda parameter
     /// (<c>.On("oninput", (ChangeEventArgs e) =&gt; …)</c>), so writing it out is legal but never necessary.
-    /// Razor infers the argument type from the event name through its <c>[EventHandler]</c> metadata; a
-    /// string-named decoration cannot, because C# overload resolution runs before the generator observes
-    /// the expression and the generator does not influence binding. Nothing here checks that
-    /// <typeparamref name="TArgs"/> is the type the named event actually delivers.
+    /// Razor <em>infers</em> the argument type from the event name through its <c>[EventHandler]</c>
+    /// metadata; a string-named decoration cannot, because C# overload resolution runs before the generator
+    /// observes the expression and the generator does not influence binding.
+    /// </para>
+    /// <para>
+    /// It is nevertheless checked against the same metadata: an argument type the named event cannot deliver
+    /// is BCF3028, and so is a <typeparamref name="TArgs"/> that is not a <see cref="System.EventArgs"/> at
+    /// all. The test is assignability, so a base type is accepted
+    /// (<c>.On("onclick", (System.EventArgs e) =&gt; …)</c> receives a <c>MouseEventArgs</c>), and an event
+    /// with no <c>[EventHandler]</c> registration has no mapping and is not checked.
+    /// </para>
     /// </remarks>
     /// <typeparam name="TArgs">The event argument type the handler receives.</typeparam>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>

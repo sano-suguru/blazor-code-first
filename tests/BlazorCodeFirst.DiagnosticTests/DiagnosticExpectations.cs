@@ -199,6 +199,21 @@ public static class DiagnosticExpectations
                 "neither. Only the member-shadows-a-helper shape is here; the type-shadows-a-helper " +
                 "shape is deliberately not a BCF at all, C# reporting CS0119 for it, and is pinned " +
                 "in-process as the boundary it is."),
+        new(
+            "BCF3028",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3028.cs",
+            "(int x) => { }",
+            Note: "Of the two shapes this id fires on, the one whose delivery is in question: a TArgs " +
+                "outside the where TArgs : System.EventArgs constraint binds to nothing, so CS0311 is the " +
+                "C# error that would name it and the class carries CS0534, which stops csc before it binds " +
+                "the body. Measured on #155, the author's whole list was CS0534 and a BCF1003 saying the " +
+                "expression is not statically analyzable. The other shape, a handler whose type merely " +
+                "disagrees with the event's [EventHandler] mapping, binds and raises no C# error at all, " +
+                "so it has no delivery claim of its own; it is covered in-process, where a reference to " +
+                "Microsoft.AspNetCore.Components.Web supplies the mapping this fixture does not have. " +
+                "Anchors the handler, because the parameter type written there is what has to change."),
     ];
 
     /// <summary>
