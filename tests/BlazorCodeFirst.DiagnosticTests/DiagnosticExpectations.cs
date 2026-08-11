@@ -151,7 +151,10 @@ public static class DiagnosticExpectations
             Note: "Anchors the value argument rather than the name. Either half could change, but the " +
                 "author who reached this wanted a class conditionally applied, and that is written on " +
                 "the value side as a string expression; renaming the attribute would abandon the " +
-                "intent instead of expressing it."),
+                "intent instead of expressing it. The fixture writes the value out, so this anchor is " +
+                "the written argument. The spelling that writes none, .Attr(\"class\"), is anchored at " +
+                "the decoration name instead, there being nothing else to point at, and is covered " +
+                "in-process by HtmlAttributeGeneratorTests."),
         new(
             "BCF3024",
             FixtureKind.GeneratorViaProjectReference,

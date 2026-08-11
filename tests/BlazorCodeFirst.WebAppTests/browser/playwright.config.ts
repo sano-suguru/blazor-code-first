@@ -8,7 +8,8 @@ import { defineConfig } from '@playwright/test';
  * without it.
  *
  * `url` points at /counter rather than at the base URL. This host has no route at "/" — the four
- * routes are /counter, /fold-escaping, /bind-resync and /fold-parity, there is no wwwroot and no
+ * routes are /counter, /fold-escaping, /bind-resync, /fold-parity, /null-attribute and
+ * /null-attribute-prerender, there is no wwwroot and no
  * <NotFound> — and MapRazorComponents maps one endpoint per @page without a catch-all, so GET /
  * is a 404 (measured, along with /index.html, which is what Playwright retries before giving up).
  * Playwright's readiness probe (isURLAvailable) treats a second 404 as "not ready", so a base-URL

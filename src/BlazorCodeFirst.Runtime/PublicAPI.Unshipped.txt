@@ -20,17 +20,18 @@ BlazorCodeFirst.ContentView.ContentView() -> void
 BlazorCodeFirst.ContentView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
 static BlazorCodeFirst.ContentView.implicit operator BlazorCodeFirst.ContentView(BlazorCodeFirst.View view) -> BlazorCodeFirst.ContentView
 BlazorCodeFirst.Decorations
-static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementBuilder element, string! class) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementBuilder element, string? class) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Href(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Src(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Alt(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Id(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Type(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Title(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Role(this BlazorCodeFirst.ElementBuilder element, string! value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, string! value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Href(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Src(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Alt(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Id(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Type(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Title(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Role(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, string? value) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, bool value) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
 static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder

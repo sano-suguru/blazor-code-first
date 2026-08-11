@@ -151,4 +151,32 @@ public sealed class PrerenderTests
         // absence directly.
         Assert.DoesNotContain("<script>alert(1)</script>", document, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// The static-SSR half of #171: the .NET <c>HtmlRenderer</c> writes no attribute for a null value and
+    /// <c>title=""</c> for an empty string. Asserted as substrings of the response rather than through a
+    /// parser, because what is under test is the text the renderer wrote and a parser normalizes exactly
+    /// the difference between an absent attribute and an empty one.
+    /// </summary>
+    /// <remarks>
+    /// The view starts in its present state, so what this reads is a value, not the null. The absent state
+    /// is measured where a state change is available: the integration tests re-render it, and
+    /// <c>null-attribute.spec.ts</c> toggles it in a browser. What belongs here instead is the one shape
+    /// only this layer produces — a <see langword="true"/> <see langword="bool"/> written bare, with no
+    /// <c>=""</c>, which parses to the same DOM the client-side path sets.
+    /// </remarks>
+    [Fact]
+    public async Task NullAttribute_page_prerenders_a_present_value_and_a_bare_bool()
+    {
+        var document = await GetDocumentAsync("null-attribute-prerender");
+
+        Assert.Contains("""<span id="to-null" title="tip">""", document, StringComparison.Ordinal);
+        Assert.Contains("""<span id="to-empty" title="tip">""", document, StringComparison.Ordinal);
+
+        // class precedes the other attributes whatever order the decorations were written in: the channel
+        // emits its one folded frame first (EmitClassAttribute, before the attribute loop), so the id
+        // written ahead of .Class in the view still lands after it here.
+        Assert.Contains("""<span class="card active" id="class-join">""", document, StringComparison.Ordinal);
+        Assert.Contains("""<span id="bool" data-v>""", document, StringComparison.Ordinal);
+    }
 }

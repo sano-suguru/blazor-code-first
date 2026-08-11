@@ -46,6 +46,21 @@ internal static class ExpressionTemplateFactory
     public static ExpressionTemplate Create(ExpressionSyntax expression, ComposableBodyContext context) =>
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
 
+    /// <summary>
+    /// The template for a <see langword="bool"/> literal the author did not write, which is what an omitted
+    /// optional value argument means: <c>.Attr("disabled")</c> is <c>.Attr("disabled", true)</c> with the
+    /// default supplied (#178).
+    /// </summary>
+    /// <remarks>
+    /// Here rather than at the one call site that needs it, so "a value becomes a template" stays one rule.
+    /// The code text and the constant have to agree — the emitter reads the text, the fold reads the
+    /// constant — and this is the file where that agreement is otherwise established.
+    /// </remarks>
+    public static ExpressionTemplate ForBooleanConstant(bool value) =>
+        ExpressionTemplate.Create(
+            [new LiteralExpressionSegment(value ? "true" : "false")],
+            new BooleanConstant(value));
+
     private static ExpressionTemplate CreateCore(
         ExpressionSyntax expression,
         ComposableBodyContext context,

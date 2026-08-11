@@ -578,12 +578,17 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            if (!TryResolveDecorationName(
-                    invocation, args, firstArg, shortcutName, eventParameters.HandlerIndex, context,
-                    out var eventName, out var handlerExpr))
-            {
+            if (!TryResolveDecorationName(invocation, firstArg, shortcutName, context, out var eventName))
                 return null;
-            }
+
+            // No event overload declares an optional handler, so a missing one is a call this compiler was
+            // not written against. Returning null without reporting sends the body to BCF1003, which is
+            // where an unrecognized call belongs; the attribute channel's own reading of "no argument" is
+            // deliberately different (#178), which is why neither is in the shared resolver.
+            if (args.At(eventParameters.HandlerIndex) is not { } handlerArgument)
+                return null;
+
+            var handlerExpr = handlerArgument.Expression;
 
             // The event-shortcut path supplies its own name from a literal table and never reaches
             // here with a bad one, so only the .On / .Bind string path is checked.
@@ -611,32 +616,44 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        // .Class, an attribute shortcut, or the generic .Attr. The value is the last parameter of all
-        // three — the name, where it is written at all, is the one ahead of it — and this one derivation
-        // answers both readings below: the argument index the value is carried at, and the value's type,
-        // which is what the class channel admits or refuses on. Deriving it once is what puts .Class and
-        // .Attr("class", …) under the same admission, where the type used to be read on the .Attr route
-        // alone (#193).
-        var attributeValue = method.Parameters[method.Parameters.Length - 1];
+        // .Class, an attribute shortcut, or the generic .Attr. The value is the last parameter — the name,
+        // where it is written at all, is the one ahead of it — and this one derivation answers both readings
+        // below: the argument index the value is carried at, and the value's type, which is what the class
+        // channel admits or refuses on. Deriving it once is what puts .Class and .Attr("class", …) under the
+        // same admission, where the type used to be read on the .Attr route alone (#193).
+        //
+        // .Attr(name) is the one spelling with no value parameter at all: the last parameter is the name,
+        // and reading it as the value would hand the class channel a string spelled "class" and emit
+        // class="class" (#178). Named here rather than guarded at each reader, so the two questions below
+        // are still asked once.
+        var attributeValue = HasValueParameter(method, kind)
+            ? method.Parameters[method.Parameters.Length - 1]
+            : null;
+
+        // The presence the bare spelling stands for. A bool, so `class` refuses it as BCF3023 exactly as the
+        // written bool overload does, and so the fold writes it as name="" through the branch that overload
+        // already goes through.
+        var attributeValueType = attributeValue?.Type
+            ?? context.SemanticModel.Compilation.GetSpecialType(SpecialType.System_Boolean);
 
         // .Class is the channel and carries no name to resolve, so it routes before the name is read.
         if (kind == SurfaceMethodKind.Class)
         {
             return FoldIntoClassChannel(
-                invocation, decoAccess, element, attributeValue.Type, firstArg.Expression, context);
+                invocation, decoAccess, element, attributeValueType,
+                new AttributeValueSource(firstArg.Expression, firstArg.GetLocation()), context);
         }
 
-        if (!TryResolveDecorationName(
-                invocation, args, firstArg, shortcutName, KnownSymbols.ArgumentIndex(attributeValue),
-                context, out var attrName, out var valueExpr))
-        {
+        if (!TryResolveDecorationName(invocation, firstArg, shortcutName, context, out var attrName))
             return null;
-        }
+
+        if (!TryResolveAttributeValue(args, decoAccess, attributeValue, out var value))
+            return null;
 
         // 'class' routes to the channel rather than to Attributes, the same as .Class, and may repeat.
         // The shortcut route never spells the name, so only .Attr arrives here.
         if (ClassChannel.Owns(attrName))
-            return FoldIntoClassChannel(invocation, decoAccess, element, attributeValue.Type, valueExpr, context);
+            return FoldIntoClassChannel(invocation, decoAccess, element, attributeValueType, value, context);
 
         // Reject before normalizing the value, as the event channel does: normalization reports on the
         // value's own types, and a rejected decoration's value never reaches generated code.
@@ -651,8 +668,85 @@ internal static class RenderExpressionAnalyzer
         return element with
         {
             Attributes = element.Attributes.AsImmutableArray().Add(
-                new AttributeTemplate(attrName, ExpressionTemplateFactory.Create(valueExpr, context))),
+                new AttributeTemplate(attrName, value.Normalize(context))),
         };
+    }
+
+    /// <summary>
+    /// Whether the resolved decoration declares a parameter for its value. Every spelling does except
+    /// <c>.Attr(name)</c>, the bare form of a valueless attribute (#178), whose only parameters are the
+    /// receiver and the name.
+    /// </summary>
+    /// <remarks>
+    /// Asked of the parameter count rather than of the argument count, so a named argument answers the same.
+    /// The receiver is skipped through <see cref="KnownSymbols.ReceiverOffset(IMethodSymbol)"/> rather than
+    /// assumed present: the symbol reaching here is reduced for the fluent spelling
+    /// (<c>view.Attr("disabled")</c>) and unreduced for the static one
+    /// (<c>Decorations.Attr(view, "disabled")</c>), so a count compared against a literal would read one of
+    /// the two as the wrong arity — and read <em>every</em> <c>.Attr</c> as valueless in the fluent case,
+    /// which is what a first draft of this did.
+    /// </remarks>
+    private static bool HasValueParameter(IMethodSymbol method, SurfaceMethodKind kind) =>
+        kind != SurfaceMethodKind.Attr
+            || method.Parameters.Length - KnownSymbols.ReceiverOffset(method) > 1;
+
+    /// <summary>
+    /// Where an attribute-channel decoration's value came from, before it is normalized: the expression the
+    /// author wrote, or nothing at all for the one spelling that declares no value parameter.
+    /// </summary>
+    /// <remarks>
+    /// Normalization is deliberately not done on construction. It is what reports BCF3015 for a value whose
+    /// type cannot be emitted, and a decoration rejected for some other reason — a duplicate binding — never
+    /// reaches generated code, so its value's type is not the author's problem. Carrying the source and
+    /// normalizing at the point each caller has finished refusing is what keeps that ownership
+    /// (<c>UnresolvedEmittedTypeTests.DuplicateAttribute_UnresolvedValueType_RemainsBCF3010Owned</c>).
+    /// </remarks>
+    /// <param name="Written">
+    /// The written value expression, or <see langword="null"/> for <c>.Attr(name)</c>.
+    /// </param>
+    /// <param name="Location">
+    /// Where a rule about the value reports. The written argument, or the decoration's own name when there
+    /// is no argument to point at.
+    /// </param>
+    private readonly record struct AttributeValueSource(ExpressionSyntax? Written, Location Location)
+    {
+        /// <summary>
+        /// The value as a template. <c>.Attr(name)</c> means the attribute is present with no value, which
+        /// is <c>.Attr(name, true)</c> in every respect but how it reads (#178), so it becomes that same
+        /// constant here. Synthesizing it in one place is what keeps the two spellings on one path:
+        /// everything downstream — the class channel's admission, the fold's <c>name=""</c> branch, the
+        /// emitted frame — sees the same constant either way, so they cannot translate differently.
+        /// </summary>
+        public ExpressionTemplate Normalize(ComposableBodyContext context) =>
+            Written is null
+                ? ExpressionTemplateFactory.ForBooleanConstant(true)
+                : ExpressionTemplateFactory.Create(Written, context);
+    }
+
+    /// <summary>
+    /// Reads where an attribute-channel decoration's value comes from, or fails for a call this compiler was
+    /// not written against (a value parameter that received no argument and has no default).
+    /// </summary>
+    private static bool TryResolveAttributeValue(
+        FactoryArguments args,
+        MemberAccessExpressionSyntax decoAccess,
+        IParameterSymbol? valueParameter,
+        [MaybeNullWhen(false)] out AttributeValueSource source)
+    {
+        if (valueParameter is null)
+        {
+            source = new AttributeValueSource(Written: null, decoAccess.Name.GetLocation());
+            return true;
+        }
+
+        if (args.At(KnownSymbols.ArgumentIndex(valueParameter)) is { } written)
+        {
+            source = new AttributeValueSource(written.Expression, written.GetLocation());
+            return true;
+        }
+
+        source = default;
+        return false;
     }
 
     /// <summary>
@@ -728,7 +822,7 @@ internal static class RenderExpressionAnalyzer
         MemberAccessExpressionSyntax decoAccess,
         ElementTemplateNode element,
         ITypeSymbol valueType,
-        ExpressionSyntax value,
+        AttributeValueSource value,
         ComposableBodyContext context)
     {
         switch (ClassChannel.Admit(element, valueType))
@@ -736,7 +830,7 @@ internal static class RenderExpressionAnalyzer
             case ClassChannelAdmission.ValueDoesNotJoin:
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3023, value.GetLocation(), []));
+                    DiagnosticDescriptors.BCF3023, value.Location, []));
                 return null;
 
             case ClassChannelAdmission.NameAlreadyBound:
@@ -748,8 +842,7 @@ internal static class RenderExpressionAnalyzer
 
         return element with
         {
-            Classes = element.Classes.AsImmutableArray().Add(
-                ExpressionTemplateFactory.Create(value, context)),
+            Classes = element.Classes.AsImmutableArray().Add(value.Normalize(context)),
         };
     }
 
@@ -1696,8 +1789,8 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Resolves the name a decoration targets and the argument carrying its value, reporting BCF3011 when a
-    /// non-shortcut spelling names it with something that is not a constant.
+    /// Resolves the name a decoration targets, reporting BCF3011 when a non-shortcut spelling names it with
+    /// something that is not a constant.
     /// </summary>
     /// <param name="shortcutName">
     /// The name a named shortcut implies (<c>.Href</c> → <c>href</c>, <c>.OnClick</c> → <c>onclick</c>),
@@ -1706,50 +1799,37 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="KnownSymbols.AttributeShortcuts"/> or <see cref="KnownSymbols.EventShortcuts"/>, whose
     /// values are never null.
     /// </param>
-    /// <param name="valueIndex">
-    /// The argument index the decoration's value is carried at, which the caller resolves: positionally for
-    /// the attribute channel, and out of <see cref="EventParameters.HandlerIndex"/> for the event channel,
-    /// whose readers have to agree with each other about it (#221).
-    /// </param>
     /// <remarks>
     /// The attribute channel and the event channel ask the same question here and must answer it the same
     /// way: the two ladders this replaces were an eighteen-line transcription of each other, so a change to
     /// how a non-constant name is diagnosed had to be made twice or the two would disagree about the same
-    /// mistake. What genuinely differs between them — where the value sits, that an event name must begin
-    /// with <c>on</c>, that <c>class</c> routes to its own channel — stays at the call sites.
+    /// mistake. What genuinely differs between them stays at the call sites, and the value is one of those
+    /// differences — not merely where it sits, but what its absence means. The attribute channel's
+    /// <see langword="bool"/> value is an optional whose default is <see langword="true"/> (#178), so an
+    /// omitted argument there is a spelling; no event overload has an optional handler, so an omitted one
+    /// there is a call this compiler was not written against and must reach BCF1003. Synthesizing a value
+    /// here would emit <c>AddAttribute(seq, "onclick", true)</c> for the second case.
     /// </remarks>
     private static bool TryResolveDecorationName(
         InvocationExpressionSyntax invocation,
-        FactoryArguments args,
         ArgumentSyntax firstArg,
         string? shortcutName,
-        int valueIndex,
         ComposableBodyContext context,
-        [MaybeNullWhen(false)] out string name,
-        [MaybeNullWhen(false)] out ExpressionSyntax value)
+        [MaybeNullWhen(false)] out string name)
     {
-        value = null!;
-
         if (shortcutName is not null)
         {
             name = shortcutName;
-        }
-        else if (!TryGetConstantName(firstArg.Expression, context, out name))
-        {
-            context.RejectUnresolvedValueRecovery(invocation.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
-            return false;
+            return true;
         }
 
-        if (args.At(valueIndex) is not { } valueArgument)
-        {
-            name = null;
-            return false;
-        }
+        if (TryGetConstantName(firstArg.Expression, context, out name))
+            return true;
 
-        value = valueArgument.Expression;
-        return true;
+        context.RejectUnresolvedValueRecovery(invocation.Span);
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3011, firstArg.GetLocation(), []));
+        return false;
     }
 
     /// <summary>

@@ -11,6 +11,7 @@ public sealed class HtmlAttributeGeneratorTests
                 private string _url = "/x";
                 private string _a => "a";
                 private string _b => "b";
+                private string? _maybe => null;
                 private bool _flag => true;
                 protected override View Body => {{body}};
             }
@@ -193,5 +194,202 @@ public sealed class HtmlAttributeGeneratorTests
     public void EmptyOnEventName_ReportsBCF3011()
     {
         Assert.Contains(Diags("""Html.Div.On("", () => { })"""), d => d.Id == "BCF3011");
+    }
+
+    /// <summary>
+    /// A conditional attribute value, which is what the nullable widening exists for (#171). Measured in
+    /// Chromium: <c>AddAttribute</c> appends no frame for a null string, static SSR and prerender write no
+    /// attribute, and a re-render that turns the value null emits <c>RemoveAttribute</c>. The empty string
+    /// is a different value at every one of those stages, so the two spellings stay distinguishable here.
+    /// </summary>
+    [Fact]
+    public void NullableAttributeValue_IsPassedThroughToAddAttribute()
+    {
+        var code = Run("""Html.Span.Attr("title", _flag ? _a : null)["x"]""");
+        Assert.Contains("""__builder.AddAttribute(1, "title", _flag ? _a : null);""", code);
+    }
+
+    /// <summary>
+    /// The widening reaches the curated shortcuts too. Validity is not this surface's question
+    /// (<c>DESIGN.md</c> §4.1): an <c>img</c> with no <c>src</c> is written as the author wrote it.
+    /// </summary>
+    [Fact]
+    public void NullableShortcutValue_IsPassedThroughToAddAttribute()
+    {
+        var code = Run("""Html.Img.Src(_maybe)""");
+        Assert.Contains("""__builder.AddAttribute(1, "src", _maybe);""", code);
+    }
+
+    /// <summary>
+    /// The class channel takes a nullable term with no rule of its own: a null joins as the empty string,
+    /// leaving the separator behind (#236), and a lone null omits the attribute. Both are what the
+    /// previously recommended <c>.Class(on ? "on" : "")</c> spelling already produced, so the join is pinned
+    /// here unchanged rather than rewritten.
+    /// </summary>
+    [Fact]
+    public void NullableClassTerm_JoinsThroughTheExistingConcatenation()
+    {
+        var code = Run("""Html.Div.Class("card").Class(_maybe)[Html.Span["x"]]""");
+        Assert.Contains("""__builder.AddAttribute(1, "class", ("card") + " " + (_maybe));""", code);
+    }
+
+    /// <summary>
+    /// Every decoration that takes one value, written with a null-bearing argument and a bare
+    /// <see langword="null"/>, asserted to warn about nothing (#171). This is the assertion the widening is
+    /// answerable to: the three above pin what the generator emits, and the generator emitted that before
+    /// the parameters were widened — a <c>string?</c> reaching a <see langword="string"/> parameter is
+    /// CS8604 and a <see langword="null"/> literal is CS8625, both warnings, so nothing that asks only for
+    /// errors can tell the two surfaces apart. Under this repository's <c>TreatWarningsAsErrors</c> those
+    /// warnings are what an author actually hits.
+    /// </summary>
+    [Fact]
+    public void EveryValueDecoration_AcceptsANullableValueWithoutWarning()
+    {
+        // The nullable context is opted into here rather than in CompilationTestHost, because the test
+        // compilation leaves it off by default and this is the one test that is about nullability. A real
+        // project has it on — this repository's own Directory.Build.props does — so this is the setting an
+        // author writing the spellings below actually compiles under.
+        var result = CompilationTestHost.RunGenerator("""
+            #nullable enable
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private string? _maybe => null;
+
+                protected override View Body =>
+                    Html.Div
+                        .Class(_maybe)
+                        .Href(_maybe)
+                        .Src(_maybe)
+                        .Alt(_maybe)
+                        .Id(_maybe)
+                        .Type(_maybe)
+                        .Title(_maybe)
+                        .Role(_maybe)
+                        .Attr("data-a", _maybe)
+                        .Attr("data-b", null)[Html.Span[_maybe ?? "x"]];
+            }
+            """);
+
+        CompilationTestHost.AssertNoNullableWarnings(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+        CompilationTestHost.AssertNoDiagnostics(result);
+    }
+
+    /// <summary>
+    /// The bare spelling of a valueless attribute, which is how HTML writes it (#178). A default on the
+    /// existing <see langword="bool"/> overload rather than a one-argument sibling, so the two spellings
+    /// travel one path and cannot emit different frames — the acceptance criterion becomes structural
+    /// rather than something to test. Asserted anyway, because the structure is only as good as the value
+    /// the analyzer synthesizes for the omitted argument, and comparing whole generated files is what
+    /// would catch a difference anywhere in it.
+    /// </summary>
+    [Fact]
+    public void BareAttr_EmitsTheSameSourceAsAnExplicitTrue()
+    {
+        var bare = Run("""Html.Button.Attr("disabled")["Save"]""");
+        var explicitTrue = Run("""Html.Button.Attr("disabled", true)["Save"]""");
+
+        Assert.Equal(explicitTrue, bare);
+    }
+
+    /// <summary>
+    /// The one name the bare form cannot take. <c>class</c> folds into a channel that joins its decorations
+    /// as text, and a presence has no text — the same rule BCF3023 already applies to the
+    /// <see langword="bool"/> overload, reached here without the author writing a <see langword="bool"/>
+    /// anywhere. The location is the decoration's name, there being no value argument to point at.
+    /// </summary>
+    [Fact]
+    public void BareAttrOnClassChannel_ReportsBCF3023AtTheDecorationName()
+    {
+        // The source is spelled out here rather than taken from Diags, because the span has to be read back
+        // against it: DiagnosticInfo reconstructs its location from a file path and a span and holds no
+        // SyntaxTree, which is how the incremental model avoids rooting one, so Location.SourceTree is null.
+        const string source = """
+            using BlazorCodeFirst;
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body => Html.Div.Attr("class")["x"];
+            }
+            """;
+
+        var diagnostic = Assert.Single(
+            CompilationTestHost.RunGenerator(source).Diagnostics,
+            d => d.Id == "BCF3023");
+
+        var span = diagnostic.Location.SourceSpan;
+        Assert.Equal("Attr", source.Substring(span.Start, span.Length));
+    }
+
+    /// <summary>
+    /// The bare form leaves the other channels alone. No event overload has an optional handler, so a
+    /// missing one is a call this compiler was not written against and must keep reaching BCF1003 rather
+    /// than picking up a synthesized <see langword="true"/> — which would emit
+    /// <c>AddAttribute(seq, "onclick", true)</c>, an attribute whose handler never fires. The synthesis
+    /// lives at the attribute call site for exactly this reason, not in the name resolver both channels
+    /// share.
+    /// </summary>
+    [Fact]
+    public void EventDecorationWithNoHandler_FallsToBCF1003WithoutSynthesizingAValue()
+    {
+        var diagnostics = Diags("""Html.Div.On("onclick")["x"]""");
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF1003");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3023");
+    }
+
+    /// <summary>
+    /// A constant null attribute value on an element the fold cannot take. Measured (#234):
+    /// <c>AddAttribute</c>'s value position is overloaded, so a bare <see langword="null"/> is CS0121
+    /// between the <see langword="string"/> and <c>MulticastDelegate</c> overloads. The fold hides that —
+    /// a foldable element writes no attribute at all — so the element here carries an event to keep it on
+    /// the element path, which is the only path that reaches the emitted call.
+    /// </summary>
+    [Fact]
+    public void ConstantNullAttributeValue_OnAnUnfoldableElement_EmitsCodeThatCompiles()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private int _n;
+                protected override View Body =>
+                    Html.Span.Attr("title", null!).OnClick(() => _n++)["a"];
+            }
+            """);
+
+        // The compile comes first: it is the defect, and the cast's exact spelling is how this fixes it.
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.Contains(
+            """__builder.AddAttribute(1, "title", (global::System.String?)(null!));""",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
+    }
+
+    /// <summary>
+    /// The class channel writes a lone decoration's value as it stands, so it reaches the same overloaded
+    /// position and needs the same cast. Two or more decorations concatenate, and a concatenation is a
+    /// <see langword="string"/> whatever its terms are, so only the lone case is at risk.
+    /// </summary>
+    [Fact]
+    public void ConstantNullClassValue_OnAnUnfoldableElement_EmitsCodeThatCompiles()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private int _n;
+                protected override View Body =>
+                    Html.Span.Class(null!).OnClick(() => _n++)["b"];
+            }
+            """);
+
+        // The compile comes first: it is the defect, and the cast's exact spelling is how this fixes it.
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.Contains(
+            """__builder.AddAttribute(1, "class", (global::System.String?)(null!));""",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
     }
 }

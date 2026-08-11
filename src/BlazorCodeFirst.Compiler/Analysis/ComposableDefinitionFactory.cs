@@ -16,6 +16,22 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// </summary>
 internal static class ComposableDefinitionFactory
 {
+    /// <summary>
+    /// The type name a parameter's expansion local is declared with. <c>FullyQualifiedFormat</c> on its own
+    /// carries no nullable modifier, which made a <c>string?</c> parameter's local be declared
+    /// non-nullable and warn CS8600 the moment a null-bearing argument was assigned to it — a build
+    /// failure under <c>TreatWarningsAsErrors</c>, in a file the call site's author does not write (#235).
+    /// </summary>
+    /// <remarks>
+    /// Added to the format's options rather than replacing them: <c>FullyQualifiedFormat</c>'s own
+    /// <see cref="SymbolDisplayMiscellaneousOptions.UseSpecialTypes"/> and
+    /// <see cref="SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers"/> are both load-bearing here,
+    /// and <c>WithMiscellaneousOptions</c> would drop them.
+    /// </remarks>
+    private static readonly SymbolDisplayFormat LocalDeclarationFormat =
+        SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
     public static ComposableDiscoveryResult Create(
         GeneratorAttributeSyntaxContext attributeContext,
         KnownSymbols? knownSymbols,
@@ -176,7 +192,7 @@ internal static class ComposableDefinitionFactory
 
             parameters.Add(new ComposableParameter(
                 parameter.Ordinal,
-                parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                parameter.Type.ToDisplayString(LocalDeclarationFormat),
                 isContent));
         }
 
