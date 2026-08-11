@@ -41,7 +41,7 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "A method marked ViewPart must satisfy the compiler's supported static expansion contract.");
+            "A method marked [ViewPart] must satisfy the compiler's supported static expansion contract.");
 
     /// <summary>
     /// BCF3001: A BlazorCodeFirst base's design-time expression getter (<c>Body</c> on <c>BodyComponentBase</c>,
@@ -378,8 +378,8 @@ internal static class DiagnosticDescriptors
                 + "time.");
 
     /// <summary>
-    /// BCF3014: an inert design-time value (<c>View</c>, <c>ElementView</c>, or
-    /// <c>ComponentView&lt;T&gt;</c>) was passed to the generic <c>Param</c>, whose value is emitted
+    /// BCF3014: an inert design-time value (<c>View</c>, <c>ElementView</c>, <c>ComponentView&lt;T&gt;</c>,
+    /// or <c>SlotView</c>) was passed to the generic <c>Param</c>, whose value is emitted
     /// verbatim. Such a value binds the empty design-time marker rather than any content: an
     /// <c>object</c>-typed parameter accepts it with no exception at all and renders wrong output, and a
     /// typed parameter throws an invalid cast at runtime.
