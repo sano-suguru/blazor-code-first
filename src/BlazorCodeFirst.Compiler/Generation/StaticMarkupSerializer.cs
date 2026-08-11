@@ -136,14 +136,14 @@ internal static class StaticMarkupSerializer
             // All .Class decorations collapse into one class attribute (ARCHITECTURE.md §2.7(A)), which is
             // one frame however many there are. The name and the separator come from the channel, not from
             // literals written here: this markup and the emitter's join have to reach the same DOM, so
-            // neither of them gets to spell them for itself (#193). A constant null term is not a term on
-            // that path either (#236), so it takes its separator with it here too — and when every term is
-            // one, no attribute is written at all, which is what AddAttribute does with the null the frame
-            // path hands it.
+            // neither of them gets to spell them for itself (#193). Which terms are terms at all is read
+            // from the channel for the same reason — a constant null takes its separator with it here too
+            // (#236) — and when every term is one, no attribute is written at all, which is what
+            // AddAttribute does with the null the frame path hands it.
             var written = false;
             foreach (var @class in element.Classes)
             {
-                if (@class.Constant is NullConstant)
+                if (!ClassChannel.Contributes(@class))
                     continue;
 
                 if (written)
@@ -275,7 +275,7 @@ internal static class StaticMarkupSerializer
         // predicate.
         foreach (var @class in element.Classes)
         {
-            if (@class.Constant is NullConstant)
+            if (!ClassChannel.Contributes(@class))
                 continue;
 
             if (!IsFoldableConstantString(@class))

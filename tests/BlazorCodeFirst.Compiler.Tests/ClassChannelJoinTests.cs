@@ -16,10 +16,7 @@ public sealed class ClassChannelJoinTests
             .ToString();
 
     /// <summary>A constant string term, carrying the constant the analyzer would have read.</summary>
-    private static ExpressionTemplate Constant(string text) =>
-        ExpressionTemplate.Create(
-            [new LiteralExpressionSegment($"\"{text}\"")],
-            new StringConstant(text));
+    private static ExpressionTemplate Constant(string text) => ExpressionTemplate.StringLiteral(text);
 
     /// <summary>A constant null term.</summary>
     private static ExpressionTemplate ConstantNull() =>

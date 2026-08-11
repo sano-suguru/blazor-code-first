@@ -138,6 +138,22 @@ internal sealed record ExpressionTemplate
     public static ExpressionTemplate Literal(string code) =>
         new([new LiteralExpressionSegment(code)], constant: null);
 
+    /// <summary>
+    /// A template for the constant string <paramref name="text"/>: its code is the C# literal, and its
+    /// constant is that same text.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than at each call site because the two have to agree — the emitter reads the code, the
+    /// fold in <see cref="Generation.StaticMarkupSerializer"/> reads the constant — and a site that spells
+    /// the literal for itself is a site free to escape it differently. Asked by hole substitution below and
+    /// by <see cref="ClassChannel"/>, which rebuilds a run of adjacent constant terms as one.
+    /// </remarks>
+    public static ExpressionTemplate StringLiteral(string text) =>
+        new(
+            [new LiteralExpressionSegment(
+                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(text, quote: true))],
+            new StringConstant(text));
+
     public static ExpressionTemplate Create(
         ImmutableArray<ExpressionSegment> segments,
         ConstantInfo? constant = null) =>
@@ -167,12 +183,9 @@ internal sealed record ExpressionTemplate
         var segments = Segments.AsImmutableArray();
         if (segments.Length == 1
             && segments[0] is ParameterHoleExpressionSegment loneHole
-            && ArgumentAt(loneHole, arguments) is { Constant: StringConstant { Text: var constantText } constant })
+            && ArgumentAt(loneHole, arguments) is { Constant: StringConstant { Text: var constantText } })
         {
-            return new ExpressionTemplate(
-                [new LiteralExpressionSegment(
-                    Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(constantText, quote: true))],
-                constant);
+            return StringLiteral(constantText);
         }
 
         var builder = ImmutableArray.CreateBuilder<ExpressionSegment>(segments.Length);
@@ -223,8 +236,8 @@ internal sealed record ExpressionTemplate
     /// </summary>
     /// <remarks>
     /// Asked by both paths that write an attribute value — the attribute channel and the class channel's
-    /// lone-decoration case — so neither can be the one that forgets. The channel's two-or-more case does
-    /// not ask: a concatenation is a <see langword="string"/> whatever its terms are.
+    /// lone-term case — so neither can be the one that forgets. The channel's two-or-more case does not
+    /// ask: it writes a call to a join declared to return <see cref="string"/>, whatever its arguments are.
     /// <para>
     /// The alternative was to emit no frame for a constant null, which would match the fold exactly.
     /// Rejected because sequence numbers are allocated to <em>emitted</em> <c>RenderTreeBuilder</c> calls

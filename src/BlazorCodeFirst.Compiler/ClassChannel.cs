@@ -75,10 +75,10 @@ internal static class ClassChannel
     internal const char Separator = ' ';
 
     /// <summary>
-    /// <see cref="Separator"/> as a string literal in generated code. Held in a field because it cannot
-    /// be a <c>const</c>: a constant interpolated string needs every hole to be a constant
-    /// <em>string</em>, and this one is a <see langword="char"/>, so writing it inline would format it
-    /// afresh for every element carrying two or more decorations.
+    /// <see cref="Separator"/> as a string literal in generated code, for the join bodies to concatenate
+    /// around. Held in a field rather than a <c>const</c> because it cannot be one: a constant
+    /// interpolated string needs every hole to be a constant <em>string</em>, and this one is a
+    /// <see langword="char"/>.
     /// </summary>
     private static readonly string SeparatorLiteral = $"\"{Separator}\"";
 
@@ -120,6 +120,20 @@ internal static class ClassChannel
     internal static bool IsFolded(ElementTemplateNode element) => element.Classes.Length > 0;
 
     /// <summary>
+    /// Whether <paramref name="term"/> contributes to the channel's value. A constant
+    /// <see langword="null"/> does not: it carries no text, and a term that is nothing has no separator to
+    /// earn (#236).
+    /// </summary>
+    /// <remarks>
+    /// Asked here rather than at each site that needs it, because both paths have to drop the same terms
+    /// or they reach different DOM — the join below, and the markup fold's writer and its predicate. That
+    /// is the same reason <see cref="AttributeName"/> and <see cref="Separator"/> are read from here
+    /// instead of spelled on the markup path (#193); a rule stated at the site that happens to need it is
+    /// a rule the next site does not have to agree with.
+    /// </remarks>
+    internal static bool Contributes(ExpressionTemplate term) => term.Constant is not NullConstant;
+
+    /// <summary>
     /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
     /// emits. One surviving term is written as it stands, through
     /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
@@ -129,7 +143,7 @@ internal static class ClassChannel
     /// needs no cast of its own.
     /// </summary>
     /// <remarks>
-    /// Terms the compiler can read are settled here rather than left to the concatenation: a constant
+    /// Terms the compiler can read are settled here rather than left to the join: a constant
     /// <see langword="null"/> is dropped, because a term that is nothing has no separator to earn, and
     /// adjacent constant strings become one literal, because the text they join into is already known.
     /// What survives is the terms whose value exists only at render time.
@@ -146,15 +160,16 @@ internal static class ClassChannel
     /// At least one decoration. An element carrying none emits no frame at all, which is the caller's
     /// decision to make: there is no expression that stands for an absent attribute.
     /// </param>
-    /// <param name="widestJoin">
-    /// Raised to the number of terms the returned code joins, when that is two or more, so the emitter
-    /// knows which helper bodies to write. Left alone otherwise: a value the channel spells without a
-    /// join needs no helper.
+    /// <param name="joinArity">
+    /// The number of terms the returned code joins, or zero when it joins none. The emitter accumulates
+    /// the widest of these to know which helper bodies to write; which of them is widest is its question,
+    /// not the channel's.
     /// </param>
-    internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes, ref int widestJoin)
+    internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes, out int joinArity)
     {
         var array = classes.AsImmutableArray();
-        var terms = FoldReadableTerms(array);
+        var terms = ReadableTerms(array);
+        joinArity = 0;
 
         // Every term was a constant null. The value is a null of the channel's own type, spelled the way
         // the lone-decoration case spells it, so the cast that overloaded argument position needs comes
@@ -165,9 +180,7 @@ internal static class ClassChannel
         if (terms.Length == 1)
             return terms[0].ToAttributeValueCode();
 
-        if (terms.Length > widestJoin)
-            widestJoin = terms.Length;
-
+        joinArity = terms.Length;
         return $"{JoinHelperName}({string.Join(", ", terms.Select(static c => $"({c.ToCode()})"))})";
     }
 
@@ -192,24 +205,22 @@ internal static class ClassChannel
     /// </remarks>
     internal static string JoinHelperCode(int arity)
     {
-        var parameters = string.Join(", ", Enumerable.Range(0, arity).Select(static i => $"string? a{i}"));
+        var names = new string[arity];
+        for (var i = 0; i < arity; i++)
+            names[i] = $"a{i}";
+
+        var parameters = string.Join(", ", names.Select(static name => $"string? {name}"));
         var code = new StringBuilder($"private static string? {JoinHelperName}({parameters}) =>");
 
         for (var dropped = 0; dropped < arity; dropped++)
         {
-            var rest = Enumerable.Range(0, arity)
-                .Where(i => i != dropped)
-                .Select(static i => $"a{i}")
-                .ToList();
-            var withoutIt = rest.Count == 1
-                ? rest[0]
-                : $"{JoinHelperName}({string.Join(", ", rest)})";
-            code.Append($" a{dropped} is null ? {withoutIt} :");
+            // Below two, what is left is a term rather than a call: there is no join of one.
+            var rest = string.Join(", ", names.Where((_, i) => i != dropped));
+            var withoutIt = arity == 2 ? rest : $"{JoinHelperName}({rest})";
+            code.Append($" {names[dropped]} is null ? {withoutIt} :");
         }
 
-        var joined = string.Join(
-            $", {SeparatorLiteral}, ",
-            Enumerable.Range(0, arity).Select(static i => $"a{i}"));
+        var joined = string.Join($", {SeparatorLiteral}, ", names);
         return code.Append($" string.Concat({joined});").ToString();
     }
 
@@ -220,51 +231,77 @@ internal static class ClassChannel
     /// <remarks>
     /// Only <em>adjacent</em> constants join, because the channel's order is the author's and a constant
     /// on either side of a term that is not one cannot be moved across it.
+    /// <para>
+    /// Joining the runs is not tidiness, it is what pays for spelling the join as a call. An operator
+    /// chain over string literals was constant-folded by the C# compiler; a call is not, so without this
+    /// <c>.Class("a").Class("b")</c> would reach <see cref="JoinHelperName"/> at render time for a value
+    /// that was known at compile time. It is the frame path's own compensation, which is why the markup
+    /// path does not do it: that path writes the text directly and has nothing to fold back.
+    /// </para>
+    /// <para>
+    /// Returns <paramref name="classes"/> unchanged when there is nothing to settle, which is the common
+    /// case and the reason this can run on every emission — the same guard, for the same reason, as
+    /// <c>ExpressionTemplate.CoalesceLiterals</c>. Rebuilding a lone constant term would allocate a
+    /// template byte-identical to the one already in hand.
+    /// </para>
     /// </remarks>
-    private static ImmutableArray<ExpressionTemplate> FoldReadableTerms(
+    private static ImmutableArray<ExpressionTemplate> ReadableTerms(
         ImmutableArray<ExpressionTemplate> classes)
     {
+        if (!HasReadableTerms(classes))
+            return classes;
+
         var terms = ImmutableArray.CreateBuilder<ExpressionTemplate>(classes.Length);
-        StringBuilder? run = null;
+        string? run = null;
 
         foreach (var @class in classes)
         {
-            switch (@class.Constant)
+            if (!Contributes(@class))
+                continue;
+
+            if (@class.Constant is StringConstant { Text: var text })
             {
-                case NullConstant:
-                    continue;
-
-                case StringConstant { Text: var text }:
-                    if (run is null)
-                        run = new StringBuilder(text);
-                    else
-                        run.Append(Separator).Append(text);
-                    continue;
-
-                default:
-                    FlushRun(terms, ref run);
-                    terms.Add(@class);
-                    continue;
+                run = run is null ? text : run + Separator + text;
+                continue;
             }
+
+            FlushRun(terms, ref run);
+            terms.Add(@class);
         }
 
         FlushRun(terms, ref run);
         return terms.ToImmutable();
     }
 
+    /// <summary>
+    /// Whether <paramref name="classes"/> holds anything <see cref="ReadableTerms"/> would settle: a
+    /// constant <see langword="null"/> to drop, or two adjacent constant strings to join.
+    /// </summary>
+    private static bool HasReadableTerms(ImmutableArray<ExpressionTemplate> classes)
+    {
+        for (var index = 0; index < classes.Length; index++)
+        {
+            if (!Contributes(classes[index]))
+                return true;
+
+            if (index > 0
+                && classes[index].Constant is StringConstant
+                && classes[index - 1].Constant is StringConstant)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Turns an accumulated run of constant text into one term, and clears the run.</summary>
-    private static void FlushRun(
-        ImmutableArray<ExpressionTemplate>.Builder terms,
-        ref StringBuilder? run)
+    private static void FlushRun(ImmutableArray<ExpressionTemplate>.Builder terms, ref string? run)
     {
         if (run is null)
             return;
 
-        var text = run.ToString();
-        terms.Add(ExpressionTemplate.Create(
-            [new LiteralExpressionSegment(
-                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(text, quote: true))],
-            new StringConstant(text)));
+        terms.Add(ExpressionTemplate.StringLiteral(run));
         run = null;
     }
 

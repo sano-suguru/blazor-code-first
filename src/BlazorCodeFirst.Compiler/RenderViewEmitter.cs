@@ -249,9 +249,9 @@ internal static class RenderViewEmitter
         if (classes.Length == 0)
             return seq;
 
-        int widestJoin = writer.WidestClassJoin;
-        string value = ClassChannel.JoinAsCode(classes, ref widestJoin);
-        writer.WidestClassJoin = widestJoin;
+        string value = ClassChannel.JoinAsCode(classes, out int joinArity);
+        if (joinArity > writer.WidestClassJoin)
+            writer.WidestClassJoin = joinArity;
 
         writer.AppendLine(
             $"__builder.AddAttribute({seq}, \"{ClassChannel.AttributeName}\", {value});");
@@ -529,9 +529,11 @@ internal static class RenderViewEmitter
     }
 
     /// <summary>
-    /// Minimal indent-aware wrapper over a <see cref="StringBuilder"/>. Line endings come from
-    /// <see cref="StringBuilder.AppendLine()"/> (<see cref="Environment.NewLine"/>) so generated
-    /// output stays byte-identical to the previous manual indent threading.
+    /// One emission's output and the state that spans it: an indent-aware wrapper over a
+    /// <see cref="StringBuilder"/>, plus what the end of the emission needs to know about its own middle.
+    /// Line endings come from <see cref="StringBuilder.AppendLine()"/>
+    /// (<see cref="Environment.NewLine"/>) so generated output stays byte-identical to the previous
+    /// manual indent threading.
     /// </summary>
     /// <remarks>
     /// <see cref="System.CodeDom.Compiler.IndentedTextWriter"/> is deliberately not used: System.CodeDom
