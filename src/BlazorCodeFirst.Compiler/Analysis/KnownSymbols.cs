@@ -258,6 +258,19 @@ internal sealed class KnownSymbols
     public static IReadOnlyCollection<string> CuratedElementTags => CuratedTagValues;
 
     /// <summary>
+    /// Whether <paramref name="name"/> is spelled like one of the curated element helpers, the key side of
+    /// <see cref="CuratedTags"/> where <see cref="IsCuratedTag"/> asks about the value side.
+    /// </summary>
+    /// <remarks>
+    /// Static and ordinal for the reasons <see cref="IsCuratedTag"/> gives, and a <em>syntactic</em> test
+    /// like <see cref="DeclaresDecorationNamed"/>: it says only that an identifier is spelled like a helper,
+    /// never that it is one. <c>ShadowedElementHelperScanner</c> uses it as the conjunct that asks nothing of
+    /// the semantic model, and pairs it with symbol identity against <see cref="ElementTags"/>, which is what
+    /// decides whether the name actually reached the helper.
+    /// </remarks>
+    public static bool IsCuratedHelperName(string name) => CuratedTags.ContainsKey(name);
+
+    /// <summary>
     /// The HTML Living Standard's void elements, the tags that have no closing tag and therefore cannot
     /// carry children. Keyed on the tag rather than the helper name so one table covers both surface
     /// paths: a curated helper resolves through <see cref="ElementTags"/> and an <c>Element</c> call
