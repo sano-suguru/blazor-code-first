@@ -223,6 +223,11 @@ component result reports diagnostic BCF3008, because those constructs open no el
 Writing the chain after the children (`Div["text"].Class("card")`) reports BCF3008 for the same
 reason: the brackets have already produced a `View`.
 
+A decoration also has to be one this library declares. A misspelled name (`Div.Clas("card")`), or an
+extension method of your own that takes an element and gives one back, reports BCF3026. C# has an error
+for the misspelling, but you never see it: while the body does not translate the component has no
+generated `RenderView`, so the compiler stops before it gets that far.
+
 ## Next
 
 Read [control flow](./control-flow.md) for conditionals and lists, or go back to
