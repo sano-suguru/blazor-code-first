@@ -45,6 +45,20 @@ Element("my-widget").Attr("value", "42")   // custom element
 Element("svg")[Element("circle")]          // foreign vocabulary
 ```
 
+The tag has to be a non-empty compile-time constant, a literal or a `const`, or BCF3009 is reported.
+`Element` lowers its tag to a literal `OpenElement`, and holding it to a constant is what keeps the
+call as readable as a helper. The rule is about declarativeness rather than safety: a computed tag is
+neither an injection risk nor a sequencing problem — it just stops the element from naming itself
+where you wrote it.
+
+```csharp
+private const string Widget = "my-widget";
+
+Element(Widget)                  // fine
+Element(_kind + "-widget")       // BCF3009
+Element("")                      // BCF3009, the tag must be non-empty
+```
+
 ## Children
 
 A bare string converts to a text node, so there is no separate `Text()` construct. An element with
@@ -125,7 +139,7 @@ private string Summary() => "";               // Summary["x"] — BCF3027, a met
 ```
 
 C# has an error for every one of these — CS1503 on the index argument, CS0119, CS0118, CS0021 — and
-you never see any of them. While the body does not translate the component has no generated
+you never see any of them. As long as the body does not translate, the component has no generated
 `RenderView`, so the compiler stops before it binds method bodies, which is where all four are found.
 
 They are fixed the same way, by qualifying the element:
@@ -252,8 +266,7 @@ reason: the brackets have already produced a `View`.
 
 A decoration also has to be one this library declares. A misspelled name (`Div.Clas("card")`), or an
 extension method of your own that takes an element and gives one back, reports BCF3026. C# has an error
-for the misspelling, but you never see it: while the body does not translate the component has no
-generated `RenderView`, so the compiler stops before it gets that far.
+for the misspelling, but the same stop keeps it from you.
 
 ## Next
 

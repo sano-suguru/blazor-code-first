@@ -34,8 +34,26 @@ protected override View Body =>
 ```
 
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
-key defeats the diff, because reordering the list makes Blazor reuse the wrong element state. The
-content root must be a single element or component, so a `Fragment` or `Raw` root, or a
+key defeats the diff, because reordering the list makes Blazor reuse the wrong element state.
+
+A key that never mentions its item at all is caught. `key: _ => 0`, a key read from a counter outside
+the lambda, and — in nested loops — an inner key naming only the outer item all report BCF3002:
+
+```csharp
+ForEach(_groups, key: g => g.Id, content: g =>
+    Div[ForEach(g.Items, key: i => g.Id, content: i => Span[i.Name])])   // BCF3002 on the inner key
+```
+
+It is a warning rather than an error and does not stop the component being emitted, because the list
+still renders correctly and only diffs badly. The check is also deliberately conservative: it asks
+whether the item was referenced, not whether the value identifies anything, so a key derived from the
+item and still position-like passes it. Read BCF3002 as a floor rather than a guarantee.
+
+Both lambdas have to be inline expression lambdas. A block-bodied lambda or a method group cannot be
+sequenced statically and reports BCF3004, so wrap the call instead — `item => Row(item)` rather than
+`Row`.
+
+The content root must be a single element or component, so a `Fragment` or `Raw` root, or a
 `RenderFragment` placed as content, reports BCF3003.
 
 ## Fragment
