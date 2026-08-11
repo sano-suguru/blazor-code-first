@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
@@ -561,6 +562,49 @@ public sealed class BracketSurfaceDiagnosticTests
 
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3008");
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    // ---------------------------------------------------------------------------
+    // BCF3026's domain: a decoration name the runtime does not declare
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A misspelled decoration. Nothing declares <c>Clas</c>, so the call binds to no method at all, and
+    /// CS1061 is the C# error that would name the misspelling.
+    /// </summary>
+    /// <remarks>
+    /// That error never reaches the author, for the reason <see cref="AssertReportsBCF3008"/>'s remarks
+    /// record about CS1929: the host class carries CS0534 because no <c>RenderView</c> was generated, and
+    /// <c>csc</c> stops after the declaration stage without binding method bodies. What the author got
+    /// instead was BCF1003, which says the expression "uses a construct that is not statically analyzable"
+    /// while the receiver opens an element frame and the children are ordinary (#241).
+    /// </remarks>
+    [Fact]
+    public void MisspelledDecoration_ReportsBCF3026_AtTheDecorationName()
+    {
+        var diagnostics = Run("""Div.Clas("card")["hi"]""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BCF3026");
+        Assert.Equal(DiagnosticSeverity.Error, report.Severity);
+        Assert.Equal("Clas", HostSpanText(report, """Div.Clas("card")["hi"]"""));
+        Assert.Contains("Clas", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A name the runtime does declare, on a receiver that opens no element frame, stays BCF3008.
+    /// </summary>
+    /// <remarks>
+    /// The two conditions share one sweep and are disjoint by construction, since BCF3008 requires
+    /// <c>DeclaresDecorationNamed</c> to hold and BCF3026 requires it to fail. This is what holds them
+    /// apart if that sweep is ever rewritten.
+    /// </remarks>
+    [Fact]
+    public void DecoratingANonElementWithADeclaredName_StaysBCF3008()
+    {
+        var diagnostics = Run("""Fragment("a").Class("x")""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3008");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3026");
     }
 
     /// <summary>

@@ -174,6 +174,16 @@ public static class DiagnosticExpectations
                 "(a SlotView part naming its slot zero times or twice) reports at the declaration " +
                 "identifier instead, because the count is a property of the declaration and not of any " +
                 "one Slot; that half is covered in-process."),
+        new(
+            "BCF3026",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3026.cs",
+            "Clas",
+            Note: "The delivery claim is the whole point of this fixture. CS1061 is what would name the " +
+                "misspelling, and it is never computed, because the class carries CS0534 and csc stops " +
+                "after the declaration stage. Only a real build shows that, so the in-process assertion " +
+                "in BracketSurfaceDiagnosticTests cannot stand in for it."),
     ];
 
     /// <summary>
