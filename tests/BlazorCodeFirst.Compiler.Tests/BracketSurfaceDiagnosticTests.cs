@@ -739,13 +739,14 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// A <em>type</em> that shadows a helper is deliberately left outside this diagnostic.
+    /// A <em>type</em> that shadows a helper reports no BCF3027 today. This pins what happens, not that it
+    /// should.
     /// </summary>
     /// <remarks>
-    /// C# says <c>CS0119: 'Table' is a type, which is not valid in the given context</c>, which names the
-    /// shadowing declaration and is what BCF3027 would otherwise have to say for itself. The residue is
-    /// recorded on #127 as a chosen boundary, so this test is what holds the boundary rather than a note
-    /// about it.
+    /// #127 left the type case out because C# raises CS0119 for it, which names the shadowing declaration and
+    /// is what BCF3027 would otherwise have to say for itself. #266 measured that premise and it is false, so
+    /// the assertion below is a record of current behaviour that a widening is expected to invert rather than
+    /// a boundary to defend. Change it when #266 is decided; do not read it as the decision.
     /// </remarks>
     [Fact]
     public void TypeShadowingAnElementHelper_IsNotBCF3027()

@@ -511,4 +511,32 @@ behavior, and diagnostic spans, because those are architectural contracts. Test
 files may correspond to production types, but a one-to-one file mapping is not
 required; group tests by cohesive capability.
 
+A negative test is not finished until the implementation has been mutated and
+the test has been watched to fail. Delete or invert the condition it is supposed
+to cover, run it, read the failure, then restore. "Not reported" passes against
+an analyzer that reports nothing at all, against a source that never reached the
+code under test, and against a condition that some earlier condition already
+excluded — and none of those three is visible from the test, from the diff, or
+from a green run. The same applies to any sentence that says *why* a shape is
+exempt or *what* keeps a check out of some position, whether it is in a comment,
+in an expectation's `Note`, or in `ARCHITECTURE.md`: that is a claim about the
+implementation, and mutating the implementation is what separates a reason from
+a plausible guess.
+
+This is written down because reading was tried first and lost, four times, each
+time on code that was already written and already green:
+
+- #155, twice. The `TArgs` type-parameter exclusion was not what kept
+  `.On("onclick")` out of BCF3028 (the unsubstituted parameter's `BaseType` is
+  `EventArgs`, so the assignability walk accepted it anyway), and branch order
+  was not what kept a mistyped handler on a `Fragment(…)` as BCF3008 (Roslyn
+  offers no candidate symbols for a receiver no extension method can take).
+- #127, once. The type arm of `ShadowedElementHelperScanner` was not what
+  excluded CS0119: once the element access fails to bind, the identifier alone
+  carries no symbol either, so the arm it was credited to was unreachable.
+- #68, once, and this one was a test rather than a claim. BCF3029's
+  local-function exemption was covered by a source whose enclosing method also
+  returned an inert type, so the arm under test could be deleted and the test
+  still passed. The mutation found it; the review of the test had not.
+
 Documentation and source comments are written in English.

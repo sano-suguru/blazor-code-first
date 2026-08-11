@@ -495,9 +495,8 @@ internal static class RenderExpressionAnalyzer
             }
         }
 
-        if (kind == SurfaceMethodKind.ScalarParam && IsInertDesignTimeType(
-                context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type,
-                context))
+        if (kind == SurfaceMethodKind.ScalarParam && context.KnownSymbols.IsInertDesignTimeType(
+                context.SemanticModel.GetTypeInfo(valueExpression, context.CancellationToken).Type))
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -852,7 +851,7 @@ internal static class RenderExpressionAnalyzer
     private static ViewPartCallTemplateNode? ClassifyViewPartCall(
         InvocationExpressionSyntax invocation, IMethodSymbol method, ViewPartBodyContext context)
     {
-        if (!IsViewPart(method, context))
+        if (!context.KnownSymbols.IsViewPart(method))
             return null;
 
         var arguments = CreateInvocationArguments(invocation, method, context, out var contentArguments);
@@ -1344,28 +1343,13 @@ internal static class RenderExpressionAnalyzer
         IPropertySymbol indexer,
         ViewPartBodyContext context)
     {
-        var symbols = context.KnownSymbols;
-        var definition = indexer.OriginalDefinition;
-
-        if (symbols.ElementIndexer is { } elementIndexer
-            && SymbolEqualityComparer.Default.Equals(definition, elementIndexer))
+        return context.KnownSymbols.ClassifyChildrenIndexer(indexer) switch
         {
-            return ClassifyElementIndexer(elementAccess, context);
-        }
-
-        if (symbols.ComponentIndexer is { } componentIndexer
-            && SymbolEqualityComparer.Default.Equals(definition, componentIndexer))
-        {
-            return ClassifyComponentIndexer(elementAccess, indexer, context);
-        }
-
-        if (symbols.ContentIndexer is { } contentIndexer
-            && SymbolEqualityComparer.Default.Equals(definition, contentIndexer))
-        {
-            return ClassifyViewPartContentIndexer(elementAccess, context);
-        }
-
-        return null;
+            ChildrenIndexerKind.Element => ClassifyElementIndexer(elementAccess, context),
+            ChildrenIndexerKind.Component => ClassifyComponentIndexer(elementAccess, indexer, context),
+            ChildrenIndexerKind.Content => ClassifyViewPartContentIndexer(elementAccess, context),
+            _ => null,
+        };
     }
 
     /// <summary>
@@ -1692,20 +1676,6 @@ internal static class RenderExpressionAnalyzer
         return false;
     }
 
-    private static bool IsViewPart(IMethodSymbol method, ViewPartBodyContext context)
-    {
-        var attributeType = context.KnownSymbols.ViewPartAttributeType;
-        if (attributeType is null)
-            return false;
-
-        foreach (var attribute in method.OriginalDefinition.GetAttributes())
-        {
-            if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, attributeType))
-                return true;
-        }
-
-        return false;
-    }
 
     /// <param name="contentArguments">
     /// The call's <c>View</c>-typed arguments, its additional content slots (#34), classified as node subtrees
@@ -2038,40 +2008,4 @@ internal static class RenderExpressionAnalyzer
         return false;
     }
 
-    /// <summary>
-    /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c>,
-    /// <c>ElementView</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
-    /// value verbatim, so such a value would bind the empty marker instead of content.
-    /// </summary>
-    private static bool IsInertDesignTimeType(ITypeSymbol? type, ViewPartBodyContext context)
-    {
-        if (type is null)
-            return false;
-
-        var symbols = context.KnownSymbols;
-
-        if (symbols.ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType))
-            return true;
-
-        // A childless element is an ElementView rather than a View, so without this arm
-        // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
-        if (symbols.ElementViewType is { } elementViewType
-            && SymbolEqualityComparer.Default.Equals(type, elementViewType))
-        {
-            return true;
-        }
-
-        // A content-taking part's call is a SlotView before its brackets, so .Param(c => c.Payload, Card("t"))
-        // type-checks through object and would otherwise emit `Card("t")` verbatim, exactly as the
-        // ElementView arm above exists to prevent for `Div`.
-        if (symbols.SlotViewType is { } slotViewType
-            && SymbolEqualityComparer.Default.Equals(type, slotViewType))
-        {
-            return true;
-        }
-
-        return symbols.ComponentViewType is { } componentViewType
-            && type is INamedTypeSymbol named
-            && SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, componentViewType);
-    }
 }

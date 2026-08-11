@@ -28,6 +28,30 @@ public partial class Home : BodyComponentBase
 }
 ```
 
+## Where the surface means something
+
+`Html.Div`, `.Class(...)`, `.OnClick(...)` and every other factory and decoration are inert. `View` is
+an empty struct, an element helper returns nothing, and a decoration returns its receiver unchanged.
+The generator reads the *syntax* you wrote, never the value, and it reads it in three places: a
+component's `Body`, a layout's `Chrome`, and the body of a `[ViewPart]` method.
+
+The same API is callable from anywhere, and elsewhere it means nothing. Written in an event handler, a
+service, or a helper method it still compiles, still looks like it built something, and does nothing
+at all — no output, and no handler wired up:
+
+```csharp
+private void OnSomething()
+{
+    // BCF3029: renders nothing, and DoThing is never called
+    var card = Div.Class("card").OnClick(DoThing)[Span["hello"]];
+}
+```
+
+BCF3029 names that. All three reading positions are recognized by returning one of the design-time
+types, so nothing about them is a special case: a lambda that returns a `View`, such as the content of
+an `If` or a `ForEach`, is read the same way. Caching a value into a field or property of a
+design-time type is left alone; only a local, a discard, or an argument is reported.
+
 ## Values copied into generated code
 
 BlazorCodeFirst copies design-time value expressions into a generated file that has no `using`

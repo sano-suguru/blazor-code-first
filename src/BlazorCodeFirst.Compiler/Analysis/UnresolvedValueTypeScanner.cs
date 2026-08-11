@@ -120,7 +120,7 @@ internal static class UnresolvedValueTypeScanner
             // member (DESIGN.md §4.3, #203) — so walking it can only ever replace the generic BCF1003 with
             // a specific report, never emit anything new.
             case SurfaceMethodKind.None:
-                if (IsViewPart(method, context))
+                if (context.KnownSymbols.IsViewPart(method))
                 {
                     foreach (var argument in args.ExplicitArguments)
                         ReportValue(argument, context);
@@ -944,11 +944,21 @@ internal static class UnresolvedValueTypeScanner
         return null;
     }
 
+    /// <summary>
+    /// Whether <paramref name="indexer"/> is a child list this scanner has an arm for, which is two of the
+    /// three <see cref="KnownSymbols.ClassifyChildrenIndexer"/> answers.
+    /// </summary>
+    /// <remarks>
+    /// <c>SlotView</c>'s indexer is deliberately visible here as the answer this pattern does not admit,
+    /// rather than as a comparison nobody wrote. It was never added when #176 introduced that indexer and no
+    /// reason was recorded, so the omission is unexamined: this scanner therefore treats the brackets of a
+    /// content-taking <c>[ViewPart]</c> call as not a surface child list, and an unresolved type written
+    /// inside them stays the generic BCF1003 rather than BCF3015. Widening it is a change to what an Error
+    /// reaches and wants its own measurement, so it is not made here.
+    /// </remarks>
     private static bool IsRecognized(IPropertySymbol indexer, KnownSymbols symbols) =>
-        (symbols.ElementIndexer is { } elementIndexer
-            && SymbolEqualityComparer.Default.Equals(indexer.OriginalDefinition, elementIndexer))
-        || (symbols.ComponentIndexer is { } componentIndexer
-            && SymbolEqualityComparer.Default.Equals(indexer.OriginalDefinition, componentIndexer));
+        symbols.ClassifyChildrenIndexer(indexer)
+            is ChildrenIndexerKind.Element or ChildrenIndexerKind.Component;
 
     private static bool IsHtmlForEachInScope(
         InvocationExpressionSyntax invocation,
@@ -1001,22 +1011,16 @@ internal static class UnresolvedValueTypeScanner
     /// design-time surface, or a <c>[ViewPart]</c> call.
     /// </summary>
     /// <remarks>
-    /// The surface half is the same single lookup <see cref="ScanRenderExpression"/> dispatches on, which
-    /// is the point of the classification: a method this answers <see langword="true"/> for is a method
-    /// that switch has a case for, and neither can quietly stop agreeing with the other. No
-    /// <c>ElementTags</c> lookup is folded in, unlike the property route, since every curated key is an
-    /// <see cref="IPropertySymbol"/> and this is asked of an <see cref="IMethodSymbol"/>.
+    /// This is <see cref="KnownSymbols.IsDesignTimeApiMember"/> asked of a method, and calling it rather than
+    /// restating its two disjuncts is deliberate: the set this scanner has an arm for and the set the design
+    /// calls 設計時API are the same set, and they were written out separately until #68 gave the second one a
+    /// name. The classification half is also the single lookup <see cref="ScanRenderExpression"/> dispatches
+    /// on, so a method this answers <see langword="true"/> for is a method that switch has a case for, and
+    /// neither can quietly stop agreeing with the other. Should the two sets ever need to diverge, that is a
+    /// reason to write down here, not a second copy to maintain.
     /// </remarks>
     private static bool IsRecognized(IMethodSymbol method, ViewPartBodyContext context) =>
-        context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.None
-        || IsViewPart(method, context);
-
-    private static bool IsViewPart(IMethodSymbol method, ViewPartBodyContext context)
-    {
-        var attribute = context.KnownSymbols.ViewPartAttributeType;
-        return attribute is not null && method.GetAttributes().Any(candidate =>
-            SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, attribute));
-    }
+        context.KnownSymbols.IsDesignTimeApiMember(method);
 
     /// <summary>
     /// Whether <paramref name="kind"/> is one of the decorations written onto an element, the group

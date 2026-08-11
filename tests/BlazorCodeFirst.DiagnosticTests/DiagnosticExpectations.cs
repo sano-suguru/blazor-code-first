@@ -196,9 +196,10 @@ public static class DiagnosticExpectations
             Note: "Anchors the shadowed receiver, which is what has to be qualified as Html.Data. The " +
                 "delivery claim is again the point: CS1503 is what C# says about the index argument, and " +
                 "the class carries CS0534, so csc stops before it binds the body and the author sees " +
-                "neither. Only the member-shadows-a-helper shape is here; the type-shadows-a-helper " +
-                "shape is deliberately not a BCF at all, C# reporting CS0119 for it, and is pinned " +
-                "in-process as the boundary it is."),
+                "neither. Only the member-shadows-a-helper shape is here, and it is the only shape this " +
+                "id has: the type-shadows-a-helper shape reports no BCF today, which #266 turned from a " +
+                "chosen position into a gap. Today's behaviour is pinned in-process by " +
+                "BracketSurfaceDiagnosticTests."),
         new(
             "BCF3028",
             FixtureKind.GeneratorViaProjectReference,
@@ -214,6 +215,19 @@ public static class DiagnosticExpectations
                 "so it has no delivery claim of its own; it is covered in-process, where a reference to " +
                 "Microsoft.AspNetCore.Components.Web supplies the mapping this fixture does not have. " +
                 "Anchors the handler, because the parameter type written there is what has to change."),
+        new(
+            "BCF3029",
+            FixtureKind.AnalyzerViaProjectReference,
+            "error",
+            "Bcf3029.cs",
+            "Div.Class(\"card\")[Span[\"bcf3029\"]]",
+            Note: "The second diagnostic in the analyzer fixture, and it belongs there rather than in the " +
+                "generator one for the reason BCF3001 does: the shape compiles, so no declaration error " +
+                "stops the analyzer driver, and a fixture that carries one would suppress it. There is no " +
+                "C# error here at all for the cutoff to hide — that is the whole complaint — so what this " +
+                "fixture proves is delivery of an analyzer-reported id other than BCF3001, which nothing " +
+                "else did. Anchors the whole chain, because what is wrong is where the expression is " +
+                "written rather than anything inside it."),
     ];
 
     /// <summary>

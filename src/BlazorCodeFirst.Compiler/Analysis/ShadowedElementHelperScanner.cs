@@ -32,9 +32,9 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// <c>Option</c>, <c>Form</c> and <c>Select</c> are ordinary Blazor parameter names.
 /// </para>
 /// <para>
-/// A type that shadows a helper is deliberately outside this diagnostic. C# reports
-/// <c>CS0119: 'Table' is a type, which is not valid in the given context</c>, which already names the
-/// shadowing declaration, so there is nothing for a second report to add to it.
+/// A type that shadows a helper is outside this diagnostic, and that is a known gap rather than a chosen
+/// boundary: #127 left it out because C# raises CS0119 for it, and CS0119 turns out not to reach the author
+/// either, by the same cutoff as everything above. #266 carries the measurement and the open question.
 /// </para>
 /// <para>
 /// The two conjuncts read different tables — the name from the compiler's own
@@ -86,8 +86,10 @@ internal static class ShadowedElementHelperScanner
 
             var name = receiver.Identifier.ValueText;
 
-            // First because it is the only conjunct that asks nothing of the semantic model, and the one
-            // #68 reuses as its own prefilter.
+            // First because it is the only conjunct that asks nothing of the semantic model. #68 planned to
+            // reuse it as its own prefilter and did not need to: BCF3029 keys on resolved symbols
+            // throughout, where a name test would have been the cheap half of a syntax-wide sweep it does
+            // not run.
             if (!KnownSymbols.IsCuratedHelperName(name))
                 continue;
 
@@ -95,22 +97,20 @@ internal static class ShadowedElementHelperScanner
 
             // The receiver has to name a value. Roslyn answers null here for both shapes that do not: a
             // missing `using static BlazorCodeFirst.Html;`, which is no shadowing at all, and the
-            // type-shadows-a-helper case the remarks above leave out. The type arm is therefore not what
-            // excludes CS0119 today — measured: once the element access fails to bind, the identifier alone
-            // carries no symbol either. It is written out all the same so the exclusion is stated in the
-            // code rather than resting on that answer, since a type reaching the report below would be told
-            // it is a member.
+            // type-shadows-a-helper case the remarks above leave out. Which means the ITypeSymbol arm never
+            // fires — measured: once the element access fails to bind, the identifier alone carries no
+            // symbol either. It is written out all the same so the exclusion is stated in the code rather
+            // than resting on that answer, since a type reaching the report below would be told it is a
+            // member. It is also where #266's widening would start: covering the type case needs another
+            // route to the shadowing declaration, because this one does not reach it.
             if (bound is null or ITypeSymbol)
                 continue;
 
             // Symbol identity against the helpers resolved out of the referenced runtime, not a second name
             // test: the name test above says only that the identifier is spelled like a helper, and what
             // decides this diagnostic is whether it reached one.
-            if (bound is IPropertySymbol property
-                && symbols.ElementTags.ContainsKey(KnownSymbols.Normalize(property)))
-            {
+            if (bound is IPropertySymbol property && symbols.IsElementHelper(property))
                 continue;
-            }
 
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3027, receiver.GetLocation(), [name]));
