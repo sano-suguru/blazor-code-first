@@ -103,8 +103,8 @@ position.
 
 ## When a name collides
 
-`using static BlazorCodeFirst.Html;` imports every conforming HTML element name, and a member of your
-own component wins simple-name lookup over an imported one. Blazor parameters named `Label`, `Data`,
+`using static BlazorCodeFirst.Html;` imports every conforming HTML element name, and a declaration of
+your own wins simple-name lookup over an imported one. Blazor parameters named `Label`, `Data`,
 `Summary` or `Source` are ordinary, so this happens.
 
 A member whose type is indexable makes this legal C#: the element expression silently becomes an
@@ -115,18 +115,20 @@ indexer call on your member, and the generator reports BCF3027 to name it.
 Div[Data["Heading"]]                          // BCF3027
 ```
 
-What C# has to say about it is `error CS1503: Argument 1: cannot convert from 'string' to 'int'`,
-which names neither the element nor your member, and you never see it anyway — while the body does
-not translate the component has no generated `RenderView`, so the compiler stops before it gets that
-far.
+A type, a namespace, or a method of yours takes the name the same way, and each is the same report,
+naming what it found:
 
-A *type* that shadows a helper has no diagnostic of its own yet, and today it is the worse of the two
-to run into. C# would say `error CS0119: 'Table' is a type, which is not valid in the given context`,
-which does name the shadowing declaration — but it is a body-binding error, so the same stop keeps it
-from you, and all you get is BCF1003 saying the expression is not statically analyzable. If you see
-that on a `Body` you believe is ordinary, look for a type of your own named like the element.
+```csharp
+public sealed class Table;                    // Table["x"]   — BCF3027, a type
+namespace MyApp.Article { }                   // Article["x"] — BCF3027, a namespace
+private string Summary() => "";               // Summary["x"] — BCF3027, a method
+```
 
-Both are fixed the same way, by qualifying the element:
+C# has an error for every one of these — CS1503 on the index argument, CS0119, CS0118, CS0021 — and
+you never see any of them. While the body does not translate the component has no generated
+`RenderView`, so the compiler stops before it binds method bodies, which is where all four are found.
+
+They are fixed the same way, by qualifying the element:
 
 ```csharp
 Div[Html.Data["Heading"]]
@@ -225,10 +227,10 @@ single `class` attribute, and `.Attr("class", …)` joins the same channel. Ever
 event is a single binding, and binding one twice on the same element reports BCF3010. There is no
 `style` shortcut, so prefer an external stylesheet and `.Class`.
 
-Because that channel joins its values as text, `class` is also the one name the `bool` overload
-cannot take, and `.Attr("class", flag)` reports BCF3023 — as does `.Attr("class")`, whose bare spelling
-stands for a presence and so has no text to join either. Write a conditional class as a string, using
-`null` for the term you want gone:
+Because that channel joins its values as text, `class` is the one name that takes a string and nothing
+else. `.Attr("class", flag)` reports BCF3023 — as does `.Attr("class")`, whose bare spelling stands for
+a presence and so has no text to join either. Write a conditional class as a string, using `null` for
+the term you want gone:
 
 ```csharp
 Div.Class("card").Class(_selected ? "is-selected" : "")

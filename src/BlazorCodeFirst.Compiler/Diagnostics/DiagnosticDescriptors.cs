@@ -566,11 +566,21 @@ internal static class DiagnosticDescriptors
             "Method groups, anonymous methods, and block-bodied lambdas cannot be statically sequenced.");
 
     /// <summary>
-    /// BCF3023: <c>.Attr("class", …)</c> carries a value the class channel cannot join as text — a
-    /// <see langword="bool"/>, whether the author wrote one or reached the bare <c>.Attr("class")</c>
-    /// spelling. That name folds into the channel, which joins its decorations into one value.
+    /// BCF3023: a decoration written on the <c>class</c> name carries a value the class channel cannot join
+    /// as text, which is any value that is not a <see cref="string"/>. That name folds into the channel,
+    /// which joins its decorations into one value.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The condition is the channel's requirement, not a list of the overloads that fail it
+    /// (<c>ClassChannel.Admit</c> asks whether the resolved overload's value is a <see cref="string"/> and
+    /// refuses everything else, #193). Today the <see langword="bool"/> overload and the bare
+    /// <c>.Attr("class")</c> spelling are the only ways to reach it, because <see cref="string"/> and
+    /// <see langword="bool"/> are the only value types <c>.Attr</c> takes (<c>DESIGN.md</c> §4.1, #158). An
+    /// overload added later reaches it without the analyzer being touched, which is what the allow-list is
+    /// for, and the message names the type it found rather than assuming the one that made the rule
+    /// reachable (#223).
+    /// </para>
     /// <para>
     /// Unlike its siblings, this rule is not about a value that fails to translate; the value translates
     /// two different ways. With one class decoration on the element the channel emits the value alone, so
@@ -582,9 +592,11 @@ internal static class DiagnosticDescriptors
     /// rather than from the HTML parser.
     /// </para>
     /// <para>
-    /// <c>.Attr("class")</c> reaches the same rule without the author writing a <see langword="bool"/>
-    /// anywhere: the bare spelling stands for a presence, and a presence has no text (#178). It is reported
-    /// at the decoration's name, there being no value argument to point at.
+    /// <c>.Attr("class")</c> reaches the same rule without the author writing a value anywhere: the bare
+    /// spelling stands for a presence, and a presence has no text (#178). It is reported at the
+    /// decoration's name, there being no value argument to point at, and the message names the spelling
+    /// rather than the <see langword="bool"/> that spelling is synthesized into — that constant is the
+    /// compiler's, not the author's.
     /// </para>
     /// <para>
     /// The name is what makes this reachable, not the overload: <c>.Attr("disabled", flag)</c> is exactly
@@ -595,14 +607,15 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BCF3023 = new(
         id: "BCF3023",
         title: "Class attribute value must be a string",
-        messageFormat: "'class' folds into the class channel, which joins its values as text, so a bool has no meaning there; write the condition as a string expression such as .Class(condition ? \"name\" : null)",
+        messageFormat: "'class' folds into the class channel, which joins its values as text, so {0} has no meaning there; write the class as a string, .Class(\"name\") or .Class(condition ? \"name\" : null) for a conditional one",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The bool overload of .Attr is Blazor's conditional-attribute form, and the bare .Attr(name) " +
-            "spelling stands for a presence; neither carries over to the class channel, where values are " +
-            "concatenated. Use .Class or the string overload of .Attr.");
+            "The class channel joins the decorations written on 'class' into one value as text, so it " +
+            "takes a string and nothing else. The bool overload of .Attr is Blazor's conditional-attribute " +
+            "form and the bare .Attr(name) spelling stands for a presence; neither is text. Use .Class or " +
+            "the string overload of .Attr.");
 
     /// <summary>
     /// BCF3024: an element carries both a class-channel decoration (<c>.Class</c> or
@@ -698,30 +711,38 @@ internal static class DiagnosticDescriptors
             "method that happens to take an element and return one.");
 
     /// <summary>
-    /// BCF3027: an element written as a simple name that a member declared closer than
-    /// <c>BlazorCodeFirst.Html</c> shadows, so the brackets index that member instead of opening an element.
+    /// BCF3027: an element written as a simple name that a declaration closer than
+    /// <c>BlazorCodeFirst.Html</c> took — a member, a type, a namespace, or a method.
     /// </summary>
     /// <remarks>
-    /// The C# error here is CS1503 on the index argument, which names neither the element, nor the member
-    /// that took its place, nor the fix, and which the declaration-stage cutoff keeps from the author in any
-    /// case (付録A A.0). Without this descriptor the author was told the expression "uses a construct that is
-    /// not statically analyzable", which is untrue: the construct is ordinary and the lookup went elsewhere
-    /// (#127). A <em>type</em> that shadows a helper is not covered, which is a gap and no longer a position:
-    /// the CS0119 that #127 credited with naming the shadowing declaration does not reach the author either
-    /// (#266).
+    /// <para>
+    /// Each shape has a C# error of its own, and the declaration-stage cutoff keeps every one of them from
+    /// the author (付録A A.0): CS1503 on the index argument for a member, whose indexer the brackets quietly
+    /// call; CS0119 for a type; CS0118 for a namespace; CS0021 for a method group. Without this descriptor
+    /// the author was told the expression "uses a construct that is not statically analyzable", which is
+    /// untrue — the construct is ordinary and the lookup went elsewhere (#127).
+    /// </para>
+    /// <para>
+    /// One id for the four, with what took the name carried in the message the way BCF3028 carries its two
+    /// shapes. To an author they are one mistake, a simple name that reached something nearer than
+    /// <c>Html</c>, and <c>Html.<em>Name</em></c> is the fix for all of them; splitting them would split by
+    /// how far C# got in binding the expression, which is a distinction the author never made. #127 covered
+    /// the member alone on the premise that CS0119 reaches the type case, and #266 measured that premise
+    /// and found it false.
+    /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3027 = new(
         id: "BCF3027",
-        title: "Element helper is shadowed by a member of your own",
-        messageFormat: "'{0}' here is a member declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
+        title: "Element helper is shadowed by a declaration of your own",
+        messageFormat: "'{0}' here is a {1} declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "'using static BlazorCodeFirst.Html;' brings every curated element helper into simple-name " +
-            "scope, and a member declared closer wins that lookup. Where that member's own type is " +
-            "indexable the element expression stays legal C# and quietly becomes an indexer call on the " +
-            "member. Qualify the element as Html.<Name> to name it past the member.");
+            "scope, and a member, type, namespace, or method declared closer wins that lookup. The " +
+            "element expression then indexes that declaration, or fails to bind against it, instead of " +
+            "opening an element. Qualify the element as Html.<Name> to name it past the declaration.");
 
     /// <summary>
     /// BCF3028: an event handler whose argument type is not one the named event can deliver — either it

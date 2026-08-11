@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace BlazorCodeFirst.Compiler.Tests;
 
 public sealed class HtmlAttributeGeneratorTests
@@ -114,10 +116,22 @@ public sealed class HtmlAttributeGeneratorTests
     /// <c>AddAttribute(int, string, bool)</c> and emptied the class list, two or more concatenated the
     /// <see langword="bool"/> into the joined value and rendered <c>class="a True"</c>.
     /// </summary>
+    /// <remarks>
+    /// The message is asserted to name the type it refused rather than to assume it. The rule reads on the
+    /// channel's requirement — anything but a <see cref="string"/> — and <see langword="bool"/> is only the
+    /// overload that makes it reachable today (#223). An <c>.Attr</c> overload added by #171 or #178 trips
+    /// the same gate without the analyzer being touched, and would otherwise be reported as a
+    /// <see langword="bool"/>.
+    /// </remarks>
     [Fact]
-    public void BooleanValueOnClassChannel_ReportsBCF3023()
+    public void BooleanValueOnClassChannel_ReportsBCF3023_NamingTheValueType()
     {
-        Assert.Contains(Diags("""Html.Div.Attr("class", true)["x"]"""), d => d.Id == "BCF3023");
+        var single = Assert.Single(Diags("""Html.Div.Attr("class", true)["x"]"""), d => d.Id == "BCF3023");
+        Assert.Contains(
+            "a value of type 'bool'",
+            single.GetMessage(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+
         Assert.Contains(Diags("""Html.Div.Class("a").Attr("class", true)["x"]"""), d => d.Id == "BCF3023");
     }
 
@@ -305,6 +319,11 @@ public sealed class HtmlAttributeGeneratorTests
     /// <see langword="bool"/> overload, reached here without the author writing a <see langword="bool"/>
     /// anywhere. The location is the decoration's name, there being no value argument to point at.
     /// </summary>
+    /// <remarks>
+    /// The message is asserted too, because this is the one shape whose refused value the author did not
+    /// write: the <see langword="bool"/> it carries is synthesized for a presence (#178), so a message
+    /// naming that type would describe a step of the compiler's rather than the source (#223).
+    /// </remarks>
     [Fact]
     public void BareAttrOnClassChannel_ReportsBCF3023AtTheDecorationName()
     {
@@ -325,6 +344,10 @@ public sealed class HtmlAttributeGeneratorTests
 
         var span = diagnostic.Location.SourceSpan;
         Assert.Equal("Attr", source.Substring(span.Start, span.Length));
+
+        var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("the bare .Attr(name) spelling", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("bool", message, StringComparison.Ordinal);
     }
 
     /// <summary>

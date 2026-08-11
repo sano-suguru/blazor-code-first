@@ -196,9 +196,14 @@ public static class DiagnosticExpectations
             Note: "Anchors the shadowed receiver, which is what has to be qualified as Html.Data. The " +
                 "delivery claim is again the point: CS1503 is what C# says about the index argument, and " +
                 "the class carries CS0534, so csc stops before it binds the body and the author sees " +
-                "neither. Only the member-shadows-a-helper shape is here, and it is the only shape this " +
-                "id has: the type-shadows-a-helper shape reports no BCF today, which #266 turned from a " +
-                "chosen position into a gap. Today's behaviour is pinned in-process by " +
+                "neither. The id fires on four shapes since #266 — a member, a type, a namespace, and a " +
+                "method taking the name — and the member is the one here. What the fixture proves is " +
+                "that the report reaches a real build at the right anchor, and the cutoff that keeps " +
+                "C#'s own error away is one mechanism shared by all four (a declaration error stops csc " +
+                "before any body binds), so a second shape would re-prove it rather than prove anything " +
+                "new. It cannot state the other half — that CS0119 does not arrive — because these tests " +
+                "assert the BCF report's presence and never a C# error's absence. The member shape is " +
+                "kept because #99 made those names routine. The other three are pinned in-process by " +
                 "BracketSurfaceDiagnosticTests."),
         new(
             "BCF3028",

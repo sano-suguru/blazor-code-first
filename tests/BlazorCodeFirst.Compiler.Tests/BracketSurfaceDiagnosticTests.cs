@@ -678,7 +678,7 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     // ---------------------------------------------------------------------------
-    // BCF3027's domain: a member of the component shadowing a curated element helper
+    // BCF3027's domain: a declaration of the author's own taking a curated element helper's name
     // ---------------------------------------------------------------------------
 
     /// <summary>
@@ -701,7 +701,9 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.Equal(
             "Data",
             HostSpanText(report, """Div[Data["Heading"]]""", """private string Data => "";"""));
-        Assert.Contains("Data", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        var message = report.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("Data", message, StringComparison.Ordinal);
+        Assert.Contains("is a member", message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -722,6 +724,47 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3027");
     }
 
+    /// <summary>
+    /// Two static imports declaring the same name leave the lookup ambiguous rather than shadowed, and that
+    /// is not this report.
+    /// </summary>
+    /// <remarks>
+    /// The scanner reads a candidate only where there is exactly one, so this shape falls to BCF1003. What
+    /// it cannot do is name the declaration that took the name, because none of them did: one of the two
+    /// candidates here is the element helper itself, and "a member declared outside BlazorCodeFirst.Html"
+    /// would be a false description of a compilation where the helper is in scope and reachable.
+    /// <para>
+    /// The source is hand-rolled rather than taken from <see cref="HostFiles"/> because the second
+    /// <c>using static</c> that creates the ambiguity has to sit in the file header, which that helper
+    /// owns and does not parameterize.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AmbiguousElementHelperName_IsNotBCF3027()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+                using static T.Mine;
+
+                namespace T;
+
+                public static class Mine
+                {
+                    public static string Data => "";
+                }
+
+                public partial class Host : BodyComponentBase
+                {
+                    protected override View Body => Div[Data["Heading"]];
+                }
+                """));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3027");
+    }
+
     /// <summary>The documented fix, qualifying the element, is not itself reported.</summary>
     /// <remarks>
     /// <c>Html.Data</c> is a member access rather than a simple name, so no lookup was shadowed. The body
@@ -739,35 +782,59 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// A <em>type</em> that shadows a helper reports no BCF3027 today. This pins what happens, not that it
-    /// should.
+    /// A <em>type</em> of the author's own takes the name the same way a member does, and is the same
+    /// report, naming the type (#266).
     /// </summary>
     /// <remarks>
-    /// #127 left the type case out because C# raises CS0119 for it, which names the shadowing declaration and
-    /// is what BCF3027 would otherwise have to say for itself. #266 measured that premise and it is false, so
-    /// the assertion below is a record of current behaviour that a widening is expected to invert rather than
-    /// a boundary to defend. Change it when #266 is decided; do not read it as the decision.
+    /// #127 left the type case out because C# raises CS0119 for it, which does name the shadowing
+    /// declaration. What #266 measured is that it never arrives: CS0119 is a body-binding error, so the
+    /// declaration-stage cutoff suppresses it exactly as it suppresses the member case's CS1503, and the
+    /// author was left with BCF1003 alone. BCF1003 is gone from the set below because <c>Expand</c>'s dedup
+    /// drops it once a specific error has been recorded.
     /// </remarks>
     [Fact]
-    public void TypeShadowingAnElementHelper_IsNotBCF3027()
+    public void TypeShadowingAnElementHelper_ReportsBCF3027_NamingItAsAType()
+    {
+        var diagnostics = Run("""Table["x"]""", "public sealed class Table;");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BCF3027");
+        Assert.Equal("Table", HostSpanText(report, """Table["x"]""", "public sealed class Table;"));
+        Assert.Contains("is a type", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// A <em>method</em> of the author's own takes the name too, and C# has a third error for it, CS0021 on
+    /// the method group. The cutoff suppresses that one as well, so it is the same report (#266).
+    /// </summary>
+    [Fact]
+    public void MethodShadowingAnElementHelper_ReportsBCF3027_NamingItAsAMethod()
+    {
+        var diagnostics = Run("""Summary["x"]""", """private string Summary() => "";""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BCF3027");
+        Assert.Contains(
+            "is a method", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A <em>namespace</em> is the fourth shape, and the one that needs no declaration inside the component
+    /// at all: a project with a <c>T.Article</c> namespace takes <c>Article</c> from every component in
+    /// <c>T</c> (#266).
+    /// </summary>
+    [Fact]
+    public void NamespaceShadowingAnElementHelper_ReportsBCF3027_NamingItAsANamespace()
     {
         var result = CompilationTestHost.RunGenerator(
-            ("Host.cs", """
-                using BlazorCodeFirst;
-                using static BlazorCodeFirst.Html;
+        [
+            .. HostFiles("""Article["x"]""", members: ""),
+            ("Article.cs", "namespace T.Article { }"),
+        ]);
 
-                namespace T;
-
-                public partial class Host : BodyComponentBase
-                {
-                    public sealed class Table;
-
-                    protected override View Body => Table["x"];
-                }
-                """));
-
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
-        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3027");
+        var report = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3027");
+        Assert.Equal("Article", HostSpanText(report, """Article["x"]"""));
+        Assert.Contains(
+            "is a namespace", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     /// <summary>
