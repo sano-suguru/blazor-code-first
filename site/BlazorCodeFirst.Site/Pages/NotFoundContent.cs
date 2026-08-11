@@ -14,14 +14,14 @@ namespace BlazorCodeFirst.Site.Pages;
 /// completes the router matches "/docs/{Slug}" and renders DocsPage's not-found branch instead. If
 /// the two differed, the page would visibly swap content on hydration.
 ///
-/// A <c>[Composable]</c> is what makes sharing possible without a wrapper component: the generator
+/// A <c>[ViewPart]</c> is what makes sharing possible without a wrapper component: the generator
 /// expands this body statically into every caller's RenderView, so both components emit the same
 /// RenderTreeBuilder sequence with no runtime indirection. It takes no parameters and touches no
 /// private or protected member, so no accessibility requirement restricts where it may expand.
 /// </remarks>
 public static class NotFoundContent
 {
-    [Composable]
+    [ViewPart]
     public static View NotFound() =>
         Div.Class("shell")[
             Section.Class("prose demo")[

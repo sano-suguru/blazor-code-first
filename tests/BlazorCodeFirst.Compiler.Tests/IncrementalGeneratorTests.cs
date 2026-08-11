@@ -428,7 +428,7 @@ public sealed class IncrementalGeneratorTests
     }
 
     // ---------------------------------------------------------------------------
-    // Cross-file composable invalidation and registry stability
+    // Cross-file view part invalidation and registry stability
     // ---------------------------------------------------------------------------
 
     private const string WidgetsSource = """
@@ -439,7 +439,7 @@ public sealed class IncrementalGeneratorTests
 
         public static class Widgets
         {
-            [Composable]
+            [ViewPart]
             public static View Label(string value) => Span[value];
         }
         """;
@@ -452,7 +452,7 @@ public sealed class IncrementalGeneratorTests
 
         public static class Badges
         {
-            [Composable]
+            [ViewPart]
             public static View Badge(string value) => Span["[" + value + "]"];
         }
         """;
@@ -465,7 +465,7 @@ public sealed class IncrementalGeneratorTests
 
         public static class Widgets
         {
-            [Composable]
+            [ViewPart]
             public static View Label(string value) => Span[value + "!"];
         }
         """;
@@ -495,11 +495,11 @@ public sealed class IncrementalGeneratorTests
         """;
 
     /// <summary>
-    /// Changing a composable definition file must recompute the caller that expands it (Modified) while
+    /// Changing a view part definition file must recompute the caller that expands it (Modified) while
     /// the unrelated component that never calls it recomputes to an equal model (Unchanged/Cached).
     /// </summary>
     [Fact]
-    public void IncrementalGenerator_WhenComposableDefinitionChanges_InvalidatesOnlyDependentCaller()
+    public void IncrementalGenerator_WhenViewPartDefinitionChanges_InvalidatesOnlyDependentCaller()
     {
         var widgetsTree = ParseTree(WidgetsSource, "Widgets.cs");
         var callerTree = ParseTree(CallerSource, "Caller.cs");
@@ -531,11 +531,11 @@ public sealed class IncrementalGeneratorTests
     }
 
     /// <summary>
-    /// An identical rerun with the same compilation must reuse the composable registry (Cached/Unchanged)
+    /// An identical rerun with the same compilation must reuse the view part registry (Cached/Unchanged)
     /// rather than rebuilding a distinct-but-equal value.
     /// </summary>
     [Fact]
-    public void IncrementalGenerator_OnIdenticalRerun_CachesComposableRegistry()
+    public void IncrementalGenerator_OnIdenticalRerun_CachesViewPartRegistry()
     {
         var widgetsTree = ParseTree(WidgetsSource, "Widgets.cs");
         var callerTree = ParseTree(CallerSource, "Caller.cs");
@@ -547,33 +547,33 @@ public sealed class IncrementalGeneratorTests
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
         var run2 = driver.GetRunResult();
 
-        var registryOutputs = run2.Results[0].TrackedSteps["ComposableRegistry"]
+        var registryOutputs = run2.Results[0].TrackedSteps["ViewPartRegistry"]
             .SelectMany(s => s.Outputs).ToImmutableArray();
 
         Assert.All(registryOutputs, output =>
             Assert.True(
                 output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                $"Expected ComposableRegistry Cached/Unchanged but got {output.Reason}"));
+                $"Expected ViewPartRegistry Cached/Unchanged but got {output.Reason}"));
     }
 
     /// <summary>
-    /// An identical rerun with the same compilation must reuse the composable ForEach diagnostics output
+    /// An identical rerun with the same compilation must reuse the view part ForEach diagnostics output
     /// (Cached/Unchanged) rather than recomputing a distinct-but-equal <see cref="EquatableArray{T}"/>.
-    /// This guards the <c>(EquatableArray&lt;DiagnosticInfo&gt;)</c> cast on the "ComposableForEachDiagnostics"
+    /// This guards the <c>(EquatableArray&lt;DiagnosticInfo&gt;)</c> cast on the "ViewPartForEachDiagnostics"
     /// step in <c>BlazorCodeFirstGenerator</c>: if that cast were reverted to a raw
     /// <see cref="ImmutableArray{T}"/>, the step's output would compare by underlying-array reference
     /// instead of by structural value, so this identical rerun would report Modified instead of
     /// Cached/Unchanged and this test would fail.
     /// </summary>
     [Fact]
-    public void IncrementalGenerator_OnIdenticalRerun_CachesComposableForEachDiagnostics()
+    public void IncrementalGenerator_OnIdenticalRerun_CachesViewPartForEachDiagnostics()
     {
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
             public static class Widgets
             {
-                [BlazorCodeFirst.Composable]
+                [BlazorCodeFirst.ViewPart]
                 public static BlazorCodeFirst.View Never(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
                         ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
@@ -590,7 +590,7 @@ public sealed class IncrementalGeneratorTests
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
         var run2 = driver.GetRunResult();
 
-        var diagnosticsOutputs = run2.Results[0].TrackedSteps["ComposableForEachDiagnostics"]
+        var diagnosticsOutputs = run2.Results[0].TrackedSteps["ViewPartForEachDiagnostics"]
             .SelectMany(s => s.Outputs).ToImmutableArray();
 
         // Sanity check: the step must have actually produced the BCF3003 diagnostic (nested ForEach with
@@ -603,11 +603,11 @@ public sealed class IncrementalGeneratorTests
         Assert.All(diagnosticsOutputs, output =>
             Assert.True(
                 output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
-                $"Expected ComposableForEachDiagnostics Cached/Unchanged but got {output.Reason}"));
+                $"Expected ViewPartForEachDiagnostics Cached/Unchanged but got {output.Reason}"));
     }
 
     /// <summary>
-    /// Reordering syntax trees without changing any composable definition must yield an equal registry,
+    /// Reordering syntax trees without changing any view part definition must yield an equal registry,
     /// proving equality is by sorted value rather than discovery order or ImmutableArray reference.
     /// </summary>
     [Fact]
@@ -642,7 +642,7 @@ public sealed class IncrementalGeneratorTests
 
             public partial class Cyclic : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Loop() => Loop();
 
                 protected override View Body => Loop();
@@ -823,7 +823,7 @@ public sealed class IncrementalGeneratorTests
             {
                 protected override View Body => Build();
 
-                [Composable]
+                [ViewPart]
                 private static View Build() =>
                     Div[Fragment(If(true, () =>
                         Component<Target>().Template(
@@ -898,7 +898,7 @@ public sealed class IncrementalGeneratorTests
     [Fact]
     public void IncrementalGenerator_WhenAnEditOnlyShiftsOffsets_CachesTheTranslatedComponent()
     {
-        // Deliberately a body with no ForEach and no [Composable] call: those template nodes carry a
+        // Deliberately a body with no ForEach and no [ViewPart] call: those template nodes carry a
         // TemplateLocation of their own, which is a separate and intended source of offset sensitivity.
         var before = CSharpSyntaxTree.ParseText(
             ComponentASource,
@@ -931,14 +931,14 @@ public sealed class IncrementalGeneratorTests
                 $"Expected Cached/Unchanged after an offset-only edit but got {output.Reason}"));
     }
 
-    private static ComposableRegistry ExtractRegistry(params SyntaxTree[] trees)
+    private static ViewPartRegistry ExtractRegistry(params SyntaxTree[] trees)
     {
         var compilation = CreateCompilation(trees);
         var driver = CreateDriver().RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
-        var output = driver.GetRunResult().Results[0].TrackedSteps["ComposableRegistry"]
+        var output = driver.GetRunResult().Results[0].TrackedSteps["ViewPartRegistry"]
             .SelectMany(s => s.Outputs)
             .Single();
-        return (ComposableRegistry)output.Value!;
+        return (ViewPartRegistry)output.Value!;
     }
 
     private static CSharpCompilation CreateCompilation(params SyntaxTree[] trees)

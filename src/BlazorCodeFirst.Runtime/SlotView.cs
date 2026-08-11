@@ -1,7 +1,7 @@
 namespace BlazorCodeFirst;
 
 /// <summary>
-/// Inert design-time syntax for a <c>[Composable]</c> part that takes caller-supplied content: the result
+/// Inert design-time syntax for a <c>[ViewPart]</c> part that takes caller-supplied content: the result
 /// of calling one, before the content has been supplied. The indexer supplies it and completes the call.
 /// The name states an invariant that holds in both directions: a part declares this return type exactly
 /// when it has slots, and a part with this return type names <see cref="Html.Slot"/> exactly once
@@ -10,7 +10,7 @@ namespace BlazorCodeFirst;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the <c>[Composable]</c> counterpart of <see cref="ComponentView{TComponent}"/>. A part that
+/// This is the <c>[ViewPart]</c> counterpart of <see cref="ComponentView{TComponent}"/>. A part that
 /// takes content declares <see cref="SlotView"/> as its return type and writes <see cref="Html.Slot"/>
 /// in its body where the content belongs, so the call reads the way an element reads —
 /// <c>Card("Profile")[P["本文"]]</c> beside <c>Div.Class("card")[P["本文"]]</c>. `DESIGN.md` §4.3 records
@@ -38,7 +38,7 @@ namespace BlazorCodeFirst;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Design",
     "CA1043:Use integral or string argument for indexers",
-    Justification = "The indexer is the content channel of a [Composable] part, not a lookup by index: its " +
+    Justification = "The indexer is the content channel of a [ViewPart] part, not a lookup by index: its " +
         "argument is the content the caller is wrapping, a mixed sequence of strings and Views that no " +
         "integral or string overload could carry. It is the same channel ElementView and " +
         "ComponentView<T> declare, for the same reason and with the same signature.")]
@@ -52,7 +52,7 @@ namespace BlazorCodeFirst;
     "Usage",
     "CA2225:Operator overloads have named alternates",
     Justification = "The conversion is inert design-time syntax read by the source generator: it exists so " +
-        "a [Composable] body, which is a View expression, converts to this declared return type, and it " +
+        "a [ViewPart] body, which is a View expression, converts to this declared return type, and it " +
         "always yields the default SlotView at runtime. A named alternate would imply it does work.")]
 public readonly struct SlotView
 {
@@ -66,7 +66,7 @@ public readonly struct SlotView
     public View this[params System.ReadOnlySpan<View> children] => default;
 
     /// <summary>
-    /// Design-time syntax letting a <c>[Composable]</c> body, which is a <see cref="View"/> expression,
+    /// Design-time syntax letting a <c>[ViewPart]</c> body, which is a <see cref="View"/> expression,
     /// satisfy a <see cref="SlotView"/> return type. Inert: the generator reads the original expression;
     /// at runtime this always yields the default SlotView.
     /// </summary>

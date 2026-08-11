@@ -36,6 +36,13 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// region-opening and frame-less constructs, <c>If</c>, <c>ForEach</c>, <c>Fragment</c>, <c>Raw</c>,
 /// nested inside an element, which is the position whose surrounding syntax changes around them.
 /// </para>
+/// <para>
+/// The case name <c>composable-expansion</c> predates the rename of <c>[Composable]</c> to
+/// <c>[ViewPart]</c> and is kept as it is. Case names are the stable identity here, and the paragraphs
+/// above forbid renaming one to make a baseline agree; the vocabulary a case name uses is not what it
+/// pins. Its input was re-spelled along with the rest of the tree and its baseline did not move, because
+/// the emitted source never named the attribute.
+/// </para>
 /// </remarks>
 public sealed class SnapshotCorpusTests
 {
@@ -156,7 +163,7 @@ public sealed class SnapshotCorpusTests
 
                     protected override BlazorCodeFirst.View Body => Panel("Heading", _items);
 
-                    [BlazorCodeFirst.Composable]
+                    [BlazorCodeFirst.ViewPart]
                     private static BlazorCodeFirst.View Panel(string heading, List<string> items) =>
                         Div.Class("panel")[
                             H2[heading],

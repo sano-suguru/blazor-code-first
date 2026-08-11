@@ -186,7 +186,7 @@ test.describe('at 375px', () => {
 
   test('an unknown path is served the not-found page inside the shell', async ({ page }) => {
     // Not a route in the published output, so it exercises serve.mjs's 404 fallback and the shared
-    // [Composable] body that 404.html and DocsPage's unknown-slug branch both render.
+    // [ViewPart] body that 404.html and DocsPage's unknown-slug branch both render.
     const response = await page.goto('/no-such-page', { waitUntil: 'networkidle' });
     expect(response?.status()).toBe(404);
     await expect(page.locator('.site-nav')).toBeVisible();

@@ -3,12 +3,12 @@ using static BlazorCodeFirst.Html;
 
 namespace Fixtures.GeneratorDelivery;
 
-/// <summary>BCF1002: a <c>[Composable]</c> method that is not static.</summary>
+/// <summary>BCF1002: a <c>[ViewPart]</c> method that is not static.</summary>
 public partial class Bcf1002Host : BodyComponentBase
 {
     protected override View Body => Span["bcf1002"];
 
-    [Composable]
+    [ViewPart]
     private View Helper() => Span["helper"];
 }
 

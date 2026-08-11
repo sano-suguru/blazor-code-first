@@ -159,17 +159,17 @@ public sealed class ComponentBindGeneratorTests
     }
 
     [Fact]
-    public void Bind_InsideComposable_SubstitutesBothTheValueAndTheChangeCallback()
+    public void Bind_InsideViewPart_SubstitutesBothTheValueAndTheChangeCallback()
     {
         // Why the change callback is composed from the getter's segments rather than from its ToCode():
-        // inside a [Composable] body the getter still holds an unbound parameter hole, and ToCode() throws
+        // inside a [ViewPart] body the getter still holds an unbound parameter hole, and ToCode() throws
         // on those. The same hole must be filled on both sides, or the parameter and its callback would
         // name different objects.
         var generated = GenerateBodyWith(Probe, """
             private sealed class FormModel { public string Name { get; set; } = ""; }
             private readonly FormModel _form = new();
 
-            [Composable]
+            [ViewPart]
             private static View Field(FormModel model) =>
                 Html.Component<Probe>().Bind(c => c.Value, () => model.Name);
 

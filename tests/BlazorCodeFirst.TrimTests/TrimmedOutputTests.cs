@@ -48,7 +48,7 @@ public sealed class TrimmedOutputTests
     }
 
     [Fact]
-    public void TrimmedApp_AfterPublish_TrimsPrivateComposableMethod()
+    public void TrimmedApp_AfterPublish_TrimsPrivateViewPartMethod()
     {
         var appAssemblyPath = ResolvePublishedAssembly(AppAssemblyFileName);
 
@@ -83,13 +83,13 @@ public sealed class TrimmedOutputTests
     }
 
     [Fact]
-    public void TrimmedApp_AfterPublish_TrimsLayoutComposableMethod()
+    public void TrimmedApp_AfterPublish_TrimsLayoutViewPartMethod()
     {
         var appAssemblyPath = ResolvePublishedAssembly(AppAssemblyFileName);
 
         var methods = GetMethodNames(appAssemblyPath, "TrimLayout", expectedNamespace: "");
 
-        // A [Composable] called from Chrome is statically expanded into RenderView, so the method
+        // A [ViewPart] called from Chrome is statically expanded into RenderView, so the method
         // itself is unreachable, the same result the component path asserts for CountLabel.
         Assert.DoesNotContain("ChromeTitle", methods);
     }

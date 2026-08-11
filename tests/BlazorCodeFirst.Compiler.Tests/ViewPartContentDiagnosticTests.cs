@@ -15,20 +15,20 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// receives no caller content, and that is the one new diagnostic (BCF3025). The two halves are tested
 /// separately below so a regression that turns a compile error into a diagnostic, or the reverse, is visible.
 /// </remarks>
-public sealed class ComposableContentDiagnosticTests
+public sealed class ViewPartContentDiagnosticTests
 {
     [Theory]
     // A component's own design-time expression receives no brackets, so it has no slot to fill.
     [InlineData(
         """
-        [Composable] private static View Ok() => Span["x"];
+        [ViewPart] private static View Ok() => Span["x"];
         protected override View Body => Div[Slot];
         """,
         "is written where no caller content is received")]
     // A part returning View is called without brackets, so likewise.
     [InlineData(
         """
-        [Composable] private static View Bad() => Div[Slot];
+        [ViewPart] private static View Bad() => Div[Slot];
         protected override View Body => Bad();
         """,
         "is written where no caller content is received")]
@@ -36,14 +36,14 @@ public sealed class ComposableContentDiagnosticTests
     // then be discarded.
     [InlineData(
         """
-        [Composable] private static SlotView None() => Div.Class("x")["nothing"];
+        [ViewPart] private static SlotView None() => Div.Class("x")["nothing"];
         protected override View Body => None()["c"];
         """,
         "is never named in 'None'")]
     // Two slots would emit the caller's content twice from one bracket.
     [InlineData(
         """
-        [Composable] private static SlotView Two() => Div[Slot, Slot];
+        [ViewPart] private static SlotView Two() => Div[Slot, Slot];
         protected override View Body => Two()["c"];
         """,
         "is named 2 times in 'Two'")]
@@ -58,23 +58,23 @@ public sealed class ComposableContentDiagnosticTests
     [Theory]
     // The bracket is mandatory because SlotView is not a View, so a call without it is not a child.
     [InlineData("""
-        [Composable] private static SlotView Card() => Div[Slot];
+        [ViewPart] private static SlotView Card() => Div[Slot];
         protected override View Body => Div[Card()];
         """)]
     // Nor a design-time expression on its own.
     [InlineData("""
-        [Composable] private static SlotView Card() => Div[Slot];
+        [ViewPart] private static SlotView Card() => Div[Slot];
         protected override View Body => Card();
         """)]
     // The positional spelling #176 decided against does not exist: there is no parameter to bind to.
     [InlineData("""
-        [Composable] private static SlotView Card() => Div[Slot];
+        [ViewPart] private static SlotView Card() => Div[Slot];
         protected override View Body => Card(P["x"])["c"];
         """)]
     // Decorations are extension methods on ElementView, so a SlotView finds none -- the same
     // mechanism that makes Div["x"].Class("y") unwritable rather than a second supported style.
     [InlineData("""
-        [Composable] private static SlotView Card() => Div[Slot];
+        [ViewPart] private static SlotView Card() => Div[Slot];
         protected override View Body => Card().Class("x")["c"];
         """)]
     public void ContentSurface_MisuseThatCSharpAlreadyRefuses_NeedsNoDiagnostic(string members)
@@ -102,10 +102,10 @@ public sealed class ComposableContentDiagnosticTests
     /// second spelling of what brackets write, which is the one thing #176 rules out.
     /// </summary>
     [Fact]
-    public void ViewParameter_OnAViewReturningComposable_ReportsBCF1002()
+    public void ViewParameter_OnAViewReturningViewPart_ReportsBCF1002()
     {
         var result = RunComponent("""
-            [Composable] private static View Card(View content) => Div[content];
+            [ViewPart] private static View Card(View content) => Div[content];
             protected override View Body => Card(P["x"]);
             """);
 
@@ -124,7 +124,7 @@ public sealed class ComposableContentDiagnosticTests
     public void OptionalViewParameter_ReportsBCF1002()
     {
         var result = RunComponent("""
-            [Composable] private static SlotView Card(View header = default) => Div[header, Slot];
+            [ViewPart] private static SlotView Card(View header = default) => Div[header, Slot];
             protected override View Body => Card()["c"];
             """);
 
@@ -141,10 +141,10 @@ public sealed class ComposableContentDiagnosticTests
     /// passes a childless element as content by writing <c>Div[…]</c> or <c>Fragment(Div)</c>.
     /// </summary>
     [Fact]
-    public void ElementViewParameter_OnAContentTakingComposable_ReportsBCF1002()
+    public void ElementViewParameter_OnAContentTakingViewPart_ReportsBCF1002()
     {
         var result = RunComponent("""
-            [Composable] private static SlotView Card(ElementView head) => Div[head, Slot];
+            [ViewPart] private static SlotView Card(ElementView head) => Div[head, Slot];
             protected override View Body => Card(Div)["c"];
             """);
 
@@ -166,7 +166,7 @@ public sealed class ComposableContentDiagnosticTests
     [InlineData(
         """
         private List<string> _xs = new();
-        [Composable] private static SlotView Rows(List<string> xs) => Ul[ForEach(xs, x => Slot, x => Li["a"])];
+        [ViewPart] private static SlotView Rows(List<string> xs) => Ul[ForEach(xs, x => Slot, x => Li["a"])];
         protected override View Body => Rows(_xs)[Li["c"]];
         """,
         "Slot")]
@@ -174,7 +174,7 @@ public sealed class ComposableContentDiagnosticTests
     [InlineData(
         """
         private static string Describe(View v) => "x";
-        [Composable] private static SlotView Card(View header) => Div.Attr("data-x", Describe(header))[Slot];
+        [ViewPart] private static SlotView Card(View header) => Div.Attr("data-x", Describe(header))[Slot];
         protected override View Body => Card(Span["h"])[P["c"]];
         """,
         "header")]
@@ -194,14 +194,14 @@ public sealed class ComposableContentDiagnosticTests
     /// <summary>
     /// A slot as a ForEach content root is keyable when the caller supplied a keyable element there, and the
     /// resolver has the call's content in hand at that point. Reporting BCF3003 anyway gave the author a
-    /// diagnostic they could only fix inside someone else's <c>[Composable]</c>.
+    /// diagnostic they could only fix inside someone else's <c>[ViewPart]</c>.
     /// </summary>
     [Fact]
     public void SlotRootedForEachContent_WhenTheCallerSuppliesAKeyableElement_IsNotReported()
     {
         var result = RunComponent("""
             private List<string> _xs = new();
-            [Composable] private static SlotView Bare() => Slot;
+            [ViewPart] private static SlotView Bare() => Slot;
             protected override View Body => Ul[ForEach(_xs, x => x, x => Bare()[Li[x]])];
             """);
 
@@ -219,7 +219,7 @@ public sealed class ComposableContentDiagnosticTests
         var result = RunComponent("""
             private List<string> _xs = new();
             private bool _flag;
-            [Composable] private static SlotView Bare() => Slot;
+            [ViewPart] private static SlotView Bare() => Slot;
             protected override View Body =>
                 Ul[ForEach(_xs, x => x, x => Bare()[If(_flag, () => Li[x])])];
             """);
@@ -247,7 +247,7 @@ public sealed class ComposableContentDiagnosticTests
 
             public partial class C : BodyComponentBase
             {
-                [Composable] private static SlotView Card() => Div[Slot];
+                [ViewPart] private static SlotView Card() => Div[Slot];
 
                 protected override View Body =>
                     Component<Target>().Param(t => t.Payload, Card());

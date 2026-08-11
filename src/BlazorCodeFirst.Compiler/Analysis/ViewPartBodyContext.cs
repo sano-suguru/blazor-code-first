@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
 
-/// <summary>What a symbol referenced inside a composable body denotes.</summary>
+/// <summary>What a symbol referenced inside a view part body denotes.</summary>
 /// <remarks>
 /// The kind travels with the ordinal rather than being decided by which lookup method a caller reached
 /// for. Two lookups, one that admitted content and one that did not, put the choice on every caller and
@@ -20,7 +20,7 @@ internal enum BodyHoleKind
     /// <summary>Not a hole: an ordinary symbol the expression keeps as written.</summary>
     None,
 
-    /// <summary>A value, substituted as code: a composable parameter or a scoped render variable.</summary>
+    /// <summary>A value, substituted as code: a view part parameter or a scoped render variable.</summary>
     Value,
 
     /// <summary>
@@ -31,12 +31,12 @@ internal enum BodyHoleKind
 }
 
 /// <summary>
-/// Carries the shared state required to normalize the expressions inside a single composable
+/// Carries the shared state required to normalize the expressions inside a single view part
 /// definition body: the semantic model, the containing type, the parameter-to-ordinal map and scoped
 /// render-variable overlay, the resolved runtime symbols, and the accumulating access-requirement and
 /// diagnostic builders.
 /// </summary>
-internal sealed class ComposableBodyContext
+internal sealed class ViewPartBodyContext
 {
     private readonly ImmutableDictionary<ISymbol, int> _parameterOrdinals;
 
@@ -52,7 +52,7 @@ internal sealed class ComposableBodyContext
     private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
     private int _renderVariableDepth;
 
-    public ComposableBodyContext(
+    public ViewPartBodyContext(
         SemanticModel semanticModel,
         INamedTypeSymbol containingType,
         string methodDisplayName,
@@ -68,7 +68,7 @@ internal sealed class ComposableBodyContext
         _parameterOrdinals = parameterOrdinals;
         _contentOrdinals = contentOrdinals ?? [];
         CancellationToken = cancellationToken;
-        AccessRequirements = ImmutableArray.CreateBuilder<ComposableAccessRequirement>();
+        AccessRequirements = ImmutableArray.CreateBuilder<ViewPartAccessRequirement>();
         Diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
     }
 
@@ -82,7 +82,7 @@ internal sealed class ComposableBodyContext
 
     public CancellationToken CancellationToken { get; }
 
-    public ImmutableArray<ComposableAccessRequirement>.Builder AccessRequirements { get; }
+    public ImmutableArray<ViewPartAccessRequirement>.Builder AccessRequirements { get; }
 
     /// <summary>
     /// All diagnostics recorded while normalizing this body, both errors (for example BCF1002) and
@@ -168,7 +168,7 @@ internal sealed class ComposableBodyContext
     /// Records a distinct accessibility requirement for a referenced member/type so expansion can
     /// reject inlining into a site that cannot legally name it.
     /// </summary>
-    public void AddAccessRequirement(ComposableAccessRequirement requirement)
+    public void AddAccessRequirement(ViewPartAccessRequirement requirement)
     {
         foreach (var existing in AccessRequirements)
         {

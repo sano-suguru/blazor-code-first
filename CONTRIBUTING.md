@@ -441,7 +441,7 @@ command listed there and never run reads exactly like one that was.
   fills in `RenderView`. The other direction, `Component<T>()`, reaches existing Razor
   components, and its type argument must resolve while the generator runs, so a
   `.razor` component declared in the same project cannot be named (`BCF3012`),
-  because source generators cannot observe each other's output. `[Composable]` has no
+  because source generators cannot observe each other's output. `[ViewPart]` has no
   Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` 付録B.4).
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence

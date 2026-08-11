@@ -208,12 +208,12 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void Composable_WithAnElementViewParameter_IsRejected()
+    public void ViewPart_WithAnElementViewParameter_IsRejected()
     {
         var diagnostics = Run(
             """Card(Span)""",
             """
-            [Composable]
+            [ViewPart]
             private static View Card(ElementView slot) => Div[slot];
             """);
 
@@ -343,33 +343,33 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// The unresolved type sits inside a <c>[Composable]</c> body that fails to translate, so only the
+    /// The unresolved type sits inside a <c>[ViewPart]</c> body that fails to translate, so only the
     /// failure-path sweep can reach it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Distinct from <c>UnresolvedEmittedTypeTests.ComposableBody_UnresolvedType_ReportsBCF3015Once</c>,
+    /// Distinct from <c>UnresolvedEmittedTypeTests.ViewPartBody_UnresolvedType_ReportsBCF3015Once</c>,
     /// whose body translates successfully: there BCF3015 comes from the success path
-    /// (<c>ExpressionTemplateFactory</c> reporting through <c>ComposableBodyContext</c>) and
+    /// (<c>ExpressionTemplateFactory</c> reporting through <c>ViewPartBodyContext</c>) and
     /// <c>UnresolvedValueTypeScanner</c> is never reached. Measured by deleting the scanner call from
-    /// <c>ComposableDefinitionFactory</c>: that test still passed, and so did every other behavioural test
+    /// <c>ViewPartDefinitionFactory</c>: that test still passed, and so did every other behavioural test
     /// in the suite, only the structural wiring guard failed. This case is the one that fails, and that
     /// is the whole reason it exists.
     /// </para>
     /// <para>
     /// The unbound spread is what forces the failure path, for the reason spelled out in
     /// <see cref="UnresolvedValueType_BesideAnUnboundSpreadInALiteral_ReportsBCF3015"/>; here it is written
-    /// inside the <c>[Composable]</c> body rather than in <c>Body</c>, so the sweep that finds it runs from
+    /// inside the <c>[ViewPart]</c> body rather than in <c>Body</c>, so the sweep that finds it runs from
     /// the other design-time-expression host.
     /// </para>
     /// </remarks>
     [Fact]
-    public void UnresolvedValueType_InsideAComposableBody_ReportsBCF3015()
+    public void UnresolvedValueType_InsideAViewPartBody_ReportsBCF3015()
     {
         var diagnostics = Run(
             """Div["ok"]""",
             """
-            [Composable]
+            [ViewPart]
             private static View Broken() => Div[[Span[typeof(Probe).Name], ..MissingMethod()]];
             """);
 
@@ -393,13 +393,13 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void DecoratingAComposableResult_ReportsBCF3008()
+    public void DecoratingAViewPartResult_ReportsBCF3008()
     {
-        // A [Composable] method returns View, which is precisely the domain BCF3008 forbids decorating.
+        // A [ViewPart] method returns View, which is precisely the domain BCF3008 forbids decorating.
         AssertReportsBCF3008(RunResult(
             """Card().Class("x")""",
             """
-            [Composable]
+            [ViewPart]
             private static View Card() => Div["c"];
             """));
     }
@@ -428,21 +428,21 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// The misplaced decoration is written <em>inside</em> a <c>[Composable]</c> body rather than in
+    /// The misplaced decoration is written <em>inside</em> a <c>[ViewPart]</c> body rather than in
     /// <c>Body</c>, so the sweep that finds it runs from the other design-time-expression host.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Distinct from <see cref="DecoratingAComposableResult_ReportsBCF3008"/>, which decorates what a
-    /// composable <em>returns</em> and is written in <c>Body</c> like every other case in this group. Here
-    /// the composable's own body is the broken expression, and <c>Body</c> is healthy.
+    /// Distinct from <see cref="DecoratingAViewPartResult_ReportsBCF3008"/>, which decorates what a
+    /// view part <em>returns</em> and is written in <c>Body</c> like every other case in this group. Here
+    /// the view part's own body is the broken expression, and <c>Body</c> is healthy.
     /// </para>
     /// <para>
     /// Kept as its own case because the shape is not covered by any other: a design-time expression has two
-    /// hosts, <c>ComponentModelFactory</c> for <c>Body</c> and <c>ComposableDefinitionFactory</c> for
-    /// <c>[Composable]</c>, and each wires its own failure-path sweeps. BCF3008 was reported from inside
+    /// hosts, <c>ComponentModelFactory</c> for <c>Body</c> and <c>ViewPartDefinitionFactory</c> for
+    /// <c>[ViewPart]</c>, and each wires its own failure-path sweeps. BCF3008 was reported from inside
     /// <c>RenderExpressionAnalyzer.Classify</c>, which both hosts route through, until it moved to a
-    /// caller-invoked scanner; the composable host was then left without it, and every existing case here
+    /// caller-invoked scanner; the view part host was then left without it, and every existing case here
     /// shares the <c>Body</c> host template and so kept passing. Measured on that state, this input reported
     /// BCF1002 alone, "body must be a statically sequenceable expression", the generic text BCF3008 exists to
     /// displace. <c>FailurePathScannerParityTests</c> guards the wiring; this guards the author-facing
@@ -450,12 +450,12 @@ public sealed class BracketSurfaceDiagnosticTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void DecoratingANonElement_InsideAComposableBody_ReportsBCF3008()
+    public void DecoratingANonElement_InsideAViewPartBody_ReportsBCF3008()
     {
         AssertReportsBCF3008(RunResult(
             """Div["ok"]""",
             """
-            [Composable]
+            [ViewPart]
             private static View Card() => Fragment("a").Class("x");
             """));
     }

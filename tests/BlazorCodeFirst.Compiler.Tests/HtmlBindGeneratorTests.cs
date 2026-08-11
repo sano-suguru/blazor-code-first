@@ -92,15 +92,15 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
-    public void Bind_InsideComposable_SubstitutesTheValueOnBothSidesOfTheBinding()
+    public void Bind_InsideViewPart_SubstitutesTheValueOnBothSidesOfTheBinding()
     {
-        // Closes a gap Task 3's review found: ComposableExpander substitutes parameter holes into
+        // Closes a gap Task 3's review found: ViewPartExpander substitutes parameter holes into
         // BindTemplate.Value, and nothing exercises that branch. The emitter tests build ElementNode
         // directly and never reach the expander. If the .Substitute call is dropped, ToCode() throws
         // "Expression template still contains unbound parameter holes" and only a test shaped like this
         // one sees it. The setter channel has its own case below.
         //
-        // The hole is a *member* of the composable's parameter, not the parameter itself. Expansion
+        // The hole is a *member* of the view part's parameter, not the parameter itself. Expansion
         // replaces the parameter with a generated local holding a copy of the caller's argument, so an
         // inverted setter written over the parameter alone would assign to that copy and the caller's
         // field would never see it; BCF3018 rejects that shape, and this one writes through the copied
@@ -109,7 +109,7 @@ public sealed class HtmlBindGeneratorTests
             private sealed class FormModel { public string Name { get; set; } = ""; }
             private readonly FormModel _form = new();
 
-            [Composable]
+            [ViewPart]
             private static View Field(FormModel model) =>
                 Html.Input.Bind("value", "oninput", () => model.Name);
 
@@ -126,7 +126,7 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
-    public void Bind_ExplicitSetterInsideComposable_SubstitutesTheSetterToo()
+    public void Bind_ExplicitSetterInsideViewPart_SubstitutesTheSetterToo()
     {
         // The setter is the binding's second expression channel and its own .Substitute call in the
         // expander. The inverted case above cannot see it: with no setter written there is nothing on
@@ -135,7 +135,7 @@ public sealed class HtmlBindGeneratorTests
             private sealed class FormModel { public string Name { get; set; } = ""; }
             private readonly FormModel _form = new();
 
-            [Composable]
+            [ViewPart]
             private static View Field(FormModel model) =>
                 Html.Input.Bind("value", "oninput", () => model.Name, v => model.Name = v.Trim());
 
@@ -286,7 +286,7 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
-    public void TwoBinds_InsideComposable_SubstituteEveryBindingsHoles()
+    public void TwoBinds_InsideViewPart_SubstituteEveryBindingsHoles()
     {
         // The expander maps over every binding on the element. Reduced to substituting Bindings[0], the
         // second binding would vanish from the expansion with nothing failing — the same class of break
@@ -301,7 +301,7 @@ public sealed class HtmlBindGeneratorTests
             }
             private readonly FormModel _form = new();
 
-            [Composable]
+            [ViewPart]
             private static View Field(FormModel model) =>
                 Html.Input
                     .Bind("value", "oninput", () => model.Live)

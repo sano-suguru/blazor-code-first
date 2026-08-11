@@ -18,7 +18,7 @@ public sealed class KeyabilityResolverTests
             "div", default, default, default,
             ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
 
-        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class KeyabilityResolverTests
     {
         var node = new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null);
 
-        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 
     [Fact]
@@ -34,16 +34,16 @@ public sealed class KeyabilityResolverTests
     {
         var node = new ComponentTemplateNode("global::X.C", EquatableArray<ComponentParameter>.Empty);
 
-        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 
     [Fact]
-    public void ResolveRootKind_ComposableCallToUnknown_IsUnresolved()
+    public void ResolveRootKind_ViewPartCallToUnknown_IsUnresolved()
     {
-        var node = new ComposableCallTemplateNode(
+        var node = new ViewPartCallTemplateNode(
             "K:Missing", "Missing", default, new TemplateLocation("f", default, default));
 
-        Assert.Equal(ContentRootKind.Unresolved, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Unresolved, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public sealed class KeyabilityResolverTests
             new TemplateLocation("f", default, default));
         var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
 
-        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ComposableRegistry.Empty, sink);
+        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ViewPartRegistry.Empty, sink);
 
         Assert.Single(sink, d => d.Id == "BCF3003");
     }
@@ -70,7 +70,7 @@ public sealed class KeyabilityResolverTests
             new TemplateLocation("f", default, default));
         var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
 
-        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ComposableRegistry.Empty, sink);
+        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ViewPartRegistry.Empty, sink);
 
         Assert.Empty(sink);
     }
@@ -80,14 +80,14 @@ public sealed class KeyabilityResolverTests
     {
         var node = new FragmentTemplateNode(
             ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
-        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 
     [Fact]
     public void ResolveRootKind_RawMarkup_IsRegion()
     {
         var node = new RawMarkupTemplateNode(Lit("\"<b>x</b>\""));
-        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class KeyabilityResolverTests
             new TemplateLocation("f", default, default));
 
         var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
-        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ComposableRegistry.Empty, sink);
+        KeyabilityResolver.CollectForEachContentDiagnostics(forEach, ViewPartRegistry.Empty, sink);
 
         Assert.Contains(sink, d => d.Id == "BCF3003");
     }
@@ -121,7 +121,7 @@ public sealed class KeyabilityResolverTests
                 new FragmentTemplateNode(ImmutableArray.Create<RenderTemplateNode>(innerForEach))));
 
         var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
-        KeyabilityResolver.CollectForEachContentDiagnostics(root, ComposableRegistry.Empty, sink);
+        KeyabilityResolver.CollectForEachContentDiagnostics(root, ViewPartRegistry.Empty, sink);
 
         Assert.Contains(sink, d => d.Id == "BCF3003");
     }
@@ -144,7 +144,7 @@ public sealed class KeyabilityResolverTests
             ImmutableArray.Create(new ComponentSlot("ChildContent", forEach)));
 
         var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
-        KeyabilityResolver.CollectForEachContentDiagnostics(node, ComposableRegistry.Empty, sink);
+        KeyabilityResolver.CollectForEachContentDiagnostics(node, ViewPartRegistry.Empty, sink);
 
         Assert.Single(sink);
         // DiagnosticInfo is symbol-free and stores only the Id string: it has no Descriptor property.
@@ -170,7 +170,7 @@ public sealed class KeyabilityResolverTests
             ImmutableArray.Create(slot));
 
         var sink = ImmutableArray.CreateBuilder<BlazorCodeFirst.Compiler.Diagnostics.DiagnosticInfo>();
-        KeyabilityResolver.CollectForEachContentDiagnostics(node, ComposableRegistry.Empty, sink);
+        KeyabilityResolver.CollectForEachContentDiagnostics(node, ViewPartRegistry.Empty, sink);
 
         Assert.Single(sink, diagnostic => diagnostic.Id == "BCF3003");
     }
@@ -185,6 +185,6 @@ public sealed class KeyabilityResolverTests
             ImmutableArray.Create(
                 new ComponentSlot("ChildContent", new TextContentTemplateNode(Lit("\"x\"")))));
 
-        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ComposableRegistry.Empty));
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
     }
 }

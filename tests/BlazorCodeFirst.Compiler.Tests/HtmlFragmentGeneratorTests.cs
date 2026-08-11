@@ -51,14 +51,14 @@ public sealed class HtmlFragmentGeneratorTests
         }
         """;
 
-    private const string FragmentViaComposableAsForEachContentSource = """
+    private const string FragmentViaViewPartAsForEachContentSource = """
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
         public partial class C : BodyComponentBase
         {
             private List<string> _xs = new();
-            [Composable] private static View Row(string x) => Html.Fragment(Html.Span[x]);
+            [ViewPart] private static View Row(string x) => Html.Fragment(Html.Span[x]);
             protected override View Body =>
                 Html.ForEach(_xs, x => x, x => Row(x));
         }
@@ -155,9 +155,9 @@ public sealed class HtmlFragmentGeneratorTests
     }
 
     [Fact]
-    public void Fragment_ViaComposableAsForEachContentRoot_ReportsBCF3003()
+    public void Fragment_ViaViewPartAsForEachContentRoot_ReportsBCF3003()
     {
-        var result = CompilationTestHost.RunGenerator(FragmentViaComposableAsForEachContentSource);
+        var result = CompilationTestHost.RunGenerator(FragmentViaViewPartAsForEachContentSource);
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003");
     }
 

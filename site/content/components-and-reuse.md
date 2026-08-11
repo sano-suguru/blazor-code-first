@@ -5,7 +5,7 @@ order: 40
 
 A component is the unit of reuse. One BlazorCodeFirst component calls another with
 `Component<T>()`, an existing Razor or third-party component is called exactly the same way, and a
-`.razor` file can call back into a BlazorCodeFirst component as an ordinary tag. `[Composable]` is
+`.razor` file can call back into a BlazorCodeFirst component as an ordinary tag. `[ViewPart]` is
 a different tool for a different job, covered at the end of this page.
 
 ## Calling another BlazorCodeFirst component
@@ -220,9 +220,9 @@ In the BCF3012 direction, the type itself is generated output, which is a differ
 This site does it: `App.razor` names `NotFoundPage`, a BlazorCodeFirst component declared in a
 plain `.cs` file in the same project.
 
-## Splitting without a component: `[Composable]`
+## Splitting without a component: `[ViewPart]`
 
-Not every part of a `Body` expression deserves a component. A `[Composable]` method is a piece of
+Not every part of a `Body` expression deserves a component. A `[ViewPart]` method is a piece of
 UI that the generator expands *into the caller* rather than rendering through a component
 boundary:
 
@@ -232,7 +232,7 @@ protected override View Body =>
         AppHeader("My Application"),
         BodyContent()];
 
-[Composable]
+[ViewPart]
 private static View AppHeader(string title) =>
     Div.Class("app-header")[
         Span[title]];
@@ -254,7 +254,7 @@ protected override View Body =>
         Card("Profile")[P["Body text"]],
         Section.Class("body")[P["…"]]];
 
-[Composable]
+[ViewPart]
 private static SlotView Card(string title) =>
     Div.Class("card")[
         H2[title],
@@ -278,7 +278,7 @@ protected override View Body =>
     Panel(H2["Title"])[
         P["Body text"]];
 
-[Composable]
+[ViewPart]
 private static SlotView Panel(View header) =>
     Div.Class("panel")[
         Div.Class("panel-head")[header],
@@ -304,12 +304,12 @@ inside an attribute value — reports **BCF1002**.
 
 That is the whole trade-off:
 
-- **Reach for `[Composable]`** when the part is pure projection: it has no state of its own, and
+- **Reach for `[ViewPart]`** when the part is pure projection: it has no state of its own, and
   you want it inlined rather than sitting behind a boundary.
 - **Reach for a component** when the part holds state, needs a lifecycle, should re-render on its
   own, or is used from another assembly.
 
-A `[Composable]` has to satisfy a declaration contract the generator can expand, or it reports
+A `[ViewPart]` has to satisfy a declaration contract the generator can expand, or it reports
 **BCF1002**. It must be a static, non-generic, expression-bodied method returning `View` (or
 `SlotView`, to take content), declared in a non-generic type, and its parameters must be ordinary
 by-value parameters whose types can be named from generated code. `params`, by-reference parameters,
@@ -322,14 +322,14 @@ It also must not be an extension member — neither a `this` parameter nor a mem
 block. A call is written as a plain call (`AppHeader("My Application")`), the way this surface writes
 every call that is not a decoration on an element. The fluent spelling would put something that is
 not a decoration in the position the surface reserves for one, and the receiver could only ever be
-some other type's value, which would turn `[Composable]` into a way to grow *that* type's API rather
+some other type's value, which would turn `[ViewPart]` into a way to grow *that* type's API rather
 than to split up a `Body`.
 
 BCF1002 also fires at the *call site*, and one of its conditions is worth stating plainly:
 
-**a `[Composable]` cannot cross an assembly boundary.** Expanding a call needs the declaration's
+**a `[ViewPart]` cannot cross an assembly boundary.** Expanding a call needs the declaration's
 source syntax, and the generator collects declarations from the compilation it is running in. IL
-carries no body syntax, so a `[Composable]` in a referenced project or a package always reports
+carries no body syntax, so a `[ViewPart]` in a referenced project or a package always reports
 BCF1002 where it is called. The same diagnostic covers a recursive expansion cycle, and a body
 that reaches a `private` or `protected` member the expansion site cannot see.
 

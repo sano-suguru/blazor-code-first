@@ -18,8 +18,8 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCodeFirst.View</c>, or <see langword="null"/> if unavailable.</summary>
     public INamedTypeSymbol? ViewType { get; }
 
-    /// <summary>Resolved symbol for <c>BlazorCodeFirst.ComposableAttribute</c>, or <see langword="null"/> if unavailable.</summary>
-    public INamedTypeSymbol? ComposableAttributeType { get; }
+    /// <summary>Resolved symbol for <c>BlazorCodeFirst.ViewPartAttribute</c>, or <see langword="null"/> if unavailable.</summary>
+    public INamedTypeSymbol? ViewPartAttributeType { get; }
 
     /// <summary>Resolved unbound generic <c>BlazorCodeFirst.ComponentView&lt;T&gt;</c>, or null.</summary>
     public INamedTypeSymbol? ComponentViewType { get; }
@@ -49,7 +49,7 @@ internal sealed class KnownSymbols
     public IPropertySymbol? ComponentIndexer { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>BlazorCodeFirst.SlotView</c>, the return type of a <c>[Composable]</c> part
+    /// Resolved symbol for <c>BlazorCodeFirst.SlotView</c>, the return type of a <c>[ViewPart]</c> part
     /// that takes caller-supplied content (#176), or <see langword="null"/> against a runtime that predates
     /// it.
     /// </summary>
@@ -63,7 +63,7 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Resolved symbol for <c>SlotView</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is the
-    /// one channel content reaches a <c>[Composable]</c> part through, or null.
+    /// one channel content reaches a <c>[ViewPart]</c> part through, or null.
     /// </summary>
     public IPropertySymbol? ContentIndexer { get; }
 
@@ -448,8 +448,8 @@ internal sealed class KnownSymbols
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
         ViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.View");
-        ComposableAttributeType =
-            htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComposableAttribute");
+        ViewPartAttributeType =
+            htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ViewPartAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComponentView`1");
         ElementViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementView");
         SlotViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.SlotView");
@@ -686,7 +686,7 @@ internal sealed class KnownSymbols
         && SymbolEqualityComparer.Default.Equals(Normalize(property), Normalize(slotProperty));
 
     /// <summary>
-    /// Whether <paramref name="type"/> is <c>View</c>, which in a <c>[Composable]</c> parameter position makes
+    /// Whether <paramref name="type"/> is <c>View</c>, which in a <c>[ViewPart]</c> parameter position makes
     /// that parameter a content slot rather than a value (#34).
     /// </summary>
     public bool IsContentType(ITypeSymbol type) =>

@@ -366,9 +366,9 @@ public sealed class ComponentSlotGeneratorTests
     }
 
     [Fact]
-    public void ComponentWithChildren_ComposableCallInsideSlot_ExpandsInsideTheLambda()
+    public void ComponentWithChildren_ViewPartCallInsideSlot_ExpandsInsideTheLambda()
     {
-        // Guards against a [Composable] call nested inside a slot failing to expand statically (falling
+        // Guards against a [ViewPart] call nested inside a slot failing to expand statically (falling
         // back to an opaque runtime call). "new" and the .Class("badge") decoration are both constant, so
         // the lone-hole substitution rule (#140) carries the constant through and the whole call folds
         // into one markup frame; there is no argument local left to hoist out of the fragment lambda, so
@@ -379,7 +379,7 @@ public sealed class ComponentSlotGeneratorTests
             namespace T;
             public partial class Host : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Badge(string label) => Span.Class("badge")[label];
 
                 protected override View Body => Component<Card>()[Badge("new")];
@@ -402,11 +402,11 @@ public sealed class ComponentSlotGeneratorTests
         Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
         Assert.True(
             lambdaIdx < markupIdx,
-            "the composable's folded markup must be emitted inside the fragment lambda");
+            "the view part's folded markup must be emitted inside the fragment lambda");
     }
 
     [Fact]
-    public void ComponentWithChildren_ComposableCallInsideSlotWithNonConstantArgument_DeclaresLocalInsideTheLambda()
+    public void ComponentWithChildren_ViewPartCallInsideSlotWithNonConstantArgument_DeclaresLocalInsideTheLambda()
     {
         // The companion to the case above for when the call does not fold: a non-constant argument keeps
         // the expansion local live, and it must be declared inside the fragment lambda, where it would
@@ -419,7 +419,7 @@ public sealed class ComponentSlotGeneratorTests
             {
                 private string _label => "new";
 
-                [Composable]
+                [ViewPart]
                 private static View Badge(string label) => Span[label];
 
                 protected override View Body => Component<Card>()[Badge(_label)];
@@ -440,6 +440,6 @@ public sealed class ComponentSlotGeneratorTests
         Assert.True(lambdaIdx >= 0, "the slot's ChildContent parameter must be emitted");
         Assert.True(
             lambdaIdx < localIdx,
-            "the composable's argument local must be declared inside the fragment lambda");
+            "the view part's argument local must be declared inside the fragment lambda");
     }
 }

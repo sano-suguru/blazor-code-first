@@ -22,7 +22,7 @@ namespace BlazorCodeFirst.Site.Content;
 /// The gap itself is tracked as an issue against DocGen. If DocGen ever grows a snippet mode, this
 /// file is what it replaces.
 ///
-/// Each method is [Composable] so it expands into the caller's RenderView with no component
+/// Each method is [ViewPart] so it expands into the caller's RenderView with no component
 /// boundary — a figure is a piece of one page's markup, not a reusable component.
 /// </remarks>
 internal static class CodeSamples
@@ -37,7 +37,7 @@ internal static class CodeSamples
     /// code block that needs a horizontal scrollbar to show its own first statement is not a figure,
     /// it is a puzzle.
     /// </remarks>
-    [Composable]
+    [ViewPart]
     public static View Component() =>
         Pre.Class("slab")[Code[
             "[", Span.Class("t")["Route"], "(", Span.Class("s")["\"/\""], ")]\n",
@@ -55,7 +55,7 @@ internal static class CodeSamples
             "}"]];
 
     /// <summary>The left half of the comparison: the design-time expression an author writes.</summary>
-    [Composable]
+    [ViewPart]
     public static View DesignTime() =>
         Pre.Class("slab slab--light")[Code[
             Span.Class("m")["Button"], "\n",
@@ -71,7 +71,7 @@ internal static class CodeSamples
     /// Kept in step with ARCHITECTURE.md §2.4, which carries this same pair as its worked example of
     /// the class channel folding while every other decoration costs one frame each.
     /// </remarks>
-    [Composable]
+    [ViewPart]
     public static View Generated() =>
         Pre.Class("slab")[Code[
             Span.Class("c")["// Both .Class calls fold into one attribute frame."], "\n",
@@ -91,7 +91,7 @@ internal static class CodeSamples
     /// horizontal scroll on a phone. If that wording changes, this figure has to change with it —
     /// nothing checks the two against each other.
     /// </remarks>
-    [Composable]
+    [ViewPart]
     public static View Diagnostic() =>
         Pre.Class("slab")[Code[
             Span.Class("c")["Pages/Broken.cs(14,13): "],

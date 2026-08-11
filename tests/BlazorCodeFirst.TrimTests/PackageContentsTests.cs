@@ -274,7 +274,7 @@ public sealed class PackageContentsTests
             .ToArray();
 
         Assert.Empty(unexpectedFiles);
-        AssertRuntimeExposesComposableAttribute(packageArchive);
+        AssertRuntimeExposesViewPartAttribute(packageArchive);
 
         Assert.DoesNotContain(
             packagedFiles,
@@ -313,7 +313,7 @@ public sealed class PackageContentsTests
         Assert.Equal("Microsoft.AspNetCore.Components", dependency.Attribute("id")?.Value);
     }
 
-    private static void AssertRuntimeExposesComposableAttribute(ZipArchive packageArchive)
+    private static void AssertRuntimeExposesViewPartAttribute(ZipArchive packageArchive)
     {
         var runtimeEntry = packageArchive.GetEntry("lib/net10.0/BlazorCodeFirst.Runtime.dll");
 
@@ -338,7 +338,7 @@ public sealed class PackageContentsTests
             .ToArray();
 
         Assert.Contains(
-            ("BlazorCodeFirst", "ComposableAttribute"),
+            ("BlazorCodeFirst", "ViewPartAttribute"),
             packagedTypeNames);
     }
 

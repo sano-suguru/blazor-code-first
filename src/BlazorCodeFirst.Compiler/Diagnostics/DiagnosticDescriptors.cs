@@ -30,18 +30,18 @@ internal static class DiagnosticDescriptors
             "it, or a re-abstraction) has nothing generated into it and needs no partial modifier.");
 
     /// <summary>
-    /// BCF1002: A <c>[Composable]</c> method does not satisfy the source generator's supported
+    /// BCF1002: A <c>[ViewPart]</c> method does not satisfy the source generator's supported
     /// static-expansion contract.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF1002 = new(
         id: "BCF1002",
-        title: "Composable method shape is unsupported",
-        messageFormat: "Composable method '{0}' is unsupported: {1}",
+        title: "ViewPart method shape is unsupported",
+        messageFormat: "ViewPart method '{0}' is unsupported: {1}",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "A method marked Composable must satisfy the compiler's supported static expansion contract.");
+            "A method marked ViewPart must satisfy the compiler's supported static expansion contract.");
 
     /// <summary>
     /// BCF3001: A BlazorCodeFirst base's design-time expression getter (<c>Body</c> on <c>BodyComponentBase</c>,
@@ -97,7 +97,7 @@ internal static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description:
             "A ForEach key is applied to the content's root element or component frame. When the content " +
-            "root is a region (a bare If or nested ForEach, or a composable whose body is region-rooted) " +
+            "root is a region (a bare If or nested ForEach, or a view part whose body is region-rooted) " +
             "or bare text (a plain string value with no wrapping element), there is no frame to key, so the " +
             "required key cannot be applied. A Fragment (wrapper-less grouping), Raw (raw markup), and an " +
             "externally supplied RenderFragment placed as content also open no single keyable frame. Wrap " +
@@ -244,14 +244,14 @@ internal static class DiagnosticDescriptors
     /// <summary>
     /// BCF3008: A decoration (<c>.Class</c>/<c>.Attr</c>/a named attribute shortcut/<c>.OnClick</c>/<c>.On</c>)
     /// was applied to a node that does not open a single HTML element (an <c>If</c>/<c>ForEach</c> region
-    /// root, a <c>Fragment</c>/<c>Raw</c> wrapper-less node, or a <c>[Composable]</c>/Component call result).
+    /// root, a <c>Fragment</c>/<c>Raw</c> wrapper-less node, or a <c>[ViewPart]</c>/Component call result).
     /// Decorations fold into the attributes of the element opened by an Html element helper or
     /// <c>Html.Element</c>, so there must be such an element to attach to.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3008 = new(
         id: "BCF3008",
         title: "Decoration target must be a single element",
-        messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, Fragment, Raw, or a [Composable]/Component result",
+        messageFormat: "A decoration can only be applied to a single element (an Html element such as Div/Span/Button, or Html.Element); it cannot be applied to If, ForEach, Fragment, Raw, or a [ViewPart]/Component result",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
@@ -259,7 +259,7 @@ internal static class DiagnosticDescriptors
             "A decoration folds into the owning element's attributes, so it can only be applied to a node " +
             "that opens a single HTML element (an Html element helper or Html.Element). Applying it to a " +
             "region-rooted or wrapper-less node (If, ForEach, Fragment, Raw) or a " +
-            "[Composable]/Component result has no element to attach to. Decorate a concrete element instead.");
+            "[ViewPart]/Component result has no element to attach to. Decorate a concrete element instead.");
 
     /// <summary>
     /// BCF3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time
@@ -660,13 +660,13 @@ internal static class DiagnosticDescriptors
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3025 = new(
         id: "BCF3025",
-        title: "Slot outside a content-taking [Composable] body",
-        messageFormat: "'Slot' {0}; a slot exists only in the body of a [Composable] method declared to return SlotView, and exactly once there",
+        title: "Slot outside a content-taking [ViewPart] body",
+        messageFormat: "'Slot' {0}; a slot exists only in the body of a [ViewPart] method declared to return SlotView, and exactly once there",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "'Slot' marks where a [Composable] part places the content its caller supplied in brackets, so " +
+            "'Slot' marks where a [ViewPart] part places the content its caller supplied in brackets, so " +
             "it means nothing where there is no caller content to place: a component's Body or Chrome " +
             "receives no brackets, and a part returning View is called without them. A part that takes " +
             "content declares SlotView as its return type and names Slot exactly once; naming it twice " +

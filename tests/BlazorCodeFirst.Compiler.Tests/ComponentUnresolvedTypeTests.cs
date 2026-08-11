@@ -131,7 +131,7 @@ public sealed class ComponentUnresolvedTypeTests
     }
 
     [Fact]
-    public void Component_InsideComposableBody_ReportsBCF3012NotGenericBCF1002()
+    public void Component_InsideViewPartBody_ReportsBCF3012NotGenericBCF1002()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -139,7 +139,7 @@ public sealed class ComponentUnresolvedTypeTests
             namespace T;
             public static class Frags
             {
-                [Composable]
+                [ViewPart]
                 public static View Card() => Div[Component<Probe>().Param(p => p.Label, "x")];
             }
             public partial class Host : BodyComponentBase

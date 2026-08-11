@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// Sweeps a design-time expression that failed to translate, reporting BCF3008 when a decoration
 /// (<c>.Class</c>, a named attribute shortcut, an event shortcut, <c>.Attr</c> or <c>.On</c>) was written on
 /// a receiver that opens no element frame, <c>Fragment(…)</c>, <c>Raw(…)</c>, <c>If(…)</c>,
-/// <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[Composable]</c> result, an externally supplied
+/// <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[ViewPart]</c> result, an externally supplied
 /// <c>RenderFragment</c>, or an element that has already taken its children.
 /// </summary>
 /// <remarks>
@@ -62,7 +62,7 @@ internal static class RejectedDecorationScanner
     /// independent of that recovery, and also holds it to one report when a body carries two unrelated
     /// misplaced decorations.
     /// </remarks>
-    public static void Report(ExpressionSyntax root, ComposableBodyContext context)
+    public static void Report(ExpressionSyntax root, ViewPartBodyContext context)
     {
         // Every required clause below is a comparison against one of these three, so with the bracket surface
         // absent from the referenced runtime there is nothing to compare and nothing to report. The one
@@ -152,7 +152,7 @@ internal static class RejectedDecorationScanner
     /// </para>
     /// </remarks>
     private static bool IsMisplacedDecoration(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
             return false;

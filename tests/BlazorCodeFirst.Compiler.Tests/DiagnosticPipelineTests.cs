@@ -37,7 +37,7 @@ public sealed class DiagnosticPipelineTests
     [Fact]
     public void ComponentBody_UnrecognizedConstruct_ReportsBcf1003AndNoSource()
     {
-        // A call that is neither design-time syntax nor a [Composable] method, though it returns View,
+        // A call that is neither design-time syntax nor a [ViewPart] method, though it returns View,
         // reaches the model stage with a null template.
         const string source = """
             using static BlazorCodeFirst.Html;

@@ -13,7 +13,7 @@ internal sealed record ParameterHoleExpressionSegment(int ParameterOrdinal) : Ex
 /// <summary>
 /// The compile-time constant value of an expression, when it has one. A <see langword="null"/> reference
 /// (rather than any case below) means the expression is not a compile-time constant at all: it cannot be
-/// serialized, and a composable local bound to it cannot be dropped, because its initializer may have
+/// serialized, and a view part local bound to it cannot be dropped, because its initializer may have
 /// side effects.
 /// </summary>
 /// <remarks>
@@ -47,7 +47,7 @@ internal sealed record BooleanConstant(bool Value) : ConstantInfo;
 
 /// <summary>
 /// A constant of any other type — an <c>int</c>, a <c>double</c>, a <c>DateTime</c>, an enum member.
-/// Side-effect free, so a composable local bound to one may still be dropped, but never serializable:
+/// Side-effect free, so a view part local bound to one may still be dropped, but never serializable:
 /// measured (#158), <c>AddAttribute</c> formats such a value under whatever culture the formatting
 /// thread carries at render time rather than under the culture in effect while the component builds its
 /// frames, so the compiler cannot know the text it becomes (<c>3.5</c> reaches the DOM as <c>"3.5"</c>
@@ -163,7 +163,7 @@ internal sealed record ExpressionTemplate
     /// Replaces every parameter hole with its substituted code. When the template is exactly one hole and
     /// that argument is a compile-time constant <em>string</em>, the result carries the constant and its
     /// code becomes the constant literal instead of the local's name: the value is identical, and it is
-    /// what lets a composable pass-through (<c>Span[title]</c>) fold. Only a string constant qualifies,
+    /// what lets a view part pass-through (<c>Span[title]</c>) fold. Only a string constant qualifies,
     /// because only a string can be re-spelled as a literal in the hole's place without changing the
     /// substituted code's type. A hole with surrounding text is left alone, because recomputing the value
     /// would need expression evaluation.
@@ -171,7 +171,7 @@ internal sealed record ExpressionTemplate
     /// <remarks>
     /// A hole-free template is returned as it stands. Substitution cannot change one — every segment would
     /// be copied to an equal value, and the segments are already canonical — and the expander begins every
-    /// component with an empty substitution, so without this a component that calls no composable still
+    /// component with an empty substitution, so without this a component that calls no view part still
     /// rebuilt a template for each of its attribute values, class channels, handlers, text, keys, and
     /// conditions. The test costs nothing: the answer was settled at construction.
     /// </remarks>
@@ -202,7 +202,7 @@ internal sealed record ExpressionTemplate
         }
 
         // The constant passes through unchanged. A template that has one never contains a parameter hole:
-        // a hole is created only for an identifier bound to a composable parameter, and a parameter
+        // a hole is created only for an identifier bound to a view part parameter, and a parameter
         // reference is not a compile-time constant. So there is nothing here that substitution could
         // invalidate.
         return new ExpressionTemplate(builder.MoveToImmutable(), Constant);
@@ -266,13 +266,13 @@ internal sealed record ExpressionTemplate
     {
         System.Diagnostics.Debug.Assert(
             hole.ParameterOrdinal < arguments.Length,
-            $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {arguments.Length}; the scoped render-variable/composable ordinal invariant is broken.");
+            $"Hole ordinal {hole.ParameterOrdinal} exceeds substitution length {arguments.Length}; the scoped render-variable/view part ordinal invariant is broken.");
 
         var argument = arguments[hole.ParameterOrdinal];
 
         // A content ordinal reached through an *expression* hole means the analyzer classified a View-typed
         // reference as a value, which it must not: a content hole becomes a ContentHoleTemplateNode and is
-        // substituted by ComposableExpander, never here. Throwing keeps the empty Code from being emitted as
+        // substituted by ViewPartExpander, never here. Throwing keeps the empty Code from being emitted as
         // silently valid-looking generated source.
         if (argument.Content is not null)
         {

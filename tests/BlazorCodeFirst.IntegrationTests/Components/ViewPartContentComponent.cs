@@ -4,11 +4,11 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>
-/// A content-taking <c>[Composable]</c> part rendered for real (#34, #176): the caller's bracketed content
+/// A content-taking <c>[ViewPart]</c> part rendered for real (#34, #176): the caller's bracketed content
 /// lands inside the part's markup, an additional <c>View</c> parameter fills a second slot, and both survive
 /// a re-render driven by state the content itself reads.
 /// </summary>
-public partial class ComposableContentComponent : BodyComponentBase
+public partial class ViewPartContentComponent : BodyComponentBase
 {
     private int _count;
 
@@ -18,7 +18,7 @@ public partial class ComposableContentComponent : BodyComponentBase
                 Span[$"Count: {_count}"],
                 Button.OnClick(() => _count++)["Increment"]]];
 
-    [Composable]
+    [ViewPart]
     private static SlotView Panel(View header) =>
         Div.Class("panel")[
             Div.Class("panel-head")[header],

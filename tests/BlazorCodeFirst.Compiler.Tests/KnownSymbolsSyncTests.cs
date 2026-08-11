@@ -15,7 +15,7 @@ public sealed class KnownSymbolsSyncTests
     /// Structural <c>Html</c> members that carry no <see cref="SurfaceMethodKind"/> either, because they are
     /// not methods. <c>Slot</c> is a property and a hole rather than a construct: the compiler recognizes it
     /// by symbol identity through <see cref="KnownSymbols.SlotProperty"/> and looks up the ordinal the
-    /// enclosing <c>[Composable]</c> bound it at (#176), so there is no classification row to check it
+    /// enclosing <c>[ViewPart]</c> bound it at (#176), so there is no classification row to check it
     /// against. Kept separate from <see cref="StructuralHtml"/> so
     /// <c>StructuralHtmlMembers_AreClassified</c> is not asked for a row that cannot exist.
     /// </summary>

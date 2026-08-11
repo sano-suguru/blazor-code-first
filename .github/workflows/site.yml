@@ -235,7 +235,7 @@ jobs:
           assert_file "$P/404.html" "the top-level 404.html is missing, so Cloudflare Pages will treat this deployment as a single-page application and answer every unknown URL with 200 and the home page"
           assert_grep 'class="site-nav"' "$P/404.html" "the site shell (nav) is missing from 404.html"
           assert_count '<title>' "$P/404.html" 1 "404.html must render exactly one title element"
-          # The BODY, not just the shell. This is the guard that keeps the shared [Composable] doing
+          # The BODY, not just the shell. This is the guard that keeps the shared [ViewPart] doing
           # its job: 404.html and DocsPage's unknown-slug branch must render the same markup, because
           # /docs/unknown is served as this file and then re-rendered by DocsPage on hydration. Without
           # it, reverting the else-branch to its own private markup would leave CI green.

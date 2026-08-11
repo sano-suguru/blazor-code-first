@@ -13,7 +13,7 @@ namespace BlazorCodeFirst.Compiler;
 /// <summary>
 /// Turns a candidate class node into an emittable component model in two symbol-free stages:
 /// <see cref="Analyze"/> (semantic, runs inside the syntax-provider transform) and
-/// <see cref="Expand"/> (a pure value transform combined with the composable registry).
+/// <see cref="Expand"/> (a pure value transform combined with the view part registry).
 /// </summary>
 internal static class ComponentModelFactory
 {
@@ -139,11 +139,11 @@ internal static class ComponentModelFactory
         if (bodyExpression is null)
             return null;
 
-        // Reuse the composable-definition analyzer so component bodies and composable bodies share a
+        // Reuse the view-part-definition analyzer so component bodies and view part bodies share a
         // single SSC classification. The component body has no parameters, so no parameter holes exist;
         // its access-requirement and diagnostic accumulators are irrelevant here because the generated
         // RenderView is emitted directly into this same component type.
-        var bodyContext = new ComposableBodyContext(
+        var bodyContext = new ViewPartBodyContext(
             syntaxContext.SemanticModel,
             symbol,
             expressionName,
@@ -186,11 +186,11 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Expands a component's analyzed template against the composable <paramref name="registry"/> into a
+    /// Expands a component's analyzed template against the view part <paramref name="registry"/> into a
     /// final <see cref="ComponentModelResult"/>. This is a pure function of value inputs, so it runs after
     /// the registry combine without reintroducing symbols into the pipeline.
     /// </summary>
-    internal static ComponentModelResult Expand(ComponentAnalysis analysis, ComposableRegistry registry)
+    internal static ComponentModelResult Expand(ComponentAnalysis analysis, ViewPartRegistry registry)
     {
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         diagnostics.AddRange(analysis.BodyDiagnostics.AsImmutableArray());
@@ -219,7 +219,7 @@ internal static class ComponentModelFactory
 
         KeyabilityResolver.CollectForEachContentDiagnostics(analysis.Template, registry, diagnostics);
 
-        var expansion = ComposableExpander.Expand(
+        var expansion = ViewPartExpander.Expand(
             analysis.Template,
             registry,
             analysis.InheritanceKeys.AsImmutableArray());

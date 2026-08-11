@@ -3,7 +3,7 @@
 A code-first declarative UI layer for Blazor. You write your UI in pure C#, with no `.razor` markup
 and no raw-string templates.
 
-A Roslyn Source Generator analyzes your `Body` expressions and reachable `[Composable]` methods at
+A Roslyn Source Generator analyzes your `Body` expressions and reachable `[ViewPart]` methods at
 build time and emits a standard Blazor `RenderTreeBuilder` render method with statically assigned
 sequence numbers. The generated component is an ordinary `ComponentBase` descendant, so it diffs the
 way Razor's output does and stays trimming/AOT-safe. There is no runtime UI tree, no reflection, and
@@ -89,7 +89,7 @@ Available today:
   content renders an existing Razor component, and a BlazorCodeFirst component is an ordinary
   component that Razor can use.
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
-- Reusable `[Composable]` methods, expanded statically into the caller. One that wraps caller-supplied
+- Reusable `[ViewPart]` methods, expanded statically into the caller. One that wraps caller-supplied
   content returns `SlotView` and writes `Slot` where the content belongs, so the call takes brackets
   the way an element does: `Card("Profile")[P["body"]]`. Further slots are `View` parameters —
   `Panel(H2["Title"])[P["body"]]`.

@@ -1,6 +1,6 @@
 #nullable enable
-BlazorCodeFirst.ComposableAttribute
-BlazorCodeFirst.ComposableAttribute.ComposableAttribute() -> void
+BlazorCodeFirst.ViewPartAttribute
+BlazorCodeFirst.ViewPartAttribute.ViewPartAttribute() -> void
 BlazorCodeFirst.BodyComponentBase
 BlazorCodeFirst.BodyComponentBase.BodyComponentBase() -> void
 abstract BlazorCodeFirst.BodyComponentBase.Body.get -> BlazorCodeFirst.View

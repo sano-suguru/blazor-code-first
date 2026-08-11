@@ -37,8 +37,8 @@ public static partial class Html
     public static View Raw(string rawHtml) => default;
 
     /// <summary>
-    /// Design-time syntax marking where a <c>[Composable]</c> part places the content its caller supplied
-    /// in brackets. Legal only in the body of a <c>[Composable]</c> method returning
+    /// Design-time syntax marking where a <c>[ViewPart]</c> part places the content its caller supplied
+    /// in brackets. Legal only in the body of a <c>[ViewPart]</c> method returning
     /// <see cref="SlotView"/>, and exactly once there; anywhere else it is BCF3025.
     /// </summary>
     /// <remarks>
