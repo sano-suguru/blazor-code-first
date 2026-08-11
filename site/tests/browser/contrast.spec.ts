@@ -209,21 +209,64 @@ const POINTERS = [
   { name: 'coarse pointer', viewport: { width: 375, height: 900 }, hasTouch: true },
 ] as const;
 
-for (const pointer of POINTERS) {
-  test.describe(`under a ${pointer.name}`, () => {
-    test.use({ viewport: pointer.viewport, hasTouch: pointer.hasTouch });
+/**
+ * Both colour schemes, because tokens.css and css/highlight.css each answer
+ * `prefers-color-scheme` with a second palette and nothing else in this repository compares the
+ * two. A dark palette is where a contrast regression is easiest to ship unnoticed: it is the one
+ * most authors never look at, and every value in it was chosen against a surface that only exists
+ * under the media query.
+ *
+ * Crossed with the pointer rather than run beside it. The heading permalinks are opaque only under
+ * a coarse pointer, so a dark permalink colour is measured in exactly one of the four cells.
+ */
+const SCHEMES = ['light', 'dark'] as const;
 
-    for (const route of ROUTES) {
-      test(`${route} meets WCAG AA contrast`, async ({ page }) => {
-        await gotoSettled(page, route);
+/**
+ * The dark cells above are only worth their runtime if the emulation reaches the stylesheets. If it
+ * did not, every one of them would re-measure the light palette, pass, and report that dark mode
+ * meets AA without ever having drawn it -- the check-that-never-runs defect (#163) wearing twenty
+ * green ticks.
+ *
+ * Asserts a difference rather than the values themselves. What the palettes are is the contrast
+ * walk's business; what this owns is that there are two of them, one per stylesheet: the surface
+ * from css/tokens.css and the token colour from the generated css/highlight.css, which answer the
+ * media query separately and could be wired up separately wrong.
+ */
+test('both stylesheets answer prefers-color-scheme', async ({ page }) => {
+  const sample = async (scheme: 'light' | 'dark') => {
+    await page.emulateMedia({ colorScheme: scheme });
+    return page.evaluate(() => ({
+      surface: getComputedStyle(document.body).backgroundColor,
+      token: getComputedStyle(document.querySelector('.prose pre .keyword')!).color,
+    }));
+  };
 
-        const { measured, failures } = await measureContrast(page);
+  await gotoSettled(page, '/docs/getting-started/');
 
-        expect(failures, 'a text and background pair falls below its WCAG AA threshold').toEqual([]);
-        // A walk that stopped finding text would report zero failures and prove nothing. This is
-        // the same defect class as a check that never runs (#163).
-        expect(measured, 'no text was measured on this route, so the walk found nothing').toBeGreaterThan(3);
-      });
-    }
-  });
+  const light = await sample('light');
+  const dark = await sample('dark');
+
+  expect(dark.surface, 'css/tokens.css did not repaint the page for a dark reader').not.toBe(light.surface);
+  expect(dark.token, 'css/highlight.css did not repaint the code fences for a dark reader').not.toBe(light.token);
+});
+
+for (const scheme of SCHEMES) {
+  for (const pointer of POINTERS) {
+    test.describe(`in ${scheme} under a ${pointer.name}`, () => {
+      test.use({ viewport: pointer.viewport, hasTouch: pointer.hasTouch, colorScheme: scheme });
+
+      for (const route of ROUTES) {
+        test(`${route} meets WCAG AA contrast`, async ({ page }) => {
+          await gotoSettled(page, route);
+
+          const { measured, failures } = await measureContrast(page);
+
+          expect(failures, 'a text and background pair falls below its WCAG AA threshold').toEqual([]);
+          // A walk that stopped finding text would report zero failures and prove nothing. This is
+          // the same defect class as a check that never runs (#163).
+          expect(measured, 'no text was measured on this route, so the walk found nothing').toBeGreaterThan(3);
+        });
+      }
+    });
+  }
 }

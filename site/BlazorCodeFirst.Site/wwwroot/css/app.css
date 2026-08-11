@@ -24,6 +24,11 @@ html {
     scroll-behavior: smooth;
     /* Anchored headings must not land under the header when it is sticky at wide widths. */
     scroll-padding-top: var(--space-3xl);
+    /* tokens.css answers `prefers-color-scheme` for everything this stylesheet paints. This line is
+       for everything it does not: scrollbars, the canvas behind the page, and any form control's
+       default rendering, all of which the browser draws for itself and would otherwise draw light
+       against a dark page. */
+    color-scheme: light dark;
 }
 
 body {

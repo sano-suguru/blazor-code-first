@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using BlazorCodeFirst.Site.DocGen;
 using Xunit;
@@ -81,9 +83,65 @@ public class HighlightCssEmitterTests
     [InlineData("comment", "#676871", "#008000")]
     public void Emit_RepaintsScopeOntoTheSitePalette(string cls, string expected, string defaultLight)
     {
-        string css = HighlightCssEmitter.Emit();
+        string css = LightHalf();
 
         Assert.Contains($".{cls}{{color:{expected};}}", css, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain($".{cls}{{color:{defaultLight};}}", css, StringComparison.OrdinalIgnoreCase);
     }
+
+    // The dark half, asserted the same two ways and for the same reasons. The defaults differ
+    // because the dark theme is built from DefaultDark, not from the light dictionary: an unreached
+    // scope has to inherit a colour meant for the surface it will land on.
+    [Theory]
+    [InlineData("keyword", "#C5A2FF", "#569CD6")]
+    [InlineData("string", "#69D6AA", "#D69D85")]
+    [InlineData("comment", "#8F919F", "#57A64A")]
+    public void Emit_RepaintsScopeOntoTheDarkPalette(string cls, string expected, string defaultDark)
+    {
+        string css = DarkHalf();
+
+        Assert.Contains($".{cls}{{color:{expected};}}", css, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($".{cls}{{color:{defaultDark};}}", css, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Neither half may carry the other's palette. A single Emit() that built both from one
+    // dictionary would still satisfy every presence check above for the half it got right, and
+    // would ship the light hexes onto a dark page.
+    [Theory]
+    [InlineData("#463ECC")]
+    [InlineData("#006647")]
+    [InlineData("#676871")]
+    public void Emit_KeepsTheLightPaletteOutOfTheDarkHalf(string lightHex)
+    {
+        Assert.DoesNotContain(lightHex, DarkHalf(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Both halves have to answer for the same selectors. A scope repainted in one dictionary and
+    // forgotten in the other leaves a class styled in one scheme and inherited in the other, which
+    // no single-half assertion above can see.
+    [Fact]
+    public void Emit_StylesTheSameSelectorsInBothHalves()
+    {
+        Assert.Equal(Selectors(LightHalf()), Selectors(DarkHalf()));
+    }
+
+    [Fact]
+    public void Emit_ClosesTheDarkSchemeBlock()
+    {
+        string css = HighlightCssEmitter.Emit();
+
+        Assert.Contains(HighlightCssEmitter.DarkSchemeMarker, css, StringComparison.Ordinal);
+        Assert.EndsWith("}\n", css, StringComparison.Ordinal);
+        // A rule outside a selector would mean the split below silently measured the wrong text.
+        Assert.Equal(1, css.Split(HighlightCssEmitter.DarkSchemeMarker).Length - 1);
+    }
+
+    private static string LightHalf() =>
+        HighlightCssEmitter.Emit().Split(HighlightCssEmitter.DarkSchemeMarker)[0];
+
+    private static string DarkHalf() =>
+        HighlightCssEmitter.Emit().Split(HighlightCssEmitter.DarkSchemeMarker)[1];
+
+    private static SortedSet<string> Selectors(string css) =>
+        [.. Regex.Matches(css, @"\.([A-Za-z][A-Za-z0-9]*)\s*\{").Select(m => m.Groups[1].Value)];
 }

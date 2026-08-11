@@ -306,7 +306,10 @@ checks:
 - that nothing is laid out past the viewport at six widths
 - that every clickable label fits the space given to it
 - that each text and background pair meets WCAG AA under both a fine and a
-  coarse pointer
+  coarse pointer, in each of the two colour schemes
+- that both `tokens.css` and the generated `highlight.css` actually answer
+  `prefers-color-scheme`, without which the dark half of the pass above would
+  re-measure the light palette and report it as green
 - that the documentation rail sits beside the document above the 60rem
   breakpoint and underneath it below that breakpoint
 
