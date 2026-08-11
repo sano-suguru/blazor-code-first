@@ -54,3 +54,13 @@ Add the shape to `GeneratorDelivery.ProjectReference` (or to a new analyzer fixt
 analyzer-reported), then assert it in `DiagnosticDeliveryTests`. `DescriptorCoverageTests` fails
 until every descriptor is either asserted there or listed in its exclusion table with a reason, so
 a new diagnostic cannot be dead on arrival the way BCF1001 was.
+
+**One shape per id.** `DiagnosticDeliveryTests` requires exactly one occurrence of an id across a
+fixture build, and `DiagnosticExpectations.For(id)` returns one expectation for it, so a diagnostic
+that fires on more than one shape gets exactly one of them here. Pick the shape whose *delivery* is
+in question — the one with a C# error the declaration-stage cutoff suppresses, or an unusual
+location — and cover the rest in-process. Write which one you picked and why into that expectation's
+`Note`; BCF3025, BCF3026 and BCF3027 each carry one. The same limit is why a fixture must not
+incidentally report an id another fixture file already owns, BCF1003 above all: it is suppressed
+when the failure-path sweep records an error of its own, so a new fixture that reports nothing more
+specific than BCF1003 will break the fixture that does own it.
