@@ -553,8 +553,14 @@ kbd {
     border-bottom: var(--rule-hairline) solid var(--color-rule-2);
 }
 
+/* Wraps because the row cannot always hold both halves. The route beside each title is machine text
+   and carries `white-space: nowrap`, so at 320 px the longest of them ran 18 px past the viewport,
+   where `overflow-x: clip` on html and body swallowed the end of the path instead of scrolling to
+   it. Wrapping drops the route to its own line at that width and loses nothing; shortening or
+   hiding it would. */
 .index-link {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
     gap: var(--space-md);

@@ -26,12 +26,21 @@
 
 ## Verification
 
-<!-- The commands from CONTRIBUTING.md §Build and test that were actually run, with their results.
-     "Should pass" is not a result.
+<!-- Only what the required checks do not cover.
 
-     Four things this repository fails loudly on, listed because they are the ones that get forgotten:
-       - a new diagnostic needs an ARCHITECTURE.md 付録A row and a DiagnosticExpectations entry
-         (DiagnosticTableTests and DescriptorCoverageTests each fail without one)
-       - a new public Html member needs a KnownSymbols classification (KnownSymbolsSyncTests)
-       - new public API needs a PublicAPI.Unshipped.txt entry
-       - an edited site/content/*.md needs Docs.g.cs regenerated (site CI fails on the drift) -->
+     `main` requires build-test on both runners and the browser job, all three from ci.yml. The
+     build, `dotnet format`, the whole slnx test run, the package and trim verification, and the
+     Blazor renderer specs are therefore machine-checked on this pull request before it can merge.
+     Repeating those commands here says nothing their results do not, and a copied command line
+     that was never run reads exactly like one that was.
+
+     What still belongs here:
+       - measurements, since no CI step runs the DESIGN.md §7.1 or §7.2 commands
+       - anything checked by hand, in a browser or against a deployment, and what it showed
+       - site.yml's result when this touches site/, because build-deploy is not a required check
+         yet (#250): its red is advisory, so an edited site/content/*.md whose Docs.g.cs was never
+         regenerated will not stop the merge
+       - a check that was expected to fail and did not, or the reverse
+
+     "Should pass" is not a result. Delete the section when the required checks genuinely cover
+     everything this changed. -->

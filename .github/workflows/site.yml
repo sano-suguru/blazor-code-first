@@ -422,6 +422,47 @@ jobs:
           # 'X-Robots-Tag' counts the comment mentions too and can never equal 1.
           assert_count '^[[:space:]]*X-Robots-Tag:' "$P/_headers" 1 "the committed _headers must declare exactly one X-Robots-Tag rule (the /404 one); a second rule would deindex production"
 
+      # Everything above this point asserts the publish output as text, which can prove the shell
+      # rendered and the stylesheet links survived and cannot see anything the browser computes.
+      # The suite below is that half: overflow, whether a clickable label fits, WCAG contrast, and
+      # where the documentation rail lands (#251). It runs before the deploy so a failure stops the
+      # bad deployment rather than describing it afterwards.
+      #
+      # Against the local publish output, not a deployment. Hydration behaviour and Cloudflare's
+      # edge routing genuinely need one and are #47's subject, which is blocked on #66; none of
+      # these four checks needs anything but the files and a static server.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/tests/browser/package-lock.json
+
+      - run: npm ci
+        working-directory: site/tests/browser
+
+      # package-lock.json pins playwright-core exactly, and the browser revision is a function of
+      # that version, so its hash is the right key for the downloaded browser.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('site/tests/browser/package-lock.json') }}
+
+      - run: npx playwright install --with-deps chromium
+        working-directory: site/tests/browser
+
+      - name: Verify the published site in a browser
+        id: browser
+        run: npx playwright test
+        working-directory: site/tests/browser
+
+      # Conditioned on this step rather than on the job, so an earlier failure does not reach for a
+      # directory that was never written.
+      - if: failure() && steps.browser.conclusion == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-playwright-traces
+          path: site/tests/browser/test-results
+
       - name: Inject the preview noindex header
         if: steps.target.outputs.environment == 'preview'
         run: |
