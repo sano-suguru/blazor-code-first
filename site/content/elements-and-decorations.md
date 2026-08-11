@@ -107,19 +107,23 @@ position.
 own component wins simple-name lookup over an imported one. Blazor parameters named `Label`, `Data`,
 `Summary` or `Source` are ordinary, so this happens.
 
-A type that shadows a helper names itself in the error:
-
-    error CS0119: 'Table' is a type, which is not valid in the given context
-
-A member whose type is indexable does not — the element expression silently becomes an indexer call
-on your member:
+A member whose type is indexable makes this legal C#: the element expression silently becomes an
+indexer call on your member, and the generator reports BCF3027 to name it.
 
 ```csharp
 [Parameter] public string Data { get; set; }
-Div[Data["Heading"]]
+Div[Data["Heading"]]                          // BCF3027
 ```
 
-    error CS1503: Argument 1: cannot convert from 'string' to 'int'
+What C# has to say about it is `error CS1503: Argument 1: cannot convert from 'string' to 'int'`,
+which names neither the element nor your member, and you never see it anyway — while the body does
+not translate the component has no generated `RenderView`, so the compiler stops before it gets that
+far.
+
+A type that shadows a helper needs no diagnostic of its own, because C# names the shadowing
+declaration:
+
+    error CS0119: 'Table' is a type, which is not valid in the given context
 
 Both are fixed the same way, by qualifying the element:
 
