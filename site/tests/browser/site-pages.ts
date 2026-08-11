@@ -67,24 +67,51 @@ export function publishedRoutes(): string[] {
  */
 const fontCache = new Map<string, { body: Buffer; contentType: string }>();
 
+/**
+ * How many times a cold fetch is attempted before the URL is given up on.
+ *
+ * Three, because one is not enough and was measured not to be: the first CI run of this suite lost
+ * every Geist face on a single route out of nine, which is one gstatic response failing once. The
+ * cache turns that into a whole-run failure rather than a single missing face, since the entry is
+ * fetched once and replayed to every page in the worker.
+ *
+ * This does not weaken the assertion in `gotoSettled`. A URL that fails all three attempts is still
+ * an unavailable face and still fails the test. It only stops one transient answer from a host
+ * outside this repository's control deciding whether the site can deploy. #252 removes the host.
+ */
+const FONT_FETCH_ATTEMPTS = 3;
+
 async function replayFromCache(route: Route): Promise<void> {
   const url = route.request().url();
   let hit = fontCache.get(url);
 
   if (!hit) {
-    // The stylesheet response is negotiated on User-Agent: Google returns woff2 `src` URLs to a
-    // browser and older formats to anything it does not recognise. Forwarding the browser's own
-    // headers is what keeps the cached copy the one the page would have received.
-    const response = await fetch(url, { headers: route.request().headers() });
-    if (!response.ok) {
-      await route.abort();
-      return;
+    for (let attempt = 1; attempt <= FONT_FETCH_ATTEMPTS; attempt++) {
+      try {
+        // The stylesheet response is negotiated on User-Agent: Google returns woff2 `src` URLs to a
+        // browser and older formats to anything it does not recognise. Forwarding the browser's own
+        // headers is what keeps the cached copy the one the page would have received.
+        const response = await fetch(url, { headers: route.request().headers() });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        hit = {
+          body: Buffer.from(await response.arrayBuffer()),
+          contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+        };
+        fontCache.set(url, hit);
+        break;
+      } catch (error) {
+        // Said out loud on every attempt. Without this the only visible symptom is a font face
+        // assertion naming a family, which does not say that the network was the cause.
+        console.warn(`font fetch ${attempt}/${FONT_FETCH_ATTEMPTS} failed for ${url}: ${error}`);
+      }
     }
-    hit = {
-      body: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get('content-type') ?? 'application/octet-stream',
-    };
-    fontCache.set(url, hit);
+  }
+
+  if (!hit) {
+    await route.abort();
+    return;
   }
 
   await route.fulfill({ body: hit.body, contentType: hit.contentType });
