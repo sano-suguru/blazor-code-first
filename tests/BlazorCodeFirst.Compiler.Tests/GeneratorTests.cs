@@ -837,7 +837,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RegionRootedContentViewPartCalledTwice_ReportsBCF3003Once()
+    public void Generator_ViewPartWithRegionRootedContentCalledTwice_ReportsBCF3003Once()
     {
         const string source = """
             using System.Collections.Generic;
