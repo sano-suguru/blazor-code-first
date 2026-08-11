@@ -280,6 +280,51 @@ and the analyzers walk for every declaration they visit. Neither `AnalysisLevel=
 Roslyn SDK's own rules ship a check for it, and `src/BannedSymbols.txt` cannot express it either,
 since the symbol it would have to ban is `Enumerable.Any` itself (#215).
 
+## The documentation site
+
+`site/` holds the documentation site and the DocGen tooling that builds its
+documents from `site/content`. None of it is in `BlazorCodeFirst.slnx`, so none
+of it is covered by the commands above, including the `dotnet format` gate in
+§Code style. `.github/workflows/site.yml` is where all of it is enforced
+instead: DocGen regeneration and a drift check on the two generated files,
+DocGen's own unit tests, `dotnet format` over each of the four projects under
+`site/`, an English-only and trailing-newline scan of the tree, and a long run
+of assertions over the `dotnet publish` output covering the prerendered routes,
+`404.html`, the stylesheet links, `robots.txt`, the generated sitemap, and
+`_headers`.
+
+Those assertions read the published files as text, which leaves out everything
+a browser computes. `site/tests/browser` closes that half with Playwright over
+the same publish output, served by a static server the suite starts itself. It
+checks that nothing is laid out past the viewport at six widths, that every
+clickable label fits the space given to it, that each text and background pair
+meets WCAG AA under both a fine and a coarse pointer, and that the
+documentation rail sits beside the document above the 60rem breakpoint and
+below it underneath. The routes come from the publish output rather than a
+list, so a new document is measured from the commit that adds it.
+
+```bash
+# Both steps. The suite measures a publish output and does not produce one.
+dotnet publish site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj -c Release
+cd site/tests/browser && npm ci && npx playwright install chromium && npx playwright test
+```
+
+Two of those checks look obvious and are not, so do not "simplify" them back.
+Overflow is measured as element boxes against the viewport rather than as
+`document.documentElement.scrollWidth`, because `app.css` sets `overflow-x:
+clip` on html and body: the page can never report a wider scroll width, so the
+obvious spelling passes on every input. Labels are checked for spilling out of
+their own box as well as for wrapping, because the header and footer labels
+compute `white-space: nowrap` and can only fail the first way while the rail
+links can only fail the second.
+
+What no site check covers is anything needing a real deployment: Cloudflare's
+edge routing, the `_headers` rules as the edge applies them, and behaviour that
+appears only after WebAssembly starts. `playwright-cli` is the tool for an
+ad-hoc look at a deployed URL; #47 tracks making that a post-deploy step.
+`build-deploy` is also not a required check on `main` yet, so a red site build
+is visible on a pull request and does not block the merge (#250).
+
 ## Issue tracker
 
 Issues carry the current state and the plan. `DESIGN.md` and `ARCHITECTURE.md`
