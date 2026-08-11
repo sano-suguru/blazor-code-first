@@ -1,7 +1,7 @@
 namespace BlazorCodeFirst;
 
 /// <summary>
-/// Design-time decoration syntax applied to an <see cref="ElementBuilder"/> in a BlazorCodeFirst design-time
+/// Design-time decoration syntax applied to an <see cref="ElementView"/> in a BlazorCodeFirst design-time
 /// expression (<see cref="BodyComponentBase.Body"/> or <see cref="ChromeLayoutBase.Chrome"/>).
 /// </summary>
 /// <remarks>
@@ -9,7 +9,7 @@ namespace BlazorCodeFirst;
 /// BlazorCodeFirst source generator reads the decoration chain statically and folds it into the owning
 /// element's attributes. The members are never meant to run: at runtime they perform no work and
 /// return the receiver unchanged, so they must not be invoked directly. Decorations live in a
-/// dedicated static class (rather than on <see cref="ElementBuilder"/> itself) because they are
+/// dedicated static class (rather than on <see cref="ElementView"/> itself) because they are
 /// extension methods on the builder: an element's attributes are written before its children
 /// (<c>Div.Class("card")["text"]</c>), so the builder's own indexer is reserved for the children
 /// channel and decorations attach from the outside.
@@ -20,55 +20,55 @@ public static class Decorations
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="class">The CSS class value; any string expression. Chain calls to add more.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Class(this ElementBuilder element, string? @class) => element;
+    public static ElementView Class(this ElementView element, string? @class) => element;
 
     /// <summary>Design-time syntax adding an <c>onclick</c> handler to the owning element.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="handler">The handler invoked on click; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder OnClick(this ElementBuilder element, System.Action handler) => element;
+    public static ElementView OnClick(this ElementView element, System.Action handler) => element;
 
     /// <summary>Design-time syntax setting the <c>href</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Href(this ElementBuilder element, string? value) => element;
+    public static ElementView Href(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>src</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Src(this ElementBuilder element, string? value) => element;
+    public static ElementView Src(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>alt</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Alt(this ElementBuilder element, string? value) => element;
+    public static ElementView Alt(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>id</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Id(this ElementBuilder element, string? value) => element;
+    public static ElementView Id(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>type</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Type(this ElementBuilder element, string? value) => element;
+    public static ElementView Type(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>title</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Title(this ElementBuilder element, string? value) => element;
+    public static ElementView Title(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>role</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Role(this ElementBuilder element, string? value) => element;
+    public static ElementView Role(this ElementView element, string? value) => element;
 
     /// <summary>
     /// Design-time syntax setting an arbitrary attribute. <paramref name="name"/> must be a non-empty
@@ -82,7 +82,7 @@ public static class Decorations
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Attr(this ElementBuilder element, string name, string? value) => element;
+    public static ElementView Attr(this ElementView element, string name, string? value) => element;
 
     /// <summary>
     /// Design-time syntax setting an attribute from a <see langword="bool"/>, which is Blazor's
@@ -93,7 +93,7 @@ public static class Decorations
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Write <see cref="Attr(ElementBuilder, string)"/> instead where the attribute is always present:
+    /// Write <see cref="Attr(ElementView, string)"/> instead where the attribute is always present:
     /// this overload is for the conditional case, and a literal <see langword="true"/> says nothing that
     /// the bare spelling does not.
     /// </para>
@@ -115,12 +115,12 @@ public static class Decorations
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="value">The attribute's presence; any <see langword="bool"/> expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Attr(this ElementBuilder element, string name, bool value) => element;
+    public static ElementView Attr(this ElementView element, string name, bool value) => element;
 
     /// <summary>
     /// Design-time syntax setting an attribute that is present with no value, which is how HTML writes one:
     /// <c>&lt;button disabled&gt;</c>, <c>&lt;video controls&gt;</c>. Equivalent in every respect to
-    /// <see cref="Attr(ElementBuilder, string, bool)"/> with <see langword="true"/>, which is the spelling
+    /// <see cref="Attr(ElementView, string, bool)"/> with <see langword="true"/>, which is the spelling
     /// for the conditional case. <paramref name="name"/> follows the same rule as the other overloads: a
     /// non-empty compile-time constant.
     /// </summary>
@@ -145,7 +145,7 @@ public static class Decorations
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Attr(this ElementBuilder element, string name) => element;
+    public static ElementView Attr(this ElementView element, string name) => element;
 
     /// <summary>
     /// Design-time syntax adding an event handler. <paramref name="eventName"/> is the full HTML event
@@ -158,15 +158,15 @@ public static class Decorations
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder On(this ElementBuilder element, string eventName, System.Action handler) => element;
+    public static ElementView On(this ElementView element, string eventName, System.Action handler) => element;
 
     /// <summary>Design-time syntax adding an async event handler; see the synchronous overload.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The async handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder On(
-        this ElementBuilder element, string eventName, System.Func<System.Threading.Tasks.Task> handler) => element;
+    public static ElementView On(
+        this ElementView element, string eventName, System.Func<System.Threading.Tasks.Task> handler) => element;
 
     /// <summary>
     /// Design-time syntax adding an event handler that receives the event's arguments.
@@ -186,8 +186,8 @@ public static class Decorations
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder On<TArgs>(
-        this ElementBuilder element, string eventName, System.Action<TArgs> handler)
+    public static ElementView On<TArgs>(
+        this ElementView element, string eventName, System.Action<TArgs> handler)
         where TArgs : System.EventArgs => element;
 
     /// <summary>
@@ -199,8 +199,8 @@ public static class Decorations
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The async handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder On<TArgs>(
-        this ElementBuilder element, string eventName,
+    public static ElementView On<TArgs>(
+        this ElementView element, string eventName,
         System.Func<TArgs, System.Threading.Tasks.Task> handler)
         where TArgs : System.EventArgs => element;
 
@@ -208,15 +208,15 @@ public static class Decorations
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="handler">The async handler invoked on click; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder OnClick(
-        this ElementBuilder element, System.Func<System.Threading.Tasks.Task> handler) => element;
+    public static ElementView OnClick(
+        this ElementView element, System.Func<System.Threading.Tasks.Task> handler) => element;
 
     /// <summary>
     /// Design-time syntax binding an attribute and an event to a single target, which is Razor's
     /// <c>@bind</c>. <paramref name="attributeName"/> receives the current value and
     /// <paramref name="eventName"/> writes it back. Both are non-empty compile-time constants, and
     /// neither is inferred: <paramref name="eventName"/> is the full HTML event attribute name
-    /// including the <c>on</c> prefix, exactly as <see cref="On(ElementBuilder, string, System.Action)"/>
+    /// including the <c>on</c> prefix, exactly as <see cref="On(ElementView, string, System.Action)"/>
     /// requires it.
     /// </summary>
     /// <remarks>
@@ -233,7 +233,7 @@ public static class Decorations
     /// </para>
     /// <para>
     /// Only <see langword="string"/> and <see langword="bool"/> are bindable, for the reason recorded
-    /// on the <see langword="bool"/> <see cref="Attr(ElementBuilder, string, bool)"/> overload (#158):
+    /// on the <see langword="bool"/> <see cref="Attr(ElementView, string, bool)"/> overload (#158):
     /// any other type is formatted at render time under the formatting thread's culture. Razor answers
     /// that by injecting a culture chosen from the element's literal <c>type</c>, which this surface
     /// does not read. Bind such a value through the explicit-setter overload, where the culture is a
@@ -249,7 +249,7 @@ public static class Decorations
     /// </para>
     /// <para>
     /// <paramref name="attributeName"/> may be <c>"class"</c>, but not on an element that also carries
-    /// <see cref="Class(ElementBuilder, string)"/> or <c>.Attr("class", …)</c>. Those two fold into one
+    /// <see cref="Class(ElementView, string)"/> or <c>.Attr("class", …)</c>. Those two fold into one
     /// attribute and a binding does not join them, so the element would be emitted carrying <c>class</c>
     /// twice. That is BCF3024; supply the whole class value from <paramref name="get"/>, or drop the
     /// binding (#188).
@@ -260,8 +260,8 @@ public static class Decorations
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Bind(
-        this ElementBuilder element, string attributeName, string eventName,
+    public static ElementView Bind(
+        this ElementView element, string attributeName, string eventName,
         System.Func<string> get) => element;
 
     /// <summary>Design-time syntax binding with an explicit setter; see the getter-only overload.</summary>
@@ -271,8 +271,8 @@ public static class Decorations
     /// <param name="get">Reads the current value; an inline lambda.</param>
     /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Bind(
-        this ElementBuilder element, string attributeName, string eventName,
+    public static ElementView Bind(
+        this ElementView element, string attributeName, string eventName,
         System.Func<string> get, System.Action<string> set) => element;
 
     /// <summary>Design-time syntax binding with an explicit async setter; see the getter-only overload.</summary>
@@ -282,14 +282,14 @@ public static class Decorations
     /// <param name="get">Reads the current value; an inline lambda.</param>
     /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Bind(
-        this ElementBuilder element, string attributeName, string eventName,
+    public static ElementView Bind(
+        this ElementView element, string attributeName, string eventName,
         System.Func<string> get, System.Func<string, System.Threading.Tasks.Task> set) => element;
 
     /// <summary>
     /// Design-time syntax binding a <see langword="bool"/> attribute, which is HTML's boolean-attribute
     /// form (<c>checked</c>, and the conditional-omission behaviour recorded on
-    /// <see cref="Attr(ElementBuilder, string, bool)"/>); see the <see langword="string"/> overload for
+    /// <see cref="Attr(ElementView, string, bool)"/>); see the <see langword="string"/> overload for
     /// the rest.
     /// </summary>
     /// <param name="element">The element being decorated.</param>
@@ -297,8 +297,8 @@ public static class Decorations
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Bind(
-        this ElementBuilder element, string attributeName, string eventName,
+    public static ElementView Bind(
+        this ElementView element, string attributeName, string eventName,
         System.Func<bool> get) => element;
 
     /// <summary>Design-time syntax binding a <see langword="bool"/> with an explicit setter.</summary>
@@ -308,8 +308,8 @@ public static class Decorations
     /// <param name="get">Reads the current value; an inline lambda.</param>
     /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Bind(
-        this ElementBuilder element, string attributeName, string eventName,
+    public static ElementView Bind(
+        this ElementView element, string attributeName, string eventName,
         System.Func<bool> get, System.Action<bool> set) => element;
 
     /// <summary>Design-time syntax binding a <see langword="bool"/> with an explicit async setter.</summary>
@@ -319,7 +319,7 @@ public static class Decorations
     /// <param name="get">Reads the current value; an inline lambda.</param>
     /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementBuilder Bind(
-        this ElementBuilder element, string attributeName, string eventName,
+    public static ElementView Bind(
+        this ElementView element, string attributeName, string eventName,
         System.Func<bool> get, System.Func<bool, System.Threading.Tasks.Task> set) => element;
 }

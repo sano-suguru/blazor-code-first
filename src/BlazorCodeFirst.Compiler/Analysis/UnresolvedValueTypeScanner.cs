@@ -70,7 +70,7 @@ internal static class UnresolvedValueTypeScanner
         switch (kind)
         {
             // Element(tag) carries no children on this surface: they are written in brackets on the
-            // ElementBuilder it returns, and ScanChildrenIndexer handles that. The tag itself is never
+            // ElementView it returns, and ScanChildrenIndexer handles that. The tag itself is never
             // reported on, whether or not it is constant. Component<T>() is the same shape twice over: it
             // takes no arguments at all, and its children likewise arrive on an indexer.
             case SurfaceMethodKind.Element:
@@ -292,7 +292,7 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// Scans an element access whose indexer is one of the design-time surface's. Both indexers,
-    /// <c>ElementBuilder</c>'s and <c>ComponentView&lt;T&gt;</c>'s, take the same route: the receiver carries
+    /// <c>ElementView</c>'s and <c>ComponentView&lt;T&gt;</c>'s, take the same route: the receiver carries
     /// the tag, the decoration chain or the component parameter chain and is scanned as an expression in
     /// its own right, and the bracketed arguments are the children.
     /// </summary>
@@ -928,8 +928,8 @@ internal static class UnresolvedValueTypeScanner
         var definition = receiverType.OriginalDefinition;
 
         if (symbols.ElementIndexer is { } elementIndexer
-            && symbols.ElementBuilderType is { } elementBuilderType
-            && SymbolEqualityComparer.Default.Equals(definition, elementBuilderType))
+            && symbols.ElementViewType is { } elementViewType
+            && SymbolEqualityComparer.Default.Equals(definition, elementViewType))
         {
             return elementIndexer;
         }

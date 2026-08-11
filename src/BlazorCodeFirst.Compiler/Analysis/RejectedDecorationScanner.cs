@@ -14,7 +14,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The type system does express this constraint: decorations extend <c>ElementBuilder</c>, so decorating a
+/// The type system does express this constraint: decorations extend <c>ElementView</c>, so decorating a
 /// <c>View</c> is CS1929. That C# error nevertheless never reaches the author of a component. A component
 /// whose design-time expression does not translate gets no generated <c>RenderView</c>, so its class
 /// necessarily carries CS0534, a declaration-stage error, and <c>csc</c> stops after the declaration stage
@@ -58,7 +58,7 @@ internal static class RejectedDecorationScanner
     /// span points at where the chain first went wrong. Everything further out in such a chain binds
     /// cleanly and is skipped by <see cref="IsMisplacedDecoration"/> anyway, Roslyn's error recovery gives
     /// the failed call the return type of the decoration it reached for, so <c>.Id</c> above sees an
-    /// <c>ElementBuilder</c> receiver and resolves, but the containment test below keeps the guarantee
+    /// <c>ElementView</c> receiver and resolves, but the containment test below keeps the guarantee
     /// independent of that recovery, and also holds it to one report when a body carries two unrelated
     /// misplaced decorations.
     /// </remarks>
@@ -69,7 +69,7 @@ internal static class RejectedDecorationScanner
         // optional receiver, RenderFragment, carries its own null guard at its use site instead, because a
         // compilation can lack it while the bracket surface is present.
         var symbols = context.KnownSymbols;
-        if (symbols.ElementBuilderType is null || symbols.ViewType is null || symbols.ComponentViewType is null)
+        if (symbols.ElementViewType is null || symbols.ViewType is null || symbols.ComponentViewType is null)
             return;
 
         InvocationExpressionSyntax? innermost = null;
@@ -104,7 +104,7 @@ internal static class RejectedDecorationScanner
     /// <para>
     /// Three conjuncts, and none of them is sufficient alone. The written name must be one the referenced
     /// runtime's <c>Decorations</c> type actually declares; the call must have reached for something that
-    /// returns <em>our</em> <c>ElementBuilder</c>; and it must have been written on <em>our</em>
+    /// returns <em>our</em> <c>ElementView</c>; and it must have been written on <em>our</em>
     /// <c>View</c> or <c>ComponentView&lt;T&gt;</c>, or on Blazor's <c>RenderFragment</c>. The two type tests
     /// are symbol identity. The name test is not, and is exactly why the other two are required: a spelling
     /// proves nothing on its own, since any type may declare a <c>Class</c> or a <c>Title</c>. Its own names
@@ -127,7 +127,7 @@ internal static class RejectedDecorationScanner
     /// <para>
     /// The name conjunct is load-bearing, not belt-and-braces. The type tests describe a decoration's
     /// <em>signature</em>, not a decoration: a third-party or user-declared
-    /// <c>static ElementBuilder Wrap(this View content, string tag)</c> has exactly that signature, and
+    /// <c>static ElementView Wrap(this View content, string tag)</c> has exactly that signature, and
     /// without the name test a wrong-argument call to it was reported as a misplaced decoration, measured,
     /// not hypothesized. What remains after the narrowing is a method that shares a decoration's signature
     /// <em>and</em> its name; such a method is a decoration in all but declaration site, so BCF3008's advice
@@ -144,7 +144,7 @@ internal static class RejectedDecorationScanner
     /// </para>
     /// <para>
     /// A call that resolved is not this diagnostic, whatever its receiver: a user-declared extension on
-    /// <c>View</c> returning an <c>ElementBuilder</c> is legal, compiles, and must not be blamed for a
+    /// <c>View</c> returning an <c>ElementView</c> is legal, compiles, and must not be blamed for a
     /// failure elsewhere in the body. Only a conversion is discounted, because that is what
     /// <c>GetSymbolInfo</c> reports in place of a call that did not bind; a call that did bind keeps its own
     /// symbol even where a conversion is applied on top of it. The <em>unresolved</em> branch of that same
@@ -171,7 +171,7 @@ internal static class RejectedDecorationScanner
         }
 
         var reached = context.SemanticModel.GetTypeInfo(invocation, context.CancellationToken).Type;
-        if (!SymbolEqualityComparer.Default.Equals(reached, symbols.ElementBuilderType))
+        if (!SymbolEqualityComparer.Default.Equals(reached, symbols.ElementViewType))
             return false;
 
         var receiverType = context.SemanticModel

@@ -25,7 +25,7 @@ internal sealed class KnownSymbols
     public INamedTypeSymbol? ComponentViewType { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>BlazorCodeFirst.ElementBuilder</c>, or <see langword="null"/>, which is the
+    /// Resolved symbol for <c>BlazorCodeFirst.ElementView</c>, or <see langword="null"/>, which is the
     /// normal case against a runtime that has not adopted the bracket surface.
     /// </summary>
     /// <remarks>
@@ -34,10 +34,10 @@ internal sealed class KnownSymbols
     /// <c>x</c>, so an unguarded comparison would classify an unrelated indexer, <c>_dict["k"]</c>, as an
     /// element.
     /// </remarks>
-    public INamedTypeSymbol? ElementBuilderType { get; }
+    public INamedTypeSymbol? ElementViewType { get; }
 
     /// <summary>
-    /// Resolved symbol for <c>ElementBuilder</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is
+    /// Resolved symbol for <c>ElementView</c>'s <c>params ReadOnlySpan&lt;View&gt;</c> indexer, which is
     /// how children are written on the bracket surface, or null.
     /// </summary>
     public IPropertySymbol? ElementIndexer { get; }
@@ -55,7 +55,7 @@ internal sealed class KnownSymbols
     /// </summary>
     /// <remarks>
     /// Guard on this being non-null before comparing against it, for the reason
-    /// <see cref="ElementBuilderType"/>'s remarks give: <c>SymbolEqualityComparer.Default.Equals(x, null)</c>
+    /// <see cref="ElementViewType"/>'s remarks give: <c>SymbolEqualityComparer.Default.Equals(x, null)</c>
     /// answers <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would read an
     /// unrelated return type as a content-taking part.
     /// </remarks>
@@ -451,7 +451,7 @@ internal sealed class KnownSymbols
         ComposableAttributeType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComposableAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComponentView`1");
-        ElementBuilderType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
+        ElementViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementView");
         ContentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ContentView");
 
         // GetTypeByMetadataName answers null for an *ambiguous* type as well as a missing one, two
@@ -459,7 +459,7 @@ internal sealed class KnownSymbols
         // every Div[…] in the compilation would fall through to BCF1003 with nothing naming the cause.
         // ParameterAttributeType and RenderFragmentType degrade the same way, for the same reason.
         var readOnlySpanType = compilation.GetTypeByMetadataName("System.ReadOnlySpan`1");
-        ElementIndexer = FindChildrenIndexer(ElementBuilderType, ViewType, readOnlySpanType);
+        ElementIndexer = FindChildrenIndexer(ElementViewType, ViewType, readOnlySpanType);
         ComponentIndexer = FindChildrenIndexer(ComponentViewType, ViewType, readOnlySpanType);
         ContentIndexer = FindChildrenIndexer(ContentViewType, ViewType, readOnlySpanType);
         ParameterAttributeType =
@@ -514,17 +514,17 @@ internal sealed class KnownSymbols
         if (decorationsType is not null)
         {
             // A decoration is defined by its receiver, not by its name: Decorations declares extension
-            // methods on ElementBuilder, and that is what makes .Class/.Attr/.On element decorations
+            // methods on ElementView, and that is what makes .Class/.Attr/.On element decorations
             // rather than members that merely share a name. Capturing by name alone would admit a future
             // overload on another receiver, Attr(this ComponentView<T>, string, string), say, into these
             // sets, where IsDecorationMethod would treat it as an element decoration with nothing to
             // notice. ClassMethod showed the same defect more loudly: a single slot taking whichever
             // two-parameter overload GetMembers returned last.
             //
-            // When ElementBuilderType is unavailable the test is skipped rather than failed. Unlike the
+            // When ElementViewType is unavailable the test is skipped rather than failed. Unlike the
             // ambiguous-type scenario above, this lookup (htmlType.ContainingAssembly.GetTypeByMetadataName)
             // is scoped to a single assembly, so null here means that assembly does not declare
-            // BlazorCodeFirst.ElementBuilder under that name, not a cross-assembly ambiguity. Rejecting every
+            // BlazorCodeFirst.ElementView under that name, not a cross-assembly ambiguity. Rejecting every
             // candidate would still empty these sets and silently disable BCF3008 for every decoration, a
             // worse failure than the one prevented, and an invisible one, where the current degradation at
             // least reports BCF1003.
@@ -532,9 +532,9 @@ internal sealed class KnownSymbols
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)
                     continue;
-                if (ElementBuilderType is not null
+                if (ElementViewType is not null
                     && !(method.Parameters.Length > 0
-                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, ElementBuilderType)))
+                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, ElementViewType)))
                 {
                     continue;
                 }
@@ -543,7 +543,7 @@ internal sealed class KnownSymbols
                 SurfaceMethodKind kind;
                 switch (method.Name)
                 {
-                    // Receiver plus second parameter fully determines (ElementBuilder, string), so this
+                    // Receiver plus second parameter fully determines (ElementView, string), so this
                     // single classification cannot take an arbitrary overload. Decorations declares exactly
                     // one. Not a list pattern: this project targets netstandard2.0 without a
                     // System.Index/Range polyfill, and the list-pattern lowering requires those types even
@@ -589,20 +589,20 @@ internal sealed class KnownSymbols
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
         {
-            // A curated helper is a property returning ElementBuilder; children are written in brackets on
+            // A curated helper is a property returning ElementView; children are written in brackets on
             // the indexer that type declares. The return type is checked as well as the name: a property
             // that merely shares a curated name is not an element helper.
             if (member is IPropertySymbol { IsIndexer: false } elementProperty)
             {
-                if (ElementBuilderType is not null
-                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementBuilderType)
+                if (ElementViewType is not null
+                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementViewType)
                     && CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
                 {
                     elementTags[Normalize(elementProperty)] = propertyTag;
                 }
 
                 // Slot is a View-typed property, so it cannot collide with an element helper (those return
-                // ElementBuilder) and the two arms are disjoint. The return type is checked as well as the
+                // ElementView) and the two arms are disjoint. The return type is checked as well as the
                 // name for the same reason it is above: a property that merely shares the name is not the
                 // hole.
                 if (elementProperty.Name == "Slot"
@@ -621,7 +621,7 @@ internal sealed class KnownSymbols
             SurfaceMethodKind kind;
             switch (method.Name)
             {
-                // Element(string tag) returns an ElementBuilder and is the only arity: children are written
+                // Element(string tag) returns an ElementView and is the only arity: children are written
                 // in brackets on that builder rather than passed to a second overload.
                 case "Element" when method.Parameters.Length == 1:
                     kind = SurfaceMethodKind.Element;
@@ -931,7 +931,7 @@ internal sealed class KnownSymbols
     /// type is not the children channel, and matching it would read unrelated arguments as children.
     /// The span type is resolved by identity rather than matched by name, as this class exists to do: a
     /// differently namespaced type also called <c>ReadOnlySpan&lt;T&gt;</c> must not be read as the children
-    /// channel. That is the same reason the decoration capture below filters on the <c>ElementBuilder</c>
+    /// channel. That is the same reason the decoration capture below filters on the <c>ElementView</c>
     /// receiver rather than on the member's name.
     /// </remarks>
     private static IPropertySymbol? FindChildrenIndexer(

@@ -145,14 +145,14 @@ internal static class ComposableDefinitionFactory
                 continue;
             }
 
-            // ElementBuilder is rejected symmetrically to the *old* View rejection: a childless element is an
-            // ElementBuilder rather than a View, so admitting it would give content a second parameter type
+            // ElementView is rejected symmetrically to the *old* View rejection: a childless element is an
+            // ElementView rather than a View, so admitting it would give content a second parameter type
             // and, with it, a second spelling. A caller passes Div as content by writing Div[…] or
             // Fragment(Div), both of which are Views.
-            if (knownSymbols.ElementBuilderType is { } elementBuilderType
-                && SymbolEqualityComparer.Default.Equals(parameter.Type, elementBuilderType))
+            if (knownSymbols.ElementViewType is { } elementViewType
+                && SymbolEqualityComparer.Default.Equals(parameter.Type, elementViewType))
             {
-                return "ElementBuilder parameters are unsupported";
+                return "ElementView parameters are unsupported";
             }
         }
 

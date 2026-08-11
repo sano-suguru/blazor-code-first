@@ -106,7 +106,7 @@ internal static class RenderExpressionAnalyzer
                 // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
                 // element are unavoidable and this is the one that carries no children. Asked first because it
                 // is the overwhelmingly common answer -- every Div, Span and P in every body arrives here --
-                // and the two arms are disjoint: an element helper returns ElementBuilder and Slot is View.
+                // and the two arms are disjoint: an element helper returns ElementView and Slot is View.
                 if (symbols.ElementTags.TryGetValue(
                         KnownSymbols.Normalize(resolvedProperty), out var propertyTag))
                 {
@@ -178,7 +178,7 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// <c>Element(tag)</c>, the escape hatch for a tag outside the curated table. It carries no children
-    /// of its own, those are written in brackets on the <c>ElementBuilder</c> it returns, which arrives at
+    /// of its own, those are written in brackets on the <c>ElementView</c> it returns, which arrives at
     /// <see cref="Classify"/> as an element access and not an invocation, so this arm only has to resolve
     /// the tag.
     /// </summary>
@@ -533,7 +533,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // Unreachable: a decoration takes an ElementBuilder receiver, so anything that opens no element
+        // Unreachable: a decoration takes an ElementView receiver, so anything that opens no element
         // frame is a CS1929 and never resolves to a decoration here. Kept so that if some route ever does
         // arrive, translation fails safely instead of decorating a node that cannot carry attributes.
         if (inner is not ElementTemplateNode element)
@@ -1970,7 +1970,7 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c>,
-    /// <c>ElementBuilder</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
+    /// <c>ElementView</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
     /// value verbatim, so such a value would bind the empty marker instead of content.
     /// </summary>
     private static bool IsInertDesignTimeType(ITypeSymbol? type, ComposableBodyContext context)
@@ -1983,17 +1983,17 @@ internal static class RenderExpressionAnalyzer
         if (symbols.ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType))
             return true;
 
-        // A childless element is an ElementBuilder rather than a View, so without this arm
+        // A childless element is an ElementView rather than a View, so without this arm
         // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
-        if (symbols.ElementBuilderType is { } elementBuilderType
-            && SymbolEqualityComparer.Default.Equals(type, elementBuilderType))
+        if (symbols.ElementViewType is { } elementViewType
+            && SymbolEqualityComparer.Default.Equals(type, elementViewType))
         {
             return true;
         }
 
         // A content-taking part's call is a ContentView before its brackets, so .Param(c => c.Payload, Card("t"))
         // type-checks through object and would otherwise emit `Card("t")` verbatim, exactly as the
-        // ElementBuilder arm above exists to prevent for `Div`.
+        // ElementView arm above exists to prevent for `Div`.
         if (symbols.ContentViewType is { } contentViewType
             && SymbolEqualityComparer.Default.Equals(type, contentViewType))
         {

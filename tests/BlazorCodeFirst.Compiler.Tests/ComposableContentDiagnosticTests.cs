@@ -71,7 +71,7 @@ public sealed class ComposableContentDiagnosticTests
         [Composable] private static ContentView Card() => Div[Slot];
         protected override View Body => Card(P["x"])["c"];
         """)]
-    // Decorations are extension methods on ElementBuilder, so a ContentView finds none -- the same
+    // Decorations are extension methods on ElementView, so a ContentView finds none -- the same
     // mechanism that makes Div["x"].Class("y") unwritable rather than a second supported style.
     [InlineData("""
         [Composable] private static ContentView Card() => Div[Slot];
@@ -136,22 +136,22 @@ public sealed class ComposableContentDiagnosticTests
     }
 
     /// <summary>
-    /// ElementBuilder stays rejected. A childless element is an ElementBuilder rather than a View, so
+    /// ElementView stays rejected. A childless element is an ElementView rather than a View, so
     /// admitting it would give content a second parameter type and, with it, a second spelling; a caller
     /// passes a childless element as content by writing <c>Div[…]</c> or <c>Fragment(Div)</c>.
     /// </summary>
     [Fact]
-    public void ElementBuilderParameter_OnAContentTakingComposable_ReportsBCF1002()
+    public void ElementViewParameter_OnAContentTakingComposable_ReportsBCF1002()
     {
         var result = RunComponent("""
-            [Composable] private static ContentView Card(ElementBuilder head) => Div[head, Slot];
+            [Composable] private static ContentView Card(ElementView head) => Div[head, Slot];
             protected override View Body => Card(Div)["c"];
             """);
 
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
 
         Assert.Contains(
-            "ElementBuilder parameters are unsupported",
+            "ElementView parameters are unsupported",
             diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
@@ -229,7 +229,7 @@ public sealed class ComposableContentDiagnosticTests
 
     /// <summary>
     /// <c>ContentView</c> is an inert design-time marker, so it belongs to BCF3014 beside <c>View</c>,
-    /// <c>ElementBuilder</c> and <c>ComponentView&lt;T&gt;</c>: a call before its brackets boxes to
+    /// <c>ElementView</c> and <c>ComponentView&lt;T&gt;</c>: a call before its brackets boxes to
     /// <c>object</c> and would otherwise be emitted verbatim into a component parameter.
     /// </summary>
     [Fact]

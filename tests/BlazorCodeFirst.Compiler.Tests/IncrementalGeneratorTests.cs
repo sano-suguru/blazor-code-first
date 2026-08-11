@@ -188,10 +188,10 @@ public sealed class IncrementalGeneratorTests
                 {
                     public static implicit operator View(string text) => default;
                 }
-                public readonly struct ElementBuilder
+                public readonly struct ElementView
                 {
                     public View this[params System.ReadOnlySpan<View> children] => default;
-                    public static implicit operator View(ElementBuilder builder) => default;
+                    public static implicit operator View(ElementView builder) => default;
                 }
                 public abstract class BodyComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
@@ -199,7 +199,7 @@ public sealed class IncrementalGeneratorTests
                 }
                 public static class Html
                 {
-                    public static ElementBuilder Span => default;
+                    public static ElementView Span => default;
                 }
             }
             """;
@@ -211,10 +211,10 @@ public sealed class IncrementalGeneratorTests
                 {
                     public static implicit operator View(string text) => default;
                 }
-                public readonly struct ElementBuilder
+                public readonly struct ElementView
                 {
                     public View this[params System.ReadOnlySpan<View> children] => default;
-                    public static implicit operator View(ElementBuilder builder) => default;
+                    public static implicit operator View(ElementView builder) => default;
                 }
                 public abstract class BodyComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
@@ -222,7 +222,7 @@ public sealed class IncrementalGeneratorTests
                 }
                 public static class Html
                 {
-                    // The curated-tag match requires the property's type to be ElementBuilder (KnownSymbols
+                    // The curated-tag match requires the property's type to be ElementView (KnownSymbols
                     // checks both the name and the type), so retyping it to View is a real signature change:
                     // Span still exists, but no longer resolves as a curated element.
                     public static View Span => default;
@@ -264,12 +264,12 @@ public sealed class IncrementalGeneratorTests
             generators: [new BlazorCodeFirstGenerator().AsSourceGenerator()],
             driverOptions: driverOptions);
 
-        // Run 1: Span resolves as a curated ElementBuilder property, component is generated
+        // Run 1: Span resolves as a curated ElementView property, component is generated
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation1, out _, out _);
         var run1 = driver.GetRunResult();
         Assert.Single(run1.Results[0].GeneratedSources);
 
-        // Act: replace the runtime tree with V2 (Span is retyped from ElementBuilder to View)
+        // Act: replace the runtime tree with V2 (Span is retyped from ElementView to View)
         var runtimeTreeV2 = CSharpSyntaxTree.ParseText(
             runtimeSourceV2,
             CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
@@ -298,7 +298,7 @@ public sealed class IncrementalGeneratorTests
                 $"Expected ComponentAnalysis Modified/New but got {output.Reason}"));
 
         // The component model must NOT be reused (Cached) in Run 2 because Span no longer matches
-        // (its type changed from ElementBuilder to View); the regression this guards against is a
+        // (its type changed from ElementView to View); the regression this guards against is a
         // stale Cached reuse of the old model built against the previous Html API.
         if (trackedSteps.TryGetValue("ComponentModeling", out var modelingSteps))
         {
@@ -359,10 +359,10 @@ public sealed class IncrementalGeneratorTests
                 {
                     public static implicit operator View(string text) => default;
                 }
-                public readonly struct ElementBuilder
+                public readonly struct ElementView
                 {
                     public View this[params System.ReadOnlySpan<View> children] => default;
-                    public static implicit operator View(ElementBuilder builder) => default;
+                    public static implicit operator View(ElementView builder) => default;
                 }
                 public abstract class BodyComponentBase : Microsoft.AspNetCore.Components.ComponentBase
                 {
@@ -370,7 +370,7 @@ public sealed class IncrementalGeneratorTests
                 }
                 public static class Html
                 {
-                    public static ElementBuilder Span => default;
+                    public static ElementView Span => default;
                 }
             }
             """;

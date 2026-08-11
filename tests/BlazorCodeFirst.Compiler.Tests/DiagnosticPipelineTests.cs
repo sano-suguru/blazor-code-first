@@ -119,11 +119,11 @@ public sealed class DiagnosticPipelineTests
             private static View Opaque() => default;
             private static ComponentView<Card> OpaqueComponent() => default;
 
-            // Decorations bind to ElementBuilder, not View, so an opaque View-returning receiver no
+            // Decorations bind to ElementView, not View, so an opaque View-returning receiver no
             // longer compiles here (CS1929), a decoration on Opaque() would never reach Analyze at
             // all. This one exercises the same "unrecognized receiver" descent with a shape that still
             // compiles.
-            private static ElementBuilder OpaqueElementBuilder() => default;
+            private static ElementView OpaqueElementView() => default;
         }
         """;
 
@@ -146,8 +146,8 @@ public sealed class DiagnosticPipelineTests
     [InlineData("fragment Param value", """Component<Card>().Param(c => c.Footer, Opaque())""", "Opaque()")]
     [InlineData(
         "decorator receiver",
-        """OpaqueElementBuilder().Class("c")""",
-        "OpaqueElementBuilder()")]
+        """OpaqueElementView().Class("c")""",
+        "OpaqueElementView()")]
     public void Bcf1003_Location_BlamesTheInnermostFailure_OnEveryRecursiveDescent(
         string descent, string body, string expectedAnchor)
     {

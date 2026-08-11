@@ -14,7 +14,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// answered "which argument is the handler" and none of them asked the other two: <c>BCF3001</c>'s
 /// deferred-handler exemption by the bound parameter's type, the decoration arm of
 /// <see cref="RenderExpressionAnalyzer"/> by position, and <c>KnownSymbolsSyncTests</c> by the shape
-/// <c>(ElementBuilder, delegate)</c>. They agreed only because every event decoration the runtime declares
+/// <c>(ElementView, delegate)</c>. They agreed only because every event decoration the runtime declares
 /// happens to carry one delegate parameter in the position the others assumed, and nothing held them there
 /// (#221).
 /// </para>

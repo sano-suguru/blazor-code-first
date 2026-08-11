@@ -19,12 +19,12 @@ public static partial class Html
 {
     /// <summary>Design-time syntax for an arbitrary HTML element; <paramref name="tag"/> must be a
     /// compile-time constant. Supply children with <c>[…]</c>.</summary>
-    public static ElementBuilder Element(string tag) => default;
+    public static ElementView Element(string tag) => default;
 
     /// <summary>Design-time syntax for wrapper-less grouping: emits the children in sequence with no
     /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no element, so it is
     /// non-keyable, it cannot be a ForEach content root (BCF3003), and cannot be decorated: decorations
-    /// apply to <see cref="ElementBuilder"/>, and a fragment is a <see cref="View"/>. Children may be zero
+    /// apply to <see cref="ElementView"/>, and a fragment is a <see cref="View"/>. Children may be zero
     /// or more mixed string/element values.</summary>
     public static View Fragment(params System.ReadOnlySpan<View> children) => default;
 
@@ -33,7 +33,7 @@ public static partial class Html
     /// escaping, so flowing untrusted data (user input, external responses) through here is an XSS vector.
     /// The value may be a string literal or a field/const reference (delivery-mechanism independent). Raw
     /// opens no element, so it cannot be a ForEach content root (BCF3003) and cannot be decorated:
-    /// decorations apply to <see cref="ElementBuilder"/>, and Raw is a <see cref="View"/>.</summary>
+    /// decorations apply to <see cref="ElementView"/>, and Raw is a <see cref="View"/>.</summary>
     public static View Raw(string rawHtml) => default;
 
     /// <summary>

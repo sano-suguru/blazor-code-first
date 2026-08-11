@@ -127,7 +127,7 @@ public sealed class BracketSurfaceGeneratorTests
 
             public readonly struct View { }
 
-            public readonly struct ElementBuilder
+            public readonly struct ElementView
             {
                 // A single params indexer, but over string rather than View: the shape matches and the
                 // channel does not, so reading its arguments as children would be wrong.
@@ -140,7 +140,7 @@ public sealed class BracketSurfaceGeneratorTests
                 public static int Div => 0;
 
                 // A curated name that is one.
-                public static ElementBuilder Span => default;
+                public static ElementView Span => default;
             }
             """));
 

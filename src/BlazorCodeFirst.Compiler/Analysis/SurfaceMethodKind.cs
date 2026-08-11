@@ -63,7 +63,7 @@ internal enum SurfaceMethodKind
     /// <summary><c>ComponentView&lt;T&gt;.Bind&lt;TValue&gt;(selector, get[, set])</c>.</summary>
     ComponentBind,
 
-    /// <summary><c>Decorations.Class(this ElementBuilder, string)</c>.</summary>
+    /// <summary><c>Decorations.Class(this ElementView, string)</c>.</summary>
     Class,
 
     /// <summary>

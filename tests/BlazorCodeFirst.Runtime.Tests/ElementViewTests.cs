@@ -3,16 +3,16 @@ using BlazorCodeFirst;
 namespace BlazorCodeFirst.Runtime.Tests;
 
 /// <summary>
-/// The inertness contract for <see cref="ElementBuilder"/>, matching what <c>ViewTests</c> and
+/// The inertness contract for <see cref="ElementView"/>, matching what <c>ViewTests</c> and
 /// <c>ViewConversionTests</c> pin for <see cref="View"/>: the members exist so the generator can read
 /// them, and at runtime they do nothing and yield the default value.
 /// </summary>
-public sealed class ElementBuilderTests
+public sealed class ElementViewTests
 {
     [Fact]
     public void Indexer_IsInert_ReturnsDefaultView()
     {
-        ElementBuilder builder = default;
+        ElementView builder = default;
 
         Assert.Equal(default, builder["a", "b"]);
     }
@@ -20,7 +20,7 @@ public sealed class ElementBuilderTests
     [Fact]
     public void Indexer_WithASingleChild_IsInert()
     {
-        ElementBuilder builder = default;
+        ElementView builder = default;
         View child = default;
 
         Assert.Equal(default, builder[child]);
@@ -29,7 +29,7 @@ public sealed class ElementBuilderTests
     [Fact]
     public void ImplicitConversionToView_IsInert()
     {
-        View view = default(ElementBuilder);
+        View view = default(ElementView);
 
         Assert.Equal(default, view);
     }

@@ -313,7 +313,7 @@ A `[Composable]` has to satisfy a declaration contract the generator can expand,
 **BCF1002**. It must be a static, non-generic, expression-bodied method returning `View` (or
 `ContentView`, to take content), declared in a non-generic type, and its parameters must be ordinary
 by-value parameters whose types can be named from generated code. `params`, by-reference parameters,
-and `ElementBuilder` parameters are all rejected — a childless element is passed as content by
+and `ElementView` parameters are all rejected — a childless element is passed as content by
 writing `Div[…]` or `Fragment(Div)`, both of which are `View`s. A `View` parameter is a content slot,
 so it requires the `ContentView` return type; on a part returning `View` it is BCF1002, and it may
 never be optional.

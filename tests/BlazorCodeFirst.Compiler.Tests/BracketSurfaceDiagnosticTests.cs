@@ -198,9 +198,9 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void ScalarParam_ElementBuilderValue_ReportsBCF3014()
+    public void ScalarParam_ElementViewValue_ReportsBCF3014()
     {
-        // ElementBuilder is as inert as View: the generic Param emits its value verbatim, so without this
+        // ElementView is as inert as View: the generic Param emits its value verbatim, so without this
         // the marker binds in place of content and renders silently wrong.
         var diagnostics = Run("""Component<Card>().Param(c => c.Payload, Div)""");
 
@@ -208,18 +208,18 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void Composable_WithAnElementBuilderParameter_IsRejected()
+    public void Composable_WithAnElementViewParameter_IsRejected()
     {
         var diagnostics = Run(
             """Card(Span)""",
             """
             [Composable]
-            private static View Card(ElementBuilder slot) => Div[slot];
+            private static View Card(ElementView slot) => Div[slot];
             """);
 
         var rejection = Assert.Single(diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains(
-            "ElementBuilder parameters are unsupported",
+            "ElementView parameters are unsupported",
             rejection.GetMessage(System.Globalization.CultureInfo.InvariantCulture),
             System.StringComparison.Ordinal);
     }
@@ -479,7 +479,7 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // One mistake, not three. The innermost decoration is the one whose receiver is the non-element,
         // so its span is where the chain first went wrong; everything outside it is written on the
-        // ElementBuilder that Roslyn's error recovery gave the failed call, and binds cleanly.
+        // ElementView that Roslyn's error recovery gave the failed call, and binds cleanly.
         var diagnostics = Run("""Fragment("a").Class("x").Id("y").Title("z")""");
 
         var report = Assert.Single(diagnostics, static d => d.Id == "BCF3008");
@@ -505,9 +505,9 @@ public sealed class BracketSurfaceDiagnosticTests
     /// and with a return type of their own. <c>Fragment("a").Describe("x")</c> borrows the
     /// <em>receiver</em>: a method on our <c>View</c>, returning <c>string</c>.
     /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> but the name, our <c>View</c> in,
-    /// our <c>ElementBuilder</c> out, and differs only in what it is called.
+    /// our <c>ElementView</c> out, and differs only in what it is called.
     /// <c>Other.MakeBin().Id(1)</c> borrows the whole signature but the <em>receiver</em>, a genuine
-    /// decoration name, returning our <c>ElementBuilder</c>, and differs only in what it is written on. It
+    /// decoration name, returning our <c>ElementView</c>, and differs only in what it is written on. It
     /// is deliberately named <c>.Id</c> rather than <c>.Class</c>: a second unrelated <c>.Class</c> extension
     /// in the same compilation collides with <c>Other.Make().Class(1)</c>'s own, and Roslyn's error recovery
     /// stops offering a candidate return type for either call once the name is ambiguous, which would have
@@ -550,11 +550,11 @@ public sealed class BracketSurfaceDiagnosticTests
                     public static Box Make() => new();
                     public static string Class(this Box box, string value) => value;
                     public static string Describe(this View view, int value) => value.ToString();
-                    public static ElementBuilder Wrap(this View content, string tag) => Html.Div;
+                    public static ElementView Wrap(this View content, string tag) => Html.Div;
 
                     public sealed class Bin;
                     public static Bin MakeBin() => new();
-                    public static ElementBuilder Id(this Bin bin, string value) => Html.Div;
+                    public static ElementView Id(this Bin bin, string value) => Html.Div;
                 }
                 """),
         ]);

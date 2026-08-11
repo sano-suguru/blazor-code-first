@@ -36,13 +36,13 @@ public sealed class BindParametersTests
         {
             // A zero-argument Action written ahead of the getter. Without the ReturnsVoid clause this
             // parameter is read as the getter.
-            public static ElementBuilder ActionAhead(
-                this ElementBuilder element, string a, string e,
+            public static ElementView ActionAhead(
+                this ElementView element, string a, string e,
                 System.Action before, System.Func<string> get, System.Action<string> set) => element;
 
             // A one-argument delegate after the getter that does not take the bound value.
-            public static ElementBuilder MistypedSetter(
-                this ElementBuilder element, string a, string e,
+            public static ElementView MistypedSetter(
+                this ElementView element, string a, string e,
                 System.Func<string> get, System.Action<int> set) => element;
         }
 

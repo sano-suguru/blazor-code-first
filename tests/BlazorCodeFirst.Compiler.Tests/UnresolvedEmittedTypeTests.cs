@@ -263,7 +263,7 @@ public sealed class UnresolvedEmittedTypeTests
     [Fact]
     public void NonElementDecorationValue_UnresolvedType_RemainsBCF3008Only()
     {
-        // Decorations now bind ElementBuilder, not View (Decorations.cs), so decorating Raw(...)'s View
+        // Decorations now bind ElementView, not View (Decorations.cs), so decorating Raw(...)'s View
         // result no longer resolves at all and BCF3008 is reported from the failure path by
         // RejectedDecorationScanner rather than from the analyzer's decoration arm. The report site moved,
         // but the claim did not: an unresolved type inside a rejected decoration's value must not ALSO

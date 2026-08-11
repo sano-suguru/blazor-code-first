@@ -16,7 +16,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 `BlazorCodeFirst.slnx` contains eight projects:
 
 - `src/BlazorCodeFirst.Runtime`: runtime types (`BodyComponentBase`, the inert
-  element helpers, the `ElementBuilder` decorators and child-list indexer that
+  element helpers, the `ElementView` decorators and child-list indexer that
   `View` results come from, `Component<T>` interop).
 - `src/BlazorCodeFirst.Compiler`: the Roslyn source generator and analyzers.
 - `tests/BlazorCodeFirst.Runtime.Tests`, `tests/BlazorCodeFirst.Compiler.Tests`,

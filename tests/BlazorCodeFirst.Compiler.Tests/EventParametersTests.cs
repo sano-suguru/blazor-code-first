@@ -26,13 +26,13 @@ public sealed class EventParametersTests
         {
             // The hazard: an .On-shaped decoration carrying a second delegate. Both parameters satisfy
             // "is delegate-typed", which is the rule the exemption used before it asked KnownSymbols.
-            public static ElementBuilder TwoHandlers(
-                this ElementBuilder element, string e,
+            public static ElementView TwoHandlers(
+                this ElementView element, string e,
                 System.Action handler, System.Action<int> completed) => element;
 
             // A delegate written ahead of the event's name rather than after it.
-            public static ElementBuilder HandlerFirst(
-                this ElementBuilder element, System.Action handler, string e) => element;
+            public static ElementView HandlerFirst(
+                this ElementView element, System.Action handler, string e) => element;
         }
 
         public class Host

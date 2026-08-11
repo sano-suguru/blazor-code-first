@@ -23,7 +23,7 @@ namespace BlazorCodeFirst;
 /// <para>
 /// It cannot be decorated, for the reason <c>Fragment</c> and <c>Raw</c> cannot (`DESIGN.md` §4.1): no
 /// single element frame is opened, so a decoration would have no target. That needs no diagnostic either
-/// — every decoration is an extension method on <see cref="ElementBuilder"/>, so
+/// — every decoration is an extension method on <see cref="ElementView"/>, so
 /// <c>Card("t").Class("x")</c> is a CS1929, the same way <c>Div["x"].Class("y")</c> already is.
 /// </para>
 /// <para>
@@ -36,14 +36,14 @@ namespace BlazorCodeFirst;
     "CA1043:Use integral or string argument for indexers",
     Justification = "The indexer is the content channel of a [Composable] part, not a lookup by index: its " +
         "argument is the content the caller is wrapping, a mixed sequence of strings and Views that no " +
-        "integral or string overload could carry. It is the same channel ElementBuilder and " +
+        "integral or string overload could carry. It is the same channel ElementView and " +
         "ComponentView<T> declare, for the same reason and with the same signature.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
     Justification = "ContentView is an inert design-time marker carrying no state; it is read by the " +
         "source generator and is always the default value at runtime, so equality is structurally " +
-        "determined and needs no override. Same rationale as View and ElementBuilder.")]
+        "determined and needs no override. Same rationale as View and ElementView.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Usage",
     "CA2225:Operator overloads have named alternates",
