@@ -187,6 +187,18 @@ public static class DiagnosticExpectations
                 "a bound extension method on ElementView that the runtime does not declare, is covered " +
                 "in-process: an id gets one fixture occurrence, and that shape raises no C# error for " +
                 "the cutoff to suppress, so it has no delivery claim of its own to make."),
+        new(
+            "BCF3027",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3027.cs",
+            "Data",
+            Note: "Anchors the shadowed receiver, which is what has to be qualified as Html.Data. The " +
+                "delivery claim is again the point: CS1503 is what C# says about the index argument, and " +
+                "the class carries CS0534, so csc stops before it binds the body and the author sees " +
+                "neither. Only the member-shadows-a-helper shape is here; the type-shadows-a-helper " +
+                "shape is deliberately not a BCF at all, C# reporting CS0119 for it, and is pinned " +
+                "in-process as the boundary it is."),
     ];
 
     /// <summary>

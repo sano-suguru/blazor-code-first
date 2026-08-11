@@ -23,19 +23,20 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// exists once, so there is no per-host list to get wrong.
 /// </para>
 /// <para>
-/// The order below is the order both hosts ran these three in before they were collapsed here, and it is
-/// kept deliberately rather than incidentally. It governs the sequence <see cref="ViewPartBodyContext"/>
-/// accumulates diagnostics in, not which diagnostics get reported: the three scanners look at disjoint
-/// syntax shapes, <see cref="UnresolvedValueTypeScanner"/> skips a <c>Component&lt;T&gt;()</c> call
-/// outright and leaves it to <see cref="UnresolvedComponentTypeScanner"/>, so no scanner here overrides
-/// another's finding. The one dedup that does exist, <c>ViewPartBodyContext.ReportUnresolvedType</c>
+/// The order below opens with the order both hosts ran the first three in before they were collapsed here,
+/// and it is kept deliberately rather than incidentally. It governs the sequence
+/// <see cref="ViewPartBodyContext"/> accumulates diagnostics in, not which diagnostics get reported: the
+/// scanners look at disjoint syntax shapes, <see cref="UnresolvedValueTypeScanner"/> skips a
+/// <c>Component&lt;T&gt;()</c> call outright and leaves it to <see cref="UnresolvedComponentTypeScanner"/>,
+/// so no scanner here overrides another's finding. The one dedup that does exist,
+/// <c>ViewPartBodyContext.ReportUnresolvedType</c>
 /// dropping a repeat BCF3015 at the same file span, is reached from more than this sweep:
 /// <c>ExpressionTemplateFactory.TryReportUnresolvedType</c> also calls it, both from
 /// <see cref="UnresolvedValueTypeScanner"/>'s own recursion and from the success path that
 /// <c>RenderExpressionAnalyzer.Classify</c> runs over the same <see cref="ViewPartBodyContext"/> before
-/// <see cref="ReportAll"/> ever executes. It still does not make the order between the three scanners
+/// <see cref="ReportAll"/> ever executes. It still does not make the order between the scanners
 /// load-bearing, because the dedup only ever compares a BCF3015 against an earlier BCF3015, and
-/// <see cref="UnresolvedValueTypeScanner"/> is the only one of the three that reports BCF3015.
+/// <see cref="UnresolvedValueTypeScanner"/> is the only one of them that reports BCF3015.
 /// </para>
 /// <para>
 /// A sweep that legitimately applies to one host only cannot be expressed through <see cref="ReportAll"/>,
@@ -57,5 +58,6 @@ internal static class FailurePathScanners
         UnresolvedComponentTypeScanner.Report(root, context);
         UnresolvedValueTypeScanner.Report(root, context);
         RejectedDecorationScanner.Report(root, context);
+        ShadowedElementHelperScanner.Report(root, context);
     }
 }

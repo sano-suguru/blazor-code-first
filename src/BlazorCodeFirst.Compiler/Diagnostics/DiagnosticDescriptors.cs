@@ -698,6 +698,31 @@ internal static class DiagnosticDescriptors
             "method that happens to take an element and return one.");
 
     /// <summary>
+    /// BCF3027: an element written as a simple name that a member declared closer than
+    /// <c>BlazorCodeFirst.Html</c> shadows, so the brackets index that member instead of opening an element.
+    /// </summary>
+    /// <remarks>
+    /// The C# error here is CS1503 on the index argument, which names neither the element, nor the member
+    /// that took its place, nor the fix, and which the declaration-stage cutoff keeps from the author in any
+    /// case (付録A A.0). Without this descriptor the author was told the expression "uses a construct that is
+    /// not statically analyzable", which is untrue: the construct is ordinary and the lookup went elsewhere
+    /// (#127). A <em>type</em> that shadows a helper is left out on purpose, C# reporting CS0119 for it, which
+    /// already names the shadowing declaration.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3027 = new(
+        id: "BCF3027",
+        title: "Element helper is shadowed by a member of your own",
+        messageFormat: "'{0}' here is a member declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "'using static BlazorCodeFirst.Html;' brings every curated element helper into simple-name " +
+            "scope, and a member declared closer wins that lookup. Where that member's own type is " +
+            "indexable the element expression stays legal C# and quietly becomes an indexer call on the " +
+            "member. Qualify the element as Html.<Name> to name it past the member.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

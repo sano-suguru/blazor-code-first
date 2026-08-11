@@ -677,6 +677,98 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3026");
     }
 
+    // ---------------------------------------------------------------------------
+    // BCF3027's domain: a member of the component shadowing a curated element helper
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A member whose name is a curated helper's wins simple-name lookup over the imported property, so the
+    /// element expression becomes an indexer call on that member.
+    /// </summary>
+    /// <remarks>
+    /// The C# error is CS1503, which names neither the element, nor the member, nor the fix, and which the
+    /// declaration-stage cutoff keeps from the author anyway (#127). What arrived instead was BCF1003's
+    /// "not statically analyzable", said of an expression that is perfectly analyzable and merely bound to
+    /// the wrong thing.
+    /// </remarks>
+    [Fact]
+    public void MemberShadowingAnElementHelper_ReportsBCF3027_AtTheShadowedReceiver()
+    {
+        var diagnostics = Run("""Div[Data["Heading"]]""", """private string Data => "";""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BCF3027");
+        Assert.Equal(DiagnosticSeverity.Error, report.Severity);
+        Assert.Equal(
+            "Data",
+            HostSpanText(report, """Div[Data["Heading"]]""", """private string Data => "";"""));
+        Assert.Contains("Data", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The same name written unqualified, with nothing shadowing it, is the ordinary element and must not be
+    /// blamed for a failure elsewhere in the body.
+    /// </summary>
+    /// <remarks>
+    /// The body fails for an unrelated reason (a child list handed over whole, BCF1003), which is what puts
+    /// this sweep on the failure path at all. Without the identity conjunct against the resolved helper
+    /// table every unqualified curated name in a broken body would be reported as shadowed.
+    /// </remarks>
+    [Fact]
+    public void UnshadowedElementHelper_IsNotBCF3027()
+    {
+        var diagnostics = Run("""Div[Data["Heading"], _kids]""", """private readonly View[] _kids = [];""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3027");
+    }
+
+    /// <summary>The documented fix, qualifying the element, is not itself reported.</summary>
+    /// <remarks>
+    /// <c>Html.Data</c> is a member access rather than a simple name, so no lookup was shadowed. The body
+    /// still fails, for the same unrelated reason as above, so the sweep does run over this expression.
+    /// </remarks>
+    [Fact]
+    public void QualifiedElementHelper_IsNotBCF3027()
+    {
+        var diagnostics = Run(
+            """Div[Html.Data["Heading"], _kids]""",
+            """private readonly string Data = ""; private readonly View[] _kids = [];""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3027");
+    }
+
+    /// <summary>
+    /// A <em>type</em> that shadows a helper is deliberately left outside this diagnostic.
+    /// </summary>
+    /// <remarks>
+    /// C# says <c>CS0119: 'Table' is a type, which is not valid in the given context</c>, which names the
+    /// shadowing declaration and is what BCF3027 would otherwise have to say for itself. The residue is
+    /// recorded on #127 as a chosen boundary, so this test is what holds the boundary rather than a note
+    /// about it.
+    /// </remarks>
+    [Fact]
+    public void TypeShadowingAnElementHelper_IsNotBCF3027()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace T;
+
+                public partial class Host : BodyComponentBase
+                {
+                    public sealed class Table;
+
+                    protected override View Body => Table["x"];
+                }
+                """));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3027");
+    }
+
     /// <summary>
     /// The <c>Host.cs</c> source text <paramref name="diagnostic"/> is located on, which is its report anchor.
     /// </summary>
