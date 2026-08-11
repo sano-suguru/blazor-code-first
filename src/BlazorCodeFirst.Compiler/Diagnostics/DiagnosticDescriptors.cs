@@ -698,30 +698,38 @@ internal static class DiagnosticDescriptors
             "method that happens to take an element and return one.");
 
     /// <summary>
-    /// BCF3027: an element written as a simple name that a member declared closer than
-    /// <c>BlazorCodeFirst.Html</c> shadows, so the brackets index that member instead of opening an element.
+    /// BCF3027: an element written as a simple name that a declaration closer than
+    /// <c>BlazorCodeFirst.Html</c> took — a member, a type, a namespace, or a method.
     /// </summary>
     /// <remarks>
-    /// The C# error here is CS1503 on the index argument, which names neither the element, nor the member
-    /// that took its place, nor the fix, and which the declaration-stage cutoff keeps from the author in any
-    /// case (付録A A.0). Without this descriptor the author was told the expression "uses a construct that is
-    /// not statically analyzable", which is untrue: the construct is ordinary and the lookup went elsewhere
-    /// (#127). A <em>type</em> that shadows a helper is not covered, which is a gap and no longer a position:
-    /// the CS0119 that #127 credited with naming the shadowing declaration does not reach the author either
-    /// (#266).
+    /// <para>
+    /// Each shape has a C# error of its own, and the declaration-stage cutoff keeps every one of them from
+    /// the author (付録A A.0): CS1503 on the index argument for a member, whose indexer the brackets quietly
+    /// call; CS0119 for a type; CS0118 for a namespace; CS0021 for a method group. Without this descriptor
+    /// the author was told the expression "uses a construct that is not statically analyzable", which is
+    /// untrue — the construct is ordinary and the lookup went elsewhere (#127).
+    /// </para>
+    /// <para>
+    /// One id for the four, with what took the name carried in the message the way BCF3028 carries its two
+    /// shapes. To an author they are one mistake, a simple name that reached something nearer than
+    /// <c>Html</c>, and <c>Html.<em>Name</em></c> is the fix for all of them; splitting them would split by
+    /// how far C# got in binding the expression, which is a distinction the author never made. #127 covered
+    /// the member alone on the premise that CS0119 reaches the type case, and #266 measured that premise
+    /// and found it false.
+    /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3027 = new(
         id: "BCF3027",
-        title: "Element helper is shadowed by a member of your own",
-        messageFormat: "'{0}' here is a member declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
+        title: "Element helper is shadowed by a declaration of your own",
+        messageFormat: "'{0}' here is a {1} declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "'using static BlazorCodeFirst.Html;' brings every curated element helper into simple-name " +
-            "scope, and a member declared closer wins that lookup. Where that member's own type is " +
-            "indexable the element expression stays legal C# and quietly becomes an indexer call on the " +
-            "member. Qualify the element as Html.<Name> to name it past the member.");
+            "scope, and a member, type, namespace, or method declared closer wins that lookup. The " +
+            "element expression then indexes that declaration, or fails to bind against it, instead of " +
+            "opening an element. Qualify the element as Html.<Name> to name it past the declaration.");
 
     /// <summary>
     /// BCF3028: an event handler whose argument type is not one the named event can deliver — either it

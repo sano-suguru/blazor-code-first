@@ -15,6 +15,12 @@ namespace Fixtures.GeneratorDelivery;
 /// <c>csc</c> stops after the declaration stage without binding method bodies. Only a real build shows that,
 /// so the in-process assertions in <c>BracketSurfaceDiagnosticTests</c> cannot stand in for it —
 /// <c>Compilation.GetDiagnostics()</c> binds bodies unconditionally and reports a CS1503 no author sees.
+/// <para>
+/// The member is one of four shapes this id fires on since #266 — a type, a namespace and a method take the
+/// name the same way — and it holds the fixture because an id gets one. The cutoff those other three depend
+/// on is this same one, a declaration error stopping <c>csc</c> before any body binds, so they are covered
+/// in-process; the reasoning is in <c>DiagnosticExpectations</c>.
+/// </para>
 /// </remarks>
 public partial class Bcf3027Host : BodyComponentBase
 {

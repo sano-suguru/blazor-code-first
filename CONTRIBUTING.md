@@ -544,7 +544,9 @@ time on code that was already written and already green:
   offers no candidate symbols for a receiver no extension method can take).
 - #127, once. The type arm of `ShadowedElementHelperScanner` was not what
   excluded CS0119: once the element access fails to bind, the identifier alone
-  carries no symbol either, so the arm it was credited to was unreachable.
+  carries no *symbol* either, so the arm it was credited to was unreachable.
+  What it does carry was measured by #266, which is what reaches the type case
+  now.
 - #68, once, and this one was a test rather than a claim. BCF3029's
   local-function exemption was covered by a source whose enclosing method also
   returned an inert type, so the arm under test could be deleted and the test
