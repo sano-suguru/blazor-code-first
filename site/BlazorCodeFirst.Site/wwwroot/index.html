@@ -6,6 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="preload" id="webassembly" />
+    <!-- Geist carries the page, JetBrains Mono carries every piece of machine text (the wordmark,
+         which is a namespace, and all code). display=swap so first paint is never blocked on a
+         font; the fallbacks are the platform's own UI and mono stacks. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+    <!-- tokens.css declares every custom property app.css reads. Both are asserted in site.yml:
+         losing either link ships an unstyled page while every other check there stays green. -->
+    <link rel="stylesheet" href="css/tokens.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="css/highlight.css" />
     <link rel="icon" type="image/png" href="favicon.png" />

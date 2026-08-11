@@ -5,13 +5,13 @@
 .htmlAttributeName{color:#FF0000;}
 .htmlAttributeValue{color:#0000FF;}
 .htmlOperator{color:#0000FF;}
-.comment{color:#008000;}
-.xmlDocTag{color:#808080;}
-.xmlDocComment{color:#008000;}
-.string{color:#A31515;}
-.stringCSharpVerbatim{color:#A31515;}
-.keyword{color:#0000FF;}
-.preprocessorKeyword{color:#0000FF;}
+.comment{color:#676871;}
+.xmlDocTag{color:#676871;}
+.xmlDocComment{color:#676871;}
+.string{color:#006647;}
+.stringCSharpVerbatim{color:#006647;}
+.keyword{color:#463ECC;}
+.preprocessorKeyword{color:#463ECC;}
 .htmlEntity{color:#FF0000;}
 .jsonKey{color:#FF8700;}
 .jsonString{color:#008B8B;}
@@ -24,7 +24,7 @@
 .xmlComment{color:#008000;}
 .xmlDelimiter{color:#0000FF;}
 .xmlName{color:#A31515;}
-.className{color:#48D1CC;}
+.className{color:#161822;}
 .cssSelector{color:#A31515;}
 .cssPropertyName{color:#FF0000;}
 .cssPropertyValue{color:#0000FF;}
@@ -43,7 +43,7 @@
 .pseudoKeyword{color:#000080;}
 .stringEscape{color:#808080;}
 .controlKeyword{color:#0000FF;}
-.number{}
+.number{color:#006647;}
 .operator{}
 .delimiter{}
 .markdownHeader{color:#0000FF;font-weight: bold;}

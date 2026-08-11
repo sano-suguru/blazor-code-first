@@ -1,5 +1,4 @@
 using BlazorCodeFirst;
-using BlazorCodeFirst.Site.Content;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using static BlazorCodeFirst.Html;
@@ -7,9 +6,22 @@ using static BlazorCodeFirst.Html;
 namespace BlazorCodeFirst.Site.Layout;
 
 /// <summary>
-/// The site navigation, including the active state of the current route.
+/// The site-level navigation: wordmark hard left, utilities hard right, nothing between them.
 /// </summary>
 /// <remarks>
+/// The shape is deliberate. The wordmark-left / centred-link-cluster / filled-button-right bar is
+/// the most-copied marketing header there is, and it says nothing about what kind of site it sits
+/// on. This site has exactly three routes a reader navigates to by name, so the bar carries three
+/// links and no cluster; the documentation's own navigation is the rail beside the prose, which
+/// renders only on the documentation routes.
+///
+/// The element keeps the class "site-nav" because the site workflow asserts its presence on every
+/// prerendered route as the signal that the shell rendered at all.
+///
+/// The wordmark link is wrapped in a div rather than carrying the brand styling itself: the CI
+/// guard matches class="nav-link active" as a whole attribute value, so a third class on that
+/// element would turn the guard into a silent no-op.
+///
 /// The component holds no state field for the current location. Body reads
 /// <see cref="NavigationManager.Uri"/> directly as a pure projection, BCF3001 forbids mutation
 /// inside Body, not reads, so there is no second source of truth to keep in sync. The
@@ -35,16 +47,14 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
 
     protected override View Body =>
         Nav.Class("site-nav")[
-            Ul.Class("nav-list")[
-                Li[A.Href("/").Class(LinkClass("/"))["Home"]],
-                Li[A.Href("/counter").Class(LinkClass("/counter"))["Counter"]],
-                Li[A.Href("/docs").Class(LinkClass("/docs"))["Docs"]],
-                ForEach(
-                    Docs.All,
-                    key: d => d.Slug,
-                    content: d => Li[
-                        A.Href($"/docs/{d.Slug}")
-                            .Class(LinkClass($"/docs/{d.Slug}"))[d.Title]])]];
+            Div.Class("brand")[
+                A.Href("/").Class(LinkClass("/"))["BlazorCodeFirst"]],
+            Div.Class("nav-utilities")[
+                A.Href("/docs").Class(LinkClass("/docs"))["Docs"],
+                A.Href("/counter").Class(LinkClass("/counter"))["Demo"],
+                A.Href("https://github.com/sano-suguru/blazor-code-first")
+                    .Class("chip")
+                    .Attr("rel", "noopener")["Source"]]];
 
     /// <summary>The current route as a normalized absolute path ("/", "/counter", "/docs/x").</summary>
     /// <remarks>
@@ -67,9 +77,9 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
     }
 
     // Exact match only: a prefix match would light up "/" (Home) on every route, and would light up
-    // "/docs" on every "/docs/{slug}" route. DocLinkClass used to special-case "/docs" to activate
-    // the default document's link; with "/docs" an index page of its own that case is gone, and the
-    // CI guard asserting exactly one active nav link per route is what keeps it from coming back.
+    // "/docs" on every "/docs/{slug}" route. On a document route the active link is the rail's, not
+    // this one's, and the CI guard asserting exactly one active link per route is what keeps the two
+    // from both claiming it.
     private string LinkClass(string path) =>
         string.Equals(CurrentPath(), path, StringComparison.OrdinalIgnoreCase)
             ? "nav-link active"

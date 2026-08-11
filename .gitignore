@@ -9,6 +9,15 @@ obj/
 AGENTS.md
 CLAUDE.md
 .github/copilot-instructions.md
+# Skills a skill runner installs into the working tree, and the lockfile that pins their versions.
+# Off the record for the same reason AGENTS.md is: they configure whoever is driving the editor, not
+# what this library is. The payload is third-party and restorable from the source the lockfile names,
+# so nothing is lost by not tracking either one.
+.agents/
+skills-lock.json
+# Rotation ledger written by the design skill. The durable record of what the site's design is lives
+# in the stamp at the top of site/BlazorCodeFirst.Site/wwwroot/css/tokens.css, not here.
+.hallmark/
 
 # Build/pack output (dotnet pack -o artifacts/…, PackageContentsTests)
 artifacts/

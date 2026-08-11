@@ -23,9 +23,10 @@ public static class NotFoundContent
 {
     [Composable]
     public static View NotFound() =>
-        Section.Class("prose")[
-            Component<PageTitle>()["Not found"],
-            H1["Page not found"],
-            P["The requested page does not exist."],
-            P[A.Href("/docs")["Browse the documentation"], " or ", A.Href("/")["go to the home page"]]];
+        Div.Class("shell")[
+            Section.Class("prose demo")[
+                Component<PageTitle>()["Not found"],
+                H1["Page not found"],
+                P["The requested page does not exist."],
+                P[A.Href("/docs")["Browse the documentation"], " or ", A.Href("/")["go to the home page"]]]];
 }

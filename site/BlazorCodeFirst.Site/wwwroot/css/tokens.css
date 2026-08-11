@@ -1,0 +1,144 @@
+/* Hallmark · macrostructure: Split Studio · H2 hero knobs: ratio=6/6, right=code figure, divider=negative space
+ * theme: custom · vibe: "compile-time, cool, precise, .NET" · paper: oklch(99% 0.006 277) · accent: oklch(47% 0.21 277)
+ * display: Geist · body: Geist · mono: JetBrains Mono · axes: light / geometric-sans / cool
+ * nav: N9 edge-aligned minimal · footer: Ft2 inline single line · enrichment: none · studied: no
+ * contrast: pass (40-41) · slop: pass (42-45) · honest: pass (46) · chrome: pass (47)
+ * tokens: pass (48) · responsive: pass (49) · mobile: pass (34, 49, 50-57)
+ */
+
+/* The design system, extracted so it is portable and so app.css never carries a raw value.
+   Every colour, font, size, easing and duration used by app.css is declared here and referenced by
+   name. A literal oklch()/hex outside this file is a bug, not a shortcut.
+
+   This file is linked from wwwroot/index.html as a separate stylesheet rather than @import-ed from
+   app.css: an @import costs a second round trip that only starts once app.css has parsed, and the
+   custom properties are needed by the first rule app.css applies. site.yml asserts the <link> for
+   the same reason it asserts the other two -- losing the line would ship the site with every
+   var() unresolved, which every other assertion in that workflow would report as green. */
+
+:root {
+    /* --- Colour -------------------------------------------------------------
+       Anchor hue 277 (violet). Derived from the .NET brand violet #512BD4, whose OKLCH chroma is
+       ~0.245; the accent below is held at 0.21, the top of the range this design system allows,
+       which is indistinguishable side by side and keeps the accent from overpowering the ink.
+       Every neutral is tinted toward the same hue: an untinted grey beside a violet accent reads
+       wrong in a way most people cannot name. */
+    --color-paper: oklch(99% 0.006 277);
+    --color-paper-2: oklch(97% 0.008 277);
+    --color-paper-3: oklch(94.5% 0.010 277);
+
+    --color-ink: oklch(21% 0.020 277);
+    --color-ink-2: oklch(38% 0.016 277);
+    --color-muted: oklch(52% 0.014 277);
+
+    --color-rule: oklch(90% 0.010 277);
+    --color-rule-2: oklch(94% 0.008 277);
+
+    --color-accent: oklch(47% 0.21 277);
+    --color-accent-strong: oklch(41% 0.20 277);
+    --color-accent-soft: oklch(96% 0.022 277);
+    --color-accent-ink: oklch(99% 0.006 277);
+    --color-focus: oklch(52% 0.22 277);
+
+    /* The dark slab that carries code. Elevation on a dark surface is lightness, never shadow. */
+    --color-slab: oklch(21% 0.024 277);
+    --color-slab-2: oklch(26% 0.022 277);
+    --color-slab-ink: oklch(93% 0.008 277);
+    --color-slab-muted: oklch(70% 0.012 277);
+    --color-slab-rule: oklch(31% 0.020 277);
+
+    /* Code tokens on the dark slab. Lightness is held at 78-82% so every one clears 4.5:1 against
+       --color-slab; the comment is the tightest at ~4.6:1, which is why it sits at 66% and not
+       lower. These are the landing page's own vocabulary and are deliberately separate from
+       css/highlight.css, which DocGen generates for prose code blocks from the ColorCode theme. */
+    --color-code-keyword: oklch(78% 0.14 300);
+    --color-code-type: oklch(80% 0.11 230);
+    --color-code-string: oklch(80% 0.12 165);
+    --color-code-member: oklch(78% 0.12 350);
+    --color-code-comment: oklch(66% 0.020 277);
+
+    /* The same five hues turned over for the light slab, where the figure sits on paper instead.
+       Lightness drops to the low forties so each one clears 4.5:1 the other way round. */
+    --color-code-keyword-on-light: oklch(45% 0.19 300);
+    --color-code-type-on-light: oklch(45% 0.13 230);
+    --color-code-string-on-light: oklch(42% 0.11 165);
+    --color-code-member-on-light: oklch(46% 0.15 350);
+    --color-code-comment-on-light: var(--color-muted);
+
+    /* --- Type ---------------------------------------------------------------
+       Two families plus a mono outlier. The mono carries exactly one role -- machine text -- and
+       that role covers the wordmark (a C# namespace), code, file and route paths, the install
+       command, and figures. Anything that is prose, a label, or a heading stays on the body face,
+       or the outlier quietly becomes a third body font. */
+    --font-display: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-body: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* Major third (1.25). Five sizes carry the page; hierarchy past that comes from weight. */
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-base: 1rem;
+    --text-md: 1.125rem;
+    --text-lg: 1.375rem;
+    --text-xl: 1.75rem;
+    --text-2xl: 2.25rem;
+    --text-display: clamp(2.5rem, 4.5vw + 1rem, 4.25rem);
+    --text-display-s: clamp(2rem, 3vw + 1rem, 3rem);
+
+    --leading-display: 1.06;
+    --leading-heading: 1.2;
+    --leading-body: 1.6;
+    --leading-code: 1.65;
+
+    --tracking-display: -0.028em;
+    --tracking-label: 0.08em;
+
+    /* --- Space --------------------------------------------------------------
+       4pt base, named by role. */
+    --space-3xs: 0.125rem;
+    --space-2xs: 0.25rem;
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2.5rem;
+    --space-2xl: 4rem;
+    --space-3xl: 6rem;
+    --space-4xl: 9rem;
+
+    /* --- Shape --------------------------------------------------------------
+       Tight radii. This is an instrument panel, not a consumer app. */
+    --radius-xs: 3px;
+    --radius-sm: 5px;
+    --radius-md: 8px;
+    --rule-hairline: 1px;
+
+    /* --- Motion -------------------------------------------------------------
+       Exponential ease-out. The browser default `ease` reads as uncrafted. */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --dur-micro: 120ms;
+    --dur-short: 220ms;
+    --dur-long: 420ms;
+
+    /* --- Layers -------------------------------------------------------------
+       Six named levels. An ad-hoc z-index is a bug. */
+    --z-base: 1;
+    --z-raised: 10;
+    --z-dropdown: 100;
+    /* In-page sticky boxes and the top bar are separate levels. Two sticky elements briefly overlap
+       during a scroll, and the bar has to be the one that paints over. */
+    --z-sticky: 200;
+    --z-sticky-nav: 300;
+    --z-modal: 400;
+    --z-toast: 500;
+
+    /* --- Measure ------------------------------------------------------------ */
+    --measure: 66ch;
+    --shell-max: 76rem;
+    --rail-width: 16rem;
+    /* The banner's own height, so anything else that sticks can dock beneath it rather than
+       sliding under it. Kept in step with .site-nav's padding-block plus its line box. */
+    --nav-height: 4.25rem;
+}
