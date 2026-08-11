@@ -181,21 +181,29 @@ public sealed class StaticMarkupSerializerTests
             "div", ImmutableArray.Create(Dynamic("_cls")), default, default, default)));
 
     /// <summary>
-    /// A class value requires a constant <em>string</em>: the class channel folds by concatenation, so
-    /// unlike an attribute value it has nowhere to put a constant that carries no text. A constant
-    /// <see langword="null"/> must therefore not fold here even though it does for an attribute value
-    /// (<see cref="ConstantNullAttributeValue_IsFoldable"/>), and neither must a <see langword="bool"/>,
-    /// which does fold as an attribute value
-    /// (<see cref="ConstantBooleanAttributeValue_IsFoldable"/>).
+    /// A constant <see langword="null"/> class term folds, by being dropped (#236). It is not a term the
+    /// join has to put anywhere — it carries no text and earns no separator — so the markup for the
+    /// element is the markup for the terms that remain, and an element carrying nothing else is written
+    /// without the attribute, which is what <c>AddAttribute</c> does with the null the frame path hands
+    /// it. Same answer as an attribute value (<see cref="ConstantNullAttributeValue_IsFoldable"/>), for
+    /// the same reason.
     /// </summary>
     [Fact]
-    public void ClassWithoutStringValue_IsNotFoldable()
-    {
-        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+    public void ConstantNullClassTerm_IsFoldable() =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
             "div", ImmutableArray.Create(ConstNull()), default, default, default)));
+
+    /// <summary>
+    /// A <see langword="bool"/> class term does not fold. The channel joins its terms as text and a
+    /// <see langword="bool"/> has no text to join, which is BCF3023 and so never reaches here from real
+    /// source; the predicate refuses it anyway rather than resting on that. It does fold as an attribute
+    /// value (<see cref="ConstantBooleanAttributeValue_IsFoldable"/>), where the frame path has a meaning
+    /// for it.
+    /// </summary>
+    [Fact]
+    public void BooleanClassTerm_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
             "div", ImmutableArray.Create(ConstBool(true)), default, default, default)));
-    }
 
     [Fact]
     public void ElementWithDynamicAttributeValue_IsNotFoldable() =>

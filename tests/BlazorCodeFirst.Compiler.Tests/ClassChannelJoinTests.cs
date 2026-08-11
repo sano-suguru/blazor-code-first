@@ -110,4 +110,35 @@ public sealed class ClassChannelJoinTests
 
         Assert.DoesNotContain("__BlazorCodeFirstJoinClasses", generated);
     }
+
+    /// <summary>
+    /// A span whose classes are <paramref name="classes"/> and whose text is constant, so the element is
+    /// a candidate for the static fold. Built here rather than through <see cref="Span"/>, whose text is
+    /// deliberately not constant.
+    /// </summary>
+    private static ElementNode FoldableSpan(params ExpressionTemplate[] classes) =>
+        new("span",
+            ImmutableArray.Create(classes),
+            default,
+            default,
+            ImmutableArray.Create<RenderNode>(new TextContentNode(
+                ExpressionTemplate.Create([new LiteralExpressionSegment("\"x\"")], new StringConstant("x")))));
+
+    [Fact]
+    public void Fold_WhenAClassTermIsAConstantNull_StillFoldsTheElementToMarkup()
+    {
+        var generated = EmitRoot(FoldableSpan(Constant("card"), ConstantNull()));
+
+        // The markup text rather than the whole call: whether a lone root folds on its own or only as
+        // part of a sibling run is the emitter's business, and this is about what the serializer writes.
+        Assert.Contains("<span class=\\\"card\\\">x</span>", generated);
+    }
+
+    [Fact]
+    public void Fold_WhenEveryClassTermIsAConstantNull_WritesNoClassAttribute()
+    {
+        var generated = EmitRoot(FoldableSpan(ConstantNull(), ConstantNull()));
+
+        Assert.Contains("<span>x</span>", generated);
+    }
 }

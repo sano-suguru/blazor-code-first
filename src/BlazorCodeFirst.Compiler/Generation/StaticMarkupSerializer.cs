@@ -135,19 +135,35 @@ internal static class StaticMarkupSerializer
         {
             // All .Class decorations collapse into one class attribute (ARCHITECTURE.md §2.7(A)), which is
             // one frame however many there are. The name and the separator come from the channel, not from
-            // literals written here: this markup and the emitter's concatenation have to reach the same
-            // DOM, so neither of them gets to spell them for itself (#193).
-            builder.Append(' ').Append(ClassChannel.AttributeName).Append("=\"");
-            var first = true;
+            // literals written here: this markup and the emitter's join have to reach the same DOM, so
+            // neither of them gets to spell them for itself (#193). A constant null term is not a term on
+            // that path either (#236), so it takes its separator with it here too — and when every term is
+            // one, no attribute is written at all, which is what AddAttribute does with the null the frame
+            // path hands it.
+            var written = false;
             foreach (var @class in element.Classes)
             {
-                if (!first)
+                if (@class.Constant is NullConstant)
+                    continue;
+
+                if (written)
+                {
                     builder.Append(ClassChannel.Separator);
+                }
+                else
+                {
+                    builder.Append(' ').Append(ClassChannel.AttributeName).Append("=\"");
+                    written = true;
+                }
+
                 AppendEscapedAttributeValue(builder, ConstantTextOf(@class, element));
-                first = false;
             }
 
-            builder.Append('"');
+            if (written)
+                builder.Append('"');
+
+            // Counted whether or not anything was written, because the frame path emits AddAttribute for
+            // any class decoration at all, and this count exists to say what that path would have emitted.
             absorbed++;
         }
 
@@ -253,10 +269,15 @@ internal static class StaticMarkupSerializer
 
         // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
         // left here is not the value's type but whether it is a constant this markup can carry: a constant
-        // null has no text to join and no attribute to write, and a non-constant has no text at all. That
-        // is the same question a text node answers, so it is asked with the same predicate.
+        // null has no text to join and no attribute to write — the frame path drops it too (#236), so both
+        // paths reach the same DOM without it — and a non-constant has no text at all. What is left once
+        // the nulls are gone is the same question a text node answers, so it is asked with the same
+        // predicate.
         foreach (var @class in element.Classes)
         {
+            if (@class.Constant is NullConstant)
+                continue;
+
             if (!IsFoldableConstantString(@class))
                 return false;
         }
