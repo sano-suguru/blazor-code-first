@@ -128,7 +128,7 @@ public sealed partial class Home : BodyComponentBase
                                 + "first component."]],
                     Ul.Class("index-list")[
                         ForEach(
-                            Docs.All,
+                            Docs.ForLang(Docs.Canonical),
                             key: d => d.Slug,
                             content: d => Li[
                                 A.Href($"/docs/{d.Slug}").Class("index-link")[

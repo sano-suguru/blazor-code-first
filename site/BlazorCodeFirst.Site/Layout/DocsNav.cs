@@ -41,7 +41,7 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
             P.Class("rail-heading")["Guide"],
             Ul.Class("rail-list")[
                 ForEach(
-                    Docs.All,
+                    Docs.ForLang(Docs.Canonical),
                     key: d => d.Slug,
                     content: d => Li[
                         A.Href($"/docs/{d.Slug}")

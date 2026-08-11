@@ -4,7 +4,34 @@ using Markdig.Syntax;
 namespace BlazorCodeFirst.Site.DocGen;
 
 /// <summary>One document's routing and navigation metadata.</summary>
-public sealed record DocMeta(string Slug, string Title, int Order);
+/// <param name="Lang">The language tag from <see cref="DocLang"/>, taken from the directory.</param>
+/// <param name="Stale">
+/// True when a translation's <c>source-hash</c> does not match its English counterpart. Always false
+/// for a canonical document, which has nothing to fall behind.
+/// </param>
+public sealed record DocMeta(string Slug, string Title, int Order, string Lang, bool Stale);
+
+/// <summary>The languages the content directory may hold, and where each one's documents route to.</summary>
+/// <remarks>
+/// Language is derived from the directory rather than declared in front matter, so a file cannot
+/// claim a language its neighbours do not have. That also gives a subdirectory a meaning: before
+/// this, a file in one was silently dropped, and now every directory is either a language or an
+/// error.
+/// </remarks>
+public static class DocLang
+{
+    /// <summary>The canonical language. Its documents are the top-level files.</summary>
+    public const string Canonical = "en";
+
+    /// <summary>Every language, canonical first.</summary>
+    public static readonly string[] All = [Canonical, "ja"];
+
+    /// <summary>The subdirectory a language's documents live in, or null for the canonical one.</summary>
+    public static string? Directory(string lang) => lang == Canonical ? null : lang;
+
+    /// <summary>The route a language's documents are served from, with no trailing slash.</summary>
+    public static string RoutePrefix(string lang) => lang == Canonical ? "/docs" : $"/docs/{lang}";
+}
 
 /// <summary>Validates that a content file name can be used verbatim as a URL slug.</summary>
 /// <remarks>

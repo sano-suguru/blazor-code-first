@@ -29,7 +29,7 @@ public sealed partial class DocsIndexPage : BodyComponentBase
                     P["Every document in the guide, in reading order."],
                     Ul.Class("index-list")[
                         ForEach(
-                            Docs.All,
+                            Docs.ForLang(Docs.Canonical),
                             key: d => d.Slug,
                             content: d => Li[
                                 A.Href($"/docs/{d.Slug}").Class("index-link")[

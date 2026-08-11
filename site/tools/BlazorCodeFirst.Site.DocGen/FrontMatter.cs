@@ -3,7 +3,12 @@ using System.Globalization;
 namespace BlazorCodeFirst.Site.DocGen;
 
 /// <summary>The metadata a document declares in its front matter block.</summary>
-public sealed record FrontMatterFields(string Title, int Order);
+/// <param name="SourceHash">
+/// A translation's record of the English document it was written against, or null on a canonical
+/// document. Whether it is required is the caller's rule, because only the caller knows which
+/// language the file came from.
+/// </param>
+public sealed record FrontMatterFields(string Title, int Order, string? SourceHash);
 
 /// <summary>
 /// Splits a document's leading <c>---</c> front matter block from its Markdown body and validates
@@ -82,6 +87,7 @@ public static class FrontMatter
 
         string? title = null;
         int? order = null;
+        string? sourceHash = null;
         foreach (string line in lines)
         {
             if (line.Trim().Length == 0)
@@ -128,8 +134,30 @@ public static class FrontMatter
                     order = parsed;
                     break;
 
+                case "source-hash":
+                    if (sourceHash is not null)
+                    {
+                        throw Invalid(fileName, "front matter key 'source-hash' is declared more than once.");
+                    }
+
+                    // Shape is checked here so a typo cannot read as a mismatch. A malformed hash and
+                    // a stale one look the same to the comparison, but only one of them is a document
+                    // whose translation is behind, and telling the author "this is out of date" when
+                    // the real fault is a truncated paste sends them to rewrite the wrong thing.
+                    if (!IsSourceHash(value))
+                    {
+                        throw Invalid(
+                            fileName,
+                            $"front matter 'source-hash' must be {SourceHashLength} lowercase hex digits but was '{value}'.");
+                    }
+
+                    sourceHash = value;
+                    break;
+
                 default:
-                    throw Invalid(fileName, $"front matter key '{key}' is not recognized; only 'title' and 'order' are allowed.");
+                    throw Invalid(
+                        fileName,
+                        $"front matter key '{key}' is not recognized; only 'title', 'order' and 'source-hash' are allowed.");
             }
         }
 
@@ -143,7 +171,34 @@ public static class FrontMatter
             throw Invalid(fileName, "front matter is missing the required 'order' key.");
         }
 
-        return (new FrontMatterFields(title, order.Value), text[bodyStart..]);
+        return (new FrontMatterFields(title, order.Value, sourceHash), text[bodyStart..]);
+    }
+
+    /// <summary>How many hex digits a <c>source-hash</c> carries.</summary>
+    /// <remarks>
+    /// Eight, which is what an author has to retype by hand. The value only ever has to distinguish
+    /// one revision of a document from the next revision of the same document, so a collision would
+    /// need two versions of one file to share a prefix; the full digest would cost the author 56 more
+    /// characters to buy nothing they can use.
+    /// </remarks>
+    public const int SourceHashLength = 8;
+
+    private static bool IsSourceHash(string value)
+    {
+        if (value.Length != SourceHashLength)
+        {
+            return false;
+        }
+
+        foreach (char c in value)
+        {
+            if (c is not ((>= '0' and <= '9') or (>= 'a' and <= 'f')))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static InvalidOperationException Invalid(string fileName, string reason) =>

@@ -30,7 +30,7 @@ public sealed partial class DocsPage : BodyComponentBase
 
     protected override void OnParametersSet()
     {
-        var entry = Docs.Find(Slug);
+        var entry = Docs.Find(Docs.Canonical, Slug);
 
         _found = entry is not null;
         _title = entry?.Title ?? "Not found";
