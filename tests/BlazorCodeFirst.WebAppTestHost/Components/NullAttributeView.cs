@@ -31,6 +31,8 @@ public partial class NullAttributeView : BodyComponentBase
             Span.Attr("id", "to-empty").Attr("title", _present ? "tip" : "")["to-empty"],
             Span.Attr("id", "class-join").Class("card").Class(_present ? "active" : null)["class-join"],
             Span.Attr("id", "class-single").Class(_present ? "active" : null)["class-single"],
+            Span.Attr("id", "class-leading").Class(_present ? "card" : null).Class("active")["class-leading"],
+            Span.Attr("id", "class-both").Class(_present ? "card" : null).Class(_present ? "active" : null)["class-both"],
             Span.Attr("id", "bool").Attr("data-v", _present)["bool"],
             Button.Attr("id", "toggle").OnClick(() => _present = !_present)["toggle"],
             Span.Attr("id", "state")[_present ? "present" : "absent"]);

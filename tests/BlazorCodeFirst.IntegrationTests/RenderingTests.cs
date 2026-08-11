@@ -219,6 +219,29 @@ public sealed class RenderingTests : BunitContext
     }
 
     /// <summary>
+    /// #236's second example, where the null is the class channel's <em>leading</em> term. The rejected
+    /// alternative — folding a constant prefix into both arms of the conditional — could not have reached
+    /// this one, because a first term has no constant ahead of it to fold into. A leading null leaves no
+    /// separator in front of what follows, and a join whose every term turns null omits the attribute
+    /// exactly as a lone null does.
+    /// </summary>
+    [Fact]
+    public void NullAttributeComponent_WhenTheLeadingClassTermTurnsNull_LeavesNoSeparatorAheadOfTheRest()
+    {
+        var cut = Render<NullAttributeComponent>();
+        var spans = cut.FindAll("span");
+
+        Assert.Equal("card active", spans[4].GetAttribute("class"));
+        Assert.Equal("card active", spans[5].GetAttribute("class"));
+
+        cut.Find("button").Click();
+
+        spans = cut.FindAll("span");
+        Assert.Equal("active", spans[4].GetAttribute("class"));
+        Assert.Null(spans[5].GetAttribute("class"));
+    }
+
+    /// <summary>
     /// A <c>bool</c> attribute value through real rendering and a real re-render diff. The compiler tests
     /// pin the emitted call and the browser gate pins the folded/element parity for a constant; this pins
     /// what the overload is actually for, that a runtime <see langword="false"/> removes the attribute

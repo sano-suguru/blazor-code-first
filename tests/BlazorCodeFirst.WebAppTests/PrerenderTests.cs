@@ -177,6 +177,8 @@ public sealed class PrerenderTests
         // emits its one folded frame first (EmitClassAttribute, before the attribute loop), so the id
         // written ahead of .Class in the view still lands after it here.
         Assert.Contains("""<span class="card active" id="class-join">""", document, StringComparison.Ordinal);
+        Assert.Contains("""<span class="card active" id="class-leading">""", document, StringComparison.Ordinal);
+        Assert.Contains("""<span class="card active" id="class-both">""", document, StringComparison.Ordinal);
         Assert.Contains("""<span id="bool" data-v>""", document, StringComparison.Ordinal);
     }
 }

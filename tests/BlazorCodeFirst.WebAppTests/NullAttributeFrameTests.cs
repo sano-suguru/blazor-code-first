@@ -32,32 +32,32 @@ public sealed class NullAttributeFrameTests
     }
 
     /// <summary>
-    /// Three of the view's decorations stop appending a frame in the absent state: the null
-    /// <c>title</c>, the lone null <c>class</c>, and the <see langword="false"/> <c>data-v</c>. The joined
-    /// class does <em>not</em> — its null term is dropped from the join (#236), so what reaches
-    /// <c>AddAttribute</c> is <c>"card"</c> rather than the <c>"card "</c> it once was, and either way a
-    /// non-null string appends a frame. Pinning the count at exactly three fewer is what says the term
-    /// went and the attribute stayed.
+    /// Four of the view's decorations stop appending a frame in the absent state: the null <c>title</c>,
+    /// the lone null <c>class</c>, the <see langword="false"/> <c>data-v</c>, and the join whose every
+    /// term turns null. The two joins that keep a non-null term do <em>not</em> — their null term is
+    /// dropped from the join (#236), so what reaches <c>AddAttribute</c> is a shorter string and not
+    /// none. That split is the whole of #236, and the count is where it is pinned: a fifth would mean a
+    /// join had started omitting an attribute that still has a class to carry.
     /// </summary>
     [Fact]
-    public void NullAttributeView_InTheAbsentState_AppendsThreeFewerAttributeFrames()
+    public void NullAttributeView_InTheAbsentState_AppendsFourFewerAttributeFrames()
     {
         var view = new NullAttributeView();
         var present = AttributeFrameCount(view);
 
         view.Toggle();
 
-        Assert.Equal(present - 3, AttributeFrameCount(view));
+        Assert.Equal(present - 4, AttributeFrameCount(view));
     }
 
     /// <summary>
     /// The absolute count in the present state, so the relative assertion above cannot be satisfied by both
-    /// sides shrinking together. Thirteen: six <c>id</c>s on the spans and one on the button, the button's
-    /// <c>onclick</c>, the two <c>title</c>s, the two <c>class</c>es, and <c>data-v</c>.
+    /// sides shrinking together. Seventeen: eight <c>id</c>s on the spans and one on the button, the
+    /// button's <c>onclick</c>, the two <c>title</c>s, the four <c>class</c>es, and <c>data-v</c>.
     /// </summary>
     [Fact]
-    public void NullAttributeView_InThePresentState_AppendsThirteenAttributeFrames()
+    public void NullAttributeView_InThePresentState_AppendsSeventeenAttributeFrames()
     {
-        Assert.Equal(13, AttributeFrameCount(new NullAttributeView()));
+        Assert.Equal(17, AttributeFrameCount(new NullAttributeView()));
     }
 }

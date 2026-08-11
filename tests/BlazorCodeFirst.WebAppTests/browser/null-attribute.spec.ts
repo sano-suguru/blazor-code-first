@@ -62,6 +62,17 @@ test.describe('a null attribute value', () => {
     await expect(page.locator('#class-single')).not.toHaveAttribute('class', /.*/);
   });
 
+  test('leaves no separator ahead of the rest when the leading term turns null', async ({ page }) => {
+    await page.locator('#toggle').click();
+    await expect(page.locator('#state')).toHaveText('absent');
+
+    // #236's second example. The rejected alternative — folding a constant prefix into both arms of the
+    // conditional — could not have reached this one: the null is the first term, so there is no constant
+    // ahead of it to fold a separator into.
+    await expect(page.locator('#class-leading')).toHaveAttribute('class', 'active');
+    await expect(page.locator('#class-both')).not.toHaveAttribute('class', /.*/);
+  });
+
   test('patches the element already in the DOM rather than replacing it', async ({ page }) => {
     // Why this is worth a test: the spelling #171 replaces lifted the whole element into a conditional,
     // which gives the two branches disjoint sequence spaces and so destroys and recreates the element. A
