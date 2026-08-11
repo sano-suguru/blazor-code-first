@@ -3,12 +3,12 @@ using BlazorCodeFirst;
 
 namespace BlazorCodeFirst.Runtime.Tests;
 
-public sealed class ComposableAttributeTests
+public sealed class ViewPartAttributeTests
 {
     [Fact]
-    public void AttributeUsage_ComposableAttribute_TargetsOnlyNonInheritedMethods()
+    public void AttributeUsage_ViewPartAttribute_TargetsOnlyNonInheritedMethods()
     {
-        var usage = typeof(ComposableAttribute)
+        var usage = typeof(ViewPartAttribute)
             .GetCustomAttribute<AttributeUsageAttribute>();
 
         Assert.NotNull(usage);

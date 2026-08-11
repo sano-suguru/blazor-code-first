@@ -3,7 +3,7 @@ using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
-public partial class ComposableCounterComponent : BodyComponentBase
+public partial class ViewPartCounterComponent : BodyComponentBase
 {
     private int _count;
     private int _argumentEvaluations;
@@ -15,7 +15,7 @@ public partial class ComposableCounterComponent : BodyComponentBase
             CounterLabel(GetCountLabel()),
             Button.OnClick(() => _count++)["Increment"]];
 
-    [Composable]
+    [ViewPart]
     private static View CounterLabel(string value) => Span[value];
 
     private string GetCountLabel()

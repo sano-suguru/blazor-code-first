@@ -23,7 +23,7 @@ internal static class UnresolvedComponentTypeScanner
     /// Records BCF3012 into <paramref name="context"/> for every unresolved <c>Component&lt;T&gt;()</c>
     /// type argument under <paramref name="root"/>, in syntactic order, once per invocation.
     /// </summary>
-    public static void Report(ExpressionSyntax root, ComposableBodyContext context)
+    public static void Report(ExpressionSyntax root, ViewPartBodyContext context)
     {
         var componentMethod = context.KnownSymbols.HtmlComponent;
         if (componentMethod is null)

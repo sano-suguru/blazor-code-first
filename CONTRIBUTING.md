@@ -16,7 +16,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 `BlazorCodeFirst.slnx` contains eight projects:
 
 - `src/BlazorCodeFirst.Runtime`: runtime types (`BodyComponentBase`, the inert
-  element helpers, the `ElementBuilder` decorators and child-list indexer that
+  element helpers, the `ElementView` decorators and child-list indexer that
   `View` results come from, `Component<T>` interop).
 - `src/BlazorCodeFirst.Compiler`: the Roslyn source generator and analyzers.
 - `tests/BlazorCodeFirst.Runtime.Tests`, `tests/BlazorCodeFirst.Compiler.Tests`,
@@ -378,6 +378,16 @@ issue, commit message, or review comment is today's `BCF1001`. The same change
 renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
 `ChromeLayoutBase`.
 
+Four more names changed in 2026-08 (#257), before any of them shipped.
+`ComposableAttribute` became `ViewPartAttribute`, so the attribute is written
+`[ViewPart]`; `ContentView` became `SlotView`; `ElementBuilder` became
+`ElementView`; and `Decorations.Class` takes its argument as `value` rather than
+`@class`. The compiler-internal `Composable*` types moved with the attribute, so
+a `ComposableRegistry` in an older commit is today's `ViewPartRegistry`, and the
+comments that described "a composable" now describe a view part. One name did not
+move: the snapshot case `composable-expansion`, because a case name is the
+corpus's identity rather than a description of it (`SnapshotCorpusTests`).
+
 ## Pull requests
 
 `.github/PULL_REQUEST_TEMPLATE.md` has four sections, each explained in an HTML comment you delete
@@ -441,7 +451,7 @@ command listed there and never run reads exactly like one that was.
   fills in `RenderView`. The other direction, `Component<T>()`, reaches existing Razor
   components, and its type argument must resolve while the generator runs, so a
   `.razor` component declared in the same project cannot be named (`BCF3012`),
-  because source generators cannot observe each other's output. `[Composable]` has no
+  because source generators cannot observe each other's output. `[ViewPart]` has no
   Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` 付録B.4).
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence

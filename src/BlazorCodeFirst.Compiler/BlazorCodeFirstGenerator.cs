@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler;
 /// <summary>
 /// Incremental source generator entry point. Discovers BlazorCodeFirst base subclasses
 /// (<c>BodyComponentBase</c> and <c>ChromeLayoutBase</c>) and emits a <c>RenderView</c> override
-/// into the same partial class, and discovers <c>[Composable]</c> definitions into a value-equal
+/// into the same partial class, and discovers <c>[ViewPart]</c> definitions into a value-equal
 /// registry while reporting declaration-time BCF1002 diagnostics.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
@@ -35,19 +35,19 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
             .Where(static analysis => analysis is not null)
             .WithTrackingName("ComponentAnalysis");
 
-        // Discover [Composable] definitions. Definition-side SSC analysis resolves KnownSymbols
+        // Discover [ViewPart] definitions. Definition-side SSC analysis resolves KnownSymbols
         // transiently from the definition's compilation so the transform output stays value-equal and
         // free of Roslyn symbols.
         var discoveryResults = context.SyntaxProvider
             .ForAttributeWithMetadataName(
-                "BlazorCodeFirst.ComposableAttribute",
+                "BlazorCodeFirst.ViewPartAttribute",
                 static (node, _) => node is MethodDeclarationSyntax,
                 static (attributeContext, cancellationToken) =>
                 {
                     var symbols = KnownSymbols.TryCreate(attributeContext.SemanticModel.Compilation);
-                    return ComposableDefinitionFactory.Create(attributeContext, symbols, cancellationToken);
+                    return ViewPartDefinitionFactory.Create(attributeContext, symbols, cancellationToken);
                 })
-            .WithTrackingName("ComposableDiscovery");
+            .WithTrackingName("ViewPartDiscovery");
 
         // Report declaration-time diagnostics per definition so unchanged declarations are not
         // re-reported, reconstructing each location from the captured symbol-free coordinates.
@@ -59,25 +59,25 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                     productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
             });
 
-        // Collect every source composable entry, including invalid declarations, into a
+        // Collect every source view part entry, including invalid declarations, into a
         // deterministic value-equal registry consumed by call-site expansion.
         var registry = discoveryResults
             .Select(static (result, _) => result.Entry)
             .Collect()
-            .Select(static (entries, _) => ComposableRegistry.Create(entries))
-            .WithTrackingName("ComposableRegistry");
+            .Select(static (entries, _) => ViewPartRegistry.Create(entries))
+            .WithTrackingName("ViewPartRegistry");
 
-        // Report BCF3003 for region-rooted ForEach content inside composable definition bodies, once per
-        // definition and independent of whether the composable is ever called. Registry-dependent by
+        // Report BCF3003 for region-rooted ForEach content inside view part definition bodies, once per
+        // definition and independent of whether the view part is ever called. Registry-dependent by
         // nature (transitive root-kind resolution), and separate from BCF3002/BCF3004 so their per-definition
         // incrementality is unaffected.
-        var composableForEachDiagnostics = registry
+        var viewPartForEachDiagnostics = registry
             .Select(static (r, _) =>
-                (EquatableArray<DiagnosticInfo>)KeyabilityResolver.CollectComposableForEachDiagnostics(r))
-            .WithTrackingName("ComposableForEachDiagnostics");
+                (EquatableArray<DiagnosticInfo>)KeyabilityResolver.CollectViewPartForEachDiagnostics(r))
+            .WithTrackingName("ViewPartForEachDiagnostics");
 
         context.RegisterSourceOutput(
-            composableForEachDiagnostics,
+            viewPartForEachDiagnostics,
             static (productionContext, diagnostics) =>
             {
                 foreach (var diagnostic in diagnostics)

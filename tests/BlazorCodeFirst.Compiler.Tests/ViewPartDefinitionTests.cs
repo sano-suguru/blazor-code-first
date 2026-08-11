@@ -10,22 +10,22 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
-public sealed class ComposableDefinitionTests
+public sealed class ViewPartDefinitionTests
 {
     [Theory]
-    [InlineData("[Composable] private View Helper() => Span[\"x\"];", "must be static")]
-    [InlineData("[Composable] private static View Helper<T>() => Span[\"x\"];", "must be non-generic")]
-    [InlineData("[Composable] private static View Helper() { return Span[\"x\"]; }", "must be expression-bodied")]
-    [InlineData("[Composable] private static string Helper() => \"x\";", "must return BlazorCodeFirst.View")]
-    [InlineData("[Composable] private static View Helper(params string[] values) => Span[values[0]];", "params parameters are unsupported")]
-    // A View parameter is a content slot now (#34) and needs the ContentView return type that says so;
-    // ComposableContentDiagnosticTests covers the surface it belongs to.
-    [InlineData("[Composable] private static View Helper(View content) => content;", "View parameters are content slots")]
-    [InlineData("[Composable] private static View Helper(ref int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(out int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(in int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
-    [InlineData("[Composable] private static View Helper(ref readonly int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
-    public void ComposableDefinition_UnsupportedDeclaration_ReportsBCF1002(string declaration, string message)
+    [InlineData("[ViewPart] private View Helper() => Span[\"x\"];", "must be static")]
+    [InlineData("[ViewPart] private static View Helper<T>() => Span[\"x\"];", "must be non-generic")]
+    [InlineData("[ViewPart] private static View Helper() { return Span[\"x\"]; }", "must be expression-bodied")]
+    [InlineData("[ViewPart] private static string Helper() => \"x\";", "must return BlazorCodeFirst.View")]
+    [InlineData("[ViewPart] private static View Helper(params string[] values) => Span[values[0]];", "params parameters are unsupported")]
+    // A View parameter is a content slot now (#34) and needs the SlotView return type that says so;
+    // ViewPartContentDiagnosticTests covers the surface it belongs to.
+    [InlineData("[ViewPart] private static View Helper(View content) => content;", "View parameters are content slots")]
+    [InlineData("[ViewPart] private static View Helper(ref int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    [InlineData("[ViewPart] private static View Helper(out int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    [InlineData("[ViewPart] private static View Helper(in int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    [InlineData("[ViewPart] private static View Helper(ref readonly int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    public void ViewPartDefinition_UnsupportedDeclaration_ReportsBCF1002(string declaration, string message)
     {
         var source = $$"""
             using BlazorCodeFirst;
@@ -42,7 +42,7 @@ public sealed class ComposableDefinitionTests
     }
 
     /// <summary>
-    /// An extension member is not a composable (<c>DESIGN.md</c> §4.3, #203), and which spelling declared
+    /// An extension member is not a view part (<c>DESIGN.md</c> §4.3, #203), and which spelling declared
     /// it does not change the answer: the classic <c>this</c> parameter and both members of a C# 14
     /// <c>extension</c> block report the one reason that is true of them. A separate theory because an
     /// extension member needs a <c>static</c> containing class, which the rows above cannot share (one of
@@ -50,10 +50,10 @@ public sealed class ComposableDefinitionTests
     /// predicate exists for — it is static and non-generic and would otherwise pass every remaining test.
     /// </summary>
     [Theory]
-    [InlineData("[Composable] public static View Label(this string value) => Span[value];")]
-    [InlineData("extension(string value) { [Composable] public View Label() => Span[value]; }")]
-    [InlineData("extension(string value) { [Composable] public static View Make() => Span[\"x\"]; }")]
-    public void ComposableDefinition_ExtensionMember_ReportsBCF1002(string declaration)
+    [InlineData("[ViewPart] public static View Label(this string value) => Span[value];")]
+    [InlineData("extension(string value) { [ViewPart] public View Label() => Span[value]; }")]
+    [InlineData("extension(string value) { [ViewPart] public static View Make() => Span[\"x\"]; }")]
+    public void ViewPartDefinition_ExtensionMember_ReportsBCF1002(string declaration)
     {
         var source = $$"""
             using BlazorCodeFirst;
@@ -82,7 +82,7 @@ public sealed class ComposableDefinitionTests
     }
 
     [Fact]
-    public void ComposableDefinition_ValidDefinition_DoesNotReportBCF1002()
+    public void ViewPartDefinition_ValidDefinition_DoesNotReportBCF1002()
     {
         var source = """
             using BlazorCodeFirst;
@@ -90,7 +90,7 @@ public sealed class ComposableDefinitionTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Greeting(string name) => Span[name];
 
                 protected override View Body => Span["Body"];
@@ -103,13 +103,13 @@ public sealed class ComposableDefinitionTests
     }
 
     [Fact]
-    public void ComposableRegistry_EntriesDiscoveredOutOfOrder_RemainsValueEqual()
+    public void ViewPartRegistry_EntriesDiscoveredOutOfOrder_RemainsValueEqual()
     {
-        var high = new ComposableDefinitionEntry("K:b", "Beta", Definition: null, DeclarationDiagnosticReported: true);
-        var low = new ComposableDefinitionEntry("K:a", "Alpha", Definition: null, DeclarationDiagnosticReported: true);
+        var high = new ViewPartDefinitionEntry("K:b", "Beta", Definition: null, DeclarationDiagnosticReported: true);
+        var low = new ViewPartDefinitionEntry("K:a", "Alpha", Definition: null, DeclarationDiagnosticReported: true);
 
-        var registry = ComposableRegistry.Create([high, low]);
-        var reordered = ComposableRegistry.Create([low, high]);
+        var registry = ViewPartRegistry.Create([high, low]);
+        var reordered = ViewPartRegistry.Create([low, high]);
 
         Assert.Equal(registry, reordered);
         Assert.Equal(registry.GetHashCode(), reordered.GetHashCode());
@@ -124,19 +124,19 @@ public sealed class ComposableDefinitionTests
     }
 
     [Fact]
-    public void ComposableRegistry_DuplicateMethodKeys_RetainsFirstEntryOnly()
+    public void ViewPartRegistry_DuplicateMethodKeys_RetainsFirstEntryOnly()
     {
-        var first = new ComposableDefinitionEntry("K", "First", Definition: null, DeclarationDiagnosticReported: true);
-        var duplicate = new ComposableDefinitionEntry("K", "Second", Definition: null, DeclarationDiagnosticReported: true);
+        var first = new ViewPartDefinitionEntry("K", "First", Definition: null, DeclarationDiagnosticReported: true);
+        var duplicate = new ViewPartDefinitionEntry("K", "Second", Definition: null, DeclarationDiagnosticReported: true);
 
-        var registry = ComposableRegistry.Create([first, duplicate]);
+        var registry = ViewPartRegistry.Create([first, duplicate]);
 
         var entry = Assert.Single(registry.Entries);
         Assert.Equal("First", entry.DisplayName);
     }
 
     [Fact]
-    public void ComposableCallTemplate_OmittedOptionalArguments_SortAfterSuppliedArgumentsInParameterOrder()
+    public void ViewPartCallTemplate_OmittedOptionalArguments_SortAfterSuppliedArgumentsInParameterOrder()
     {
         var source = """
             using BlazorCodeFirst;
@@ -144,17 +144,17 @@ public sealed class ComposableDefinitionTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Target(string a, int b = 1, int c = 2) => Span[a];
 
-                [Composable]
+                [ViewPart]
                 private static View Caller() => Target("supplied");
 
                 protected override View Body => Span["Body"];
             }
             """;
 
-        var call = (ComposableCallTemplateNode)AnalyzeBody(source, "Caller")!;
+        var call = (ViewPartCallTemplateNode)AnalyzeBody(source, "Caller")!;
         var arguments = call.Arguments;
 
         Assert.Equal(3, arguments.Length);
@@ -182,7 +182,7 @@ public sealed class ComposableDefinitionTests
     }
 
     [Fact]
-    public void ComposableDefinition_ExpressionBodyReferencesEnclosingLocal_ReportsSingleBCF1002()
+    public void ViewPartDefinition_ExpressionBodyReferencesEnclosingLocal_ReportsSingleBCF1002()
     {
         var source = """
             using BlazorCodeFirst;
@@ -190,7 +190,7 @@ public sealed class ComposableDefinitionTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Helper(string s) => Div[
                     Span[int.TryParse(s, out var parsed) ? s : s],
                     Span[parsed.ToString()]];
@@ -206,7 +206,7 @@ public sealed class ComposableDefinitionTests
     }
 
     [Fact]
-    public void ComposableDefinition_ExpressionBodyUsesSelfContainedLocal_DoesNotReportBCF1002()
+    public void ViewPartDefinition_ExpressionBodyUsesSelfContainedLocal_DoesNotReportBCF1002()
     {
         var source = """
             using BlazorCodeFirst;
@@ -214,7 +214,7 @@ public sealed class ComposableDefinitionTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Helper(string s) =>
                     Span[int.TryParse(s, out var parsed) ? parsed.ToString() : "0"];
 
@@ -236,7 +236,7 @@ public sealed class ComposableDefinitionTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Greeting(string name) => Span[nameof(name) + name];
 
                 protected override View Body => Span["Body"];
@@ -262,7 +262,7 @@ public sealed class ComposableDefinitionTests
             static p => p.Ordinal,
             SymbolEqualityComparer.Default);
 
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             model,
             methodSymbol.ContainingType,
             methodSymbol.Name,
@@ -296,7 +296,7 @@ public sealed class ComposableDefinitionTests
             static p => p.Ordinal,
             SymbolEqualityComparer.Default);
 
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             model,
             methodSymbol.ContainingType,
             methodSymbol.Name,

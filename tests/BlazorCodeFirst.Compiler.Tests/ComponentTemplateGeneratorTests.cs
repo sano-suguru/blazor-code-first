@@ -157,7 +157,7 @@ public sealed class ComponentTemplateGeneratorTests
     }
 
     [Fact]
-    public void ContextualTemplate_ComposableCall_SubstitutesContextThroughTheComposableArgument()
+    public void ContextualTemplate_ViewPartCall_SubstitutesContextThroughTheViewPartArgument()
     {
         const string host = """
             using BlazorCodeFirst;
@@ -169,7 +169,7 @@ public sealed class ComponentTemplateGeneratorTests
                     Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
                         Format(context));
 
-                [Composable]
+                [ViewPart]
                 private static View Format(int value) => Span[$"formatted={value}"];
             }
             """;
@@ -184,7 +184,7 @@ public sealed class ComponentTemplateGeneratorTests
     }
 
     [Fact]
-    public void ContextualTemplate_InsideComposableWithValueParameter_OwnsTheNextHoleOrdinal()
+    public void ContextualTemplate_InsideViewPartWithValueParameter_OwnsTheNextHoleOrdinal()
     {
         const string host = """
             using BlazorCodeFirst;
@@ -196,7 +196,7 @@ public sealed class ComponentTemplateGeneratorTests
 
                 protected override View Body => BuildTemplate(_prefix);
 
-                [Composable]
+                [ViewPart]
                 private static View BuildTemplate(string prefix) =>
                     Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
                         Span[$"{prefix}:{context}"]);
@@ -416,7 +416,7 @@ public sealed class ComponentTemplateGeneratorTests
     }
 
     [Fact]
-    public void ContextualTemplate_ComposableExpansionKeepsNestedLambdaBindingHygienic()
+    public void ContextualTemplate_ViewPartExpansionKeepsNestedLambdaBindingHygienic()
     {
         const string host = """
             using System;
@@ -435,7 +435,7 @@ public sealed class ComponentTemplateGeneratorTests
                     Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
                         AddOffset(context));
 
-                [Composable]
+                [ViewPart]
                 private static View AddOffset(int value) =>
                     Span[$"{((Func<int, int>)(__bcf_context_1 =>
                         value + __bcf_context_1.Twice()))(0)}"];

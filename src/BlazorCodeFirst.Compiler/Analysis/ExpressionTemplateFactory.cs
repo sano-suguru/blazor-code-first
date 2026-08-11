@@ -15,7 +15,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// so every name that would otherwise depend on an import must be made self-contained. Replacement
 /// decisions use Roslyn symbol identity, never textual substitution, so that:
 /// <list type="bullet">
-/// <item>identifiers bound to composable parameters become <see cref="ParameterHoleExpressionSegment"/>;</item>
+/// <item>identifiers bound to view part parameters become <see cref="ParameterHoleExpressionSegment"/>;</item>
 /// <item>every <c>nameof(...)</c> collapses to its compile-time constant string, because the entity it
 /// names (a parameter replaced by a typed local, a private definition member, or a type in scope only
 /// through a using) generally does not exist at the expansion site;</item>
@@ -43,7 +43,7 @@ internal static class ExpressionTemplateFactory
     private static readonly SymbolDisplayFormat QualifiedNameWithoutTypeArguments =
         SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None);
 
-    public static ExpressionTemplate Create(ExpressionSyntax expression, ComposableBodyContext context) =>
+    public static ExpressionTemplate Create(ExpressionSyntax expression, ViewPartBodyContext context) =>
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
 
     /// <summary>
@@ -63,7 +63,7 @@ internal static class ExpressionTemplateFactory
 
     private static ExpressionTemplate CreateCore(
         ExpressionSyntax expression,
-        ComposableBodyContext context,
+        ViewPartBodyContext context,
         AuthoredContextNameHygiene authoredNameHygiene)
     {
         var replacements = new List<Replacement>();
@@ -152,7 +152,7 @@ internal static class ExpressionTemplateFactory
             // The semantic model is asked about this name exactly once, here. Everything below wants the
             // same two answers, and when each helper fetched its own, a member-access name cost five
             // semantic queries to answer two questions. Semantic queries dominate this transform's cost and
-            // it runs over every identifier of every component and every composable body.
+            // it runs over every identifier of every component and every view part body.
             var alias = context.SemanticModel.GetAliasInfo(name, context.CancellationToken);
             var symbol = context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol;
 
@@ -214,7 +214,7 @@ internal static class ExpressionTemplateFactory
 
                     // Caller content in a value position: Div.Attr("x", Describe(header)),
                     // ForEach(xs, x => Slot, …). There is no expression text to substitute -- content is a
-                    // node subtree spliced by ComposableExpander -- so a hole minted here would be
+                    // node subtree spliced by ViewPartExpander -- so a hole minted here would be
                     // unsubstitutable. Reported as the unsupported reference it is, rather than left to fail
                     // during expansion, where it would surface as a generator crash with no location.
                     case BodyHoleKind.Content:
@@ -291,7 +291,7 @@ internal static class ExpressionTemplateFactory
     /// </remarks>
     private static ConstantInfo? ReadConstant(
         ExpressionSyntax expression,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
         if (!constant.HasValue)
@@ -307,12 +307,12 @@ internal static class ExpressionTemplateFactory
     }
 
     /// <summary>
-    /// As <see cref="TryReportUnresolvedType(SimpleNameSyntax, IAliasSymbol?, ISymbol?, ComposableBodyContext)"/>,
+    /// As <see cref="TryReportUnresolvedType(SimpleNameSyntax, IAliasSymbol?, ISymbol?, ViewPartBodyContext)"/>,
     /// for the two callers that reach a name outside the normalization loop and so hold neither answer yet.
     /// </summary>
     internal static bool TryReportUnresolvedType(
         SimpleNameSyntax name,
-        ComposableBodyContext context) =>
+        ViewPartBodyContext context) =>
         TryReportUnresolvedType(
             name,
             context.SemanticModel.GetAliasInfo(name, context.CancellationToken),
@@ -329,7 +329,7 @@ internal static class ExpressionTemplateFactory
         SimpleNameSyntax name,
         IAliasSymbol? alias,
         ISymbol? symbol,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var type = GetReferencedType(name, alias, symbol, context);
         if (type is null
@@ -348,7 +348,7 @@ internal static class ExpressionTemplateFactory
         SimpleNameSyntax name,
         IAliasSymbol? alias,
         ISymbol? symbol,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (alias is { Target: ITypeSymbol aliasType })
             return aliasType;
@@ -495,13 +495,13 @@ internal static class ExpressionTemplateFactory
         return true;
     }
 
-    private static void RecordAccessRequirement(ISymbol symbol, ComposableBodyContext context)
+    private static void RecordAccessRequirement(ISymbol symbol, ViewPartBodyContext context)
     {
         var kind = symbol.DeclaredAccessibility switch
         {
-            Accessibility.Private => (ComposableAccessRequirementKind?)ComposableAccessRequirementKind.SameContainingType,
-            Accessibility.Protected => ComposableAccessRequirementKind.DerivedContainingType,
-            Accessibility.ProtectedAndInternal => ComposableAccessRequirementKind.DerivedContainingType,
+            Accessibility.Private => (ViewPartAccessRequirementKind?)ViewPartAccessRequirementKind.SameContainingType,
+            Accessibility.Protected => ViewPartAccessRequirementKind.DerivedContainingType,
+            Accessibility.ProtectedAndInternal => ViewPartAccessRequirementKind.DerivedContainingType,
             _ => null,
         };
 
@@ -509,13 +509,13 @@ internal static class ExpressionTemplateFactory
             return;
 
         // The requirement is keyed on the type that declares the referenced member so expansion checks
-        // that type, not the composable's own containing type, against the component's inheritance
+        // that type, not the view part's own containing type, against the component's inheritance
         // chain. A private/protected member always has a containing type; guard defensively regardless.
         var requiredContainingTypeKey = symbol.ContainingType is { } containingType
             ? containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
             : string.Empty;
 
-        context.AddAccessRequirement(new ComposableAccessRequirement(
+        context.AddAccessRequirement(new ViewPartAccessRequirement(
             kind.Value,
             requiredContainingTypeKey,
             symbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
@@ -528,7 +528,7 @@ internal static class ExpressionTemplateFactory
     /// constrains where the inlined body may legally be placed, so without this the expansion site would
     /// emit CS0122 instead of the intended BCF1002.
     /// </summary>
-    private static void RecordMemberAccessRequirement(ISymbol? symbol, ComposableBodyContext context)
+    private static void RecordMemberAccessRequirement(ISymbol? symbol, ViewPartBodyContext context)
     {
         if (symbol is IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol)
             RecordAccessRequirement(symbol, context);
@@ -547,7 +547,7 @@ internal static class ExpressionTemplateFactory
     private static bool TryQualifyNamespaceQualifiedType(
         SimpleNameSyntax name,
         ISymbol? symbol,
-        ComposableBodyContext context,
+        ViewPartBodyContext context,
         List<Replacement> replacements,
         List<TextSpan> replacedSpans)
     {
@@ -601,7 +601,7 @@ internal static class ExpressionTemplateFactory
     /// </summary>
     internal static LiteralExpressionSegment? TryCreateNameofConstant(
         InvocationExpressionSyntax invocation,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (invocation.Expression is not IdentifierNameSyntax { Identifier.Text: "nameof" })
             return null;
@@ -615,7 +615,7 @@ internal static class ExpressionTemplateFactory
 
     private static bool ReportUnresolvedExtensionTypeArguments(
         InvocationExpressionSyntax invocation,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var generic = invocation.Expression switch
         {
@@ -652,7 +652,7 @@ internal static class ExpressionTemplateFactory
     private static bool TryCreateExtensionMethodCall(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        ComposableBodyContext context,
+        ViewPartBodyContext context,
         AuthoredContextNameHygiene authoredNameHygiene,
         out ImmutableArray<ExpressionSegment> segments)
     {
@@ -780,7 +780,7 @@ internal static class ExpressionTemplateFactory
     private static bool NeedsGeneratedContextCollisionQualification(
         SimpleNameSyntax name,
         ISymbol symbol,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (!name.Identifier.ValueText.StartsWith("__bcf_context_", System.StringComparison.Ordinal)
             || symbol.IsStatic
@@ -866,7 +866,7 @@ internal static class ExpressionTemplateFactory
 
         public static AuthoredContextNameHygiene Create(
             ExpressionSyntax expression,
-            ComposableBodyContext context)
+            ViewPartBodyContext context)
         {
             // Built on the first rename, not up front. Its only reader is the disambiguation loop below,
             // which runs only for an authored declaration literally spelled __bcf_context_<digits> — the

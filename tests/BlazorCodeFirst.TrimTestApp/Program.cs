@@ -56,7 +56,7 @@ public partial class TrimCounter : BodyComponentBase
             Component<TrimTemplate>().Template(c => c.RowTemplate, row => Span[$"Row {row}"]),
             ForEach(_rows, key: r => r.Id, content: r => Component<DummyRow>().Param(c => c.Text, r.Label))];
 
-    [Composable]
+    [ViewPart]
     private static View CountLabel(string value) => Span[value];
 
     public void RenderForTrimTest(RenderTreeBuilder builder)
@@ -91,7 +91,7 @@ public partial class TrimLayout : ChromeLayoutBase
             Header[ChromeTitle(Title)],
             Main[Body]];
 
-    [Composable]
+    [ViewPart]
     private static View ChromeTitle(string value) => Span[value];
 
     public void RenderForTrimTest(RenderTreeBuilder builder)

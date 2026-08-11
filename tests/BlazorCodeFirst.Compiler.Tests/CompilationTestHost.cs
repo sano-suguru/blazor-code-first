@@ -196,7 +196,7 @@ public static class CompilationTestHost
 
     /// <summary>
     /// Compiles <paramref name="source"/> into an in-memory assembly and returns it as a metadata
-    /// reference so a consuming compilation can reference a <c>[Composable]</c> method that exists only in
+    /// reference so a consuming compilation can reference a <c>[ViewPart]</c> method that exists only in
     /// metadata (no source declaration), exercising the metadata-only expansion diagnostic path.
     /// </summary>
     public static MetadataReference CompileToMetadataReference(string source, string assemblyName)
@@ -224,7 +224,7 @@ public static class CompilationTestHost
 
     /// <summary>
     /// Creates a compilation from raw <c>(Path, Source)</c> tuples plus additional metadata references,
-    /// letting tests wire a metadata-only composable definition into the consuming compilation.
+    /// letting tests wire a metadata-only view part definition into the consuming compilation.
     /// </summary>
     internal static CSharpCompilation CreateCompilation(
         (string Path, string Source)[] sources,

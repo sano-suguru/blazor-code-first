@@ -105,7 +105,7 @@ public sealed class ExpressionTemplateConstantTests
 
     /// <summary>
     /// A constant <see langword="null"/> is its own state, not the absence of a constant: the expression
-    /// is side-effect free (so a composable local bound to it may be dropped) and <c>AddAttribute</c>
+    /// is side-effect free (so a view part local bound to it may be dropped) and <c>AddAttribute</c>
     /// omits the attribute, which is exactly what the fold writes for it.
     /// </summary>
     [Fact]

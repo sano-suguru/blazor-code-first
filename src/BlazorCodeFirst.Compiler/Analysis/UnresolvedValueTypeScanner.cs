@@ -12,10 +12,10 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// </summary>
 internal static class UnresolvedValueTypeScanner
 {
-    public static void Report(ExpressionSyntax root, ComposableBodyContext context) =>
+    public static void Report(ExpressionSyntax root, ViewPartBodyContext context) =>
         ScanRenderExpression(root, context);
 
-    private static void ScanRenderExpression(ExpressionSyntax? expression, ComposableBodyContext context)
+    private static void ScanRenderExpression(ExpressionSyntax? expression, ViewPartBodyContext context)
     {
         if (expression is null)
             return;
@@ -70,7 +70,7 @@ internal static class UnresolvedValueTypeScanner
         switch (kind)
         {
             // Element(tag) carries no children on this surface: they are written in brackets on the
-            // ElementBuilder it returns, and ScanChildrenIndexer handles that. The tag itself is never
+            // ElementView it returns, and ScanChildrenIndexer handles that. The tag itself is never
             // reported on, whether or not it is constant. Component<T>() is the same shape twice over: it
             // takes no arguments at all, and its children likewise arrive on an indexer.
             case SurfaceMethodKind.Element:
@@ -114,13 +114,13 @@ internal static class UnresolvedValueTypeScanner
                 ScanDecoration(invocation, method, kind, args, recoverOwnValue, context);
                 return;
 
-            // A [Composable] call. The walk above reaches the receiver of one written fluently, which is
+            // A [ViewPart] call. The walk above reaches the receiver of one written fluently, which is
             // the answer this arm wants: a receiver is an expression the author wrote, and this arm reports
-            // on what the author wrote. Such a call never expands — a composable is never an extension
+            // on what the author wrote. Such a call never expands — a view part is never an extension
             // member (DESIGN.md §4.3, #203) — so walking it can only ever replace the generic BCF1003 with
             // a specific report, never emit anything new.
             case SurfaceMethodKind.None:
-                if (IsComposable(method, context))
+                if (IsViewPart(method, context))
                 {
                     foreach (var argument in args.ExplicitArguments)
                         ReportValue(argument, context);
@@ -141,7 +141,7 @@ internal static class UnresolvedValueTypeScanner
         SurfaceMethodKind kind,
         BoundArguments args,
         bool recoverOwnValue,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (!recoverOwnValue)
             return;
@@ -189,7 +189,7 @@ internal static class UnresolvedValueTypeScanner
         SurfaceMethodKind kind,
         BoundArguments args,
         bool recoverOwnValue,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (!recoverOwnValue || !IsFluentExtensionInvocation(invocation, method, context))
             return;
@@ -243,7 +243,7 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// </remarks>
     private static void ReportEventArguments(
-        IMethodSymbol method, BoundArguments args, ComposableBodyContext context)
+        IMethodSymbol method, BoundArguments args, ViewPartBodyContext context)
     {
         if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters))
             return;
@@ -281,7 +281,7 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// </remarks>
     private static void ReportBindArguments(
-        IMethodSymbol method, BoundArguments args, ComposableBodyContext context)
+        IMethodSymbol method, BoundArguments args, ViewPartBodyContext context)
     {
         if (!KnownSymbols.TryGetBindParameters(method, out var bind))
             return;
@@ -292,13 +292,13 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// Scans an element access whose indexer is one of the design-time surface's. Both indexers,
-    /// <c>ElementBuilder</c>'s and <c>ComponentView&lt;T&gt;</c>'s, take the same route: the receiver carries
+    /// <c>ElementView</c>'s and <c>ComponentView&lt;T&gt;</c>'s, take the same route: the receiver carries
     /// the tag, the decoration chain or the component parameter chain and is scanned as an expression in
     /// its own right, and the bracketed arguments are the children.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Nothing here is gated on <see cref="ComposableBodyContext.ShouldRecoverUnresolvedValue"/>. That gate
+    /// Nothing here is gated on <see cref="ViewPartBodyContext.ShouldRecoverUnresolvedValue"/>. That gate
     /// exists so an arm does not re-report a value it already diagnosed, and this route has no value of its
     /// own: the tag belongs to the receiver, which carries its own gate. Gating the children on it would
     /// silence expressions the rejection was never about.
@@ -312,7 +312,7 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// </remarks>
     private static void ScanChildrenIndexer(
-        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+        ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
         if (TryGetRecognizedIndexer(elementAccess, context) is not { } indexer)
             return;
@@ -346,7 +346,7 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// </remarks>
     private static bool HasRejectedElementTag(
-        ExpressionSyntax? receiver, ComposableBodyContext context)
+        ExpressionSyntax? receiver, ViewPartBodyContext context)
     {
         while (receiver is InvocationExpressionSyntax invocation)
         {
@@ -375,7 +375,7 @@ internal static class UnresolvedValueTypeScanner
         return false;
     }
 
-    private static bool IsTextOrRenderFragment(ExpressionSyntax expression, ComposableBodyContext context)
+    private static bool IsTextOrRenderFragment(ExpressionSyntax expression, ViewPartBodyContext context)
     {
         var type = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
         return type is { SpecialType: SpecialType.System_String }
@@ -383,7 +383,7 @@ internal static class UnresolvedValueTypeScanner
                 && SymbolEqualityComparer.Default.Equals(type, renderFragment));
     }
 
-    private static void ScanChildren(BoundArguments args, ComposableBodyContext context)
+    private static void ScanChildren(BoundArguments args, ViewPartBodyContext context)
     {
         if (args.HasUnanalyzableParamsArgument)
             return;
@@ -392,12 +392,12 @@ internal static class UnresolvedValueTypeScanner
             ScanRenderExpression(child, context);
     }
 
-    private static void ScanLambdaBody(ExpressionSyntax? expression, ComposableBodyContext context)
+    private static void ScanLambdaBody(ExpressionSyntax? expression, ViewPartBodyContext context)
     {
         ScanRenderExpression(GetLambdaBody(expression), context);
     }
 
-    private static void ReportLambdaValueBody(ExpressionSyntax? expression, ComposableBodyContext context) =>
+    private static void ReportLambdaValueBody(ExpressionSyntax? expression, ViewPartBodyContext context) =>
         ReportValue(GetLambdaBody(expression), context);
 
     private static ExpressionSyntax? GetLambdaBody(ExpressionSyntax? expression) =>
@@ -408,7 +408,7 @@ internal static class UnresolvedValueTypeScanner
             _ => null,
         };
 
-    private static void ReportValue(ExpressionSyntax? expression, ComposableBodyContext context)
+    private static void ReportValue(ExpressionSyntax? expression, ViewPartBodyContext context)
     {
         if (expression is null)
             return;
@@ -433,7 +433,7 @@ internal static class UnresolvedValueTypeScanner
     // An element access counts as much as an invocation: with children in brackets, an unresolvable call
     // enclosing a name is as likely to be spelled Div[…] as Div(…), and a name inside one is emitted by
     // neither.
-    private static bool IsInsideUnselectedInvocation(SimpleNameSyntax name, ComposableBodyContext context) =>
+    private static bool IsInsideUnselectedInvocation(SimpleNameSyntax name, ViewPartBodyContext context) =>
         name.Ancestors().Any(ancestor => ancestor switch
         {
             // Asked of the call, not of its overload: a recognized call whose overload could not be named
@@ -451,7 +451,7 @@ internal static class UnresolvedValueTypeScanner
     // The caller did not select a decoration route, but a deliberately invoked user method in its value
     // still has its own source expression and must retain diagnostics (notably an escaped @nameof method).
     // Do not walk arbitrary error invocations here: those have no selected symbol and are not emitted.
-    private static void ReportSelectedInvocationValues(ExpressionSyntax? expression, ComposableBodyContext context)
+    private static void ReportSelectedInvocationValues(ExpressionSyntax? expression, ViewPartBodyContext context)
     {
         if (expression is null)
             return;
@@ -484,12 +484,12 @@ internal static class UnresolvedValueTypeScanner
     // Not extended to element access, unlike its neighbours: `nameof` is a contextual keyword invoked with
     // parentheses, so a nameof constant is always an InvocationExpressionSyntax and TryCreateNameofConstant
     // takes one.
-    private static bool IsInsideNameofConstant(SimpleNameSyntax name, ComposableBodyContext context) =>
+    private static bool IsInsideNameofConstant(SimpleNameSyntax name, ViewPartBodyContext context) =>
         name.Ancestors().OfType<InvocationExpressionSyntax>().Any(invocation =>
             ExpressionTemplateFactory.TryCreateNameofConstant(invocation, context) is not null
                 && invocation.ArgumentList.Span.Contains(name.Span));
 
-    private static bool IsNonEmptyConstantString(ExpressionSyntax? expression, ComposableBodyContext context) =>
+    private static bool IsNonEmptyConstantString(ExpressionSyntax? expression, ViewPartBodyContext context) =>
         expression is not null
         && context.SemanticModel.GetConstantValue(expression, context.CancellationToken) is
         { HasValue: true, Value: string value }
@@ -498,7 +498,7 @@ internal static class UnresolvedValueTypeScanner
     private static BoundArguments? BindArguments(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (!HasValidArgumentOrder(invocation, method, context))
             return null;
@@ -518,7 +518,7 @@ internal static class UnresolvedValueTypeScanner
     private static BoundArguments? BindIndexerArguments(
         ElementAccessExpressionSyntax elementAccess,
         IPropertySymbol indexer,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         // An indexer is never an extension method, so the receiver offset is always 0.
         var parameters = indexer.Parameters;
@@ -534,7 +534,7 @@ internal static class UnresolvedValueTypeScanner
     private static bool HasValidArgumentOrder(
         InvocationExpressionSyntax invocation,
         IMethodSymbol selectedMethod,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         // The whole declared list, receiver included, is what an argument list is checked against, because
         // the static spelling writes the receiver as an argument; only the fluent spelling skips it. That
@@ -629,7 +629,7 @@ internal static class UnresolvedValueTypeScanner
     /// all the same.
     /// </summary>
     private static bool IsSurfaceCall(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context) =>
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context) =>
         Recognize(invocation, context, selectOverload: false).IsSurfaceCall;
 
     /// <summary>
@@ -640,7 +640,7 @@ internal static class UnresolvedValueTypeScanner
     /// </summary>
     private static RecognizedInvocation Recognize(
         InvocationExpressionSyntax invocation,
-        ComposableBodyContext context,
+        ViewPartBodyContext context,
         bool selectOverload = true)
     {
         var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
@@ -771,7 +771,7 @@ internal static class UnresolvedValueTypeScanner
     private static RecognizedInvocation TrySelectCandidate(
         InvocationExpressionSyntax invocation,
         List<IMethodSymbol> candidates,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (candidates.Count == 1)
             return RecognizedInvocation.FromGroup(candidates[0], arguments: null);
@@ -841,7 +841,7 @@ internal static class UnresolvedValueTypeScanner
     /// alone would not.
     /// </para>
     /// <para>
-    /// Two <c>[Composable]</c> candidates both classify as <see cref="SurfaceMethodKind.None"/> and are
+    /// Two <c>[ViewPart]</c> candidates both classify as <see cref="SurfaceMethodKind.None"/> and are
     /// interchangeable in fact as well as by this test: that arm reports every written argument and reads
     /// no position, so which of them is named cannot change what is scanned.
     /// </para>
@@ -888,7 +888,7 @@ internal static class UnresolvedValueTypeScanner
     /// </remarks>
     private static IPropertySymbol? TryGetRecognizedIndexer(
         ElementAccessExpressionSyntax elementAccess,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var symbolInfo = context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken);
         if (symbolInfo.Symbol is IPropertySymbol { IsIndexer: true } selected
@@ -928,8 +928,8 @@ internal static class UnresolvedValueTypeScanner
         var definition = receiverType.OriginalDefinition;
 
         if (symbols.ElementIndexer is { } elementIndexer
-            && symbols.ElementBuilderType is { } elementBuilderType
-            && SymbolEqualityComparer.Default.Equals(definition, elementBuilderType))
+            && symbols.ElementViewType is { } elementViewType
+            && SymbolEqualityComparer.Default.Equals(definition, elementViewType))
         {
             return elementIndexer;
         }
@@ -953,7 +953,7 @@ internal static class UnresolvedValueTypeScanner
     private static bool IsHtmlForEachInScope(
         InvocationExpressionSyntax invocation,
         IMethodSymbol? known,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (known is null
             || invocation.Expression is not SimpleNameSyntax name
@@ -980,7 +980,7 @@ internal static class UnresolvedValueTypeScanner
     private static void AddRecognizedCandidate(
         ISymbol symbol,
         List<IMethodSymbol> candidates,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (symbol is not IMethodSymbol method || !IsRecognized(method, context))
             return;
@@ -998,7 +998,7 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// Whether <paramref name="method"/> is something this scanner has an arm for: a method of the
-    /// design-time surface, or a <c>[Composable]</c> call.
+    /// design-time surface, or a <c>[ViewPart]</c> call.
     /// </summary>
     /// <remarks>
     /// The surface half is the same single lookup <see cref="ScanRenderExpression"/> dispatches on, which
@@ -1007,13 +1007,13 @@ internal static class UnresolvedValueTypeScanner
     /// <c>ElementTags</c> lookup is folded in, unlike the property route, since every curated key is an
     /// <see cref="IPropertySymbol"/> and this is asked of an <see cref="IMethodSymbol"/>.
     /// </remarks>
-    private static bool IsRecognized(IMethodSymbol method, ComposableBodyContext context) =>
+    private static bool IsRecognized(IMethodSymbol method, ViewPartBodyContext context) =>
         context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.None
-        || IsComposable(method, context);
+        || IsViewPart(method, context);
 
-    private static bool IsComposable(IMethodSymbol method, ComposableBodyContext context)
+    private static bool IsViewPart(IMethodSymbol method, ViewPartBodyContext context)
     {
-        var attribute = context.KnownSymbols.ComposableAttributeType;
+        var attribute = context.KnownSymbols.ViewPartAttributeType;
         return attribute is not null && method.GetAttributes().Any(candidate =>
             SymbolEqualityComparer.Default.Equals(candidate.AttributeClass, attribute));
     }
@@ -1033,7 +1033,7 @@ internal static class UnresolvedValueTypeScanner
     private static bool IsFluentExtensionInvocation(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (invocation.Expression is not MemberAccessExpressionSyntax access)
             return false;

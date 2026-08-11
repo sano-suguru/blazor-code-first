@@ -16,7 +16,7 @@ namespace BlazorCodeFirst;
 /// This is a <c>readonly struct</c> and deliberately not a <c>ref struct</c>: a <c>ref struct</c> cannot be
 /// a generic type argument (CS0306), so <c>.Param(c =&gt; c.Payload, Div)</c> would fail to compile and
 /// BCF3014, which exists to reject exactly that expression with a purpose-written message, would never be
-/// reached. The <c>[Composable]</c> parameter rejection depends on the same property.
+/// reached. The <c>[ViewPart]</c> parameter rejection depends on the same property.
 /// </para>
 /// <para>
 /// Like every other member of the design-time surface it is never meant to run: at runtime the indexer and
@@ -33,7 +33,7 @@ namespace BlazorCodeFirst;
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
     "Performance",
     "CA1815:Override equals and operator equals on value types",
-    Justification = "ElementBuilder is an inert design-time marker carrying no state; it is read by the " +
+    Justification = "ElementView is an inert design-time marker carrying no state; it is read by the " +
         "source generator and is always the default value at runtime, so equality is structurally " +
         "determined and needs no override. Same rationale as View.")]
 [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -42,7 +42,7 @@ namespace BlazorCodeFirst;
     Justification = "The conversion mirrors the Html element helpers: it is inert design-time syntax read by the " +
         "source generator so a childless element can appear wherever a View is expected, and it always " +
         "yields the default View at runtime. A named alternate would imply it does work.")]
-public readonly struct ElementBuilder
+public readonly struct ElementView
 {
     /// <summary>
     /// Design-time syntax supplying the element's children. Inert: the generator reads the original child
@@ -56,5 +56,5 @@ public readonly struct ElementBuilder
     /// Design-time syntax letting a childless element compose as content. Inert: the generator reads the
     /// original expression; at runtime this always yields the default View.
     /// </summary>
-    public static implicit operator View(ElementBuilder builder) => default;
+    public static implicit operator View(ElementView builder) => default;
 }

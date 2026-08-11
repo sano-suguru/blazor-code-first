@@ -3,7 +3,7 @@ using System.Globalization;
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
-/// The content-slot surface (#34, #176): a <c>[Composable]</c> part returning <c>ContentView</c> names
+/// The content-slot surface (#34, #176): a <c>[ViewPart]</c> part returning <c>SlotView</c> names
 /// <c>Slot</c> where its caller's bracketed content belongs, and may take further slots as <c>View</c>
 /// parameters.
 /// </summary>
@@ -12,7 +12,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// constant subtree into one <c>AddMarkupContent</c>, and what these tests are about is where the caller's
 /// frames land in the callee's sequence space, which needs the individual frames to stay observable.
 /// </remarks>
-public sealed class ComposableContentGeneratorTests
+public sealed class ViewPartContentGeneratorTests
 {
     private const string CardSource = """
         using BlazorCodeFirst;
@@ -23,7 +23,7 @@ public sealed class ComposableContentGeneratorTests
             private string _title => "Profile";
             private string _body => "text";
 
-            [Composable] private static ContentView Card(string title) =>
+            [ViewPart] private static SlotView Card(string title) =>
                 Div.Class("card")[H2[title], Slot];
 
             protected override View Body => Card(_title)[P[_body]];
@@ -39,7 +39,7 @@ public sealed class ComposableContentGeneratorTests
             private string _title => "Title";
             private string _body => "text";
 
-            [Composable] private static ContentView Panel(View header) =>
+            [ViewPart] private static SlotView Panel(View header) =>
                 Div.Class("panel")[Div.Class("head")[header], Div.Class("body")[Slot]];
 
             protected override View Body => Panel(H2[_title])[P[_body]];
@@ -55,7 +55,7 @@ public sealed class ComposableContentGeneratorTests
             private string _a => "a";
             private string _b => "b";
 
-            [Composable] private static ContentView Card() => Div.Class("card")[Slot];
+            [ViewPart] private static SlotView Card() => Div.Class("card")[Slot];
 
             protected override View Body => Card()[Span[_a], Span[_b]];
         }
@@ -70,7 +70,7 @@ public sealed class ComposableContentGeneratorTests
             private string _a => "a";
             private string _b => "b";
 
-            [Composable] private static ContentView Twice(View x) => Div[x, x, Slot];
+            [ViewPart] private static SlotView Twice(View x) => Div[x, x, Slot];
 
             protected override View Body => Twice(Span[_a])[P[_b]];
         }
@@ -84,7 +84,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private string _a => "a";
 
-            [Composable] private static ContentView Wrap() => Div[Slot];
+            [ViewPart] private static SlotView Wrap() => Div[Slot];
 
             protected override View Body => Wrap()[Wrap()[Span[_a]]];
         }
@@ -98,7 +98,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private string _a => "a";
 
-            [Composable] private static ContentView Loop() => Div[Loop()[Span["inner"]], Slot];
+            [ViewPart] private static SlotView Loop() => Div[Loop()[Span["inner"]], Slot];
 
             protected override View Body => Loop()[Span[_a]];
         }
@@ -113,7 +113,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private List<string> _xs = new();
 
-            [Composable] private static ContentView Rows(List<string> xs) =>
+            [ViewPart] private static SlotView Rows(List<string> xs) =>
                 Ul[ForEach(xs, x => x, x => Li[Slot])];
 
             protected override View Body => Rows(_xs)[Span["cell"]];
@@ -129,7 +129,7 @@ public sealed class ComposableContentGeneratorTests
         {
             private List<string> _xs = new();
 
-            [Composable] private static ContentView Rows(List<string> xs) =>
+            [ViewPart] private static SlotView Rows(List<string> xs) =>
                 Ul[ForEach(xs, x => x, x => Slot)];
 
             protected override View Body => Rows(_xs)[Li["cell"]];
@@ -137,7 +137,7 @@ public sealed class ComposableContentGeneratorTests
         """;
 
     [Fact]
-    public void ContentTakingComposable_SplicesBracketContentAtTheSlot()
+    public void ContentTakingViewPart_SplicesBracketContentAtTheSlot()
     {
         var result = CompilationTestHost.RunGenerator(CardSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
@@ -158,7 +158,7 @@ public sealed class ComposableContentGeneratorTests
     }
 
     [Fact]
-    public void ContentTakingComposable_WithAnAdditionalViewParameter_FillsBothSlots()
+    public void ContentTakingViewPart_WithAnAdditionalViewParameter_FillsBothSlots()
     {
         var result = CompilationTestHost.RunGenerator(PanelSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
@@ -185,7 +185,7 @@ public sealed class ComposableContentGeneratorTests
     /// continue the callee's sequence space rather than restarting it.
     /// </summary>
     [Fact]
-    public void ContentTakingComposable_WithSeveralChildren_SplicesThemInOrder()
+    public void ContentTakingViewPart_WithSeveralChildren_SplicesThemInOrder()
     {
         var result = CompilationTestHost.RunGenerator(MultipleChildrenSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
@@ -230,7 +230,7 @@ public sealed class ComposableContentGeneratorTests
     /// the callee's own stack would report a cycle that does not exist.
     /// </summary>
     [Fact]
-    public void SameComposableNestedInsideItsOwnContent_IsNotACycle()
+    public void SameViewPartNestedInsideItsOwnContent_IsNotACycle()
     {
         var result = CompilationTestHost.RunGenerator(NestedCallInContentSource);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
@@ -250,7 +250,7 @@ public sealed class ComposableContentGeneratorTests
     /// cycle, so relaxing the stack for content arguments did not disable the check.
     /// </summary>
     [Fact]
-    public void ComposableCallingItselfFromItsOwnBody_ReportsBCF1002()
+    public void ViewPartCallingItselfFromItsOwnBody_ReportsBCF1002()
     {
         var result = CompilationTestHost.RunGenerator(RecursiveThroughOwnBodySource);
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");

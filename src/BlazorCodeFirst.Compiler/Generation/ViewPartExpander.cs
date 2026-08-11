@@ -16,18 +16,18 @@ internal readonly record struct ExpansionResult(
     ImmutableArray<DiagnosticInfo> Diagnostics);
 
 /// <summary>
-/// Statically expands <c>[Composable]</c> call template nodes into the emittable <see cref="RenderNode"/>
-/// tree. Every template node, including composable call nodes that consume no render sequence, is
+/// Statically expands <c>[ViewPart]</c> call template nodes into the emittable <see cref="RenderNode"/>
+/// tree. Every template node, including view part call nodes that consume no render sequence, is
 /// assigned a global logical preorder ordinal used to name typed argument locals and contextual-fragment
 /// parameters, so repeated helpers and nested templates at different depths cannot collide. Expansion is
 /// a pure function of the template tree, the registry, and the generated component's containing-type key;
-/// it performs no rendering and evaluates no runtime composable calls.
+/// it performs no rendering and evaluates no runtime view part calls.
 /// </summary>
-internal static class ComposableExpander
+internal static class ViewPartExpander
 {
     internal static ExpansionResult Expand(
         RenderTemplateNode root,
-        ComposableRegistry registry,
+        ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys)
     {
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
@@ -46,19 +46,19 @@ internal static class ComposableExpander
     }
 
     /// <param name="substitution">
-    /// The arguments bound to the enclosing composable's parameter holes, code plus constant; empty at the
+    /// The arguments bound to the enclosing view part's parameter holes, code plus constant; empty at the
     /// component's design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
     /// </param>
     /// <param name="activeMethodStack">
     /// The method keys currently being expanded along this path, used for cycle detection. Sibling calls
-    /// to the same composable are not cycles because each branch receives an independent immutable stack.
+    /// to the same view part are not cycles because each branch receives an independent immutable stack.
     /// </param>
     private static RenderNode? ExpandNode(
         RenderTemplateNode node,
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
-        ComposableRegistry registry,
+        ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
@@ -120,7 +120,7 @@ internal static class ComposableExpander
                         return null;
 
                     // The key is applied to the content's root element/component frame. Region-rooted
-                    // content (a bare If/ForEach, or a composable whose expanded body is region-rooted)
+                    // content (a bare If/ForEach, or a view part whose expanded body is region-rooted)
                     // has no keyable frame. BCF3003 is reported by KeyabilityResolver (reachability-
                     // independent, deduped per definition/component); suppress emission here so no SetKey
                     // lands on a region.
@@ -149,7 +149,7 @@ internal static class ComposableExpander
                         }
 
                         // Slot content is a real subtree: it consumes preorder ordinals and may itself
-                        // contain ForEach/[Composable] calls, so it expands through the same recursion.
+                        // contain ForEach/[ViewPart] calls, so it expands through the same recursion.
                         var content = ExpandNode(
                             slot.Content,
                             slotSubstitution,
@@ -242,7 +242,7 @@ internal static class ComposableExpander
                     return new FragmentNode(children.ToImmutable());
                 }
 
-            case ComposableCallTemplateNode call:
+            case ViewPartCallTemplateNode call:
                 return ExpandCall(
                     call,
                     ordinal,
@@ -266,7 +266,7 @@ internal static class ComposableExpander
                     if (content is null)
                     {
                         // Unreachable through source: a slot ordinal is bound by every call that can be
-                        // written (ContentView has no conversion to View, so the brackets are mandatory) and a
+                        // written (SlotView has no conversion to View, so the brackets are mandatory) and a
                         // View parameter cannot be optional. Failing to expand rather than asserting keeps a
                         // model defect from emitting a body with the hole silently dropped.
                         return null;
@@ -293,12 +293,12 @@ internal static class ComposableExpander
     }
 
     private static ExpansionNode? ExpandCall(
-        ComposableCallTemplateNode call,
+        ViewPartCallTemplateNode call,
         int callPreorderOrdinal,
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
-        ComposableRegistry registry,
+        ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
@@ -306,7 +306,7 @@ internal static class ComposableExpander
 
         if (!registry.TryGet(methodKey, out var entry))
         {
-            // A [Composable] method with no source declaration in this compilation (metadata-only) cannot
+            // A [ViewPart] method with no source declaration in this compilation (metadata-only) cannot
             // be inlined; report a call-site BCF1002.
             diagnostics.Add(CreateDiagnostic(
                 call,
@@ -320,7 +320,7 @@ internal static class ComposableExpander
             {
                 diagnostics.Add(CreateDiagnostic(
                     call,
-                    $"recursive composable expansion forms a cycle: {BuildCycleChain(activeMethodStack, call.DisplayName, registry)}"));
+                    $"recursive view part expansion forms a cycle: {BuildCycleChain(activeMethodStack, call.DisplayName, registry)}"));
                 return null;
             }
         }
@@ -435,15 +435,15 @@ internal static class ComposableExpander
     /// Determines whether an inlined body may legally name the referenced non-public member from the
     /// generated component type. Because the value model is symbol-free, access is decided by comparing
     /// normalized type keys against the type that <em>declares</em> the referenced member
-    /// (<see cref="ComposableAccessRequirement.RequiredContainingTypeKey"/>), not the composable's own
-    /// containing type: a <see cref="ComposableAccessRequirementKind.SameContainingType"/> (private)
+    /// (<see cref="ViewPartAccessRequirement.RequiredContainingTypeKey"/>), not the view part's own
+    /// containing type: a <see cref="ViewPartAccessRequirementKind.SameContainingType"/> (private)
     /// member is legal only when the generated component *is* the declaring type, while a
-    /// <see cref="ComposableAccessRequirementKind.DerivedContainingType"/> (protected/private-protected)
+    /// <see cref="ViewPartAccessRequirementKind.DerivedContainingType"/> (protected/private-protected)
     /// member is legal when the declaring type appears anywhere in the generated component's inheritance
     /// chain (the component itself or any base type).
     /// </summary>
     private static bool SatisfiesAccess(
-        ComposableAccessRequirement requirement,
+        ViewPartAccessRequirement requirement,
         ImmutableArray<string> generatedTypeInheritanceKeys)
     {
         if (generatedTypeInheritanceKeys.IsDefaultOrEmpty)
@@ -451,12 +451,12 @@ internal static class ComposableExpander
 
         return requirement.Kind switch
         {
-            ComposableAccessRequirementKind.SameContainingType =>
+            ViewPartAccessRequirementKind.SameContainingType =>
                 string.Equals(
                     requirement.RequiredContainingTypeKey,
                     generatedTypeInheritanceKeys[0],
                     StringComparison.Ordinal),
-            ComposableAccessRequirementKind.DerivedContainingType =>
+            ViewPartAccessRequirementKind.DerivedContainingType =>
                 InheritanceChainContains(generatedTypeInheritanceKeys, requirement.RequiredContainingTypeKey),
             _ => false,
         };
@@ -475,13 +475,13 @@ internal static class ComposableExpander
 
     /// <summary>
     /// Renders the active expansion stack plus the closing call into a readable <c>A -&gt; B -&gt; A</c>
-    /// chain so a cycle diagnostic names every composable involved. Display names are resolved from the
+    /// chain so a cycle diagnostic names every view part involved. Display names are resolved from the
     /// registry so the chain reads in source terms rather than mangled method keys.
     /// </summary>
     private static string BuildCycleChain(
         ImmutableArray<string> activeMethodStack,
         string closingDisplayName,
-        ComposableRegistry registry)
+        ViewPartRegistry registry)
     {
         var builder = new StringBuilder();
         foreach (var methodKey in activeMethodStack)
@@ -496,7 +496,7 @@ internal static class ComposableExpander
 
     /// <summary>
     /// Determines whether an expanded content node's root frame is a single element or component (and so
-    /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent, its composable body's root
+    /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent, its view part body's root
     /// is the real frame, so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
     /// <see cref="ElementNode"/>) are keyable; region-rooted nodes (<see cref="IfNode"/>,
     /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) and wrapper-less nodes
@@ -525,7 +525,7 @@ internal static class ComposableExpander
     private static string CreateLocalName(int callPreorderOrdinal, int parameterOrdinal) =>
         $"__bcf_arg_{callPreorderOrdinal}_{parameterOrdinal}";
 
-    private static DiagnosticInfo CreateDiagnostic(ComposableCallTemplateNode call, string reason) =>
+    private static DiagnosticInfo CreateDiagnostic(ViewPartCallTemplateNode call, string reason) =>
         DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF1002,
             call.Location.ToLocation(),

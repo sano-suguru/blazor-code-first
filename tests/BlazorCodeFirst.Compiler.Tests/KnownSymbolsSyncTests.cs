@@ -15,7 +15,7 @@ public sealed class KnownSymbolsSyncTests
     /// Structural <c>Html</c> members that carry no <see cref="SurfaceMethodKind"/> either, because they are
     /// not methods. <c>Slot</c> is a property and a hole rather than a construct: the compiler recognizes it
     /// by symbol identity through <see cref="KnownSymbols.SlotProperty"/> and looks up the ordinal the
-    /// enclosing <c>[Composable]</c> bound it at (#176), so there is no classification row to check it
+    /// enclosing <c>[ViewPart]</c> bound it at (#176), so there is no classification row to check it
     /// against. Kept separate from <see cref="StructuralHtml"/> so
     /// <c>StructuralHtmlMembers_AreClassified</c> is not asked for a row that cannot exist.
     /// </summary>
@@ -228,7 +228,7 @@ public sealed class KnownSymbolsSyncTests
 
         // Both member kinds are enumerated on purpose, and the split is not accidental: the structural
         // members (Element, If, ForEach, Component, Fragment, Raw) are methods, while every curated tag is
-        // a property returning ElementBuilder. Filtering to IMethodSymbol would make `tagged` empty, leave
+        // a property returning ElementView. Filtering to IMethodSymbol would make `tagged` empty, leave
         // every remaining ordinary Html method looking structural, and so never run the Assert.Contains
         // arm, the guard would go vacuous while staying green.
         foreach (var member in html.GetMembers())
@@ -276,17 +276,17 @@ public sealed class KnownSymbolsSyncTests
         [.. symbols.SurfaceMethods.Where(entry => entry.Value == kind).Select(entry => entry.Key)];
 
     /// <summary>
-    /// Every decoration <c>KnownSymbols</c> captured is an extension on <c>ElementBuilder</c>.
+    /// Every decoration <c>KnownSymbols</c> captured is an extension on <c>ElementView</c>.
     /// </summary>
     /// <remarks>
     /// <para>
     /// The sets are built by matching the method <em>name</em>, but what makes a method an element
     /// decoration is its <em>receiver</em>. <c>KnownSymbols</c>'s constructor already filters on that
-    /// receiver when <c>ElementBuilderType</c> resolves, so neither half of the failure mode on its own
+    /// receiver when <c>ElementViewType</c> resolves, so neither half of the failure mode on its own
     /// makes this test fail today: adding a future <c>Attr(this ComponentView&lt;T&gt;, string, string)</c>
     /// to <c>Decorations</c> is excluded by that very filter before it reaches <c>captured</c>, and removing
     /// the filter with no such overload declared yet has nothing new to admit, since every current
-    /// <c>Decorations</c> member already takes <c>this ElementBuilder</c>. It fails only when both happen
+    /// <c>Decorations</c> member already takes <c>this ElementView</c>. It fails only when both happen
     /// together, the filter is gone and a decoration on another receiver exists, at which point
     /// <c>UnresolvedValueTypeScanner.IsDecorationMethod</c>, pure set membership, would treat it as an
     /// element decoration with nothing else to notice. <c>ClassMethod</c> showed the same defect more
@@ -299,10 +299,10 @@ public sealed class KnownSymbolsSyncTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void EveryCapturedDecoration_ExtendsElementBuilder()
+    public void EveryCapturedDecoration_ExtendsElementView()
     {
         var (symbols, html) = ResolveHtml();
-        var elementBuilder = ResolveElementBuilder(html);
+        var elementView = ResolveElementView(html);
 
         var captured = symbols.SurfaceMethods
             .Where(entry => entry.Value is SurfaceMethodKind.Class
@@ -320,7 +320,7 @@ public sealed class KnownSymbolsSyncTests
             var method = Assert.IsAssignableFrom<IMethodSymbol>(symbol);
             Assert.True(
                 method.Parameters.Length > 0
-                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder),
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementView),
                 $"'{method.Name}' was captured as an element decoration but its receiver is " +
                 $"'{(method.Parameters.Length > 0 ? method.Parameters[0].Type.ToDisplayString() : "none")}'.");
         }
@@ -398,14 +398,14 @@ public sealed class KnownSymbolsSyncTests
     /// <remarks>
     /// <para>
     /// The shape carries the rule and the table supplies only what the shape cannot: an extension on
-    /// <c>ElementBuilder</c> whose sole non-receiver parameter is a delegate takes a handler and no event
+    /// <c>ElementView</c> whose sole non-receiver parameter is a delegate takes a handler and no event
     /// name, so the event it stands for has to come from somewhere, and that somewhere is
     /// <c>EventShortcutNames</c>. The rule therefore needs no name knowledge of its own and cannot be
     /// satisfied by transcribing the table it checks.
     /// </para>
     /// <para>
     /// That shape is read off <see cref="KnownSymbols.TryGetEventParameters"/> rather than spelled here as
-    /// <c>(ElementBuilder, delegate)</c>. This test used to be the third convention answering "which
+    /// <c>(ElementView, delegate)</c>. This test used to be the third convention answering "which
     /// argument is the handler", alongside BCF3001's exemption and the decoration arm, and being a
     /// consumer of the one answer is what keeps it from drifting from them (#221). It is also what widens
     /// it: the transcribed shape matched a two-parameter overload only, so it said nothing about
@@ -422,7 +422,7 @@ public sealed class KnownSymbolsSyncTests
     /// </para>
     /// <para>
     /// That no other decoration has this shape is a fact about today's surface, not a law. A capability
-    /// like <c>@ref</c> (#72) would naturally be spelled <c>Ref(this ElementBuilder, Action&lt;ElementReference&gt;)</c>
+    /// like <c>@ref</c> (#72) would naturally be spelled <c>Ref(this ElementView, Action&lt;ElementReference&gt;)</c>
     /// and match it while standing for no event. That is why the failure message below states the shape it
     /// matched rather than instructing the reader to add a row: the answer for such a decoration is a new
     /// classification and a revision of this rule, not an <c>EventShortcutNames</c> entry.
@@ -432,14 +432,14 @@ public sealed class KnownSymbolsSyncTests
     public void EveryEventShortcutShapedDecoration_IsRegisteredWithAnEventName()
     {
         var (symbols, html) = ResolveHtml();
-        var elementBuilder = ResolveElementBuilder(html);
+        var elementView = ResolveElementView(html);
         var decorations = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.Decorations");
         Assert.NotNull(decorations);
 
         var shortcuts = decorations!.GetMembers()
             .OfType<IMethodSymbol>()
             .Where(method => method is { IsExtensionMethod: true, Parameters.Length: > 0 }
-                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementBuilder)
+                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementView)
                 && KnownSymbols.TryGetEventParameters(method, out var eventParameters)
                 && !eventParameters.CarriesEventName)
             .ToList();
@@ -454,7 +454,7 @@ public sealed class KnownSymbolsSyncTests
             Assert.True(
                 symbols.EventShortcuts.TryGetValue(key, out var eventName),
                 $"'.{method.Name}({method.Parameters[method.Parameters.Length - 1].Type.Name})' extends " +
-                $"ElementBuilder and takes a handler and no event name, but KnownSymbols registered no " +
+                $"ElementView and takes a handler and no event name, but KnownSymbols registered no " +
                 $"event name for it. Either it stands for an event and needs an EventShortcutNames row, " +
                 $"or it stands for something else and needs a classification of its own plus a revision " +
                 $"of this rule.");
@@ -472,7 +472,7 @@ public sealed class KnownSymbolsSyncTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The coverage <c>(ElementBuilder, delegate)</c> never had. That transcription walked the
+    /// The coverage <c>(ElementView, delegate)</c> never had. That transcription walked the
     /// two-parameter shortcut shape only, so an <c>.On</c> overload was outside it in both directions: a
     /// new one whose handler did not sit where <c>RenderExpressionAnalyzer</c> and BCF3001's exemption
     /// assumed was not caught, and neither was one this rule could not read at all (#221).
@@ -609,12 +609,12 @@ public sealed class KnownSymbolsSyncTests
         // Children arrive through the indexer now, not an overload.
         Assert.NotNull(symbols.ComponentIndexer);
         Assert.NotNull(symbols.ElementIndexer);
-        Assert.NotNull(symbols.ElementBuilderType);
+        Assert.NotNull(symbols.ElementViewType);
     }
 
     /// <summary>
     /// The content-slot surface resolves whole (#34, #176). All three are guarded because each degrades
-    /// silently on its own: without <c>ContentViewType</c> a content-taking declaration is rejected as
+    /// silently on its own: without <c>SlotViewType</c> a content-taking declaration is rejected as
     /// returning the wrong type, without <c>ContentIndexer</c> every <c>Card("t")[…]</c> falls through to
     /// BCF1003, and without <c>SlotProperty</c> no declaration binds a slot ordinal, so every correct
     /// <c>Slot</c> is reported as BCF3025 instead.
@@ -624,18 +624,18 @@ public sealed class KnownSymbolsSyncTests
     {
         var (symbols, _) = ResolveHtml();
 
-        Assert.NotNull(symbols.ContentViewType);
+        Assert.NotNull(symbols.SlotViewType);
         Assert.NotNull(symbols.ContentIndexer);
         Assert.NotNull(symbols.SlotProperty);
 
         // The hole is View-typed, which is what keeps it disjoint from the element helpers (they return
-        // ElementBuilder) and out of ElementTags.
+        // ElementView) and out of ElementTags.
         Assert.True(SymbolEqualityComparer.Default.Equals(symbols.SlotProperty!.Type, symbols.ViewType));
         Assert.DoesNotContain(
             KnownSymbols.Normalize(symbols.SlotProperty!),
             symbols.ElementTags.Keys);
 
-        // The content channel is the same one ElementBuilder and ComponentView<T> declare: params
+        // The content channel is the same one ElementView and ComponentView<T> declare: params
         // ReadOnlySpan<View>. A differently shaped indexer would not be found by FindChildrenIndexer at all,
         // so this asserts the shape the compiler matched rather than restating the declaration.
         var contentIndexerParameter = Assert.Single(symbols.ContentIndexer!.Parameters);
@@ -711,19 +711,19 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
-    /// <c>BlazorCodeFirst.ElementBuilder</c>, resolved out of the runtime assembly directly rather than read
-    /// off <c>KnownSymbols.ElementBuilderType</c>.
+    /// <c>BlazorCodeFirst.ElementView</c>, resolved out of the runtime assembly directly rather than read
+    /// off <c>KnownSymbols.ElementViewType</c>.
     /// </summary>
     /// <remarks>
     /// The two guards that call this exist to check <c>KnownSymbols</c>'s receiver filter, and that filter is
     /// only meaningful while the type it filters on is resolved independently; sourcing it from
     /// <c>KnownSymbols</c> would have the guard compare that object against itself.
     /// </remarks>
-    private static INamedTypeSymbol ResolveElementBuilder(INamedTypeSymbol html)
+    private static INamedTypeSymbol ResolveElementView(INamedTypeSymbol html)
     {
-        var elementBuilder = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementBuilder");
-        Assert.NotNull(elementBuilder);
-        return elementBuilder!;
+        var elementView = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ElementView");
+        Assert.NotNull(elementView);
+        return elementView!;
     }
 
     private static (KnownSymbols, INamedTypeSymbol) ResolveHtml()

@@ -23,45 +23,45 @@ internal readonly record struct TemplateLocation(
 }
 
 /// <summary>
-/// One argument of a <c>[Composable]</c> call, in the callee's parameter order, carrying the source order
+/// One argument of a <c>[ViewPart]</c> call, in the callee's parameter order, carrying the source order
 /// that expansion evaluates the arguments in.
 /// </summary>
 /// <remarks>
 /// The parameter's type name is deliberately absent: expansion declares each local from the
-/// <em>definition</em>'s <see cref="Analysis.ComposableParameter.TypeName"/>, so a per-argument copy was
+/// <em>definition</em>'s <see cref="Analysis.ViewPartParameter.TypeName"/>, so a per-argument copy was
 /// written at every call site and read nowhere. The only place the callee's type name is still needed is
 /// an omitted optional, where <c>ConstantTemplate.ForParameterDefault</c> spells the default's cast, and
 /// that is computed in the branch that uses it.
 /// </remarks>
-internal sealed record ComposableInvocationArgument(
+internal sealed record ViewPartInvocationArgument(
     int ParameterOrdinal,
     int SourceOrder,
     bool IsImplicitDefault,
     ExpressionTemplate Value);
 
 /// <summary>
-/// One <c>View</c>-typed argument of a <c>[Composable]</c> call: an additional content slot, bound to the
+/// One <c>View</c>-typed argument of a <c>[ViewPart]</c> call: an additional content slot, bound to the
 /// callee's parameter ordinal (#34).
 /// </summary>
 /// <remarks>
-/// A channel separate from <see cref="ComposableInvocationArgument"/>, for the reason
+/// A channel separate from <see cref="ViewPartInvocationArgument"/>, for the reason
 /// <see cref="ComponentSlot"/> is separate from <see cref="ComponentParameter"/>: the content is a node
 /// tree, and it takes part in hole substitution, sequence allocation, and expansion, none of which are
 /// defined over <see cref="ExpressionTemplate"/>. It also carries no source order, because there is no
 /// local to bind and therefore no evaluation to order — the subtree is spliced where the callee names it.
 /// </remarks>
-internal sealed record ComposableContentArgument(int ParameterOrdinal, RenderTemplateNode Content);
+internal sealed record ViewPartContentArgument(int ParameterOrdinal, RenderTemplateNode Content);
 
 internal abstract record RenderTemplateNode;
 
 /// <summary>
-/// A hole where a <c>[Composable]</c> body names content its caller supplies: <c>Html.Slot</c>, or a
+/// A hole where a <c>[ViewPart]</c> body names content its caller supplies: <c>Html.Slot</c>, or a
 /// reference to one of the definition's own <c>View</c>-typed parameters. Expansion replaces it with the
 /// argument's own subtree, so no <see cref="RenderNode"/> counterpart exists and none reaches the emitter.
 /// </summary>
 /// <remarks>
 /// One node type for both spellings because they are the same thing at different ordinals: the bracket
-/// content is bound at <see cref="Analysis.ComposableDefinition.SlotOrdinal"/> and a <c>View</c> parameter
+/// content is bound at <see cref="Analysis.ViewPartDefinition.SlotOrdinal"/> and a <c>View</c> parameter
 /// at its own, and both are indices into the one substitution the expander carries.
 /// </remarks>
 internal sealed record ContentHoleTemplateNode(int ParameterOrdinal) : RenderTemplateNode;
@@ -71,10 +71,10 @@ internal sealed record IfTemplateNode(
     RenderTemplateNode Then,
     RenderTemplateNode? Otherwise) : RenderTemplateNode;
 
-internal sealed record ComposableCallTemplateNode(
+internal sealed record ViewPartCallTemplateNode(
     string MethodKey,
     string DisplayName,
-    EquatableArray<ComposableInvocationArgument> Arguments,
+    EquatableArray<ViewPartInvocationArgument> Arguments,
     TemplateLocation Location) : RenderTemplateNode
 {
     /// <summary>
@@ -88,7 +88,7 @@ internal sealed record ComposableCallTemplateNode(
     /// name the slot ordinal itself rather than leaving the expander to reconcile two transports. That
     /// reconciliation was where the mismatch guards came from.
     /// </remarks>
-    public EquatableArray<ComposableContentArgument> ContentArguments { get; init; }
+    public EquatableArray<ViewPartContentArgument> ContentArguments { get; init; }
 }
 
 internal sealed record ForEachTemplateNode(
@@ -107,7 +107,7 @@ internal enum ComponentSlotKind
 /// <summary>
 /// A RenderFragment-typed component parameter whose value is BlazorCodeFirst content rather than an expression.
 /// Kept in a channel separate from <see cref="ComponentParameter"/> because the content is a node tree:
-/// it takes part in hole substitution, sequence allocation, and [Composable] expansion, none of which are
+/// it takes part in hole substitution, sequence allocation, and [ViewPart] expansion, none of which are
 /// defined over <see cref="ExpressionTemplate"/>.
 /// </summary>
 internal sealed record ComponentSlot(string Name, RenderTemplateNode Content)
@@ -161,8 +161,8 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// The author's own setter, or <see langword="null"/> for the getter-only form, where the binder assigns
 /// back through the getter's own expression — which is why only that form requires an assignable target
 /// (BCF3018). An <see cref="ExpressionTemplate"/> and not a string for the reason
-/// <paramref name="Value"/> is: inside a <c>[Composable]</c> body either may still hold unbound parameter
-/// holes, which <c>ComposableExpander</c> substitutes before the emitter reads the code out.
+/// <paramref name="Value"/> is: inside a <c>[ViewPart]</c> body either may still hold unbound parameter
+/// holes, which <c>ViewPartExpander</c> substitutes before the emitter reads the code out.
 /// </param>
 /// <param name="SetterIsAsynchronous">
 /// Whether <paramref name="Setter"/> returns something other than <see langword="void"/>, and so is

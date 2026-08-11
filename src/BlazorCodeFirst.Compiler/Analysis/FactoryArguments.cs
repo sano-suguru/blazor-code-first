@@ -15,7 +15,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// <para>
 /// The binding is Roslyn's, not ours: <see cref="IArgumentOperation.Parameter"/> already carries the
 /// resolved parameter, so no argument-position rule is reimplemented here. This is the same mechanism
-/// <c>RenderExpressionAnalyzer.CreateInvocationArguments</c> already uses for <c>[Composable]</c> calls.
+/// <c>RenderExpressionAnalyzer.CreateInvocationArguments</c> already uses for <c>[ViewPart]</c> calls.
 /// </para>
 /// <para>
 /// It also removes the reduced/unreduced extension-method hazard.
@@ -76,7 +76,7 @@ internal readonly struct FactoryArguments
     /// invocation has no operation or an argument cannot be attributed to a parameter.
     /// </summary>
     internal static FactoryArguments? Bind(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (context.SemanticModel.GetOperation(invocation, context.CancellationToken)
             is not IInvocationOperation operation)
@@ -106,7 +106,7 @@ internal readonly struct FactoryArguments
     /// apply unchanged. An indexer can never be an extension method, so the receiver offset is always 0.
     /// </remarks>
     internal static FactoryArguments? Bind(
-        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+        ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
         if (context.SemanticModel.GetOperation(elementAccess, context.CancellationToken)
             is not IPropertyReferenceOperation operation)

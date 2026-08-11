@@ -171,7 +171,7 @@ public static class DiagnosticExpectations
             "Bcf3025.cs",
             "Slot",
             Note: "Anchors the Slot itself, which is the misplacement half of the rule. The arity half " +
-                "(a ContentView part naming its slot zero times or twice) reports at the declaration " +
+                "(a SlotView part naming its slot zero times or twice) reports at the declaration " +
                 "identifier instead, because the count is a property of the declaration and not of any " +
                 "one Slot; that half is covered in-process."),
     ];

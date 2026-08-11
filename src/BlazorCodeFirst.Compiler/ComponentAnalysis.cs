@@ -12,7 +12,7 @@ namespace BlazorCodeFirst.Compiler;
 /// <see cref="Microsoft.CodeAnalysis.Compilation"/> out of the cached incremental pipeline: all
 /// semantic work (resolving <c>BlazorCodeFirst.Html</c> symbols and classifying the body) happens in the
 /// transform that produces this value, and only value data flows onward to be combined with the
-/// composable registry. <see cref="Template"/> is <see langword="null"/> when the body is not a
+/// view part registry. <see cref="Template"/> is <see langword="null"/> when the body is not a
 /// recognized statically-sequenceable construct. <see cref="BodyDiagnostics"/> carries every diagnostic
 /// normalization recorded, both errors that reject the body and warnings (for example BCF3002) that do
 /// not, so downstream emission gates on <see cref="DiagnosticInfo.IsError"/> severity rather than on

@@ -263,7 +263,7 @@ public sealed class UnresolvedEmittedTypeTests
     [Fact]
     public void NonElementDecorationValue_UnresolvedType_RemainsBCF3008Only()
     {
-        // Decorations now bind ElementBuilder, not View (Decorations.cs), so decorating Raw(...)'s View
+        // Decorations now bind ElementView, not View (Decorations.cs), so decorating Raw(...)'s View
         // result no longer resolves at all and BCF3008 is reported from the failure path by
         // RejectedDecorationScanner rather than from the analyzer's decoration arm. The report site moved,
         // but the claim did not: an unresolved type inside a rejected decoration's value must not ALSO
@@ -339,7 +339,7 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
-    public void ComposableArgument_UnresolvedType_ReportsBCF3015()
+    public void ViewPartArgument_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -350,7 +350,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public partial class Host : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Label(Type value) => Span[value.Name];
 
                 protected override View Body => Label(typeof(Probe));
@@ -364,18 +364,18 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
-    /// The receiver of a fluently written <c>[Composable]</c> extension is scanned, the same as the
+    /// The receiver of a fluently written <c>[ViewPart]</c> extension is scanned, the same as the
     /// arguments beside it: it is an expression the author wrote, and the sweep answers for what the author
     /// wrote rather than for what the call could have expanded to (#200).
     /// </summary>
     /// <remarks>
-    /// The call itself never expands — #203 decided a composable is not an extension member, so the
+    /// The call itself never expands — #203 decided a view part is not an extension member, so the
     /// declaration is BCF1002, and the receiver the reduced invocation carries as argument 0 binds to no
     /// <c>ArgumentSyntax</c> of that call — so this body is an error either way, and what the scan decides
     /// is only whether the specific BCF3015 is reported in place of the generic BCF1003.
     /// </remarks>
     [Fact]
-    public void ComposableExtensionReceiver_UnresolvedType_ReportsBCF3015()
+    public void ViewPartExtensionReceiver_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
             using System;
@@ -386,7 +386,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public static class Helpers
             {
-                [Composable]
+                [ViewPart]
                 public static View Label(this string value) => Span[value];
             }
 
@@ -425,7 +425,7 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
-    public void ComposableBody_UnresolvedType_ReportsBCF3015Once()
+    public void ViewPartBody_UnresolvedType_ReportsBCF3015Once()
     {
         const string source = """
             using System;
@@ -436,7 +436,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public partial class Host : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Card() => Div.Class(typeof(Probe).Name);
 
                 protected override View Body => Card();
@@ -1025,7 +1025,7 @@ public sealed class UnresolvedEmittedTypeTests
     {
         var result = AnalyzeValueExpression(
             "new object[] { 1 }.Cast<Probe>().FirstOrDefault()");
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             result.SemanticModel,
             result.ContainingType,
             "ProbeExpression",
@@ -1045,7 +1045,7 @@ public sealed class UnresolvedEmittedTypeTests
     public void SameContextAndLocation_ReportsBCF3015Once()
     {
         var result = AnalyzeValueExpression("typeof(Probe)");
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             result.SemanticModel,
             result.ContainingType,
             "ProbeExpression",
@@ -1110,7 +1110,7 @@ public sealed class UnresolvedEmittedTypeTests
             .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
         var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
         var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             model,
             containingType,
             method.Identifier.ValueText,

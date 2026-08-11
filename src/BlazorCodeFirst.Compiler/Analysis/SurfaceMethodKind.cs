@@ -14,14 +14,14 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// the method and the diagnostic it exists to produce went quiet, which is how #191 happened.
 /// </para>
 /// <para>
-/// <c>[Composable]</c> has no member here. It is an attribute on a user method rather than a symbol
+/// <c>[ViewPart]</c> has no member here. It is an attribute on a user method rather than a symbol
 /// resolved out of the referenced runtime, so it cannot be answered from a table built at construction;
 /// it stays a separate test beside the lookup, reached under <see cref="None"/>.
 /// </para>
 /// </remarks>
 internal enum SurfaceMethodKind
 {
-    /// <summary>Not a method of the surface. A <c>[Composable]</c> call also answers this.</summary>
+    /// <summary>Not a method of the surface. A <c>[ViewPart]</c> call also answers this.</summary>
     None,
 
     /// <summary><c>Html.Element(tag)</c>, the escape hatch for a tag outside the curated table.</summary>
@@ -63,7 +63,7 @@ internal enum SurfaceMethodKind
     /// <summary><c>ComponentView&lt;T&gt;.Bind&lt;TValue&gt;(selector, get[, set])</c>.</summary>
     ComponentBind,
 
-    /// <summary><c>Decorations.Class(this ElementBuilder, string)</c>.</summary>
+    /// <summary><c>Decorations.Class(this ElementView, string)</c>.</summary>
     Class,
 
     /// <summary>

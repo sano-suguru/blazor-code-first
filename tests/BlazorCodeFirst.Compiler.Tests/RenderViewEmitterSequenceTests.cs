@@ -155,7 +155,7 @@ public sealed class RenderViewEmitterSequenceTests
                         ContextVariableName = "__bcf_context_6",
                     })),
 
-            // --- Composable expansion: locals consume no sequence ---------------------------------
+            // --- ViewPart expansion: locals consume no sequence ---------------------------------
             ["expansion-with-locals"] = new ExpansionNode(
                 ImmutableArray.Create(new LocalBinding("string", "__c0", Code("\"heading\""))),
                 Element("div", Span("__c0"), Span("\"b\""))),

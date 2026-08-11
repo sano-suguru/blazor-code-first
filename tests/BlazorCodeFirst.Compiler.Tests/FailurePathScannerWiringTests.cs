@@ -15,7 +15,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// <para>
 /// The failure mode this descends from: BCF3008 moved from <c>RenderExpressionAnalyzer.Classify</c>, which
 /// both hosts route through, into a caller-invoked sweep, was wired into the component host only, and a
-/// misplaced decoration inside a <c>[Composable]</c> body degraded to the generic BCF1002 for the life of
+/// misplaced decoration inside a <c>[ViewPart]</c> body degraded to the generic BCF1002 for the life of
 /// the branch. The guard that replaced it compared the two hosts' scanner lists. That comparison is gone
 /// because the lists are gone: <c>FailurePathScanners.ReportAll</c> holds one list and both hosts call it,
 /// so one-host wiring is no longer something that can be written.
@@ -27,27 +27,27 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// of both sets at once and a one-host wiring under that name passed silently. Here the declared side is
 /// found by the <c>Report</c> signature, so a type-name rename cannot slip a sweep out from under this
 /// guard the way it could the old <c>Scanner</c>-suffix check: both hosts build a
-/// <c>ComposableBodyContext</c>, so any sweep reachable from both necessarily takes one. The blind spot
+/// <c>ViewPartBodyContext</c>, so any sweep reachable from both necessarily takes one. The blind spot
 /// did not close, only move: <see cref="IsFailurePathReport"/> and <see cref="ScannersInvokedBy"/> both key
 /// on the member name <c>Report</c>, so a sweep declared as
-/// <c>public static void Sweep(ExpressionSyntax, ComposableBodyContext)</c> drops out of both sets at
+/// <c>public static void Sweep(ExpressionSyntax, ViewPartBodyContext)</c> drops out of both sets at
 /// once, the same shape of failure, relocated from the type name to the method name.
 /// </para>
 /// <para>
 /// It reads source text rather than behaviour, which is the only way to see a scanner that <em>no</em>
 /// test exercises yet. It cannot see whether a call sits on the failure path or whether the expressions
 /// passed are equivalent; those are for the behavioural tests, see
-/// <c>BracketSurfaceDiagnosticTests.DecoratingANonElement_InsideAComposableBody_ReportsBCF3008</c>,
-/// <c>UnresolvedValueType_InsideAComposableBody_ReportsBCF3015</c> and
-/// <c>ComponentUnresolvedTypeTests.Component_InsideComposableBody_ReportsBCF3012NotGenericBCF1002</c>, which
-/// are the per-scanner author-facing cases for the <c>[Composable]</c> host.
+/// <c>BracketSurfaceDiagnosticTests.DecoratingANonElement_InsideAViewPartBody_ReportsBCF3008</c>,
+/// <c>UnresolvedValueType_InsideAViewPartBody_ReportsBCF3015</c> and
+/// <c>ComponentUnresolvedTypeTests.Component_InsideViewPartBody_ReportsBCF3012NotGenericBCF1002</c>, which
+/// are the per-scanner author-facing cases for the <c>[ViewPart]</c> host.
 /// </para>
 /// </remarks>
 public sealed class FailurePathScannerWiringTests
 {
     private const string Aggregator = "src/BlazorCodeFirst.Compiler/Analysis/FailurePathScanners.cs";
     private const string ComponentHost = "src/BlazorCodeFirst.Compiler/ComponentModelFactory.cs";
-    private const string ComposableHost = "src/BlazorCodeFirst.Compiler/Analysis/ComposableDefinitionFactory.cs";
+    private const string ViewPartHost = "src/BlazorCodeFirst.Compiler/Analysis/ViewPartDefinitionFactory.cs";
 
     /// <summary>Where a scanner is declared, one type per file.</summary>
     private const string ScannerDirectory = "src/BlazorCodeFirst.Compiler/Analysis";
@@ -67,7 +67,7 @@ public sealed class FailurePathScannerWiringTests
 
     [Theory]
     [InlineData(ComponentHost)]
-    [InlineData(ComposableHost)]
+    [InlineData(ViewPartHost)]
     public void EachHost_RunsTheSweepsThroughReportAll(string host)
     {
         var root = CSharpSyntaxTree.ParseText(ReadRepositoryFile(host)).GetRoot();
@@ -119,7 +119,7 @@ public sealed class FailurePathScannerWiringTests
     }
 
     /// <summary>
-    /// Whether <paramref name="method"/> is <c>public static void Report(ExpressionSyntax, ComposableBodyContext)</c>.
+    /// Whether <paramref name="method"/> is <c>public static void Report(ExpressionSyntax, ViewPartBodyContext)</c>.
     /// </summary>
     /// <remarks>
     /// Matched on the written syntax, not on resolved symbols, because this guard's whole point is to see
@@ -134,7 +134,7 @@ public sealed class FailurePathScannerWiringTests
         && method.ParameterList.Parameters is
         [
         { Type: IdentifierNameSyntax { Identifier.ValueText: "ExpressionSyntax" } },
-        { Type: IdentifierNameSyntax { Identifier.ValueText: "ComposableBodyContext" } },
+        { Type: IdentifierNameSyntax { Identifier.ValueText: "ViewPartBodyContext" } },
         ];
 
     /// <summary>

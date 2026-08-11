@@ -92,7 +92,7 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
-    public void Bind_ComposableParameterItself_ReportsBcf3018()
+    public void Bind_ViewPartParameterItself_ReportsBcf3018()
     {
         // Expansion replaces the parameter with a local holding a copy of the caller's argument, so an
         // inverted setter would assign to that copy and the caller's own field would never see it. The
@@ -100,7 +100,7 @@ public sealed class HtmlBindDiagnosticTests
         const string body = """
             private string _name = "";
 
-            [Composable]
+            [ViewPart]
             private static View Field(string current) =>
                 Html.Input.Bind("value", "oninput", () => current);
 

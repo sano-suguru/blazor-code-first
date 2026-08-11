@@ -9,7 +9,7 @@ public sealed class DecorationsTests
     {
         // .Class is design-time syntax read by the generator; at runtime it must be a no-op
         // that returns the receiver, never evaluated for real work.
-        ElementBuilder decorated = default(ElementBuilder).Class("badge");
+        ElementView decorated = default(ElementView).Class("badge");
 
         Assert.Equal(default, decorated);
     }
@@ -17,7 +17,7 @@ public sealed class DecorationsTests
     [Fact]
     public void Class_WhenChained_RemainsInert()
     {
-        ElementBuilder decorated = default(ElementBuilder).Class("a").Class("b");
+        ElementView decorated = default(ElementView).Class("a").Class("b");
 
         Assert.Equal(default, decorated);
     }
@@ -25,7 +25,7 @@ public sealed class DecorationsTests
     [Fact]
     public void AttributeAndEventDecorations_AreInert_ReturnReceiver()
     {
-        ElementBuilder e = default;
+        ElementView e = default;
         Assert.Equal(e, e.Href("/x"));
         Assert.Equal(e, e.Src("/y").Alt("a").Id("i").Type("button").Title("t").Role("nav"));
         Assert.Equal(e, e.Attr("aria-label", "menu"));

@@ -8,13 +8,13 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
-/// Validates a discovered <c>[Composable]</c> method against the supported static-expansion contract and,
-/// when valid, builds its symbol-free <see cref="ComposableDefinition"/>. Invalid source declarations
-/// still yield a registry <see cref="ComposableDefinitionEntry"/> (with a null definition) plus a single
+/// Validates a discovered <c>[ViewPart]</c> method against the supported static-expansion contract and,
+/// when valid, builds its symbol-free <see cref="ViewPartDefinition"/>. Invalid source declarations
+/// still yield a registry <see cref="ViewPartDefinitionEntry"/> (with a null definition) plus a single
 /// value-equal BCF1002 diagnostic so expansion can distinguish an already-diagnosed source declaration
 /// from a metadata-only method.
 /// </summary>
-internal static class ComposableDefinitionFactory
+internal static class ViewPartDefinitionFactory
 {
     /// <summary>
     /// The type name a parameter's expansion local is declared with. <c>FullyQualifiedFormat</c> on its own
@@ -32,7 +32,7 @@ internal static class ComposableDefinitionFactory
         SymbolDisplayFormat.FullyQualifiedFormat.AddMiscellaneousOptions(
             SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
 
-    public static ComposableDiscoveryResult Create(
+    public static ViewPartDiscoveryResult Create(
         GeneratorAttributeSyntaxContext attributeContext,
         KnownSymbols? knownSymbols,
         CancellationToken cancellationToken)
@@ -57,13 +57,13 @@ internal static class ComposableDefinitionFactory
 
         if (definition is null)
         {
-            return new ComposableDiscoveryResult(
-                new ComposableDefinitionEntry(methodKey, displayName, Definition: null, DeclarationDiagnosticReported: true),
+            return new ViewPartDiscoveryResult(
+                new ViewPartDefinitionEntry(methodKey, displayName, Definition: null, DeclarationDiagnosticReported: true),
                 bodyDiagnostics);
         }
 
-        return new ComposableDiscoveryResult(
-            new ComposableDefinitionEntry(methodKey, displayName, definition, DeclarationDiagnosticReported: false),
+        return new ViewPartDiscoveryResult(
+            new ViewPartDefinitionEntry(methodKey, displayName, definition, DeclarationDiagnosticReported: false),
             bodyDiagnostics);
     }
 
@@ -72,7 +72,7 @@ internal static class ComposableDefinitionFactory
         MethodDeclarationSyntax declaration,
         KnownSymbols? knownSymbols)
     {
-        // A composable is never an extension member (DESIGN.md §4.3, #203). Rejected ahead of the static
+        // A view part is never an extension member (DESIGN.md §4.3, #203). Rejected ahead of the static
         // test so both spellings answer with the reason that is true of them rather than the instance form
         // answering "must be static". The disjunction is one question the language splits in two: Roslyn
         // answers the classic 'this' parameter with IsExtensionMethod and the C# 14 extension block with
@@ -86,7 +86,7 @@ internal static class ComposableDefinitionFactory
         if (method.Arity > 0)
             return "must be non-generic";
 
-        // A composable declared in a generic containing type (or nested inside one) would leak the
+        // A view part declared in a generic containing type (or nested inside one) would leak the
         // enclosing unbound type parameter, through a parameter type such as 'T value' or a body
         // reference such as 'typeof(T)', into the using-less generated component, where that parameter
         // is not in scope. Reject the declaration up front rather than emit uncompilable expansion.
@@ -106,12 +106,12 @@ internal static class ComposableDefinitionFactory
             return "must return BlazorCodeFirst.View";
 
         // Two return types, and the choice is the whole of how a part declares whether it takes content
-        // (#176). View is the part that does not, and is called bare; ContentView is the part that does, and
-        // is called with brackets. Nothing else is a composable.
+        // (#176). View is the part that does not, and is called bare; SlotView is the part that does, and
+        // is called with brackets. Nothing else is a view part.
         var takesContent = knownSymbols!.TakesContent(method);
 
         if (!takesContent && !SymbolEqualityComparer.Default.Equals(method.ReturnType, viewType))
-            return "must return BlazorCodeFirst.View, or BlazorCodeFirst.ContentView to take content";
+            return "must return BlazorCodeFirst.View, or BlazorCodeFirst.SlotView to take content";
 
         foreach (var parameter in method.Parameters)
         {
@@ -132,7 +132,7 @@ internal static class ComposableDefinitionFactory
                 // what brackets write, which is the one thing that decision rules out.
                 if (!takesContent)
                 {
-                    return "View parameters are content slots and require a ContentView return type; "
+                    return "View parameters are content slots and require a SlotView return type; "
                         + "a part returning View takes no content";
                 }
 
@@ -145,21 +145,21 @@ internal static class ComposableDefinitionFactory
                 continue;
             }
 
-            // ElementBuilder is rejected symmetrically to the *old* View rejection: a childless element is an
-            // ElementBuilder rather than a View, so admitting it would give content a second parameter type
+            // ElementView is rejected symmetrically to the *old* View rejection: a childless element is an
+            // ElementView rather than a View, so admitting it would give content a second parameter type
             // and, with it, a second spelling. A caller passes Div as content by writing Div[…] or
             // Fragment(Div), both of which are Views.
-            if (knownSymbols.ElementBuilderType is { } elementBuilderType
-                && SymbolEqualityComparer.Default.Equals(parameter.Type, elementBuilderType))
+            if (knownSymbols.ElementViewType is { } elementViewType
+                && SymbolEqualityComparer.Default.Equals(parameter.Type, elementViewType))
             {
-                return "ElementBuilder parameters are unsupported";
+                return "ElementView parameters are unsupported";
             }
         }
 
         return null;
     }
 
-    private static ComposableDefinition? TryBuildDefinition(
+    private static ViewPartDefinition? TryBuildDefinition(
         GeneratorAttributeSyntaxContext attributeContext,
         IMethodSymbol method,
         MethodDeclarationSyntax declaration,
@@ -169,7 +169,7 @@ internal static class ComposableDefinitionFactory
     {
         var ordinals = ImmutableDictionary.CreateBuilder<ISymbol, int>(SymbolEqualityComparer.Default);
         var contentOrdinals = ImmutableHashSet.CreateBuilder<int>();
-        var parameters = ImmutableArray.CreateBuilder<ComposableParameter>(method.Parameters.Length);
+        var parameters = ImmutableArray.CreateBuilder<ViewPartParameter>(method.Parameters.Length);
         foreach (var parameter in method.Parameters)
         {
             // A parameter (or optional-default) type that cannot be named from another file, a file-local
@@ -190,14 +190,14 @@ internal static class ComposableDefinitionFactory
             if (isContent)
                 contentOrdinals.Add(parameter.Ordinal);
 
-            parameters.Add(new ComposableParameter(
+            parameters.Add(new ViewPartParameter(
                 parameter.Ordinal,
                 parameter.Type.ToDisplayString(LocalDeclarationFormat),
                 isContent));
         }
 
         // The slot takes the ordinal after the last parameter, and is registered in the same map so that
-        // ComposableBodyContext.PushRenderVariable's ordinal arithmetic (_parameterOrdinals.Count plus the
+        // ViewPartBodyContext.PushRenderVariable's ordinal arithmetic (_parameterOrdinals.Count plus the
         // render-variable depth) accounts for it without being told about it. The ordinal space therefore
         // reads: parameters, then the slot, then the scoped render variables. What separates a content
         // ordinal from a value ordinal is the set below, not which map it lives in.
@@ -223,13 +223,13 @@ internal static class ComposableDefinitionFactory
                     DiagnosticDescriptors.BCF3025,
                     declaration.Identifier.GetLocation(),
                     [slotReferences == 0
-                        ? $"is never named in '{method.Name}', whose ContentView return type requires it"
+                        ? $"is never named in '{method.Name}', whose SlotView return type requires it"
                         : $"is named {slotReferences} times in '{method.Name}'"])];
                 return null;
             }
         }
 
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             attributeContext.SemanticModel,
             method.ContainingType,
             method.Name,
@@ -266,7 +266,7 @@ internal static class ComposableDefinitionFactory
         // Only non-error diagnostics (for example BCF3002) remain; the definition is valid and its
         // warnings are still surfaced.
         diagnostics = context.Diagnostics.ToImmutable();
-        return new ComposableDefinition(
+        return new ViewPartDefinition(
             parameters.ToImmutable(),
             context.AccessRequirements.ToImmutable(),
             body,
@@ -308,15 +308,15 @@ internal static class ComposableDefinitionFactory
         return count;
     }
 
-    private static ComposableDiscoveryResult Invalid(
+    private static ViewPartDiscoveryResult Invalid(
         string methodKey,
         string displayName,
         MethodDeclarationSyntax declaration,
         string reason)
     {
         var diagnostic = BuildDiagnostic(declaration, displayName, reason);
-        return new ComposableDiscoveryResult(
-            new ComposableDefinitionEntry(methodKey, displayName, Definition: null, DeclarationDiagnosticReported: true),
+        return new ViewPartDiscoveryResult(
+            new ViewPartDefinitionEntry(methodKey, displayName, Definition: null, DeclarationDiagnosticReported: true),
             [diagnostic]);
     }
 

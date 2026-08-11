@@ -10,10 +10,10 @@ using Microsoft.CodeAnalysis.Operations;
 namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
-/// Classifies a composable definition body expression into the statically sequenceable
+/// Classifies a view part definition body expression into the statically sequenceable
 /// <see cref="RenderTemplateNode"/> hierarchy. Dynamic argument text is normalized through
 /// <see cref="ExpressionTemplateFactory"/> so parameter references become holes and imports/containing
-/// type context are preserved. Nested <c>[Composable]</c> calls become <see cref="ComposableCallTemplateNode"/>.
+/// type context are preserved. Nested <c>[ViewPart]</c> calls become <see cref="ViewPartCallTemplateNode"/>.
 /// Returns <see langword="null"/> when the expression cannot be statically analyzed.
 /// </summary>
 internal static class RenderExpressionAnalyzer
@@ -52,7 +52,7 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
     /// construct the author actually wrote instead of the whole design-time expression.
     /// </summary>
-    public static RenderTemplateNode? Analyze(ExpressionSyntax expression, ComposableBodyContext context)
+    public static RenderTemplateNode? Analyze(ExpressionSyntax expression, ViewPartBodyContext context)
     {
         var node = Classify(expression, context);
         if (node is null)
@@ -61,7 +61,7 @@ internal static class RenderExpressionAnalyzer
         return node;
     }
 
-    private static RenderTemplateNode? Classify(ExpressionSyntax expression, ComposableBodyContext context)
+    private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
         context.CancellationToken.ThrowIfCancellationRequested();
 
@@ -77,7 +77,7 @@ internal static class RenderExpressionAnalyzer
         // Same shape for an externally supplied RenderFragment: the pre-conversion Type is RenderFragment
         // even though it converts to View, and it lowers to the sibling AddContent overload. This must
         // stay ahead of the invocation guard below: a method call returning RenderFragment is neither
-        // design-time syntax nor a [Composable] call, so falling through would report BCF1003.
+        // design-time syntax nor a [ViewPart] call, so falling through would report BCF1003.
         if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType &&
             SymbolEqualityComparer.Default.Equals(expressionType, renderFragmentType))
         {
@@ -106,7 +106,7 @@ internal static class RenderExpressionAnalyzer
                 // A childless element has no bracket form at all: `Div[]` is CS0443, so the two shapes per
                 // element are unavoidable and this is the one that carries no children. Asked first because it
                 // is the overwhelmingly common answer -- every Div, Span and P in every body arrives here --
-                // and the two arms are disjoint: an element helper returns ElementBuilder and Slot is View.
+                // and the two arms are disjoint: an element helper returns ElementView and Slot is View.
                 if (symbols.ElementTags.TryGetValue(
                         KnownSymbols.Normalize(resolvedProperty), out var propertyTag))
                 {
@@ -171,19 +171,19 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.On
                 or SurfaceMethodKind.Bind =>
                 ClassifyDecoration(invocation, method, kind, context),
-            SurfaceMethodKind.None => ClassifyComposableCall(invocation, method, context),
+            SurfaceMethodKind.None => ClassifyViewPartCall(invocation, method, context),
         };
 #pragma warning restore CS8524
     }
 
     /// <summary>
     /// <c>Element(tag)</c>, the escape hatch for a tag outside the curated table. It carries no children
-    /// of its own, those are written in brackets on the <c>ElementBuilder</c> it returns, which arrives at
+    /// of its own, those are written in brackets on the <c>ElementView</c> it returns, which arrives at
     /// <see cref="Classify"/> as an element access and not an invocation, so this arm only has to resolve
     /// the tag.
     /// </summary>
     private static ElementTemplateNode? ClassifyElementFactory(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args
             || args.At(0) is not { } tagArgument)
@@ -205,7 +205,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static IfTemplateNode? ClassifyIf(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
@@ -246,7 +246,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static ForEachTemplateNode? ClassifyForEach(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
@@ -279,7 +279,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // Source references the enclosing scope (fields, composable params, outer items), never this
+        // Source references the enclosing scope (fields, view part params, outer items), never this
         // item, so it is normalized before the iteration variable is registered.
         var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
@@ -317,7 +317,7 @@ internal static class RenderExpressionAnalyzer
         // the written name with no qualification, and the generated file has no using directives, so
         // OpenComponent<T> would either fail with a CS0246 the author cannot reach or bind silently
         // to a different same-named type. Fail translation instead; the failure-path sweep in
-        // ComponentModelFactory/ComposableDefinitionFactory then reports BCF3012 once. Returning null
+        // ComponentModelFactory/ViewPartDefinitionFactory then reports BCF3012 once. Returning null
         // here also stops the Param branch from drawing a spurious BCF3005 on the selector.
         if (TypeSymbolFacts.ContainsUnresolvedType(method.TypeArguments[0]))
             return null;
@@ -331,7 +331,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static RawMarkupTemplateNode? ClassifyRaw(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args ||
             args.At(0) is not { } markupArg)
@@ -344,7 +344,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static FragmentTemplateNode? ClassifyFragment(
-        InvocationExpressionSyntax invocation, ComposableBodyContext context)
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
@@ -367,7 +367,7 @@ internal static class RenderExpressionAnalyzer
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SurfaceMethodKind kind,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var symbols = context.KnownSymbols;
 
@@ -520,7 +520,7 @@ internal static class RenderExpressionAnalyzer
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SurfaceMethodKind kind,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (invocation.Expression is not MemberAccessExpressionSyntax decoAccess)
             return null;
@@ -533,7 +533,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // Unreachable: a decoration takes an ElementBuilder receiver, so anything that opens no element
+        // Unreachable: a decoration takes an ElementView receiver, so anything that opens no element
         // frame is a CS1929 and never resolves to a decoration here. Kept so that if some route ever does
         // arrive, translation fails safely instead of decorating a node that cannot carry attributes.
         if (inner is not ElementTemplateNode element)
@@ -717,7 +717,7 @@ internal static class RenderExpressionAnalyzer
         /// everything downstream — the class channel's admission, the fold's <c>name=""</c> branch, the
         /// emitted frame — sees the same constant either way, so they cannot translate differently.
         /// </summary>
-        public ExpressionTemplate Normalize(ComposableBodyContext context) =>
+        public ExpressionTemplate Normalize(ViewPartBodyContext context) =>
             Written is null
                 ? ExpressionTemplateFactory.ForBooleanConstant(true)
                 : ExpressionTemplateFactory.Create(Written, context);
@@ -750,19 +750,19 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// <c>Html.Slot</c>: the hole where a content-taking <c>[Composable]</c> places its caller's brackets.
+    /// <c>Html.Slot</c>: the hole where a content-taking <c>[ViewPart]</c> places its caller's brackets.
     /// Translatable only inside such a body, where the definition bound it to an ordinal; anywhere else it
     /// is BCF3025 (#176).
     /// </summary>
     /// <remarks>
     /// The two rejected cases both land here. A component's <c>Body</c> or <c>Chrome</c> is analyzed with an
-    /// empty parameter map, and a <c>[Composable]</c> returning <c>View</c> registers no slot ordinal, so
+    /// empty parameter map, and a <c>[ViewPart]</c> returning <c>View</c> registers no slot ordinal, so
     /// neither can look one up — and the message says which by naming what a slot requires rather than
     /// guessing at the author's intent. The other arity failures, zero and two, are reported at the
-    /// declaration by <c>ComposableDefinitionFactory</c>, which is where the count is a property of.
+    /// declaration by <c>ViewPartDefinitionFactory</c>, which is where the count is a property of.
     /// </remarks>
     private static ContentHoleTemplateNode? ClassifySlot(
-        ExpressionSyntax expression, IPropertySymbol slotProperty, ComposableBodyContext context)
+        ExpressionSyntax expression, IPropertySymbol slotProperty, ViewPartBodyContext context)
     {
         if (context.ResolveHole(slotProperty, out var slotOrdinal) == BodyHoleKind.Content)
             return new ContentHoleTemplateNode(slotOrdinal);
@@ -776,20 +776,20 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// A call that is not surface syntax at all, which is a translatable expression only when the method
-    /// it names carries <c>[Composable]</c>. That attribute sits on a user method rather than on a symbol
+    /// it names carries <c>[ViewPart]</c>. That attribute sits on a user method rather than on a symbol
     /// resolved out of the runtime, so it cannot be part of the classification and is tested here.
     /// </summary>
-    private static ComposableCallTemplateNode? ClassifyComposableCall(
-        InvocationExpressionSyntax invocation, IMethodSymbol method, ComposableBodyContext context)
+    private static ViewPartCallTemplateNode? ClassifyViewPartCall(
+        InvocationExpressionSyntax invocation, IMethodSymbol method, ViewPartBodyContext context)
     {
-        if (!IsComposable(method, context))
+        if (!IsViewPart(method, context))
             return null;
 
         var arguments = CreateInvocationArguments(invocation, method, context, out var contentArguments);
         if (arguments is null)
             return null;
 
-        return new ComposableCallTemplateNode(
+        return new ViewPartCallTemplateNode(
             MethodKey.Create(method),
             method.Name,
             arguments.Value,
@@ -823,7 +823,7 @@ internal static class RenderExpressionAnalyzer
         ElementTemplateNode element,
         ITypeSymbol valueType,
         AttributeValueSource value,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         switch (ClassChannel.Admit(element, valueType))
         {
@@ -853,7 +853,7 @@ internal static class RenderExpressionAnalyzer
     /// <remarks>
     /// <para>
     /// Every <em>reported</em> rejection registers a
-    /// <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/> span for the whole invocation, as
+    /// <see cref="ViewPartBodyContext.RejectUnresolvedValueRecovery"/> span for the whole invocation, as
     /// the sibling decoration arms do: the getter and setter are dynamic argument expressions, and a
     /// rejected binding never reaches generated code, so the failure scanner must not go on to report on
     /// their types. The defensive <see langword="null"/> returns (a missing argument, and a
@@ -875,7 +875,7 @@ internal static class RenderExpressionAnalyzer
         ElementTemplateNode element,
         FactoryArguments args,
         ArgumentSyntax attributeArg,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         // Roles first: the argument guard right below needs the getter's index, and BCF3017 later
         // reads that same argument. An overload this compiler was not written against therefore
@@ -1008,7 +1008,7 @@ internal static class RenderExpressionAnalyzer
     /// difference.
     /// </para>
     /// <para>
-    /// Rejections register a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/> span for the
+    /// Rejections register a <see cref="ViewPartBodyContext.RejectUnresolvedValueRecovery"/> span for the
     /// whole invocation, as the <c>.Param</c> arm and <see cref="ClassifyBind"/> do, so the failure scanner
     /// does not go on to report on the types of a getter or setter that never reaches generated code. The
     /// defensive <see langword="null"/> returns do not, for the reason <see cref="ClassifyBind"/>'s own
@@ -1037,7 +1037,7 @@ internal static class RenderExpressionAnalyzer
         ExpressionSyntax selector,
         FactoryArguments args,
         ArgumentSyntax getterArg,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var valueType = property.Type;
         var changedName = property.Name + "Changed";
@@ -1139,9 +1139,9 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
-    /// <c>ToCode()</c>: inside a <c>[Composable]</c> body the getter still holds unbound parameter holes,
+    /// <c>ToCode()</c>: inside a <c>[ViewPart]</c> body the getter still holds unbound parameter holes,
     /// and <c>ToCode()</c> throws on those, so the holes are carried through for
-    /// <c>ComposableExpander</c> to substitute.
+    /// <c>ViewPartExpander</c> to substitute.
     /// <para>
     /// The cast around the setter is required for the same reason the element side needs one: a lambda
     /// written in an argument position has no natural type, and <c>Create</c>'s own overloads cannot pick
@@ -1153,7 +1153,7 @@ internal static class RenderExpressionAnalyzer
         string valueTypeName,
         ExpressionSyntax? setter,          // null = invert the getter
         bool setterIsAsynchronous,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
         segments.Add(new LiteralExpressionSegment($"{CreateCall}{valueTypeName}>(this, "));
@@ -1188,7 +1188,7 @@ internal static class RenderExpressionAnalyzer
     /// <c>EditForm</c>, and no other spelling of the target could supply it.
     /// </summary>
     private static ExpressionTemplate BuildFieldExpression(
-        ExpressionSyntax getter, string valueTypeName, ComposableBodyContext context)
+        ExpressionSyntax getter, string valueTypeName, ViewPartBodyContext context)
     {
         ImmutableArray<ExpressionSegment> segments =
         [
@@ -1209,7 +1209,7 @@ internal static class RenderExpressionAnalyzer
     /// Roslyn's <c>GetMembers</c> on the derived type alone would not see it.
     /// </summary>
     private static IPropertySymbol? FindSettableParameter(
-        ITypeSymbol componentType, string name, ComposableBodyContext context)
+        ITypeSymbol componentType, string name, ViewPartBodyContext context)
     {
         for (var current = componentType; current is not null; current = current.BaseType)
         {
@@ -1228,7 +1228,7 @@ internal static class RenderExpressionAnalyzer
     /// <paramref name="valueType"/>: its type is exactly <c>EventCallback&lt;TValue&gt;</c>.
     /// </summary>
     private static bool IsChangeCallbackFor(
-        IPropertySymbol changed, ITypeSymbol valueType, ComposableBodyContext context) =>
+        IPropertySymbol changed, ITypeSymbol valueType, ViewPartBodyContext context) =>
         context.KnownSymbols.EventCallbackType is { } eventCallbackType
         && changed.Type is INamedTypeSymbol { TypeArguments.Length: 1 } callback
         && SymbolEqualityComparer.Default.Equals(callback.OriginalDefinition, eventCallbackType)
@@ -1245,7 +1245,7 @@ internal static class RenderExpressionAnalyzer
     /// value assigned to it never is.
     /// </remarks>
     private static bool IsFieldExpressionFor(
-        IPropertySymbol fieldExpression, ITypeSymbol valueType, ComposableBodyContext context)
+        IPropertySymbol fieldExpression, ITypeSymbol valueType, ViewPartBodyContext context)
     {
         var symbols = context.KnownSymbols;
         if (symbols.ExpressionType is not { } expressionType || symbols.FuncType is not { } funcType)
@@ -1272,7 +1272,7 @@ internal static class RenderExpressionAnalyzer
     private static RenderTemplateNode? ClassifyIndexer(
         ElementAccessExpressionSyntax elementAccess,
         IPropertySymbol indexer,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         var symbols = context.KnownSymbols;
         var definition = indexer.OriginalDefinition;
@@ -1292,7 +1292,7 @@ internal static class RenderExpressionAnalyzer
         if (symbols.ContentIndexer is { } contentIndexer
             && SymbolEqualityComparer.Default.Equals(definition, contentIndexer))
         {
-            return ClassifyComposableContentIndexer(elementAccess, context);
+            return ClassifyViewPartContentIndexer(elementAccess, context);
         }
 
         return null;
@@ -1304,7 +1304,7 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// The receiver is classified by the same arm that handles a bare call, so nothing about argument binding
-    /// is written twice. The bracket content becomes one more <see cref="ComposableContentArgument"/>, at the
+    /// is written twice. The bracket content becomes one more <see cref="ViewPartContentArgument"/>, at the
     /// ordinal after the callee's last parameter, which is where the definition binds its slot: the receiver's
     /// own symbol gives the arity, so the call site names the ordinal rather than leaving two transports for
     /// the expander to reconcile.
@@ -1319,10 +1319,10 @@ internal static class RenderExpressionAnalyzer
     /// property that makes <c>Div["text"].Class("card")</c> a CS1929 rather than a second supported style.
     /// </para>
     /// </remarks>
-    private static ComposableCallTemplateNode? ClassifyComposableContentIndexer(
-        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+    private static ViewPartCallTemplateNode? ClassifyViewPartContentIndexer(
+        ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
-        if (Analyze(elementAccess.Expression, context) is not ComposableCallTemplateNode call)
+        if (Analyze(elementAccess.Expression, context) is not ViewPartCallTemplateNode call)
             return null;
 
         // The callee's arity, which is the slot's ordinal. Taken from the receiver's own resolved symbol; the
@@ -1344,7 +1344,7 @@ internal static class RenderExpressionAnalyzer
         return call with
         {
             ContentArguments = call.ContentArguments.AsImmutableArray()
-                .Add(new ComposableContentArgument(callee.Parameters.Length, content)),
+                .Add(new ViewPartContentArgument(callee.Parameters.Length, content)),
         };
     }
 
@@ -1361,7 +1361,7 @@ internal static class RenderExpressionAnalyzer
     /// the brackets), so the report does not presuppose which.
     /// </para>
     /// <para>
-    /// No failure path here registers a <see cref="ComposableBodyContext.RejectUnresolvedValueRecovery"/>
+    /// No failure path here registers a <see cref="ViewPartBodyContext.RejectUnresolvedValueRecovery"/>
     /// span, and none usefully could: that suppressor is matched as an exact <c>TextSpan</c>, and its only
     /// reader, <c>UnresolvedValueTypeScanner</c>, always looks up an <c>InvocationExpressionSyntax</c>
     /// span, so a rejection keyed on this element access could never be read. Where suppression is
@@ -1374,7 +1374,7 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// </remarks>
     private static ElementTemplateNode? ClassifyElementIndexer(
-        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+        ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
         // The receiver carries the tag and the decoration chain, so it is classified by the same arms that
         // handle the childless and decorated forms rather than by a second copy of their rules.
@@ -1427,7 +1427,7 @@ internal static class RenderExpressionAnalyzer
     private static ComponentTemplateNode? ClassifyComponentIndexer(
         ElementAccessExpressionSyntax elementAccess,
         IPropertySymbol indexer,
-        ComposableBodyContext context)
+        ViewPartBodyContext context)
     {
         if (Analyze(elementAccess.Expression, context) is not ComponentTemplateNode component)
             return null;
@@ -1480,7 +1480,7 @@ internal static class RenderExpressionAnalyzer
         ImmutableArray<RenderTemplateNode> children,
         ITypeSymbol componentType,
         Location location,
-        ComposableBodyContext context,
+        ViewPartBodyContext context,
         out EquatableArray<ComponentSlot> slots)
     {
         slots = EquatableArray<ComponentSlot>.Empty;
@@ -1577,7 +1577,7 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// The children written in an element access's brackets, or <see langword="null"/> when they cannot be
     /// analyzed. The one place the bracket channel's binding rule lives, shared by all three indexers that
-    /// carry it — the element's, <c>ComponentView&lt;T&gt;</c>'s, and <c>ContentView</c>'s.
+    /// carry it — the element's, <c>ComponentView&lt;T&gt;</c>'s, and <c>SlotView</c>'s.
     /// </summary>
     /// <remarks>
     /// One whole collection passed to the params indexer (<c>Div[arr]</c>) is not a list of children, so it is
@@ -1585,7 +1585,7 @@ internal static class RenderExpressionAnalyzer
     /// before this was extracted, where it could be changed in one arm and missed in the others.
     /// </remarks>
     private static ImmutableArray<RenderTemplateNode>? TryAnalyzeBracketChildren(
-        ElementAccessExpressionSyntax elementAccess, ComposableBodyContext context)
+        ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
             return null;
@@ -1594,7 +1594,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
-        ImmutableArray<ExpressionSyntax> children, ComposableBodyContext context)
+        ImmutableArray<ExpressionSyntax> children, ViewPartBodyContext context)
     {
         var nodes = ImmutableArray.CreateBuilder<RenderTemplateNode>(children.Length);
         foreach (var child in children)
@@ -1610,7 +1610,7 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static bool TryGetConstantName(
-        ExpressionSyntax expression, ComposableBodyContext context, [MaybeNullWhen(false)] out string name)
+        ExpressionSyntax expression, ViewPartBodyContext context, [MaybeNullWhen(false)] out string name)
     {
         var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
         if (constant is { HasValue: true, Value: string value } && !string.IsNullOrWhiteSpace(value))
@@ -1622,9 +1622,9 @@ internal static class RenderExpressionAnalyzer
         return false;
     }
 
-    private static bool IsComposable(IMethodSymbol method, ComposableBodyContext context)
+    private static bool IsViewPart(IMethodSymbol method, ViewPartBodyContext context)
     {
-        var attributeType = context.KnownSymbols.ComposableAttributeType;
+        var attributeType = context.KnownSymbols.ViewPartAttributeType;
         if (attributeType is null)
             return false;
 
@@ -1642,11 +1642,11 @@ internal static class RenderExpressionAnalyzer
     /// rather than as expressions. Empty for a call that has none, which is every call to a part declared
     /// before this surface existed.
     /// </param>
-    private static ImmutableArray<ComposableInvocationArgument>? CreateInvocationArguments(
+    private static ImmutableArray<ViewPartInvocationArgument>? CreateInvocationArguments(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        ComposableBodyContext context,
-        out ImmutableArray<ComposableContentArgument> contentArguments)
+        ViewPartBodyContext context,
+        out ImmutableArray<ViewPartContentArgument> contentArguments)
     {
         contentArguments = [];
         if (context.SemanticModel.GetOperation(invocation, context.CancellationToken)
@@ -1658,8 +1658,8 @@ internal static class RenderExpressionAnalyzer
         // Explicitly supplied arguments sort by their source position; implicit/default arguments sort
         // after every supplied argument. Operation arguments are parameter-ordered, so the enumeration
         // index cannot be used as source order.
-        var builder = ImmutableArray.CreateBuilder<ComposableInvocationArgument>(operation.Arguments.Length);
-        var contentBuilder = ImmutableArray.CreateBuilder<ComposableContentArgument>();
+        var builder = ImmutableArray.CreateBuilder<ViewPartInvocationArgument>(operation.Arguments.Length);
+        var contentBuilder = ImmutableArray.CreateBuilder<ViewPartContentArgument>();
         foreach (var argument in operation.Arguments)
         {
             var parameter = argument.Parameter;
@@ -1706,7 +1706,7 @@ internal static class RenderExpressionAnalyzer
                 if (content is null)
                     return null;
 
-                contentBuilder.Add(new ComposableContentArgument(parameter.Ordinal, content));
+                contentBuilder.Add(new ViewPartContentArgument(parameter.Ordinal, content));
                 continue;
             }
 
@@ -1733,7 +1733,7 @@ internal static class RenderExpressionAnalyzer
                 sourceOrder = argument.Syntax.SpanStart;
             }
 
-            builder.Add(new ComposableInvocationArgument(
+            builder.Add(new ViewPartInvocationArgument(
                 parameter.Ordinal,
                 sourceOrder,
                 isImplicitDefault,
@@ -1814,7 +1814,7 @@ internal static class RenderExpressionAnalyzer
         InvocationExpressionSyntax invocation,
         ArgumentSyntax firstArg,
         string? shortcutName,
-        ComposableBodyContext context,
+        ViewPartBodyContext context,
         [MaybeNullWhen(false)] out string name)
     {
         if (shortcutName is not null)
@@ -1881,7 +1881,7 @@ internal static class RenderExpressionAnalyzer
     /// and members of a captured variable (whose receiver binds to something other than the parameter).
     /// </summary>
     private static bool TryGetSelectorProperty(
-        ExpressionSyntax selector, ComposableBodyContext context, [MaybeNullWhen(false)] out IPropertySymbol property)
+        ExpressionSyntax selector, ViewPartBodyContext context, [MaybeNullWhen(false)] out IPropertySymbol property)
     {
         // Sentinel for the false-return paths; MaybeNullWhen(false) documents that callers must not
         // read it unless the method returned true, so no call site needs a null-forgiving operator.
@@ -1911,7 +1911,7 @@ internal static class RenderExpressionAnalyzer
     /// Returns whether <paramref name="property"/> is a Blazor <c>[Parameter]</c> with an accessible (public)
     /// setter, so a static <c>AddComponentParameter</c> setter can bind it without a runtime throw.
     /// </summary>
-    private static bool IsSettableParameter(IPropertySymbol property, ComposableBodyContext context)
+    private static bool IsSettableParameter(IPropertySymbol property, ViewPartBodyContext context)
     {
         var parameterAttribute = context.KnownSymbols.ParameterAttributeType;
         if (parameterAttribute is null)
@@ -1945,7 +1945,7 @@ internal static class RenderExpressionAnalyzer
     /// <c>RenderFragment</c>. A <c>RenderFragment&lt;TContext&gt;</c> is excluded deliberately, the
     /// generated lambda is non-generic and would fail an invalid cast at runtime.
     /// </summary>
-    private static bool HasUsableChildContent(ITypeSymbol componentType, ComposableBodyContext context)
+    private static bool HasUsableChildContent(ITypeSymbol componentType, ViewPartBodyContext context)
     {
         if (context.KnownSymbols.RenderFragmentType is not { } renderFragmentType)
             return false;
@@ -1970,10 +1970,10 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Whether <paramref name="type"/> is one of the inert design-time markers (<c>View</c>,
-    /// <c>ElementBuilder</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
+    /// <c>ElementView</c>, or a <c>ComponentView&lt;T&gt;</c> construction). The generic Param emits its
     /// value verbatim, so such a value would bind the empty marker instead of content.
     /// </summary>
-    private static bool IsInertDesignTimeType(ITypeSymbol? type, ComposableBodyContext context)
+    private static bool IsInertDesignTimeType(ITypeSymbol? type, ViewPartBodyContext context)
     {
         if (type is null)
             return false;
@@ -1983,19 +1983,19 @@ internal static class RenderExpressionAnalyzer
         if (symbols.ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType))
             return true;
 
-        // A childless element is an ElementBuilder rather than a View, so without this arm
+        // A childless element is an ElementView rather than a View, so without this arm
         // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
-        if (symbols.ElementBuilderType is { } elementBuilderType
-            && SymbolEqualityComparer.Default.Equals(type, elementBuilderType))
+        if (symbols.ElementViewType is { } elementViewType
+            && SymbolEqualityComparer.Default.Equals(type, elementViewType))
         {
             return true;
         }
 
-        // A content-taking part's call is a ContentView before its brackets, so .Param(c => c.Payload, Card("t"))
+        // A content-taking part's call is a SlotView before its brackets, so .Param(c => c.Payload, Card("t"))
         // type-checks through object and would otherwise emit `Card("t")` verbatim, exactly as the
-        // ElementBuilder arm above exists to prevent for `Div`.
-        if (symbols.ContentViewType is { } contentViewType
-            && SymbolEqualityComparer.Default.Equals(type, contentViewType))
+        // ElementView arm above exists to prevent for `Div`.
+        if (symbols.SlotViewType is { } slotViewType
+            && SymbolEqualityComparer.Default.Equals(type, slotViewType))
         {
             return true;
         }

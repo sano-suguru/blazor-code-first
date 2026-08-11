@@ -748,7 +748,7 @@ public sealed class GeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
-    private const string NestedForEachInComposableSource = """
+    private const string NestedForEachInViewPartSource = """
         using System.Collections.Generic;
         using static BlazorCodeFirst.Html;
 
@@ -758,7 +758,7 @@ public sealed class GeneratorTests
 
             protected override BlazorCodeFirst.View Body => Section("Board", _columns);
 
-            [BlazorCodeFirst.Composable]
+            [BlazorCodeFirst.ViewPart]
             private static BlazorCodeFirst.View Section(string heading, List<Column> columns) =>
                 Div[
                     Span[heading],
@@ -772,9 +772,9 @@ public sealed class GeneratorTests
         """;
 
     [Fact]
-    public void Generator_NestedForEachInComposable_BindsOuterParamOuterItemAndInnerItemToDistinctLocals()
+    public void Generator_NestedForEachInViewPart_BindsOuterParamOuterItemAndInnerItemToDistinctLocals()
     {
-        var result = CompilationTestHost.RunGenerator(NestedForEachInComposableSource);
+        var result = CompilationTestHost.RunGenerator(NestedForEachInViewPartSource);
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
@@ -789,7 +789,7 @@ public sealed class GeneratorTests
         Assert.Equal(2, loopVars.Length);
 
         // The innermost interpolation ($"{heading}:{col.Name}:{card.Title}") must resolve three distinct
-        // locals: the composable arg local for `heading`, the outer item local for `col`, and the inner
+        // locals: the view part arg local for `heading`, the outer item local for `col`, and the inner
         // item local for `card`. Extracting the actual identifiers used at that call site (rather than just
         // matching the member names anywhere in the file) proves the nested loops don't collide or shadow
         // one another.
@@ -837,7 +837,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RegionRootedContentComposableCalledTwice_ReportsBCF3003Once()
+    public void Generator_ViewPartWithRegionRootedContentCalledTwice_ReportsBCF3003Once()
     {
         const string source = """
             using System.Collections.Generic;
@@ -848,7 +848,7 @@ public sealed class GeneratorTests
                 private readonly List<Group> _b = new();
                 protected override BlazorCodeFirst.View Body =>
                     Div[Widget(_a), Widget(_b)];
-                [BlazorCodeFirst.Composable]
+                [BlazorCodeFirst.ViewPart]
                 private static BlazorCodeFirst.View Widget(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
                         ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
@@ -866,9 +866,9 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComponentForEachContentIsRegionRootedComposableCall_ReportsBCF3003()
+    public void Generator_ComponentForEachContentIsRegionRootedViewPartCall_ReportsBCF3003()
     {
-        // Case B: the bad ForEach is in the COMPONENT body; its content is a composable call whose body is
+        // Case B: the bad ForEach is in the COMPONENT body; its content is a view part call whose body is
         // region-rooted. Transitive root-kind resolution (registry) must detect this from the component side.
         const string source = """
             using System.Collections.Generic;
@@ -878,7 +878,7 @@ public sealed class GeneratorTests
                 private readonly List<Group> _groups = new();
                 protected override BlazorCodeFirst.View Body =>
                     ForEach(_groups, key: g => g.Id, content: g => Rows(g));
-                [BlazorCodeFirst.Composable]
+                [BlazorCodeFirst.ViewPart]
                 private static BlazorCodeFirst.View Rows(Group g) =>
                     ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]);
                 private sealed record Item(int Id, string Name);
@@ -893,14 +893,14 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RegionRootedContentInUncalledComposable_StillReportsBCF3003()
+    public void Generator_RegionRootedContentInUncalledViewPart_StillReportsBCF3003()
     {
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
             public static class Widgets
             {
-                [BlazorCodeFirst.Composable]
+                [BlazorCodeFirst.ViewPart]
                 public static BlazorCodeFirst.View Never(List<Group> gs) =>
                     ForEach(gs, key: g => g.Id, content: g =>
                         ForEach(g.Items, key: i => i.Id, content: i => Span[i.Name]));
@@ -1004,7 +1004,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_BadKeyForEachInComposableCalledTwice_ReportsBCF3002Once()
+    public void Generator_BadKeyForEachInViewPartCalledTwice_ReportsBCF3002Once()
     {
         const string source = """
             using System.Collections.Generic;
@@ -1013,7 +1013,7 @@ public sealed class GeneratorTests
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body => Div[Widget(_xs), Widget(_xs)];
-                [BlazorCodeFirst.Composable]
+                [BlazorCodeFirst.ViewPart]
                 private static BlazorCodeFirst.View Widget(List<int> xs) =>
                     ForEach(xs, key: _ => 0, content: x => Span[x.ToString()]);
             }
@@ -1025,14 +1025,14 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_BadKeyForEachInUnreachableComposable_StillReportsBCF3002()
+    public void Generator_BadKeyForEachInUnreachableViewPart_StillReportsBCF3002()
     {
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
             public static class Widgets
             {
-                [BlazorCodeFirst.Composable]
+                [BlazorCodeFirst.ViewPart]
                 public static BlazorCodeFirst.View Never(List<int> xs) =>
                     ForEach(xs, key: _ => 0, content: x => Span[x.ToString()]);
             }
@@ -1067,11 +1067,11 @@ public sealed class GeneratorTests
     }
 
     // -----------------------------------------------------------------------
-    // Static composable call-site expansion
+    // Static view part call-site expansion
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_StaticComposable_ExpandsWithoutRuntimeMethodCall()
+    public void Generator_StaticViewPart_ExpandsWithoutRuntimeMethodCall()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1079,7 +1079,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Label(string value) => Span[value];
 
                 private string Compute() => "Count";
@@ -1102,7 +1102,7 @@ public sealed class GeneratorTests
     }
 
     /// <summary>
-    /// A <c>[Composable]</c> parameter declared nullable. Measured (#235): the expansion declared its local
+    /// A <c>[ViewPart]</c> parameter declared nullable. Measured (#235): the expansion declared its local
     /// as a non-nullable <see langword="string"/>, because
     /// <c>SymbolDisplayFormat.FullyQualifiedFormat</c> carries no nullable modifier, so assigning a
     /// null-bearing argument to it warned CS8600 — a build failure under this repository's
@@ -1114,7 +1114,7 @@ public sealed class GeneratorTests
     /// unnoticed: it stops at errors.
     /// </remarks>
     [Fact]
-    public void Generator_ComposableNullableStringParameter_DeclaresTheLocalNullable()
+    public void Generator_ViewPartNullableStringParameter_DeclaresTheLocalNullable()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1122,7 +1122,7 @@ public sealed class GeneratorTests
 
             public partial class Chips : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Chip(string? cls) => Span.Class(cls!)["chip"];
 
                 private bool _on;
@@ -1141,7 +1141,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableCallArgument_NullForgiving_TranslatesInsteadOfFallingToBCF1003()
+    public void Generator_ViewPartCallArgument_NullForgiving_TranslatesInsteadOfFallingToBCF1003()
     {
         // Sibling of the design-time syntax path's FactoryArgumentBindingTests.
         // Div_NullForgivingChild_PreservesTheSuppressionInGeneratedSource: CreateInvocationArguments
@@ -1157,7 +1157,7 @@ public sealed class GeneratorTests
             {
                 private static string? NullText => null;
 
-                [Composable]
+                [ViewPart]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body => Label(NullText!);
@@ -1172,7 +1172,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_SameComposableCalledTwice_UsesDistinctLocalsAndSequences()
+    public void Generator_SameViewPartCalledTwice_UsesDistinctLocalsAndSequences()
     {
         // The arguments are property accesses, not literals, so they carry no compile-time constant and
         // the expansion locals stay live: a literal argument here would fold each call away entirely
@@ -1186,7 +1186,7 @@ public sealed class GeneratorTests
                 private string _a => "A";
                 private string _b => "B";
 
-                [Composable]
+                [ViewPart]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body =>
@@ -1219,7 +1219,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Pair(string first, string second) => Span[first + second];
 
                 private string A() => "a";
@@ -1256,7 +1256,7 @@ public sealed class GeneratorTests
                 private string _keep => "keep";
                 private string _drop => "drop";
 
-                [Composable]
+                [ViewPart]
                 private static View Ignore(string used, string unused) => Span[used];
 
                 protected override View Body => Ignore(_keep, _drop);
@@ -1289,7 +1289,7 @@ public sealed class GeneratorTests
     /// reliance moot here rather than wrong (the mixed-constant case right below keeps it meaningful).
     /// </summary>
     [Fact]
-    public void Generator_UnusedConstantComposableArgument_FoldsAway()
+    public void Generator_UnusedConstantViewPartArgument_FoldsAway()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1297,7 +1297,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Ignore(string used, string unused) => Span[used];
 
                 protected override View Body => Ignore("keep", "drop");
@@ -1329,7 +1329,7 @@ public sealed class GeneratorTests
             {
                 private string _keep => "keep";
 
-                [Composable]
+                [ViewPart]
                 private static View Ignore(string used, string unused) => Span[used];
 
                 protected override View Body => Ignore(_keep, "drop");
@@ -1355,7 +1355,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Clickable(string label, System.Action onClick) => Button.OnClick(onClick)[label];
 
                 private void Handle() { }
@@ -1386,7 +1386,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Sized(double width) => Span[width.ToString()];
 
                 protected override View Body => Sized(5);
@@ -1402,7 +1402,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableCallInIfBranch_DeclaresLocalInsideBranchBraces()
+    public void Generator_ViewPartCallInIfBranch_DeclaresLocalInsideBranchBraces()
     {
         // The then-branch argument is a property access, not a literal: a constant argument here would
         // fold the whole branch into one markup frame (#140), leaving no local to place inside the braces,
@@ -1416,7 +1416,7 @@ public sealed class GeneratorTests
                 private bool _show = true;
                 private string _label => "in-branch";
 
-                [Composable]
+                [ViewPart]
                 private static View Label(string value) => Span[value];
 
                 protected override View Body =>
@@ -1434,7 +1434,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RecursiveComposableCycle_ReportsBCF1002AndEmitsNoSource()
+    public void Generator_RecursiveViewPartCycle_ReportsBCF1002AndEmitsNoSource()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1442,10 +1442,10 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Ping() => Pong();
 
-                [Composable]
+                [ViewPart]
                 private static View Pong() => Ping();
 
                 protected override View Body => Ping();
@@ -1460,7 +1460,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_CallToInvalidComposable_ReportsOnlyDeclarationDiagnostic()
+    public void Generator_CallToInvalidViewPart_ReportsOnlyDeclarationDiagnostic()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1468,9 +1468,9 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                // Invalid declaration: a composable must be static. The call site must not add a
+                // Invalid declaration: a view part must be static. The call site must not add a
                 // duplicate BCF1002.
-                [Composable]
+                [ViewPart]
                 private View Helper() => Span["x"];
 
                 protected override View Body => Helper();
@@ -1489,7 +1489,7 @@ public sealed class GeneratorTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_CrossFileComposable_UsesDefinitionSemanticModel()
+    public void Generator_CrossFileViewPart_UsesDefinitionSemanticModel()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -1500,7 +1500,7 @@ public sealed class GeneratorTests
                 {
                     internal const string Prefix = "Value: ";
 
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) =>
                         Span[Prefix + value];
                 }
@@ -1532,7 +1532,7 @@ public sealed class GeneratorTests
                 {
                     private static string Secret() => "s";
 
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Secret() + value];
                 }
                 """),
@@ -1565,7 +1565,7 @@ public sealed class GeneratorTests
                 {
                     protected static string Prefix() => "P:";
 
-                    [Composable]
+                    [ViewPart]
                     protected static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
@@ -1599,7 +1599,7 @@ public sealed class GeneratorTests
                 {
                     protected static string Prefix() => "P:";
 
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
@@ -1632,7 +1632,7 @@ public sealed class GeneratorTests
                 {
                     protected internal static string Prefix() => "P:";
 
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
@@ -1664,7 +1664,7 @@ public sealed class GeneratorTests
                 {
                     private protected static string Prefix() => "P:";
 
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
@@ -1686,7 +1686,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_MetadataOnlyComposable_ReportsBCF1002AtCall()
+    public void Generator_MetadataOnlyViewPart_ReportsBCF1002AtCall()
     {
         var libraryReference = CompilationTestHost.CompileToMetadataReference("""
             using BlazorCodeFirst;
@@ -1694,7 +1694,7 @@ public sealed class GeneratorTests
 
             public static class ExternalWidgets
             {
-                [Composable]
+                [ViewPart]
                 public static View Badge(string text) => Span[text];
             }
             """,
@@ -1722,7 +1722,7 @@ public sealed class GeneratorTests
     }
 
     /// <summary>
-    /// However an extension composable is called, the only BCF1002 is the declaration's and nothing is
+    /// However an extension view part is called, the only BCF1002 is the declaration's and nothing is
     /// generated. The static spelling expanded until #203 decided the declaration is unsupported — nothing
     /// promised it, and it was the spelling nobody writes. The fluent spellings never bound their arguments:
     /// the receiver, which <c>IInvocationOperation</c> carries as the argument for the <c>this</c>
@@ -1736,7 +1736,7 @@ public sealed class GeneratorTests
     [InlineData("Helpers.Label(\"x\")", null)]
     [InlineData("\"x\".Label()", "\"x\".Label()")]
     [InlineData("Div[\"x\".Label()]", "\"x\".Label()")]
-    public void Generator_ComposableExtensionMemberCalled_ReportsDeclarationBCF1002Only(
+    public void Generator_ViewPartExtensionMemberCalled_ReportsDeclarationBCF1002Only(
         string body,
         string? failedCallText)
     {
@@ -1746,7 +1746,7 @@ public sealed class GeneratorTests
 
             public static class Helpers
             {
-                [Composable]
+                [ViewPart]
                 public static View Label(this string value) => Span[value];
             }
 
@@ -1764,7 +1764,7 @@ public sealed class GeneratorTests
             declaration.GetMessage(CultureInfo.InvariantCulture));
         Assert.Empty(result.GeneratedSources);
 
-        // The static spelling is a composable call the expander recognizes, so it stays silent on a
+        // The static spelling is a view part call the expander recognizes, so it stays silent on a
         // declaration already diagnosed; a fluent one is not a call this analyzer can read at all.
         if (failedCallText is null)
         {
@@ -1787,7 +1787,7 @@ public sealed class GeneratorTests
     [Theory]
     [InlineData("Helper(\"a\", \"b\")")]
     [InlineData("Div[Helper(\"a\", \"b\")]")]
-    public void Generator_ParamsComposableCalled_ReportsBCF1003AtCallForEitherSpelling(string body)
+    public void Generator_ParamsViewPartCalled_ReportsBCF1003AtCallForEitherSpelling(string body)
     {
         var source = $$"""
             using BlazorCodeFirst;
@@ -1795,7 +1795,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Helper(params string[] values) => Span[values[0]];
 
                 protected override View Body => {{body}};
@@ -1827,7 +1827,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Show(Hidden h) => Span["x"];
 
                 protected override View Body => Show(new Hidden());
@@ -1842,7 +1842,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_NestedComposableCalls_ExpandTransitively()
+    public void Generator_NestedViewPartCalls_ExpandTransitively()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -1850,10 +1850,10 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Inner(string value) => Span[value];
 
-                [Composable]
+                [ViewPart]
                 private static View Outer(string value) => Div[Inner(value), Span["tail"]];
 
                 protected override View Body => Outer("hi");
@@ -1867,7 +1867,7 @@ public sealed class GeneratorTests
         Assert.DoesNotContain("Inner(", generated);
         // "hi" is constant, and the lone-hole substitution rule (#140) carries it through both levels of
         // expansion: Outer's own local, Inner's argument, and Inner's local are all constant, so nothing
-        // is left to declare and the whole tree, both composable calls plus the trailing Span, folds into
+        // is left to declare and the whole tree, both view part calls plus the trailing Span, folds into
         // one frame.
         Assert.DoesNotContain("__bcf_arg_", generated);
         Assert.Contains(
@@ -1884,7 +1884,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Loop() => Loop();
 
                 protected override View Body => Loop();
@@ -1909,10 +1909,10 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Ping() => Pong();
 
-                [Composable]
+                [ViewPart]
                 private static View Pong() => Ping();
 
                 protected override View Body => Ping();
@@ -1937,7 +1937,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Echo(string value) =>
                     Span[((System.Func<string, string>)(value => value))(value)];
 
@@ -1950,7 +1950,7 @@ public sealed class GeneratorTests
 
         // The shadowing lambda parameter keeps its source name ...
         Assert.Contains("value => value", generated);
-        // ... while the composable parameter reference becomes the typed local.
+        // ... while the view part parameter reference becomes the typed local.
         Assert.Contains("__bcf_arg_0_0", generated);
         Assert.DoesNotContain("Echo(", generated);
     }
@@ -1964,7 +1964,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Named(string value) => Span[nameof(value)];
 
                 protected override View Body => Named("x");
@@ -1991,7 +1991,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View NamedMember(string value) => Span[nameof(value.Length)];
 
                 protected override View Body => NamedMember("x");
@@ -2016,7 +2016,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View NamedType(string value) => Span[nameof(System.String) + value];
 
                 protected override View Body => NamedType("x");
@@ -2042,7 +2042,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Named() => Span[nameof(StringBuilder)];
 
                 protected override View Body => Named();
@@ -2071,11 +2071,11 @@ public sealed class GeneratorTests
                 {
                     private static readonly string _secret = "s";
 
-                    // Referenced so the private field is not reported as unused; the composable itself
+                    // Referenced so the private field is not reported as unused; the view part itself
                     // only names it through nameof.
                     public static string Reveal() => _secret;
 
-                    [Composable]
+                    [ViewPart]
                     public static View Show() => Span[nameof(_secret)];
                 }
                 """),
@@ -2108,7 +2108,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Greet(string value) => Span[$"Hi {value}!"];
 
                 protected override View Body => Greet("x");
@@ -2132,7 +2132,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Swatch(Color c = Color.Green) => Span[c.ToString()];
 
                 protected override View Body => Swatch();
@@ -2156,7 +2156,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Show(Box b = default) => Span[b.V.ToString()];
 
                 protected override View Body => Show();
@@ -2182,7 +2182,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Scaled(float scale = 1.5f) => Span[scale.ToString()];
 
                 protected override View Body => Scaled();
@@ -2207,7 +2207,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Priced(decimal amount = 1.5m) => Span[amount.ToString()];
 
                 protected override View Body => Priced();
@@ -2232,7 +2232,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Special(
                     float f = float.NaN,
                     double d = double.PositiveInfinity,
@@ -2270,7 +2270,7 @@ public sealed class GeneratorTests
 
                     // Qualified member access to a private member: legal here, but inaccessible once
                     // inlined into an unrelated component.
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Widgets.Secret() + value];
                 }
                 """),
@@ -2303,7 +2303,7 @@ public sealed class GeneratorTests
                 {
                     protected static string Prefix() => "P:";
 
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[WidgetBase.Prefix() + value];
                 }
                 """),
@@ -2335,7 +2335,7 @@ public sealed class GeneratorTests
             {
                 private static string Secret() => "s";
 
-                [Composable]
+                [ViewPart]
                 private static View Label(string value) => Span[Widget.Secret() + value];
 
                 protected override View Body => Label("x");
@@ -2363,7 +2363,7 @@ public sealed class GeneratorTests
                 {
                     protected static string Prefix() => "P:";
 
-                    [Composable]
+                    [ViewPart]
                     protected static View Label(string value) => Span[WidgetBase.Prefix() + value];
                 }
                 """),
@@ -2392,7 +2392,7 @@ public sealed class GeneratorTests
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_ComposableGenericTypeAndExtensionMethod_QualifyInUsinglessOutput()
+    public void Generator_ViewPartGenericTypeAndExtensionMethod_QualifyInUsinglessOutput()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -2402,7 +2402,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Head(IEnumerable<string> items) => Span[items.First()];
 
                 protected override View Body => Head(new List<string> { "a" });
@@ -2426,7 +2426,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableUnqualifiedGenericStaticMethodAndGenericType_QualifyInUsinglessOutput()
+    public void Generator_ViewPartUnqualifiedGenericStaticMethodAndGenericType_QualifyInUsinglessOutput()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -2441,7 +2441,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Head() =>
                     Span[Make<string>() + new Dictionary<string, int>().Count.ToString()];
 
@@ -2489,7 +2489,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableExtensionMethodWithUnnameableTypeArgument_ReportsBCF1002()
+    public void Generator_ViewPartExtensionMethodWithUnnameableTypeArgument_ReportsBCF1002()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -2499,7 +2499,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Head(IEnumerable<string> items) =>
                     Span[items.Select(x => new { N = x }).First().N];
 
@@ -2519,7 +2519,7 @@ public sealed class GeneratorTests
     }
 
     // -----------------------------------------------------------------------
-    // By-reference [Composable] parameters (ref / out / in / ref readonly)
+    // By-reference [ViewPart] parameters (ref / out / in / ref readonly)
     // -----------------------------------------------------------------------
 
     [Theory]
@@ -2527,7 +2527,7 @@ public sealed class GeneratorTests
     [InlineData("out int value")]
     [InlineData("in int value")]
     [InlineData("ref readonly int value")]
-    public void Generator_ByReferenceComposableParameter_ReportsBCF1002AndEmitsNoInvalidOutput(string parameter)
+    public void Generator_ByReferenceViewPartParameter_ReportsBCF1002AndEmitsNoInvalidOutput(string parameter)
     {
         var source = $$"""
             using BlazorCodeFirst;
@@ -2535,7 +2535,7 @@ public sealed class GeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Helper({{parameter}}) => Span["x"];
 
                 protected override View Body => Span["Body"];
@@ -2550,7 +2550,7 @@ public sealed class GeneratorTests
             "by-reference parameters are unsupported",
             diagnostic.GetMessage(CultureInfo.InvariantCulture));
 
-        // The rejected composable is never expanded, so the component's own valid Body still emits
+        // The rejected view part is never expanded, so the component's own valid Body still emits
         // while nothing references the invalid Helper: no broken generated output is produced.
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.DoesNotContain("Helper", generated);
@@ -2590,7 +2590,7 @@ public sealed class GeneratorTests
                         // through the shared 'Root' parent, but the using-less generated RenderView
                         // cannot resolve the relative 'Models' path, so it must be fully qualified on
                         // expansion while any written type arguments are preserved.
-                        [Composable]
+                        [ViewPart]
                         public static View Show() =>
                             Span[Models.Widget.Label + typeof(Models.Widget).Name + Models.Box<int>.Describe];
                     }
@@ -2660,11 +2660,11 @@ public sealed class GeneratorTests
     }
 
     // -----------------------------------------------------------------------
-    // Composables in generic containing types are rejected (would leak 'T')
+    // ViewParts in generic containing types are rejected (would leak 'T')
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void Generator_ComposableInGenericContainingTypeWithTypeParameter_ReportsBCF1002AndEmitsNoSource()
+    public void Generator_ViewPartInGenericContainingTypeWithTypeParameter_ReportsBCF1002AndEmitsNoSource()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2673,10 +2673,10 @@ public sealed class GeneratorTests
 
                 public class Widgets<T>
                 {
-                    // A composable declared in a generic containing type would leak the unbound type
+                    // A view part declared in a generic containing type would leak the unbound type
                     // parameter 'T', here through the 'T value' parameter, into the using-less
                     // generated component, so the declaration is rejected up front.
-                    [Composable]
+                    [ViewPart]
                     public static View Show(T value) => Span[value!.ToString()];
                 }
                 """),
@@ -2695,13 +2695,13 @@ public sealed class GeneratorTests
         Assert.Contains("Show", message);
         Assert.Contains("containing type must be non-generic", message);
 
-        // The rejected composable never expands, so no broken component source (which would leak the
+        // The rejected view part never expands, so no broken component source (which would leak the
         // unbound 'T') is produced.
         Assert.Empty(result.GeneratedSources);
     }
 
     [Fact]
-    public void Generator_ComposableInGenericContainingTypeReferencingTypeParameter_ReportsBCF1002AndEmitsNoSource()
+    public void Generator_ViewPartInGenericContainingTypeReferencingTypeParameter_ReportsBCF1002AndEmitsNoSource()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2710,9 +2710,9 @@ public sealed class GeneratorTests
 
                 public class Widgets<T>
                 {
-                    // Even a parameterless composable leaks 'T' through its body (typeof(T)); the
+                    // Even a parameterless view part leaks 'T' through its body (typeof(T)); the
                     // generic containing type is rejected regardless of the parameter list.
-                    [Composable]
+                    [ViewPart]
                     public static View Show() => Span[typeof(T).Name];
                 }
                 """),
@@ -2734,7 +2734,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ComposableInGenericEnclosingType_ReportsBCF1002AndEmitsNoSource()
+    public void Generator_ViewPartInGenericEnclosingType_ReportsBCF1002AndEmitsNoSource()
     {
         var result = CompilationTestHost.RunGenerator(
             ("Widgets.cs", """
@@ -2743,11 +2743,11 @@ public sealed class GeneratorTests
 
                 public class Outer<T>
                 {
-                    // The composable's immediate containing type is non-generic, but an *enclosing*
+                    // The view part's immediate containing type is non-generic, but an *enclosing*
                     // containing type is generic, so 'T' would still leak: the declaration is rejected.
                     public static class Inner
                     {
-                        [Composable]
+                        [ViewPart]
                         public static View Show() => Span[typeof(T).Name];
                     }
                 }
@@ -2771,7 +2771,7 @@ public sealed class GeneratorTests
 
     // -----------------------------------------------------------------------
     // Access requirements are keyed on the referenced member's declaring type,
-    // not the composable definition's containing type
+    // not the view part definition's containing type
     // -----------------------------------------------------------------------
 
     [Fact]
@@ -2791,13 +2791,13 @@ public sealed class GeneratorTests
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
-                // The composable lives in a *different* type than the one declaring the protected
+                // The view part lives in a *different* type than the one declaring the protected
                 // member. It can name 'Prefix' because Helper derives from WidgetBase, so the access
                 // requirement must be validated against the member's declaring type (WidgetBase), not
-                // the composable's containing type (Helper).
+                // the view part's containing type (Helper).
                 public abstract partial class Helper : WidgetBase
                 {
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
@@ -2839,7 +2839,7 @@ public sealed class GeneratorTests
 
                 public abstract partial class Helper : WidgetBase
                 {
-                    [Composable]
+                    [ViewPart]
                     public static View Label(string value) => Span[Prefix() + value];
                 }
                 """),
@@ -2949,7 +2949,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ClassOnComposableArgument_SubstitutesArgumentHole()
+    public void Generator_ClassOnViewPartArgument_SubstitutesArgumentHole()
     {
         var result = CompilationTestHost.RunGenerator("""
             using BlazorCodeFirst;
@@ -2959,7 +2959,7 @@ public sealed class GeneratorTests
             {
                 protected override View Body => Div[Chip("hot")];
 
-                [Composable]
+                [ViewPart]
                 private static View Chip(string c) => Span.Class(c)["chip"];
             }
             """);
@@ -2968,7 +2968,7 @@ public sealed class GeneratorTests
         // "hot" is constant, so the class hole substitution (#140) carries it into the class attribute
         // and the whole call folds to one markup frame: an unbound hole would leave the class template
         // unable to serialize (StaticMarkupSerializer requires a constant), so a compiling, folded output
-        // proves the composable-argument class hole was bound.
+        // proves the view-part-argument class hole was bound.
         Assert.Contains(
             """__builder.AddMarkupContent(0, "<div><span class=\"hot\">chip</span></div>");""",
             source);
@@ -3070,7 +3070,7 @@ public sealed class GeneratorTests
     {
         // Regression guard for branch placement: the RenderFragment check must run BEFORE the
         // `is not InvocationExpressionSyntax` guard, otherwise a method call returning RenderFragment
-        // is neither design-time syntax nor a [Composable] call and falls through to BCF1003.
+        // is neither design-time syntax nor a [ViewPart] call and falls through to BCF1003.
         const string source = """
             using BlazorCodeFirst;
             using Microsoft.AspNetCore.Components;
@@ -3156,7 +3156,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_RenderFragmentAsComposableParameter_SubstitutesHole()
+    public void Generator_RenderFragmentAsViewPartParameter_SubstitutesHole()
     {
         const string source = """
             using BlazorCodeFirst;
@@ -3165,7 +3165,7 @@ public sealed class GeneratorTests
 
             public partial class Panel : BodyComponentBase
             {
-                [Composable]
+                [ViewPart]
                 private static View Framed(RenderFragment? inner) => Div[inner];
 
                 [Parameter] public RenderFragment? Slot { get; set; }
@@ -3369,18 +3369,18 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_GenericComponentCallingComposable_ExpandsAndAccessesItsOwnMembers()
+    public void Generator_GenericComponentCallingViewPart_ExpandsAndAccessesItsOwnMembers()
     {
-        // A generic component must expand a [Composable] and still name its own private member from the
-        // generated part, which only compiles because that part joins the same generic type. The composable
-        // itself references nothing non-public, so this does not exercise ComposableExpander's
-        // access-requirement path (`_label` is read from Body, not from the composable body); the non-generic
+        // A generic component must expand a [ViewPart] and still name its own private member from the
+        // generated part, which only compiles because that part joins the same generic type. The view part
+        // itself references nothing non-public, so this does not exercise ViewPartExpander's
+        // access-requirement path (`_label` is read from Body, not from the view part body); the non-generic
         // Generator_ProtectedBaseMemberReferencedFromHelperType_* tests cover that.
         //
-        // The [Composable] lives on a separate non-generic static class on purpose: a [Composable]
+        // The [ViewPart] lives on a separate non-generic static class on purpose: a [ViewPart]
         // declared INSIDE a generic type is rejected with BCF1002 ("containing type must be non-generic"),
         // measured against this generator. That limitation is out of scope here, a generic component
-        // calling a composable from elsewhere is the supported combination.
+        // calling a view part from elsewhere is the supported combination.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -3394,7 +3394,7 @@ public sealed class GeneratorTests
 
             public static class Widgets
             {
-                [Composable]
+                [ViewPart]
                 public static View Label(string text) => Span[text];
             }
             """;
@@ -3404,7 +3404,7 @@ public sealed class GeneratorTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1002");
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         Assert.Contains("partial class Gen<TItem>", generated, StringComparison.Ordinal);
-        // The composable's body is expanded inline (no runtime dispatch), and `_label`, a private member
+        // The view part's body is expanded inline (no runtime dispatch), and `_label`, a private member
         // of the generic component, is read from inside the generated part, which only compiles because
         // the generated part joins the same generic type.
         Assert.Contains("_label", generated, StringComparison.Ordinal);

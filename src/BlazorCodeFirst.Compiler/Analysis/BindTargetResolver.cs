@@ -60,7 +60,7 @@ internal static class BindTargetResolver
     /// <remarks>
     /// A local, a parameter, and a <c>ForEach</c> iteration variable are rejected even though C# would
     /// assign to them: <c>Body</c> is a property getter, so those die with each render and the write-back
-    /// would not survive to the next one. A <c>[Composable]</c> parameter is rejected by the same arm and
+    /// would not survive to the next one. A <c>[ViewPart]</c> parameter is rejected by the same arm and
     /// for a sharper reason: expansion replaces it with a generated local holding a copy of the caller's
     /// argument, so an inverted setter would assign to that copy and the caller's own field would never
     /// see the value. A <em>member</em> of any of them (<c>o.Title</c>) is accepted, because that writes

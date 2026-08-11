@@ -33,9 +33,9 @@ public sealed class RenderingTests : BunitContext
     }
 
     [Fact]
-    public void ComposableCounterComponent_WhenRenderedAndIncremented_EvaluatesArgumentsOncePerRender()
+    public void ViewPartCounterComponent_WhenRenderedAndIncremented_EvaluatesArgumentsOncePerRender()
     {
-        var cut = Render<ComposableCounterComponent>();
+        var cut = Render<ViewPartCounterComponent>();
 
         cut.MarkupMatches("<div><span>Count: 0</span><button>Increment</button></div>");
         Assert.Equal(1, cut.Instance.ArgumentEvaluations);
@@ -53,9 +53,9 @@ public sealed class RenderingTests : BunitContext
     /// content reads is where a misnumbered splice would show up.
     /// </summary>
     [Fact]
-    public void ComposableContentComponent_WhenIncremented_RerendersContentInsideThePartsMarkup()
+    public void ViewPartContentComponent_WhenIncremented_RerendersContentInsideThePartsMarkup()
     {
-        var cut = Render<ComposableContentComponent>();
+        var cut = Render<ViewPartContentComponent>();
 
         const string Markup = """
             <div class="page">

@@ -1,6 +1,6 @@
 #nullable enable
-BlazorCodeFirst.ComposableAttribute
-BlazorCodeFirst.ComposableAttribute.ComposableAttribute() -> void
+BlazorCodeFirst.ViewPartAttribute
+BlazorCodeFirst.ViewPartAttribute.ViewPartAttribute() -> void
 BlazorCodeFirst.BodyComponentBase
 BlazorCodeFirst.BodyComponentBase.BodyComponentBase() -> void
 abstract BlazorCodeFirst.BodyComponentBase.Body.get -> BlazorCodeFirst.View
@@ -15,132 +15,132 @@ BlazorCodeFirst.View
 BlazorCodeFirst.View.View() -> void
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(string! text) -> BlazorCodeFirst.View
 static BlazorCodeFirst.View.implicit operator BlazorCodeFirst.View(Microsoft.AspNetCore.Components.RenderFragment? fragment) -> BlazorCodeFirst.View
-BlazorCodeFirst.ContentView
-BlazorCodeFirst.ContentView.ContentView() -> void
-BlazorCodeFirst.ContentView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
-static BlazorCodeFirst.ContentView.implicit operator BlazorCodeFirst.ContentView(BlazorCodeFirst.View view) -> BlazorCodeFirst.ContentView
+BlazorCodeFirst.SlotView
+BlazorCodeFirst.SlotView.SlotView() -> void
+BlazorCodeFirst.SlotView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
+static BlazorCodeFirst.SlotView.implicit operator BlazorCodeFirst.SlotView(BlazorCodeFirst.View view) -> BlazorCodeFirst.SlotView
 BlazorCodeFirst.Decorations
-static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementBuilder element, string? class) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Href(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Src(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Alt(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Id(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Type(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Title(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Role(this BlazorCodeFirst.ElementBuilder element, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, string? value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name, bool value) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementBuilder element, string! name) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action! handler) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementBuilder element, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementView element, System.Action! handler) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Href(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Src(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Alt(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Id(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Type(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Title(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Role(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementView element, string! name, string? value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementView element, string! name, bool value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Attr(this BlazorCodeFirst.ElementView element, string! name) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementView element, string! eventName, System.Action! handler) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.On(this BlazorCodeFirst.ElementView element, string! eventName, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementView element, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementView
 BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.ComponentView() -> void
 BlazorCodeFirst.ComponentView<TComponent>.Param<TValue>(System.Func<TComponent, TValue>! selector, TValue value) -> BlazorCodeFirst.ComponentView<TComponent>
 static BlazorCodeFirst.ComponentView<TComponent>.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ComponentView<TComponent> _) -> BlazorCodeFirst.View
 BlazorCodeFirst.Html
-static BlazorCodeFirst.Html.Div.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Span.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Button.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Nav.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Header.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Main.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Aside.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Footer.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Section.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Article.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.P.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.H1.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.H2.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.H3.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.H4.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.H5.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.H6.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Ul.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Ol.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Li.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.A.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Img.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Address.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Hgroup.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Search.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Blockquote.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Dd.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Dl.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Dt.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Figcaption.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Figure.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Hr.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Menu.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Pre.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Abbr.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.B.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Bdi.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Bdo.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Br.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Cite.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Code.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Data.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Dfn.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Em.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.I.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Kbd.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Mark.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Q.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Rp.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Rt.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Ruby.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.S.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Samp.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Small.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Strong.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Sub.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Sup.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Time.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.U.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Var.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Wbr.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Del.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Ins.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Area.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Audio.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Canvas.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Embed.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Iframe.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Map.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Picture.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Source.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Track.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Video.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Caption.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Col.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Colgroup.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Table.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Tbody.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Td.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Tfoot.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Th.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Thead.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Tr.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Datalist.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Fieldset.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Form.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Input.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Label.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Legend.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Meter.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Optgroup.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Option.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Output.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Progress.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Select.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Selectedcontent.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Textarea.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Details.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Dialog.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Summary.get -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Html.Element(string! tag) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Html.Div.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Span.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Button.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Nav.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Header.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Main.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Aside.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Footer.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Section.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Article.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.P.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.H1.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.H2.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.H3.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.H4.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.H5.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.H6.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Ul.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Ol.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Li.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.A.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Img.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Address.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Hgroup.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Search.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Blockquote.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Dd.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Dl.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Dt.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Figcaption.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Figure.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Hr.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Menu.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Pre.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Abbr.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.B.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Bdi.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Bdo.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Br.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Cite.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Code.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Data.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Dfn.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Em.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.I.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Kbd.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Mark.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Q.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Rp.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Rt.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Ruby.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.S.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Samp.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Small.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Strong.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Sub.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Sup.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Time.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.U.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Var.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Wbr.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Del.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Ins.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Area.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Audio.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Canvas.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Embed.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Iframe.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Map.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Picture.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Source.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Track.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Video.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Caption.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Col.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Colgroup.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Table.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Tbody.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Td.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Tfoot.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Th.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Thead.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Tr.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Datalist.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Fieldset.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Form.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Input.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Label.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Legend.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Meter.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Optgroup.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Option.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Output.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Progress.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Select.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Selectedcontent.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Textarea.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Details.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Dialog.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Summary.get -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Html.Element(string! tag) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Html.Fragment(params System.ReadOnlySpan<BlazorCodeFirst.View> children) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.Raw(string! rawHtml) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.Slot.get -> BlazorCodeFirst.View
@@ -150,19 +150,19 @@ static BlazorCodeFirst.Html.Component<TComponent>() -> BlazorCodeFirst.Component
 BlazorCodeFirst.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Template<TContext>(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Template<TContext>(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?>! selector, System.Func<TContext, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.ComponentView<TComponent>
-BlazorCodeFirst.ElementBuilder
-BlazorCodeFirst.ElementBuilder.ElementBuilder() -> void
-BlazorCodeFirst.ElementBuilder.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
-static BlazorCodeFirst.ElementBuilder.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ElementBuilder builder) -> BlazorCodeFirst.View
+BlazorCodeFirst.ElementView
+BlazorCodeFirst.ElementView.ElementView() -> void
+BlazorCodeFirst.ElementView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
+static BlazorCodeFirst.ElementView.implicit operator BlazorCodeFirst.View(BlazorCodeFirst.ElementView builder) -> BlazorCodeFirst.View
 BlazorCodeFirst.ComponentView<TComponent>.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
-static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Action<TArgs!>! handler) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementBuilder element, string! eventName, System.Func<TArgs!, System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<string!>! get) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<string!>! get, System.Action<string!>! set) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<string!>! get, System.Func<string!, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<bool>! get) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<bool>! get, System.Action<bool>! set) -> BlazorCodeFirst.ElementBuilder
-static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementBuilder element, string! attributeName, string! eventName, System.Func<bool>! get, System.Func<bool, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ElementBuilder
+static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementView element, string! eventName, System.Action<TArgs!>! handler) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.On<TArgs>(this BlazorCodeFirst.ElementView element, string! eventName, System.Func<TArgs!, System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element, string! attributeName, string! eventName, System.Func<string!>! get) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element, string! attributeName, string! eventName, System.Func<string!>! get, System.Action<string!>! set) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element, string! attributeName, string! eventName, System.Func<string!>! get, System.Func<string!, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element, string! attributeName, string! eventName, System.Func<bool>! get) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element, string! attributeName, string! eventName, System.Func<bool>! get, System.Action<bool>! set) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element, string! attributeName, string! eventName, System.Func<bool>! get, System.Func<bool, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ElementView
 BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Action<TValue>! set) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Func<TValue, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ComponentView<TComponent>

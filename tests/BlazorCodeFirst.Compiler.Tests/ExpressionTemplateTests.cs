@@ -67,7 +67,7 @@ public sealed class ExpressionTemplateTests
 
     /// <summary>
     /// A template carrying a constant never contains a parameter hole: a hole is created only for an
-    /// identifier bound to a composable parameter, and a parameter reference has no constant value. So
+    /// identifier bound to a view part parameter, and a parameter reference has no constant value. So
     /// substitution passes the constant through unchanged rather than having to recompute or clear it.
     /// </summary>
     [Fact]
@@ -84,7 +84,7 @@ public sealed class ExpressionTemplateTests
 
     /// <summary>
     /// A template that is exactly one parameter hole takes the argument's constant, which is the shape a
-    /// composable pass-through produces (Span[title], .Class(cls)). The substituted code becomes the
+    /// view part pass-through produces (Span[title], .Class(cls)). The substituted code becomes the
     /// constant literal rather than the local's name; the value is the same either way.
     /// </summary>
     [Fact]
@@ -102,7 +102,7 @@ public sealed class ExpressionTemplateTests
     /// <summary>
     /// Only a <em>string</em> constant is re-spelled in the hole's place. A <see langword="bool"/>
     /// argument keeps the local's name, and the template carries no constant, so the element it decorates
-    /// stays on the element path: the cost is a missed fold through a composable, never a wrong DOM.
+    /// stays on the element path: the cost is a missed fold through a view part, never a wrong DOM.
     /// </summary>
     [Fact]
     public void Substitute_LoneHole_WithABooleanConstantKeepsTheLocalName()

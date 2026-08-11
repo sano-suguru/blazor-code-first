@@ -10,23 +10,23 @@ internal enum ContentRootKind
     /// <summary>A single element/component frame; a <c>SetKey</c> can attach here.</summary>
     Element,
 
-    /// <summary>A region frame (bare If/ForEach, or a composable whose body is region-rooted); no keyable frame.</summary>
+    /// <summary>A region frame (bare If/ForEach, or a view part whose body is region-rooted); no keyable frame.</summary>
     Region,
 
-    /// <summary>A composable call whose target cannot be resolved (metadata-only, invalid, or cyclic).</summary>
+    /// <summary>A view part call whose target cannot be resolved (metadata-only, invalid, or cyclic).</summary>
     Unresolved,
 }
 
 /// <summary>
-/// Determines ForEach content keyability from the value-model templates and the composable registry, and
+/// Determines ForEach content keyability from the value-model templates and the view part registry, and
 /// collects BCF3003 for region-rooted content. This is reachability-independent (it walks templates, not
-/// expansions) and registry-driven for composable-call content, so BCF3003 fires once per definition/
+/// expansions) and registry-driven for view-part-call content, so BCF3003 fires once per definition/
 /// component regardless of call sites, replacing the former per-expansion emission.
 /// </summary>
 internal static class KeyabilityResolver
 {
-    /// <summary>Resolves the root frame kind of <paramref name="node"/>, following composable calls transitively.</summary>
-    public static ContentRootKind ResolveRootKind(RenderTemplateNode node, ComposableRegistry registry) =>
+    /// <summary>Resolves the root frame kind of <paramref name="node"/>, following view part calls transitively.</summary>
+    public static ContentRootKind ResolveRootKind(RenderTemplateNode node, ViewPartRegistry registry) =>
         ResolveRootKind(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
 
     /// <param name="content">
@@ -35,7 +35,7 @@ internal static class KeyabilityResolver
     /// </param>
     private static ContentRootKind ResolveRootKind(
         RenderTemplateNode node,
-        ComposableRegistry registry,
+        ViewPartRegistry registry,
         HashSet<string> activeKeys,
         IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
         node switch
@@ -45,7 +45,7 @@ internal static class KeyabilityResolver
                 or FragmentTemplateNode or RawMarkupTemplateNode
                 or RenderFragmentContentTemplateNode => ContentRootKind.Region,
             ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
-            ComposableCallTemplateNode call => ResolveCall(call, registry, activeKeys),
+            ViewPartCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
                 $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRootKind case for it."),
         };
@@ -57,7 +57,7 @@ internal static class KeyabilityResolver
     /// <remarks>
     /// Without this, <c>ForEach(xs, k, x =&gt; Bare()[Li[x]])</c> — where <c>Bare()</c> is <c>Slot</c> — reports
     /// BCF3003 although the caller supplied a keyable <c>Li</c> at that very site, and the author cannot act on
-    /// it: the suggested container would have to be added inside someone else's <c>[Composable]</c>.
+    /// it: the suggested container would have to be added inside someone else's <c>[ViewPart]</c>.
     /// <para>
     /// <see cref="ContentRootKind.Region"/> stays the answer when there is no call above the walk. That is the
     /// registry pass over an uncalled definition, where no caller exists to ask and the conservative answer is
@@ -66,7 +66,7 @@ internal static class KeyabilityResolver
     /// </remarks>
     private static ContentRootKind ResolveHole(
         ContentHoleTemplateNode hole,
-        ComposableRegistry registry,
+        ViewPartRegistry registry,
         HashSet<string> activeKeys,
         IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
         content is not null && content.TryGetValue(hole.ParameterOrdinal, out var supplied)
@@ -74,8 +74,8 @@ internal static class KeyabilityResolver
             : ContentRootKind.Region;
 
     private static ContentRootKind ResolveCall(
-        ComposableCallTemplateNode call,
-        ComposableRegistry registry,
+        ViewPartCallTemplateNode call,
+        ViewPartRegistry registry,
         HashSet<string> activeKeys)
     {
         // A cycle cannot be resolved to a concrete root; treat as unresolved and let expansion's BCF1002
@@ -114,7 +114,7 @@ internal static class KeyabilityResolver
     /// </summary>
     public static void CollectForEachContentDiagnostics(
         RenderTemplateNode node,
-        ComposableRegistry registry,
+        ViewPartRegistry registry,
         ImmutableArray<DiagnosticInfo>.Builder sink)
     {
         switch (node)
@@ -149,9 +149,9 @@ internal static class KeyabilityResolver
                     CollectForEachContentDiagnostics(slot.Content, registry, sink);
                 break;
 
-            case ComposableCallTemplateNode call:
+            case ViewPartCallTemplateNode call:
                 // The call's own body is walked once from the registry pass
-                // (CollectComposableForEachDiagnostics) and deliberately not re-walked here. What is walked
+                // (CollectViewPartForEachDiagnostics) and deliberately not re-walked here. What is walked
                 // here is the content the *call site* supplies, in brackets or as a View argument: both are
                 // subtrees written at this site, so a ForEach inside one belongs to this walk and would
                 // otherwise never be visited.
@@ -161,7 +161,7 @@ internal static class KeyabilityResolver
 
             // No nested template children to walk. Listed as cases rather than left to fall through, so the
             // default arm below can exist: this is the third exhaustive dispatch over the hierarchy, and the
-            // other two (ResolveRootKind above, ComposableExpander.ExpandNode) both throw on an unknown node.
+            // other two (ResolveRootKind above, ViewPartExpander.ExpandNode) both throw on an unknown node.
             // A node type added without a case here would mean a BCF3003 that never fires, which is invisible.
             case TextContentTemplateNode:
             case ContentHoleTemplateNode:
@@ -177,10 +177,10 @@ internal static class KeyabilityResolver
     }
 
     /// <summary>
-    /// Collects BCF3003 for every valid composable definition's body, reachability-independent (covers
-    /// composables that are never called). Deduped per definition by walking each body once.
+    /// Collects BCF3003 for every valid view part definition's body, reachability-independent (covers
+    /// view parts that are never called). Deduped per definition by walking each body once.
     /// </summary>
-    public static ImmutableArray<DiagnosticInfo> CollectComposableForEachDiagnostics(ComposableRegistry registry)
+    public static ImmutableArray<DiagnosticInfo> CollectViewPartForEachDiagnostics(ViewPartRegistry registry)
     {
         var sink = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         foreach (var entry in registry.Entries)

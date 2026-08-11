@@ -198,9 +198,9 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void ScalarParam_ElementBuilderValue_ReportsBCF3014()
+    public void ScalarParam_ElementViewValue_ReportsBCF3014()
     {
-        // ElementBuilder is as inert as View: the generic Param emits its value verbatim, so without this
+        // ElementView is as inert as View: the generic Param emits its value verbatim, so without this
         // the marker binds in place of content and renders silently wrong.
         var diagnostics = Run("""Component<Card>().Param(c => c.Payload, Div)""");
 
@@ -208,18 +208,18 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void Composable_WithAnElementBuilderParameter_IsRejected()
+    public void ViewPart_WithAnElementViewParameter_IsRejected()
     {
         var diagnostics = Run(
             """Card(Span)""",
             """
-            [Composable]
-            private static View Card(ElementBuilder slot) => Div[slot];
+            [ViewPart]
+            private static View Card(ElementView slot) => Div[slot];
             """);
 
         var rejection = Assert.Single(diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains(
-            "ElementBuilder parameters are unsupported",
+            "ElementView parameters are unsupported",
             rejection.GetMessage(System.Globalization.CultureInfo.InvariantCulture),
             System.StringComparison.Ordinal);
     }
@@ -343,33 +343,33 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// The unresolved type sits inside a <c>[Composable]</c> body that fails to translate, so only the
+    /// The unresolved type sits inside a <c>[ViewPart]</c> body that fails to translate, so only the
     /// failure-path sweep can reach it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Distinct from <c>UnresolvedEmittedTypeTests.ComposableBody_UnresolvedType_ReportsBCF3015Once</c>,
+    /// Distinct from <c>UnresolvedEmittedTypeTests.ViewPartBody_UnresolvedType_ReportsBCF3015Once</c>,
     /// whose body translates successfully: there BCF3015 comes from the success path
-    /// (<c>ExpressionTemplateFactory</c> reporting through <c>ComposableBodyContext</c>) and
+    /// (<c>ExpressionTemplateFactory</c> reporting through <c>ViewPartBodyContext</c>) and
     /// <c>UnresolvedValueTypeScanner</c> is never reached. Measured by deleting the scanner call from
-    /// <c>ComposableDefinitionFactory</c>: that test still passed, and so did every other behavioural test
+    /// <c>ViewPartDefinitionFactory</c>: that test still passed, and so did every other behavioural test
     /// in the suite, only the structural wiring guard failed. This case is the one that fails, and that
     /// is the whole reason it exists.
     /// </para>
     /// <para>
     /// The unbound spread is what forces the failure path, for the reason spelled out in
     /// <see cref="UnresolvedValueType_BesideAnUnboundSpreadInALiteral_ReportsBCF3015"/>; here it is written
-    /// inside the <c>[Composable]</c> body rather than in <c>Body</c>, so the sweep that finds it runs from
+    /// inside the <c>[ViewPart]</c> body rather than in <c>Body</c>, so the sweep that finds it runs from
     /// the other design-time-expression host.
     /// </para>
     /// </remarks>
     [Fact]
-    public void UnresolvedValueType_InsideAComposableBody_ReportsBCF3015()
+    public void UnresolvedValueType_InsideAViewPartBody_ReportsBCF3015()
     {
         var diagnostics = Run(
             """Div["ok"]""",
             """
-            [Composable]
+            [ViewPart]
             private static View Broken() => Div[[Span[typeof(Probe).Name], ..MissingMethod()]];
             """);
 
@@ -393,13 +393,13 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
-    public void DecoratingAComposableResult_ReportsBCF3008()
+    public void DecoratingAViewPartResult_ReportsBCF3008()
     {
-        // A [Composable] method returns View, which is precisely the domain BCF3008 forbids decorating.
+        // A [ViewPart] method returns View, which is precisely the domain BCF3008 forbids decorating.
         AssertReportsBCF3008(RunResult(
             """Card().Class("x")""",
             """
-            [Composable]
+            [ViewPart]
             private static View Card() => Div["c"];
             """));
     }
@@ -428,21 +428,21 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     /// <summary>
-    /// The misplaced decoration is written <em>inside</em> a <c>[Composable]</c> body rather than in
+    /// The misplaced decoration is written <em>inside</em> a <c>[ViewPart]</c> body rather than in
     /// <c>Body</c>, so the sweep that finds it runs from the other design-time-expression host.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Distinct from <see cref="DecoratingAComposableResult_ReportsBCF3008"/>, which decorates what a
-    /// composable <em>returns</em> and is written in <c>Body</c> like every other case in this group. Here
-    /// the composable's own body is the broken expression, and <c>Body</c> is healthy.
+    /// Distinct from <see cref="DecoratingAViewPartResult_ReportsBCF3008"/>, which decorates what a
+    /// view part <em>returns</em> and is written in <c>Body</c> like every other case in this group. Here
+    /// the view part's own body is the broken expression, and <c>Body</c> is healthy.
     /// </para>
     /// <para>
     /// Kept as its own case because the shape is not covered by any other: a design-time expression has two
-    /// hosts, <c>ComponentModelFactory</c> for <c>Body</c> and <c>ComposableDefinitionFactory</c> for
-    /// <c>[Composable]</c>, and each wires its own failure-path sweeps. BCF3008 was reported from inside
+    /// hosts, <c>ComponentModelFactory</c> for <c>Body</c> and <c>ViewPartDefinitionFactory</c> for
+    /// <c>[ViewPart]</c>, and each wires its own failure-path sweeps. BCF3008 was reported from inside
     /// <c>RenderExpressionAnalyzer.Classify</c>, which both hosts route through, until it moved to a
-    /// caller-invoked scanner; the composable host was then left without it, and every existing case here
+    /// caller-invoked scanner; the view part host was then left without it, and every existing case here
     /// shares the <c>Body</c> host template and so kept passing. Measured on that state, this input reported
     /// BCF1002 alone, "body must be a statically sequenceable expression", the generic text BCF3008 exists to
     /// displace. <c>FailurePathScannerParityTests</c> guards the wiring; this guards the author-facing
@@ -450,12 +450,12 @@ public sealed class BracketSurfaceDiagnosticTests
     /// </para>
     /// </remarks>
     [Fact]
-    public void DecoratingANonElement_InsideAComposableBody_ReportsBCF3008()
+    public void DecoratingANonElement_InsideAViewPartBody_ReportsBCF3008()
     {
         AssertReportsBCF3008(RunResult(
             """Div["ok"]""",
             """
-            [Composable]
+            [ViewPart]
             private static View Card() => Fragment("a").Class("x");
             """));
     }
@@ -479,7 +479,7 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         // One mistake, not three. The innermost decoration is the one whose receiver is the non-element,
         // so its span is where the chain first went wrong; everything outside it is written on the
-        // ElementBuilder that Roslyn's error recovery gave the failed call, and binds cleanly.
+        // ElementView that Roslyn's error recovery gave the failed call, and binds cleanly.
         var diagnostics = Run("""Fragment("a").Class("x").Id("y").Title("z")""");
 
         var report = Assert.Single(diagnostics, static d => d.Id == "BCF3008");
@@ -505,9 +505,9 @@ public sealed class BracketSurfaceDiagnosticTests
     /// and with a return type of their own. <c>Fragment("a").Describe("x")</c> borrows the
     /// <em>receiver</em>: a method on our <c>View</c>, returning <c>string</c>.
     /// <c>Fragment("a").Wrap(1)</c> borrows the whole <em>signature</em> but the name, our <c>View</c> in,
-    /// our <c>ElementBuilder</c> out, and differs only in what it is called.
+    /// our <c>ElementView</c> out, and differs only in what it is called.
     /// <c>Other.MakeBin().Id(1)</c> borrows the whole signature but the <em>receiver</em>, a genuine
-    /// decoration name, returning our <c>ElementBuilder</c>, and differs only in what it is written on. It
+    /// decoration name, returning our <c>ElementView</c>, and differs only in what it is written on. It
     /// is deliberately named <c>.Id</c> rather than <c>.Class</c>: a second unrelated <c>.Class</c> extension
     /// in the same compilation collides with <c>Other.Make().Class(1)</c>'s own, and Roslyn's error recovery
     /// stops offering a candidate return type for either call once the name is ambiguous, which would have
@@ -550,11 +550,11 @@ public sealed class BracketSurfaceDiagnosticTests
                     public static Box Make() => new();
                     public static string Class(this Box box, string value) => value;
                     public static string Describe(this View view, int value) => value.ToString();
-                    public static ElementBuilder Wrap(this View content, string tag) => Html.Div;
+                    public static ElementView Wrap(this View content, string tag) => Html.Div;
 
                     public sealed class Bin;
                     public static Bin MakeBin() => new();
-                    public static ElementBuilder Id(this Bin bin, string value) => Html.Div;
+                    public static ElementView Id(this Bin bin, string value) => Html.Div;
                 }
                 """),
         ]);

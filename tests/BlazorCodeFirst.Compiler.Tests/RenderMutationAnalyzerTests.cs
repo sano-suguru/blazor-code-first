@@ -121,7 +121,7 @@ public sealed class RenderMutationAnalyzerTests
     /// <summary>
     /// Positive case for the Html.OnClick exemption (simple increment): the mutation's nearest
     /// enclosing lambda is the (reduced) sole argument of the Html-mirror
-    /// <c>ElementBuilder.OnClick(...)</c> extension call, so it must not report BCF3001.
+    /// <c>ElementView.OnClick(...)</c> extension call, so it must not report BCF3001.
     /// </summary>
     private const string IncrementInHtmlOnClickHandlerSource = """
         using BlazorCodeFirst;
@@ -451,7 +451,7 @@ public sealed class RenderMutationAnalyzerTests
     // -----------------------------------------------------------------------
     // Receiver anchoring: a decoration is defined by the builder it extends, not by its name. These are
     // the only tests that can exercise that guard, because the shipped runtime declares every decoration
-    // on ElementBuilder and so can only prove the positive side — hence the in-source surface, which has
+    // on ElementView and so can only prove the positive side — hence the in-source surface, which has
     // to be the only BlazorCodeFirst in scope. Compare MembersWithTheWrongDeclaredTypes_AreNotRecognized
     // in BracketSurfaceGeneratorTests.
     // -----------------------------------------------------------------------
@@ -474,7 +474,7 @@ public sealed class RenderMutationAnalyzerTests
 
             public readonly struct View { }
 
-            public readonly struct ElementBuilder { }
+            public readonly struct ElementView { }
 
             public abstract class BodyComponentBase
             {
@@ -482,7 +482,7 @@ public sealed class RenderMutationAnalyzerTests
             }
 
             // Declared and empty: KnownSymbols.TryCreate keys on BlazorCodeFirst.Html, and without it the
-            // analyzer registers nothing, which would make the ElementBuilder case below pass vacuously.
+            // analyzer registers nothing, which would make the ElementView case below pass vacuously.
             public static class Html { }
 
             public static class Decorations
@@ -530,8 +530,8 @@ public sealed class RenderMutationAnalyzerTests
 
     [Theory]
     [MemberData(nameof(DecorationCallsWithAMutatingHandler))]
-    public void HandlerOnADecorationExtendingElementBuilder_DoesNotReportBcf3001(string call) =>
-        Assert.DoesNotContain(SurfaceDiagnostics("ElementBuilder", call), d => d.Id == "BCF3001");
+    public void HandlerOnADecorationExtendingElementView_DoesNotReportBcf3001(string call) =>
+        Assert.DoesNotContain(SurfaceDiagnostics("ElementView", call), d => d.Id == "BCF3001");
 
     [Theory]
     [MemberData(nameof(DecorationCallsWithAMutatingHandler))]
@@ -556,7 +556,7 @@ public sealed class RenderMutationAnalyzerTests
     [Fact]
     public void MutationInASecondDelegateArgument_StillReportsBcf3001() =>
         Assert.Contains(
-            SurfaceDiagnostics("ElementBuilder", """On("onclick", () => { }, v => _n = v)"""),
+            SurfaceDiagnostics("ElementView", """On("onclick", () => { }, v => _n = v)"""),
             d => d.Id == "BCF3001");
 
     /// <summary>
@@ -574,7 +574,7 @@ public sealed class RenderMutationAnalyzerTests
     [Fact]
     public void MutationInTheHandlerOfAnUnreadableEventShape_AlsoReportsBcf3001() =>
         Assert.Contains(
-            SurfaceDiagnostics("ElementBuilder", """On("onclick", () => _n++, v => { })"""),
+            SurfaceDiagnostics("ElementView", """On("onclick", () => _n++, v => { })"""),
             d => d.Id == "BCF3001");
 
     // -----------------------------------------------------------------------

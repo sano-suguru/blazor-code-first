@@ -311,7 +311,7 @@ internal static class RenderViewEmitter
     }
 
     /// <summary>
-    /// Emits a composable expansion's locals and then its body. Reached only when the expansion is not
+    /// Emits a view part expansion's locals and then its body. Reached only when the expansion is not
     /// foldable, that is when at least one local's initializer is not a compile-time constant: a fully
     /// constant expansion is absorbed into a markup frame by the fold check in <see cref="EmitNode"/> (a
     /// lone or root expansion) or <see cref="EmitChildren"/> (one among a sibling run), with its
@@ -326,7 +326,7 @@ internal static class RenderViewEmitter
                 $"{local.TypeName} {local.Name} = {local.Initializer.ToCode()};");
         }
 
-        // Forward the key to the composable body's root element/component.
+        // Forward the key to the view part body's root element/component.
         return EmitNode(writer, node.Body, startSeq, key);
     }
 

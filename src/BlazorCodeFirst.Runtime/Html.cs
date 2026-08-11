@@ -19,12 +19,12 @@ public static partial class Html
 {
     /// <summary>Design-time syntax for an arbitrary HTML element; <paramref name="tag"/> must be a
     /// compile-time constant. Supply children with <c>[…]</c>.</summary>
-    public static ElementBuilder Element(string tag) => default;
+    public static ElementView Element(string tag) => default;
 
     /// <summary>Design-time syntax for wrapper-less grouping: emits the children in sequence with no
     /// enclosing element (the React &lt;&gt;…&lt;/&gt; equivalent). A fragment opens no element, so it is
     /// non-keyable, it cannot be a ForEach content root (BCF3003), and cannot be decorated: decorations
-    /// apply to <see cref="ElementBuilder"/>, and a fragment is a <see cref="View"/>. Children may be zero
+    /// apply to <see cref="ElementView"/>, and a fragment is a <see cref="View"/>. Children may be zero
     /// or more mixed string/element values.</summary>
     public static View Fragment(params System.ReadOnlySpan<View> children) => default;
 
@@ -33,18 +33,23 @@ public static partial class Html
     /// escaping, so flowing untrusted data (user input, external responses) through here is an XSS vector.
     /// The value may be a string literal or a field/const reference (delivery-mechanism independent). Raw
     /// opens no element, so it cannot be a ForEach content root (BCF3003) and cannot be decorated:
-    /// decorations apply to <see cref="ElementBuilder"/>, and Raw is a <see cref="View"/>.</summary>
+    /// decorations apply to <see cref="ElementView"/>, and Raw is a <see cref="View"/>.</summary>
     public static View Raw(string rawHtml) => default;
 
     /// <summary>
-    /// Design-time syntax marking where a <c>[Composable]</c> part places the content its caller supplied
-    /// in brackets. Legal only in the body of a <c>[Composable]</c> method returning
-    /// <see cref="ContentView"/>, and exactly once there; anywhere else it is BCF3025.
+    /// Design-time syntax marking where a <c>[ViewPart]</c> part places the content its caller supplied
+    /// in brackets. Legal only in the body of a <c>[ViewPart]</c> method returning
+    /// <see cref="SlotView"/>, and exactly once there; anywhere else it is BCF3025.
     /// </summary>
     /// <remarks>
     /// Named for HTML's own <c>&lt;slot&gt;</c>, which means the same thing. That element has no helper of
     /// its own — it is exclusion group 3 in <c>DESIGN.md</c> §4.1, because Blazor creates no shadow root and
     /// nothing would fill it — so the name is free, and taking it collides with no element.
+    /// <para>
+    /// Its own type is <see cref="View"/>, not <see cref="SlotView"/>: this is a child expression, and it
+    /// composes where any child composes. <see cref="SlotView"/> is the return type of the part that
+    /// contains it, which is a different position, the one the caller's brackets attach to.
+    /// </para>
     /// <para>
     /// Inert: the generator splices the caller's own child expressions into this position at compile time.
     /// Nothing is captured and nothing is invoked, so content that is written twice in a body is emitted

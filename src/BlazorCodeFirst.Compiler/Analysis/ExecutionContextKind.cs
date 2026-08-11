@@ -8,7 +8,7 @@ internal enum ExecutionContextKind
 {
     /// <summary>
     /// Statically sequenceable construct: a direct design-time syntax call, decorator, <c>If</c>, keyed
-    /// <c>ForEach</c>, nested SSC expression, or statically expanded <c>[Composable]</c> call.
+    /// <c>ForEach</c>, nested SSC expression, or statically expanded <c>[ViewPart]</c> call.
     /// The generator emits <c>RenderTreeBuilder</c> calls with compile-time sequence constants.
     /// </summary>
     Ssc,
@@ -21,7 +21,7 @@ internal enum ExecutionContextKind
     Transplantable,
 
     /// <summary>
-    /// Opaque call: a non-<c>[Composable]</c> method returning <c>View</c> or any shape that cannot
+    /// Opaque call: a non-<c>[ViewPart]</c> method returning <c>View</c> or any shape that cannot
     /// be statically analyzed. The generator evaluates it at runtime as a <c>RenderFragment</c>-backed
     /// <c>View</c>, isolates it in a region, and reports diagnostic BCF2001.
     /// </summary>

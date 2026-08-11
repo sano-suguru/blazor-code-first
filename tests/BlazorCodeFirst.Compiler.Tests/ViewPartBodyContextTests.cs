@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
-public sealed class ComposableBodyContextTests
+public sealed class ViewPartBodyContextTests
 {
     [Fact]
     public void PushRenderVariable_WithZeroBaseParameters_AssignsOrdinalZeroThenOne()
@@ -24,7 +24,7 @@ public sealed class ComposableBodyContextTests
         var containing = (INamedTypeSymbol)model.GetDeclaredSymbol(
             tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>().Single())!;
 
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             model, containing, "Body",
             KnownSymbols.TryCreate(compilation)!,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
@@ -75,7 +75,7 @@ public sealed class ComposableBodyContextTests
         var contextParameter = body.DescendantNodes().OfType<ParameterSyntax>()
             .Single(static parameter => parameter.Identifier.ValueText == "context");
         var contextParameterSymbol = model.GetDeclaredSymbol(contextParameter)!;
-        var context = new ComposableBodyContext(
+        var context = new ViewPartBodyContext(
             model,
             (INamedTypeSymbol)model.GetDeclaredSymbol(host)!,
             "Body",
