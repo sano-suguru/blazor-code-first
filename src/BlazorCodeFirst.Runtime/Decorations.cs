@@ -106,9 +106,10 @@ public static class Decorations
     /// <see langword="bool"/> has nothing to format and neither problem.
     /// <para>
     /// One name is closed to this overload: <c>"class"</c> folds into the class channel, which joins its
-    /// decorations into one value as text, so a <see langword="bool"/> there means one thing on an element
-    /// carrying a single class decoration and another on an element carrying two (#159). That is BCF3023;
-    /// write a conditional class as a string expression, <c>.Class(active ? "on" : null)</c>.
+    /// decorations into one value as text, so that channel takes a <see cref="string"/> and nothing else.
+    /// A <see langword="bool"/> there means one thing on an element carrying a single class decoration and
+    /// another on an element carrying two (#159). That is BCF3023; write a conditional class as a string
+    /// expression, <c>.Class(active ? "on" : null)</c>.
     /// </para>
     /// </remarks>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>

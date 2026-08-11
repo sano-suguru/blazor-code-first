@@ -566,11 +566,21 @@ internal static class DiagnosticDescriptors
             "Method groups, anonymous methods, and block-bodied lambdas cannot be statically sequenced.");
 
     /// <summary>
-    /// BCF3023: <c>.Attr("class", …)</c> carries a value the class channel cannot join as text — a
-    /// <see langword="bool"/>, whether the author wrote one or reached the bare <c>.Attr("class")</c>
-    /// spelling. That name folds into the channel, which joins its decorations into one value.
+    /// BCF3023: a decoration written on the <c>class</c> name carries a value the class channel cannot join
+    /// as text, which is any value that is not a <see cref="string"/>. That name folds into the channel,
+    /// which joins its decorations into one value.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The condition is the channel's requirement, not a list of the overloads that fail it
+    /// (<c>ClassChannel.Admit</c> asks whether the resolved overload's value is a <see cref="string"/> and
+    /// refuses everything else, #193). Today the <see langword="bool"/> overload and the bare
+    /// <c>.Attr("class")</c> spelling are the only ways to reach it, because <see cref="string"/> and
+    /// <see langword="bool"/> are the only value types <c>.Attr</c> takes (<c>DESIGN.md</c> §4.1, #158). An
+    /// overload added later reaches it without the analyzer being touched, which is what the allow-list is
+    /// for, and the message names the type it found rather than assuming the one that made the rule
+    /// reachable (#223).
+    /// </para>
     /// <para>
     /// Unlike its siblings, this rule is not about a value that fails to translate; the value translates
     /// two different ways. With one class decoration on the element the channel emits the value alone, so
@@ -582,9 +592,11 @@ internal static class DiagnosticDescriptors
     /// rather than from the HTML parser.
     /// </para>
     /// <para>
-    /// <c>.Attr("class")</c> reaches the same rule without the author writing a <see langword="bool"/>
-    /// anywhere: the bare spelling stands for a presence, and a presence has no text (#178). It is reported
-    /// at the decoration's name, there being no value argument to point at.
+    /// <c>.Attr("class")</c> reaches the same rule without the author writing a value anywhere: the bare
+    /// spelling stands for a presence, and a presence has no text (#178). It is reported at the
+    /// decoration's name, there being no value argument to point at, and the message names the spelling
+    /// rather than the <see langword="bool"/> that spelling is synthesized into — that constant is the
+    /// compiler's, not the author's.
     /// </para>
     /// <para>
     /// The name is what makes this reachable, not the overload: <c>.Attr("disabled", flag)</c> is exactly
@@ -595,14 +607,15 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BCF3023 = new(
         id: "BCF3023",
         title: "Class attribute value must be a string",
-        messageFormat: "'class' folds into the class channel, which joins its values as text, so a bool has no meaning there; write the condition as a string expression such as .Class(condition ? \"name\" : null)",
+        messageFormat: "'class' folds into the class channel, which joins its values as text, so {0} has no meaning there; write the class as a string, .Class(\"name\") or .Class(condition ? \"name\" : null) for a conditional one",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "The bool overload of .Attr is Blazor's conditional-attribute form, and the bare .Attr(name) " +
-            "spelling stands for a presence; neither carries over to the class channel, where values are " +
-            "concatenated. Use .Class or the string overload of .Attr.");
+            "The class channel joins the decorations written on 'class' into one value as text, so it " +
+            "takes a string and nothing else. The bool overload of .Attr is Blazor's conditional-attribute " +
+            "form and the bare .Attr(name) spelling stands for a presence; neither is text. Use .Class or " +
+            "the string overload of .Attr.");
 
     /// <summary>
     /// BCF3024: an element carries both a class-channel decoration (<c>.Class</c> or

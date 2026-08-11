@@ -227,10 +227,10 @@ single `class` attribute, and `.Attr("class", …)` joins the same channel. Ever
 event is a single binding, and binding one twice on the same element reports BCF3010. There is no
 `style` shortcut, so prefer an external stylesheet and `.Class`.
 
-Because that channel joins its values as text, `class` is also the one name the `bool` overload
-cannot take, and `.Attr("class", flag)` reports BCF3023 — as does `.Attr("class")`, whose bare spelling
-stands for a presence and so has no text to join either. Write a conditional class as a string, using
-`null` for the term you want gone:
+Because that channel joins its values as text, `class` is the one name that takes a string and nothing
+else. `.Attr("class", flag)` reports BCF3023 — as does `.Attr("class")`, whose bare spelling stands for
+a presence and so has no text to join either. Write a conditional class as a string, using `null` for
+the term you want gone:
 
 ```csharp
 Div.Class("card").Class(_selected ? "is-selected" : "")

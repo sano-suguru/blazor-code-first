@@ -790,6 +790,21 @@ internal static class RenderExpressionAnalyzer
             Written is null
                 ? ExpressionTemplateFactory.ForBooleanConstant(true)
                 : ExpressionTemplateFactory.Create(Written, context);
+
+        /// <summary>
+        /// The value in words, for a rule that has to name what it refused: its type as the resolved
+        /// overload declares it, or the spelling that declares no value at all.
+        /// </summary>
+        /// <remarks>
+        /// Beside <see cref="Normalize"/> because both read <see cref="Written"/> for the same question,
+        /// whether the author wrote a value, and the two answers have to stay of one mind: a spelling
+        /// normalized into a <see langword="bool"/> constant here (#178) is the compiler's own step, and a
+        /// message that reported its type would describe that step rather than the source.
+        /// </remarks>
+        public string Describe(ITypeSymbol valueType) =>
+            Written is null
+                ? "the presence the bare .Attr(name) spelling stands for"
+                : $"a value of type '{valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)}'";
     }
 
     /// <summary>
@@ -899,7 +914,7 @@ internal static class RenderExpressionAnalyzer
             case ClassChannelAdmission.ValueDoesNotJoin:
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3023, value.Location, []));
+                    DiagnosticDescriptors.BCF3023, value.Location, [value.Describe(valueType)]));
                 return null;
 
             case ClassChannelAdmission.NameAlreadyBound:
