@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
@@ -10,9 +11,11 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// Reports BCF3008 when a decoration (<c>.Class</c>, a named attribute shortcut, an event shortcut,
 /// <c>.Attr</c> or <c>.On</c>) was written on a receiver that opens no element frame, <c>Fragment(…)</c>,
 /// <c>Raw(…)</c>, <c>If(…)</c>, <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[ViewPart]</c> result,
-/// an externally supplied <c>RenderFragment</c>, or an element that has already taken its children; and
+/// an externally supplied <c>RenderFragment</c>, or an element that has already taken its children;
 /// BCF3026 when the name written in a decoration's position is one <c>Decorations</c> does not declare at
-/// all, on a receiver that does open an element frame.
+/// all, on a receiver that does open an element frame; and BCF3028 when the type argument of an
+/// <c>.On&lt;TArgs&gt;</c> is not a <c>System.EventArgs</c>, which is the one shape of that rule C# refuses
+/// to bind.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -41,11 +44,19 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// here.
 /// </para>
 /// <para>
-/// Two diagnostics, one walk. They are disjoint by construction: BCF3008 requires
-/// <see cref="KnownSymbols.DeclaresDecorationNamed"/> to hold and BCF3026 requires it to fail, so no
-/// invocation can match both and neither has to be ordered against the other. Sharing the walk rather than
-/// adding a second scanner to <see cref="FailurePathScanners"/> keeps the host enumeration that type's
-/// remarks warn about from growing, and keeps a failed body paying one descendant traversal.
+/// Three diagnostics, one walk, because all three classify the same node: an invocation written in a
+/// decoration's position. BCF3008 requires <see cref="KnownSymbols.DeclaresDecorationNamed"/> to hold and
+/// BCF3026 requires it to fail, so those two are disjoint by construction and neither has to be ordered
+/// against the other. BCF3028 asks a third question of the same node, about the type argument rather than
+/// the name or the receiver, and reaches only what the first two leave: <c>On</c> is a name the runtime
+/// declares, which excludes BCF3026, and an element receiver excludes BCF3008. The <c>else</c> chain below
+/// states a priority for the one expression both of those could describe, a mistyped handler written on a
+/// <c>Fragment(…)</c>, where the receiver is the more fundamental mistake — but it is not what settles it,
+/// measured: a receiver an extension method cannot take leaves <c>GetSymbolInfo</c> with no candidate
+/// symbols at all, and BCF3028 reads its type argument off exactly those, so that shape cannot reach the
+/// third branch however the chain is ordered. Sharing the walk rather than adding a second scanner to
+/// <see cref="FailurePathScanners"/> keeps the host enumeration that type's remarks warn about from
+/// growing, and keeps a failed body paying one descendant traversal.
 /// </para>
 /// <para>
 /// A sweep on the failure path rather than a check inside <see cref="RenderExpressionAnalyzer"/>, for the
@@ -58,10 +69,12 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 internal static class RejectedDecorationScanner
 {
     /// <summary>
-    /// Records at most one BCF3008 and at most one BCF3026 into <paramref name="context"/> for the whole of
-    /// <paramref name="root"/>, each at the member name of the innermost invocation that matched it.
+    /// Records at most one BCF3008, one BCF3026 and one BCF3028 into <paramref name="context"/> for the whole
+    /// of <paramref name="root"/>. The first two report at the member name of the innermost invocation that
+    /// matched them, the third at the handler argument of the first invocation that matched it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// One report per body, not one per decoration: <c>Fragment("a").Class("x").Id("y")</c> is a single
     /// mistake, and the innermost failing decoration is the one whose receiver is the non-element, so its
     /// span points at where the chain first went wrong. Everything further out in such a chain binds
@@ -70,6 +83,13 @@ internal static class RejectedDecorationScanner
     /// <c>ElementView</c> receiver and resolves, but the containment test below keeps the guarantee
     /// independent of that recovery, and also holds it to one report when a body carries two unrelated
     /// misplaced decorations.
+    /// </para>
+    /// <para>
+    /// BCF3028 keeps the first match in source order rather than the innermost, because it is not a chain
+    /// defect: each mistyped handler is its own independent lookup of an event's argument type, argued the
+    /// way <see cref="ShadowedElementHelperScanner"/> argues its own anchor, and a chain carrying one does
+    /// not make the decorations around it wrong.
+    /// </para>
     /// </remarks>
     public static void Report(ExpressionSyntax root, ViewPartBodyContext context)
     {
@@ -83,6 +103,7 @@ internal static class RejectedDecorationScanner
 
         InvocationExpressionSyntax? misplaced = null;
         InvocationExpressionSyntax? unknown = null;
+        (ArgumentSyntax Handler, ITypeSymbol Declared)? mistyped = null;
 
         foreach (var invocation in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
@@ -99,6 +120,11 @@ internal static class RejectedDecorationScanner
             {
                 if (unknown is null || unknown.Span.Contains(invocation.Span))
                     unknown = invocation;
+            }
+            else if (mistyped is null
+                && TryGetMistypedEventArgument(invocation, context, out var handler, out var declared))
+            {
+                mistyped = (handler, declared);
             }
         }
 
@@ -119,6 +145,21 @@ internal static class RejectedDecorationScanner
                 DiagnosticDescriptors.BCF3026,
                 unknownAccess.Name.GetLocation(),
                 [unknownAccess.Name.Identifier.ValueText]));
+        }
+
+        // The handler rather than the decoration's name, because the parameter type written there is what has
+        // to change, and because that is where the decoration arm anchors the mismatch half of this same rule.
+        // The event's name is deliberately absent from the message: this call did not bind, so BCF3011 never
+        // ran and there is no guarantee the first argument is a constant to name.
+        if (mistyped is { } defect)
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3028,
+                defect.Handler.GetLocation(),
+                [
+                    defect.Declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    "an event's argument type must derive from System.EventArgs",
+                ]));
         }
     }
 
@@ -231,6 +272,93 @@ internal static class RejectedDecorationScanner
     /// and it keeps reporting BCF1003.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Whether <paramref name="invocation"/> is an <c>.On&lt;TArgs&gt;</c> whose type argument is outside the
+    /// <c>where TArgs : System.EventArgs</c> constraint the decoration declares. On a match,
+    /// <paramref name="handler"/> is the argument the report anchors at and <paramref name="declared"/> is the
+    /// type the author named.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one shape of BCF3028 that reaches a failure sweep. C# infers <c>TArgs</c> from the lambda's
+    /// parameter, finds the constraint unsatisfied, and rejects every candidate, so the decoration arm never
+    /// classifies this call and the mismatch check there cannot see it. The C# error is CS0311, which does
+    /// name the type and the constraint, and which the author never receives: the body does not translate, so
+    /// no <c>RenderView</c> is generated, so the class carries CS0534 and <c>csc</c> stops before binding
+    /// method bodies. Measured against a real build, the author's whole list was CS0534 and BCF1003 (#155).
+    /// </para>
+    /// <para>
+    /// The type argument is read off <see cref="SymbolInfo.CandidateSymbols"/>, which is where the substituted
+    /// <c>On&lt;int&gt;</c> survives a failed resolution, and the candidate is classified through
+    /// <see cref="KnownSymbols.ClassifySurfaceMethod"/> rather than matched by name: a name test would admit
+    /// any <c>On</c>, and unlike the two branches above there <em>is</em> a symbol to classify here even
+    /// though the call did not bind.
+    /// </para>
+    /// <para>
+    /// The type-parameter exclusion is not what keeps <c>.On("onclick")</c>, whose <c>TArgs</c> is left
+    /// uninferred, out of this report — measured: Roslyn answers the unsubstituted parameter's
+    /// <c>BaseType</c> with <c>System.EventArgs</c>, the bound the decoration declares, so the assignability
+    /// walk below already accepts it. It is written out all the same so the exclusion is stated in the code
+    /// rather than resting on a constraint that could be relaxed, and because reporting a type parameter
+    /// would blame a shape whose actual mistake is the missing handler. The error-type arm is the
+    /// neighbouring exclusion: an argument type that resolves to nothing is CS0246's business.
+    /// </para>
+    /// <para>
+    /// A call that resolved is not this branch, whatever its type argument: it belongs to the decoration arm,
+    /// which reports the mismatch half of BCF3028 from there. That is the same division
+    /// <see cref="IsMisplacedDecoration"/> draws with its own bound-symbol test, and it is what keeps one
+    /// expression from being reported twice.
+    /// </para>
+    /// </remarks>
+    private static bool TryGetMistypedEventArgument(
+        InvocationExpressionSyntax invocation,
+        ViewPartBodyContext context,
+        [MaybeNullWhen(false)] out ArgumentSyntax handler,
+        [MaybeNullWhen(false)] out ITypeSymbol declared)
+    {
+        handler = null;
+        declared = null;
+
+        if (context.KnownSymbols.EventArgsType is not { } eventArgsType)
+            return false;
+
+        var symbolInfo = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken);
+        if (symbolInfo.Symbol is not null)
+            return false;
+
+        foreach (var candidate in symbolInfo.CandidateSymbols)
+        {
+            if (candidate is not IMethodSymbol { TypeArguments.Length: 1 } method
+                || context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.On)
+            {
+                continue;
+            }
+
+            var typeArgument = method.TypeArguments[0];
+            if (typeArgument.TypeKind is TypeKind.TypeParameter or TypeKind.Error
+                || TypeSymbolFacts.IsAssignableTo(typeArgument, eventArgsType))
+            {
+                continue;
+            }
+
+            // Which argument carries the handler is asked of KnownSymbols rather than assumed to be the last,
+            // the same question the decoration arm asks of a call that bound. A candidate arrives in the
+            // reduced spelling, so its indices are already argument-space indices.
+            if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters))
+                continue;
+
+            var arguments = invocation.ArgumentList.Arguments;
+            if (eventParameters.HandlerIndex < 0 || eventParameters.HandlerIndex >= arguments.Count)
+                continue;
+
+            handler = arguments[eventParameters.HandlerIndex];
+            declared = typeArgument;
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsUnknownDecorationName(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {

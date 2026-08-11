@@ -723,6 +723,47 @@ internal static class DiagnosticDescriptors
             "member. Qualify the element as Html.<Name> to name it past the member.");
 
     /// <summary>
+    /// BCF3028: an event handler whose argument type is not one the named event can deliver — either it
+    /// disagrees with the event's <c>[EventHandler]</c> mapping, or it is not a <c>System.EventArgs</c> at
+    /// all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One descriptor for two shapes, with the reason carried in the message the way BCF1002 carries its
+    /// own (#155). To an author they are one mistake, naming the wrong argument type for an event, and the
+    /// fix is the same either way; two ids would split it by a distinction the author never made, namely
+    /// whether C# managed to bind the call.
+    /// </para>
+    /// <para>
+    /// The mismatch binds, so it is reported from the decoration arm where both sides are already in hand.
+    /// A <c>TArgs</c> outside the <c>where TArgs : System.EventArgs</c> constraint never binds, so it comes
+    /// from the failure-path sweep, the position BCF3008 reports from and for the same reason: the C# error
+    /// that would explain it (CS0311) is computed for a compilation the declaration-stage cutoff has already
+    /// abandoned, so the author was left with BCF1003's "not statically analyzable" — measured, #155.
+    /// </para>
+    /// <para>
+    /// The test is assignability rather than equality, because an <c>EventCallback&lt;TArgs&gt;</c> handed
+    /// the event's own argument object casts it to <c>TArgs</c>: a base type receives it and a sibling type
+    /// does not. Razor performs this check from the same metadata, so leaving it unreported would put this
+    /// surface behind Razor on a check Razor performs (<c>DESIGN.md</c> §4.1).
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3028 = new(
+        id: "BCF3028",
+        title: "Event handler cannot receive the event's arguments",
+        messageFormat: "The event handler cannot receive '{0}': {1}",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Blazor dispatches an event by casting its argument object to the handler's argument type, so " +
+            "that type has to be one the named event delivers, or a base of it. The mapping comes from the " +
+            "[EventHandler] metadata the framework ships and from any registration in the compilation " +
+            "being built; an event with no entry has no mapping and is not checked. A type that is not a " +
+            "System.EventArgs at all is outside the constraint the decoration declares and no event can " +
+            "deliver it.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

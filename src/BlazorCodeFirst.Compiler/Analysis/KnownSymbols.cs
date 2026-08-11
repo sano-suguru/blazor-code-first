@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
@@ -109,6 +110,16 @@ internal sealed class KnownSymbols
     /// type is <c>Expression&lt;Func&lt;TValue&gt;&gt;</c>.
     /// </summary>
     public INamedTypeSymbol? FuncType { get; }
+
+    /// <summary>
+    /// Resolved <c>System.EventArgs</c>, the base every event argument type derives from and the bound the
+    /// <c>.On&lt;TArgs&gt;</c> decoration declares, or null.
+    /// </summary>
+    /// <remarks>
+    /// Guard on this being non-null before comparing against it, for the reason
+    /// <see cref="ElementViewType"/>'s remarks give.
+    /// </remarks>
+    public INamedTypeSymbol? EventArgsType { get; }
 
     private readonly Dictionary<ISymbol, SurfaceMethodKind> _surfaceMethods;
 
@@ -458,6 +469,32 @@ internal sealed class KnownSymbols
     /// </remarks>
     public IMethodSymbol? HtmlComponent { get; }
 
+    /// <summary>
+    /// The <c>[EventHandler]</c> registrations the framework ships, event name → argument type, resolved on
+    /// first use. Read before <see cref="_sourceEventArguments"/>: this table is the canonical one, and a
+    /// compilation re-registering a name it already carries does not displace it.
+    /// </summary>
+    /// <remarks>
+    /// Lazy for cost rather than for correctness. A compilation that never writes <c>.On&lt;TArgs&gt;</c>
+    /// asks nothing of either table, and <see cref="System.Lazy{T}"/> rather than a null check because
+    /// <c>RenderMutationAnalyzer</c> resolves one instance at compilation-start and its per-node callbacks
+    /// run concurrently against it.
+    /// </remarks>
+    private readonly System.Lazy<Dictionary<string, INamedTypeSymbol>> _frameworkEventArguments;
+
+    /// <summary>
+    /// The <c>[EventHandler]</c> registrations declared in the compilation being built, which is how a
+    /// custom event is registered at all. Resolved on first use, and only for an event name the framework
+    /// table does not answer, so the walk over the compilation's own types is paid by a custom event rather
+    /// than by every typed handler.
+    /// </summary>
+    /// <remarks>
+    /// Referenced assemblies are deliberately not swept: #155 could not bound what that costs, so a
+    /// registration living in one goes unread and is recorded as residue (<c>ARCHITECTURE.md</c> 付録A
+    /// BCF3028).
+    /// </remarks>
+    private readonly System.Lazy<Dictionary<string, INamedTypeSymbol>> _sourceEventArguments;
+
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
         ViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.View");
@@ -485,6 +522,28 @@ internal sealed class KnownSymbols
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallback`1");
         ExpressionType = compilation.GetTypeByMetadataName("System.Linq.Expressions.Expression`1");
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
+        EventArgsType = compilation.GetTypeByMetadataName("System.EventArgs");
+
+        // Two sources for one table, and both are gated on the framework's own. EventHandlerAttribute is
+        // declared in Microsoft.AspNetCore.Components, which this compiler's own runtime references, but the
+        // registrations that give an event name a meaning ship in Microsoft.AspNetCore.Components.Web. A
+        // compilation without that assembly has no mapping to disagree with, so the check is skipped in
+        // silence rather than reported (#155) -- and the walk below is then never paid either.
+        var eventHandlerAttributeType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventHandlerAttribute");
+        var eventHandlersType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.Web.EventHandlers");
+        var mappingAvailable = eventHandlerAttributeType is not null && eventHandlersType is not null;
+
+        _frameworkEventArguments = new System.Lazy<Dictionary<string, INamedTypeSymbol>>(() =>
+            mappingAvailable
+                ? CollectEventArguments(eventHandlersType!, eventHandlerAttributeType!)
+                : []);
+
+        _sourceEventArguments = new System.Lazy<Dictionary<string, INamedTypeSymbol>>(() =>
+            mappingAvailable
+                ? CollectEventArguments(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
+                : []);
 
         var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
         _surfaceMethods = new Dictionary<ISymbol, SurfaceMethodKind>(SymbolEqualityComparer.Default);
@@ -858,6 +917,118 @@ internal sealed class KnownSymbols
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The argument type the event named <paramref name="eventName"/> delivers, according to the
+    /// <c>[EventHandler]</c> metadata this compilation can see, or <see langword="false"/> when the event has
+    /// no registration and therefore no mapping to check a handler against.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The framework's own table is consulted first and a registration in the compilation being built cannot
+    /// displace one of its names. That order is what makes the walk over the compilation's types rare: a
+    /// standard event is answered from metadata, and only a custom name reaches the second table. It is also
+    /// the right answer where both register a name, since Blazor's dispatch uses the framework's type.
+    /// </para>
+    /// <para>
+    /// A name registered twice within the compilation, with two different types, is left out of the map
+    /// entirely rather than resolved by an order nobody wrote down. Silence under ambiguity is the
+    /// under-reporting direction, which is the safe one for a diagnostic that names a specific mistake.
+    /// </para>
+    /// </remarks>
+    public bool TryGetEventArgumentType(
+        string eventName, [MaybeNullWhen(false)] out INamedTypeSymbol argumentType) =>
+        _frameworkEventArguments.Value.TryGetValue(eventName, out argumentType)
+        || _sourceEventArguments.Value.TryGetValue(eventName, out argumentType);
+
+    /// <summary>
+    /// The <c>[EventHandler]</c> registrations on <paramref name="declaringType"/>, which is how the
+    /// framework's table is declared: one attribute per event on a single otherwise empty class.
+    /// </summary>
+    private static Dictionary<string, INamedTypeSymbol> CollectEventArguments(
+        INamedTypeSymbol declaringType, INamedTypeSymbol eventHandlerAttributeType)
+    {
+        var registrations = new Dictionary<string, INamedTypeSymbol>(System.StringComparer.Ordinal);
+        var ambiguous = new HashSet<string>(System.StringComparer.Ordinal);
+        Collect(declaringType, eventHandlerAttributeType, registrations, ambiguous);
+        return registrations;
+    }
+
+    /// <summary>
+    /// The <c>[EventHandler]</c> registrations anywhere under <paramref name="root"/>, nested types
+    /// included, which is where a consumer's own custom-event registration lives.
+    /// </summary>
+    private static Dictionary<string, INamedTypeSymbol> CollectEventArguments(
+        INamespaceSymbol root, INamedTypeSymbol eventHandlerAttributeType)
+    {
+        var registrations = new Dictionary<string, INamedTypeSymbol>(System.StringComparer.Ordinal);
+        var ambiguous = new HashSet<string>(System.StringComparer.Ordinal);
+        CollectFromNamespace(root, eventHandlerAttributeType, registrations, ambiguous);
+        return registrations;
+    }
+
+    private static void CollectFromNamespace(
+        INamespaceSymbol container,
+        INamedTypeSymbol eventHandlerAttributeType,
+        Dictionary<string, INamedTypeSymbol> registrations,
+        HashSet<string> ambiguous)
+    {
+        foreach (var member in container.GetMembers())
+        {
+            switch (member)
+            {
+                case INamespaceSymbol nested:
+                    CollectFromNamespace(nested, eventHandlerAttributeType, registrations, ambiguous);
+                    break;
+                case INamedTypeSymbol type:
+                    Collect(type, eventHandlerAttributeType, registrations, ambiguous);
+                    break;
+            }
+        }
+    }
+
+    private static void Collect(
+        INamedTypeSymbol type,
+        INamedTypeSymbol eventHandlerAttributeType,
+        Dictionary<string, INamedTypeSymbol> registrations,
+        HashSet<string> ambiguous)
+    {
+        foreach (var attribute in type.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, eventHandlerAttributeType))
+                continue;
+
+            // Both constructors the attribute declares start with (attributeName, eventArgsType); the
+            // longer one adds the two propagation flags, which say nothing about the argument type. Read by
+            // position rather than by parameter name because that is what an attribute's constructor
+            // arguments are, and reject anything that does not have the two.
+            if (attribute.ConstructorArguments.Length < 2
+                || attribute.ConstructorArguments[0].Value is not string eventName
+                || eventName.Length == 0
+                || attribute.ConstructorArguments[1].Value is not INamedTypeSymbol argumentType)
+            {
+                continue;
+            }
+
+            if (ambiguous.Contains(eventName))
+                continue;
+
+            if (registrations.TryGetValue(eventName, out var existing))
+            {
+                if (SymbolEqualityComparer.Default.Equals(existing, argumentType))
+                    continue;
+
+                ambiguous.Add(eventName);
+                registrations.Remove(eventName);
+                continue;
+            }
+
+            registrations[eventName] = argumentType;
+        }
+
+        foreach (var nested in type.GetTypeMembers())
+            Collect(nested, eventHandlerAttributeType, registrations, ambiguous);
     }
 
     private static SurfaceMethodKind ClassifyComponentParameterDefinition(

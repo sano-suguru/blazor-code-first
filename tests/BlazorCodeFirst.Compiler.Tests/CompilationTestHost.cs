@@ -309,13 +309,41 @@ public static class CompilationTestHost
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
     /// <summary>
+    /// Creates a compilation from raw <c>(Path, Source)</c> tuples that does <em>not</em> reference
+    /// <c>Microsoft.AspNetCore.Components.Web</c>, the assembly carrying the <c>[EventHandler]</c> table
+    /// BCF3028 reads. Nothing else about the surface changes: <c>ChangeEventArgs</c> and the rest of the
+    /// argument types this reaches for are declared in <c>Microsoft.AspNetCore.Components</c>, which stays
+    /// referenced, so a body that names one still compiles and only the mapping is gone.
+    /// </summary>
+    internal static CSharpCompilation CreateCompilationWithoutComponentsWeb(
+        params (string Path, string Source)[] sources)
+    {
+        var syntaxTrees = sources
+            .Select(static source => CSharpSyntaxTree.ParseText(
+                source.Source,
+                CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
+                path: source.Path))
+            .ToArray();
+
+        return CSharpCompilation.Create(
+            assemblyName: "TestAssembly",
+            syntaxTrees: syntaxTrees,
+            references: BuildMetadataReferences(includeComponentsWeb: false),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+    }
+
+    /// <summary>
     /// Builds the metadata references shared by every test compilation: the host process's trusted
-    /// platform assemblies plus <c>Microsoft.AspNetCore.Components</c>. When <paramref name="includeRuntime"/>
+    /// platform assemblies plus <c>Microsoft.AspNetCore.Components</c> and
+    /// <c>Microsoft.AspNetCore.Components.Web</c>. When <paramref name="includeRuntime"/>
     /// is <see langword="true"/> (the default) the <c>BlazorCodeFirst.Runtime</c> assembly is also referenced;
     /// pass <see langword="false"/> when the test defines the <c>BlazorCodeFirst</c> types in-source and must
-    /// not pull in the compiled runtime.
+    /// not pull in the compiled runtime. Pass <paramref name="includeComponentsWeb"/> as
+    /// <see langword="false"/> to build the compilation an author gets without the <c>[EventHandler]</c>
+    /// table, which is what BCF3028 skips in silence.
     /// </summary>
-    internal static ImmutableArray<MetadataReference> BuildMetadataReferences(bool includeRuntime = true)
+    internal static ImmutableArray<MetadataReference> BuildMetadataReferences(
+        bool includeRuntime = true, bool includeComponentsWeb = true)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var references = new List<MetadataReference>();
@@ -327,16 +355,22 @@ public static class CompilationTestHost
         }
 
         var runtimeAssemblyPath = typeof(BlazorCodeFirst.BodyComponentBase).Assembly.Location;
+        var componentsWebAssemblyPath = typeof(Microsoft.AspNetCore.Components.Web.EventHandlers)
+            .Assembly.Location;
 
         // BCL and shared-framework assemblies available to the host process. The runtime is skipped here
         // when it is not wanted: this test project references BlazorCodeFirst.Runtime, so its own deps.json
         // lists BlazorCodeFirst.Runtime.dll as a runtime asset and the assembly is in TPA. Without this
         // filter the conditional Add below never excluded anything, the runtime came in through TPA either
         // way, and an in-source shim only won by CS0436 source shadowing rather than by isolation.
+        // Microsoft.AspNetCore.Components.Web arrives the same way and is filtered for the same reason.
         foreach (var path in ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
                      .Split(Path.PathSeparator))
         {
             if (!includeRuntime && IsSameAssemblyFile(path, runtimeAssemblyPath))
+                continue;
+
+            if (!includeComponentsWeb && IsSameAssemblyFile(path, componentsWebAssemblyPath))
                 continue;
 
             Add(path);
@@ -348,6 +382,12 @@ public static class CompilationTestHost
 
         // Microsoft.AspNetCore.Components (provides ComponentBase, RenderTreeBuilder)
         Add(typeof(ComponentBase).Assembly.Location);
+
+        // Microsoft.AspNetCore.Components.Web (provides the [EventHandler] event → argument type table and
+        // the MouseEventArgs family it names). Added explicitly rather than left to TPA so that a
+        // compilation an ordinary Blazor consumer would have is what these tests compile against.
+        if (includeComponentsWeb)
+            Add(componentsWebAssemblyPath);
 
         return [.. references];
     }

@@ -601,6 +601,15 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
+            // Ahead of the duplicate check, because this is a defect of the decoration on its own while
+            // BCF3010 is a defect of the pair. On an element carrying the same event twice with both handlers
+            // mistyped, the argument type is what the author has to fix either way.
+            if (ReportMistypedEventArgument(method, eventName, handlerArgument, context))
+            {
+                context.RejectUnresolvedValueRecovery(invocation.Span);
+                return null;
+            }
+
             if (HasBinding(element, eventName))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
@@ -670,6 +679,67 @@ internal static class RenderExpressionAnalyzer
             Attributes = element.Attributes.AsImmutableArray().Add(
                 new AttributeTemplate(attrName, value.Normalize(context))),
         };
+    }
+
+    /// <summary>
+    /// Reports BCF3028 when the argument type a resolved <c>.On&lt;TArgs&gt;</c> declares is not one the named
+    /// event delivers, and answers whether it did.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The other half of BCF3028 lives in <see cref="RejectedDecorationScanner"/>: a <c>TArgs</c> outside the
+    /// <c>where TArgs : System.EventArgs</c> constraint never binds, so it cannot reach this arm at all. What
+    /// arrives here has bound, which is exactly why nothing else reports it — the code type-checks and does
+    /// not mean what it says (#155).
+    /// </para>
+    /// <para>
+    /// Both sides are already in hand: <paramref name="eventName"/> is a compile-time constant, BCF3011
+    /// having required one, and the argument type is the type argument C# resolved before the generator
+    /// looked at anything, so nothing here has to inspect the lambda. The argument-less overloads and the
+    /// event shortcuts carry no type argument, so the arity test below is what leaves them alone rather than
+    /// a classification test.
+    /// </para>
+    /// <para>
+    /// An event with no <c>[EventHandler]</c> registration has no mapping and is not reported, which is the
+    /// only answer available: this surface's tag is a string, so there is nothing else to check a custom
+    /// event's arguments against.
+    /// </para>
+    /// </remarks>
+    private static bool ReportMistypedEventArgument(
+        IMethodSymbol method,
+        string eventName,
+        ArgumentSyntax handlerArgument,
+        ViewPartBodyContext context)
+    {
+        if (method.TypeArguments.Length != 1)
+            return false;
+
+        var declared = method.TypeArguments[0];
+        if (declared.TypeKind == TypeKind.Error)
+            return false;
+
+        if (!context.KnownSymbols.TryGetEventArgumentType(eventName, out var delivered))
+            return false;
+
+        if (TypeSymbolFacts.IsAssignableTo(delivered, declared))
+            return false;
+
+        var deliveredName = delivered.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+        // Located at the handler, because the parameter type written there is what has to change. The event
+        // name could have been the mistake instead, and the message names it so that reading stays open to
+        // the author; but only one of the two can carry the location, and nothing here can tell which of them
+        // was meant.
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3028,
+            handlerArgument.GetLocation(),
+            [
+                declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                $"'{eventName}' delivers '{deliveredName}'; write the handler's parameter as that type or "
+                    + "as a base of it",
+            ]));
+
+        return true;
     }
 
     /// <summary>

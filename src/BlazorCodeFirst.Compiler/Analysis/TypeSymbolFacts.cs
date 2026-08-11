@@ -38,6 +38,29 @@ internal static class TypeSymbolFacts
     }
 
     /// <summary>
+    /// Whether a value of <paramref name="type"/> survives the cast into <paramref name="target"/> that
+    /// Blazor's event dispatch performs: identity, or <paramref name="target"/> somewhere on
+    /// <paramref name="type"/>'s base chain.
+    /// </summary>
+    /// <remarks>
+    /// Written as a base walk rather than through <c>Compilation.ClassifyConversion</c> because that is
+    /// exactly the question: <c>EventCallback&lt;TArgs&gt;</c> receives the event's argument object and casts
+    /// it, so a base type of the delivered type receives it and a sibling does not. Interfaces are not
+    /// considered, because an event argument type is a class in every case the mapping can name, and neither
+    /// is a user-defined conversion, because a cast at dispatch time does not apply one.
+    /// </remarks>
+    public static bool IsAssignableTo(ITypeSymbol type, ITypeSymbol target)
+    {
+        for (ITypeSymbol? current = type; current is not null; current = current.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(current, target))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Whether <paramref name="type"/> can be written as a fully qualified type name in a generated file
     /// that carries no <c>using</c> directives and is not <c>unsafe</c>. Anonymous types, pointer types,
     /// open type parameters, file-local types, function pointers, and otherwise unnameable types cannot be.
