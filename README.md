@@ -43,24 +43,32 @@ public partial class CounterPage : BodyComponentBase
 ```
 
 That is `tests/BlazorCodeFirst.WebAppTestHost/Components/CounterPage.cs` without its namespace
-declaration, copied from a project CI builds and tests rather than written for the README. Run it with
+declaration. It is copied from a project that CI builds and tests, not written for the README.
+Run it with
 `dotnet watch --project tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj`.
 
 ## What "type-safe" means here
 
 `Body` is an ordinary typed C# expression, so the compiler checks names and types, and refactorings
 propagate through it like any other code. It is not compile-time validation of HTML. Every element
-is one unified node type carrying a string tag, hiccup and ScalaTags style rather than kotlinx.html
-style, so `Img["child"]` and `Div.Href(…)` both type-check. `DESIGN.md` §4.1 records the position and
-separates the two: `.Href(…)` on a `Div` renders as written and is not diagnosed, while `Img["child"]`
-renders differently under static SSR and under interactive rendering, so it is rejected as BCF3016.
-What is checked is the arity of the check, not validity: a break decidable from the element tag alone
-can be diagnosed, while one that needs the (parent, child) pair — `Table[Div["x"]]` — is not.
+is one unified node type carrying a string tag, in the style of hiccup and ScalaTags rather than
+kotlinx.html, so `Img["child"]` and `Div.Href(…)` both type-check. `DESIGN.md` §4.1 records that
+position and separates the two cases. `.Href(…)` on a `Div` renders as written and is not diagnosed.
+`Img["child"]` renders differently under static SSR than under interactive rendering, so it is
+rejected as BCF3016. What can be checked is bounded by the arity of the check, not by validity: a
+break decidable from the element tag alone can be diagnosed, while one that needs the (parent, child)
+pair, such as `Table[Div["x"]]`, is not.
 
-What C# cannot check is the *shape* of a `Body`: a component that forgets `partial`, state mutated
-inside `Body`, a decoration applied to something that is not a single element, a duplicate
-attribute, a non-constant tag name. Those are enforced after the fact by the compiler's own
-BCF1xxx/BCF3xxx diagnostics, listed in `ARCHITECTURE.md`.
+What C# cannot check is the *shape* of a `Body`:
+
+- a component that forgets `partial`
+- state mutated inside `Body`
+- a decoration applied to something that is not a single element
+- a duplicate attribute
+- a non-constant tag name
+
+The compiler's own BCF1xxx/BCF3xxx diagnostics enforce those after the fact, and `ARCHITECTURE.md`
+lists them.
 
 ## Status
 
@@ -70,28 +78,28 @@ issue.
 
 Available today:
 
-- An element helper for every element the HTML Living Standard's element index lists as conforming,
-  minus six reasoned exclusions recorded in `DESIGN.md` §4.1; `Element(tag)` still writes those, and
-  custom elements, Web Components and foreign vocabularies. Plus `Fragment(…)` and `Raw(html)` for
-  trusted HTML.
+- An element helper for every element that the HTML Living Standard's element index lists as
+  conforming, minus six reasoned exclusions recorded in `DESIGN.md` §4.1. `Element(tag)` still writes
+  those six, along with custom elements, Web Components and foreign vocabularies. Plus `Fragment(…)`
+  and `Raw(html)` for trusted HTML.
 - Forms can use string/bool `.Bind`, component `.Bind`, and typed `.On<TArgs>` handlers. Generic
   `RenderFragment<TContext>` parameters such as `EditForm.ChildContent` accept BlazorCodeFirst content
   through `.Template`, with either an ignored or named context.
 - Mixed children, supplied in brackets after the tag and its attributes (`Div.Class("card")[…]`):
-  bare strings and `View`s in the same list; a Blazor `RenderFragment` is also a child, which is how
-  Razor-supplied content flows in.
+  bare strings and `View`s go in the same list. A Blazor `RenderFragment` is also a child, which is
+  how Razor-supplied content flows in.
 - Decorations: `.Class` (folding), the `.Href` `.Src` `.Alt` `.Id` `.Type` `.Title` `.Role`
-  shortcuts, generic `.Attr(name, string)` and `.Attr(name, bool)`, and events: `.OnClick` and
-  `.On(eventName, …)` take `Action` or `Func<Task>` handlers, `.On<TArgs>(eventName, …)` takes
+  shortcuts, and generic `.Attr(name, string)` and `.Attr(name, bool)`. Events: `.OnClick` and
+  `.On(eventName, …)` take `Action` or `Func<Task>` handlers, and `.On<TArgs>(eventName, …)` takes
   `Action<TArgs>` or `Func<TArgs, Task>`.
 - Control flow: `If(condition, then, otherwise)` and keyed `ForEach(source, key, content)`.
-- Razor interop in both directions: `Component<T>()` with `.Param(…)`, `.Template(…)` and child
-  content renders an existing Razor component, and a BlazorCodeFirst component is an ordinary
-  component that Razor can use.
+- Razor interop in both directions. `Component<T>()` renders an existing Razor component, taking
+  `.Param(…)`, `.Template(…)` and child content. In the other direction, a BlazorCodeFirst component
+  is an ordinary component that Razor can use.
 - Layouts: `ChromeLayoutBase` with a `Chrome` expression.
 - Reusable `[ViewPart]` methods, expanded statically into the caller. One that wraps caller-supplied
   content returns `SlotView` and writes `Slot` where the content belongs, so the call takes brackets
-  the way an element does: `Card("Profile")[P["body"]]`. Further slots are `View` parameters —
+  the way an element does: `Card("Profile")[P["body"]]`. Further slots are `View` parameters, as in
   `Panel(H2["Title"])[P["body"]]`.
 
 Not covered yet, tracked as a single surface-area inventory in
@@ -114,7 +122,7 @@ That produces a single `BlazorCodeFirst` `0.1.0-dev` package carrying both halve
 a NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project.
 
 Consuming the package needs .NET SDK 10.0.100 or later, and Visual Studio 2026 version 18.0 or later
-where the IDE is used: the generator ships as a Roslyn 5.0 analyzer, and an older compiler refuses
+where the IDE is used. The generator ships as a Roslyn 5.0 analyzer, and an older compiler refuses
 to load it. That is a separate requirement from building this repository, which pins the SDK to
 10.0.300 in `global.json`.
 

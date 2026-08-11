@@ -17,7 +17,7 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
 
 - `src/BlazorCodeFirst.Runtime`: runtime types (`BodyComponentBase`, the inert
   element helpers, the `ElementView` decorators and child-list indexer that
-  `View` results come from, `Component<T>` interop).
+  produce `View` results, `Component<T>` interop).
 - `src/BlazorCodeFirst.Compiler`: the Roslyn source generator and analyzers.
 - `tests/BlazorCodeFirst.Runtime.Tests`, `tests/BlazorCodeFirst.Compiler.Tests`,
   `tests/BlazorCodeFirst.IntegrationTests`: unit, generator/analyzer, and
@@ -28,9 +28,9 @@ roll-forward. Repository-wide build settings live in `Directory.Build.props`,
   diagnostic tests drive the generator in-process and cannot see whether a
   diagnostic reaches a build at all.
 - `tests/BlazorCodeFirst.WebAppTestHost`: a Blazor Web App with an
-  `InteractiveServer` render mode. The only project here that prerenders over a
-  real HTTP pipeline and then hydrates, which no other test layer can observe.
-  Run it with `dotnet watch` to look at generated output in a browser.
+  `InteractiveServer` render mode. It is the only project here that prerenders
+  over a real HTTP pipeline and then hydrates, which no other test layer can
+  observe. Run it with `dotnet watch` to look at generated output in a browser.
 - `tests/BlazorCodeFirst.WebAppTests`: asserts that host's prerendered HTML
   through `WebApplicationFactory`.
 
@@ -39,7 +39,8 @@ there fails to compile by design. See its README before adding one.
 
 `tests/msbuild-fixtures` contains projects expected to build successfully under nested real MSBuild.
 They are separate from `tests/diagnostic-fixtures`, where every project must fail. The Razor interop
-fixtures verify both ProjectReference and isolated NuGet-package delivery and inspect generated source.
+fixtures verify both ProjectReference and isolated NuGet-package delivery, and they inspect generated
+source.
 
 `tests/BlazorCodeFirst.TrimTests` and `tests/BlazorCodeFirst.TrimTestApp` live in the
 repository but stay outside the solution until the package-based trimming
@@ -80,28 +81,29 @@ that follow it in the block above do not, so a break in those fixtures surfaces 
 test project alone.
 
 These deliberately omit `--no-build`, which reuses whatever was compiled last and
-so reports a pass for code that was never compiled. CI can pass it
+so reports a pass for code that was never compiled. CI can supply it
 (`ci.yml` builds in the preceding step); a local edit-and-test loop cannot.
 
 Every figure in `DESIGN.md` §7.1 and §7.2 comes from the last two commands. Both
 compare against something, and both refuse to report a number unless the two
-sides render frame-for-frame equivalent output apart from sequence numbers: the
-§7.2 comparison asserts it in `VariantEquivalenceTests`, and the benchmark exits
-non-zero from `Program.Main` before BenchmarkDotNet starts. A number from a
-mismatched comparison would describe the mismatch, not the compilation strategy.
+sides render frame-for-frame equivalent output apart from sequence numbers. The
+§7.2 comparison asserts that equivalence in `VariantEquivalenceTests`, and the
+benchmark exits non-zero from `Program.Main` before BenchmarkDotNet starts. A
+number from a mismatched comparison would describe the mismatch, not the
+compilation strategy.
 
 No CI step runs either one. A published figure has to be reproducible on demand,
 which is a lower bar than a per-PR gate; gating would need a noise threshold and
 a failure policy that nothing has decided yet. The §7.2 assertions do ride the
-ordinary `dotnet test BlazorCodeFirst.slnx` run, because they are tests — that
+ordinary `dotnet test BlazorCodeFirst.slnx` run, because they are tests. That
 follows from where they live, and is not a gate on the numbers.
 
 The benchmark project holds a second measurement set that is **not** published.
 `StaticFoldBenchmarks` compares folded markup frames against element frames to
-decide #140, and it reports times, which §7.1 deliberately does not publish
-because the variance is large and machine-dependent. No CI step runs it either,
-for the same reason as above. `--filter '*'` picks it up along with the §7.1
-benchmarks; to run only it:
+decide #140, and it reports times. §7.1 deliberately does not publish those
+times, because the variance is large and machine-dependent. No CI step runs it
+either, for the same reason as above. `--filter '*'` picks it up along with the
+§7.1 benchmarks; to run only it:
 
 ```bash
 # The #140 decision input only (not a DESIGN.md figure)
@@ -110,7 +112,7 @@ dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*S
 
 Its two component pairs were written before the emitter folded, when the element
 spelling was the unfolded baseline and the markup spelling hand-wrote the folded
-shape with `Html.Raw`, so the two sides then rendered deliberately different
+shape with `Html.Raw`. The two sides then rendered deliberately different
 frames. Now that the emitter folds, each pair's two sides emit the same frames,
 and `Program.Main` gates that equality rather than the strict inequality it once
 required: if the counts diverge, the element spelling stopped folding.
@@ -119,8 +121,8 @@ render the same DOM.
 
 `ClassChannelBenchmarks` is a third unpublished set. It measures what the class
 channel's join allocates, before and after a change to the generation rule that
-builds it, and has no second side: Razor has no additive class channel, so
-`Program.Main` has nothing to gate here and the comparison is this generator
+builds it, and it has no second side. Razor has no additive class channel, so
+`Program.Main` has nothing to gate here, and the comparison is this generator
 against its own previous output. That is what #236 needed before it could change
 the rule at all. `--filter '*'` picks it up; to run only it:
 
@@ -131,10 +133,10 @@ dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*C
 
 `Program.Main` also gates one thing that is not a figure. `StaticParityView` and
 `StaticParityViewRazor` are a statically written pair, added once folding made
-such a comparison possible, and their frame equivalence is what backs
-`DESIGN.md` §7.1's statement that the two compilers now emit the same shape for
-a static subtree. They carry no benchmark: §7.1's published allocations were
-measured against the property-driven pair, and re-spelling those fixtures would
+such a comparison possible. Their frame equivalence is what backs `DESIGN.md`
+§7.1's statement that the two compilers now emit the same shape for a static
+subtree. They carry no benchmark: §7.1's published allocations were measured
+against the property-driven pair, and re-spelling those fixtures would
 invalidate published numbers.
 
 A new diagnostic needs a fixture shape and an entry in
@@ -158,7 +160,7 @@ test process and their output never surfaces.
 
 Blazor's browser-side markup path is not covered by `dotnet test`. A text frame
 reaches the DOM through `createTextNode`, while a markup frame is parsed by
-assigning `innerHTML` on a shared `<template>` element; bUnit parses a document
+assigning `innerHTML` on a shared `<template>` element. bUnit parses a document
 string with AngleSharp and prerendering writes markup verbatim, so neither sees
 the difference. The #140 static fold produces markup frames, so its parity with
 the element path is checked in a real browser:
@@ -180,21 +182,21 @@ folded and an unfolded spelling of the same content.
 
 CI runs both of these: the `browser` job in `.github/workflows/ci.yml` starts
 the host and invokes Playwright on every pull request. That same run carries
-the only cover a second emission has anywhere.
+the only coverage a second emission has anywhere.
 `SetUpdatesAttributeName` turns on Blazor's DOM resynchronization, which repairs
-the divergence a two-way binding whose setter normalizes its input creates: the
-element shows what was typed, the render tree holds the normalized value, and
-ordinary diffing — comparing the new render tree against the previous one —
+the divergence created by a two-way binding whose setter normalizes its input:
+the element shows what was typed, the render tree holds the normalized value,
+and ordinary diffing (comparing the new render tree against the previous one)
 writes nothing. bUnit cannot construct that divergence at all, because its
 `Input()` writes the value that reaches the setter straight into the AngleSharp
-DOM; that was measured, not assumed, after an attempt to cover it from bUnit
-passed unchanged with the emission replaced by a no-op. `bind-resync.spec.ts`
+DOM. That was measured, not assumed: an attempt to cover it from bUnit passed
+unchanged when the emission was replaced by a no-op. `bind-resync.spec.ts`
 measures it against a real browser and `BindResyncTests` pins its premise, in
 the same two-part arrangement as above.
 
 `SnapshotCorpusTests` compares the generator's complete emitted source against
-baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, which
-pins sequence numbers and frame order in a way the substring assertions
+baselines committed under `tests/BlazorCodeFirst.Compiler.Tests/Snapshots`, and
+that pins sequence numbers and frame order in a way the substring assertions
 elsewhere cannot. When a change to the emitter is intended, rewrite them:
 
 ```bash
@@ -237,11 +239,11 @@ dotnet build <project> -t:Rebuild \
 
 `eng/Versions.props` is the only place the version is written. `Directory.Build.props` and
 `Directory.Packages.props` both import it, under a condition so the second import is a no-op rather
-than an MSB4011; every project therefore sees `$(BlazorCodeFirstPackageVersion)`, including the
+than an MSB4011. Every project therefore sees `$(BlazorCodeFirstPackageVersion)`, including the
 fixtures outside the solution, whose isolated cache paths are built from it.
 
 Nothing else may hold a copy. `eng/package-version.sh` prints what MSBuild resolves, and that is what
-`ci.yml` and `release.yml` read to name the packed file; `eng/verify-package.sh` reads
+`ci.yml` and `release.yml` read to name the packed file. `eng/verify-package.sh` reads
 `eng/Versions.props` itself and asserts the packed nuspec agrees, which is the check that the package
 carries the version the repository declares. `PackageContentsTests` finds the packed file rather than
 composing its name, so it asserts that `dotnet pack` produced exactly one package instead of assuming
@@ -251,13 +253,13 @@ instructions have to.
 ## Releasing
 
 `release.yml` runs on a `v*` tag and is staged by reversibility. The first job fails immediately
-unless the tag equals `v$(bash eng/package-version.sh)`, then builds, tests, packs, and verifies, and
-uploads the verified package as a workflow artifact so no later job repacks it. The second creates
-the GitHub Release. The third pushes to nuget.org and is the only irreversible step, so it sits behind
-a GitHub Environment named `nuget.org` that waits for a reviewer.
+unless the tag equals `v$(bash eng/package-version.sh)`. It then builds, tests, packs, and verifies,
+and uploads the verified package as a workflow artifact so no later job repacks it. The second
+creates the GitHub Release. The third pushes to nuget.org and is the only irreversible step, so it
+sits behind a GitHub Environment named `nuget.org` that waits for a reviewer.
 
-Two things must exist before the first release and neither can be created from a pull request: that
-environment, with a required reviewer, and a `NUGET_API_KEY` secret from an nuget.org key scoped to
+Two things must exist before the first release, and neither can be created from a pull request: that
+environment with a required reviewer, and a `NUGET_API_KEY` secret from an nuget.org key scoped to
 *Push new packages and package versions* for the `BlazorCodeFirst` glob.
 
 ## Code style
@@ -286,22 +288,30 @@ since the symbol it would have to ban is `Enumerable.Any` itself (#215).
 documents from `site/content`. None of it is in `BlazorCodeFirst.slnx`, so none
 of it is covered by the commands above, including the `dotnet format` gate in
 §Code style. `.github/workflows/site.yml` is where all of it is enforced
-instead: DocGen regeneration and a drift check on the two generated files,
-DocGen's own unit tests, `dotnet format` over each of the four projects under
-`site/`, an English-only and trailing-newline scan of the tree, and a long run
-of assertions over the `dotnet publish` output covering the prerendered routes,
-`404.html`, the stylesheet links, `robots.txt`, the generated sitemap, and
-`_headers`.
+instead:
+
+- DocGen regeneration and a drift check on the two generated files
+- DocGen's own unit tests
+- `dotnet format` over each of the four projects under `site/`
+- an English-only and trailing-newline scan of the tree
+- a long run of assertions over the `dotnet publish` output, covering the
+  prerendered routes, `404.html`, the stylesheet links, `robots.txt`, the
+  generated sitemap, and `_headers`
 
 Those assertions read the published files as text, which leaves out everything
 a browser computes. `site/tests/browser` closes that half with Playwright over
 the same publish output, served by a static server the suite starts itself. It
-checks that nothing is laid out past the viewport at six widths, that every
-clickable label fits the space given to it, that each text and background pair
-meets WCAG AA under both a fine and a coarse pointer, and that the
-documentation rail sits beside the document above the 60rem breakpoint and
-below it underneath. The routes come from the publish output rather than a
-list, so a new document is measured from the commit that adds it.
+checks:
+
+- that nothing is laid out past the viewport at six widths
+- that every clickable label fits the space given to it
+- that each text and background pair meets WCAG AA under both a fine and a
+  coarse pointer
+- that the documentation rail sits beside the document above the 60rem
+  breakpoint and underneath it below that breakpoint
+
+The routes come from the publish output rather than a list, so a new document
+is measured from the commit that adds it.
 
 ```bash
 # Both steps. The suite measures a publish output and does not produce one.
@@ -312,7 +322,7 @@ cd site/tests/browser && npm ci && npx playwright install chromium && npx playwr
 Two of those checks look obvious and are not, so do not "simplify" them back.
 Overflow is measured as element boxes against the viewport rather than as
 `document.documentElement.scrollWidth`, because `app.css` sets `overflow-x:
-clip` on html and body: the page can never report a wider scroll width, so the
+clip` on html and body. The page can never report a wider scroll width, so the
 obvious spelling passes on every input. Labels are checked for spilling out of
 their own box as well as for wrapping, because the header and footer labels
 compute `white-space: nowrap` and can only fail the first way while the rail
@@ -335,7 +345,7 @@ recorded.
 A settled position is not current state, and an Issue is the wrong place to keep
 one. Once a question is answered — an alternative rejected, a limit chosen and
 measured — the answer lands in a document and the Issue closes: rejected
-alternatives in `ARCHITECTURE.md` 付録B, translation breaks the surface
+alternatives in `ARCHITECTURE.md` 付録B, and translation breaks that the surface
 deliberately leaves unchecked in 付録D. Closing costs the record nothing, since
 a closed Issue stays searchable, linkable, and readable in full. Leaving it open
 costs twice: the open list stops meaning "outstanding work", and the record goes
@@ -396,8 +406,9 @@ along with the comment. Two of them are conditional and say so.
 Three kinds of "why" meet in a description and only one belongs there. Why the work exists is on the
 issue; why the design is the shape it is, once settled, is in `DESIGN.md` or `ARCHITECTURE.md`. Both
 have a maintained home, and a copy in a description is the copy nobody updates. The judgements taken
-while making this change have none: they are about the change rather than the finished design, they
-are what a reviewer can still disagree with, and left out of the description they are nowhere.
+while making this change have no such home: they are about the change rather than the finished
+design, they are what a reviewer can still disagree with, and left out of the description they are
+nowhere.
 `Why and what` asks for those first and the claim second, because the diff already carries what the
 code does.
 
@@ -449,7 +460,7 @@ command listed there and never run reads exactly like one that was.
   plain Blazor component, so a `.razor` file names it as a tag with no same-project
   restriction: what Razor resolves is the hand-written class, and the generator only
   fills in `RenderView`. The other direction, `Component<T>()`, reaches existing Razor
-  components, and its type argument must resolve while the generator runs, so a
+  components. Its type argument must resolve while the generator runs, so a
   `.razor` component declared in the same project cannot be named (`BCF3012`),
   because source generators cannot observe each other's output. `[ViewPart]` has no
   Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` 付録B.4).
@@ -468,9 +479,9 @@ command listed there and never run reads exactly like one that was.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts, so do not repurpose or remove them. An ID recorded in
   `DiagnosticExpectations.RetiredIds` is burned rather than free: it shipped, was
-  withdrawn (付録B records why), and must not be handed to a different rule, so a
-  new diagnostic takes the next number above every allocated *and* retired ID.
-  `DiagnosticTableTests` enforces that. New IDs and public
+  withdrawn (付録B records why), and must not be handed to a different rule. A
+  new diagnostic therefore takes the next number above every allocated *and*
+  retired ID. `DiagnosticTableTests` enforces that. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
   the analyzer build gates (RS2000/RS0016) fail.
 - `ARCHITECTURE.md` 付録A is the canonical diagnostic table, and
@@ -480,9 +491,9 @@ command listed there and never run reads exactly like one that was.
   `DiagnosticExpectations.DocumentedWithoutDescriptor` with the reason it is
   specified ahead of its implementation. The 種別 column is checked against
   `DefaultSeverity`, so changing a diagnostic's severity is a change to the table
-  as well. The other prose that names a diagnostic, meaning this file,
-  `DESIGN.md`, `site/content`, and the public XML docs, cannot be checked
-  mechanically, so update it in the same change.
+  as well. The other prose that names a diagnostic (this file, `DESIGN.md`,
+  `site/content`, and the public XML docs) cannot be checked mechanically, so
+  update it in the same change.
 - The `Microsoft.CodeAnalysis.CSharp` version is a compatibility floor imposed on
   consumers of the generator, not a dependency to keep current. Raising it is a
   breaking change for anyone on an older toolset. The rationale and the exact
@@ -519,7 +530,7 @@ code under test, and against a condition that some earlier condition already
 excluded — and none of those three is visible from the test, from the diff, or
 from a green run. The same applies to any sentence that says *why* a shape is
 exempt or *what* keeps a check out of some position, whether it is in a comment,
-in an expectation's `Note`, or in `ARCHITECTURE.md`: that is a claim about the
+in an expectation's `Note`, or in `ARCHITECTURE.md`. That is a claim about the
 implementation, and mutating the implementation is what separates a reason from
 a plausible guess.
 
