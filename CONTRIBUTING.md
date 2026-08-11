@@ -378,6 +378,16 @@ issue, commit message, or review comment is today's `BCF1001`. The same change
 renamed `ComposeComponentBase` to `BodyComponentBase` and `ComposeLayoutBase` to
 `ChromeLayoutBase`.
 
+Four more names changed in 2026-08 (#257), before any of them shipped.
+`ComposableAttribute` became `ViewPartAttribute`, so the attribute is written
+`[ViewPart]`; `ContentView` became `SlotView`; `ElementBuilder` became
+`ElementView`; and `Decorations.Class` takes its argument as `value` rather than
+`@class`. The compiler-internal `Composable*` types moved with the attribute, so
+a `ComposableRegistry` in an older commit is today's `ViewPartRegistry`, and the
+comments that described "a composable" now describe a view part. One name did not
+move: the snapshot case `composable-expansion`, because a case name is the
+corpus's identity rather than a description of it (`SnapshotCorpusTests`).
+
 ## Pull requests
 
 `.github/PULL_REQUEST_TEMPLATE.md` has four sections, each explained in an HTML comment you delete
