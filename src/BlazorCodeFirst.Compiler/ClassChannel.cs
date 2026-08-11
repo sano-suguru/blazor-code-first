@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace BlazorCodeFirst.Compiler;
@@ -66,12 +68,12 @@ internal static class ClassChannel
     internal const char Separator = ' ';
 
     /// <summary>
-    /// <see cref="Separator"/> as the frame path spells it, between two terms of the concatenation. Held
-    /// in a field because it cannot be a <c>const</c>: a constant interpolated string needs every hole to
-    /// be a constant <em>string</em>, and this one is a <see langword="char"/>, so writing it inline would
-    /// format it afresh for every element carrying two or more decorations.
+    /// <see cref="Separator"/> as a string literal in generated code. Held in a field because it cannot
+    /// be a <c>const</c>: a constant interpolated string needs every hole to be a constant
+    /// <em>string</em>, and this one is a <see langword="char"/>, so writing it inline would format it
+    /// afresh for every element carrying two or more decorations.
     /// </summary>
-    private static readonly string SeparatorCode = $" + \"{Separator}\" + ";
+    private static readonly string SeparatorLiteral = $"\"{Separator}\"";
 
     /// <summary>
     /// Whether a decoration written with <paramref name="name"/> folds into the channel. Ordinal, like
@@ -112,14 +114,27 @@ internal static class ClassChannel
 
     /// <summary>
     /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
-    /// emits. A single decoration is written as it stands, through
+    /// emits. One surviving term is written as it stands, through
     /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
     /// the cast that overloaded argument position needs (#234); two or more are concatenated around
     /// <see cref="Separator"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its own
     /// precedence — and a concatenation is a <see langword="string"/> whatever its terms are, so it needs
-    /// no cast of its own. When every term is a string literal the C# compiler constant-folds the result
-    /// back to one string.
+    /// no cast of its own.
     /// </summary>
+    /// <remarks>
+    /// Terms the compiler can read are settled here rather than left to the concatenation: a constant
+    /// <see langword="null"/> is dropped, because a term that is nothing has no separator to earn, and
+    /// adjacent constant strings become one literal, because the text they join into is already known.
+    /// What survives is the terms whose value exists only at render time.
+    /// <para>
+    /// How many survive does not decide whether a frame is emitted.
+    /// <c>RenderViewEmitter.EmitClassAttribute</c> emits one whenever the element carries any class
+    /// decoration, including when every one of them folds away here, because sequence numbers are
+    /// allocated to <em>emitted</em> calls (<c>ARCHITECTURE.md</c> §2.7's <c>FrameWidth</c>) and
+    /// suppressing the emission would split this case from a constant <see langword="false"/>
+    /// <see langword="bool"/>, which is emitted and appends no frame at runtime (#234).
+    /// </para>
+    /// </remarks>
     /// <param name="classes">
     /// At least one decoration. An element carrying none emits no frame at all, which is the caller's
     /// decision to make: there is no expression that stands for an absent attribute.
@@ -127,9 +142,74 @@ internal static class ClassChannel
     internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes)
     {
         var array = classes.AsImmutableArray();
-        return array.Length == 1
-            ? array[0].ToAttributeValueCode()
-            : string.Join(SeparatorCode, array.Select(static c => $"({c.ToCode()})"));
+        var terms = FoldReadableTerms(array);
+
+        // Every term was a constant null. The value is a null of the channel's own type, spelled the way
+        // the lone-decoration case spells it, so the cast that overloaded argument position needs comes
+        // from one place whichever route reached it.
+        if (terms.Length == 0)
+            return array[0].ToAttributeValueCode();
+
+        return terms.Length == 1
+            ? terms[0].ToAttributeValueCode()
+            : string.Join(
+                $" + {SeparatorLiteral} + ",
+                terms.Select(static c => $"({c.ToCode()})"));
+    }
+
+    /// <summary>
+    /// <paramref name="classes"/> with the terms the compiler can read already settled: constant
+    /// <see langword="null"/>s dropped, and runs of adjacent constant strings joined into one term.
+    /// </summary>
+    /// <remarks>
+    /// Only <em>adjacent</em> constants join, because the channel's order is the author's and a constant
+    /// on either side of a term that is not one cannot be moved across it.
+    /// </remarks>
+    private static ImmutableArray<ExpressionTemplate> FoldReadableTerms(
+        ImmutableArray<ExpressionTemplate> classes)
+    {
+        var terms = ImmutableArray.CreateBuilder<ExpressionTemplate>(classes.Length);
+        StringBuilder? run = null;
+
+        foreach (var @class in classes)
+        {
+            switch (@class.Constant)
+            {
+                case NullConstant:
+                    continue;
+
+                case StringConstant { Text: var text }:
+                    if (run is null)
+                        run = new StringBuilder(text);
+                    else
+                        run.Append(Separator).Append(text);
+                    continue;
+
+                default:
+                    FlushRun(terms, ref run);
+                    terms.Add(@class);
+                    continue;
+            }
+        }
+
+        FlushRun(terms, ref run);
+        return terms.ToImmutable();
+    }
+
+    /// <summary>Turns an accumulated run of constant text into one term, and clears the run.</summary>
+    private static void FlushRun(
+        ImmutableArray<ExpressionTemplate>.Builder terms,
+        ref StringBuilder? run)
+    {
+        if (run is null)
+            return;
+
+        var text = run.ToString();
+        terms.Add(ExpressionTemplate.Create(
+            [new LiteralExpressionSegment(
+                Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(text, quote: true))],
+            new StringConstant(text)));
+        run = null;
     }
 
     /// <summary>
