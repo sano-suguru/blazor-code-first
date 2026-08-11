@@ -18,9 +18,9 @@ public static class Decorations
 {
     /// <summary>Design-time syntax adding a CSS class to the owning element's <c>class</c> attribute.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
-    /// <param name="class">The CSS class value; any string expression. Chain calls to add more.</param>
+    /// <param name="value">The CSS class value; any string expression. Chain calls to add more.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Class(this ElementView element, string? @class) => element;
+    public static ElementView Class(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax adding an <c>onclick</c> handler to the owning element.</summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>

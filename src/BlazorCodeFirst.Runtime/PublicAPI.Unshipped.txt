@@ -20,7 +20,7 @@ BlazorCodeFirst.SlotView.SlotView() -> void
 BlazorCodeFirst.SlotView.this[params System.ReadOnlySpan<BlazorCodeFirst.View> children].get -> BlazorCodeFirst.View
 static BlazorCodeFirst.SlotView.implicit operator BlazorCodeFirst.SlotView(BlazorCodeFirst.View view) -> BlazorCodeFirst.SlotView
 BlazorCodeFirst.Decorations
-static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementView element, string? class) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Class(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.OnClick(this BlazorCodeFirst.ElementView element, System.Action! handler) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.Href(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.Src(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
