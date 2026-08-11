@@ -706,8 +706,9 @@ internal static class DiagnosticDescriptors
     /// that took its place, nor the fix, and which the declaration-stage cutoff keeps from the author in any
     /// case (付録A A.0). Without this descriptor the author was told the expression "uses a construct that is
     /// not statically analyzable", which is untrue: the construct is ordinary and the lookup went elsewhere
-    /// (#127). A <em>type</em> that shadows a helper is left out on purpose, C# reporting CS0119 for it, which
-    /// already names the shadowing declaration.
+    /// (#127). A <em>type</em> that shadows a helper is not covered, which is a gap and no longer a position:
+    /// the CS0119 that #127 credited with naming the shadowing declaration does not reach the author either
+    /// (#266).
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3027 = new(
         id: "BCF3027",
@@ -762,6 +763,56 @@ internal static class DiagnosticDescriptors
             "being built; an event with no entry has no mapping and is not checked. A type that is not a " +
             "System.EventArgs at all is outside the constraint the decoration declares and no event can " +
             "deliver it.");
+
+    /// <summary>
+    /// BCF3029: an expression of the design-time API written where no design-time expression reads it, so
+    /// it builds an empty marker, renders nothing, and wires up no handler.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The edge the inert-<c>View</c> model leaves exposed: the same API is callable from anywhere and
+    /// means nothing outside the three positions the generator reads. It type-checks, it looks like it
+    /// built something, and the only symptom is missing output (#68).
+    /// </para>
+    /// <para>
+    /// Those three positions — a component's <c>Body</c>, a layout's <c>Chrome</c>, and a
+    /// <c>[ViewPart]</c> body — are recognized by the enclosing declaration returning an inert type, never
+    /// by a list of positions. <c>FailurePathScanners</c>' remarks record what a check costs once its host
+    /// set becomes something a human enumerates (#100), and this one is not to begin with that shape.
+    /// </para>
+    /// <para>
+    /// Storage is deliberately outside it. <c>ARCHITECTURE.md</c> §2.3 classifies the design-time API's
+    /// <em>calls</em>, not what an author does with the value, so caching one in an inert-typed field or
+    /// property stays unreserved and an Error is the wrong instrument for closing a door the design may
+    /// later want open. A local is not that: it dies with its declaration, and one that is returned or
+    /// captured has already been exempted by the declaration it is returned from.
+    /// </para>
+    /// <para>
+    /// A <c>View</c>-returning declaration of the author's own is not this diagnostic's business either,
+    /// and for a stronger reason: it is the Opaque path <c>DESIGN.md</c> §5.3 reserves, whose spelling
+    /// 付録B.11(b) refuses to erase, and the forgotten <c>[ViewPart]</c> that reaches it by accident is
+    /// answered by BCF2001 at Info (#260). Only members of the design-time API itself are reported, which
+    /// is what <c>KnownSymbols.IsDesignTimeApiMember</c> decides.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3029 = new(
+        id: "BCF3029",
+        title: "Design-time syntax outside a design-time expression renders nothing",
+        messageFormat:
+            "This design-time syntax is never read here, so it renders no output and wires up no event "
+                + "handler; write it in a Body, a Chrome, or a [ViewPart] method",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Every factory and decoration in the design-time API is inert: View is an empty struct, an "
+                + "element helper returns default, and a decoration returns its receiver unchanged. The "
+                + "generator reads the syntax, never the value, and it reads it in exactly three places: a "
+                + "component's Body, a layout's Chrome, and the body of a [ViewPart] method. Written "
+                + "anywhere else — a service, a helper method, an event handler — the expression compiles, "
+                + "returns the empty marker, renders nothing, and leaves every handler in it unwired. "
+                + "Storing such a value in a field or property of a design-time type is not reported; only "
+                + "calls are reserved, so the stored form is left open.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

@@ -773,6 +773,144 @@ internal sealed class KnownSymbols
         && SymbolEqualityComparer.Default.Equals(method.ReturnType, slotViewType);
 
     /// <summary>
+    /// Whether <paramref name="type"/> is one of the design-time inert types — <c>View</c>,
+    /// <c>ElementView</c>, <c>SlotView</c>, or any construction of <c>ComponentView&lt;T&gt;</c> — the set
+    /// <c>ARCHITECTURE.md</c> 付録A enumerates on the BCF3014 row.
+    /// </summary>
+    /// <remarks>
+    /// One predicate for the one set, asked from the two opposite directions the design cares about: the
+    /// generator asks it of a value written where a runtime value belongs (BCF3014), and
+    /// <c>InertSurfaceAnalyzer</c> asks it of the expression itself and of the declaration enclosing it
+    /// (BCF3029). Both need every arm, and a second copy would be a second place for a type added to the
+    /// surface to be forgotten.
+    /// <para>
+    /// <c>ComponentView&lt;T&gt;</c> is compared through <see cref="ITypeSymbol.OriginalDefinition"/>
+    /// because the resolved symbol is the unbound generic while every written occurrence is a construction
+    /// of it. The other three are unconstructed types and compare directly.
+    /// </para>
+    /// </remarks>
+    public bool IsInertDesignTimeType(ITypeSymbol? type) =>
+        Matches(type, ViewType)
+        // A childless element is an ElementView rather than a View, so without this arm
+        // .Param(c => c.Payload, Div) passes through and emits `Div` verbatim.
+        || Matches(type, ElementViewType)
+        // A content-taking part's call is a SlotView before its brackets, so .Param(c => c.Payload, Card("t"))
+        // type-checks through object and would otherwise emit `Card("t")` verbatim, exactly as the
+        // ElementView arm above exists to prevent for `Div`.
+        || Matches(type, SlotViewType)
+        || (type is INamedTypeSymbol named && Matches(named.OriginalDefinition, ComponentViewType));
+
+    /// <summary>
+    /// Symbol identity with both null guards in one place: a resolved reference this compilation does not
+    /// have, and the <c>SymbolEqualityComparer.Default.Equals(x, null)</c> trap
+    /// <see cref="ElementViewType"/>'s remarks describe, which answers <see langword="true"/> for a null
+    /// <paramref name="known"/> and would classify an unrelated symbol as part of the surface.
+    /// </summary>
+    /// <remarks>
+    /// Stated once because every predicate below is the same shape, and the guard is the one thing about
+    /// them that is easy to leave out and impossible to notice: the failure is a false positive against a
+    /// runtime that merely lacks the member, which no test using a current runtime can reach.
+    /// </remarks>
+    private static bool Matches(ISymbol? symbol, ISymbol? known) =>
+        symbol is not null && known is not null && SymbolEqualityComparer.Default.Equals(symbol, known);
+
+    /// <summary>
+    /// Whether <paramref name="method"/> carries <c>[ViewPart]</c>, so its body is a design-time expression
+    /// the generator expands at each call site rather than a method that runs.
+    /// </summary>
+    /// <remarks>
+    /// Read off <see cref="ISymbol.OriginalDefinition"/>, which is where an attribute is declared: a part
+    /// declared inside a generic type reaches a call site as a substituted symbol, and asking that symbol
+    /// directly would depend on Roslyn carrying the attribute across the substitution. BCF1002 rejects such
+    /// a declaration, so the two answers agree on everything that compiles, and this one does not rest on
+    /// the substitution behaviour to do it.
+    /// </remarks>
+    public bool IsViewPart(IMethodSymbol method)
+    {
+        if (ViewPartAttributeType is not { } attributeType)
+            return false;
+
+        foreach (var attribute in method.OriginalDefinition.GetAttributes())
+        {
+            if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, attributeType))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="symbol"/> is a member of the design-time API: a member of
+    /// <c>BlazorCodeFirst.Html</c> or <c>BlazorCodeFirst.Decorations</c>, one of the inert types' own
+    /// members, or a <c>[ViewPart]</c> method. The set <c>ARCHITECTURE.md</c> §2.1 and §5 name as 設計時API,
+    /// the one the IL trimmer removes whole because nothing in it is reachable at run time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Answered from the tables this class already resolves out of the referenced runtime rather than from a
+    /// containing-type test, so it is exactly the set the rest of the compiler recognizes: a member the
+    /// runtime declares under a name no table has a row for is not translated anywhere either, and a
+    /// user-defined <c>Some.Other.Html</c> contributes nothing.
+    /// </para>
+    /// <para>
+    /// The complement matters as much as the set. A user's own declaration that merely returns an inert type
+    /// is <em>not</em> a member of this API, and <c>InertSurfaceAnalyzer</c> depends on that: a
+    /// <c>View</c>-returning method without <c>[ViewPart]</c> is the Opaque escape hatch
+    /// <c>DESIGN.md</c> §5.3 reserves and 付録B.11(b) refuses to close, so reporting a call to one would
+    /// erase a spelling the design deliberately leaves open (#68).
+    /// </para>
+    /// </remarks>
+    /// <remarks>
+    /// The property arm splits on <see cref="IPropertySymbol.IsIndexer"/> rather than asking both groups,
+    /// because the split is free and total: a curated helper and <c>Slot</c> are named properties, and all
+    /// three child lists are indexers, so neither group can answer for a member of the other.
+    /// </remarks>
+    public bool IsDesignTimeApiMember(ISymbol symbol) => symbol switch
+    {
+        IMethodSymbol method => ClassifySurfaceMethod(method) != SurfaceMethodKind.None || IsViewPart(method),
+        IPropertySymbol property => property.IsIndexer
+            ? ClassifyChildrenIndexer(property) != ChildrenIndexerKind.None
+            : IsElementHelper(property) || IsSlot(property),
+        _ => false,
+    };
+
+    /// <summary>
+    /// Whether <paramref name="property"/> is one of the curated element helpers resolved out of the
+    /// referenced runtime, keyed the way <see cref="ElementTags"/> is keyed.
+    /// </summary>
+    /// <remarks>
+    /// The normalization is a rule rather than an obvious fact, and a caller that forgets it compiles and
+    /// silently answers <see langword="false"/> for every helper. Stated here for the same reason
+    /// <see cref="IsSlot"/> is.
+    /// </remarks>
+    public bool IsElementHelper(IPropertySymbol property) => ElementTags.ContainsKey(Normalize(property));
+
+    /// <summary>
+    /// Which of the three <c>params ReadOnlySpan&lt;View&gt;</c> child lists <paramref name="property"/> is,
+    /// or <see cref="ChildrenIndexerKind.None"/>.
+    /// </summary>
+    /// <remarks>
+    /// The one place the three indexer identities are compared, and it answers <em>which</em> rather than
+    /// merely whether, because its callers want both: <c>RenderExpressionAnalyzer.ClassifyIndexer</c>
+    /// dispatches on the kind, <see cref="IsDesignTimeApiMember"/> asks only that it is one, and
+    /// <c>UnresolvedValueTypeScanner</c> recognizes two of the three. Written as three separate
+    /// comparisons before this, those three sites had already drifted: the scanner's copy was never given
+    /// the <c>SlotView</c> arm when #176 added that indexer, and nothing recorded whether the omission was
+    /// meant. Expressed as a kind, the scanner's narrower answer is a pattern a reader can see rather than
+    /// an arm they have to notice is missing.
+    /// </remarks>
+    public ChildrenIndexerKind ClassifyChildrenIndexer(IPropertySymbol property)
+    {
+        var definition = Normalize(property);
+
+        if (Matches(definition, ElementIndexer)) return ChildrenIndexerKind.Element;
+        if (Matches(definition, ComponentIndexer)) return ChildrenIndexerKind.Component;
+        if (Matches(definition, ContentIndexer)) return ChildrenIndexerKind.Content;
+
+        return ChildrenIndexerKind.None;
+    }
+
+    /// <summary>
     /// The parameter roles of a resolved <c>Bind</c> overload, element or component, or
     /// <see langword="false"/> when <paramref name="method"/> is not a shape this compiler was written
     /// against.

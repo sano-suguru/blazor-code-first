@@ -17,9 +17,11 @@ Two independent axes, and the combinations are not interchangeable.
 **Reporting mechanism.** The generator driver and the analyzer driver fail independently. csc does
 not run the analyzer driver at all when the compilation has a declaration-level error, so an
 analyzer diagnostic can only be asserted in a compilation that has none. That is why the
-`AnalyzerDelivery.*` fixtures contain exactly one broken component and nothing else: adding any of
-the shapes from `GeneratorDelivery.*` would suppress the diagnostic under test for reasons that
-have nothing to do with it. See `ARCHITECTURE.md` 付録A.0.
+`AnalyzerDelivery.*` fixtures contain only shapes that compile: adding any of the shapes from
+`GeneratorDelivery.*` would suppress every diagnostic under test for reasons that have nothing to do
+with any of them. See `ARCHITECTURE.md` 付録A.0. Several such shapes may live side by side, and two do
+— BCF3001 in `Mutating.cs` and BCF3029 in `Bcf3029.cs` — because neither one's failure is a
+declaration error.
 
 The same cutoff also disqualifies C# errors as a way to state a BlazorCodeFirst constraint. csc stops
 after the declaration stage when the compilation has a declaration-level error, so it never binds
@@ -38,7 +40,7 @@ to the same DLL, and `eng/verify-package.sh` only asserts that the file is *in* 
 
 | Fixture | Mechanism | Delivery |
 | --- | --- | --- |
-| `AnalyzerDelivery.ProjectReference` | analyzer driver (BCF3001) | ProjectReference |
+| `AnalyzerDelivery.ProjectReference` | analyzer driver (BCF3001, BCF3029) | ProjectReference |
 | `GeneratorDelivery.ProjectReference` | generator driver (everything else) | ProjectReference |
 | `AnalyzerDelivery.Package` | analyzer driver | NuGet package |
 | `GeneratorDelivery.Package` | generator driver | NuGet package |
@@ -50,8 +52,8 @@ behaviour the whole design follows from).
 
 ## Adding a diagnostic
 
-Add the shape to `GeneratorDelivery.ProjectReference` (or to a new analyzer fixture if it is
-analyzer-reported), then assert it in `DiagnosticDeliveryTests`. `DescriptorCoverageTests` fails
+Add the shape to `GeneratorDelivery.ProjectReference` (or to `AnalyzerDelivery.ProjectReference` if it
+is analyzer-reported and compiles), then assert it in `DiagnosticDeliveryTests`. `DescriptorCoverageTests` fails
 until every descriptor is either asserted there or listed in its exclusion table with a reason, so
 a new diagnostic cannot be dead on arrival the way BCF1001 was.
 
@@ -60,7 +62,7 @@ fixture build, and `DiagnosticExpectations.For(id)` returns one expectation for 
 that fires on more than one shape gets exactly one of them here. Pick the shape whose *delivery* is
 in question — the one with a C# error the declaration-stage cutoff suppresses, or an unusual
 location — and cover the rest in-process. Write which one you picked and why into that expectation's
-`Note`; BCF3025, BCF3026, BCF3027 and BCF3028 each carry one. The same limit is why a fixture must not
+`Note`; BCF3025, BCF3026, BCF3027, BCF3028 and BCF3029 each carry one. The same limit is why a fixture must not
 incidentally report an id another fixture file already owns, BCF1003 above all: it is suppressed
 when the failure-path sweep records an error of its own, so a new fixture that reports nothing more
 specific than BCF1003 will break the fixture that does own it.

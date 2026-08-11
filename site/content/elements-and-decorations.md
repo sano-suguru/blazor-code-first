@@ -120,10 +120,11 @@ which names neither the element nor your member, and you never see it anyway —
 not translate the component has no generated `RenderView`, so the compiler stops before it gets that
 far.
 
-A type that shadows a helper needs no diagnostic of its own, because C# names the shadowing
-declaration:
-
-    error CS0119: 'Table' is a type, which is not valid in the given context
+A *type* that shadows a helper has no diagnostic of its own yet, and today it is the worse of the two
+to run into. C# would say `error CS0119: 'Table' is a type, which is not valid in the given context`,
+which does name the shadowing declaration — but it is a body-binding error, so the same stop keeps it
+from you, and all you get is BCF1003 saying the expression is not statically analyzable. If you see
+that on a `Body` you believe is ordinary, look for a type of your own named like the element.
 
 Both are fixed the same way, by qualifying the element:
 

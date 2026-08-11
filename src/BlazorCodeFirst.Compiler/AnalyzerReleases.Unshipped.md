@@ -34,3 +34,4 @@ BCF3025 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3026 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3027 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3028 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3029 | BlazorCodeFirst | Error | InertSurfaceAnalyzer

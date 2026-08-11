@@ -711,6 +711,74 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
+    /// Every member the inert types declare is one <c>KnownSymbols.IsDesignTimeApiMember</c> recognizes, or a
+    /// conversion operator, which is not a member an author writes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The direction the other guards in this file leave open. They hold the <c>Html</c> and
+    /// <c>Decorations</c> halves of the design-time API against what the runtime declares, so a member added
+    /// there under an unrecognized name is red here first. The inert types' own members had no such guard:
+    /// <c>ComponentParameterMethods_AllFourStructuralShapesAreResolvedSeparately</c> filters to four known
+    /// kinds, so an unclassified member answers <c>None</c>, drops out of the filter, and leaves the asserted
+    /// array equal.
+    /// </para>
+    /// <para>
+    /// What that costs is quiet and one-sided, which is why it needs a test rather than care. An
+    /// <c>ElementView.Key(…)</c> or <c>ComponentView&lt;T&gt;.Ref(…)</c> returning an inert type would pass
+    /// BCF3029's type test and fail its member test, so the chain walk would step over it and anchor the
+    /// report on an inner helper instead of the whole expression — contradicting 付録A's stated
+    /// <c>位置は最も外側の設計時式の全体</c> in the direction where nothing throws and no test looks.
+    /// </para>
+    /// <para>
+    /// Conversion operators are excluded rather than classified. They are how an inert value reaches a
+    /// <c>View</c>-typed position and are never written by name, so the analyzer meets them as
+    /// <c>IConversionOperation</c> and not as a reference to a member.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void InertTypeMembers_AreAllRecognizedAsDesignTimeApi()
+    {
+        var (symbols, html) = ResolveHtml();
+        var assembly = html.ContainingAssembly;
+
+        string[] inertTypeNames =
+        [
+            "BlazorCodeFirst.View",
+            "BlazorCodeFirst.ElementView",
+            "BlazorCodeFirst.SlotView",
+            "BlazorCodeFirst.ComponentView`1",
+        ];
+
+        var unrecognized = new List<string>();
+
+        foreach (var typeName in inertTypeNames)
+        {
+            var type = assembly.GetTypeByMetadataName(typeName);
+            Assert.NotNull(type);
+
+            foreach (var member in type!.GetMembers())
+            {
+                if (member.DeclaredAccessibility != Accessibility.Public || member.IsImplicitlyDeclared)
+                    continue;
+
+                // A conversion operator is not a member an author names; see the remarks.
+                if (member is IMethodSymbol { MethodKind: MethodKind.Conversion })
+                    continue;
+
+                // The indexer's own getter arrives as a separate member and is reached through the property.
+                if (member is IMethodSymbol { MethodKind: MethodKind.PropertyGet })
+                    continue;
+
+                if (!symbols.IsDesignTimeApiMember(member))
+                    unrecognized.Add($"{type.Name}.{member.Name}");
+            }
+        }
+
+        Assert.Empty(unrecognized);
+    }
+
+    /// <summary>
     /// <c>BlazorCodeFirst.ElementView</c>, resolved out of the runtime assembly directly rather than read
     /// off <c>KnownSymbols.ElementViewType</c>.
     /// </summary>
