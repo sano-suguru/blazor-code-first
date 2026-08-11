@@ -287,6 +287,17 @@ describe the intended finished design and deliberately do not track progress,
 so an Issue is the only place a gap, a defect, or a deferred decision is
 recorded.
 
+A settled position is not current state, and an Issue is the wrong place to keep
+one. Once a question is answered — an alternative rejected, a limit chosen and
+measured — the answer lands in a document and the Issue closes: rejected
+alternatives in `ARCHITECTURE.md` 付録B, translation breaks the surface
+deliberately leaves unchecked in 付録D. Closing costs the record nothing, since
+a closed Issue stays searchable, linkable, and readable in full. Leaving it open
+costs twice: the open list stops meaning "outstanding work", and the record goes
+stale in a place nobody re-reads. #74 is the worked example — it named a
+precondition, the precondition landed as #176, and the Issue still said the
+question was waiting on it.
+
 Every issue gets exactly one `area:` label, plus GitHub's default type labels
 (`bug`, `enhancement`, `documentation`, `question`, `invalid`) where the type is
 unambiguous:
