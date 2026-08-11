@@ -6,11 +6,13 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
-/// Sweeps a design-time expression that failed to translate, reporting BCF3008 when a decoration
-/// (<c>.Class</c>, a named attribute shortcut, an event shortcut, <c>.Attr</c> or <c>.On</c>) was written on
-/// a receiver that opens no element frame, <c>Fragment(…)</c>, <c>Raw(…)</c>, <c>If(…)</c>,
-/// <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[ViewPart]</c> result, an externally supplied
-/// <c>RenderFragment</c>, or an element that has already taken its children.
+/// Sweeps a design-time expression that failed to translate for a decoration that cannot be translated.
+/// Reports BCF3008 when a decoration (<c>.Class</c>, a named attribute shortcut, an event shortcut,
+/// <c>.Attr</c> or <c>.On</c>) was written on a receiver that opens no element frame, <c>Fragment(…)</c>,
+/// <c>Raw(…)</c>, <c>If(…)</c>, <c>ForEach(…)</c>, <c>Component&lt;T&gt;()</c>, a <c>[ViewPart]</c> result,
+/// an externally supplied <c>RenderFragment</c>, or an element that has already taken its children; and
+/// BCF3026 when the name written in a decoration's position is one <c>Decorations</c> does not declare at
+/// all, on a receiver that does open an element frame.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -39,6 +41,13 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// here.
 /// </para>
 /// <para>
+/// Two diagnostics, one walk. They are disjoint by construction: BCF3008 requires
+/// <see cref="KnownSymbols.DeclaresDecorationNamed"/> to hold and BCF3026 requires it to fail, so no
+/// invocation can match both and neither has to be ordered against the other. Sharing the walk rather than
+/// adding a second scanner to <see cref="FailurePathScanners"/> keeps the host enumeration that type's
+/// remarks warn about from growing, and keeps a failed body paying one descendant traversal.
+/// </para>
+/// <para>
 /// A sweep on the failure path rather than a check inside <see cref="RenderExpressionAnalyzer"/>, for the
 /// same reason as its two neighbours: the analyzer never reaches its decoration arm for this shape. The
 /// invocation binds to no decoration at all, so <c>Classify</c>'s method arm returns null before the
@@ -49,8 +58,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 internal static class RejectedDecorationScanner
 {
     /// <summary>
-    /// Records at most one BCF3008 into <paramref name="context"/> for the whole of <paramref name="root"/>,
-    /// at the member name of the innermost misplaced decoration.
+    /// Records at most one BCF3008 and at most one BCF3026 into <paramref name="context"/> for the whole of
+    /// <paramref name="root"/>, each at the member name of the innermost invocation that matched it.
     /// </summary>
     /// <remarks>
     /// One report per body, not one per decoration: <c>Fragment("a").Class("x").Id("y")</c> is a single
@@ -72,28 +81,45 @@ internal static class RejectedDecorationScanner
         if (symbols.ElementViewType is null || symbols.ViewType is null || symbols.ComponentViewType is null)
             return;
 
-        InvocationExpressionSyntax? innermost = null;
+        InvocationExpressionSyntax? misplaced = null;
+        InvocationExpressionSyntax? unknown = null;
+
         foreach (var invocation in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
-            if (!IsMisplacedDecoration(invocation, context))
-                continue;
-
             // Descendants are visited after their ancestors, so a nested match refines the one already held;
             // a match in an unrelated subtree does not, and the first mistake in source order stays.
-            if (innermost is null || innermost.Span.Contains(invocation.Span))
-                innermost = invocation;
+            if (IsMisplacedDecoration(invocation, context))
+            {
+                if (misplaced is null || misplaced.Span.Contains(invocation.Span))
+                    misplaced = invocation;
+            }
+            else if (IsUnknownDecorationName(invocation, context))
+            {
+                if (unknown is null || unknown.Span.Contains(invocation.Span))
+                    unknown = invocation;
+            }
         }
-
-        if (innermost?.Expression is not MemberAccessExpressionSyntax memberAccess)
-            return;
 
         // Reported at the member name, `Class`, not the whole chain, because the name is what is in the
         // wrong place. A collection expression, not ImmutableArray.Create(): the latter is IDE0303, an
         // error in this repo.
-        context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BCF3008, memberAccess.Name.GetLocation(), []));
+        if (misplaced?.Expression is MemberAccessExpressionSyntax misplacedAccess)
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3008, misplacedAccess.Name.GetLocation(), []));
+        }
+
+        // Same anchor for the same reason, and the name is also the message's one argument: a report that
+        // did not repeat it would read as a complaint about the whole chain.
+        if (unknown?.Expression is MemberAccessExpressionSyntax unknownAccess)
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3026,
+                unknownAccess.Name.GetLocation(),
+                [unknownAccess.Name.Identifier.ValueText]));
+        }
     }
 
     /// <summary>
@@ -184,5 +210,52 @@ internal static class RejectedDecorationScanner
                 receiverType.OriginalDefinition, symbols.ComponentViewType)
             || (symbols.RenderFragmentType is { } renderFragmentType
                 && SymbolEqualityComparer.Default.Equals(receiverType, renderFragmentType));
+    }
+
+    /// <summary>
+    /// Whether <paramref name="invocation"/> writes a name in a decoration's position, on a receiver that
+    /// does open an element frame, that <c>Decorations</c> does not declare.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The receiver test is symbol identity against our own <c>ElementView</c>, and it is what separates this
+    /// from every other call in a failed body: <c>Helper()</c> and <c>item.Title.ToUpper()</c> have no such
+    /// receiver and are not decorations that went wrong. The name test is the complement of
+    /// <see cref="IsMisplacedDecoration"/>'s, so the two conditions cannot both hold.
+    /// </para>
+    /// <para>
+    /// Both measured shapes of #241 arrive here. A misspelling binds to nothing, and an extension method the
+    /// consumer declared on <c>ElementView</c> binds cleanly and gives one back, so the return-type test is
+    /// what separates a decoration-shaped call from <c>ToString</c> and from any other ordinary member of an
+    /// element. A binding that returns <c>View</c> is left out on purpose: it wraps rather than decorates,
+    /// and it keeps reporting BCF1003.
+    /// </para>
+    /// </remarks>
+    private static bool IsUnknownDecorationName(
+        InvocationExpressionSyntax invocation, ViewPartBodyContext context)
+    {
+        if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+            return false;
+
+        var symbols = context.KnownSymbols;
+
+        // First because it is the only conjunct that asks nothing of the semantic model.
+        if (symbols.DeclaresDecorationNamed(memberAccess.Name.Identifier.ValueText))
+            return false;
+
+        var receiverType = context.SemanticModel
+            .GetTypeInfo(memberAccess.Expression, context.CancellationToken).Type;
+        if (!SymbolEqualityComparer.Default.Equals(receiverType, symbols.ElementViewType))
+            return false;
+
+        // Nothing bound: the name exists nowhere, which is the misspelling. Roslyn computes CS1061 for it and
+        // the author never sees that error, so this is the shape the diagnostic exists for.
+        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null)
+            return true;
+
+        // Something bound. It is a decoration in shape but not in declaration only when it takes an element
+        // and gives one back; anything else written on an element is an ordinary call this must not blame.
+        var reached = context.SemanticModel.GetTypeInfo(invocation, context.CancellationToken).Type;
+        return SymbolEqualityComparer.Default.Equals(reached, symbols.ElementViewType);
     }
 }

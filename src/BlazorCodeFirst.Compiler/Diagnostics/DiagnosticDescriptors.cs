@@ -674,6 +674,30 @@ internal static class DiagnosticDescriptors
             "caller was required to supply.");
 
     /// <summary>
+    /// BCF3026: a name written in a decoration's position that <c>BlazorCodeFirst.Decorations</c> does not
+    /// declare, on a receiver that does open an element frame.
+    /// </summary>
+    /// <remarks>
+    /// The complement of BCF3008 over the same sweep. BCF3008's condition is about the receiver and this
+    /// one's is about the name, and <see cref="Analysis.KnownSymbols.DeclaresDecorationNamed"/> makes them
+    /// disjoint: a name the runtime declares can only be misplaced, and a name it does not declare is
+    /// unrecognized wherever it stands. Without this descriptor both shapes ended at BCF1003, whose message
+    /// says the expression "uses a construct that is not statically analyzable". That is untrue here. The
+    /// receiver opens an element frame and the children are ordinary; only the name is unrecognized (#241).
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3026 = new(
+        id: "BCF3026",
+        title: "Decoration name is not one this generator recognizes",
+        messageFormat: "'{0}' is not a decoration this generator recognizes; BlazorCodeFirst.Decorations declares no such name",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A decoration must be one of the extension methods BlazorCodeFirst.Decorations declares. A name " +
+            "it does not declare is not translated, whether it fails to bind at all or binds to some other " +
+            "method that happens to take an element and return one.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

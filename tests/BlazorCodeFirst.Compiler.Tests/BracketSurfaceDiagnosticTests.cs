@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
@@ -561,6 +562,119 @@ public sealed class BracketSurfaceDiagnosticTests
 
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3008");
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    // ---------------------------------------------------------------------------
+    // BCF3026's domain: a decoration name the runtime does not declare
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A misspelled decoration. Nothing declares <c>Clas</c>, so the call binds to no method at all, and
+    /// CS1061 is the C# error that would name the misspelling.
+    /// </summary>
+    /// <remarks>
+    /// That error never reaches the author, for the reason <see cref="AssertReportsBCF3008"/>'s remarks
+    /// record about CS1929: the host class carries CS0534 because no <c>RenderView</c> was generated, and
+    /// <c>csc</c> stops after the declaration stage without binding method bodies. What the author got
+    /// instead was BCF1003, which says the expression "uses a construct that is not statically analyzable"
+    /// while the receiver opens an element frame and the children are ordinary (#241).
+    /// </remarks>
+    [Fact]
+    public void MisspelledDecoration_ReportsBCF3026_AtTheDecorationName()
+    {
+        var diagnostics = Run("""Div.Clas("card")["hi"]""");
+
+        var report = Assert.Single(diagnostics, static d => d.Id == "BCF3026");
+        Assert.Equal(DiagnosticSeverity.Error, report.Severity);
+        Assert.Equal("Clas", HostSpanText(report, """Div.Clas("card")["hi"]"""));
+        Assert.Contains("Clas", report.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A name the runtime does declare, on a receiver that opens no element frame, stays BCF3008.
+    /// </summary>
+    /// <remarks>
+    /// The two conditions share one sweep and are disjoint by construction, since BCF3008 requires
+    /// <c>DeclaresDecorationNamed</c> to hold and BCF3026 requires it to fail. This is what holds them
+    /// apart if that sweep is ever rewritten.
+    /// </remarks>
+    [Fact]
+    public void DecoratingANonElementWithADeclaredName_StaysBCF3008()
+    {
+        var diagnostics = Run("""Fragment("a").Class("x")""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3008");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3026");
+    }
+
+    /// <summary>
+    /// An extension method the consumer declared on <c>ElementView</c>. It binds, so there is no C# error at
+    /// all here, and the only diagnostic on the line was BCF1003 (#241).
+    /// </summary>
+    /// <remarks>
+    /// Run through <see cref="CompilationTestHost.RunGenerator(ValueTuple{string, string}[])"/> rather than
+    /// through <see cref="HostFiles"/>, because the extension has to be declared in a static class of its own
+    /// and <c>members</c> is spliced into the component's body. Adding a fourth file to
+    /// <see cref="HostFiles"/> would change the input of every test in this class.
+    /// </remarks>
+    [Fact]
+    public void UnrecognizedElementExtension_ReportsBCF3026()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace T;
+
+                public static class Hx
+                {
+                    public static ElementView HxGet(this ElementView element, string url) => element;
+                }
+
+                public partial class Host : BodyComponentBase
+                {
+                    protected override View Body => Div.HxGet("/x")["hi"];
+                }
+                """));
+
+        Assert.Contains(
+            result.Diagnostics,
+            static d => d.Id == "BCF3026" && d.Severity == DiagnosticSeverity.Error);
+    }
+
+    /// <summary>
+    /// The same shape returning <c>View</c> is not reported, and keeps BCF1003.
+    /// </summary>
+    /// <remarks>
+    /// The return-type conjunct is what keeps ordinary calls on an element out of this diagnostic:
+    /// <c>Div.ToString()</c> has the same receiver and the same unrecognized name, and only the return type
+    /// tells the two apart. A method that returns <c>View</c> wraps rather than decorates, so it is left
+    /// outside on purpose; that is the residue recorded on #241 and not an oversight.
+    /// </remarks>
+    [Fact]
+    public void ElementExtensionReturningView_StaysBCF1003()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace T;
+
+                public static class Wrapper
+                {
+                    public static View Wrap(this ElementView element) => default;
+                }
+
+                public partial class Host : BodyComponentBase
+                {
+                    protected override View Body => Div.Wrap();
+                }
+                """));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3026");
     }
 
     /// <summary>
