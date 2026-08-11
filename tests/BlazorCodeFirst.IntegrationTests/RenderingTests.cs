@@ -200,21 +200,45 @@ public sealed class RenderingTests : BunitContext
     }
 
     /// <summary>
-    /// The class channel's two shapes, measured rather than described. A lone null omits the attribute; a
-    /// null joined behind a constant leaves the separator, which is #236's subject and is asserted as the
-    /// exact string rather than through classList, because classList reads <c>"card "</c> as
-    /// <c>["card"]</c> and cannot see it.
+    /// The class channel's two shapes, measured rather than described. A lone null omits the attribute,
+    /// and a null joined behind a constant takes its separator with it (#236) rather than leaving
+    /// <c>"card "</c> behind. Asserted as the exact string rather than through classList, because
+    /// classList reads <c>"card "</c> as <c>["card"]</c> and so cannot tell the two apart — which is why
+    /// the residue survived unnoticed for as long as it did.
     /// </summary>
     [Fact]
-    public void NullAttributeComponent_WhenClassTermTurnsNull_LeavesTheSeparatorButOmitsALoneClass()
+    public void NullAttributeComponent_WhenClassTermTurnsNull_DropsTheTermAndOmitsALoneClass()
     {
         var cut = Render<NullAttributeComponent>();
 
         cut.Find("button").Click();
 
         var spans = cut.FindAll("span");
-        Assert.Equal("card ", spans[2].GetAttribute("class"));
+        Assert.Equal("card", spans[2].GetAttribute("class"));
         Assert.Null(spans[3].GetAttribute("class"));
+    }
+
+    /// <summary>
+    /// #236's second example, where the null is the class channel's <em>leading</em> term. The rejected
+    /// alternative — folding a constant prefix into both arms of the conditional — could not have reached
+    /// this one, because a first term has no constant ahead of it to fold into. A leading null leaves no
+    /// separator in front of what follows, and a join whose every term turns null omits the attribute
+    /// exactly as a lone null does.
+    /// </summary>
+    [Fact]
+    public void NullAttributeComponent_WhenTheLeadingClassTermTurnsNull_LeavesNoSeparatorAheadOfTheRest()
+    {
+        var cut = Render<NullAttributeComponent>();
+        var spans = cut.FindAll("span");
+
+        Assert.Equal("card active", spans[4].GetAttribute("class"));
+        Assert.Equal("card active", spans[5].GetAttribute("class"));
+
+        cut.Find("button").Click();
+
+        spans = cut.FindAll("span");
+        Assert.Equal("active", spans[4].GetAttribute("class"));
+        Assert.Null(spans[5].GetAttribute("class"));
     }
 
     /// <summary>

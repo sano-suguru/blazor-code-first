@@ -10,8 +10,10 @@ partial class Host
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
         __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", ("card") + " " + ("wide") + " " + (_extra));
+        __builder.AddAttribute(1, "class", __BlazorCodeFirstJoinClasses(("card wide"), (_extra)));
         __builder.AddMarkupContent(2, "<span>a</span>");
         __builder.CloseElement();
     }
+
+    private static string? __BlazorCodeFirstJoinClasses(string? a0, string? a1) => a0 is null ? a1 : a1 is null ? a0 : string.Concat(a0, " ", a1);
 }

@@ -117,6 +117,18 @@ required: if the counts diverge, the element spelling stopped folding.
 `FoldFixtureTests` pins each pair's folded frame count and asserts both sides
 render the same DOM.
 
+`ClassChannelBenchmarks` is a third unpublished set. It measures what the class
+channel's join allocates, before and after a change to the generation rule that
+builds it, and has no second side: Razor has no additive class channel, so
+`Program.Main` has nothing to gate here and the comparison is this generator
+against its own previous output. That is what #236 needed before it could change
+the rule at all. `--filter '*'` picks it up; to run only it:
+
+```bash
+# The #236 decision input only (not a DESIGN.md figure)
+dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*ClassChannelBenchmarks*'
+```
+
 `Program.Main` also gates one thing that is not a figure. `StaticParityView` and
 `StaticParityViewRazor` are a statically written pair, added once folding made
 such a comparison possible, and their frame equivalence is what backs

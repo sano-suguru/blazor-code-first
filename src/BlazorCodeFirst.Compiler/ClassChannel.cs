@@ -1,4 +1,6 @@
+using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
 using Microsoft.CodeAnalysis;
 
 namespace BlazorCodeFirst.Compiler;
@@ -58,6 +60,13 @@ internal static class ClassChannel
     internal const string AttributeName = "class";
 
     /// <summary>
+    /// The name of the join the generated class carries for its own use. Private to that class and
+    /// spelled long enough that a hand-written member of the same signature is not a case worth
+    /// designing against.
+    /// </summary>
+    internal const string JoinHelperName = "__BlazorCodeFirstJoinClasses";
+
+    /// <summary>
     /// What the channel writes between two decorations. One character serving both paths: the markup path
     /// appends it, and the frame path spells it as a string literal inside the concatenation. The fold's
     /// whole contract is that the two produce the same DOM, so a separator either of them chose for
@@ -66,12 +75,12 @@ internal static class ClassChannel
     internal const char Separator = ' ';
 
     /// <summary>
-    /// <see cref="Separator"/> as the frame path spells it, between two terms of the concatenation. Held
-    /// in a field because it cannot be a <c>const</c>: a constant interpolated string needs every hole to
-    /// be a constant <em>string</em>, and this one is a <see langword="char"/>, so writing it inline would
-    /// format it afresh for every element carrying two or more decorations.
+    /// <see cref="Separator"/> as a string literal in generated code, for the join bodies to concatenate
+    /// around. Held in a field rather than a <c>const</c> because it cannot be one: a constant
+    /// interpolated string needs every hole to be a constant <em>string</em>, and this one is a
+    /// <see langword="char"/>.
     /// </summary>
-    private static readonly string SeparatorCode = $" + \"{Separator}\" + ";
+    private static readonly string SeparatorLiteral = $"\"{Separator}\"";
 
     /// <summary>
     /// Whether a decoration written with <paramref name="name"/> folds into the channel. Ordinal, like
@@ -111,25 +120,189 @@ internal static class ClassChannel
     internal static bool IsFolded(ElementTemplateNode element) => element.Classes.Length > 0;
 
     /// <summary>
-    /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
-    /// emits. A single decoration is written as it stands, through
-    /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
-    /// the cast that overloaded argument position needs (#234); two or more are concatenated around
-    /// <see cref="Separator"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its own
-    /// precedence — and a concatenation is a <see langword="string"/> whatever its terms are, so it needs
-    /// no cast of its own. When every term is a string literal the C# compiler constant-folds the result
-    /// back to one string.
+    /// Whether <paramref name="term"/> contributes to the channel's value. A constant
+    /// <see langword="null"/> does not: it carries no text, and a term that is nothing has no separator to
+    /// earn (#236).
     /// </summary>
+    /// <remarks>
+    /// Asked here rather than at each site that needs it, because both paths have to drop the same terms
+    /// or they reach different DOM — the join below, and the markup fold's writer and its predicate. That
+    /// is the same reason <see cref="AttributeName"/> and <see cref="Separator"/> are read from here
+    /// instead of spelled on the markup path (#193); a rule stated at the site that happens to need it is
+    /// a rule the next site does not have to agree with.
+    /// </remarks>
+    internal static bool Contributes(ExpressionTemplate term) => term.Constant is not NullConstant;
+
+    /// <summary>
+    /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
+    /// emits. One surviving term is written as it stands, through
+    /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
+    /// the cast that overloaded argument position needs (#234); two or more are passed to
+    /// <see cref="JoinHelperName"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its
+    /// own precedence — and that call returns a <see cref="string"/> whatever its arguments are, so it
+    /// needs no cast of its own.
+    /// </summary>
+    /// <remarks>
+    /// Terms the compiler can read are settled here rather than left to the join: a constant
+    /// <see langword="null"/> is dropped, because a term that is nothing has no separator to earn, and
+    /// adjacent constant strings become one literal, because the text they join into is already known.
+    /// What survives is the terms whose value exists only at render time.
+    /// <para>
+    /// How many survive does not decide whether a frame is emitted.
+    /// <c>RenderViewEmitter.EmitClassAttribute</c> emits one whenever the element carries any class
+    /// decoration, including when every one of them folds away here, because sequence numbers are
+    /// allocated to <em>emitted</em> calls (<c>ARCHITECTURE.md</c> §2.7's <c>FrameWidth</c>) and
+    /// suppressing the emission would split this case from a constant <see langword="false"/>
+    /// <see langword="bool"/>, which is emitted and appends no frame at runtime (#234).
+    /// </para>
+    /// </remarks>
     /// <param name="classes">
     /// At least one decoration. An element carrying none emits no frame at all, which is the caller's
     /// decision to make: there is no expression that stands for an absent attribute.
     /// </param>
-    internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes)
+    /// <param name="joinArity">
+    /// The number of terms the returned code joins, or zero when it joins none. The emitter accumulates
+    /// the widest of these to know which helper bodies to write; which of them is widest is its question,
+    /// not the channel's.
+    /// </param>
+    internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes, out int joinArity)
     {
         var array = classes.AsImmutableArray();
-        return array.Length == 1
-            ? array[0].ToAttributeValueCode()
-            : string.Join(SeparatorCode, array.Select(static c => $"({c.ToCode()})"));
+        var terms = ReadableTerms(array);
+        joinArity = 0;
+
+        // Every term was a constant null. The value is a null of the channel's own type, spelled the way
+        // the lone-decoration case spells it, so the cast that overloaded argument position needs comes
+        // from one place whichever route reached it.
+        if (terms.Length == 0)
+            return array[0].ToAttributeValueCode();
+
+        if (terms.Length == 1)
+            return terms[0].ToAttributeValueCode();
+
+        joinArity = terms.Length;
+        return $"{JoinHelperName}({string.Join(", ", terms.Select(static c => $"({c.ToCode()})"))})";
+    }
+
+    /// <summary>
+    /// The body of the join the generated class carries, for <paramref name="arity"/> terms, as one line
+    /// of C#. The emitter writes one per arity from the widest call it made down to two.
+    /// </summary>
+    /// <remarks>
+    /// A null term is not a term: it contributes neither text nor a separator, which is the whole of
+    /// #236. Each arm drops one null and defers to the arity below — or, where one term is left, to that
+    /// term itself — so several nulls resolve one at a time and the body stays linear in
+    /// <paramref name="arity"/> rather than doubling with it.
+    /// <para>
+    /// The last arm is what the cost rests on. With no null it is one <c>string.Concat</c> over the terms
+    /// and the separators, which is what the concatenation this replaced lowered to, so the spelling that
+    /// never carried a residue pays what it always paid and the ones that did pay less. Measured against
+    /// the rule it replaces by <c>ClassChannelBenchmarks</c>, which is what #236 required before the rule
+    /// could change at all: at three terms the call has five arguments and binds to
+    /// <c>Concat(params ReadOnlySpan&lt;string?&gt;)</c>, which stack-allocates, where the operator chain
+    /// it replaces allocated a <c>string[]</c> unless the leading term happened to be constant.
+    /// </para>
+    /// </remarks>
+    internal static string JoinHelperCode(int arity)
+    {
+        var names = new string[arity];
+        for (var i = 0; i < arity; i++)
+            names[i] = $"a{i}";
+
+        var parameters = string.Join(", ", names.Select(static name => $"string? {name}"));
+        var code = new StringBuilder($"private static string? {JoinHelperName}({parameters}) =>");
+
+        for (var dropped = 0; dropped < arity; dropped++)
+        {
+            // Below two, what is left is a term rather than a call: there is no join of one.
+            var rest = string.Join(", ", names.Where((_, i) => i != dropped));
+            var withoutIt = arity == 2 ? rest : $"{JoinHelperName}({rest})";
+            code.Append($" {names[dropped]} is null ? {withoutIt} :");
+        }
+
+        var joined = string.Join($", {SeparatorLiteral}, ", names);
+        return code.Append($" string.Concat({joined});").ToString();
+    }
+
+    /// <summary>
+    /// <paramref name="classes"/> with the terms the compiler can read already settled: constant
+    /// <see langword="null"/>s dropped, and runs of adjacent constant strings joined into one term.
+    /// </summary>
+    /// <remarks>
+    /// Only <em>adjacent</em> constants join, because the channel's order is the author's and a constant
+    /// on either side of a term that is not one cannot be moved across it.
+    /// <para>
+    /// Joining the runs is not tidiness, it is what pays for spelling the join as a call. An operator
+    /// chain over string literals was constant-folded by the C# compiler; a call is not, so without this
+    /// <c>.Class("a").Class("b")</c> would reach <see cref="JoinHelperName"/> at render time for a value
+    /// that was known at compile time. It is the frame path's own compensation, which is why the markup
+    /// path does not do it: that path writes the text directly and has nothing to fold back.
+    /// </para>
+    /// <para>
+    /// Returns <paramref name="classes"/> unchanged when there is nothing to settle, which is the common
+    /// case and the reason this can run on every emission — the same guard, for the same reason, as
+    /// <c>ExpressionTemplate.CoalesceLiterals</c>. Rebuilding a lone constant term would allocate a
+    /// template byte-identical to the one already in hand.
+    /// </para>
+    /// </remarks>
+    private static ImmutableArray<ExpressionTemplate> ReadableTerms(
+        ImmutableArray<ExpressionTemplate> classes)
+    {
+        if (!HasReadableTerms(classes))
+            return classes;
+
+        var terms = ImmutableArray.CreateBuilder<ExpressionTemplate>(classes.Length);
+        string? run = null;
+
+        foreach (var @class in classes)
+        {
+            if (!Contributes(@class))
+                continue;
+
+            if (@class.Constant is StringConstant { Text: var text })
+            {
+                run = run is null ? text : run + Separator + text;
+                continue;
+            }
+
+            FlushRun(terms, ref run);
+            terms.Add(@class);
+        }
+
+        FlushRun(terms, ref run);
+        return terms.ToImmutable();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="classes"/> holds anything <see cref="ReadableTerms"/> would settle: a
+    /// constant <see langword="null"/> to drop, or two adjacent constant strings to join.
+    /// </summary>
+    private static bool HasReadableTerms(ImmutableArray<ExpressionTemplate> classes)
+    {
+        for (var index = 0; index < classes.Length; index++)
+        {
+            if (!Contributes(classes[index]))
+                return true;
+
+            if (index > 0
+                && classes[index].Constant is StringConstant
+                && classes[index - 1].Constant is StringConstant)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Turns an accumulated run of constant text into one term, and clears the run.</summary>
+    private static void FlushRun(ImmutableArray<ExpressionTemplate>.Builder terms, ref string? run)
+    {
+        if (run is null)
+            return;
+
+        terms.Add(ExpressionTemplate.StringLiteral(run));
+        run = null;
     }
 
     /// <summary>
