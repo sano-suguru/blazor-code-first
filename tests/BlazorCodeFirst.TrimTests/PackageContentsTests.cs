@@ -300,6 +300,23 @@ public sealed class PackageContentsTests
         // version in eng/Versions.props (#228). A copy here could only restate that comparison
         // against a second literal, which is what this class used to carry.
 
+        // A framework reference packs as its own element rather than as a dependency, so the
+        // dependency assertion below cannot see one, and the payload assertions read the nuspec's
+        // path but not its contents (#301). Microsoft.AspNetCore.App arriving here is issue #23
+        // again; any other shared framework is the same defect under a different name, since none of
+        // them has a browser-wasm runtime pack.
+        //
+        // Ahead of the dependency assertion because an added framework reference prunes the granular
+        // PackageReference, so that one fails first on an empty dependency list and reports a
+        // missing dependency rather than the framework reference that removed it.
+        var frameworkReferenceNames = nuspecDocument
+            .Descendants()
+            .Where(static element => element.Name.LocalName == "frameworkReference")
+            .Select(static element => element.Attribute("name")?.Value ?? "<missing-name>")
+            .ToArray();
+
+        Assert.Empty(frameworkReferenceNames);
+
         var dependencyElements = metadata
             .Descendants()
             .Where(static element => element.Name.LocalName == "dependency")

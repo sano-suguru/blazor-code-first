@@ -82,12 +82,13 @@ analyzer, so an older compiler refuses to load it. In an IDE, that means Visual 
 ## Installation
 
 ```
-dotnet add package BlazorCodeFirst
+dotnet add package BlazorCodeFirst --prerelease
 ```
 
-This is a prerelease. The surface is deliberately narrow and grows one issue at a time. The single
-package carries both halves: the runtime in `lib/net10.0`, and the generator and analyzers in
-`analyzers/dotnet/cs`.
+This is a prerelease, which is what `--prerelease` is for: without it the command resolves the
+latest stable version instead, of which there is none. The surface is deliberately narrow and grows
+one issue at a time. The single package carries both halves: the runtime in `lib/net10.0`, and the
+generator and analyzers in `analyzers/dotnet/cs`.
 
 ## Documentation
 
