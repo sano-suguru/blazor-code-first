@@ -389,7 +389,49 @@ internal static class UnresolvedValueTypeScanner
             return;
 
         foreach (var child in args.ParamsElements)
-            ScanRenderExpression(child.Expression, context);
+        {
+            if (child.IsSpread)
+                ScanSplice(child.Expression, context);
+            else
+                ScanRenderExpression(child.Expression, context);
+        }
+    }
+
+    /// <summary>
+    /// A spliced child list (<c>.. source.Select(item =&gt; …)</c>): the selector's body is a render
+    /// expression and is scanned as one. Scanning the whole call as a render expression reaches nothing,
+    /// and a BCF3015 inside a spliced child goes unreported (#172).
+    /// </summary>
+    /// <remarks>
+    /// The shape is recognized syntactically and the semantic check only <em>excludes</em>: a call that
+    /// resolves to something other than <c>Enumerable.Select</c> is skipped, and one that resolves to
+    /// nothing is scanned anyway. Requiring the symbol would make this blind exactly when it matters,
+    /// because an unresolvable name inside the selector is what stops the call from binding in the first
+    /// place — measured, and the reason this fails open like the element-tag gate above.
+    /// <para>
+    /// Reporting on a spread the analyzer would refuse costs nothing that is wrong. BCF3015 fires only on
+    /// a name that genuinely does not resolve, and such a body is BCF1003 either way; what the report
+    /// changes is that the author is told which name could not be resolved instead of only that the body
+    /// could not be translated.
+    /// </para>
+    /// </remarks>
+    private static void ScanSplice(ExpressionSyntax expression, ViewPartBodyContext context)
+    {
+        if (expression is not InvocationExpressionSyntax
+            { Expression: MemberAccessExpressionSyntax } invocation
+            || invocation.ArgumentList.Arguments.Count != 1)
+        {
+            return;
+        }
+
+        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is IMethodSymbol method
+            && !context.KnownSymbols.IsEnumerableSelect(method))
+        {
+            return;
+        }
+
+        ScanLambdaBody(invocation.ArgumentList.Arguments[0].Expression, context);
     }
 
     private static void ScanLambdaBody(ExpressionSyntax? expression, ViewPartBodyContext context)
@@ -441,12 +483,51 @@ internal static class UnresolvedValueTypeScanner
             // here on the way out.
             InvocationExpressionSyntax invocation =>
                 context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null
-                    && !IsSurfaceCall(invocation, context),
+                    && !IsSurfaceCall(invocation, context)
+                    && !IsSplicedSelect(invocation),
             ElementAccessExpressionSyntax elementAccess =>
                 context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken).Symbol is null
                     && TryGetRecognizedIndexer(elementAccess, context) is null,
             _ => false,
         });
+
+    /// <summary>
+    /// Whether <paramref name="invocation"/> is the <c>Select</c> of a spliced child list, the operand of
+    /// a spread written directly in a child list (<c>Div[[.. src.Select(i =&gt; …)]]</c>).
+    /// </summary>
+    /// <remarks>
+    /// The same exemption <see cref="IsSurfaceCall"/> earns, for the same reason: this is a call the sweep
+    /// deliberately walks into, so a value under it is reached and must not be suppressed on the way out.
+    /// It has to be named separately because a spliced <c>Select</c> is not part of the design-time
+    /// surface — it is host-language code the surface reads.
+    /// <para>
+    /// Without it, the sugar and the spelling it is sugar for disagree, which was measured:
+    /// <c>ForEach(items, key: null, content: i =&gt; Li[typeof(Probe).Name])</c> reports BCF3015 while
+    /// <c>[.. items.Select(i =&gt; Li[typeof(Probe).Name])]</c> reported only BCF1003. The unresolved name
+    /// is what stops <c>Select</c> from binding, so requiring a bound <c>Select</c> before looking inside
+    /// it is blind in exactly the case worth looking.
+    /// </para>
+    /// <para>
+    /// Asked of the syntax and not of a symbol, deliberately: there is no symbol in the case this exists
+    /// for. The spread parent is what bounds it to a child list, so an ordinary <c>Select</c> written
+    /// anywhere else keeps the suppression it had.
+    /// </para>
+    /// <para>
+    /// Only the selector needs this. The splice's <em>source</em> is already reached by the ordinary
+    /// sweep, measured: adding and removing a dedicated walk over it changed no input's diagnostics,
+    /// including one with an unresolvable name in the source and another with one in both halves. A
+    /// source broken enough not to be reached (<c>[.. Probe.Items.Select(…)]</c>) makes the whole element
+    /// access an <c>IInvalidOperation</c>, so this scanner never runs on it and BCF1003 answers instead —
+    /// the same measured condition <c>FactoryArguments</c> records.
+    /// </para>
+    /// </remarks>
+    private static bool IsSplicedSelect(InvocationExpressionSyntax invocation) =>
+        invocation is
+        {
+            Parent: SpreadElementSyntax,
+            Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Select" },
+        }
+        && invocation.ArgumentList.Arguments.Count == 1;
 
     // The caller did not select a decoration route, but a deliberately invoked user method in its value
     // still has its own source expression and must retain diagnostics (notably an escaped @nameof method).

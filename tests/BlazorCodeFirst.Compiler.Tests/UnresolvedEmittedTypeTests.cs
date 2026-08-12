@@ -191,6 +191,68 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void SplicedSelector_UnresolvedType_ReportsBCF3015()
+    {
+        // A spliced child is still a child, and BCF3015 is what keeps an unresolvable name out of the
+        // generated file, which carries no using directives. Reported here or nowhere (#172).
+        //
+        // The same body written four ways was measured against this one input, and only the spliced one
+        // used to disagree: a plain child, a collection-expression literal child, and the ForEach this
+        // splice is sugar for all reported BCF3015, while the splice reported only BCF1003. The
+        // unresolved name is what stops Select from binding, and every name under an unbound call was
+        // being suppressed on the way out.
+        const string source = """
+            using System;
+            using System.Linq;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly int[] _items = [1];
+
+                protected override View Body =>
+                    Ul[[.. _items.Select(i => Li[typeof(Probe).Name])]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    [Fact]
+    public void SplicedSource_UnresolvedType_ReportsBCF3015()
+    {
+        // The splice's source, which needs no dedicated walk and is pinned here so that stays true. It is
+        // measured, not assumed: adding and removing a walk over the source changed no input's
+        // diagnostics, so ScanSplice covers the selector only. A source broken enough not to be reached
+        // makes the whole element access an IInvalidOperation, and BCF1003 answers instead.
+        const string source = """
+            using System;
+            using System.Linq;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly int[] _items = [1];
+
+                protected override View Body =>
+                    Ul[[.. _items.Take(typeof(Probe).Name.Length).Select(i => Li[i.ToString()])]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    [Fact]
     public void ReorderedForEachKey_UnresolvedType_ReportsBCF3015()
     {
         const string source = """
