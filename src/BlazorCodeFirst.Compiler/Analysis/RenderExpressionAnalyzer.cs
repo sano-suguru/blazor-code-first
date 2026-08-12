@@ -380,6 +380,68 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// A spliced child list, <c>.. source.Select(item =&gt; …)</c>, folded to the <c>ForEach</c> with a
+    /// declined key that it is sugar for (#172).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only the fluent spelling is read. The static one, <c>Enumerable.Select(source, item =&gt; …)</c>,
+    /// puts the source in argument space where <see cref="FactoryArguments"/>'s receiver skip removes it,
+    /// so recovering it there would mean re-deriving a binding rule this analyzer deliberately asks
+    /// Roslyn for everywhere else.
+    /// </para>
+    /// <para>
+    /// Every other spread returns null here and lands on BCF1003. That is where a stored <c>View</c> read
+    /// in the singular already sits (<c>ARCHITECTURE.md</c> 付録A), so admitting the plural to the Opaque
+    /// path would make a sequence of stored Views more permissive than one of them. The Opaque path also
+    /// could not report the difference: a field is not a call, so BCF3030 cannot see it, and a surface-
+    /// built <c>View</c> carries no fragment and would render nothing in silence (付録B).
+    /// </para>
+    /// </remarks>
+    private static ForEachTemplateNode? AnalyzeSplice(
+        ExpressionSyntax expression, ViewPartBodyContext context)
+    {
+        // A list pattern on Arguments would be the natural spelling and is unavailable: this project
+        // targets netstandard2.0, which has no System.Index for one to lower onto.
+        if (expression is not InvocationExpressionSyntax
+            { Expression: MemberAccessExpressionSyntax access } invocation
+            || invocation.ArgumentList.Arguments.Count != 1
+            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is not IMethodSymbol method
+            || !context.KnownSymbols.IsEnumerableSelect(method)
+            || !TryExtractSingleParameterLambda(
+                invocation.ArgumentList.Arguments[0].Expression, out var parameter, out var body)
+            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                is not { } parameterSymbol)
+        {
+            context.RecordUntranslatable(expression);
+            return null;
+        }
+
+        // The source is bound in the enclosing scope, so it is normalized before the iteration variable
+        // is registered, exactly as ForEach's own source is.
+        var source = ExpressionTemplateFactory.Create(access.Expression, context);
+
+        ISymbol[] itemSymbols = [parameterSymbol];
+        context.PushRenderVariable(itemSymbols);
+        try
+        {
+            var content = Analyze(body, context);
+            return content is null
+                ? null
+                : new ForEachTemplateNode(
+                    source,
+                    Key: null,
+                    content,
+                    TemplateLocation.From(expression.GetLocation()));
+        }
+        finally
+        {
+            context.PopRenderVariable(itemSymbols);
+        }
+    }
+
+    /// <summary>
     /// The <c>content</c> argument of a <c>ForEach</c>, resolved to one of the two shapes the generator
     /// accepts. Exactly one of <see cref="Callee"/> and <see cref="LambdaParameter"/> is set.
     /// </summary>
@@ -2023,16 +2085,12 @@ internal static class RenderExpressionAnalyzer
         var nodes = ImmutableArray.CreateBuilder<RenderTemplateNode>(children.Length);
         foreach (var child in children)
         {
-            // A spread is one expression standing for zero or more children, so it is not a child and is
-            // not analyzed as one. Nothing here can splice it yet, and what cannot be spliced is
-            // untranslatable, which is where every spread sat before (#75).
-            if (child.IsSpread)
-            {
-                context.RecordUntranslatable(child.Expression);
-                return null;
-            }
-
-            var node = Analyze(child.Expression, context);
+            // A spread is one expression standing for zero or more children, so it is not analyzed as a
+            // child. It has its own classification, and everything it does not admit is untranslatable,
+            // which is where every spread sat before (#75).
+            var node = child.IsSpread
+                ? AnalyzeSplice(child.Expression, context)
+                : Analyze(child.Expression, context);
             if (node is null)
                 return null;
 

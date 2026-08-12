@@ -77,6 +77,7 @@ public sealed class BracketSurfaceDiagnosticTests
         [
             ("Host.cs", $$"""
                 using System.Collections.Generic;
+                using System.Linq;
                 using BlazorCodeFirst;
                 using static BlazorCodeFirst.Html;
 
@@ -249,11 +250,72 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
+    public void SpreadOfAProjection_IsAcceptedAsChildren()
+    {
+        // #172: a sequence of children computed from data has a second spelling, the ordinary projection
+        // spliced with `..`. It folds to the same node as ForEach with the key declined.
+        var result = RunResult(
+            """Ul[[.. _items.Select(i => Li[i])]]""",
+            """private readonly List<string> _items = [];""");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void SpreadOfAProjectionBesideSiblings_IsAcceptedAsChildren()
+    {
+        // What the IEnumerable<View> indexer overload considered by #172 could not do, and the reason the
+        // spread is the only spelling taken: the splice mixes with children written beside it.
+        var result = RunResult(
+            """Ul[[Li["first"], .. _items.Select(i => Li[i]), Li["last"]]]""",
+            """private readonly List<string> _items = [];""");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void SpreadOfAnIndexedProjection_ReportsBCF1003()
+    {
+        // Select's indexed overload is not the shape #172 folds: its two-parameter lambda has no single
+        // iteration variable for a content template.
+        //
+        // Two independent conditions refuse it, and this test does not distinguish them, which was
+        // measured rather than assumed. Resolving the indexed overload into KnownSymbols instead of the
+        // projection one leaves this green, because the lambda arity check refuses it; widening the
+        // selector to take a wider lambda's first parameter also leaves it green, because the indexed
+        // overload is a different symbol and IsEnumerableSelect refuses it. Only both mutations together
+        // turn it red, so what it pins is the conjunction.
+        var result = RunResult(
+            """Ul[[.. _items.Select((i, n) => Li[i])]]""",
+            """private readonly List<string> _items = [];""");
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        AssertOnlyRenderViewIsMissing(result);
+    }
+
+    [Fact]
+    public void SplicedProjection_GeneratesSameSourceAsForEachWithTheKeyDeclined()
+    {
+        // The splice is sugar over ForEach with the key declined, and this is the assertion that keeps it
+        // sugar rather than a second mechanism that happens to look the same today (#172).
+        const string members = """private readonly List<string> _items = [];""";
+
+        var spliced = GenerateSource("""Ul[[.. _items.Select(i => Li[i])]]""", members);
+        var written = GenerateSource("""Ul[ForEach(_items, key: null, content: i => Li[i])]""", members);
+
+        Assert.Equal(written, spliced, System.StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void SpreadInsideACollectionExpressionLiteral_ReportsBCF1003()
     {
-        // A spread's items are a runtime collection with no per-child written expression, so they are
-        // not statically sequenceable children: that is what ForEach is for. This is the same boundary
-        // Div[_children] sits on, and #75 does not move it.
+        // A spread of stored Views has no per-child written expression and is not a projection the
+        // generator can fold, so it is not statically sequenceable children. #172 moved this boundary for
+        // `.. source.Select(item => …)` and for nothing else: the singular Div[_view] is BCF1003 for the
+        // same reason (ARCHITECTURE.md 付録A), and admitting the plural would make a sequence of stored
+        // Views more permissive than one of them.
         var result = RunResult("""Div[[.._children]]""", """private readonly View[] _children = [];""");
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
