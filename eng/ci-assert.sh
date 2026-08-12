@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Assertion helpers for the site CI guards.
+# Assertion helpers for the CI guards.
 #
-# Sourced (not executed) by steps in .github/workflows/site.yml so a failing assertion prints a
-# GitHub `::error::` annotation naming the file and the expectation, instead of aborting the step with
-# a bare non-zero exit status.
+# Sourced (not executed) by steps in .github/workflows/site.yml and by the eng/verify-*.sh scripts
+# that .github/workflows/ci.yml runs, so a failing assertion prints a GitHub `::error::` annotation
+# naming the file and the expectation, instead of aborting the step with a bare non-zero exit status.
 #
 # Three shell hazards these helpers exist to contain:
 #   * Under `set -e` a negated command (! grep ...) is EXEMPT from errexit (POSIX), so asserting

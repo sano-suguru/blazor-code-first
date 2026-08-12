@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Isolated so `rm -rf artifacts/wasm-package-app` resets this fixture completely, the way
+         RazorInterop.Package's own path does for that one. The cost is that the browser-wasm
+         packages are a second copy beside the global folder, and that this project cannot share a
+         NuGet cache with anything else if one is ever added. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../artifacts/wasm-package-app/packages</RestorePackagesPath>
+    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
+    <!-- Brotli and gzip sidecars for every published asset, and nothing reads one: the check is the
+         build, and eng/verify-wasm-package.sh greps a single uncompressed file. Halves the publish
+         (19s to 9s measured locally, from a clean bin/obj). -->
+    <CompressionEnabled>false</CompressionEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- This ItemGroup is what the fixture measures, and the reason every other file here points
+         back at it.
+
+         There is no browser-wasm runtime pack for Microsoft.AspNetCore.App, so a
+         `FrameworkReference Include="Microsoft.AspNetCore.App"` reaching this project fails its
+         BUILD with NETSDK1082. FrameworkReference items propagate transitively through a package's
+         dependencies, so BlazorCodeFirst must bring none. That is what #23 was, and why
+         BlazorCodeFirst.Runtime references Microsoft.AspNetCore.Components as a package instead.
+         Nothing else in this repository is both browser-wasm and a package consumer, so nothing
+         else can catch that reference coming back.
+
+         Microsoft.AspNetCore.Components.WebAssembly supplies what the app itself needs, which is
+         why this project declares no FrameworkReference of its own either. -->
+    <PackageReference Include="BlazorCodeFirst" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <!-- Cross-platform cache purge, as in TrimTestApp: delete only the isolated dev-version cache
+       before restore so NuGet cannot reuse stale package contents for the fixed development
+       version. Only fires during actual NuGet restore (MSBuildRestoreSessionId is set). -->
+  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+  </Target>
+
+</Project>

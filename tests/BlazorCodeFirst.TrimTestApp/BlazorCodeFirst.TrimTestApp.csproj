@@ -8,7 +8,10 @@
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
     <RestorePackagesPath>../../artifacts/nuget-packages</RestorePackagesPath>
-    <!-- Top-level statements synthesize a Program class outside any namespace; CA1050 is irrelevant here. -->
+    <!-- Fires on the three public types Program.cs declares in the global namespace, which are
+         public so the trimmer keeps them reachable for TrimTests. Not on the Program class
+         top-level statements synthesize: that one is internal, and CA1050 only considers externally
+         visible types (#137). A deliberate exemption, until those types gain a namespace. -->
     <NoWarn>CA1050</NoWarn>
     <!-- Computed path to the dev-version cache that must be cleared before restore. -->
     <_BlazorCodeFirstDevCachePath>$(MSBuildThisFileDirectory)../../artifacts/nuget-packages/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
