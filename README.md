@@ -1,19 +1,7 @@
 # BlazorCodeFirst
 
-A code-first declarative UI layer for Blazor. You write your UI in pure C#, with no `.razor` markup
-and no raw-string templates.
-
-A Roslyn Source Generator analyzes your `Body` expressions and reachable `[ViewPart]` methods at
-build time and emits a standard Blazor `RenderTreeBuilder` render method with statically assigned
-sequence numbers. The generated component is an ordinary `ComponentBase` descendant, so it diffs the
-way Razor's output does and stays trimming/AOT-safe. There is no runtime UI tree, no reflection, and
-no expression compilation.
-
-The vocabulary mirrors HTML: elements are C# helpers, attributes and events sit next to the tag in
-a decoration chain, children follow in brackets, and layout is left entirely to CSS. This is not the
-SwiftUI or Jetpack Compose kind of code-first: there are no `VStack` / `HStack` / `Grid` containers
-and no typed `.Padding()` / `.FontSize()` decorations. `DESIGN.md` §4.1 records which lineage this
-follows, and why.
+Blazor components written in C#, not `.razor`. HTML's own vocabulary becomes ordinary C#
+expressions, compiled to `RenderTreeBuilder` calls at build time.
 
 ```csharp
 using BlazorCodeFirst;
@@ -42,93 +30,65 @@ public partial class CounterPage : BodyComponentBase
 }
 ```
 
-That is `tests/BlazorCodeFirst.WebAppTestHost/Components/CounterPage.cs` without its namespace
-declaration. It is copied from a project that CI builds and tests, not written for the README.
-Run it with
-`dotnet watch --project tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj`.
+That page is `tests/BlazorCodeFirst.WebAppTestHost/Components/CounterPage.cs`. Run it with
 
-## What "type-safe" means here
+```bash
+dotnet watch --project tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj
+```
 
-`Body` is an ordinary typed C# expression, so the compiler checks names and types, and refactorings
-propagate through it like any other code. It is not compile-time validation of HTML. Every element
-is one unified node type carrying a string tag, so `Img["child"]` and `Div.Href(…)` both type-check.
-`DESIGN.md` §4.1 records that position and separates the two cases. `.Href(…)` on a `Div` renders
-as written and is not diagnosed. `Img["child"]` renders differently under static SSR than under
-interactive rendering, so it is rejected as BCF3016. What can be checked is bounded by the arity of
-the check, not by validity: a break decidable from the element tag alone can be diagnosed, while one
-that needs the (parent, child) pair, such as `Table[Div["x"]]`, is not.
+## How it works
 
-What C# cannot check is the *shape* of a `Body`:
+A Roslyn source generator reads each component at build time and emits a standard Blazor
+`RenderTreeBuilder` render method with statically assigned sequence numbers. The generated component
+is an ordinary `ComponentBase` descendant. Blazor diffs it exactly as it diffs a Razor component, and
+it stays trimming-safe and AOT-safe. There is no runtime UI tree, no reflection, and no expression
+compilation.
 
-- a component that forgets `partial`
-- state mutated inside `Body`
-- a decoration applied to something that is not a single element
-- a duplicate attribute
-- a non-constant tag name
+The surface mirrors HTML:
 
-The compiler's own BCF1xxx/BCF3xxx diagnostics enforce those after the fact, and `ARCHITECTURE.md`
-lists them.
+- Elements are C# helpers named after their tags.
+- Attributes and events sit next to the tag in a decoration chain.
+- Children follow in brackets.
+- CSS handles layout entirely.
+
+This is not the SwiftUI or Jetpack Compose kind of code-first: there are no `VStack` / `HStack` /
+`Grid` containers and no typed `.Padding()` / `.FontSize()` decorations. `DESIGN.md` §4.1 records
+which lineage this follows, and why.
+
+A `Body` is a typed C# expression. The compiler checks names and types, and refactorings propagate
+through it like any other code. That is C# type checking, not validation of the HTML you wrote. The
+analyzers catch what the type system cannot see, such as a component that forgets `partial`, state
+mutated inside `Body`, or a duplicate attribute. Each is reported as a `BCF****` diagnostic during
+the build.
 
 ## Status
 
-Prerelease. `BlazorCodeFirst` `0.1.0-dev` is not published to nuget.org; build it from this
-repository (see [Installation](#installation)). The surface is deliberately narrow and grows by
-issue.
-
-Available today:
-
-- An element helper for every element that the HTML Living Standard's element index lists as
-  conforming, minus six reasoned exclusions recorded in `DESIGN.md` §4.1. `Element(tag)` still writes
-  those six, along with custom elements, Web Components and foreign vocabularies. Plus `Fragment(…)`
-  and `Raw(html)` for trusted HTML.
-- Forms can use string/bool `.Bind`, component `.Bind`, and typed `.On<TArgs>` handlers. Generic
-  `RenderFragment<TContext>` parameters such as `EditForm.ChildContent` accept BlazorCodeFirst content
-  through `.Template`, with either an ignored or named context.
-- Mixed children, supplied in brackets after the tag and its attributes (`Div.Class("card")[…]`):
-  bare strings and `View`s go in the same list. A Blazor `RenderFragment` is also a child, which is
-  how Razor-supplied content flows in.
-- Decorations: `.Class` (folding), the `.Href` `.Src` `.Alt` `.Id` `.Type` `.Title` `.Role`
-  shortcuts, and generic `.Attr(name, string)` and `.Attr(name, bool)`. Events: `.OnClick` and
-  `.On(eventName, …)` take `Action` or `Func<Task>` handlers, and `.On<TArgs>(eventName, …)` takes
-  `Action<TArgs>` or `Func<TArgs, Task>`.
-- Control flow: `If(condition, then, otherwise)` and keyed `ForEach(source, key, content)`.
-- Razor interop in both directions. `Component<T>()` renders an existing Razor component, taking
-  `.Param(…)`, `.Template(…)` and child content. In the other direction, a BlazorCodeFirst component
-  is an ordinary component that Razor can use.
-- Layouts: `ChromeLayoutBase` with a `Chrome` expression.
-- Reusable `[ViewPart]` methods, expanded statically into the caller. One that wraps caller-supplied
-  content returns `SlotView` and writes `Slot` where the content belongs, so the call takes brackets
-  the way an element does: `Card("Profile")[P["body"]]`. Further slots are `View` parameters, as in
-  `Panel(H2["Title"])[P["body"]]`.
-
-Not covered yet, tracked as a single surface-area inventory in
-[#72](https://github.com/sano-suguru/blazor-code-first/issues/72): `preventDefault` /
-`stopPropagation`, attribute splatting, `@ref` for elements and components, and form helpers.
-
-`object`-valued attributes are absent and stay absent. That is a decision, not a gap: attribute
-values are `string` and `bool` only, for the reason `DESIGN.md` §4.1 records.
+Prerelease. The surface is deliberately narrow and grows one issue at a time. Not supported yet:
+`preventDefault` / `stopPropagation`, attribute splatting, `@ref` for elements and components, and
+form helpers.
 
 ## Installation
 
-The package is not on nuget.org yet. Pack it locally:
+`BlazorCodeFirst` `0.1.0-dev` is not on nuget.org yet. Pack it locally:
 
 ```bash
 dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
 ```
 
-That produces a single `BlazorCodeFirst` `0.1.0-dev` package carrying both halves: the runtime in
-`lib/net10.0`, and the generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as
-a NuGet source and reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project.
+That produces a single package carrying both halves: the runtime in `lib/net10.0`, and the
+generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as a NuGet source and
+reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project.
 
-Consuming the package needs .NET SDK 10.0.100 or later, and Visual Studio 2026 version 18.0 or later
-where the IDE is used. The generator ships as a Roslyn 5.0 analyzer, and an older compiler refuses
-to load it. That is a separate requirement from building this repository, which pins the SDK to
-10.0.300 in `global.json`.
+Consuming the package needs .NET SDK 10.0.100 or later. In an IDE, it also needs Visual Studio 2026
+version 18.0 or later. The generator ships as a Roslyn 5.0 analyzer, and an older compiler refuses
+to load it. Building this repository is a separate requirement: `global.json` pins the SDK to
+10.0.300.
 
 ## Documentation
 
 - [Documentation site](https://blazor-code-first-site.pages.dev): getting started, elements and
-  decorations, control flow, layouts. The site itself is written in BlazorCodeFirst.
+  decorations, control flow, two-way binding, components and reuse, layouts. The site itself is
+  written in BlazorCodeFirst.
 - [DESIGN.md](DESIGN.md) (Japanese): the design overview, covering background, goals, API design,
   and platform strategy. Start here.
 - [ARCHITECTURE.md](ARCHITECTURE.md) (Japanese): the internal architecture, covering the compilation
@@ -138,5 +98,4 @@ to load it. That is a separate requirement from building this repository, which 
 
 ## License
 
-MIT. See [LICENSE](LICENSE). The package declares it as the SPDX expression `MIT`, so nuget.org links
-the license rather than embedding a copy in the payload.
+MIT. See [LICENSE](LICENSE).
