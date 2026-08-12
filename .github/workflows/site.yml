@@ -537,6 +537,33 @@ jobs:
           echo "--- published _headers ---"
           cat "$P/_headers"
 
+      # wrangler-action runs `npm i wrangler@4` in its workingDirectory whenever it does not already
+      # find wrangler there, and that writes package.json and package-lock.json. At the default
+      # working directory -- the repository root -- neither file is tracked and neither is ignored, so
+      # the `git status --porcelain` that `pages deploy` runs moments later reports both and every
+      # deployment is recorded as commitDirty: true (#282).
+      #
+      # The install root must stay INSIDE the checkout. Wrangler asks
+      # `git rev-parse --is-inside-work-tree` with no cwd of its own, so a workingDirectory outside
+      # the repository makes isGitDir false and drops the commit hash and the commit message from the
+      # deployment record altogether, which is worse than the wrong boolean. Being ignored is what
+      # fixes the dirty flag: that same `git status --porcelain` carries no pathspec and reports the
+      # whole repository no matter where it runs from.
+      #
+      # The package.json is written here rather than left to `npm i`, which resolves its install
+      # prefix by walking up from the working directory until it finds a package.json or a
+      # node_modules. Writing one pins the prefix to this directory instead of leaving it to whatever
+      # happens to sit above the checkout on the runner.
+      #
+      # No fork/Dependabot condition, unlike the two steps below: with no deploy there is no install
+      # and this directory is simply unused, which is cheaper than keeping a third copy of that
+      # condition in step with the other two.
+      - name: Prepare the wrangler install root
+        run: |
+          set -euo pipefail
+          mkdir -p .wrangler-ci
+          printf '%s\n' '{ "private": true }' > .wrangler-ci/package.json
+
       - name: Deploy to Cloudflare Pages
         id: deploy
         # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip.
@@ -555,9 +582,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # See the step above for why the install root is moved off the repository root.
+          workingDirectory: .wrangler-ci
           # --branch comes from the resolved target, never from github.ref_name (see that step).
+          # The publish directory is absolute because wrangler resolves it against workingDirectory,
+          # which is no longer the repository root: this is the one argument the line above moves.
           command: >-
-            pages deploy site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+            pages deploy
+            ${{ github.workspace }}/site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
             --project-name blazor-code-first-site
             --branch=${{ steps.target.outputs.branch }}
 
@@ -595,3 +627,28 @@ jobs:
           # a gh build without --create-if-none.
           gh pr comment "$PR_NUMBER" --body "$body" --edit-last --create-if-none \
             || gh pr comment "$PR_NUMBER" --body "$body"
+
+      # The invariant the install root above exists to hold: nothing in this job may leave a change
+      # in the tracked tree, because `wrangler pages deploy` reads exactly this and stamps the answer
+      # onto the deployment as commitDirty (#282).
+      #
+      # A canary, not a gate. The deploy is several steps behind by now, so this cannot stop a
+      # deployment from being recorded as dirty, only report that one was. What it catches is the
+      # arrangement above decaying: a wrangler-action release that installs somewhere else, or a new
+      # step that writes into the tree. Either would otherwise surface as one warning line in the
+      # middle of a long green log, which is how #282 went unnoticed for as long as it did.
+      #
+      # Last rather than immediately after the deploy, so that a dirty tree still gets its preview
+      # URL commented; the step between them only calls `gh` and cannot dirty anything. It carries no
+      # condition, so it runs whenever every step before it passed -- including the runs where the
+      # deploy was skipped for a fork or for Dependabot, where a clean tree is equally expected.
+      - name: Verify the job left the working tree clean
+        run: |
+          set -euo pipefail
+
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::error::the working tree is not clean, so this deployment was recorded with commitDirty: true. Ignore whatever wrote the paths below, or stop it from writing there." >&2
+            printf '%s\n' "$dirty" >&2
+            exit 1
+          fi
