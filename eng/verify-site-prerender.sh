@@ -31,6 +31,133 @@ content_root="$repository_root/site/content"
 # shellcheck source=eng/ci-assert.sh
 . "$script_dir/ci-assert.sh"
 
+# The document slugs in one content directory, sorted. Nothing for a directory with no documents.
+slugs_in() {
+  local dir=$1 f
+  for f in "$dir"/*.md; do
+    # A glob that matches nothing is left unexpanded, so test the candidate rather than trust it.
+    [ -e "$f" ] || continue
+    basename "$f" .md
+  done | LC_ALL=C sort
+}
+
+# "/docs/" for the canonical edition, "/docs/<lang>/" for a translation. Matches Docs.RoutePrefix.
+route_prefix() {
+  if [ "$1" = "." ]; then
+    printf '/docs/'
+  else
+    printf '/docs/%s/' "$1"
+  fi
+}
+
+# Every route site/content backs, one line per route as "<kind> <route> <langdir> <slug>".
+#
+# This is a SECOND, independent derivation of what ComputeDocsPrerenderPaths derives in the csproj
+# from the same directory. That is the point: an expectation derived from the publish output cannot
+# catch a defect that changes the publish output, and reading the csproj's own answer back would be
+# the same mistake one step removed. A defect in that target has to be catchable from here.
+#
+# Each subdirectory of the content root is a language. Nothing here checks that, and nothing needs
+# to: DocGenRunner fails the build on a content subdirectory whose name is not in DocLang.All, and
+# the DocGen step runs earlier in this same workflow. A directory that reaches this line is a
+# language. The canonical edition has no directory -- its documents are the top-level files -- so it
+# is carried as "." and used as a path component unchanged.
+#
+# "/404" is deliberately absent. CopyPrerendered404 moves that route to a top-level 404.html and
+# removes the directory, so it is not an index.html and cannot appear on the published side either.
+# The assertions on 404.html further down are what cover it.
+expected_table() {
+  local lang dir slug
+
+  printf 'fixed / - -\n'
+  printf 'fixed /counter/ - -\n'
+  printf 'index /docs/ . -\n'
+
+  for slug in $(slugs_in "$content_root"); do
+    printf 'doc /docs/%s/ . %s\n' "$slug" "$slug"
+  done
+
+  for dir in "$content_root"/*/; do
+    [ -d "$dir" ] || continue
+    lang=$(basename "$dir")
+
+    # An edition nobody has translated into is not a place in the site: DocsJaIndexPage answers
+    # not-found for it, and ComputeDocsPrerenderPaths leaves its index out of the fetch list. Both
+    # are the same condition, and this is its third statement.
+    [ -n "$(slugs_in "$dir")" ] || continue
+
+    printf 'index %s %s -\n' "$(route_prefix "$lang")" "$lang"
+    for slug in $(slugs_in "$dir"); do
+      printf 'doc %s%s/ %s %s\n' "$(route_prefix "$lang")" "$slug" "$lang" "$slug"
+    done
+  done
+}
+
+# Every route the publish output contains.
+#
+# This expression must stay IDENTICAL to the one the "Generate and verify sitemap.xml" step uses to
+# build its URL set. The equality asserted below is what lets that step keep deriving from the
+# publish output; derived differently here, it would prove the equality of a set the sitemap does
+# not read, which is not the claim being made.
+published_table() {
+  ( cd "$P" && find . -type f -name index.html -print ) \
+    | sed -e 's|^\.||' -e 's|index\.html$||' \
+    | LC_ALL=C sort
+}
+
+# The $P-relative file a route's HTML lands in.
+route_file() {
+  if [ "$1" = "/" ]; then
+    printf 'index.html'
+  else
+    printf '%sindex.html' "${1#/}"
+  fi
+}
+
+# THE GATE. Everything below may enumerate the publish output, because this proved the set it would
+# be enumerating is the set site/content backs.
+#
+# The two directions were measured separately, and they do not have equal weight.
+#
+# A route the publish output has and site/content does not back is #278, and it is what this gate is
+# for. BlazorWasmPreRendering.Build follows links out of the pages it renders, so a page that offers
+# a link it should never have offered turns that link into a route that ships -- and then into a
+# <loc> in sitemap.xml, handing a search engine a URL for a document nobody wrote. Reproduced by
+# adding an English-only document and deleting the counterpart check in DocsNav.Counterparts: the
+# switch is offered anyway, the crawler follows it, and "/docs/ja/<slug>" is published for a document
+# with no Japanese source.
+#
+# A route site/content backs and the publish output lacks is a backstop, and a weaker one than it
+# looks, because that same crawl backfills. Narrowing the DocMarkdown glob in
+# ComputeDocsPrerenderPaths so two documents are left out of the explicit fetch list changes NOTHING
+# in the output: the rail links every document from every documentation route, so the crawler finds
+# them regardless. What this side does catch was measured with
+# BlazorWasmPrerenderingUrlPathRegexToIgnore, which drops a route the crawler did reach -- so it
+# fires on prerendering that stopped covering a route, not on a route dropped from the list.
+#
+# Written here rather than as a helper in eng/ci-assert.sh: every helper there takes one file and one
+# ERE, and set equality is neither. The "Verify site source hygiene" step declines to source the
+# library for the same reason, and says so.
+expected_routes=$(expected_table | awk '{ print $2 }' | LC_ALL=C sort)
+published_routes=$(published_table)
+
+unbacked=$(LC_ALL=C comm -13 <(printf '%s\n' "$expected_routes") <(printf '%s\n' "$published_routes"))
+unpublished=$(LC_ALL=C comm -23 <(printf '%s\n' "$expected_routes") <(printf '%s\n' "$published_routes"))
+
+if [ -n "$unbacked" ] || [ -n "$unpublished" ]; then
+  echo "--- routes site/content backs ---" >&2
+  printf '%s\n' "$expected_routes" >&2
+  echo "--- routes the publish output contains ---" >&2
+  printf '%s\n' "$published_routes" >&2
+  if [ -n "$unbacked" ]; then
+    echo "::error::the publish output contains routes no document in site/content backs, so the deployment ships pages nobody wrote and sitemap.xml declares them: $(printf '%s' "$unbacked" | tr '\n' ' ')" >&2
+  fi
+  if [ -n "$unpublished" ]; then
+    echo "::error::site/content backs routes the publish output does not contain, so a document that exists did not ship: $(printf '%s' "$unpublished" | tr '\n' ' ')" >&2
+  fi
+  exit 1
+fi
+
 # The published document slugs. Defined once and reused below so the three loops over this
 # same set (building ROUTES, the active-link/.md check, and the /docs index count check)
 # cannot drift from each other. (#46 tracks deriving this from the publish output instead.)

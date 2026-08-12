@@ -256,6 +256,13 @@ jobs:
           # file-time-derived value would be noise. Trailing-slash form, because that is what
           # Cloudflare's 308 normalizes to and what actually returns 200.
           #
+          # That reasoning survives #278 -- where deriving an expectation from the publish output was
+          # how a route nothing backed got confirmed rather than caught -- only because
+          # eng/verify-site-prerender.sh already ran and proved this same enumeration equals the set
+          # site/content backs. A route nothing backs cannot reach this step, so a <loc> for a
+          # document nobody wrote cannot either. Keep that script's find expression identical to this
+          # one: derived differently, it would pin a set this generator does not read.
+          #
           # No XML escaping, deliberately: the only variable segment is a document slug, and
           # site/README.md constrains those to ^[a-z0-9]+(-[a-z0-9]+)*\z -- which DocSlug enforces at
           # build time -- so no character requiring an entity can reach a <loc>. If that rule is ever
