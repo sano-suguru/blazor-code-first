@@ -41,11 +41,12 @@
        raised panel, which is the same signal it carries in light mode, and it holds this file's own
        rule that elevation on a dark surface is lightness rather than shadow.
 
-       What the inversion does break is the light-slab pairing. `.slab--light` draws on
-       --color-paper-2, and four of the `-on-light` colours sit in the low forties precisely because
-       that surface used to be near-white; below they take the bright family as their dark half,
-       since the surface under them is now the dark one. The fifth tracks --color-muted, which is
-       paired already, so it needs no pair of its own.
+       The light slab is the case that used to need a second code palette here and no longer does.
+       `.slab--light` draws on --color-paper-2 and pins `color-scheme: light`, so the generated
+       pairs in css/highlight.css resolve to their paper half on that figure whatever the page
+       theme is; the dark slab pins `dark` and takes the other half. One generated stylesheet
+       therefore serves both surfaces, and the hand-written `-on-light` family that used to serve
+       the light one is gone.
 
        css/highlight.css pairs the same way for prose code fences. It is generated, and
        ColorCodeTheme is where its two palettes are declared -- see the note in that file for why the
@@ -76,25 +77,20 @@
     --color-slab-muted: oklch(70% 0.012 277);
     --color-slab-rule: oklch(31% 0.020 277);
 
-    /* Code tokens on the dark slab. Lightness is held at 78-82% so every one clears 4.5:1 against
+    /* Code colours on the dark slab. Lightness is held at 78-82% so every one clears 4.5:1 against
        --color-slab; the comment is the tightest at ~4.6:1, which is why it sits at 66% and not
-       lower. These are the landing page's own vocabulary and are deliberately separate from
-       css/highlight.css, which DocGen generates for prose code blocks from the ColorCode theme. */
+       lower.
+
+       Three of these are declared here and read from C#, not from CSS. ColorCodeTheme's dark
+       palette reproduces --color-code-keyword, --color-code-string and --color-code-comment as
+       hex, because ColorCode mangles a var() reference; this file stays the record they are
+       converted from, and the pair has to be changed together. --color-code-member is the one
+       still reached by a rule -- .diag-id in css/app.css, on the build-error figure, which is not
+       code and so does not use the code vocabulary at all. */
     --color-code-keyword: oklch(78% 0.14 300);
-    --color-code-type: oklch(80% 0.11 230);
     --color-code-string: oklch(80% 0.12 165);
     --color-code-member: oklch(78% 0.12 350);
     --color-code-comment: oklch(66% 0.020 277);
-
-    /* The same five hues turned over for the light slab, where the figure sits on paper instead.
-       Lightness drops to the low forties so each one clears 4.5:1 the other way round -- until the
-       page itself goes dark, when the surface under them is dark again and they take the bright
-       family back. */
-    --color-code-keyword-on-light: light-dark(oklch(45% 0.19 300), oklch(78% 0.14 300));
-    --color-code-type-on-light: light-dark(oklch(45% 0.13 230), oklch(80% 0.11 230));
-    --color-code-string-on-light: light-dark(oklch(42% 0.11 165), oklch(80% 0.12 165));
-    --color-code-member-on-light: light-dark(oklch(46% 0.15 350), oklch(78% 0.12 350));
-    --color-code-comment-on-light: var(--color-muted);
 
     /* --- Type ---------------------------------------------------------------
        Two families plus a mono outlier. The mono carries exactly one role -- machine text -- and
