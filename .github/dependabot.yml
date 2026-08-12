@@ -93,12 +93,26 @@ updates:
           - AngleSharp
 
   - package-ecosystem: npm
-    # The browser suite became a CI gate in #163, so a Playwright update that breaks it has to
-    # surface as a red pull request rather than sit unnoticed until someone runs it by hand. The
-    # lockfile is also the cache key for the downloaded browser in ci.yml's browser job, which only
-    # stays correct while the file moves with the package.
-    directory: "/tests/BlazorCodeFirst.WebAppTests/browser"
+    # Both browser suites are CI gates, so a Playwright update that breaks one has to surface as a
+    # red pull request rather than sit unnoticed until someone runs the suite by hand: the
+    # WebAppTests suite since #163, and the site suite since #251, where it runs after the publish
+    # and before the deploy. The one asymmetry is that site.yml is not a required check (#250), so a
+    # break there is a failed run on the pull request rather than a blocked merge. Each lockfile is
+    # also the cache key for its job's downloaded browser, which only stays correct while the file
+    # moves with the package.
+    directories:
+      - "/tests/BlazorCodeFirst.WebAppTests/browser"
+      - "/site/tests/browser"
     schedule:
       interval: weekly
     labels:
       - "area: build"
+    groups:
+      # The two suites pin the same three packages at the same versions, and one pull request per
+      # directory would let those copies drift, exactly as the nuget test-stack group prevents for
+      # the xunit pair. Majors are not excluded here as they are there, because a red pull request
+      # still names the package that caused it: tsc --noEmit fails for typescript or @types/node,
+      # and playwright test fails for @playwright/test.
+      browser-suites:
+        patterns:
+          - "*"
