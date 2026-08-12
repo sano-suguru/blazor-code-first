@@ -40,11 +40,6 @@ losing one leaves every other assertion in `site.yml` green while the deployment
   colour or font stack there is a defect, not a shortcut.
 - `wwwroot/css/highlight.css` — generated, see below.
 
-Landing-page code figures are written as BlazorCodeFirst views in
-`BlazorCodeFirst.Site/Content/CodeSamples.cs`, with their own `.slab` token classes, because DocGen
-converts whole documents and cannot produce one highlighted snippet for a page that is not a
-document.
-
 ## Docs content pipeline
 
 Markdown under `site/content/*.md` is converted to HTML at authoring time by the
@@ -54,21 +49,51 @@ Markdown under `site/content/*.md` is converted to HTML at authoring time by the
   `Docs.All` is an `ImmutableArray<DocEntry>` ordered by front matter `order` with ties broken by
   slug, and `Docs.Find(slug)` is a case-insensitive lookup.
 - `site/BlazorCodeFirst.Site/wwwroot/css/highlight.css`: the ColorCode class theme, repainted onto
-  the site's palette by `ColorCodeTheme` — once for paper and again, under
-  `prefers-color-scheme: dark`, for the dark page. That file is the one place a colour is written
-  outside `tokens.css`, and it says why.
+  the site's palette by `ColorCodeTheme` — once for paper and again for the dark page, emitted as
+  `light-dark()` pairs rather than a `prefers-color-scheme` block so they answer a reader's own
+  choice of scheme and not only the operating system. That file is the one place a colour is
+  written outside `tokens.css`, and it says why.
 
-After editing any `.md`, regenerate and commit the artifacts:
+After editing any `.md` or any snippet source, regenerate and commit the artifacts:
 
 ```bash
 dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \
   site/content \
   site/BlazorCodeFirst.Site/Content/Docs.g.cs \
-  site/BlazorCodeFirst.Site/wwwroot/css/highlight.css
+  site/BlazorCodeFirst.Site/wwwroot/css/highlight.css \
+  site/snippets \
+  site/BlazorCodeFirst.Site/Content/Snippets.g.cs
 ```
 
 CI regenerates and fails on drift (`git diff --exit-code`). The app build does not
 run the tool; `Docs.g.cs` is compiled as ordinary committed source.
+
+## Snippets
+
+A snippet is one code figure on a page that is not a document. `site/snippets/manifest` declares
+`name: path` for each, and DocGen converts the file behind each name into highlighted HTML at
+authoring time, emitting `BlazorCodeFirst.Site/Content/Snippets.g.cs`. A page places one with
+`Raw(Snippets.<Name>)`.
+
+The conversion is the documents' own pipeline: the source is wrapped in a Markdown fence, whose
+language comes from the file's extension, and handed to the same `MarkdownConverter`. Figures and
+prose code blocks therefore carry the same ColorCode classes, and `HighlightCssEmitterTests` holds
+both to `css/highlight.css`. An extension the map does not name is a build error, because a figure
+that silently lost its highlighting reads as a theme regression rather than a manifest mistake.
+
+A declared path may leave `site/snippets/`, which is how `/counter`'s figure reads
+`BlazorCodeFirst.Site/Pages/CounterPage.cs` — the file the page is compiled from. The freshness gate
+above covers `Snippets.g.cs` too, so a figure cannot fall behind the source it was read from.
+
+Snippets live beside `content/` rather than inside it because every subdirectory of `content/` names
+the language of the documents in it, and DocGen rejects one that does not.
+
+One landing-page figure is not a snippet. The build error in
+`BlazorCodeFirst.Site/Content/CodeSamples.cs` stays hand-written, because it is a terminal message
+rather than code, and it carries `.diag-loc` and `.diag-id` instead of the code classes. Two figures
+are also unchecked against what they claim: that error quotes BCF3016's `messageFormat`, and
+`site/snippets/generated.cs` claims to be the frames the generator emits. Nothing compares either
+with the compiler.
 
 ### Authoring a document
 
