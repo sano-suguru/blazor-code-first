@@ -25,9 +25,9 @@ The generator turns each `.Param` into a static parameter setter, emitted as
 `AddComponentParameter` calls. Nothing is reflected over and no expression tree is compiled at
 runtime, which is what keeps the path trimming- and AOT-safe.
 
-That is also why the shape is fenced in by diagnostics. These three govern every channel that names
-a parameter with a selector lambda — `.Param`, `.Template`, and the component `.Bind` — not `.Param`
-alone:
+That is also why the shape is fenced in by diagnostics. Every channel that names a parameter with a
+selector lambda answers to them — `.Param`, `.Template`, and the component `.Bind` alike, not
+`.Param` alone:
 
 - The selector must be a plain property selection. A cast, a method call, or a member of a
   captured variable reports BCF3005, because none of those name a property the generator can emit
@@ -73,6 +73,23 @@ through both channels reports BCF3007.
 
 A real `RenderFragment` value (as opposed to a BlazorCodeFirst `View` expression) still binds
 through the generic `.Param<TValue>` overload and is emitted verbatim.
+
+Which overload runs is decided by the target parameter's type: a `RenderFragment?` parameter takes
+the content overload, everything else takes the generic one. So content aimed at a parameter that is
+not a `RenderFragment` lands on the generic overload, which emits its value verbatim — and the
+runtime value of a design-time expression is an empty marker. That reports BCF3014:
+
+```csharp
+[Parameter] public object? Payload { get; set; }
+
+Component<Card>().Param(c => c.Payload, Div["x"])   // BCF3014
+```
+
+Without the diagnostic the failure is either invisible or late. An `object`-typed parameter accepts
+the marker with no exception at all and renders wrong output; a typed parameter throws an invalid
+cast while Blazor applies parameters. `View`, `ElementView`, `ComponentView<T>` and `SlotView` are
+all reported the same way. To pass content, give the receiving component a `RenderFragment`
+parameter.
 
 For unresolved type names inside parameter values, see
 [Values copied into generated code](./getting-started.md#values-copied-into-generated-code).
@@ -241,6 +258,32 @@ private static View AppHeader(string title) =>
 The caller's generated `RenderView` contains the header's frames directly. There is no component
 instance, no parameters, no lifecycle, and no diffing boundary — it is as if you had written the
 markup inline.
+
+### Naming a component call
+
+A part's body is ordinary design-time syntax, so it can be a component call as readily as an element.
+That gives a component invocation a name of its own, and the call site stops mentioning
+`Component<T>()` or `.Param` at all:
+
+```csharp
+public static class Widgets
+{
+    [ViewPart]
+    public static View Badge(string label, bool compact = false) =>
+        Component<StatusBadge>()
+            .Param(b => b.Label, label)
+            .Param(b => b.Compact, compact);
+}
+
+protected override View Body =>
+    Div[
+        Widgets.Badge("hello"),
+        Widgets.Badge("x", compact: true)];
+```
+
+Named and optional arguments work, because the call site is an ordinary C# call. The expansion is
+still an expansion: the caller's generated `RenderView` opens `StatusBadge` directly at each call, so
+the rendered tree is the one writing `Component<StatusBadge>()` twice would have produced.
 
 ### Wrapping content
 
