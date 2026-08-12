@@ -117,5 +117,5 @@ BlazorCodeFirst は、設計時の値の式を、`using` を一切持たない�
 
 - [カウンターの実例](/counter)で、イベント、`If`、キー付き `ForEach` の動きを見る。
 - [導入](#導入)や[最初のコンポーネント](#最初のコンポーネント)へ戻る。
-- [要素と装飾](./elements-and-decorations.md)で、要素の語彙をひととおり見る。
-- 制御構文は、まだ英語版だけです。[Control Flow](/docs/control-flow#if) を読んでください。
+- [要素と装飾](./elements-and-decorations.md)で要素の語彙を、[制御構文](./control-flow.md#if)で
+  条件分岐とリストを学ぶ。

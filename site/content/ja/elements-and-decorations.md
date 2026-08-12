@@ -93,7 +93,7 @@ Div[["a", "b"]]     // Div["a", "b"] と同じ。書くならこちら
 - 明示的な配列（`Div[new View[] { … }]`）
 - あらゆるスプレッド（`Div[[..items]]`）
 
-繰り返しには [`ForEach`](/docs/control-flow#keyed-foreach)（英語版）を使ってください。
+繰り返しには [`ForEach`](./control-flow.md#キー付き-foreach) を使ってください。
 
 ## 空要素は子を取らない
 
@@ -244,7 +244,7 @@ public static class AppEventHandlers;
 ```
 
 属性を出して、イベントを受け取る。この対をひとつの装飾で書くのが
-[`.Bind`](/docs/two-way-binding)（英語版）です。
+[`.Bind`](./two-way-binding.md)です。
 
 `class` は、畳み込まれる唯一の属性です。`.Class` を2回以上繋げると、値は1つの `class` 属性に
 まとまります。`.Attr("class", …)` も同じところへ合流します。ほかの属性とイベントはすべて単一の
@@ -281,4 +281,4 @@ Div.Class("card").Class(_selected ? "is-selected" : "")
 ## 次に読むもの
 
 - [はじめに](./getting-started.md#導入)に戻る。
-- 条件分岐とリストは、まだ英語版だけです。[Control Flow](/docs/control-flow) を読んでください。
+- 条件分岐とリストは[制御構文](./control-flow.md)へ。

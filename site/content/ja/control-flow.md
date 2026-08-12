@@ -85,5 +85,4 @@ Article.Class("prose")[Raw(entry.Html)]
 ## 次に読むもの
 
 - 要素の語彙は[要素と装飾](./elements-and-decorations.md#装飾)へ。
-- コンポーネントから別のコンポーネントを呼ぶ方法は、まだ英語版だけです。
-  [Components and Reuse](/docs/components-and-reuse) を読んでください。
+- コンポーネントから別のコンポーネントを呼ぶ方法は[コンポーネントと再利用](./components-and-reuse.md)へ。

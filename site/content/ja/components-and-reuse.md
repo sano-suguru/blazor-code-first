@@ -391,7 +391,6 @@ BCF1002 は *呼び出し側* でも出ます。その条件の1つは、はっ�
 ## 次に読むもの
 
 - `If` とキー付き `ForEach` は[制御構文](./control-flow.md)へ。
-- ルーティングされたページを共通の外枠で包む方法は、まだ英語版だけです。
-  [Layouts](/docs/layouts) を読んでください。
-- パラメーターを渡すもう1つの方法である `.Bind` も、まだ英語版だけです。
-  [Two-Way Binding](/docs/two-way-binding#binding-a-component-parameter) を読んでください。
+- ルーティングされたページを共通の外枠で包む方法は[レイアウト](./layouts.md)へ。
+- パラメーターを渡すもう1つの方法である `.Bind` は、
+  [双方向の束縛](./two-way-binding.md#コンポーネントのパラメーターを束縛する)へ。
