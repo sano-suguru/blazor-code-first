@@ -46,11 +46,10 @@ public sealed partial class CounterPage : BodyComponentBase
                             .Class("chip")
                             .Attr("type", "button")
                             .OnClick(() => _count += step.Amount)[$"+{step.Amount}"])]],
-            Section.Class("prose demo-source")[
-                H2["This page"],
-                P["Everything above is the component below, compiled by BlazorCodeFirst. The "
-                    + "figure is generated from the file itself, so it cannot fall behind it."],
-                Raw(Snippets.Counter)]];
+            Section.Class("demo")[
+                Figure.Class("figure")[
+                    Figcaption["Pages/CounterPage.cs", Em["this page"]],
+                    Div.Class("slab")[Raw(Snippets.Counter)]]]];
 
     private sealed record IncrementStep(int Id, int Amount);
 }
