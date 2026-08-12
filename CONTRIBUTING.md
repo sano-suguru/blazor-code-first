@@ -273,7 +273,18 @@ dotnet format BlazorCodeFirst.slnx                                    # auto-fix
 ```
 
 Enable the shared pre-push hook once per clone so this runs automatically:
-`git config core.hooksPath eng/hooks`.
+`git config core.hooksPath eng/hooks`. Spell it relative, as written there. Git
+resolves a relative value from the top of the working tree, so it survives a
+rename or a move of the clone's directory and holds in a linked worktree; an
+absolute path stops resolving the moment any of that happens.
+
+Nothing reports it when that happens. Git ignores a `core.hooksPath` naming a
+directory that does not exist, silently, and the value lives in `.git/config`
+where nothing in the repository can inspect it — a clone with the hook disabled
+is indistinguishable from one that has it. The only signal is the hook's own
+output, so a push that does not print `pre-push: verifying formatting...` never
+ran the check. What that costs is bounded: CI fails on the same drift, one round
+trip later.
 
 One Roslyn idiom no tool enforces: ask a `SyntaxTokenList` for a modifier through its own
 `Any(SyntaxKind)` overload, never `Enumerable.Any(m => m.IsKind(...))`. The list is a struct the API
