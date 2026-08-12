@@ -49,11 +49,11 @@ protected override View Body =>
         P["Body text"]];
 ```
 
-This requires `Card` to have a settable `[Parameter] public RenderFragment? ChildContent`;
-otherwise BCF3013 is reported. The brackets never reach a `RenderFragment<TContext>` parameter,
-because the lambda they generate is non-generic and would fail an invalid cast at runtime. A generic
-fragment is named with `.Template` instead — see [Generic fragment parameters](#generic-fragment-parameters)
-below.
+This requires `Card` to have a settable `[Parameter]` named `ChildContent` of a fragment type;
+otherwise BCF3013 is reported. A `RenderFragment<TContext>` counts: the brackets bind it with the
+context discarded, because there is no name inside brackets to read a context through. A generic
+fragment under any *other* name is named with `.Template` instead — see
+[Generic fragment parameters](#generic-fragment-parameters) below.
 
 Other non-generic `RenderFragment` parameters (such as `Footer` or `Header`) bind through
 `.Param(c => c.Footer, content)`, naming the parameter explicitly:
@@ -98,19 +98,20 @@ For unresolved type names inside parameter values, see
 
 A `RenderFragment<TContext>` parameter takes a *template*: the component invokes it once per context
 value it wants rendered. `EditForm.ChildContent` is the one most authors meet first — it is a
-`RenderFragment<EditContext>`, which is why brackets cannot supply it.
+`RenderFragment<EditContext>`.
 
 `.Template` names such a parameter. It has two spellings, and which one you want depends only on
-whether the content reads the context.
+whether the content reads the context. A generic fragment under a name other than `ChildContent`,
+such as a grid's `RowTemplate`, always needs `.Template`, because the brackets never reach it.
 
-Ignore the context, and pass content directly:
+For a `ChildContent` whose content ignores the context, the brackets are the spelling — the form
+shown above, which emits exactly what `.Template(form => form.ChildContent, content)` emits:
 
 ```csharp
 protected override View Body =>
     Component<EditForm>()
-        .Param(form => form.Model, _model)
-        .Template(form => form.ChildContent,
-            Component<NameFields>().Param(fields => fields.Value, _model));
+        .Param(form => form.Model, _model)[
+            Component<NameFields>().Param(fields => fields.Value, _model)];
 ```
 
 Or name it, with a lambda from the context to content:
