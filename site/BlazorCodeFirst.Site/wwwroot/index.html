@@ -20,6 +20,75 @@
     <link rel="stylesheet" href="css/highlight.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <script type="importmap"></script>
+    <!-- The reader's colour-scheme choice. Inline and in <head> because both halves of this have to
+         happen before anything else on the page can:
+
+         Applying it must beat first paint. Every route here is prerendered, so the published HTML
+         is drawn long before the runtime starts; a reader whose stored choice disagrees with their
+         operating system would otherwise watch the system's answer flash first.
+
+         Handling the click must beat hydration, for the same reason. A handler owned by the
+         component would not exist until WebAssembly has downloaded and re-rendered the header,
+         leaving a button that looks pressable and silently is not -- the state CounterPage.cs
+         documents and accepts for a demo the reader opened on purpose, which is a different bargain
+         from a control that sits in the banner of every route. The listener is on document rather
+         than on the button so that re-render replaces the element underneath it harmlessly.
+
+         The attribute is the whole of the runtime state. css/tokens.css turns it into a palette,
+         and localStorage only carries it between loads. site.yml asserts this block survives into
+         the published HTML: losing it ships a flashing page and a dead control while every other
+         assertion there stays green. -->
+    <script>
+        (function () {
+            var KEY = "theme";
+            var ORDER = [null, "light", "dark"];
+            var root = document.documentElement;
+
+            function apply(value) {
+                if (value === "light" || value === "dark") {
+                    root.setAttribute("data-theme", value);
+                } else {
+                    root.removeAttribute("data-theme");
+                }
+            }
+
+            // Storage is denied outright in some privacy modes, and reading it throws rather than
+            // returning null. The theme is not worth failing the page over, so both directions are
+            // guarded: the choice still applies for this page, and only its persistence is lost.
+            try {
+                apply(localStorage.getItem(KEY));
+            } catch (e) {
+                /* no stored choice is reachable; the system's answer stands */
+            }
+
+            document.addEventListener("click", function (event) {
+                if (!(event.target instanceof Element)) {
+                    return;
+                }
+
+                var button = event.target.closest("[data-theme-toggle]");
+                if (!button) {
+                    return;
+                }
+
+                // indexOf(null) is 0, so an absent attribute starts the cycle at "system". An
+                // unrecognised value returns -1 and lands back on system too, which is the right
+                // place for a state this code did not write.
+                var next = ORDER[(ORDER.indexOf(root.getAttribute("data-theme")) + 1) % ORDER.length];
+                apply(next);
+
+                try {
+                    if (next) {
+                        localStorage.setItem(KEY, next);
+                    } else {
+                        localStorage.removeItem(KEY);
+                    }
+                } catch (e) {
+                    /* the theme changed; only remembering it failed */
+                }
+            });
+        })();
+    </script>
 </head>
 
 <body>

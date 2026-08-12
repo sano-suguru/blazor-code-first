@@ -232,13 +232,16 @@ const SCHEMES = ['light', 'dark'] as const;
  * from css/tokens.css and the token colour from the generated css/highlight.css, which answer the
  * media query separately and could be wired up separately wrong.
  */
+const samplePalette = (page: Page) =>
+  page.evaluate(() => ({
+    surface: getComputedStyle(document.body).backgroundColor,
+    token: getComputedStyle(document.querySelector('.prose pre .keyword')!).color,
+  }));
+
 test('both stylesheets answer prefers-color-scheme', async ({ page }) => {
   const sample = async (scheme: 'light' | 'dark') => {
     await page.emulateMedia({ colorScheme: scheme });
-    return page.evaluate(() => ({
-      surface: getComputedStyle(document.body).backgroundColor,
-      token: getComputedStyle(document.querySelector('.prose pre .keyword')!).color,
-    }));
+    return samplePalette(page);
   };
 
   await gotoSettled(page, '/docs/getting-started/');
@@ -248,6 +251,34 @@ test('both stylesheets answer prefers-color-scheme', async ({ page }) => {
 
   expect(dark.surface, 'css/tokens.css did not repaint the page for a dark reader').not.toBe(light.surface);
   expect(dark.token, 'css/highlight.css did not repaint the code fences for a dark reader').not.toBe(light.token);
+});
+
+/**
+ * What connects the twenty-four contrast cells below to the reader's own choice.
+ *
+ * Every one of them reaches its palette by emulating `prefers-color-scheme`, so on their own they
+ * measure the path the operating system takes and leave the path a reader takes by pressing the
+ * control entirely unmeasured -- half the ways this site can be dark, none of them checked. Rather
+ * than doubling the run to forty-eight cells, this asserts the two paths land on the same computed
+ * values, which is what makes the existing pass cover both.
+ *
+ * Both stylesheets, for the same reason the test above names both: tokens.css and the generated
+ * highlight.css pair their colours separately and could be wired up separately wrong.
+ */
+test('an explicit choice lands on the same palette as the system asking', async ({ page }) => {
+  await gotoSettled(page, '/docs/getting-started/');
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const systemDark = await samplePalette(page);
+
+  // Back to a light system, so what is measured next can only have come from the attribute.
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  const chosenDark = await samplePalette(page);
+
+  expect(chosenDark, 'a reader who chose dark is not shown the dark palette the contrast cells measure').toEqual(
+    systemDark,
+  );
 });
 
 for (const scheme of SCHEMES) {

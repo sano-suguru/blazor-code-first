@@ -24,11 +24,10 @@ html {
     scroll-behavior: smooth;
     /* Anchored headings must not land under the header when it is sticky at wide widths. */
     scroll-padding-top: var(--space-3xl);
-    /* tokens.css answers `prefers-color-scheme` for everything this stylesheet paints. This line is
-       for everything it does not: scrollbars, the canvas behind the page, and any form control's
-       default rendering, all of which the browser draws for itself and would otherwise draw light
-       against a dark page. */
-    color-scheme: light dark;
+    /* `color-scheme` used to be declared here, for the things this stylesheet does not paint:
+       scrollbars, the canvas behind the page, and a form control's default rendering. It now lives
+       on :root in css/tokens.css, where it also resolves every light-dark() pair and carries the
+       reader's override. Declaring it in both places would let the two drift. */
 }
 
 body {
@@ -200,6 +199,7 @@ kbd {
    two-line document title is part of the column's rhythm rather than a broken affordance. */
 .site-nav .nav-link,
 .chip,
+.theme-toggle,
 .foot-link {
     white-space: nowrap;
 }
@@ -292,6 +292,70 @@ kbd {
     border-color: var(--color-accent-strong);
     background: var(--color-accent-strong);
     color: var(--color-accent-ink);
+}
+
+/* --- Theme toggle ---------------------------------------------------------
+   The chip's hairline and radius, with no fill: this is a setting, not a destination, and the one
+   filled control in the row is already spoken for. It carries no icon because the nav carries none
+   anywhere -- a glyph here would be a word borrowed from a language this design does not speak.
+
+   The element holds no state. All three words are always in the DOM and the rules below choose
+   which one is visible from the attribute on :root, so Blazor re-rendering the header cannot
+   disturb the theme, and the button is correct in the prerendered HTML before the runtime starts.
+   wwwroot/index.html owns the click. */
+.theme-toggle {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+        border-color var(--dur-micro) var(--ease-out),
+        transform var(--dur-micro) var(--ease-out);
+}
+
+.theme-toggle:hover {
+    border-color: var(--color-ink-2);
+}
+
+.theme-toggle:active {
+    transform: translateY(1px);
+}
+
+/* The standing word, quieter than the value beside it so the eye lands on the half that changes. */
+.theme-toggle__label {
+    color: var(--color-muted);
+    font-weight: 400;
+}
+
+/* One grid cell for all three words. The two that are not current stay in flow and keep
+   contributing their width, so the button is always as wide as the longest of them and the row does
+   not shift when the reader clicks -- which a min-width would only approximate, and would have to
+   be retuned by hand for any change of face or wording.
+
+   visibility, not display, is what keeps that width. Both are excluded from the accessible name, so
+   the button still reads as its current state alone. */
+.theme-toggle__states {
+    display: grid;
+}
+
+.theme-toggle__states > span {
+    grid-area: 1 / 1;
+    visibility: hidden;
+    text-align: left;
+}
+
+:root:not([data-theme]) .theme-toggle__states > .is-system,
+:root[data-theme="light"] .theme-toggle__states > .is-light,
+:root[data-theme="dark"] .theme-toggle__states > .is-dark {
+    visibility: visible;
 }
 
 /* --- Landing ------------------------------------------------------------- */
@@ -995,10 +1059,10 @@ kbd {
         padding-block: var(--space-2xl);
     }
 
-    /* Three destinations and a wordmark have to share 320 px. Every label here is already as short
-       as it can be, so the row is fitted by stepping the type down rather than by hiding a
-       destination -- the demo is the one a reader on a phone is most likely to want, and it is the
-       one a "hide the last item" rule would take away. */
+    /* Three destinations, a wordmark and a setting have to share 320 px. Every label here is
+       already as short as it can be, so the row is fitted by stepping the type down rather than by
+       hiding a destination -- the demo is the one a reader on a phone is most likely to want, and
+       it is the one a "hide the last item" rule would take away. */
     .site-nav {
         gap: var(--space-sm);
         padding-inline: var(--space-md);
@@ -1016,8 +1080,27 @@ kbd {
         gap: var(--space-sm);
     }
 
-    .nav-utilities .chip {
+    .nav-utilities .chip,
+    .nav-utilities .theme-toggle {
         padding: var(--space-xs) var(--space-sm);
+    }
+
+    .theme-toggle {
+        font-size: var(--text-xs);
+    }
+
+    /* The one label in this row that can go without taking a control away: the state word alone
+       still says what the button does once it is the only setting here, and the accessible name is
+       carried by a separate always-hidden span, so it is unchanged at every width. */
+    .theme-toggle__label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
     }
 
     .install code {
@@ -1028,6 +1111,7 @@ kbd {
 /* Coarse pointers need a real hit target regardless of how small the label is. */
 @media (pointer: coarse) {
     .chip,
+    .theme-toggle,
     .install-copy,
     .site-nav .nav-link {
         min-height: 44px;
