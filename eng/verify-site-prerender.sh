@@ -114,6 +114,49 @@ route_file() {
   fi
 }
 
+# Quote a string for use as an extended regular expression.
+#
+# Every helper in eng/ci-assert.sh passes its pattern to grep -E, where an unescaped "." matches any
+# character and "(" opens a group. The sitemap step quotes ORIGIN the same way and for the same
+# reason; that one escapes the subset sufficient for a known value, and a heading read out of the
+# content tree is not a known value, so this escapes the whole metacharacter set.
+ere_quote() {
+  printf '%s' "$1" | sed 's/[][\\^$.|?*+(){}]/\\&/g'
+}
+
+# A string as the published HTML spells it.
+#
+# Blazor's HTML encoder does not emit non-ASCII text as itself: the Japanese index heading
+# "ドキュメント" ships as "&#x30C9;&#x30AD;&#x30E5;&#x30E1;&#x30F3;&#x30C8;". An expectation read out
+# of site/content therefore has to be encoded the same way before it can be matched, or every
+# translated heading and title fails against a page that is perfectly correct.
+#
+# perl rather than awk: this needs to decode UTF-8 into codepoints, and the awk on macOS -- where
+# this script is run to watch a mutation fail -- is the one-true-awk, which has no multibyte support.
+# perl ships with both that machine and the CI image.
+#
+# The ASCII specials "<", ">", "&", '"' and "'" are encoded too by that same encoder, and this does
+# NOT reproduce that. No heading or title in site/content contains one. If that stops being true,
+# extend this rather than the callers.
+html_encode() {
+  printf '%s' "$1" | perl -CSDA -pe 's/([^\x20-\x7E])/sprintf("&#x%X;", ord($1))/ge'
+}
+
+# One key out of a document's or a shell file's front matter.
+#
+# Bounded to the block between the leading "---" and the next one, rather than matched anywhere in
+# the file: a document body is Markdown prose and may legitimately contain a line beginning "title:"
+# inside a code fence. Not a YAML parser, and does not need to be -- ShellFile.Parse reads these as a
+# flat key/value block too, and pulling a parser in for one field would be a dependency nothing else
+# in this workflow has.
+front_matter() {
+  awk -v key="$2" '
+    NR == 1 && $0 == "---" { inside = 1; next }
+    inside && $0 == "---" { exit }
+    inside && index($0, key ": ") == 1 { print substr($0, length(key) + 3); exit }
+  ' "$1"
+}
+
 # THE GATE. Everything below may enumerate the publish output, because this proved the set it would
 # be enumerating is the set site/content backs.
 #
@@ -215,6 +258,44 @@ while read -r kind route langdir slug; do
 
   if [ "$kind" = "doc" ]; then
     assert_not_grep 'href="[^"]*\.md("|#|\?)' "$P/$f" "an un-rewritten .md link survived into the prerendered HTML"
+
+    # The count guard above catches a MISSING title element. This catches a WRONG one, on every
+    # document route rather than on the single route that used to be spelled out at the bottom of
+    # this script. The empty check is not defensive noise: an empty expectation would make the
+    # pattern "<title></title>", which passes on nothing and fails on everything.
+    title=$(front_matter "$content_root/$langdir/$slug.md" title)
+    if [ -z "$title" ]; then
+      fail "site/content/$langdir/$slug.md declares no 'title' in its front matter, so this route's title could not be checked"
+    fi
+    assert_grep "<title>$(ere_quote "$(html_encode "$title")")</title>" "$P/$f" "this document's title element does not match the 'title' in its front matter"
+  fi
+
+  if [ "$kind" = "index" ]; then
+    heading=$(front_matter "$content_root/$langdir/shell.yml" index-title)
+    if [ -z "$heading" ]; then
+      fail "site/content/$langdir/shell.yml declares no 'index-title', so this index's heading could not be checked"
+    fi
+    # "/docs" is its own index page, not a second copy of the lowest-order document, and each
+    # language has one. Both strings come from that language's shell.yml rather than from a literal
+    # here, which is what lets this reach the Japanese index without writing Japanese into a
+    # workflow that scans itself for it.
+    assert_grep "<h1>$(ere_quote "$(html_encode "$heading")")</h1>" "$P/$f" "this documentation index did not render the heading its shell.yml declares"
+    assert_grep "<title>$(ere_quote "$(html_encode "$heading")")</title>" "$P/$f" "this documentation index has the wrong page title"
+
+    # The index must enumerate EVERY document in its own edition. Count 2 per slug, not 1: the
+    # documentation rail contributes one href per document on this route, so a "contains this href"
+    # check would pass even if the index body rendered nothing at all. The second occurrence is the
+    # index list item.
+    #
+    # The rail renders on an index and on a document only -- DocsView places it, not the layout, so
+    # the home page and the counter demo do not carry the whole table of contents. That is why this
+    # count is asserted here and nowhere else.
+    #
+    # No ERE quoting on the href: site/README.md constrains a slug to ^[a-z0-9]+(-[a-z0-9]+)*\z and
+    # DocSlug enforces it at build time, so no metacharacter can reach this pattern.
+    for indexed in $(slugs_in "$content_root/$langdir"); do
+      assert_count "href=\"$(route_prefix "$langdir")$indexed\"" "$P/$f" 2 "this index does not list one of its edition's documents (expected the rail link plus one index entry)"
+    done
   fi
 done <<< "$(expected_table)"
 
@@ -295,27 +376,10 @@ assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish 
 # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
 assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
 
-# "/docs" is its own index page now, not a second copy of the lowest-order document.
-assert_grep '<h1>Documentation</h1>' "$P/docs/index.html" "/docs did not render the index page's h1"
-# /docs is the only route whose <title> content was otherwise unasserted: the count guard
-# above catches a MISSING title, not a WRONG one.
-assert_grep '<title>Documentation</title>' "$P/docs/index.html" "the /docs index has the wrong page title"
-
-# The index must enumerate EVERY document. Count 2 per slug, not 1: the documentation rail
-# contributes one href per document on this route, so a "contains this href" check would
-# pass even if the index body rendered nothing at all. The second occurrence is the index
-# list item.
-#
-# The rail renders on "/docs" and "/docs/{slug}" only -- it is placed by those two pages,
-# not by the layout, so the home page and the counter demo no longer carry the whole table
-# of contents. That is why this count is asserted here and nowhere else.
-for slug in $(slugs_in "$content_root"); do
-  assert_count "href=\"/docs/$slug\"" "$P/docs/index.html" 2 "the /docs index does not list this document (expected the nav link plus one index entry)"
-done
-
-# Content conversion survived the AST pass.
+# Content conversion survived the AST pass. Spot checks against literals, not derived from
+# anything: these are about what DocGen's Markdown conversion produces, which no file in
+# site/content states.
 assert_grep 'id="installation"' "$P/docs/getting-started/index.html" "heading ids are missing"
 assert_grep 'class="csharp"' "$P/docs/getting-started/index.html" "code highlighting is missing"
 assert_grep 'class="headlink"' "$P/docs/control-flow/index.html" "heading permalinks are missing"
 assert_grep 'href="/docs/control-flow"' "$P/docs/getting-started/index.html" "a sibling .md link was not rewritten to its SPA route"
-assert_grep '<title>Getting Started</title>' "$P/docs/getting-started/index.html" "the per-page title is wrong or missing"
