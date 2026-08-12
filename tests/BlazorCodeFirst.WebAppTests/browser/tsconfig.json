@@ -1,0 +1,29 @@
+// Playwright's loader transpiles each file and throws the types away, so nothing here changes what
+// runs. What it decides is what an editor and `npx tsc --noEmit` see (#254).
+//
+// These four files typecheck under TypeScript's bare defaults once @types/node is installed, which
+// the specs in site/tests/browser do not: those iterate Sets and DOM collections, which the default
+// ES5 target rejects. Pinned the same way in both suites regardless, so the check means one thing
+// rather than two, and so the first spec here that iterates does not have to rediscover the setting.
+{
+  "compilerOptions": {
+    // Node 24 runs these files; the browser job in ci.yml pins that. The DOM types come with this
+    // target's default lib, so there is nothing for `lib` to add.
+    "target": "ES2022",
+    // What the loader compiles each file to. It also carries module resolution, which is why
+    // raising the target alone does not work: at ES2022 with no module setting TypeScript infers ES
+    // modules and with them classic resolution, under which every `@playwright/test` import is
+    // unresolved.
+    "module": "commonjs",
+    // Exactly what package.json declares. Left open, TypeScript loads every @types directory it
+    // finds walking up to the filesystem root, so what typechecks here would depend on what a
+    // contributor happens to have installed above the repository.
+    "types": ["node"],
+    // Both suites are typeclean under it as this was written, so it costs nothing to hold.
+    "strict": true,
+    // Nothing here is built by tsc. This keeps a bare `tsc` from writing .js files beside the specs
+    // for Playwright to then collect as tests.
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}

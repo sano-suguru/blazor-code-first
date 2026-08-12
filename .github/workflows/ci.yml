@@ -126,6 +126,13 @@ jobs:
       - run: npm ci
         working-directory: tests/BlazorCodeFirst.WebAppTests/browser
 
+      # Playwright's loader transpiles the specs and throws their types away, so a type error here
+      # runs green and shows up only as noise in a contributor's editor (#254). This is the only
+      # thing in the repository that reads them. It runs before the browser download because it
+      # takes seconds and needs nothing but node_modules.
+      - run: npx tsc --noEmit
+        working-directory: tests/BlazorCodeFirst.WebAppTests/browser
+
       # package-lock.json pins playwright-core exactly, and the browser revision is a function of
       # that version, so its hash is the right key for the downloaded browser.
       - uses: actions/cache@v6
