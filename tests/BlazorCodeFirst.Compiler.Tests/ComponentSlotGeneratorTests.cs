@@ -240,7 +240,7 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ComponentWithChildren_ChildContentInheritedFromBaseClass_IsAccepted()
     {
-        // Regression guard: FindChildContentParameter must walk the base-type chain (Roslyn's GetMembers on
+        // Regression guard: TryFindChildContentParameter must walk the base-type chain (Roslyn's GetMembers on
         // the derived type alone would not see a ChildContent property declared only on the base class).
         // Without that walk, a component that inherits ChildContent instead of redeclaring it would be
         // rejected with a false BCF3013 even though Blazor itself accepts it at runtime.

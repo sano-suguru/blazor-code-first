@@ -375,8 +375,9 @@ protected override View Body =>
 
 `T` が `ChildContent`(settable な `[Parameter]`、型は `RenderFragment` または
 `RenderFragment<TContext>`)を持たない場合は BCF3013 です。`ChildContent` がジェネリックなら、角括弧は
-コンテキストを捨てる外側のラムダを伴って束縛します。同じパラメータを children と `.Param` または
-`.Template` の両方で与えると BCF3007 です。
+コンテキストを捨てる外側のラムダを伴って束縛します。同じ角括弧が対象の型によって違うラムダを発行しますが、
+角括弧の中にはコンテキストを読むための名前が無いため、この読み替えは一意です。同じパラメータを children と
+`.Param` または `.Template` の両方で与えると BCF3007 です。
 
 `ChildContent` 以外の名前を持つジェネリックなフラグメントは、括弧では届かず `.Template` で名前を指して
 渡します。`.Template` の綴りは2つあり、コンテキストを使わない側は `View` をそのまま渡して、コンテキストを

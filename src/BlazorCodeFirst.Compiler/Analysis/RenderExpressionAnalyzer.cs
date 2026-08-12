@@ -1599,7 +1599,7 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// The settable <c>[Parameter]</c> named <paramref name="name"/> that <paramref name="componentType"/>
     /// declares or inherits, or <see langword="null"/>. Walks the base chain for the reason
-    /// <see cref="FindChildContentParameter"/> does: Blazor accepts a parameter declared on a base class,
+    /// <see cref="TryFindChildContentParameter"/> does: Blazor accepts a parameter declared on a base class,
     /// and Roslyn's <c>GetMembers</c> on the derived type alone would not see it.
     /// </summary>
     private static IPropertySymbol? FindSettableParameter(
@@ -1689,7 +1689,7 @@ internal static class RenderExpressionAnalyzer
     /// the expander to reconcile.
     /// <para>
     /// Several children are grouped in a <see cref="FragmentTemplateNode"/> and a single one is kept as
-    /// itself, the rule <see cref="TryBuildChildContentSlot"/> already applies to the analogous case, so
+    /// itself, the rule <see cref="TryAppendChildContentSlot"/> already applies to the analogous case, so
     /// wrapping a part around one child emits exactly the frames writing that child inline would.
     /// </para>
     /// <para>
@@ -1829,45 +1829,42 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        if (!TryBuildChildContentSlot(
+        if (!TryAppendChildContentSlot(
+                component,
                 children.Value,
                 componentViewType.TypeArguments[0],
                 elementAccess.GetLocation(),
                 context,
-                out var slots))
+                out var withChildren))
             return null;
 
-        // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
-        // slot on the receiver, and it is not a duplicate of this one. Appending is also the only order
-        // available, see the remarks on slot order.
-        var appended = component.Slots.AsImmutableArray().AddRange(slots.AsImmutableArray());
-        return new ComponentTemplateNode(component.TypeName, component.Parameters, appended);
+        return withChildren;
     }
 
     /// <summary>
-    /// Builds the single <c>ChildContent</c> slot children are bound to, reporting BCF3013 at
-    /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them. Yields an
-    /// empty slot list, and succeeds, when there are no children.
+    /// Appends the single <c>ChildContent</c> slot children are bound to, reporting BCF3013 at
+    /// <paramref name="location"/> when <paramref name="componentType"/> cannot receive them. Yields
+    /// <paramref name="component"/> unchanged, and succeeds, when there are no children.
     /// </summary>
     /// <remarks>
     /// Called only from <see cref="ClassifyComponentIndexer"/>: <c>ComponentView&lt;T&gt;</c>'s indexer is the
     /// one channel children reach a component through. Kept as its own method rather than inlined because
     /// the BCF3013 rule, which components can receive children, and where the report lands, is worth
-    /// naming separately from the indexer's argument handling. Which fragment arity the parameter has is
-    /// read here too, because the answer decides the slot kind and nothing downstream sees the symbol.
+    /// naming separately from the indexer's argument handling.
     /// </remarks>
-    private static bool TryBuildChildContentSlot(
+    private static bool TryAppendChildContentSlot(
+        ComponentTemplateNode component,
         ImmutableArray<RenderTemplateNode> children,
         ITypeSymbol componentType,
         Location location,
         ViewPartBodyContext context,
-        out EquatableArray<ComponentSlot> slots)
+        out ComponentTemplateNode result)
     {
-        slots = EquatableArray<ComponentSlot>.Empty;
+        result = component;
         if (children.Length == 0)
             return true;
 
-        if (FindChildContentParameter(componentType, context) is not { } childContent)
+        if (!TryFindChildContentParameter(componentType, context, out var contextTypeName))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3013,
@@ -1882,20 +1879,20 @@ internal static class RenderExpressionAnalyzer
             ? children[0]
             : new FragmentTemplateNode(children);
 
-        // A generic ChildContent takes the same children with the context discarded, which is the emission
-        // .Template's context-ignoring overload writes. Nothing here can read the context: the brackets give
-        // it no name (#322).
-        var slot = TryGetFragmentContextTypeName(childContent, context.KnownSymbols, out var contextTypeName)
-            ? new ComponentSlot(ChildContentParameterName, content)
-            {
-                Kind = ComponentSlotKind.GenericContextIgnored,
-                ContextTypeName = contextTypeName,
-            }
-            : new ComponentSlot(ChildContentParameterName, content);
-
-        // ImmutableArray.Create, not a collection expression: the target type is EquatableArray<ComponentSlot>
-        // so IDE0303 does not apply, and spelling it [x] does not compile.
-        slots = ImmutableArray.Create(slot);
+        // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
+        // slot on the receiver, and it is not a duplicate of this one. Appending is also the only order
+        // available, see the remarks on slot order. A generic ChildContent goes through the same helper with
+        // the kind its context type implies, taking the children with the context discarded: the emission
+        // .Template's context-ignoring overload writes. Nothing here can read the context, because the
+        // brackets give it no name (#322).
+        result = contextTypeName is null
+            ? AppendSlot(component, ChildContentParameterName, content)
+            : AppendSlot(
+                component,
+                ChildContentParameterName,
+                content,
+                ComponentSlotKind.GenericContextIgnored,
+                contextTypeName);
         return true;
     }
 
@@ -2402,10 +2399,15 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// The <c>ChildContent</c> member children bind to: a settable <c>[Parameter]</c> of a fragment type,
-    /// either the non-generic <c>RenderFragment</c> or a <c>RenderFragment&lt;TContext&gt;</c>. Returns
-    /// <see langword="null"/> when the type declares none, which is what BCF3013 reports.
+    /// Whether <paramref name="componentType"/> declares the <c>ChildContent</c> children bind to: a settable
+    /// <c>[Parameter]</c> of a fragment type, either the non-generic <c>RenderFragment</c> or a
+    /// <c>RenderFragment&lt;TContext&gt;</c>. A false answer is what BCF3013 reports.
     /// </summary>
+    /// <param name="contextTypeName">
+    /// The fragment's context type when it is generic, and <see langword="null"/> when it is not. The search
+    /// has to prove the arity to accept the property at all, so it hands the answer back rather than leaving
+    /// the slot's kind to be derived a second time.
+    /// </param>
     /// <remarks>
     /// The fragment-type test is part of the search rather than a check on what the search returns. A
     /// derived type may declare a <c>ChildContent</c> of some other type that hides a fragment-typed one on
@@ -2413,31 +2415,33 @@ internal static class RenderExpressionAnalyzer
     /// BCF3013 for a call that works. Not delegated to <see cref="FindSettableParameter"/> for the same
     /// reason: that one answers by name alone.
     /// </remarks>
-    private static IPropertySymbol? FindChildContentParameter(
-        ITypeSymbol componentType, ViewPartBodyContext context)
+    private static bool TryFindChildContentParameter(
+        ITypeSymbol componentType, ViewPartBodyContext context, out string? contextTypeName)
     {
         for (var current = componentType; current is not null; current = current.BaseType)
         {
             foreach (var member in current.GetMembers(ChildContentParameterName))
             {
-                if (member is not IPropertySymbol property)
+                if (member is not IPropertySymbol property || !IsSettableParameter(property, context))
                     continue;
 
-                if (!IsFragmentTyped(property, context.KnownSymbols))
-                    continue;
+                if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType
+                    && SymbolEqualityComparer.Default.Equals(property.Type, renderFragmentType))
+                {
+                    contextTypeName = null;
+                    return true;
+                }
 
-                if (IsSettableParameter(property, context))
-                    return property;
+                if (TryGetFragmentContextTypeName(property, context.KnownSymbols, out var contextType))
+                {
+                    contextTypeName = contextType;
+                    return true;
+                }
             }
         }
 
-        return null;
+        contextTypeName = null;
+        return false;
     }
-
-    /// <summary>Whether <paramref name="property"/> is typed as a render fragment, of either arity.</summary>
-    private static bool IsFragmentTyped(IPropertySymbol property, KnownSymbols symbols) =>
-        (symbols.RenderFragmentType is { } renderFragmentType
-            && SymbolEqualityComparer.Default.Equals(property.Type, renderFragmentType))
-        || TryGetFragmentContextTypeName(property, symbols, out _);
 
 }

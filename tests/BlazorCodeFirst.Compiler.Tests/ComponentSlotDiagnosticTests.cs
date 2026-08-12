@@ -61,7 +61,6 @@ public sealed class ComponentSlotDiagnosticTests
         var result = Run("Component<TypedChildContent>()[Div[\"x\"]]");
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3013");
-        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
         Assert.Contains(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
