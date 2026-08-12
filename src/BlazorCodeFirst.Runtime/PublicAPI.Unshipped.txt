@@ -166,3 +166,5 @@ static BlazorCodeFirst.Decorations.Bind(this BlazorCodeFirst.ElementView element
 BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Action<TValue>! set) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, TValue>! selector, System.Func<TValue>! get, System.Func<TValue, System.Threading.Tasks.Task!>! set) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.CompilerServices.ViewRuntime
+static BlazorCodeFirst.CompilerServices.ViewRuntime.FragmentOf(BlazorCodeFirst.View view) -> Microsoft.AspNetCore.Components.RenderFragment?

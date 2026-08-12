@@ -5,14 +5,25 @@ namespace BlazorCodeFirst.Runtime.Tests;
 public sealed class ViewConversionTests
 {
     [Fact]
-    public void RenderFragment_ConvertsToView_AndIsInert()
+    public void RenderFragment_ConvertsToView_AndCarriesTheFragment()
     {
         RenderFragment fragment = builder => builder.AddContent(0, "x");
 
         View view = fragment;
 
-        // The conversion is design-time syntax read by the generator; at runtime it must do no work
-        // and yield the default View, exactly like the string conversion.
+        // This is the one conversion that is not inert. It is the only route into View.Fragment, which
+        // is what makes the Opaque path renderable and what makes a surface-built View render nothing
+        // (ARCHITECTURE.md §3.2, BCF3030). The string conversion below it stays inert.
+        Assert.NotEqual(default, view);
+    }
+
+    [Fact]
+    public void String_ConvertsToView_AndIsInert()
+    {
+        View view = "x";
+
+        // The generator reads the original string expression and emits a text node; the value itself
+        // carries nothing.
         Assert.Equal(default, view);
     }
 
