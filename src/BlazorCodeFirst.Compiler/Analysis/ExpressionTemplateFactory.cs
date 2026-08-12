@@ -30,6 +30,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// prefix gain an explicit <c>this.</c> receiver so the generated lambda parameter cannot shadow them;</item>
 /// <item>references to source-local constructs (local functions or locals from an enclosing scope)
 /// that cannot exist in generated code report a single declaration BCF1002;</item>
+/// <item>an interpolation hole any of the above rewrote is parenthesized, because a hole's expression
+/// cannot hold the <c>::</c> or the <c>,</c> that a rewrite introduces at its top level;</item>
 /// <item>local and lambda identifiers plus all trivia are preserved as literal text, except authored
 /// declarations that could capture a generated contextual-fragment parameter after hole substitution;
 /// those declarations and their symbol-bound references receive a deterministic collision-free name.</item>
@@ -266,6 +268,10 @@ internal static class ExpressionTemplateFactory
             }
         }
 
+        // Third pass: restore the top level of every interpolation hole the passes above rewrote, which
+        // the rewritten text can no longer occupy as it stands.
+        AddInterpolationHoleParentheses(expression, replacements);
+
         // The constant value is a property of the whole expression, independent of the name-level
         // rewrites above: a rewrite qualifies or collapses source text and never changes what the
         // expression evaluates to. Captured here because the emitter sees only source text, and folding
@@ -428,12 +434,88 @@ internal static class ExpressionTemplateFactory
         replacedSpans.Add(span);
     }
 
+    /// <summary>
+    /// Parenthesizes the expression of every interpolation hole inside <paramref name="expression"/> that
+    /// the normalization passes rewrote, by recording an empty-span replacement at each end of it.
+    /// </summary>
+    /// <remarks>
+    /// A hole's expression ends at the first <c>,</c> or <c>:</c> the interpolation parser reads at the
+    /// hole's top level, because those begin its alignment and its format specifier. The qualification
+    /// this file exists to apply therefore cannot be written into a hole as it stands:
+    /// <c>$"{global::Ns.Type.Member}"</c> parses as the expression <c>global</c> formatted with
+    /// <c>Ns.Type.Member</c>, and the generated file fails to compile with CS0103 (#273). The same holds
+    /// for an extension call's explicit type-argument list. Authored text never has the problem, since it
+    /// had to parse where it was written; only substituted text does, so a hole is parenthesized exactly
+    /// when something was substituted into it. Parentheses restore the top level for the whole hole and
+    /// leave the alignment and the format specifier outside.
+    /// <para>
+    /// A parameter hole is the one substitution that cannot break a hole, so it does not call for
+    /// parentheses: <c>ViewPartExpander</c> binds every value argument to a local it names itself, and
+    /// what reaches the hole is that name. <c>Generator_InterpolatedHoleFromViewPartArgument_Compiles</c>
+    /// holds that, by passing a qualified argument to a parameter an interpolation hole reads.
+    /// </para>
+    /// </remarks>
+    private static void AddInterpolationHoleParentheses(
+        ExpressionSyntax expression,
+        List<Replacement> replacements)
+    {
+        // Nothing was rewritten, so no hole can need restoring. Checked before the walk because the walk
+        // would otherwise run over every expression in every body, most of which are rewritten nowhere.
+        if (replacements.Count == 0)
+            return;
+
+        // The scan below reads only what was recorded before the walk, so a parenthesis added here never
+        // counts as the rewrite that puts parentheses around an enclosing hole.
+        var rewriteCount = replacements.Count;
+
+        foreach (var node in expression.DescendantNodes())
+        {
+            // An author who already parenthesized the hole -- a conditional expression has to be --
+            // left no top level inside it for a rewrite to reach.
+            if (node is not InterpolationSyntax { Expression: { } hole and not ParenthesizedExpressionSyntax }
+                || !ContainsSubstitutedText(hole.Span, replacements, rewriteCount))
+            {
+                continue;
+            }
+
+            replacements.Add(new Replacement(
+                new TextSpan(hole.SpanStart, 0),
+                [new LiteralExpressionSegment("(")]));
+            replacements.Add(new Replacement(
+                new TextSpan(hole.Span.End, 0),
+                [new LiteralExpressionSegment(")")]));
+        }
+    }
+
+    /// <summary>
+    /// Whether any of the first <paramref name="count"/> replacements inside <paramref name="span"/>
+    /// writes text other than a parameter hole's substituted name.
+    /// </summary>
+    private static bool ContainsSubstitutedText(TextSpan span, List<Replacement> replacements, int count)
+    {
+        for (var index = 0; index < count; index++)
+        {
+            var replacement = replacements[index];
+            if (span.Contains(replacement.Span) && !IsParameterHole(replacement))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsParameterHole(Replacement replacement) =>
+        replacement.Segments.Length == 1
+            && replacement.Segments[0] is ParameterHoleExpressionSegment;
+
     private static ExpressionTemplate Splice(
         ExpressionSyntax expression,
         List<Replacement> replacements,
         ConstantInfo? constant)
     {
-        replacements.Sort(static (left, right) => left.Span.Start.CompareTo(right.Span.Start));
+        // TextSpan orders by start and then by length, and the length is what an empty-span parenthesis
+        // needs: it lands outside a replacement that begins where it does, which is what a hole rewritten
+        // from its first character looks like.
+        replacements.Sort(static (left, right) => left.Span.CompareTo(right.Span));
 
         var baseText = expression.ToString();
         var baseStart = expression.Span.Start;
