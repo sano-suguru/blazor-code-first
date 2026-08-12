@@ -21,9 +21,9 @@ protected override View Body =>
 Mutually exclusive branches get disjoint sequence ranges, so switching branches never disturbs the
 sibling positions around them.
 
-## Keyed ForEach
+## ForEach and its key
 
-`ForEach` requires a key that identifies the item, not its position:
+`ForEach` takes a key that identifies the item, not its position:
 
 ```csharp
 protected override View Body =>
@@ -58,6 +58,39 @@ sequenced statically and reports BCF3004, so wrap the call instead — `item => 
 
 The content root must be a single element or component, so a `Fragment` or `Raw` root, or a
 `RenderFragment` placed as content, reports BCF3003.
+
+## Declining the key
+
+The key parameter has no default value, so a list that has no identity to key on says so:
+
+```csharp
+Ul[ForEach(_columns, key: null, content: c => Li[c.Header])]
+```
+
+That is the right spelling for a static menu, a fixed set of columns, or any projection that never
+reorders. What it costs is what BCF3002 warns about: the list diffs as an index-derived key does, so
+an insertion at the front rewrites every row and each row loses its local state. Because no `SetKey`
+is emitted, BCF3002 has nothing to ask about and BCF3003 no longer applies — a `Fragment`, a `Raw`,
+or a bare `If` may root the content.
+
+## Splicing a projection
+
+A child list can also take an ordinary projection, spread into it:
+
+```csharp
+Ul[[.. _columns.Select(c => Li[c.Header])]]
+```
+
+This is sugar for the declined-key `ForEach` above and compiles to the same `foreach`. Unlike a whole
+child list, it mixes with siblings written around it:
+
+```csharp
+Ul[[Li["first"], .. _columns.Select(c => Li[c.Header]), Li["last"]]]
+```
+
+Only `<source>.Select(<inline expression lambda>)` folds. Any other spread — a stored array of
+`View`, a method returning one — is not statically sequenceable children and reports BCF1003, the
+same answer a stored `View` written as a single child already gets.
 
 ## Fragment
 
