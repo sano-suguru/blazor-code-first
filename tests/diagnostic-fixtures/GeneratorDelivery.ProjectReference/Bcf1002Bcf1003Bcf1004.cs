@@ -13,15 +13,19 @@ public partial class Bcf1002Host : BodyComponentBase
 }
 
 /// <summary>
-/// BCF1003: the design-time expression calls a plain method returning <c>View</c>, which is not
-/// statically analyzable and has no runtime fallback yet. Wrapped in translatable element helpers on
-/// purpose: the reported location must be the offending call, not the whole <c>Body</c> (#77).
+/// BCF1003: the design-time expression reads a stored <c>View</c>, which is neither design-time syntax
+/// nor a call and so cannot be classified. Wrapped in translatable element helpers on purpose: the
+/// reported location must be the offending expression, not the whole <c>Body</c> (#77).
 /// </summary>
+/// <remarks>
+/// A <c>View</c>-returning call used to be the shape here. It has a route of its own now: BCF3030 when
+/// the callee builds from the design-time surface, BCF2001 otherwise.
+/// </remarks>
 public partial class Bcf1003Host : BodyComponentBase
 {
-    protected override View Body => Div[Span["bcf1003"], Make()];
+    private readonly View _cached;
 
-    private static View Make() => Span["bcf1003"];
+    protected override View Body => Div[Span["bcf1003"], _cached];
 }
 
 /// <summary>BCF1004: a getter that does not reduce to a single expression.</summary>

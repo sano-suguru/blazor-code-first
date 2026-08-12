@@ -43,7 +43,10 @@ internal static class KeyabilityResolver
             ComponentTemplateNode or ElementTemplateNode => ContentRootKind.Element,
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
                 or FragmentTemplateNode or RawMarkupTemplateNode
-                or RenderFragmentContentTemplateNode => ContentRootKind.Region,
+                or RenderFragmentContentTemplateNode
+                or OpaqueViewTemplateNode => ContentRootKind.Region,
+            TransplantedBlockTemplateNode transplanted =>
+                ResolveRootKind(transplanted.Content, registry, activeKeys, content),
             ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
             ViewPartCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
@@ -149,6 +152,10 @@ internal static class KeyabilityResolver
                     CollectForEachContentDiagnostics(slot.Content, registry, sink);
                 break;
 
+            case TransplantedBlockTemplateNode transplanted:
+                CollectForEachContentDiagnostics(transplanted.Content, registry, sink);
+                break;
+
             case ViewPartCallTemplateNode call:
                 // The call's own body is walked once from the registry pass
                 // (CollectViewPartForEachDiagnostics) and deliberately not re-walked here. What is walked
@@ -167,6 +174,7 @@ internal static class KeyabilityResolver
             case ContentHoleTemplateNode:
             case RawMarkupTemplateNode:
             case RenderFragmentContentTemplateNode:
+            case OpaqueViewTemplateNode:
                 break;
 
             default:

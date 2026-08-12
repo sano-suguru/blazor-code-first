@@ -51,12 +51,14 @@ public static class DiagnosticExpectations
             FixtureKind.GeneratorViaProjectReference,
             "error",
             "Bcf1002Bcf1003Bcf1004.cs",
-            "Make()",
+            "_cached",
             Note: "Points at the innermost expression that failed to classify, not at the whole Body " +
                 "(#77). Anchoring on the call rather than the property is the contract: a file with " +
                 "several components and a deep Body is exactly where a coarser location stops helping."),
         new("BCF1004", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1002Bcf1003Bcf1004.cs", "Body"),
         new("BCF1005", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1001Bcf1005.cs", "Body"),
+        // SARIF names the Info level "note".
+        new("BCF2001", FixtureKind.GeneratorViaProjectReference, "note", "Bcf2001Bcf3030.cs", "Wrap()"),
         new("BCF3001", FixtureKind.AnalyzerViaProjectReference, "error", "Mutating.cs", "_count++"),
         new("BCF3002", FixtureKind.GeneratorViaProjectReference, "warning", "Bcf3002Bcf3003Bcf3004.cs", "item => 0"),
         new(
@@ -70,7 +72,7 @@ public static class DiagnosticExpectations
             FixtureKind.GeneratorViaProjectReference,
             "error",
             "Bcf3002Bcf3003Bcf3004.cs",
-            "ForEach(_items, item => item, Render)"),
+            "ForEach(_items, item => item, new Func<string, View>(Render))"),
         new("BCF3005", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3005ToBcf3008.cs", "w => w.Label!.ToUpperInvariant()"),
         new("BCF3006", FixtureKind.GeneratorViaProjectReference, "error", "Bcf3005ToBcf3008.cs", "w => w.NotAParameter"),
         // Two identical selectors on the line; the duplicate is the second, and that is the one to blame.
@@ -233,6 +235,17 @@ public static class DiagnosticExpectations
                 "fixture proves is delivery of an analyzer-reported id other than BCF3001, which nothing " +
                 "else did. Anchors the whole chain, because what is wrong is where the expression is " +
                 "written rather than anything inside it."),
+        new(
+            "BCF3030",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf2001Bcf3030.cs",
+            "Card(\"bcf3030\")",
+            Note: "Anchors the call, not the callee's declaration: the declaration is legal C# that the " +
+                "author may never have meant to expand, and the call is where the missing output shows. " +
+                "Beside BCF2001 in one fixture because the two split the same classification — the callee " +
+                "there builds no design-time syntax, this one does — and a reader comparing them needs " +
+                "both in view."),
     ];
 
     /// <summary>
@@ -249,12 +262,7 @@ public static class DiagnosticExpectations
     /// not yet implemented. Without the list, a deliberate row is indistinguishable from a row that
     /// outlived its descriptor.
     /// </summary>
-    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
-    [
-        ("BCF2001",
-            "The 付録A row is intentional: the Opaque path is specified but unimplemented, so the " +
-            "descriptor lands with it (#57)."),
-    ];
+    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } = [];
 
     /// <summary>
     /// IDs that were implemented and then withdrawn. The number is retired, not freed: a reader who hits

@@ -7,6 +7,7 @@ BCF1002 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF1003 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF1004 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF1005 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF2001 | BlazorCodeFirst | Info | BlazorCodeFirstGenerator
 BCF3001 | BlazorCodeFirst | Error | RenderMutationAnalyzer
 BCF3002 | BlazorCodeFirst | Warning | BlazorCodeFirstGenerator
 BCF3003 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
@@ -35,3 +36,4 @@ BCF3026 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3027 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3028 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3029 | BlazorCodeFirst | Error | InertSurfaceAnalyzer
+BCF3030 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator

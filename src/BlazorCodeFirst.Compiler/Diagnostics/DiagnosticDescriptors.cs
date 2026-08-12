@@ -171,21 +171,61 @@ internal static class DiagnosticDescriptors
             "supported. Move the component to a top-level type.");
 
     /// <summary>
-    /// BCF3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
-    /// lambda or a method group), so it cannot be statically analyzed. Transitional: narrows once the
-    /// Transplantable/Opaque paths support such content.
+    /// BCF2001: A call the generator cannot expand statically. It becomes a dynamic region and the static
+    /// diff optimization for that area is lost.
     /// </summary>
+    /// <remarks>
+    /// Info, not a warning: the call is correct and renders correctly, and 付録A assigns this ID to the
+    /// lost optimization alone. The case where the call renders <em>nothing</em> is
+    /// <see cref="BCF3030"/>, which is a different fact and carries an error.
+    /// <para>
+    /// One residue this cannot see. A referenced assembly's <c>View</c>-returning method may be built from
+    /// the design-time surface, in which case it carries no fragment and renders nothing, and no source
+    /// declaration exists here to tell. 付録A's row records it; <c>DESIGN.md</c> §4.3 already routes
+    /// cross-assembly reuse to components.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF2001 = new(
+        id: "BCF2001",
+        title: "Opaque call degrades to a dynamic region",
+        messageFormat:
+            "'{0}' cannot be expanded statically, so this area renders through a runtime fragment and "
+                + "loses its static diff optimization",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description:
+            "The generator expands what it can read: the design-time surface, and [ViewPart] methods "
+                + "declared in this compilation. A call it cannot read is rendered at runtime through the "
+                + "RenderFragment the returned View carries, inside a region that keeps its sequence "
+                + "numbers away from the rest of the component. Correctness is unaffected; the frames for "
+                + "that area are rebuilt rather than diffed against a static template.");
+
+    /// <summary>
+    /// BCF3004: A <c>ForEach</c> key is not an inline expression lambda, or its content is a shape the
+    /// generator neither sequences statically nor transplants.
+    /// </summary>
+    /// <remarks>
+    /// Narrowed when the Transplantable and Opaque paths landed. Content now also accepts a block with one
+    /// trailing <c>return</c> (ARCHITECTURE.md §2.3 Transplantable) and a one-parameter
+    /// <c>View</c>-returning method group, which is read as the call it stands for and answered by the
+    /// same three-way split every other call gets. What is left is the key, whose body has to be an
+    /// expression because it is transplanted into <c>SetKey</c>, and the content shapes that would each
+    /// need a sequence space of their own.
+    /// </remarks>
     public static readonly DiagnosticDescriptor BCF3004 = new(
         id: "BCF3004",
-        title: "ForEach content must be an inline expression lambda",
-        messageFormat: "ForEach content and key must be inline expression lambdas so they can be statically analyzed; wrap the call in a lambda such as x => Wrapper(x)",
+        title: "ForEach key or content has a shape the generator cannot sequence",
+        messageFormat:
+            "ForEach requires an expression-bodied key lambda, and content that is an expression lambda, "
+                + "a block with one trailing return, or a single-parameter method group",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "A ForEach content or key selector must be an inline expression lambda (item => ...). A " +
-            "block-bodied lambda or a method group cannot be statically sequenced. Rewrite it as an inline " +
-            "expression lambda, wrapping any helper call as x => Helper(x).");
+            "The key body is transplanted into SetKey, so it has to be an expression. The content is "
+                + "given one static sequence space that every iteration reuses, which a second return or a "
+                + "native control statement would each need their own copy of.");
 
     /// <summary>
     /// BCF3005: A <c>Component&lt;T&gt;()</c> parameter-binding selector is not a simple property selection
@@ -836,6 +876,53 @@ internal static class DiagnosticDescriptors
                 + "returns the empty marker, renders nothing, and leaves every handler in it unwired. "
                 + "Storing such a value in a field or property of a design-time type is not reported; only "
                 + "calls are reserved, so the stored form is left open.");
+
+    /// <summary>
+    /// BCF3030: A call to a <c>View</c>-returning method that is built from the design-time surface but
+    /// carries no <c>[ViewPart]</c> renders nothing.
+    /// </summary>
+    /// <remarks>
+    /// The sibling of BCF3029 on the other side of the call. BCF3029 reports design-time syntax written
+    /// where nothing reads it; this reports a call whose callee wrote design-time syntax that nothing
+    /// read. Both fail the same way — the value is the empty marker and no frames are emitted — and
+    /// neither is a compile error, so the author sees correct-looking code that renders nothing.
+    /// <para>
+    /// <c>ARCHITECTURE.md</c> §2.3 classifies this call as Opaque and §3.2 says the Opaque path renders
+    /// the fragment the returned <c>View</c> carries. It carries none: every member of <c>Html</c>,
+    /// <c>ElementView</c> and <c>Decorations</c> returns the default value, so the only route into
+    /// <c>View.Fragment</c> is the <c>RenderFragment</c> conversion. Letting this call take the Opaque
+    /// path would turn 付録B.11(c)'s "cost you always notice" into the cost you never notice, which is the
+    /// trade that appendix refuses. 付録B.11's closing note is revised to name this diagnostic.
+    /// </para>
+    /// <para>
+    /// The predicate is "does the callee's body reference the design-time surface", not BCF1002's full
+    /// static-expansion contract. A callee that references the surface but cannot be expanded is still
+    /// reported here, and BCF1002 then names the exact contract violation at the declaration once the
+    /// author adds the attribute. Running the contract check at every call site would restate BCF1002 in
+    /// a second place for no better message.
+    /// </para>
+    /// <para>
+    /// Two remedies, because the attribute does not fit every receiver: an instance method reaches this
+    /// diagnostic too, and BCF1002 rejects a non-static <c>[ViewPart]</c>. The location is the whole call
+    /// expression, which is what the author rewrites.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3030 = new(
+        id: "BCF3030",
+        title: "Call to a View-returning method without [ViewPart] renders nothing",
+        messageFormat:
+            "'{0}' builds its View from the design-time surface but carries no [ViewPart], so this call "
+                + "renders nothing; mark it [ViewPart] if it is static, or make it a component",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The design-time surface is inert: Html's element helpers, ElementView's indexer and every "
+                + "decoration return the default View, and the generator reads the syntax rather than the "
+                + "value. It reads it in a Body, a Chrome, and the body of a [ViewPart] method. A "
+                + "View-returning method without the attribute is none of those, so its result carries no "
+                + "fragment and the call emits no frames. Marking the method [ViewPart] expands it into "
+                + "the call site; making it a component gives it a Body the generator reads.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

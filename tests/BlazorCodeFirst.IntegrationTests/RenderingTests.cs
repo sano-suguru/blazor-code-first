@@ -80,8 +80,10 @@ public sealed class RenderingTests : BunitContext
     {
         // NOTE: rows are stateless Text, so this asserts render order only; it does NOT discriminate keyed
         // from index/broken keys (both produce identical markup after a reorder). The keying guarantee is
-        // locked at the generator level (SetKey emitted on the content root with the item-derived key); an
-        // end-to-end state-preservation test requires a stateful content primitive (see tracking Issue).
+        // locked at the generator level (SetKey emitted on the content root with the item-derived key), and
+        // end to end by the stateful pair below:
+        // KeyedComponentList_WhenRowStateChangedThenRotated_StatePreservedFollowsItem and its
+        // position-keyed negative control.
         var cut = Render<KeyedListComponent>();
 
         cut.MarkupMatches(

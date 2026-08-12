@@ -37,6 +37,13 @@ internal static class RenderViewEmitter
     private const string RenderFragmentType =
         "global::Microsoft.AspNetCore.Components.RenderFragment";
 
+    /// <summary>
+    /// The one BlazorCodeFirst runtime member generated code calls. Generated <c>RenderView</c> bodies live
+    /// in the consumer's assembly, so the Opaque path cannot read <c>View</c>'s internal fragment field
+    /// directly (<c>ARCHITECTURE.md</c> §3.2).
+    /// </summary>
+    private const string ViewRuntimeType = "global::BlazorCodeFirst.CompilerServices.ViewRuntime";
+
     public static SourceText Emit(ComponentModel model)
     {
         var writer = new IndentedWriter();
@@ -137,7 +144,7 @@ internal static class RenderViewEmitter
         if (key is not null)
         {
             Debug.Assert(
-                node is ElementNode or ComponentNode or ExpansionNode,
+                node is ElementNode or ComponentNode or ExpansionNode or TransplantedBlockNode,
                 $"A key reached '{node.GetType().Name}', which opens no keyable frame; SetKey would be silently dropped.");
         }
 
@@ -153,6 +160,9 @@ internal static class RenderViewEmitter
             RawMarkupNode raw => EmitRawMarkup(writer, raw, startSeq),
             RenderFragmentContentNode fragmentContent =>
                 EmitRenderFragmentContent(writer, fragmentContent, startSeq),
+            OpaqueViewNode opaque => EmitOpaqueView(writer, opaque, startSeq),
+            TransplantedBlockNode transplanted =>
+                EmitTransplantedBlock(writer, transplanted, startSeq, key),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
@@ -521,11 +531,42 @@ internal static class RenderViewEmitter
         return seq + 1;
     }
 
-    private static int EmitRenderFragmentContent(
-        IndentedWriter writer, RenderFragmentContentNode node, int seq)
+    /// <summary>
+    /// Emits one <c>AddContent(seq, RenderFragment?)</c> frame. No OpenRegion: Blazor opens a region for
+    /// the fragment itself, which is what keeps its internal sequence numbers away from ours, and a
+    /// <see langword="null"/> fragment appends no frame at all — so neither caller needs a null test.
+    /// </summary>
+    private static int EmitFragmentFrame(IndentedWriter writer, string fragmentCode, int seq)
     {
-        writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
+        writer.AppendLine($"__builder.AddContent({seq}, {fragmentCode});");
         return seq + 1;
+    }
+
+    private static int EmitRenderFragmentContent(
+        IndentedWriter writer, RenderFragmentContentNode node, int seq) =>
+        EmitFragmentFrame(writer, node.Content.ToCode(), seq);
+
+    /// <summary>
+    /// Emits an Opaque call: the same frame, carrying the fragment the returned <c>View</c> holds rather
+    /// than one the author supplied directly.
+    /// </summary>
+    private static int EmitOpaqueView(IndentedWriter writer, OpaqueViewNode node, int seq) =>
+        EmitFragmentFrame(writer, $"{ViewRuntimeType}.FragmentOf({node.Call.ToCode()})", seq);
+
+    /// <summary>
+    /// Emits the author's transplanted statements, then the content they lead into. The key is forwarded
+    /// to the content's root frame, exactly as <see cref="EmitExpansion"/> forwards it past its locals.
+    /// </summary>
+    /// <remarks>
+    /// Written verbatim rather than line by line. A statement can span lines — a raw string literal, a
+    /// chained call — and re-indenting the interior would change what a verbatim literal holds.
+    /// </remarks>
+    private static int EmitTransplantedBlock(
+        IndentedWriter writer, TransplantedBlockNode node, int startSeq, string? key)
+    {
+        writer.AppendLine(node.Statements.ToCode());
+
+        return EmitNode(writer, node.Content, startSeq, key);
     }
 
     /// <summary>

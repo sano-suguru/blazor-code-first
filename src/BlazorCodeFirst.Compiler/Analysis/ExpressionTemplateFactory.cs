@@ -45,8 +45,49 @@ internal static class ExpressionTemplateFactory
     private static readonly SymbolDisplayFormat QualifiedNameWithoutTypeArguments =
         SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None);
 
+    /// <summary>What <see cref="CreateForStatements"/> writes between two transplanted statements.</summary>
+    private static readonly LiteralExpressionSegment StatementSeparator = new("\n");
+
     public static ExpressionTemplate Create(ExpressionSyntax expression, ViewPartBodyContext context) =>
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
+
+    /// <summary>
+    /// The statements transplanted ahead of a <c>ForEach</c> content root, as one template.
+    /// </summary>
+    /// <remarks>
+    /// An <see cref="ExpressionTemplate"/> holds code text with holes in it, and a statement list is that
+    /// too: it takes the same hole substitution, the same value equality, and the same place in the
+    /// incremental cache. The name says expression because that was the only shape until now; a second
+    /// type carrying the identical three properties would be a second thing to keep in step.
+    /// <para>
+    /// Each statement is normalized under its own rename plan, which is safe only because the caller
+    /// refuses a block declaring a generator-reserved name — the one thing a plan renames. Locals crossing
+    /// from one statement to the next are admitted by
+    /// <see cref="ViewPartBodyContext.IsInsideTransplantedScope"/>, which the caller has already opened
+    /// over the whole block.
+    /// </para>
+    /// </remarks>
+    public static ExpressionTemplate CreateForStatements(
+        ImmutableArray<StatementSyntax> statements, ViewPartBodyContext context)
+    {
+        var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
+
+        foreach (var statement in statements)
+        {
+            // Between statements, not after each: a trailing separator would have to be stripped back off
+            // by whoever emits the text, putting one convention in two files. Adjacent literals still
+            // coalesce in ExpressionTemplate's constructor, so the canonical form is unchanged.
+            if (segments.Count > 0)
+                segments.Add(StatementSeparator);
+
+            var template = CreateCore(
+                statement, context, AuthoredContextNameHygiene.Create(statement, context));
+
+            segments.AddRange(template.Segments.AsImmutableArray());
+        }
+
+        return ExpressionTemplate.Create(segments.ToImmutable());
+    }
 
     /// <summary>
     /// The template for a <see langword="bool"/> literal the author did not write, which is what an omitted
@@ -64,7 +105,7 @@ internal static class ExpressionTemplateFactory
             new BooleanConstant(value));
 
     private static ExpressionTemplate CreateCore(
-        ExpressionSyntax expression,
+        SyntaxNode expression,
         ViewPartBodyContext context,
         AuthoredContextNameHygiene authoredNameHygiene)
     {
@@ -199,7 +240,7 @@ internal static class ExpressionTemplateFactory
                 continue;
             }
 
-            if (IsUnsupportedSourceLocalReference(symbol, expression, out var unsupportedReason))
+            if (IsUnsupportedSourceLocalReference(symbol, expression, context, out var unsupportedReason))
             {
                 context.ReportUnsupportedReference(name.GetLocation(), unsupportedReason);
                 continue;
@@ -296,10 +337,14 @@ internal static class ExpressionTemplateFactory
     /// <see cref="NullConstant"/>.
     /// </remarks>
     private static ConstantInfo? ReadConstant(
-        ExpressionSyntax expression,
+        SyntaxNode expression,
         ViewPartBodyContext context)
     {
-        var constant = context.SemanticModel.GetConstantValue(expression, context.CancellationToken);
+        // A statement has no value, so nothing to fold. Only the expression roots reach the model.
+        if (expression is not ExpressionSyntax valueExpression)
+            return null;
+
+        var constant = context.SemanticModel.GetConstantValue(valueExpression, context.CancellationToken);
         if (!constant.HasValue)
             return null;
 
@@ -456,7 +501,7 @@ internal static class ExpressionTemplateFactory
     /// </para>
     /// </remarks>
     private static void AddInterpolationHoleParentheses(
-        ExpressionSyntax expression,
+        SyntaxNode expression,
         List<Replacement> replacements)
     {
         // Nothing was rewritten, so no hole can need restoring. Checked before the walk because the walk
@@ -508,7 +553,7 @@ internal static class ExpressionTemplateFactory
             && replacement.Segments[0] is ParameterHoleExpressionSegment;
 
     private static ExpressionTemplate Splice(
-        ExpressionSyntax expression,
+        SyntaxNode expression,
         List<Replacement> replacements,
         ConstantInfo? constant)
     {
@@ -550,7 +595,8 @@ internal static class ExpressionTemplateFactory
     /// </summary>
     private static bool IsUnsupportedSourceLocalReference(
         ISymbol symbol,
-        ExpressionSyntax root,
+        SyntaxNode root,
+        ViewPartBodyContext context,
         out string reason)
     {
         reason = string.Empty;
@@ -569,8 +615,13 @@ internal static class ExpressionTemplateFactory
 
         foreach (var declaration in symbol.DeclaringSyntaxReferences)
         {
-            if (root.FullSpan.Contains(declaration.Span))
+            // Either the declaration travels with this template, or it sits in a block being transplanted
+            // whole, which puts it in the generated code beside this reference (ARCHITECTURE.md §2.3).
+            if (root.FullSpan.Contains(declaration.Span)
+                || context.IsInsideTransplantedScope(declaration.Span))
+            {
                 return false;
+            }
         }
 
         reason = $"references {kindLabel} '{symbol.Name}' that cannot exist in generated component code";
@@ -947,7 +998,7 @@ internal static class ExpressionTemplateFactory
         public ImmutableArray<AuthoredDeclarationRename> Declarations { get; }
 
         public static AuthoredContextNameHygiene Create(
-            ExpressionSyntax expression,
+            SyntaxNode expression,
             ViewPartBodyContext context)
         {
             // Built on the first rename, not up front. Its only reader is the disambiguation loop below,
@@ -993,7 +1044,7 @@ internal static class ExpressionTemplateFactory
             _names.TryGetValue(symbol, out name!);
 
         /// <summary>Every identifier spelled anywhere in <paramref name="expression"/>.</summary>
-        private static HashSet<string> CollectIdentifierNames(ExpressionSyntax expression)
+        private static HashSet<string> CollectIdentifierNames(SyntaxNode expression)
         {
             var names = new HashSet<string>(System.StringComparer.Ordinal);
             foreach (var token in expression.DescendantTokens())
