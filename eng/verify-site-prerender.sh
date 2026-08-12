@@ -126,10 +126,10 @@ ere_quote() {
 
 # A string as the published HTML spells it.
 #
-# Blazor's HTML encoder does not emit non-ASCII text as itself: the Japanese index heading
-# "ドキュメント" ships as "&#x30C9;&#x30AD;&#x30E5;&#x30E1;&#x30F3;&#x30C8;". An expectation read out
-# of site/content therefore has to be encoded the same way before it can be matched, or every
-# translated heading and title fails against a page that is perfectly correct.
+# Blazor's HTML encoder does not emit non-ASCII text as itself. Every character of the Japanese
+# index heading ships as a numeric character reference: "&#x30C9;", and five more like it. An
+# expectation read out of site/content therefore has to be encoded the same way before it can be
+# matched, or every translated heading and title fails against a page that is perfectly correct.
 #
 # perl rather than awk: this needs to decode UTF-8 into codepoints, and the awk on macOS -- where
 # this script is run to watch a mutation fail -- is the one-true-awk, which has no multibyte support.
