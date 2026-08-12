@@ -1,0 +1,27 @@
+// Playwright's loader transpiles each file and throws the types away, so nothing here changes what
+// runs. What it decides is what an editor and `npx tsc --noEmit` see, and TypeScript's defaults get
+// that wrong for this suite: with no config it reports eight errors about ES5 iteration and DOM
+// collections, none of which are about the code (#254).
+{
+  "compilerOptions": {
+    // Node 24 runs these files; both workflows pin that. At the default ES5 target every `for...of`
+    // over a Set and every DOM collection walked inside a page.evaluate callback is an error. The
+    // DOM types come with this target's default lib, so there is nothing for `lib` to add.
+    "target": "ES2022",
+    // What the loader compiles each file to, and so what makes `__dirname` in site-pages.ts legal
+    // rather than a leftover. It also carries module resolution, which is why raising the target
+    // alone does not work: at ES2022 with no module setting TypeScript infers ES modules and with
+    // them classic resolution, under which every `@playwright/test` import is unresolved.
+    "module": "commonjs",
+    // Exactly what package.json declares. Left open, TypeScript loads every @types directory it
+    // finds walking up to the filesystem root, so what typechecks here would depend on what a
+    // contributor happens to have installed above the repository.
+    "types": ["node"],
+    // Both suites are typeclean under it as this was written, so it costs nothing to hold.
+    "strict": true,
+    // Nothing here is built by tsc. This keeps a bare `tsc` from writing .js files beside the specs
+    // for Playwright to then collect as tests.
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}
