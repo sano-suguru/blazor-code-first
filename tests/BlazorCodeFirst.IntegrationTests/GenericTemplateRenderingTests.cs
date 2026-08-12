@@ -4,9 +4,9 @@ using Bunit;
 namespace BlazorCodeFirst.IntegrationTests;
 
 /// <summary>
-/// Renders both <c>.Template</c> overloads into a real <see cref="Microsoft.AspNetCore.Components.Forms.EditForm"/>,
-/// which is the one shape whose <c>ChildContent</c> is a <c>RenderFragment&lt;EditContext&gt;</c> and so cannot be
-/// supplied through brackets at all. The assertions look at what the form does — validation messages, the
+/// Renders both <c>.Template</c> overloads, and the brackets, into a real
+/// <see cref="Microsoft.AspNetCore.Components.Forms.EditForm"/>, which is the one shape whose
+/// <c>ChildContent</c> is a <c>RenderFragment&lt;EditContext&gt;</c>. The assertions look at what the form does — validation messages, the
 /// <c>EditContext</c>'s own modification state, and what survives a parent re-render — rather than at generated
 /// source, which <c>Compiler.Tests</c> already pins.
 /// </summary>
@@ -22,6 +22,16 @@ public sealed class GenericTemplateRenderingTests : BunitContext
     public void ContextIgnoredTemplate_SubmitRunsEditFormValidation()
     {
         var cut = Render<ContextIgnoringTemplateForm>();
+        cut.Find("form").Submit();
+        Assert.Contains("Name is required", cut.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BracketChildContent_SubmitRunsEditFormValidation()
+    {
+        // Same form and same assertion as the test above: the two spellings reach one parameter, so the
+        // bracket one has to run the form's validation too (#322).
+        var cut = Render<BracketChildContentForm>();
         cut.Find("form").Submit();
         Assert.Contains("Name is required", cut.Markup, StringComparison.Ordinal);
     }
