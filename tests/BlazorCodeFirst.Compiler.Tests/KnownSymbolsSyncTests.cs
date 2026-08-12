@@ -778,6 +778,26 @@ public sealed class KnownSymbolsSyncTests
         Assert.Empty(unrecognized);
     }
 
+    [Fact]
+    public void EnumerableSelect_ResolvesTheProjectionOverloadAndNotTheIndexedOne()
+    {
+        // The splice folds `source.Select(item => …)` (#172). Select's other overload takes
+        // Func<TSource, int, TResult>, whose two-parameter lambda has no single iteration variable for a
+        // content template to bind. Both overloads declare two parameters, so the discriminator has to be
+        // the selector's own arity, and this is what pins that.
+        var (symbols, _) = ResolveHtml();
+
+        Assert.NotNull(symbols.EnumerableSelect);
+        Assert.Equal("Select", symbols.EnumerableSelect!.Name);
+        Assert.Equal(
+            "System.Linq.Enumerable",
+            symbols.EnumerableSelect.ContainingType.ToDisplayString());
+
+        var selector = Assert.IsAssignableFrom<INamedTypeSymbol>(
+            symbols.EnumerableSelect.Parameters[1].Type);
+        Assert.Equal(2, selector.TypeArguments.Length);
+    }
+
     /// <summary>
     /// <c>BlazorCodeFirst.ElementView</c>, resolved out of the runtime assembly directly rather than read
     /// off <c>KnownSymbols.ElementViewType</c>.
