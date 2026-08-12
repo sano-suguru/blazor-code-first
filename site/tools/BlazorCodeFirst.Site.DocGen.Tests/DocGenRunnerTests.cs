@@ -10,8 +10,29 @@ public class DocGenRunnerTests
 
     private const string Second = "---\ntitle: Control Flow\norder: 20\n---\n\n## Loops\n";
 
+    /// <summary>A shell file with every key a language of the given kind must declare.</summary>
+    private static string Shell(string name, bool isCanonical)
+    {
+        string stale = isCanonical
+            ? ""
+            : "stale-notice: This translation is behind.\nstale-link: Read the English page\n";
+
+        return "---\n" +
+            $"name: {name}\n" +
+            "index-title: Documentation\n" +
+            "index-lead: Every document, in reading order.\n" +
+            "rail-heading: Guide\n" +
+            "language-label: Language\n" +
+            stale +
+            "---\n";
+    }
+
     /// <summary>Runs the body with a temp content directory and output paths under a nested
     /// directory, which also proves Run creates missing output directories.</summary>
+    /// <remarks>
+    /// The canonical shell file is seeded here because every test below has canonical documents and
+    /// none of them is about the shell. The tests that ARE about it write their own.
+    /// </remarks>
     private static void WithContent(Action<string, string, string> body)
     {
         string dir = Directory.CreateTempSubdirectory().FullName;
@@ -19,6 +40,7 @@ public class DocGenRunnerTests
         {
             string content = Path.Combine(dir, "content");
             Directory.CreateDirectory(content);
+            File.WriteAllText(Path.Combine(content, "shell.yml"), Shell("English", isCanonical: true));
             body(content, Path.Combine(dir, "gen", "Docs.g.cs"), Path.Combine(dir, "gen", "highlight.css"));
         }
         finally
@@ -39,6 +61,13 @@ public class DocGenRunnerTests
     {
         string dir = Path.Combine(content, "ja");
         Directory.CreateDirectory(dir);
+
+        string shell = Path.Combine(dir, "shell.yml");
+        if (!File.Exists(shell))
+        {
+            File.WriteAllText(shell, Shell("Japanese", isCanonical: false));
+        }
+
         File.WriteAllText(Path.Combine(dir, fileName), text);
     }
 
@@ -180,6 +209,60 @@ public class DocGenRunnerTests
             DocGenRunner.Run(content, docsOut, cssOut);
 
             Assert.Equal(first, File.ReadAllText(docsOut));
+        });
+    }
+
+    [Fact]
+    public void Run_LanguageWithDocumentsButNoShellFile_Throws()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            string dir = Path.Combine(content, "ja");
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(
+                Path.Combine(dir, "getting-started.md"),
+                "---\ntitle: Getting Started (ja)\norder: 10\nsource-hash: deadbeef\n---\n\n## Installation\n");
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
+
+            Assert.Contains("ja/shell.yml", ex.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Run_LanguageWithNoDocuments_NeedsNoShellFile()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            // An edition nobody has started is not an unfinished one: nothing routes to it, so there
+            // is no page for the missing strings to have shown on.
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            Directory.CreateDirectory(Path.Combine(content, "ja"));
+
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            Assert.Contains("Languages =\n        [\"en\"]", File.ReadAllText(docsOut), StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Run_CarriesEachLanguagesShellTextIntoTheManifest()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\nsource-hash: deadbeef\n---\n\n## Installation\n");
+
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            // Every reader-facing string reaches the site through the manifest, so no page component
+            // has to hold a sentence in any language.
+            string docs = File.ReadAllText(docsOut);
+            Assert.Contains("public static ShellText Shell(string lang)", docs, StringComparison.Ordinal);
+            Assert.Contains("\"Japanese\"", docs, StringComparison.Ordinal);
+            Assert.Contains("\"This translation is behind.\"", docs, StringComparison.Ordinal);
         });
     }
 

@@ -10,12 +10,48 @@ namespace BlazorCodeFirst.Site.Content;
 /// of its canonical document. Always false on a canonical document.</param>
 public sealed record DocEntry(string Slug, string Title, int Order, string Lang, bool Stale, string Html);
 
+/// <summary>The text the documentation shell shows a reader of one language.</summary>
+/// <param name="Name">What this language calls itself, shown to a reader of another one.</param>
+/// <param name="StaleNotice">The sentence a translation carries when it has fallen
+/// behind, or null on the canonical language, which has nothing to fall behind.</param>
+public sealed record ShellText(
+    string Name,
+    string IndexTitle,
+    string IndexLead,
+    string RailHeading,
+    string LanguageLabel,
+    string? StaleNotice,
+    string? StaleLink);
+
 /// <summary>The generated documentation manifest, grouped by language and ordered by
 /// (Order, Slug) within each one.</summary>
 public static class Docs
 {
     /// <summary>The canonical language, whose documents are the top-level content files.</summary>
     public const string Canonical = "en";
+
+    /// <summary>Every language the manifest holds documents for, canonical first.</summary>
+    public static readonly ImmutableArray<string> Languages =
+        ["en"];
+
+    /// <summary>The route a language's documents are served from, with no trailing slash.</summary>
+    public static string RoutePrefix(string lang) => lang switch
+    {
+        _ => "/docs",
+    };
+
+    /// <summary>The shell text shown to a reader of one language.</summary>
+    public static ShellText Shell(string lang) => lang switch
+    {
+        _ => new ShellText(
+            "English",
+            "Documentation",
+            "Every document in the guide, in reading order.",
+            "Guide",
+            "Language",
+            null,
+            null),
+    };
 
     public static readonly ImmutableArray<DocEntry> All =
     [

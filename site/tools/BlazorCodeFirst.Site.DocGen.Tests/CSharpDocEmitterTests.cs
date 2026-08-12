@@ -5,8 +5,35 @@ namespace BlazorCodeFirst.Site.DocGen.Tests;
 
 public class CSharpDocEmitterTests
 {
+    /// <summary>Shell text for every language the given documents are written in.</summary>
+    /// <remarks>
+    /// The emitter requires one per language because the site reads every reader-facing string from
+    /// the manifest. What each string says is <see cref="ShellFile"/>'s business, so these are
+    /// placeholders: the assertions below are about manifest shape, not about wording.
+    /// </remarks>
+    private static Dictionary<string, ShellStrings> ShellsFor(IEnumerable<DocMeta> metas)
+    {
+        var shells = new Dictionary<string, ShellStrings>(StringComparer.Ordinal);
+        foreach (var meta in metas)
+        {
+            shells[meta.Lang] = new ShellStrings(
+                meta.Lang,
+                "Documentation",
+                "Every document, in reading order.",
+                "Guide",
+                "Language",
+                meta.Lang == DocLang.Canonical ? null : "This translation is behind.",
+                meta.Lang == DocLang.Canonical ? null : "Read the English page");
+        }
+
+        return shells;
+    }
+
+    private static string Emit(params (DocMeta Meta, string Html)[] docs) =>
+        CSharpDocEmitter.Emit(docs, ShellsFor(docs.Select(d => d.Meta)));
+
     private static string EmitOne(string slug, string title, int order, string html) =>
-        CSharpDocEmitter.Emit([(new DocMeta(slug, title, order, DocLang.Canonical, false), html)]);
+        Emit((new DocMeta(slug, title, order, DocLang.Canonical, false), html));
 
     [Fact]
     public void Emit_ProducesManifestShape()
@@ -43,12 +70,10 @@ public class CSharpDocEmitterTests
     [Fact]
     public void Emit_OrdersByFrontMatterOrder()
     {
-        string source = CSharpDocEmitter.Emit(
-        [
+        string source = Emit(
             (new DocMeta("zeta", "Zeta", 30, DocLang.Canonical, false), "<p>z</p>"),
             (new DocMeta("beta", "Beta", 20, DocLang.Canonical, false), "<p>b</p>"),
-            (new DocMeta("alpha", "Alpha", 10, DocLang.Canonical, false), "<p>a</p>"),
-        ]);
+            (new DocMeta("alpha", "Alpha", 10, DocLang.Canonical, false), "<p>a</p>"));
 
         int alpha = source.IndexOf("\"alpha\"", StringComparison.Ordinal);
         int beta = source.IndexOf("\"beta\"", StringComparison.Ordinal);
@@ -108,11 +133,9 @@ public class CSharpDocEmitterTests
     [Fact]
     public void Emit_DuplicateSlug_Throws()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => CSharpDocEmitter.Emit(
-        [
+        var ex = Assert.Throws<InvalidOperationException>(() => Emit(
             (new DocMeta("dup", "One", 1, DocLang.Canonical, false), "<p>1</p>"),
-            (new DocMeta("dup", "Two", 2, DocLang.Canonical, false), "<p>2</p>"),
-        ]));
+            (new DocMeta("dup", "Two", 2, DocLang.Canonical, false), "<p>2</p>")));
 
         Assert.Contains("dup", ex.Message);
     }
@@ -120,11 +143,9 @@ public class CSharpDocEmitterTests
     [Fact]
     public void Emit_DuplicateOrder_Throws()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() => CSharpDocEmitter.Emit(
-        [
+        var ex = Assert.Throws<InvalidOperationException>(() => Emit(
             (new DocMeta("a", "A", 10, DocLang.Canonical, false), "<p>a</p>"),
-            (new DocMeta("b", "B", 10, DocLang.Canonical, false), "<p>b</p>"),
-        ]));
+            (new DocMeta("b", "B", 10, DocLang.Canonical, false), "<p>b</p>")));
 
         Assert.Contains("order", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("10", ex.Message);

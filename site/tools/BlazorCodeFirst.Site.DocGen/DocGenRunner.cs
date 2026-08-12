@@ -34,9 +34,19 @@ public static class DocGenRunner
         RejectUnknownDirectories(contentDir);
 
         var sources = new List<DocSource>();
+        var shells = new Dictionary<string, ShellStrings>(StringComparer.Ordinal);
         foreach (string lang in DocLang.All)
         {
-            sources.AddRange(ReadAndValidate(contentDir, lang));
+            var forLang = ReadAndValidate(contentDir, lang);
+            if (forLang.Count == 0)
+            {
+                // A language nobody has translated into needs no shell text: nothing routes to it, so
+                // requiring the file would be an obligation with no page behind it.
+                continue;
+            }
+
+            sources.AddRange(forLang);
+            shells.Add(lang, ReadShell(contentDir, lang));
         }
 
         sources = ResolveStaleness(sources, report);
@@ -64,7 +74,7 @@ public static class DocGenRunner
         }
 
         // Artifacts are LF-normalized by their emitters; write bytes as-is.
-        WriteFile(docsOutPath, CSharpDocEmitter.Emit(docs));
+        WriteFile(docsOutPath, CSharpDocEmitter.Emit(docs, shells));
         WriteFile(cssOutPath, HighlightCssEmitter.Emit());
     }
 
@@ -91,6 +101,25 @@ public static class DocGenRunner
                     "The canonical language's documents are the top-level files.");
             }
         }
+    }
+
+    /// <summary>Reads one language's shell text, which is required of any language that has documents.</summary>
+    private static ShellStrings ReadShell(string contentDir, string lang)
+    {
+        string? subdirectory = DocLang.Directory(lang);
+        string dir = subdirectory is null ? contentDir : Path.Combine(contentDir, subdirectory);
+        string path = Path.Combine(dir, ShellFile.FileName);
+        string fileName = subdirectory is null ? ShellFile.FileName : $"{subdirectory}/{ShellFile.FileName}";
+
+        if (!File.Exists(path))
+        {
+            throw Invalid(
+                fileName,
+                $"language '{lang}' has documents but declares no shell text. Every string a reader " +
+                "sees lives in the content tree, including the ones that are not part of a document.");
+        }
+
+        return ShellFile.Parse(File.ReadAllText(path), fileName, lang == DocLang.Canonical);
     }
 
     /// <summary>Pass 1 for one language: read every document, validate its file name and front matter,

@@ -27,83 +27,24 @@ public sealed record FrontMatterFields(string Title, int Order, string? SourceHa
 /// The parser is deliberately strict rather than a general YAML implementation: content is
 /// repository-owned, so an unknown key, a repeated key, or a malformed value is a build error with
 /// a clear message instead of a silently ignored line.
+///
+/// Scanning the block itself is <see cref="KeyValueBlock"/>'s job, shared with the shell file. Only
+/// the reading of these three keys lives here.
 /// </remarks>
 public static class FrontMatter
 {
-    private const string Fence = "---";
-
     public static (FrontMatterFields Fields, string Body) Split(string raw, string fileName)
     {
-        ArgumentNullException.ThrowIfNull(raw);
-        ArgumentNullException.ThrowIfNull(fileName);
-
-        // Normalize CRLF so authoring on Windows behaves identically; the body keeps LF only.
-        string text = raw.Replace("\r\n", "\n", StringComparison.Ordinal);
-
-        int openingNewline = text.IndexOf('\n', StringComparison.Ordinal);
-        string openingLine = openingNewline < 0 ? text : text[..openingNewline];
-        if (openingNewline < 0 || openingLine != Fence)
-        {
-            if (openingLine.Trim() == Fence ||
-                openingLine.TrimStart().StartsWith(Fence, StringComparison.Ordinal))
-            {
-                throw Invalid(fileName, "the opening front matter delimiter must be exactly '---' followed by a newline.");
-            }
-
-            throw Invalid(fileName, "the file must start with a '---' front matter block declaring 'title' and 'order'.");
-        }
-
-        int bodyStart = -1;
-        var lines = new List<string>();
-        int cursor = openingNewline + 1;
-        while (cursor <= text.Length)
-        {
-            int newline = text.IndexOf('\n', cursor);
-            string line = newline < 0 ? text[cursor..] : text[cursor..newline];
-            if (line == Fence)
-            {
-                bodyStart = newline < 0 ? text.Length : newline + 1;
-                break;
-            }
-
-            if (line.TrimStart().StartsWith(Fence, StringComparison.Ordinal))
-            {
-                throw Invalid(fileName, "the closing front matter delimiter must be exactly '---'.");
-            }
-
-            lines.Add(line);
-            if (newline < 0)
-            {
-                break;
-            }
-
-            cursor = newline + 1;
-        }
-
-        if (bodyStart < 0)
-        {
-            throw Invalid(fileName, "the front matter block has no closing '---' line.");
-        }
+        var (lines, body) = KeyValueBlock.Parse(
+            raw,
+            fileName,
+            "the file must start with a '---' front matter block declaring 'title' and 'order'.");
 
         string? title = null;
         int? order = null;
         string? sourceHash = null;
-        foreach (string line in lines)
+        foreach (var (key, value) in lines)
         {
-            if (line.Trim().Length == 0)
-            {
-                continue;
-            }
-
-            int separator = line.IndexOf(':', StringComparison.Ordinal);
-            if (separator < 0)
-            {
-                throw Invalid(fileName, $"front matter line '{line}' is not a 'key: value' pair.");
-            }
-
-            string key = line[..separator].Trim();
-            string value = line[(separator + 1)..].Trim();
-
             switch (key)
             {
                 case "title":
@@ -171,7 +112,7 @@ public static class FrontMatter
             throw Invalid(fileName, "front matter is missing the required 'order' key.");
         }
 
-        return (new FrontMatterFields(title, order.Value, sourceHash), text[bodyStart..]);
+        return (new FrontMatterFields(title, order.Value, sourceHash), body);
     }
 
     /// <summary>How many hex digits a <c>source-hash</c> carries.</summary>
@@ -202,5 +143,5 @@ public static class FrontMatter
     }
 
     private static InvalidOperationException Invalid(string fileName, string reason) =>
-        new($"Invalid document '{fileName}': {reason}");
+        KeyValueBlock.Invalid(fileName, reason);
 }
