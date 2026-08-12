@@ -43,7 +43,8 @@ internal static class KeyabilityResolver
             ComponentTemplateNode or ElementTemplateNode => ContentRootKind.Element,
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
                 or FragmentTemplateNode or RawMarkupTemplateNode
-                or RenderFragmentContentTemplateNode => ContentRootKind.Region,
+                or RenderFragmentContentTemplateNode
+                or OpaqueViewTemplateNode => ContentRootKind.Region,
             ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
             ViewPartCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
@@ -167,6 +168,7 @@ internal static class KeyabilityResolver
             case ContentHoleTemplateNode:
             case RawMarkupTemplateNode:
             case RenderFragmentContentTemplateNode:
+            case OpaqueViewTemplateNode:
                 break;
 
             default:

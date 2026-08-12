@@ -200,3 +200,14 @@ internal sealed record RawMarkupTemplateNode(ExpressionTemplate Content) : Rende
 
 /// <summary>An externally supplied RenderFragment placed as content via AddContent (no wrapping element).</summary>
 internal sealed record RenderFragmentContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;
+
+/// <summary>
+/// A call the generator cannot expand statically, rendered at runtime through the <c>RenderFragment</c>
+/// the returned <c>View</c> carries (ARCHITECTURE.md §2.3 Opaque, §3.2).
+/// </summary>
+/// <remarks>
+/// Opens no keyable frame, so <see cref="Analysis.KeyabilityResolver"/> answers
+/// <c>ContentRootKind.Region</c> for it and BCF3003 rejects it as a <c>ForEach</c> content root — the same
+/// answer <see cref="RenderFragmentContentTemplateNode"/> gets, and for the same reason.
+/// </remarks>
+internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderTemplateNode;

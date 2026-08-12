@@ -153,6 +153,7 @@ internal static class RenderViewEmitter
             RawMarkupNode raw => EmitRawMarkup(writer, raw, startSeq),
             RenderFragmentContentNode fragmentContent =>
                 EmitRenderFragmentContent(writer, fragmentContent, startSeq),
+            OpaqueViewNode opaque => EmitOpaqueView(writer, opaque, startSeq),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
@@ -525,6 +526,21 @@ internal static class RenderViewEmitter
         IndentedWriter writer, RenderFragmentContentNode node, int seq)
     {
         writer.AppendLine($"__builder.AddContent({seq}, {node.Content.ToCode()});");
+        return seq + 1;
+    }
+
+    /// <summary>
+    /// Emits an Opaque call: one <c>AddContent</c> frame carrying the fragment the returned <c>View</c>
+    /// holds. No OpenRegion — <c>AddContent(int, RenderFragment?)</c> makes Blazor open one for the
+    /// fragment, which is the same reason <see cref="EmitRenderFragmentContent"/> writes none. A
+    /// <see langword="null"/> fragment appends no frame at runtime, so the call needs no null test.
+    /// </summary>
+    private static int EmitOpaqueView(IndentedWriter writer, OpaqueViewNode node, int seq)
+    {
+        writer.AppendLine(
+            $"__builder.AddContent({seq}, global::BlazorCodeFirst.CompilerServices.ViewRuntime"
+                + $".FragmentOf({node.Call.ToCode()}));");
+
         return seq + 1;
     }
 

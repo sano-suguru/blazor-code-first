@@ -37,14 +37,15 @@ public sealed class DiagnosticPipelineTests
     [Fact]
     public void ComponentBody_UnrecognizedConstruct_ReportsBcf1003AndNoSource()
     {
-        // A call that is neither design-time syntax nor a [ViewPart] method, though it returns View,
-        // reaches the model stage with a null template.
+        // A stored View is neither design-time syntax nor a call, so it reaches the model stage with a
+        // null template. A View-returning *call* has a route of its own now: BCF3030 when the callee
+        // builds from the design-time surface, BCF2001 otherwise.
         const string source = """
             using static BlazorCodeFirst.Html;
             public partial class P : BlazorCodeFirst.BodyComponentBase
             {
-                protected override BlazorCodeFirst.View Body => Opaque();
-                private static BlazorCodeFirst.View Opaque() => default;
+                protected override BlazorCodeFirst.View Body => _stored;
+                private readonly BlazorCodeFirst.View _stored;
             }
             """;
 
@@ -83,8 +84,8 @@ public sealed class DiagnosticPipelineTests
             using static BlazorCodeFirst.Html;
             public partial class P : BlazorCodeFirst.BodyComponentBase
             {
-                protected override BlazorCodeFirst.View Body => Opaque();
-                private static BlazorCodeFirst.View Opaque() => default;
+                protected override BlazorCodeFirst.View Body => _stored;
+                private readonly BlazorCodeFirst.View _stored;
             }
             """;
 
@@ -92,12 +93,12 @@ public sealed class DiagnosticPipelineTests
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
 
         Assert.Equal("Test.cs", diagnostic.Location.GetLineSpan().Path);
-        Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
+        Assert.Equal("_stored", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
     /// <summary>
-    /// A component whose <c>Body</c> is <c>$BODY$</c>, with an untranslatable call available at every
-    /// position a recursive descent can reach.
+    /// A component whose <c>Body</c> is <c>$BODY$</c>, with an untranslatable expression available at
+    /// every position a recursive descent can reach.
     /// </summary>
     private const string InnermostFailureHost = """
         using System.Collections.Generic;
@@ -116,11 +117,14 @@ public sealed class DiagnosticPipelineTests
             private readonly List<int> _xs = new();
             private bool Flag => true;
             protected override View Body => $BODY$;
-            private static View Opaque() => default;
+            // A stored View, not a View-returning call: a call is classified now, as either BCF3030 or
+            // Opaque, so it no longer fails to translate. What still fails is a value the analyzer has
+            // no syntax for.
+            private readonly View _stored;
             private static ComponentView<Card> OpaqueComponent() => default;
 
             // Decorations bind to ElementView, not View, so an opaque View-returning receiver no
-            // longer compiles here (CS1929), a decoration on Opaque() would never reach Analyze at
+            // longer compiles here (CS1929), a decoration on _stored would never reach Analyze at
             // all. This one exercises the same "unrecognized receiver" descent with a shape that still
             // compiles.
             private static ElementView OpaqueElementView() => default;
@@ -133,17 +137,17 @@ public sealed class DiagnosticPipelineTests
     // whole argument for blaming the innermost expression is that every descent goes through Analyze
     // rather than Classify, and before this the only thing asserting that was a comment.
     [Theory]
-    [InlineData("element children", """Div[Span["ok"], Opaque()]""", "Opaque()")]
-    [InlineData("If then branch", """If(Flag, then: () => Opaque())""", "Opaque()")]
+    [InlineData("element children", """Div[Span["ok"], _stored]""", "_stored")]
+    [InlineData("If then branch", """If(Flag, then: () => _stored)""", "_stored")]
     [InlineData(
         "If otherwise branch",
-        """If(Flag, then: () => Span["ok"], otherwise: () => Opaque())""",
-        "Opaque()")]
-    [InlineData("ForEach content", """ForEach(_xs, key: x => x, content: x => Opaque())""", "Opaque()")]
-    [InlineData("Component<T> children", """Component<Card>()[Opaque()]""", "Opaque()")]
-    [InlineData("Fragment children", """Fragment(Span["ok"], Opaque())""", "Opaque()")]
+        """If(Flag, then: () => Span["ok"], otherwise: () => _stored)""",
+        "_stored")]
+    [InlineData("ForEach content", """ForEach(_xs, key: x => x, content: x => _stored)""", "_stored")]
+    [InlineData("Component<T> children", """Component<Card>()[_stored]""", "_stored")]
+    [InlineData("Fragment children", """Fragment(Span["ok"], _stored)""", "_stored")]
     [InlineData("Param receiver", """OpaqueComponent().Param(c => c.Title, "t")""", "OpaqueComponent()")]
-    [InlineData("fragment Param value", """Component<Card>().Param(c => c.Footer, Opaque())""", "Opaque()")]
+    [InlineData("fragment Param value", """Component<Card>().Param(c => c.Footer, _stored)""", "_stored")]
     [InlineData(
         "decorator receiver",
         """OpaqueElementView().Class("c")""",
@@ -175,8 +179,8 @@ public sealed class DiagnosticPipelineTests
             }
             public partial class Second : BlazorCodeFirst.BodyComponentBase
             {
-                protected override BlazorCodeFirst.View Body => Opaque();
-                private static BlazorCodeFirst.View Opaque() => default;
+                protected override BlazorCodeFirst.View Body => _stored;
+                private readonly BlazorCodeFirst.View _stored;
             }
             """;
 
@@ -185,7 +189,7 @@ public sealed class DiagnosticPipelineTests
 
         var line = diagnostic.Location.GetLineSpan().StartLinePosition.Line;
         Assert.Equal(7, line);
-        Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
+        Assert.Equal("_stored", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
     [Fact]
@@ -196,14 +200,14 @@ public sealed class DiagnosticPipelineTests
             using static BlazorCodeFirst.Html;
             public partial class Shell : BlazorCodeFirst.ChromeLayoutBase
             {
-                protected override BlazorCodeFirst.View Chrome => Main[Opaque()];
-                private static BlazorCodeFirst.View Opaque() => default;
+                protected override BlazorCodeFirst.View Chrome => Main[_stored];
+                private readonly BlazorCodeFirst.View _stored;
             }
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
         var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF1003");
 
-        Assert.Equal("Opaque()", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
+        Assert.Equal("_stored", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 }

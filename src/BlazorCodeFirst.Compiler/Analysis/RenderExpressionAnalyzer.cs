@@ -860,11 +860,12 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// A call that is not surface syntax at all. Three answers: a <c>[ViewPart]</c> expands into the call
-    /// site, a <c>View</c>-returning method built from the inert surface is BCF3030, and anything else is
-    /// not this analyzer's business. The attribute sits on a user method rather than on a symbol resolved
-    /// out of the runtime, so it cannot be part of the classification and is tested here.
+    /// site, a <c>View</c>-returning method built from the inert surface is BCF3030, and any other
+    /// <c>View</c>-returning call is Opaque — rendered at runtime through the fragment it returns, with
+    /// BCF2001 recording the optimization that costs. The attribute sits on a user method rather than on a
+    /// symbol resolved out of the runtime, so it cannot be part of the classification and is tested here.
     /// </summary>
-    private static ViewPartCallTemplateNode? ClassifyNonSurfaceCall(
+    private static RenderTemplateNode? ClassifyNonSurfaceCall(
         InvocationExpressionSyntax invocation, IMethodSymbol method, ViewPartBodyContext context)
     {
         if (context.KnownSymbols.IsViewPart(method))
@@ -883,8 +884,25 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        if (!context.KnownSymbols.IsInertDesignTimeType(method.ReturnType))
+        // Three conditions, each excluding a shape that would otherwise be routed to a runtime fragment it
+        // does not have.
+        //
+        // Ordinary, because a failed overload resolution can still resolve a symbol: measured, the
+        // GetSymbolInfo for `Card().Class("x")` — where .Class does not bind on a View — is the
+        // View conversion operator, whose return type is View. Routing that would replace BCF3008 with a
+        // silent AddContent.
+        //
+        // Not a reduced extension, because a user extension taking ElementView and returning View is a
+        // wrapping form rather than a decoration, and 付録A's BCF3026 row keeps it at BCF1003.
+        //
+        // View exactly, not every inert type, because ElementView and ComponentView<T> reach View through
+        // conversions that yield the default: a call returning one of those carries no fragment even in
+        // principle.
+        if (method.MethodKind != MethodKind.Ordinary
+            || !SymbolEqualityComparer.Default.Equals(method.ReturnType, context.KnownSymbols.ViewType))
+        {
             return null;
+        }
 
         if (BodyBuildsFromDesignTimeSurface(method, context))
         {
@@ -892,9 +910,15 @@ internal static class RenderExpressionAnalyzer
                 DiagnosticDescriptors.BCF3030,
                 invocation.GetLocation(),
                 [method.Name]));
+            return null;
         }
 
-        return null;
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF2001,
+            invocation.GetLocation(),
+            [method.Name]));
+
+        return new OpaqueViewTemplateNode(ExpressionTemplateFactory.Create(invocation, context));
     }
 
     /// <summary>

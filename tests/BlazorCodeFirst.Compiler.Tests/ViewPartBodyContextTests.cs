@@ -59,9 +59,11 @@ public sealed class ViewPartBodyContextTests
             public partial class Host : BodyComponentBase
             {
                 protected override View Body =>
-                    Component<Target>().Template(c => c.RowTemplate, context => MissingView());
+                    Component<Target>().Template(c => c.RowTemplate, context => _stored);
 
-                private View MissingView() => default;
+                // A stored View. A View-returning call would classify now — BCF3030 or Opaque — and this
+                // test needs a template body that still fails.
+                private readonly View _stored;
             }
             """;
         var compilation = CompilationTestHost.CreateCompilation(source);

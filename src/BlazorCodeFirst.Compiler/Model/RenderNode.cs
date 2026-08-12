@@ -89,3 +89,10 @@ internal sealed record RawMarkupNode(ExpressionTemplate Content) : RenderNode;
 /// so the width is always 1.
 /// </summary>
 internal sealed record RenderFragmentContentNode(ExpressionTemplate Content) : RenderNode;
+
+/// <summary>
+/// Expanded counterpart of <see cref="OpaqueViewTemplateNode"/>. Emits one
+/// <c>AddContent(seq, RenderFragment?)</c> frame; Blazor opens the region for the fragment itself, so the
+/// width is 1 and no OpenRegion is written here.
+/// </summary>
+internal sealed record OpaqueViewNode(ExpressionTemplate Call) : RenderNode;

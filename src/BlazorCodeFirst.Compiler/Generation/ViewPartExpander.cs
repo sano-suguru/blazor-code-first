@@ -227,6 +227,9 @@ internal static class ViewPartExpander
             case RenderFragmentContentTemplateNode fragmentContent:
                 return new RenderFragmentContentNode(fragmentContent.Content.Substitute(substitution));
 
+            case OpaqueViewTemplateNode opaque:
+                return new OpaqueViewNode(opaque.Call.Substitute(substitution));
+
             case FragmentTemplateNode fragment:
                 {
                     var children = ImmutableArray.CreateBuilder<RenderNode>(fragment.Children.Length);

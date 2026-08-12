@@ -171,6 +171,37 @@ internal static class DiagnosticDescriptors
             "supported. Move the component to a top-level type.");
 
     /// <summary>
+    /// BCF2001: A call the generator cannot expand statically. It becomes a dynamic region and the static
+    /// diff optimization for that area is lost.
+    /// </summary>
+    /// <remarks>
+    /// Info, not a warning: the call is correct and renders correctly, and 付録A assigns this ID to the
+    /// lost optimization alone. The case where the call renders <em>nothing</em> is
+    /// <see cref="BCF3030"/>, which is a different fact and carries an error.
+    /// <para>
+    /// One residue this cannot see. A referenced assembly's <c>View</c>-returning method may be built from
+    /// the design-time surface, in which case it carries no fragment and renders nothing, and no source
+    /// declaration exists here to tell. 付録A's row records it; <c>DESIGN.md</c> §4.3 already routes
+    /// cross-assembly reuse to components.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF2001 = new(
+        id: "BCF2001",
+        title: "Opaque call degrades to a dynamic region",
+        messageFormat:
+            "'{0}' cannot be expanded statically, so this area renders through a runtime fragment and "
+                + "loses its static diff optimization",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description:
+            "The generator expands what it can read: the design-time surface, and [ViewPart] methods "
+                + "declared in this compilation. A call it cannot read is rendered at runtime through the "
+                + "RenderFragment the returned View carries, inside a region that keeps its sequence "
+                + "numbers away from the rest of the component. Correctness is unaffected; the frames for "
+                + "that area are rebuilt rather than diffed against a static template.");
+
+    /// <summary>
     /// BCF3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
     /// lambda or a method group), so it cannot be statically analyzed. Transitional: narrows once the
     /// Transplantable/Opaque paths support such content.
