@@ -266,9 +266,8 @@ Nothing else may hold a copy. `eng/package-version.sh` prints what MSBuild resol
 `eng/Versions.props` itself and asserts the packed nuspec agrees, which is the check that the package
 carries the version the repository declares. `PackageContentsTests` finds the packed file rather than
 composing its name, so it asserts that `dotnet pack` produced exactly one package instead of assuming
-which one. The root `README.md` still names a concrete version in prose, because packing and
-referencing the package locally cannot be written without one. The package README names none:
-nuget.org writes the install command itself, against the version the reader is already looking at.
+which one. Neither README names a version: both install from nuget.org with `--prerelease`, which
+stays correct for as long as the version carries a suffix and so needs no edit per release (#297).
 
 ## Releasing
 

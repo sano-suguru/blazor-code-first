@@ -54,9 +54,9 @@ updates:
       # pin. The rationale is on the PackageVersion entry in
       # Directory.Packages.props, and moving it is a breaking change (#116).
       - dependency-name: Microsoft.CodeAnalysis.CSharp
-      # This repository's own package. It is not on nuget.org; the trim and
-      # diagnostic fixtures restore the dev version from a local feed that dotnet pack
-      # produces.
+      # This repository's own package. The trim and diagnostic fixtures restore it
+      # from a local feed that dotnet pack produces, so a bump proposed against the
+      # published version would point them away from the build's own output.
       - dependency-name: BlazorCodeFirst
       # net10.0 is the baseline until the net11.0 multi-target lands (#117). An
       # 11.x ASP.NET Core package does not restore against it, so a major here

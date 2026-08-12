@@ -69,15 +69,13 @@ form helpers.
 
 ## Installation
 
-`BlazorCodeFirst` `0.1.0-dev` is not on nuget.org yet. Pack it locally:
-
 ```bash
-dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
+dotnet add package BlazorCodeFirst --prerelease
 ```
 
-That produces a single package carrying both halves: the runtime in `lib/net10.0`, and the
-generator and analyzers in `analyzers/dotnet/cs`. Add `artifacts/package` as a NuGet source and
-reference `BlazorCodeFirst` `0.1.0-dev` from a `net10.0` Blazor project.
+The published version carries a prerelease suffix, and without `--prerelease` the command resolves
+the latest stable version instead, of which there is none. The single package carries both halves:
+the runtime in `lib/net10.0`, and the generator and analyzers in `analyzers/dotnet/cs`.
 
 Consuming the package needs .NET SDK 10.0.100 or later. In an IDE, it also needs Visual Studio 2026
 version 18.0 or later. The generator ships as a Roslyn 5.0 analyzer, and an older compiler refuses
