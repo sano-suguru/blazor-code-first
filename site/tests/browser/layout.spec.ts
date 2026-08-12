@@ -40,7 +40,20 @@ for (const width of WIDTHS) {
     test.use({ viewport: { width, height: 900 } });
 
     for (const route of ROUTES) {
-      test(`${route} keeps every element inside the viewport`, async ({ page }) => {
+      /*
+       * Both measurements from one navigation, and soft assertions so that costs nothing.
+       *
+       * These were two tests. Each called `gotoSettled` on the same route at the same viewport, so
+       * across six widths and sixteen routes the suite paid for 96 page loads that rendered a
+       * document it had already rendered -- and a load here is not cheap, since `gotoSettled` waits
+       * out the WebAssembly boot and then the font faces. That was a third of the suite's runtime
+       * spent re-answering `goto`.
+       *
+       * What the split did buy is a page that fails both ways reporting both, rather than stopping
+       * at the first `expect`. `expect.soft` keeps exactly that, so the merge gives up nothing but
+       * the two names in the report.
+       */
+      test(`${route} fits the viewport and renders every clickable label intact`, async ({ page }) => {
         await gotoSettled(page, route);
 
         const outside = await page.evaluate(() => {
@@ -78,14 +91,10 @@ for (const width of WIDTHS) {
           return offenders;
         });
 
-        expect(
+        expect.soft(
           outside,
           'an element extends past the viewport, where html and body being overflow-x: clip means it is cut off rather than scrolled to',
         ).toEqual([]);
-      });
-
-      test(`${route} renders every clickable label intact`, async ({ page }) => {
-        await gotoSettled(page, route);
 
         const broken = await page.evaluate((selector) => {
           /*
@@ -140,7 +149,7 @@ for (const width of WIDTHS) {
           return failures;
         }, CLICKABLE);
 
-        expect(broken, 'a clickable label does not fit the space laid out for it').toEqual([]);
+        expect.soft(broken, 'a clickable label does not fit the space laid out for it').toEqual([]);
       });
     }
 
