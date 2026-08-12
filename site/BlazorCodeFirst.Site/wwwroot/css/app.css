@@ -786,12 +786,19 @@ kbd {
     tab-size: 4;
 }
 
+/* Same reasoning as the headings above, reached by a different route. A run of inline code separated
+   by ideographic commas ("`Html.Div`、`.Class(...)`、`.OnClick(...)`") gets no break opportunity from
+   Chromium at the commas, so the three spans stay on one line: at 320 px the third ran 40 px past a
+   288 px content box. html and body are overflow-x: clip, so the overflow is cut off rather than
+   scrolled to, and the reader loses the text outright. Breaking an identifier mid-token is ugly;
+   silently deleting the end of it is worse. */
 .prose :not(pre) > code {
     padding: 0.1em 0.32em;
     border-radius: var(--radius-xs);
     background: var(--color-paper-3);
     color: var(--color-ink);
     font-size: 0.875em;
+    overflow-wrap: anywhere;
 }
 
 .prose table {

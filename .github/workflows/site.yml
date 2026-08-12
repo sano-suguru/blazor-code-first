@@ -171,7 +171,10 @@ jobs:
           cjk_raw=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
               "$CJK_RANGE" site/)
           cjk_rc=$?
-          cjk_content_raw=$(grep -rnP --include='*.md' "$CJK_RANGE" site/content/)
+          # Both content file kinds: the documents, and the shell.yml each language declares its
+          # non-document strings in. Scanning only *.md would leave the English shell text as the one
+          # reader-facing file nothing checks.
+          cjk_content_raw=$(grep -rnP --include='*.md' --include='*.yml' "$CJK_RANGE" site/content/)
           cjk_content_rc=$?
           set -e
 
