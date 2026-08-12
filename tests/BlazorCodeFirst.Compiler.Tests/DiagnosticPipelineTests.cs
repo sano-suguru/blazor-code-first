@@ -58,14 +58,21 @@ public sealed class DiagnosticPipelineTests
     [Fact]
     public void ComponentBody_WithBcf3004_DoesNotAlsoReportBcf1003()
     {
+        // Two returns in the content block: each would need a sequence space of its own, which is the
+        // Transplantable slice §2.3 does not open.
         const string source = """
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
             public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
-                protected override BlazorCodeFirst.View Body => ForEach(_xs, key: x => x, content: Render);
-                private static BlazorCodeFirst.View Render(int x) => Span[x.ToString()];
+                protected override BlazorCodeFirst.View Body => ForEach(_xs, key: x => x, content: x =>
+                {
+                    if (x == 0)
+                        return Span["zero"];
+
+                    return Span[x.ToString()];
+                });
             }
             """;
 

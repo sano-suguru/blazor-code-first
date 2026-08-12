@@ -265,6 +265,18 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
+        // A method group has no lambda parameter to bind, so the iteration variable is bound by the key
+        // lambda alone and the content becomes a call taking it. The three answers are the ones
+        // ClassifyNonSurfaceCall already gives to a written call, so this arm resolves the callee and
+        // routes it there rather than growing a fourth classification.
+        if (contentArg.Expression is not (SimpleLambdaExpressionSyntax or ParenthesizedLambdaExpressionSyntax)
+            && context.SemanticModel.GetSymbolInfo(contentArg.Expression, context.CancellationToken)
+                .Symbol is IMethodSymbol contentMethod)
+        {
+            return ClassifyForEachMethodGroup(
+                invocation, sourceArg, keyArg, contentArg, contentMethod, context);
+        }
+
         if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
             || !TryExtractContentLambda(
                 contentArg.Expression,
@@ -334,6 +346,106 @@ internal static class RenderExpressionAnalyzer
                 context.PopTransplantedScope();
 
             context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
+        }
+    }
+
+    /// <summary>
+    /// A <c>ForEach</c> whose <c>content</c> is a bare method group, read as the call it stands for with
+    /// the iteration variable in its one argument position.
+    /// </summary>
+    /// <remarks>
+    /// Restricted to a one-parameter <c>View</c>-returning method, which is the shape
+    /// <c>Func&lt;T, View&gt;</c> binds to directly. Anything wider would need argument binding, and there
+    /// is no invocation syntax here to bind against.
+    /// <para>
+    /// The three answers match <see cref="ClassifyNonSurfaceCall"/>'s. A <c>[ViewPart]</c> expands and the
+    /// key lands on its root; a surface-built callee is BCF3030; anything else is Opaque, whose fragment
+    /// opens no keyable frame and so reaches BCF3003 through <see cref="KeyabilityResolver"/>.
+    /// </para>
+    /// </remarks>
+    private static ForEachTemplateNode? ClassifyForEachMethodGroup(
+        InvocationExpressionSyntax invocation,
+        ArgumentSyntax sourceArg,
+        ArgumentSyntax keyArg,
+        ArgumentSyntax contentArg,
+        IMethodSymbol contentMethod,
+        ViewPartBodyContext context)
+    {
+        if (contentMethod.Parameters.Length != 1
+            || contentMethod.MethodKind != MethodKind.Ordinary
+            || !SymbolEqualityComparer.Default.Equals(
+                contentMethod.ReturnType, context.KnownSymbols.ViewType)
+            || !TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
+            || context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken)
+                is not { } keyParamSymbol)
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3004,
+                invocation.GetLocation(),
+                []));
+            return null;
+        }
+
+        var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
+        var itemOrdinal = context.PushRenderVariable(keyParamSymbol);
+        try
+        {
+            var key = ExpressionTemplateFactory.Create(keyBody, context);
+            var itemHole = ExpressionTemplate.Create([new ParameterHoleExpressionSegment(itemOrdinal)]);
+
+            RenderTemplateNode content;
+            if (context.KnownSymbols.IsViewPart(contentMethod))
+            {
+                content = new ViewPartCallTemplateNode(
+                    MethodKey.Create(contentMethod),
+                    contentMethod.Name,
+                    new EquatableArray<ViewPartInvocationArgument>(
+                        [new ViewPartInvocationArgument(0, 0, IsImplicitDefault: false, itemHole)]),
+                    TemplateLocation.From(contentArg.Expression.GetLocation()));
+            }
+            else if (BodyBuildsFromDesignTimeSurface(contentMethod, context))
+            {
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3030,
+                    contentArg.Expression.GetLocation(),
+                    [contentMethod.Name]));
+                return null;
+            }
+            else
+            {
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF2001,
+                    contentArg.Expression.GetLocation(),
+                    [contentMethod.Name]));
+
+                // The group is written as the call it stands for. Fully qualified because the generated
+                // file carries no using directives.
+                var callee = contentMethod.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                content = new OpaqueViewTemplateNode(ExpressionTemplate.Create(
+                    [
+                        new LiteralExpressionSegment($"{callee}("),
+                        new ParameterHoleExpressionSegment(itemOrdinal),
+                        new LiteralExpressionSegment(")"),
+                    ]));
+            }
+
+            if (!KeyReferencesItemOrdinal(key, itemOrdinal))
+            {
+                context.Diagnostics.Add(DiagnosticInfo.Create(
+                    DiagnosticDescriptors.BCF3002,
+                    keyArg.GetLocation(),
+                    []));
+            }
+
+            return new ForEachTemplateNode(
+                source,
+                key,
+                content,
+                TemplateLocation.From(invocation.GetLocation()));
+        }
+        finally
+        {
+            context.PopRenderVariable(keyParamSymbol);
         }
     }
 

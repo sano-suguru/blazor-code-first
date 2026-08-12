@@ -202,21 +202,30 @@ internal static class DiagnosticDescriptors
                 + "that area are rebuilt rather than diffed against a static template.");
 
     /// <summary>
-    /// BCF3004: A <c>ForEach</c> content or key is not an inline expression lambda (for example a block-bodied
-    /// lambda or a method group), so it cannot be statically analyzed. Transitional: narrows once the
-    /// Transplantable/Opaque paths support such content.
+    /// BCF3004: A <c>ForEach</c> key is not an inline expression lambda, or its content is a shape the
+    /// generator neither sequences statically nor transplants.
     /// </summary>
+    /// <remarks>
+    /// Narrowed when the Transplantable and Opaque paths landed. Content now also accepts a block with one
+    /// trailing <c>return</c> (ARCHITECTURE.md §2.3 Transplantable) and a one-parameter
+    /// <c>View</c>-returning method group, which is read as the call it stands for and answered by the
+    /// same three-way split every other call gets. What is left is the key, whose body has to be an
+    /// expression because it is transplanted into <c>SetKey</c>, and the content shapes that would each
+    /// need a sequence space of their own.
+    /// </remarks>
     public static readonly DiagnosticDescriptor BCF3004 = new(
         id: "BCF3004",
-        title: "ForEach content must be an inline expression lambda",
-        messageFormat: "ForEach content and key must be inline expression lambdas so they can be statically analyzed; wrap the call in a lambda such as x => Wrapper(x)",
+        title: "ForEach key or content has a shape the generator cannot sequence",
+        messageFormat:
+            "ForEach requires an expression-bodied key lambda, and content that is an expression lambda, "
+                + "a block with one trailing return, or a single-parameter method group",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "A ForEach content or key selector must be an inline expression lambda (item => ...). A " +
-            "block-bodied lambda or a method group cannot be statically sequenced. Rewrite it as an inline " +
-            "expression lambda, wrapping any helper call as x => Helper(x).");
+            "The key body is transplanted into SetKey, so it has to be an expression. The content is "
+                + "given one static sequence space that every iteration reuses, which a second return or a "
+                + "native control statement would each need their own copy of.");
 
     /// <summary>
     /// BCF3005: A <c>Component&lt;T&gt;()</c> parameter-binding selector is not a simple property selection

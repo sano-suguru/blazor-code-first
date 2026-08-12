@@ -1049,23 +1049,25 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ForEachWithMethodGroupContent_ReportsBCF3004AndProducesNoSource()
+    public void Generator_ForEachWithConstructedDelegateContent_ReportsBCF3004AndProducesNoSource()
     {
         const string source = """
+            using System;
             using System.Collections.Generic;
             using static BlazorCodeFirst.Html;
             public partial class P : BlazorCodeFirst.BodyComponentBase
             {
                 private readonly List<int> _xs = new();
                 protected override BlazorCodeFirst.View Body =>
-                    ForEach(_xs, key: x => x, content: Render);
+                    ForEach(_xs, key: x => x, content: new Func<int, BlazorCodeFirst.View>(Render));
                 private static BlazorCodeFirst.View Render(int x) => Span[x.ToString()];
             }
             """;
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        // Non-SSC content (method group, not an inline lambda): recognized ForEach, unanalyzable content.
+        // A constructed delegate names no callee at the call site, so none of the three answers a bare
+        // method group gets applies and the shape restriction stands.
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004" && d.Severity == DiagnosticSeverity.Error);
         Assert.Empty(result.GeneratedSources);
     }
