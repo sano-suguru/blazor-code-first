@@ -72,9 +72,17 @@
   <Target Name="ComputeDocsPrerenderPaths" BeforeTargets="BlazorWasmPrerendering">
     <ItemGroup>
       <DocMarkdown Include="$(MSBuildProjectDirectory)/../content/*.md" />
+      <!-- One item group per language, because the route prefix differs and a single glob could not
+           tell which directory a file came from. A language directory that does not exist yet
+           contributes nothing, so a language is added here at the same time as its content. -->
+      <DocMarkdownJa Include="$(MSBuildProjectDirectory)/../content/ja/*.md" />
     </ItemGroup>
     <PropertyGroup>
-      <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs;/404;@(DocMarkdown->'/docs/%(Filename)')</BlazorWasmPrerenderingUrlPathToExplicitFetch>
+      <!-- The Japanese index is listed only when that edition has documents, matching the page,
+           which answers not-found for an edition nobody has started. Listing it unconditionally
+           would prerender a page the app declines to render. -->
+      <JaIndexPath Condition=" '@(DocMarkdownJa)' != '' ">;/docs/ja</JaIndexPath>
+      <BlazorWasmPrerenderingUrlPathToExplicitFetch>/;/counter;/docs$(JaIndexPath);/404;@(DocMarkdown->'/docs/%(Filename)');@(DocMarkdownJa->'/docs/ja/%(Filename)')</BlazorWasmPrerenderingUrlPathToExplicitFetch>
     </PropertyGroup>
     <Message Importance="high" Text="Prerendering routes: $(BlazorWasmPrerenderingUrlPathToExplicitFetch)" />
   </Target>

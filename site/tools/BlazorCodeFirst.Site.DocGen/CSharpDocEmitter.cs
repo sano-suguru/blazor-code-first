@@ -9,32 +9,44 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// do not treat the generated file as hand-written code.</summary>
 public static class CSharpDocEmitter
 {
-    public static string Emit(IReadOnlyList<(DocMeta Meta, string Html)> docs)
+    public static string Emit(
+        IReadOnlyList<(DocMeta Meta, string Html)> docs,
+        IReadOnlyDictionary<string, ShellStrings> shells)
     {
         ArgumentNullException.ThrowIfNull(docs);
+        ArgumentNullException.ThrowIfNull(shells);
 
+        // Both keys are scoped to the language, because a translation deliberately carries the slug
+        // and the order of the document it translates.
+        // The slug key is one string rather than a tuple so the whole comparison can be
+        // OrdinalIgnoreCase, matching Blazor's route matching. A space separates the two halves,
+        // which neither a language tag nor a DocSlug-validated slug can contain.
         var seenSlugs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var seenOrders = new HashSet<int>();
+        var seenOrders = new HashSet<(string Lang, int Order)>();
         foreach (var (meta, _) in docs)
         {
-            if (!seenSlugs.Add(meta.Slug))
+            if (!seenSlugs.Add($"{meta.Lang} {meta.Slug}"))
             {
                 throw new InvalidOperationException(
-                    $"Duplicate document slug '{meta.Slug}'. Two content files map to the same /docs route.");
+                    $"Duplicate document slug '{meta.Slug}' in language '{meta.Lang}'. " +
+                    "Two content files map to the same route.");
             }
 
-            if (!seenOrders.Add(meta.Order))
+            if (!seenOrders.Add((meta.Lang, meta.Order)))
             {
                 throw new InvalidOperationException(
-                    $"Duplicate front matter order {meta.Order} (slug '{meta.Slug}'). " +
-                    "Each document must declare a distinct 'order' so navigation ordering is unambiguous.");
+                    $"Duplicate front matter order {meta.Order} (slug '{meta.Slug}', language " +
+                    $"'{meta.Lang}'). Each document must declare a distinct 'order' within its language " +
+                    "so navigation ordering is unambiguous.");
             }
         }
 
-        // Order is unique (enforced above); the slug tie-break only keeps the output deterministic
-        // should that ever change.
+        // Grouped by language so ForLang can hand back a contiguous run in navigation order. Order is
+        // unique within a language (enforced above); the slug tie-break only keeps the output
+        // deterministic should that ever change.
         var ordered = docs
-            .OrderBy(d => d.Meta.Order)
+            .OrderBy(d => LanguageRank(d.Meta.Lang))
+            .ThenBy(d => d.Meta.Order)
             .ThenBy(d => d.Meta.Slug, StringComparer.Ordinal)
             .ToList();
 
@@ -45,9 +57,68 @@ public static class CSharpDocEmitter
         sb.Append("using System.Collections.Immutable;\n\n");
         sb.Append("namespace BlazorCodeFirst.Site.Content;\n\n");
         sb.Append("/// <summary>One document's navigation metadata and its build-time converted HTML.</summary>\n");
-        sb.Append("public sealed record DocEntry(string Slug, string Title, int Order, string Html);\n\n");
-        sb.Append("/// <summary>The generated documentation manifest, ordered by (Order, Slug).</summary>\n");
+        sb.Append("/// <param name=\"Lang\">The language tag this document is written in.</param>\n");
+        sb.Append("/// <param name=\"Stale\">True when a translation was written against an older revision\n");
+        sb.Append("/// of its canonical document. Always false on a canonical document.</param>\n");
+        sb.Append("public sealed record DocEntry(string Slug, string Title, int Order, string Lang, bool Stale, string Html);\n\n");
+        sb.Append("/// <summary>The text the documentation shell shows a reader of one language.</summary>\n");
+        sb.Append("/// <param name=\"Name\">What this language calls itself, shown to a reader of another one.</param>\n");
+        sb.Append("/// <param name=\"StaleNotice\">The sentence a translation carries when it has fallen\n");
+        sb.Append("/// behind, or null on the canonical language, which has nothing to fall behind.</param>\n");
+        sb.Append("public sealed record ShellText(\n");
+        sb.Append("    string Name,\n");
+        sb.Append("    string IndexTitle,\n");
+        sb.Append("    string IndexLead,\n");
+        sb.Append("    string RailHeading,\n");
+        sb.Append("    string LanguageLabel,\n");
+        sb.Append("    string? StaleNotice,\n");
+        sb.Append("    string? StaleLink);\n\n");
+        sb.Append("/// <summary>The generated documentation manifest, grouped by language and ordered by\n");
+        sb.Append("/// (Order, Slug) within each one.</summary>\n");
         sb.Append("public static class Docs\n{\n");
+        sb.Append("    /// <summary>The canonical language, whose documents are the top-level content files.</summary>\n");
+        sb.Append("    public const string Canonical = \"").Append(Escape(DocLang.Canonical)).Append("\";\n\n");
+
+        // Only languages that actually have documents. A language DocGen knows about but nobody has
+        // translated into yet must not appear, or the site would offer a switch to an edition with no
+        // pages behind it.
+        var languages = DocLang.All.Where(l => ordered.Any(d => d.Meta.Lang == l)).ToList();
+        sb.Append("    /// <summary>Every language the manifest holds documents for, canonical first.</summary>\n");
+        sb.Append("    public static readonly ImmutableArray<string> Languages =\n        [");
+        sb.Append(string.Join(", ", languages.Select(l => $"\"{Escape(l)}\"")));
+        sb.Append("];\n\n");
+
+        // Emitted as a lookup over the languages that exist rather than as the "/docs/{lang}" rule
+        // written a second time, so the site cannot disagree with the prefix DocGen already used when
+        // it rewrote each document's relative links.
+        sb.Append("    /// <summary>The route a language's documents are served from, with no trailing slash.</summary>\n");
+        sb.Append("    public static string RoutePrefix(string lang) => lang switch\n    {\n");
+        foreach (string lang in languages.Where(l => l != DocLang.Canonical))
+        {
+            sb.Append("        \"").Append(Escape(lang)).Append("\" => \"")
+              .Append(Escape(DocLang.RoutePrefix(lang))).Append("\",\n");
+        }
+
+        sb.Append("        _ => \"").Append(Escape(DocLang.RoutePrefix(DocLang.Canonical))).Append("\",\n");
+        sb.Append("    };\n\n");
+        sb.Append("    /// <summary>The route one document is served from.</summary>\n");
+        sb.Append("    public static string Href(string lang, string slug) => RoutePrefix(lang) + \"/\" + slug;\n\n");
+
+        // The shell text a reader sees, carried through the manifest for the same reason the documents
+        // are: it is content, it is authored per language in the content tree, and no page component
+        // should hold a sentence in any language.
+        sb.Append("    /// <summary>The shell text shown to a reader of one language.</summary>\n");
+        sb.Append("    public static ShellText Shell(string lang) => lang switch\n    {\n");
+        foreach (string lang in languages.Where(l => l != DocLang.Canonical))
+        {
+            sb.Append("        \"").Append(Escape(lang)).Append("\" => ");
+            AppendShell(sb, shells[lang]);
+            sb.Append(",\n");
+        }
+
+        sb.Append("        _ => ");
+        AppendShell(sb, shells[DocLang.Canonical]);
+        sb.Append(",\n    };\n\n");
         sb.Append("    public static readonly ImmutableArray<DocEntry> All =\n    [\n");
 
         foreach (var (meta, html) in ordered)
@@ -56,20 +127,65 @@ public static class CSharpDocEmitter
             sb.Append("            \"").Append(Escape(meta.Slug)).Append("\",\n");
             sb.Append("            \"").Append(Escape(meta.Title)).Append("\",\n");
             sb.Append("            ").Append(meta.Order.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            sb.Append("            \"").Append(Escape(meta.Lang)).Append("\",\n");
+            sb.Append("            ").Append(meta.Stale ? "true" : "false").Append(",\n");
             sb.Append("            \"").Append(Escape(html)).Append("\"),\n");
         }
 
         sb.Append("    ];\n\n");
-        sb.Append("    /// <summary>Finds a document by slug. Blazor route matching is case-insensitive,\n");
-        sb.Append("    /// so the lookup must be too.</summary>\n");
-        sb.Append("    public static DocEntry? Find(string? slug)\n    {\n");
+        sb.Append("    /// <summary>One language's documents, in navigation order.</summary>\n");
+        sb.Append("    public static ImmutableArray<DocEntry> ForLang(string lang)\n    {\n");
+        sb.Append("        var builder = ImmutableArray.CreateBuilder<DocEntry>();\n");
+        sb.Append("        foreach (var entry in All)\n        {\n");
+        sb.Append("            if (string.Equals(entry.Lang, lang, StringComparison.Ordinal))\n");
+        sb.Append("            {\n                builder.Add(entry);\n            }\n");
+        sb.Append("        }\n\n        return builder.ToImmutable();\n    }\n\n");
+        sb.Append("    /// <summary>Finds a document by language and slug. Blazor route matching is\n");
+        sb.Append("    /// case-insensitive, so the slug lookup must be too; the language comes from the route\n");
+        sb.Append("    /// template rather than from the reader, so it is matched exactly.</summary>\n");
+        sb.Append("    public static DocEntry? Find(string lang, string? slug)\n    {\n");
         sb.Append("        if (slug is null)\n        {\n            return null;\n        }\n\n");
         sb.Append("        foreach (var entry in All)\n        {\n");
-        sb.Append("            if (string.Equals(entry.Slug, slug, StringComparison.OrdinalIgnoreCase))\n");
+        sb.Append("            if (string.Equals(entry.Lang, lang, StringComparison.Ordinal) &&\n");
+        sb.Append("                string.Equals(entry.Slug, slug, StringComparison.OrdinalIgnoreCase))\n");
         sb.Append("            {\n                return entry;\n            }\n");
         sb.Append("        }\n\n        return null;\n    }\n");
         sb.Append("}\n");
         return sb.ToString();
+    }
+
+    private static void AppendShell(StringBuilder sb, ShellStrings shell)
+    {
+        sb.Append("new ShellText(\n");
+        sb.Append("            \"").Append(Escape(shell.Name)).Append("\",\n");
+        sb.Append("            \"").Append(Escape(shell.IndexTitle)).Append("\",\n");
+        sb.Append("            \"").Append(Escape(shell.IndexLead)).Append("\",\n");
+        sb.Append("            \"").Append(Escape(shell.RailHeading)).Append("\",\n");
+        sb.Append("            \"").Append(Escape(shell.LanguageLabel)).Append("\",\n");
+        AppendOptional(sb, shell.StaleNotice);
+        sb.Append(",\n");
+        AppendOptional(sb, shell.StaleLink);
+        sb.Append(')');
+    }
+
+    private static void AppendOptional(StringBuilder sb, string? value)
+    {
+        sb.Append("            ");
+        if (value is null)
+        {
+            sb.Append("null");
+        }
+        else
+        {
+            sb.Append('"').Append(Escape(value)).Append('"');
+        }
+    }
+
+    /// <summary>Where a language sorts in the manifest. Canonical first, then declaration order.</summary>
+    private static int LanguageRank(string lang)
+    {
+        int index = Array.IndexOf(DocLang.All, lang);
+        return index < 0 ? int.MaxValue : index;
     }
 
     private static string Escape(string s)

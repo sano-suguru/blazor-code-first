@@ -132,9 +132,22 @@ jobs:
           # `git ls-files` loop rather than testing one path. Reusing the library would mean
           # restructuring both checks around it rather than just calling it.
 
-          echo "Checking for non-English (CJK) characters in site/**/*.cs and *.razor..."
+          echo "Checking for non-English (CJK) characters in site source and English content..."
           # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
           # em dash (U+2014), which appears legitimately in existing English comments.
+          #
+          # The scan covers *.cs and *.razor, and now the English documents as well. It used to
+          # stop at source, so Japanese in an English site/content/*.md went unnoticed: the rule
+          # existed but could not bite where the prose actually is. Extending it here is what makes
+          # site/content/ja/ a carved-out exception rather than the first place anyone noticed the
+          # rule was unenforced.
+          #
+          # Two paths are excluded, for different reasons:
+          #   * site/content/ja/ is the exception itself, named in CONTRIBUTING.
+          #   * Docs.g.cs is generated FROM that directory. It is not a second exception; it is the
+          #     same content after conversion, and scanning it would fail the build for the file
+          #     doing its job. Nothing else generated carries prose, so the exclusion is by name
+          #     rather than by a pattern that might quietly widen.
           #
           # grep exits 1 for "no match" and 2 for an error (for example a grep built without
           # PCRE, which rejects -P). An `if grep ...; then` guard treats both exit codes as
@@ -142,11 +155,41 @@ jobs:
           # forever -- the same class of defect as the negated-grep bug already fixed for this
           # same check. Capture the output and exit code separately so a check-level failure
           # (rc=2) is reported distinctly from a genuinely clean result (rc=1, no hits).
+          #
+          # --exclude-dir prunes by directory NAME at any depth, so it cannot express "the ja
+          # directly under site/content". Each scan therefore drops its exempt paths afterwards,
+          # with an anchored grep -v, so a future site/tools/ja/ would still be scanned.
+          #
+          # The exempt paths are dropped AFTER the exit code is captured, never through a pipe into
+          # the same assignment. `hits=$(grep ... | grep -v ...)` reports the LAST command's status,
+          # and a first grep that died with rc=2 produces no output, which the filter answers with
+          # rc=1 -- indistinguishable from a clean scan. That is the silent-pass defect this check
+          # has already been fixed for once.
+          CJK_RANGE='[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]'
+
           set +e
-          cjk_hits=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
-              '[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]' site/)
+          cjk_raw=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
+              "$CJK_RANGE" site/)
           cjk_rc=$?
+          # Both content file kinds: the documents, and the shell.yml each language declares its
+          # non-document strings in. Scanning only *.md would leave the English shell text as the one
+          # reader-facing file nothing checks.
+          cjk_content_raw=$(grep -rnP --include='*.md' --include='*.yml' "$CJK_RANGE" site/content/)
+          cjk_content_rc=$?
           set -e
+
+          if [ "$cjk_content_rc" -gt 1 ]; then
+            echo "::error::the CJK content check could not run (grep exited $cjk_content_rc)" >&2
+            exit 1
+          fi
+          cjk_content_hits=$(printf '%s' "$cjk_content_raw" | grep -v '^site/content/ja/' || true)
+          if [ -n "$cjk_content_hits" ]; then
+            echo "::error::Non-English (CJK) characters found in an English document. The Japanese edition lives in site/content/ja/." >&2
+            printf '%s\n' "$cjk_content_hits" >&2
+            exit 1
+          fi
+
+          cjk_hits=$(printf '%s' "$cjk_raw" | grep -v '^site/BlazorCodeFirst\.Site/Content/Docs\.g\.cs:' || true)
           if [ "$cjk_rc" -gt 1 ]; then
             echo "::error::the CJK source check could not run (grep exited $cjk_rc)" >&2
             exit 1

@@ -181,6 +181,47 @@ for (const width of WIDTHS) {
   });
 }
 
+test.describe('the Japanese edition', () => {
+  // <html lang> is baked into index.html as "en" and is not touched: the shell stays English while
+  // the documents do not. Marking the article is therefore both the accurate claim and what WCAG
+  // 3.1.2 (Language of Parts) asks for, and it is what a screen reader needs to switch voices.
+  // Documents only. The index is a section rather than an article, and is checked separately below.
+  const japanese = ROUTES.filter((r) => r.startsWith('/docs/ja/') && r !== '/docs/ja/');
+
+  test('there is a Japanese document to check', () => {
+    expect(japanese.length, 'no /docs/ja/<slug> route was published, so the checks below prove nothing')
+      .toBeGreaterThan(0);
+  });
+
+  for (const route of japanese) {
+    test(`${route} declares its language on the article`, async ({ page }) => {
+      await gotoSettled(page, route);
+      await expect(page.locator('article.docs-content')).toHaveAttribute('lang', 'ja');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    });
+  }
+
+  test('/docs/ja declares its language on the index body', async ({ page }) => {
+    await gotoSettled(page, '/docs/ja');
+    await expect(page.locator('section.docs-content')).toHaveAttribute('lang', 'ja');
+  });
+
+  test('/docs/ja and /docs link to each other', async ({ page }) => {
+    await gotoSettled(page, '/docs/ja');
+    await expect(page.locator('.lang-switch a[lang="en"]')).toHaveAttribute('href', '/docs');
+
+    await gotoSettled(page, '/docs');
+    await expect(page.locator('.lang-switch a[lang="ja"]')).toHaveAttribute('href', '/docs/ja');
+  });
+
+  test('a document with no counterpart offers no switch', async ({ page }) => {
+    // control-flow is English-only, and a switch there would link to a route that was never
+    // generated: a 404 reached by following the site's own navigation.
+    await gotoSettled(page, '/docs/control-flow');
+    await expect(page.locator('.lang-switch')).toHaveCount(0);
+  });
+});
+
 test.describe('at 375px', () => {
   test.use({ viewport: { width: 375, height: 900 } });
 

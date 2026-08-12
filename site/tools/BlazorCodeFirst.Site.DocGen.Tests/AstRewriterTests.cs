@@ -13,7 +13,7 @@ public class AstRewriterTests
     {
         var pipeline = new MarkdownPipelineBuilder().Build();
         var document = Markdig.Markdown.Parse(markdown, pipeline);
-        AstRewriter.RewriteRelativeLinks(document, Known, "sample.md");
+        AstRewriter.RewriteRelativeLinks(document, Known, "sample.md", "/docs");
 
         using var writer = new StringWriter();
         document.ToHtml(writer, pipeline);

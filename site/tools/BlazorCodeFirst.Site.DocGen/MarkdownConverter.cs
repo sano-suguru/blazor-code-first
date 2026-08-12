@@ -24,27 +24,38 @@ public static class MarkdownConverter
         .Build();
 
     /// <summary>Converts a Markdown fragment with no body rules and no link rewriting.</summary>
-    public static string ToHtml(string markdown) => Render(markdown, knownSlugs: null, fileName: null);
+    public static string ToHtml(string markdown) =>
+        Render(markdown, knownSlugs: null, fileName: null, routePrefix: null);
 
     /// <summary>Converts a document body: enforces the body authoring rules, rewrites
-    /// sibling-document links into SPA routes, and adds heading anchors.</summary>
-    public static string ToHtml(string markdown, IReadOnlySet<string> knownSlugs, string fileName)
+    /// sibling-document links into SPA routes under <paramref name="routePrefix"/>, and adds heading
+    /// anchors.</summary>
+    public static string ToHtml(
+        string markdown,
+        IReadOnlySet<string> knownSlugs,
+        string fileName,
+        string routePrefix)
     {
         ArgumentNullException.ThrowIfNull(knownSlugs);
         ArgumentNullException.ThrowIfNull(fileName);
-        return Render(markdown, knownSlugs, fileName);
+        ArgumentNullException.ThrowIfNull(routePrefix);
+        return Render(markdown, knownSlugs, fileName, routePrefix);
     }
 
-    private static string Render(string markdown, IReadOnlySet<string>? knownSlugs, string? fileName)
+    private static string Render(
+        string markdown,
+        IReadOnlySet<string>? knownSlugs,
+        string? fileName,
+        string? routePrefix)
     {
         ArgumentNullException.ThrowIfNull(markdown);
 
         var document = Markdig.Markdown.Parse(markdown, Pipeline);
 
-        if (knownSlugs is not null && fileName is not null)
+        if (knownSlugs is not null && fileName is not null && routePrefix is not null)
         {
             MarkdownBodyRules.EnsureNoTopLevelHeading(document, fileName);
-            AstRewriter.RewriteRelativeLinks(document, knownSlugs, fileName);
+            AstRewriter.RewriteRelativeLinks(document, knownSlugs, fileName, routePrefix);
             AstRewriter.AddHeadingLinks(document);
         }
 

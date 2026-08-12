@@ -25,15 +25,24 @@ public static class AstRewriter
     /// Markdown body (<c>&lt;a href="other.md"&gt;</c>) parses as HtmlInline/HtmlBlock and passes
     /// through untouched, neither rewritten nor checked, so document bodies must use Markdown link
     /// syntax. Autolinks are a different node type and are likewise out of scope.
+    /// <para>
+    /// <paramref name="knownSlugs"/> and <paramref name="routePrefix"/> both belong to the linking
+    /// document's own language. A sibling link stays inside that language, which is what makes it a
+    /// sibling: a reader following one from a translated page should land on the translation of the
+    /// target, and a translation that has not been written yet is a missing target rather than a
+    /// silent hop back into English.
+    /// </para>
     /// </remarks>
     public static void RewriteRelativeLinks(
         MarkdownDocument document,
         IReadOnlySet<string> knownSlugs,
-        string fileName)
+        string fileName,
+        string routePrefix)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(knownSlugs);
         ArgumentNullException.ThrowIfNull(fileName);
+        ArgumentNullException.ThrowIfNull(routePrefix);
 
         foreach (var link in document.Descendants<LinkInline>())
         {
@@ -98,7 +107,7 @@ public static class AstRewriter
                     "does not exist in the content directory.");
             }
 
-            link.Url = $"/docs/{stem}{fragment}";
+            link.Url = $"{routePrefix}/{stem}{fragment}";
         }
     }
 

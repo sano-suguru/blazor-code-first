@@ -1,4 +1,5 @@
 using BlazorCodeFirst;
+using BlazorCodeFirst.Site.Content;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using static BlazorCodeFirst.Html;
@@ -50,7 +51,7 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
             Div.Class("brand")[
                 A.Href("/").Class(LinkClass("/"))["BlazorCodeFirst"]],
             Div.Class("nav-utilities")[
-                A.Href("/docs").Class(LinkClass("/docs"))["Docs"],
+                A.Href("/docs").Class(DocsLinkClass())["Docs"],
                 A.Href("/counter").Class(LinkClass("/counter"))["Demo"],
                 A.Href("https://github.com/sano-suguru/blazor-code-first")
                     .Class("chip")
@@ -84,4 +85,28 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
         string.Equals(CurrentPath(), path, StringComparison.OrdinalIgnoreCase)
             ? "nav-link active"
             : "nav-link";
+
+    /// <summary>The Docs entry, which is active on every language's documentation index.</summary>
+    /// <remarks>
+    /// This link names the documentation index, and each language has one, so "/docs/ja" lights it up
+    /// as "/docs" does. Without this, "/docs/ja" would be the only prerendered route with no active
+    /// nav link at all: the rail lists documents, so nothing there matches an index either.
+    ///
+    /// Still an exact match per index rather than a prefix match on "/docs". A prefix would claim the
+    /// active mark on every document route as well, where it belongs to the rail, and the CI guard
+    /// asserting exactly one active link per route is what keeps the two from both taking it.
+    /// </remarks>
+    private string DocsLinkClass()
+    {
+        string current = CurrentPath();
+        foreach (string lang in Docs.Languages)
+        {
+            if (string.Equals(current, Docs.RoutePrefix(lang), StringComparison.OrdinalIgnoreCase))
+            {
+                return "nav-link active";
+            }
+        }
+
+        return "nav-link";
+    }
 }
