@@ -16,6 +16,59 @@
    the same reason it asserts the other two -- losing the line would ship the site with every
    var() unresolved, which every other assertion in that workflow would report as green. */
 
+/* The two families the site draws every character in, served from this origin rather than from
+   fonts.googleapis.com (#252). Both are variable fonts, so one file spans every weight app.css asks
+   for; the seven static faces the old URL requested were three times the bytes.
+
+   font-weight states each file's real axis range rather than the weights in use, which is what
+   tells the browser it never has to synthesise one. That widens code-block bold: highlight.css asks
+   for mono 700 and the old URL never requested it, so those runs used to be drawn with the 600 face.
+
+   font-display: swap so first paint is never blocked on a font; the fallbacks are the platform's own
+   UI and mono stacks, named in the --font-* tokens below.
+
+   unicode-range is what makes the latin-ext pair free: a page that draws none of those characters
+   never fetches the file. index.html preloads only the two latin files, for the same reason.
+
+   The @font-face rules live here rather than in a fourth stylesheet because this file already
+   declares every font the page uses, and a new <link> in index.html would need its own
+   hand-written assertion beside the three in eng/verify-site-prerender.sh. */
+@font-face {
+    font-family: "Geist";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/geist-1.800-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "Geist";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/geist-1.800-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400 800;
+    font-display: swap;
+    src: url("../fonts/jetbrains-mono-2.211-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: "JetBrains Mono";
+    font-style: normal;
+    font-weight: 400 800;
+    font-display: swap;
+    src: url("../fonts/jetbrains-mono-2.211-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
     /* Resolves every light-dark() below, and tells the browser which way to draw what it renders
        for itself: scrollbars, the canvas behind the page, and a form control's default appearance.

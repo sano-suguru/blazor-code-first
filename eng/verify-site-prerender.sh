@@ -365,6 +365,13 @@ while read -r f; do
   # guard must stay a check of the HTML head only -- a `grep -r` over the publish output
   # would hit the injected header on every preview run.
   assert_not_grep '<meta[^>]*name=.?robots' "$P/$f" "the published HTML carries a meta robots tag, which would keep this page out of search results"
+
+  # The whole privacy half of #252. The fonts are served from this origin now, and nothing else
+  # here or in the browser suite reads font-family or a request log: restoring the Google Fonts
+  # <link> -- or leaving a preconnect behind after it -- would announce every visitor to a third
+  # party before first paint with every other assertion in this file still green.
+  assert_not_grep 'fonts\.googleapis\.com' "$P/$f" "the published HTML contacts fonts.googleapis.com again, which announces every visitor to a third party before first paint"
+  assert_not_grep 'fonts\.gstatic\.com' "$P/$f" "the published HTML contacts fonts.gstatic.com again, which announces every visitor to a third party before first paint"
 done <<< "$(pages_with_shell)"
 
 # The guard above is only correct while NO scoped CSS exists. The SDK does NOT inject the

@@ -7,12 +7,17 @@
     <base href="/" />
     <link rel="preload" id="webassembly" />
     <!-- Geist carries the page, JetBrains Mono carries every piece of machine text (the wordmark,
-         which is a namespace, and all code). display=swap so first paint is never blocked on a
-         font; the fallbacks are the platform's own UI and mono stacks. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+         which is a namespace, and all code). Both are served from this origin (#252); css/tokens.css
+         declares the faces, the fallback stacks, and why each descriptor is what it is.
+
+         Only the latin files are preloaded. The latin-ext pair is fetched by the pages that draw one
+         of its characters and by no other, which is what the unicode-range on each face buys, and a
+         preload would spend that saving on every page.
+
+         crossorigin is required even same-origin, because a font is fetched in CORS mode. Without it
+         the preload is discarded and the file is fetched a second time. -->
+    <link rel="preload" href="fonts/geist-1.800-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="fonts/jetbrains-mono-2.211-latin.woff2" as="font" type="font/woff2" crossorigin />
     <!-- tokens.css declares every custom property app.css reads. Both are asserted in site.yml:
          losing either link ships an unstyled page while every other check there stays green. -->
     <link rel="stylesheet" href="css/tokens.css" />
