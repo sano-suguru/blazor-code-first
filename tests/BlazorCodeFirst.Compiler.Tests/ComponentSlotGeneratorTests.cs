@@ -240,7 +240,7 @@ public sealed class ComponentSlotGeneratorTests
     [Fact]
     public void ComponentWithChildren_ChildContentInheritedFromBaseClass_IsAccepted()
     {
-        // Regression guard: HasUsableChildContent must walk the base-type chain (Roslyn's GetMembers on
+        // Regression guard: FindChildContentParameter must walk the base-type chain (Roslyn's GetMembers on
         // the derived type alone would not see a ChildContent property declared only on the base class).
         // Without that walk, a component that inherits ChildContent instead of redeclaring it would be
         // rejected with a false BCF3013 even though Blazor itself accepts it at runtime.
@@ -441,5 +441,41 @@ public sealed class ComponentSlotGeneratorTests
         Assert.True(
             lambdaIdx < localIdx,
             "the view part's argument local must be declared inside the fragment lambda");
+    }
+
+    private const string TypedChildContentSource = """
+        using Microsoft.AspNetCore.Components;
+        namespace T;
+        public class TypedCard : ComponentBase
+        {
+            [Parameter] public RenderFragment<int>? ChildContent { get; set; }
+        }
+        """;
+
+    [Fact]
+    public void ComponentWithChildren_ChildContentIsGenericFragment_EmitsTheContextDiscardingLambda()
+    {
+        // The brackets give the context no name, so they bind the typed fragment through the same outer
+        // lambda .Template's context-ignoring overload writes (#322).
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Component<TypedCard>()[Div["x"]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TypedCard.cs", TypedChildContentSource), ("Host.cs", host));
+
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        Assert.Contains(
+            "__builder.AddComponentParameter(1, \"ChildContent\", " +
+                "(global::Microsoft.AspNetCore.Components.RenderFragment<global::System.Int32>)"
+                + "((_) => (__builder) =>",
+            GeneratedHost(result));
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 }

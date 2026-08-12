@@ -54,13 +54,15 @@ public sealed class ComponentSlotDiagnosticTests
     }
 
     [Fact]
-    public void ComponentWithChildren_ChildContentIsGenericFragment_ReportsBCF3013()
+    public void ComponentWithChildren_ChildContentIsGenericFragment_IsAccepted()
     {
-        // A non-generic RenderFragment cannot bind to RenderFragment<T>: without this the author gets
-        // "Unable to cast RenderFragment to RenderFragment`1[System.Int32]" at runtime.
+        // The brackets supply the outer lambda that discards the context, which is the emission
+        // .Template's context-ignoring overload already writes (#322).
         var result = Run("Component<TypedChildContent>()[Div[\"x\"]]");
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3013");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3013");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Contains(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
     [Fact]

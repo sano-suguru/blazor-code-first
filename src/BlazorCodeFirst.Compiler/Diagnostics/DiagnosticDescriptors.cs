@@ -400,24 +400,26 @@ internal static class DiagnosticDescriptors
     /// <summary>
     /// BCF3013: <c>Component&lt;T&gt;()[children]</c> was given child content but <c>T</c> has no parameter
     /// that can receive it, no <c>ChildContent</c> at all, one that is not a settable
-    /// <c>[Parameter]</c>, or one typed <c>RenderFragment&lt;TContext&gt;</c> rather than the non-generic
-    /// <c>RenderFragment</c>. Blazor would throw while applying parameters.
+    /// <c>[Parameter]</c>, or one whose type is not a render fragment. Blazor would throw while applying
+    /// parameters. Both fragment arities are accepted: a <c>RenderFragment&lt;TContext&gt;</c> takes the
+    /// children with the context discarded.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3013 = new(
         id: "BCF3013",
         title: "Component cannot receive child content",
         messageFormat:
-            "'{0}' has no settable [Parameter] named 'ChildContent' of type RenderFragment, so it cannot "
-                + "receive child content; bind a fragment parameter with .Param(c => c.Name, content) instead",
+            "'{0}' has no settable [Parameter] named 'ChildContent' of a RenderFragment type, so it cannot "
+                + "receive child content; bind a fragment parameter by name with .Param(c => c.Name, content) "
+                + "or .Template(c => c.Name, content) instead",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "Component<T>()[children] binds child content to a parameter named ChildContent, mirroring how "
-                + "Razor lowers nested content. The parameter must be a settable [Parameter] whose type is "
-                + "the non-generic RenderFragment; a RenderFragment<TContext> cannot receive it. Without "
-                + "such a parameter Blazor throws while applying parameters, so it is rejected at compile "
-                + "time.");
+                + "Razor lowers nested content. The parameter must be a settable [Parameter] typed "
+                + "RenderFragment or RenderFragment<TContext>; the generic one receives the children with "
+                + "its context discarded. Without such a parameter Blazor throws while applying parameters, "
+                + "so it is rejected at compile time.");
 
     /// <summary>
     /// BCF3014: an inert design-time value (<c>View</c>, <c>ElementView</c>, <c>ComponentView&lt;T&gt;</c>,
