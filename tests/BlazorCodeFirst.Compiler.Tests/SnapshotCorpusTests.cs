@@ -64,6 +64,7 @@ public sealed class SnapshotCorpusTests
     [
         ("Host.cs", $$"""
             using System.Collections.Generic;
+            using System.Linq;
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
@@ -145,6 +146,12 @@ public sealed class SnapshotCorpusTests
                 """private readonly List<string> _items = new();"""),
             ["foreach-nested-element-content"] = Host(
                 """Ul[ForEach(_items, key: i => i, content: i => Li[A.Href($"/{i}")[i]])]""",
+                """private readonly List<string> _items = new();"""),
+            ["foreach-declined-key-inside-element"] = Host(
+                """Ul.Class("nav-list")[ForEach(_items, key: null, content: i => Li[i])]""",
+                """private readonly List<string> _items = new();"""),
+            ["splice-beside-siblings"] = Host(
+                """Ul[[Li["first"], .. _items.Select(i => Li.Class("row")[i]), Li["last"]]]""",
                 """private readonly List<string> _items = new();"""),
             ["fragment-and-raw-inside-element"] = Host(
                 """Div[Fragment(P["a"], P["b"]), Raw("<em>trusted</em>")]"""),

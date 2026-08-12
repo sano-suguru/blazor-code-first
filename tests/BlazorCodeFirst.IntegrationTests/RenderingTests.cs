@@ -150,6 +150,42 @@ public sealed class RenderingTests : BunitContext
     }
 
     [Fact]
+    public void DeclinedKeyComponentList_WhenRowStateChangedThenRotated_StateStaysAtPosition()
+    {
+        // The third control: no key at all (#172). DESIGN.md §4.2 claims declining the key diffs as an
+        // index-derived key does, and this is what holds that claim. Compare with the two above: this
+        // component is PositionKeyedListComponent with the key removed and nothing else changed, and it
+        // reproduces that component's result exactly, not the identity-keyed one's.
+        var cut = Render<DeclinedKeyListComponent>();
+
+        cut.FindAll("button")[0].Click();
+        cut.FindAll("button")[0].Click();
+        Assert.Equal("a:2", cut.FindAll("span")[0].TextContent);
+
+        // Rotate -> labels become b, c, a. Position 0 now shows b but keeps the counter (2), which is the
+        // index-key failure mode and precisely what declining the key buys into.
+        cut.FindAll("button")[3].Click();
+        Assert.Equal("b:2", cut.FindAll("span")[0].TextContent);
+    }
+
+    [Fact]
+    public void SplicedList_WhenRendered_EmitsTheProjectionBetweenItsSiblings()
+    {
+        // The splice generates the same source as the declined-key ForEach, which the compiler tests
+        // assert. What only a render shows is that those frames reach the DOM and that the siblings
+        // written beside the splice keep their order around it.
+        var cut = Render<SplicedListComponent>();
+
+        cut.MarkupMatches(
+            "<ul>" +
+            "<li>first</li>" +
+            "<li class=\"row\">one</li>" +
+            "<li class=\"row\">two</li>" +
+            "<li>last</li>" +
+            "</ul>");
+    }
+
+    [Fact]
     public void ClassDecoratedComponent_WhenRendered_EmitsFoldedClassAttributes()
     {
         var cut = Render<ClassDecoratedComponent>();
