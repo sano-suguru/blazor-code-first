@@ -3,14 +3,14 @@ using ColorCode.Styling;
 
 namespace BlazorCodeFirst.Site.DocGen;
 
-/// <summary>Single source of the ColorCode style dictionary shared by the Markdown
+/// <summary>Single source of the ColorCode style dictionaries shared by the Markdown
 /// pipeline (HTML class output) and the CSS emitter, so the emitted token classes and
 /// the generated stylesheet stay in lockstep (parity by construction).</summary>
 /// <remarks>
-/// The base is ColorCode's DefaultLight, the Visual Studio light palette. Every scope the site's
-/// own fences reach is repainted onto the site's palette, because two code vocabularies on one site
-/// -- a blue-and-red one in the prose and a violet-tinted one in the landing page's figures -- read
-/// as two designs stitched together.
+/// The bases are ColorCode's DefaultLight and DefaultDark, the Visual Studio palettes. Every scope
+/// the site's own fences reach is repainted onto the site's palette, because two code vocabularies
+/// on one site -- a blue-and-red one in the prose and a violet-tinted one in the landing page's
+/// figures -- read as two designs stitched together.
 /// <para>
 /// This is the one place on the site a colour is written outside css/tokens.css, and it has to be:
 /// ColorCode writes the value into the stylesheet as <c>color:#{Foreground}</c> after trimming what
@@ -23,44 +23,56 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// separate hue for numbers would be a third accent on a page that is meant to have one.
 /// </para>
 /// <para>
-/// Scopes outside this list keep their DefaultLight hex. That is deliberate: the parity test asserts
-/// every class the pipeline emits has a rule, and inheriting the rest means a fence in a language
-/// nobody has written yet still renders legibly rather than as unstyled text. Today's documents
-/// reach only keyword, string, comment and number.
+/// Scopes outside this list keep the base dictionary's hex. That is deliberate: the parity test
+/// asserts every class the pipeline emits has a rule, and inheriting the rest means a fence in a
+/// language nobody has written yet still renders legibly rather than as unstyled text. Today's
+/// documents reach only keyword, string, comment and number. It is also why the dark theme starts
+/// from DefaultDark rather than from the light dictionary: an unreached scope has to inherit a
+/// colour meant for the surface it will actually land on.
 /// </para>
 /// </remarks>
 public static class ColorCodeTheme
 {
-    /// <summary>The accent, <c>oklch(47% 0.21 277)</c>. 6.8:1 on the code block's surface.</summary>
-    private const string Keyword = "463ECC";
+    /// <summary>The four foregrounds one surface needs, as ColorCode's alpha-less hex.</summary>
+    private readonly record struct Palette(string Keyword, string Literal, string Comment, string Neutral);
 
-    /// <summary>A cool green at <c>oklch(45% 0.10 165)</c>, the palette's one literal colour. 6.4:1.</summary>
-    private const string Literal = "006647";
+    /// <summary>
+    /// Prose fences on paper. Keyword is the accent <c>oklch(47% 0.21 277)</c> at 6.8:1 on the code
+    /// block's surface; the literal is a cool green <c>oklch(45% 0.10 165)</c>, the palette's one
+    /// literal colour, at 6.4:1; the comment is the muted grey <c>oklch(52% 0.014 277)</c> at 5.1:1,
+    /// still readable; the neutral is the ink <c>oklch(21% 0.020 277)</c>, reached only by fences no
+    /// document has yet.
+    /// </summary>
+    private static readonly Palette Light = new("463ECC", "006647", "676871", "161822");
 
-    /// <summary>The muted grey, <c>oklch(52% 0.014 277)</c>. 5.1:1 -- a comment is still readable.</summary>
-    private const string Comment = "676871";
+    /// <summary>
+    /// The same four turned over for a dark page, where the code block draws on
+    /// <c>--color-paper-2</c> at <c>oklch(19% 0.017 277)</c>. These are the bright code family
+    /// css/tokens.css already declares for the landing page's dark slab, so prose and figures keep
+    /// one vocabulary in either scheme: keyword <c>oklch(78% 0.14 300)</c> at 8.8:1, literal
+    /// <c>oklch(80% 0.12 165)</c> at 10.4:1, comment <c>oklch(66% 0.020 277)</c> at 5.9:1, and the
+    /// neutral <c>oklch(93% 0.008 277)</c>, the slab's ink.
+    /// </summary>
+    private static readonly Palette Dark = new("C5A2FF", "69D6AA", "8F919F", "E6E7ED");
 
-    /// <summary>The ink, <c>oklch(21% 0.020 277)</c>. Reached only by fences no document has yet.</summary>
-    private const string Neutral = "161822";
+    public static StyleDictionary Styles { get; } = BuildStyles(StyleDictionary.DefaultLight, Light);
 
-    public static StyleDictionary Styles { get; } = BuildStyles();
+    public static StyleDictionary DarkStyles { get; } = BuildStyles(StyleDictionary.DefaultDark, Dark);
 
-    private static StyleDictionary BuildStyles()
+    private static StyleDictionary BuildStyles(StyleDictionary styles, Palette palette)
     {
-        // DefaultLight is a property, and this is the only place its result is kept. Repaint the
-        // instance we were handed rather than composing a dictionary from nothing, so no scope can
-        // be dropped by omission.
-        StyleDictionary styles = StyleDictionary.DefaultLight;
-
-        Repaint(styles, ScopeName.Keyword, Keyword);
-        Repaint(styles, ScopeName.PreprocessorKeyword, Keyword);
-        Repaint(styles, ScopeName.String, Literal);
-        Repaint(styles, ScopeName.StringCSharpVerbatim, Literal);
-        Repaint(styles, ScopeName.Number, Literal);
-        Repaint(styles, ScopeName.Comment, Comment);
-        Repaint(styles, ScopeName.XmlDocComment, Comment);
-        Repaint(styles, ScopeName.XmlDocTag, Comment);
-        Repaint(styles, ScopeName.ClassName, Neutral);
+        // The base is a property, and each call hands back its own dictionary. Repaint the instance
+        // we were given rather than composing one from nothing, so no scope can be dropped by
+        // omission.
+        Repaint(styles, ScopeName.Keyword, palette.Keyword);
+        Repaint(styles, ScopeName.PreprocessorKeyword, palette.Keyword);
+        Repaint(styles, ScopeName.String, palette.Literal);
+        Repaint(styles, ScopeName.StringCSharpVerbatim, palette.Literal);
+        Repaint(styles, ScopeName.Number, palette.Literal);
+        Repaint(styles, ScopeName.Comment, palette.Comment);
+        Repaint(styles, ScopeName.XmlDocComment, palette.Comment);
+        Repaint(styles, ScopeName.XmlDocTag, palette.Comment);
+        Repaint(styles, ScopeName.ClassName, palette.Neutral);
 
         return styles;
     }

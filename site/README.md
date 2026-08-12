@@ -54,8 +54,9 @@ Markdown under `site/content/*.md` is converted to HTML at authoring time by the
   `Docs.All` is an `ImmutableArray<DocEntry>` ordered by front matter `order` with ties broken by
   slug, and `Docs.Find(slug)` is a case-insensitive lookup.
 - `site/BlazorCodeFirst.Site/wwwroot/css/highlight.css`: the ColorCode class theme, repainted onto
-  the site's palette by `ColorCodeTheme`. That file is the one place a colour is written outside
-  `tokens.css`, and it says why.
+  the site's palette by `ColorCodeTheme` — once for paper and again, under
+  `prefers-color-scheme: dark`, for the dark page. That file is the one place a colour is written
+  outside `tokens.css`, and it says why.
 
 After editing any `.md`, regenerate and commit the artifacts:
 

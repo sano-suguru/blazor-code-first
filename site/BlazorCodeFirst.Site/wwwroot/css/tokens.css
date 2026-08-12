@@ -142,3 +142,50 @@
        sliding under it. Kept in step with .site-nav's padding-block plus its line box. */
     --nav-height: 4.25rem;
 }
+
+/* --- Dark ------------------------------------------------------------------
+   Only colour is redefined. Type, space, shape, motion, layers and measure are the same design in
+   either scheme, and repeating them here would be two places to change one number.
+
+   The page inverts but the slab does not. --color-slab and the five code colours on it are already
+   a dark surface with its own contrast budget, so they are left exactly as they are and the paper
+   is taken *below* them instead: 15% against the slab's 21%. That keeps the figure reading as a
+   raised panel, which is the same signal it carries in light mode, and it holds this file's own
+   rule that elevation on a dark surface is lightness rather than shadow.
+
+   What the inversion does break is the light-slab pairing. `.slab--light` draws on --color-paper-2,
+   and four of the `-on-light` colours sit in the low forties precisely because that surface used to
+   be near-white; the fifth tracks --color-muted and follows it here on its own. Below they are
+   re-pointed at the bright family, since the surface under them is now the dark one.
+
+   css/highlight.css carries the matching dark block for prose code fences. It is generated, and
+   ColorCodeTheme is where its two palettes are declared -- see the note in that file for why the
+   values there are hex rather than a var() reference to this one. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-paper: oklch(15% 0.015 277);
+        --color-paper-2: oklch(19% 0.017 277);
+        --color-paper-3: oklch(24% 0.019 277);
+
+        --color-ink: oklch(94% 0.008 277);
+        --color-ink-2: oklch(82% 0.010 277);
+        --color-muted: oklch(70% 0.012 277);
+
+        --color-rule: oklch(30% 0.018 277);
+        --color-rule-2: oklch(25% 0.016 277);
+
+        /* The accent crosses the middle: light enough to carry text on paper, which makes it too
+           light to carry text itself, so --color-accent-ink turns dark to stay legible on it. */
+        --color-accent: oklch(76% 0.15 277);
+        --color-accent-strong: oklch(84% 0.12 277);
+        --color-accent-soft: oklch(30% 0.05 277);
+        --color-accent-ink: oklch(15% 0.020 277);
+        --color-focus: oklch(78% 0.16 277);
+
+        --color-code-keyword-on-light: oklch(78% 0.14 300);
+        --color-code-type-on-light: oklch(80% 0.11 230);
+        --color-code-string-on-light: oklch(80% 0.12 165);
+        --color-code-member-on-light: oklch(78% 0.12 350);
+        --color-code-comment-on-light: var(--color-muted);
+    }
+}
