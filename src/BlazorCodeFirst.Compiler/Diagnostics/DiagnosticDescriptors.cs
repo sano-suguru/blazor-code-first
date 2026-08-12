@@ -838,6 +838,53 @@ internal static class DiagnosticDescriptors
                 + "calls are reserved, so the stored form is left open.");
 
     /// <summary>
+    /// BCF3030: A call to a <c>View</c>-returning method that is built from the design-time surface but
+    /// carries no <c>[ViewPart]</c> renders nothing.
+    /// </summary>
+    /// <remarks>
+    /// The sibling of BCF3029 on the other side of the call. BCF3029 reports design-time syntax written
+    /// where nothing reads it; this reports a call whose callee wrote design-time syntax that nothing
+    /// read. Both fail the same way — the value is the empty marker and no frames are emitted — and
+    /// neither is a compile error, so the author sees correct-looking code that renders nothing.
+    /// <para>
+    /// <c>ARCHITECTURE.md</c> §2.3 classifies this call as Opaque and §3.2 says the Opaque path renders
+    /// the fragment the returned <c>View</c> carries. It carries none: every member of <c>Html</c>,
+    /// <c>ElementView</c> and <c>Decorations</c> returns the default value, so the only route into
+    /// <c>View.Fragment</c> is the <c>RenderFragment</c> conversion. Letting this call take the Opaque
+    /// path would turn 付録B.11(c)'s "cost you always notice" into the cost you never notice, which is the
+    /// trade that appendix refuses. 付録B.11's closing note is revised to name this diagnostic.
+    /// </para>
+    /// <para>
+    /// The predicate is "does the callee's body reference the design-time surface", not BCF1002's full
+    /// static-expansion contract. A callee that references the surface but cannot be expanded is still
+    /// reported here, and BCF1002 then names the exact contract violation at the declaration once the
+    /// author adds the attribute. Running the contract check at every call site would restate BCF1002 in
+    /// a second place for no better message.
+    /// </para>
+    /// <para>
+    /// Two remedies, because the attribute does not fit every receiver: an instance method reaches this
+    /// diagnostic too, and BCF1002 rejects a non-static <c>[ViewPart]</c>. The location is the whole call
+    /// expression, which is what the author rewrites.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3030 = new(
+        id: "BCF3030",
+        title: "Call to a View-returning method without [ViewPart] renders nothing",
+        messageFormat:
+            "'{0}' builds its View from the design-time surface but carries no [ViewPart], so this call "
+                + "renders nothing; mark it [ViewPart] if it is static, or make it a component",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "The design-time surface is inert: Html's element helpers, ElementView's indexer and every "
+                + "decoration return the default View, and the generator reads the syntax rather than the "
+                + "value. It reads it in a Body, a Chrome, and the body of a [ViewPart] method. A "
+                + "View-returning method without the attribute is none of those, so its result carries no "
+                + "fragment and the call emits no frames. Marking the method [ViewPart] expands it into "
+                + "the call site; making it a component gives it a Body the generator reads.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

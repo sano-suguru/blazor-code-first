@@ -61,16 +61,20 @@ public sealed class GeneratorTests
         }
         """;
 
+    // A View-typed field read. The analyzer classifies calls and design-time syntax; a stored View is
+    // neither, so the template comes out null and BCF1003 fires. This used to be a plain View-returning
+    // method call, which now has a route of its own: BCF3030 when the callee builds from the design-time
+    // surface, BCF2001 otherwise.
     private const string UnrecognizedChildSource = """
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
         public partial class Counter : BodyComponentBase
         {
-            private View GetView() => Span["foo"];
+            private readonly View _cached;
 
             protected override View Body =>
-                Div[GetView()];
+                Div[_cached];
         }
         """;
 

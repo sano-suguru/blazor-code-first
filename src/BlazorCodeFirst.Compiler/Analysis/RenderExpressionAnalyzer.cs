@@ -171,7 +171,7 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.On
                 or SurfaceMethodKind.Bind =>
                 ClassifyDecoration(invocation, method, kind, context),
-            SurfaceMethodKind.None => ClassifyViewPartCall(invocation, method, context),
+            SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };
 #pragma warning restore CS8524
     }
@@ -859,28 +859,96 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// A call that is not surface syntax at all, which is a translatable expression only when the method
-    /// it names carries <c>[ViewPart]</c>. That attribute sits on a user method rather than on a symbol
-    /// resolved out of the runtime, so it cannot be part of the classification and is tested here.
+    /// A call that is not surface syntax at all. Three answers: a <c>[ViewPart]</c> expands into the call
+    /// site, a <c>View</c>-returning method built from the inert surface is BCF3030, and anything else is
+    /// not this analyzer's business. The attribute sits on a user method rather than on a symbol resolved
+    /// out of the runtime, so it cannot be part of the classification and is tested here.
     /// </summary>
-    private static ViewPartCallTemplateNode? ClassifyViewPartCall(
+    private static ViewPartCallTemplateNode? ClassifyNonSurfaceCall(
         InvocationExpressionSyntax invocation, IMethodSymbol method, ViewPartBodyContext context)
     {
-        if (!context.KnownSymbols.IsViewPart(method))
-            return null;
-
-        var arguments = CreateInvocationArguments(invocation, method, context, out var contentArguments);
-        if (arguments is null)
-            return null;
-
-        return new ViewPartCallTemplateNode(
-            MethodKey.Create(method),
-            method.Name,
-            arguments.Value,
-            TemplateLocation.From(invocation.GetLocation()))
+        if (context.KnownSymbols.IsViewPart(method))
         {
-            ContentArguments = contentArguments,
-        };
+            var arguments = CreateInvocationArguments(invocation, method, context, out var contentArguments);
+            if (arguments is null)
+                return null;
+
+            return new ViewPartCallTemplateNode(
+                MethodKey.Create(method),
+                method.Name,
+                arguments.Value,
+                TemplateLocation.From(invocation.GetLocation()))
+            {
+                ContentArguments = contentArguments,
+            };
+        }
+
+        if (!context.KnownSymbols.IsInertDesignTimeType(method.ReturnType))
+            return null;
+
+        if (BodyBuildsFromDesignTimeSurface(method, context))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3030,
+                invocation.GetLocation(),
+                [method.Name]));
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="method"/>'s source body references the design-time surface, which makes the
+    /// <c>View</c> it returns the empty marker at runtime.
+    /// </summary>
+    /// <remarks>
+    /// Answers <see langword="false"/> for a method with no source declaration in this compilation. A
+    /// referenced assembly's <c>View</c>-returning method may still be surface-built and still render
+    /// nothing; nothing here can tell, and 付録A's BCF2001 row records that residue. <c>DESIGN.md</c> §4.3
+    /// already routes cross-assembly reuse to components.
+    /// <para>
+    /// Reached only from the arm above, so a body full of element helpers never pays for it. The prefilter
+    /// on syntax kind mirrors <see cref="Classify"/>'s, for the same reason: a literal or a lambda must
+    /// not each buy a semantic query.
+    /// </para>
+    /// </remarks>
+    private static bool BodyBuildsFromDesignTimeSurface(
+        IMethodSymbol method, ViewPartBodyContext context)
+    {
+        var symbols = context.KnownSymbols;
+
+        foreach (var reference in method.DeclaringSyntaxReferences)
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            var declaration = reference.GetSyntax(context.CancellationToken);
+            var model = context.SemanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
+
+            foreach (var node in declaration.DescendantNodes())
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+
+                if (node is not (InvocationExpressionSyntax or ElementAccessExpressionSyntax
+                        or IdentifierNameSyntax or MemberAccessExpressionSyntax))
+                {
+                    continue;
+                }
+
+                if (!symbols.IsInertDesignTimeType(
+                        model.GetTypeInfo(node, context.CancellationToken).Type))
+                {
+                    continue;
+                }
+
+                if (model.GetSymbolInfo(node, context.CancellationToken).Symbol is { } member
+                    && symbols.IsDesignTimeApiMember(member))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

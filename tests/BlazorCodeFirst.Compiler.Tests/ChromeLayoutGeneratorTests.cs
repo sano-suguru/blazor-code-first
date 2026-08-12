@@ -153,17 +153,17 @@ public sealed class ChromeLayoutGeneratorTests
     public void Generator_UntranslatableChrome_BCF1003MessageNamesChrome()
     {
         // BCF1003 hardcoded the word "Body", which is a false statement for a layout: what failed to
-        // translate is Chrome. GetView() is a plain View-returning method, which is the Opaque path and
-        // is not implemented, so the template comes out null and BCF1003 fires.
+        // translate is Chrome. A View-typed field read is neither a call nor design-time syntax, so the
+        // template comes out null and BCF1003 fires.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
             public partial class Shell : ChromeLayoutBase
             {
-                private View GetView() => Span["x"];
+                private readonly View _cached;
 
-                protected override View Chrome => Main[GetView()];
+                protected override View Chrome => Main[_cached];
             }
             """;
 
@@ -184,9 +184,9 @@ public sealed class ChromeLayoutGeneratorTests
 
             public partial class Counter : BodyComponentBase
             {
-                private View GetView() => Span["x"];
+                private readonly View _cached;
 
-                protected override View Body => Div[GetView()];
+                protected override View Body => Div[_cached];
             }
             """;
 
