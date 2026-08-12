@@ -353,9 +353,15 @@ That is the whole trade-off:
   own, or is used from another assembly.
 
 A `[ViewPart]` has to satisfy a declaration contract the generator can expand, or it reports
-**BCF1002**. It must be a static, non-generic, expression-bodied method returning `View` (or
-`SlotView`, to take content), declared in a non-generic type, and its parameters must be ordinary
-by-value parameters whose types can be named from generated code. `params`, by-reference parameters,
+**BCF1002**. The method must be:
+
+- static
+- non-generic, and declared in a non-generic type
+- expression-bodied
+- returning `View`, or `SlotView` to take content
+
+Its parameters must be ordinary by-value parameters whose types can be named from generated code.
+`params`, by-reference parameters,
 and `ElementView` parameters are all rejected — a childless element is passed as content by
 writing `Div[…]` or `Fragment(Div)`, both of which are `View`s. A `View` parameter is a content slot,
 so it requires the `SlotView` return type; on a part returning `View` it is BCF1002, and it may
@@ -364,9 +370,9 @@ never be optional.
 It also must not be an extension member — neither a `this` parameter nor a member of an `extension`
 block. A call is written as a plain call (`AppHeader("My Application")`), the way this surface writes
 every call that is not a decoration on an element. The fluent spelling would put something that is
-not a decoration in the position the surface reserves for one, and the receiver could only ever be
-some other type's value, which would turn `[ViewPart]` into a way to grow *that* type's API rather
-than to split up a `Body`.
+not a decoration in the position the surface reserves for one. Its receiver could only ever be some
+other type's value, which would turn `[ViewPart]` into a way to grow *that* type's API rather than to
+split up a `Body`.
 
 BCF1002 also fires at the *call site*, and one of its conditions is worth stating plainly:
 

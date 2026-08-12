@@ -62,7 +62,7 @@ descendant. Each level's `Body` holds the level below it. `SiteLayout`'s `Body` 
 ## RenderFragment becomes content directly
 
 `Body` is a plain Blazor `RenderFragment?`, not a BlazorCodeFirst type, yet `Main[Body]` above
-compiles without dedicated syntax: `View` has an implicit conversion from `RenderFragment?`,
+compiles without dedicated syntax. `View` has an implicit conversion from `RenderFragment?`,
 so any fragment can appear wherever element content is expected. The conversion is from the
 non-generic `RenderFragment` only, and a `RenderFragment<T>` does not convert. Like `Fragment`
 and `Raw`, a `RenderFragment` opens no keyable frame, so it cannot be a `ForEach` content root and
@@ -91,9 +91,9 @@ uses `Component<T>()`. See
 
 ## Reads are allowed, mutation is not
 
-Both `Chrome` and `Body` (the `BodyComponentBase` one, not the layout's routed-content
-parameter) may read component state, since projecting state to UI is their whole purpose, but
-neither may mutate it. Mutating state inside either reports BCF3001, the same diagnostic that
+Both `Chrome` and `Body` may read component state, since projecting state to UI is their whole
+purpose, but neither may mutate it. `Body` here means the `BodyComponentBase` one, not the layout's
+routed-content parameter. Mutating state inside either reports BCF3001, the same diagnostic that
 applies to a regular component's `Body`.
 
 ## Next

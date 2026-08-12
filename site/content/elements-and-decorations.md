@@ -33,12 +33,15 @@ Figure[
     Figcaption["The compilation pipeline"]]
 ```
 
-`Element` is what is left over: custom elements and Web Components, whose tag names are never a
-known helper, and a handful of standard elements no helper covers — the document and
-`<head>`-only elements (`html`, `head`, `body`, `title`, `base`, `meta`, `link`), raw-text elements
-(`script`, `style`, `noscript`), elements the render tree cannot give meaning to (`template`,
-`slot`), `object` (ambiguous with the C# keyword), and the foreign vocabularies `svg` and `math` in
-full:
+`Element` is what is left over. Two things reach it. The first is custom elements and Web
+Components, whose tag names are never a known helper. The second is the handful of standard elements
+no helper covers:
+
+- the document and `<head>`-only elements: `html`, `head`, `body`, `title`, `base`, `meta`, `link`
+- raw-text elements: `script`, `style`, `noscript`
+- elements the render tree cannot give meaning to: `template`, `slot`
+- `object`, whose name is ambiguous with the C# keyword
+- the foreign vocabularies `svg` and `math`, in full
 
 ```csharp
 Element("my-widget").Attr("value", "42")   // custom element
