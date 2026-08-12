@@ -47,11 +47,16 @@ public static class ColorCodeTheme
 
     /// <summary>
     /// The same four turned over for a dark page, where the code block draws on
-    /// <c>--color-paper-2</c> at <c>oklch(19% 0.017 277)</c>. These are the bright code family
-    /// css/tokens.css already declares for the landing page's dark slab, so prose and figures keep
-    /// one vocabulary in either scheme: keyword <c>oklch(78% 0.14 300)</c> at 8.8:1, literal
-    /// <c>oklch(80% 0.12 165)</c> at 10.4:1, comment <c>oklch(66% 0.020 277)</c> at 5.9:1, and the
-    /// neutral <c>oklch(93% 0.008 277)</c>, the slab's ink.
+    /// <c>--color-paper-2</c> at <c>oklch(19% 0.017 277)</c>: keyword <c>oklch(78% 0.14 300)</c> at
+    /// 8.8:1, literal <c>oklch(80% 0.12 165)</c> at 10.4:1, comment <c>oklch(66% 0.020 277)</c> at
+    /// 5.9:1, and the neutral <c>oklch(93% 0.008 277)</c>, which is css/tokens.css's
+    /// <c>--color-slab-ink</c>.
+    /// <para>
+    /// These four are the whole record. The landing page's figures are generated through this same
+    /// theme, so the dark half also paints code on <c>--color-slab</c>, and css/tokens.css declares
+    /// no <c>--color-code-*</c> family to keep in step: a token no rule renders would be a second
+    /// record nothing could observe drifting from the hex below.
+    /// </para>
     /// </summary>
     private static readonly Palette Dark = new("C5A2FF", "69D6AA", "8F919F", "E6E7ED");
 

@@ -493,6 +493,14 @@ kbd {
     color: var(--color-accent);
 }
 
+/* The slab is the visual box. DocGen emits <div class="csharp"><pre> inside it, and Diagnostic
+   writes a bare <pre>, so the inner block carries none of the box's own painting.
+
+   color-scheme is what lets one generated stylesheet serve both surfaces. css/highlight.css is
+   written as light-dark() pairs, and those resolve against the ELEMENT's computed color-scheme
+   rather than the system's, so declaring it here picks the right half whatever the page theme is.
+   Without it a reader on the light theme would meet the paper palette on the dark slab. Same
+   technique as :root[data-theme] in css/tokens.css, reached for the same reason. */
 .slab {
     overflow-x: auto;
     margin: 0;
@@ -500,6 +508,7 @@ kbd {
     border-radius: var(--radius-md);
     background: var(--color-slab);
     color: var(--color-slab-ink);
+    color-scheme: dark;
     font-size: var(--text-sm);
     line-height: var(--leading-code);
     tab-size: 4;
@@ -509,51 +518,29 @@ kbd {
     border: var(--rule-hairline) solid var(--color-rule);
     background: var(--color-paper-2);
     color: var(--color-ink);
+    color-scheme: light;
 }
 
-/* Landing-page code vocabulary. Kept separate from css/highlight.css, which DocGen owns for prose
-   code blocks: the two theme different surfaces (a dark slab here, the paper there) and merging
-   them would make one of the two illegible. */
-.slab .k {
-    color: var(--color-code-keyword);
-    font-weight: 500;
+/* The slab paints the box, so the block inside it carries only the margin reset -- a UA `pre` has
+   no padding, border or background of its own, and its colour already inherits.
+
+   Nothing here may touch the font. `code, pre, kbd` above sets the mono family at specificity
+   0-0-1, and a `font: inherit` here (0-1-1) beats it and resolves to the body sans face, because
+   .slab sets a size and a line-height but never a family. That rendered every figure on the site
+   in Geist. The browser suite reads overflow and contrast, not font-family, so it stayed green. */
+.slab > pre,
+.slab > .csharp > pre {
+    margin: 0;
 }
 
-.slab .t {
-    color: var(--color-code-type);
+/* The build error is not code, so it does not borrow the code vocabulary. Two classes: where the
+   error is, and which error it is. */
+.diag-loc {
+    color: var(--color-diag-loc);
 }
 
-.slab .s {
-    color: var(--color-code-string);
-}
-
-.slab .m {
-    color: var(--color-code-member);
-}
-
-.slab .c {
-    color: var(--color-code-comment);
-}
-
-.slab--light .k {
-    color: var(--color-accent);
-    font-weight: 500;
-}
-
-.slab--light .t {
-    color: var(--color-code-type-on-light);
-}
-
-.slab--light .s {
-    color: var(--color-code-string-on-light);
-}
-
-.slab--light .m {
-    color: var(--color-code-member-on-light);
-}
-
-.slab--light .c {
-    color: var(--color-code-comment-on-light);
+.diag-id {
+    color: var(--color-diag-id);
 }
 
 /* --- F4 Step sequence -----------------------------------------------------

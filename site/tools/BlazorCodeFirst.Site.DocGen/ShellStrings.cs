@@ -43,7 +43,8 @@ public static class ShellFile
         var (lines, remainder) = KeyValueBlock.Parse(
             raw,
             fileName,
-            $"the file must be a '---' block declaring the shell text for this language.");
+            Kind,
+            "the file must be a '---' block declaring the shell text for this language.");
 
         if (remainder.Trim().Length > 0)
         {
@@ -112,6 +113,9 @@ public static class ShellFile
     private static readonly string[] Keys =
         ["name", "index-title", "index-lead", "rail-heading", "language-label", StaleNoticeKey, StaleLinkKey];
 
+    /// <summary>What the error calls a file this parser reads.</summary>
+    private const string Kind = "shell file";
+
     private static InvalidOperationException Invalid(string fileName, string reason) =>
-        KeyValueBlock.Invalid(fileName, reason);
+        KeyValueBlock.Invalid(fileName, Kind, reason);
 }

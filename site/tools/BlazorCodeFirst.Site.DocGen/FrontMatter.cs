@@ -38,6 +38,7 @@ public static class FrontMatter
         var (lines, body) = KeyValueBlock.Parse(
             raw,
             fileName,
+            Kind,
             "the file must start with a '---' front matter block declaring 'title' and 'order'.");
 
         string? title = null;
@@ -142,6 +143,9 @@ public static class FrontMatter
         return true;
     }
 
+    /// <summary>What the error calls a file this parser reads.</summary>
+    private const string Kind = "document";
+
     private static InvalidOperationException Invalid(string fileName, string reason) =>
-        KeyValueBlock.Invalid(fileName, reason);
+        KeyValueBlock.Invalid(fileName, Kind, reason);
 }

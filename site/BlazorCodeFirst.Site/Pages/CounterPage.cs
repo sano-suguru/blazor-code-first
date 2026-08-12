@@ -1,4 +1,5 @@
 using BlazorCodeFirst;
+using BlazorCodeFirst.Site.Content;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using static BlazorCodeFirst.Html;
@@ -13,6 +14,10 @@ namespace BlazorCodeFirst.Site.Pages;
 /// it does. That is the accepted consequence of deleting the prerendering wrappers so the
 /// prerendered markup reaches a human rather than only a crawler; the reasoning is in the project
 /// file, next to BlazorWasmPrerenderingDeleteLoadingContents.
+///
+/// The figure below the demo is this file, converted by DocGen from site/snippets/manifest. It
+/// therefore contains the call that renders it, which is accurate rather than circular: the page
+/// really does render its own source.
 /// </remarks>
 [Route("/counter")]
 public sealed partial class CounterPage : BodyComponentBase
@@ -40,7 +45,11 @@ public sealed partial class CounterPage : BodyComponentBase
                         content: step => Button
                             .Class("chip")
                             .Attr("type", "button")
-                            .OnClick(() => _count += step.Amount)[$"+{step.Amount}"])]]];
+                            .OnClick(() => _count += step.Amount)[$"+{step.Amount}"])]],
+            Section.Class("demo")[
+                Figure.Class("figure")[
+                    Figcaption["Pages/CounterPage.cs", Em["this page"]],
+                    Div.Class("slab")[Raw(Snippets.Counter)]]]];
 
     private sealed record IncrementStep(int Id, int Amount);
 }

@@ -19,8 +19,6 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// </remarks>
 public static class DocGenRunner
 {
-    private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false);
-
     private sealed record DocSource(DocMeta Meta, string FileName, string Body, string? SourceHash);
 
     public static void Run(string contentDir, string docsOutPath, string cssOutPath) =>
@@ -74,8 +72,8 @@ public static class DocGenRunner
         }
 
         // Artifacts are LF-normalized by their emitters; write bytes as-is.
-        WriteFile(docsOutPath, CSharpDocEmitter.Emit(docs, shells));
-        WriteFile(cssOutPath, HighlightCssEmitter.Emit());
+        GeneratedFile.Write(docsOutPath, CSharpDocEmitter.Emit(docs, shells));
+        GeneratedFile.Write(cssOutPath, HighlightCssEmitter.Emit());
     }
 
     /// <summary>
@@ -270,16 +268,5 @@ public static class DocGenRunner
     }
 
     private static InvalidOperationException Invalid(string fileName, string reason) =>
-        new($"Invalid document '{fileName}': {reason}");
-
-    private static void WriteFile(string path, string content)
-    {
-        string? dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
-
-        File.WriteAllText(path, content, Utf8NoBom);
-    }
+        KeyValueBlock.Invalid(fileName, "document", reason);
 }
