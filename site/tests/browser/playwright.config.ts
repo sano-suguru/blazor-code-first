@@ -32,6 +32,15 @@ const baseURL = process.env.BCF_SITE_BASE_URL ?? 'http://localhost:5200';
 export default defineConfig({
   testDir: '.',
   retries: 0,
+  // Without this Playwright parallelises by FILE, and this suite is two files: it ran its couple of
+  // hundred tests on two workers and ignored `--workers` entirely, on a four-core CI runner. Every
+  // test here opens its own page and shares nothing with its neighbours -- the routes are read off
+  // the publish output, the server is read-only, and site-pages.ts's font cache is per worker and
+  // keyed by URL -- so file order was never carrying anything.
+  fullyParallel: true,
+  // Paired with the line above, because the default is half the logical cores and half of a
+  // four-core runner is the same 2 that the file-level cap already imposed.
+  workers: '100%',
   // Every test navigates, and the first navigation of a run also pays for the Google Fonts fetch
   // and the WebAssembly download. The default 30s is enough locally and leaves no margin on a cold
   // CI runner.
