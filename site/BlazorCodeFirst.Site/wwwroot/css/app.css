@@ -1090,17 +1090,15 @@ kbd {
     }
 
     /* The one label in this row that can go without taking a control away: the state word alone
-       still says what the button does once it is the only setting here, and the accessible name is
-       carried by a separate always-hidden span, so it is unchanged at every width. */
+       still says what the button does once it is the only setting here.
+
+       display:none rather than the .visually-hidden clip, because this word is decorative
+       (aria-hidden) and the accessible name is carried by a separate span that is hidden at every
+       width. Taking it out of the box tree is what actually returns its space to a 320px row, which
+       the clip would not; it also leaves the button with one text rect, which is what the wrapping
+       check in tests/browser/layout.spec.ts counts. */
     .theme-toggle__label {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
+        display: none;
     }
 
     .install code {

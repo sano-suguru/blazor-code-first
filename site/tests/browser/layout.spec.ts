@@ -98,6 +98,38 @@ for (const width of WIDTHS) {
            * The rail links compute `white-space: normal` and do wrap. Both were measured on the
            * published output rather than read off the stylesheet.
            */
+          /*
+           * Whether a reader can see this text at all.
+           *
+           * A clickable can carry text that is deliberately not on screen, and counting it reports
+           * a second line nobody can see. Two idioms produce it, both in the theme control: its
+           * accessible name sits in a .visually-hidden span, and the two state words that are not
+           * current are `visibility: hidden` so that they keep contributing their width and the
+           * button does not change size as it cycles. Each sits at its own top.
+           *
+           * Neither condition can hide a real wrap. A label a reader can see is `visibility:
+           * visible` and is not inside the clip utility, so every rect this used to count for a
+           * visible label it still counts. What is dropped is text that has no reader.
+           *
+           * `visibility` is checked on the parent element alone because it inherits, so a hidden
+           * ancestor has already computed onto the text's own parent.
+           */
+          const seen = (node: Node, within: Element) => {
+            const parent = node.parentElement;
+            if (!parent || getComputedStyle(parent).visibility === 'hidden') {
+              return false;
+            }
+            for (let a: Element | null = parent; a; a = a.parentElement) {
+              if (a.classList.contains('visually-hidden')) {
+                return false;
+              }
+              if (a === within) {
+                break;
+              }
+            }
+            return true;
+          };
+
           const lineCount = (el: Element) => {
             // Ranges over the element itself return the block's own box in Chromium, not one rect
             // per line. Walking to the text nodes is what makes this count lines.
@@ -105,7 +137,7 @@ for (const width of WIDTHS) {
             const range = document.createRange();
             const tops = new Set<number>();
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-              if (!(node.textContent ?? '').trim()) {
+              if (!(node.textContent ?? '').trim() || !seen(node, el)) {
                 continue;
               }
               range.selectNodeContents(node);
