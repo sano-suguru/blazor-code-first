@@ -2620,6 +2620,154 @@ public sealed class GeneratorTests
     }
 
     // -----------------------------------------------------------------------
+    // A qualified reference inside an interpolated string (#273)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// The interpolated-string library every case below is written against: a namespace whose members a
+    /// component reaches relatively, plus an extension method, so both rewrites that emit
+    /// <c>global::</c> can be driven into an interpolation hole.
+    /// </summary>
+    private const string InterpolationLibrarySource = """
+        namespace Root.Models
+        {
+            public static class Routes
+            {
+                public static string Prefix => "/docs";
+                public static string Of(string slug) => Prefix + "/" + slug;
+            }
+
+            public static class Slugs
+            {
+                public static string Slugify(this string value) => value.ToLowerInvariant();
+            }
+        }
+        """;
+
+    [Fact]
+    public void Generator_InterpolatedHoleWithQualifiedReference_ParenthesizesAndCompiles()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Models.cs", InterpolationLibrarySource),
+            ("Counter.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                namespace Root.Features
+                {
+                    public partial class Counter : BodyComponentBase
+                    {
+                        private string _slug = "intro";
+
+                        // 'Models.Routes' has to be qualified for the using-less generated file, but a hole
+                        // cannot hold the '::' that qualification writes: it ends the hole's expression and
+                        // begins its format specifier. The second hole adds an alignment, which sits outside
+                        // the expression and so has to survive on the outside of the parentheses too.
+                        protected override View Body =>
+                            A.Href($"{Models.Routes.Prefix}/{_slug}")[$"{Models.Routes.Prefix,10}"];
+                    }
+                }
+                """));
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("$\"{(global::Root.Models.Routes.Prefix)}/{_slug}\"", generated);
+        Assert.Contains("$\"{(global::Root.Models.Routes.Prefix),10}\"", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_InterpolatedHoleInForEachContent_ParenthesizesAndCompiles()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Models.cs", InterpolationLibrarySource),
+            ("Counter.cs", """
+                using System.Collections.Generic;
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+                using Root.Models;
+
+                public partial class Counter : BodyComponentBase
+                {
+                    private readonly List<string> _items = new();
+
+                    // The same hole, reached through a ForEach content lambda rather than the Body
+                    // expression, and rewritten by the other path that emits 'global::': an extension
+                    // method invoked in instance syntax becomes a qualified static call.
+                    protected override View Body =>
+                        Ul[ForEach(_items, key: i => i, content: i => Li[$"{i.Slugify()}"])];
+                }
+                """));
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("{(global::Root.Models.Slugs.Slugify(", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// The premise behind leaving a parameter hole unparenthesized: what a hole receives is the name of the
+    /// local <c>ViewPartExpander</c> bound the argument to, never the argument's own text, so a qualified
+    /// argument is qualified in the local's initializer and the hole stays a bare identifier.
+    /// </summary>
+    [Fact]
+    public void Generator_InterpolatedHoleFromViewPartArgument_Compiles()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Models.cs", InterpolationLibrarySource),
+            ("Counter.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+                using Root.Models;
+
+                public partial class Counter : BodyComponentBase
+                {
+                    [ViewPart]
+                    private static View Crumb(string path) => Span[$"{path}!"];
+
+                    protected override View Body => Crumb(Routes.Prefix);
+                }
+                """));
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("= global::Root.Models.Routes.Prefix;", generated);
+        Assert.DoesNotContain("$\"{(", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_InterpolatedHoleWithoutRewrite_KeepsItsAuthoredText()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                private string _slug = "intro";
+                private bool _wide = true;
+
+                // Nothing is substituted into the first hole, and the second is already parenthesized
+                // because a conditional expression in a hole has to be. Neither gains parentheses: they
+                // are what a rewrite costs, not decoration applied to every hole.
+                protected override View Body =>
+                    Div[$"{_slug}", $"{(_wide ? "wide" : "narrow")}"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("$\"{_slug}\"", generated);
+        Assert.Contains("$\"{(_wide ? \"wide\" : \"narrow\")}\"", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    // -----------------------------------------------------------------------
     // Component Body normalization diagnostics surface as BCF1002
     // -----------------------------------------------------------------------
 
