@@ -158,20 +158,15 @@ if [ -n "$unbacked" ] || [ -n "$unpublished" ]; then
   exit 1
 fi
 
-# The published document slugs. Defined once and reused below so the three loops over this
-# same set (building ROUTES, the active-link/.md check, and the /docs index count check)
-# cannot drift from each other. (#46 tracks deriving this from the publish output instead.)
-SLUGS="getting-started elements-and-decorations control-flow layouts"
-
-# Every prerendered ROUTE, relative to $P. These carry the shell, exactly one <title>, and
-# exactly one active nav link.
-ROUTES="index.html counter/index.html docs/index.html"
-for slug in $SLUGS; do
-  ROUTES="$ROUTES docs/$slug/index.html"
-done
-# Every prerendered HTML document. 404.html is in this list but not in ROUTES, because no
-# nav link points at /404: its active-nav-link expectation is zero, not one.
-ALL_HTML="$ROUTES 404.html"
+# Every prerendered HTML document: the routes, plus 404.html. 404.html is not in the route table --
+# it is not an index.html, and no nav link points at it, so its active-link expectation is zero
+# rather than one -- but every guard in the second loop below is about the shell, and applies to it
+# equally.
+pages_with_shell() {
+  # route_file prints without a trailing newline, because its other caller assigns it to a variable.
+  expected_table | while read -r _ route _ _; do printf '%s\n' "$(route_file "$route")"; done
+  echo '404.html'
+}
 
 # Attribute order in the generated HTML is class-before-href today; match either order so
 # a future emitter change cannot silently turn this guard into a no-op.
@@ -181,12 +176,47 @@ assert_active_link() {
     "$1" "the nav link for '$2' is not marked active"
 }
 
-for f in $ROUTES; do
+# The href whose nav link must be marked active on a route.
+#
+# Not the route itself on an index. SiteNav carries ONE "Docs" entry and DocsLinkClass lights it up
+# on every language's documentation index, so the active link on "/docs/ja" is href="/docs". Without
+# that, "/docs/ja" would be the only prerendered route with no active nav link at all: the rail lists
+# documents, so nothing there matches an index either. SiteNav.DocsLinkClass has the reasoning.
+active_href() {
+  if [ "$1" = "index" ]; then
+    printf '/docs'
+  elif [ "$2" = "/" ]; then
+    printf '/'
+  else
+    printf '%s' "${2%/}"
+  fi
+}
+
+# One pass over every route site/content backs, which the gate above proved is every route the
+# publish output contains. This replaces three loops over a hardcoded four-slug list (#46): two
+# English documents and the whole Japanese edition -- nine of the sixteen routes -- were covered by
+# nothing at all, and a document added after the list was written joined them silently.
+#
+# "$f" holds the $P-relative page path, as it did in the loops this replaces.
+#
+# Fed by "<<<" rather than by a pipe: a while on the right of a pipe runs in a subshell, where the
+# exit 1 inside fail would end the subshell instead of this script.
+while read -r kind route langdir slug; do
+  f=$(route_file "$route")
+
   assert_file "$P/$f" "this route was not prerendered"
   assert_grep 'class="site-nav"' "$P/$f" "the site shell (nav) is missing from this route"
   assert_count 'nav-link active' "$P/$f" 1 "exactly one nav link must be active on a prerendered route"
   assert_count '<title>' "$P/$f" 1 "a prerendered route must render exactly one title element"
-done
+
+  # The per-route active check is the real guard: if path normalization is wrong, every route
+  # renders the same active link.
+  assert_active_link "$P/$f" "$(active_href "$kind" "$route")"
+
+  if [ "$kind" = "doc" ]; then
+    assert_not_grep 'href="[^"]*\.md("|#|\?)' "$P/$f" "an un-rewritten .md link survived into the prerendered HTML"
+  fi
+done <<< "$(expected_table)"
 
 # A top-level 404.html is what makes Cloudflare Pages serve real 404s. Its documentation is
 # explicit: "If your project does not include a top-level 404.html file, Pages assumes that
@@ -213,7 +243,7 @@ assert_no_file "$P/_redirects" "_redirects is back in the publish output; its ca
 
 # The prerendering wrappers must be gone. While they shipped, the prerendered markup was
 # inert and hidden under an opaque loader until WASM started, so it reached crawlers only.
-for f in $ALL_HTML; do
+while read -r f; do
   assert_not_grep 'b-prerendering' "$P/$f" "a prerendering wrapper div survived into the published HTML, which hides the prerendered content from humans until WASM starts"
   assert_not_grep 'BlazorCodeFirst\.Site\.styles\.css' "$P/$f" "the published HTML links the scoped-CSS bundle, which this project does not produce"
 
@@ -254,7 +284,7 @@ for f in $ALL_HTML; do
   # guard must stay a check of the HTML head only -- a `grep -r` over the publish output
   # would hit the injected header on every preview run.
   assert_not_grep '<meta[^>]*name=.?robots' "$P/$f" "the published HTML carries a meta robots tag, which would keep this page out of search results"
-done
+done <<< "$(pages_with_shell)"
 
 # The guard above is only correct while NO scoped CSS exists. The SDK does NOT inject the
 # <link> for the bundle -- that line is hand-written in index.html -- so if someone adds a
@@ -265,19 +295,7 @@ assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish 
 # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
 assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
 
-assert_active_link "$P/index.html" "/"
-assert_active_link "$P/counter/index.html" "/counter"
-
-# The per-route active check is the real guard: if path normalization is wrong, every route
-# renders the same active link.
-for slug in $SLUGS; do
-  f="$P/docs/$slug/index.html"
-  assert_active_link "$f" "/docs/$slug"
-  assert_not_grep 'href="[^"]*\.md("|#|\?)' "$f" "an un-rewritten .md link survived into the prerendered HTML"
-done
-
 # "/docs" is its own index page now, not a second copy of the lowest-order document.
-assert_active_link "$P/docs/index.html" "/docs"
 assert_grep '<h1>Documentation</h1>' "$P/docs/index.html" "/docs did not render the index page's h1"
 # /docs is the only route whose <title> content was otherwise unasserted: the count guard
 # above catches a MISSING title, not a WRONG one.
@@ -291,7 +309,7 @@ assert_grep '<title>Documentation</title>' "$P/docs/index.html" "the /docs index
 # The rail renders on "/docs" and "/docs/{slug}" only -- it is placed by those two pages,
 # not by the layout, so the home page and the counter demo no longer carry the whole table
 # of contents. That is why this count is asserted here and nowhere else.
-for slug in $SLUGS; do
+for slug in $(slugs_in "$content_root"); do
   assert_count "href=\"/docs/$slug\"" "$P/docs/index.html" 2 "the /docs index does not list this document (expected the nav link plus one index entry)"
 done
 
