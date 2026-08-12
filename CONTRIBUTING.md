@@ -470,6 +470,18 @@ command listed there and never run reads exactly like one that was.
   only means something while `TrimTestApp`'s `Body` reaches both overloads.
 - Decorator chains collapse into the owning element's emitted attributes rather
   than introducing wrapper nodes or extra frame widths.
+- A test that claims to check static folding must pin more than the output it
+  asserts: either the frame count, or that the prerender output is empty. Folded
+  markup and the element path's `HtmlEncoder` output are identical by
+  construction (`ARCHITECTURE.md` §2.7 D), so folding can stop silently and an
+  output-only assertion keeps passing. #140 hit four shapes of this. A benchmark
+  frame gate required the folded side to emit strictly fewer frames, and stopped
+  running anything once both sides became equal. A prerender escaping check
+  passed either way, because `HtmlRenderer` escapes ordinary text frames itself.
+  A folded/unfolded pair lost its other half when the unfolded side turned
+  constant and quietly folded too. A browser gate never reached the
+  markup-insertion path at all, because the prerendered content was still what
+  the page was showing.
 - Preserve bidirectional Razor compatibility. A BlazorCodeFirst component stays a
   plain Blazor component, so a `.razor` file names it as a tag with no same-project
   restriction: what Razor resolves is the hand-written class, and the generator only
