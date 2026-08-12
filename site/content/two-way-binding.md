@@ -32,11 +32,14 @@ for you. So the target has to be assignable: a field, a property with a setter, 
 either (`_form.Name`, `Model.Items[0].Title`, `_dict["k"]`). A computed expression such as
 `() => _name.ToUpper()` reports BCF3018, and the way to write that is the explicit setter below.
 
-Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus. Those
-are the two you will usually want, and no list restricts the pair: both names have to be non-empty
-compile-time constants (BCF3011), the event name has to start with `on` (BCF3019), and neither may
-already be bound on the same element by another decoration (BCF3010). Nothing checks the names against
-HTML.
+Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus.
+Those are the two you will usually want, but no list restricts the pair. Three rules do:
+
+- both names have to be non-empty compile-time constants (BCF3011)
+- the event name has to start with `on` (BCF3019)
+- neither may already be bound on the same element by another decoration (BCF3010)
+
+Nothing checks the names against HTML.
 
 ## Why you write both names
 
@@ -125,7 +128,7 @@ lambda, and does not run while the tree is being built.
 
 Those two types are all an element binding takes. Anything else would be formatted on its way to the
 DOM under the culture of whichever thread does the formatting, which is not the one your component ran
-under, and Razor answers that by picking a culture from the element's literal `type` — the literal this
+under. Razor answers that by picking a culture from the element's literal `type` — the literal this
 surface does not read.
 
 So write the conversion yourself, on both sides, where the culture is visible:
