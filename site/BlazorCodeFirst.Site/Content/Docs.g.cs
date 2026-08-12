@@ -40,6 +40,9 @@ public static class Docs
         _ => "/docs",
     };
 
+    /// <summary>The route one document is served from.</summary>
+    public static string Href(string lang, string slug) => RoutePrefix(lang) + "/" + slug;
+
     /// <summary>The shell text shown to a reader of one language.</summary>
     public static ShellText Shell(string lang) => lang switch
     {

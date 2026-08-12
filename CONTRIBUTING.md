@@ -555,4 +555,14 @@ time on code that was already written and already green:
   returned an inert type, so the arm under test could be deleted and the test
   still passed. The mutation found it; the review of the test had not.
 
-Documentation and source comments are written in English.
+Documentation and source comments are written in English. `site/content/ja/` is
+the one exception: it holds the Japanese edition of the documentation site,
+which is content rather than source. Its generated form in
+`site/BlazorCodeFirst.Site/Content/Docs.g.cs` is exempt for the same reason, not
+as a second exception.
+
+The rule covers the English documents too, not only `*.cs` and `*.razor`. No
+reader-facing string belongs in a page component in any language: each language
+declares its own `shell.yml` beside its documents, and DocGen carries it into
+the manifest. A sentence that reaches a reader is content, so it lives where the
+content does.

@@ -101,6 +101,8 @@ public static class CSharpDocEmitter
 
         sb.Append("        _ => \"").Append(Escape(DocLang.RoutePrefix(DocLang.Canonical))).Append("\",\n");
         sb.Append("    };\n\n");
+        sb.Append("    /// <summary>The route one document is served from.</summary>\n");
+        sb.Append("    public static string Href(string lang, string slug) => RoutePrefix(lang) + \"/\" + slug;\n\n");
 
         // The shell text a reader sees, carried through the manifest for the same reason the documents
         // are: it is content, it is authored per language in the content tree, and no page component

@@ -85,13 +85,59 @@ order: 40
 
 - The file name becomes the `/docs/<slug>` route, so it must match `^[a-z0-9]+(-[a-z0-9]+)*\z`
   (lowercase words separated by single hyphens).
-- `site/content/` is flat: only top-level `*.md` files become documents. A file placed in a
-  subdirectory is silently ignored, not reported as an error.
-- `title` and `order` are both required, and `order` must be unique across documents.
+- A subdirectory of `site/content/` names the language of the documents in it. `ja` is the only one
+  recognized; any other directory is a build error. The top-level files are the canonical English
+  edition.
+- `title` and `order` are both required, and `order` must be unique within a language. A translation
+  shares the order of the document it translates, so the two sit at the same position in their own
+  navigations.
 - `order` decides the position of the document in the navigation and in the `/docs` index. It no
   longer changes what any URL renders: `/docs` is its own index page.
 - Do not write an h1. The page renders the front matter `title` as the h1.
 - Link to sibling documents with `./other.md` (optionally `./other.md#section`). DocGen rewrites
-  these to SPA routes and fails the build if the target does not exist. Raw HTML `<a>` tags bypass
-  that rewrite, so use Markdown link syntax.
+  these to SPA routes and fails the build if the target does not exist. The target must exist in the
+  linking document's own language, so a translation cannot link a reader out of its edition. Raw
+  HTML `<a>` tags bypass that rewrite, so use Markdown link syntax.
 - Headings h2 through h6 automatically get a permalink anchor.
+
+### Translating a document
+
+Add `site/content/ja/<slug>.md`, using the same slug as the English document it follows. A
+translation with no English counterpart is a build error: the canonical language leads.
+
+Its front matter carries a required `source-hash` in addition to `title` and `order`: the first 8
+hex digits of `SHA-256(title + LF-normalized body)` of the English document. DocGen compares it and
+
+- on a match, the page renders normally;
+- on a mismatch, the page carries a notice linking to the English document, and DocGen prints the
+  hash to paste back once the translation has actually been revised. **The build still succeeds.**
+  An English edit must not oblige the same commit to rewrite every translation;
+- when absent or malformed, the build fails. A missing hash would read as up to date rather than as
+  unchecked.
+
+Front matter `order` is left out of the hash on purpose: renumbering the navigation changes no word
+a reader sees.
+
+Paste the new hash by hand after revising. There is no `--update-hashes` flag, deliberately: it
+would let a stamp land without a revision behind it.
+
+### Shell text
+
+Every language that has documents declares a `shell.yml` beside them, the English edition included
+(`site/content/shell.yml`). It holds the strings the documentation shell shows, so no page component
+contains a sentence in any language:
+
+````yaml
+---
+name: English
+index-title: Documentation
+index-lead: Every document in the guide, in reading order.
+rail-heading: Guide
+language-label: Language
+---
+````
+
+`name` is what the language calls itself, shown in the language switch to a reader of a different
+edition. A translation additionally declares `stale-notice` and `stale-link`, which the canonical
+language must not declare. Every key is required; there is no fallback to English, because one
+English word among translated ones is exactly what nobody would notice.

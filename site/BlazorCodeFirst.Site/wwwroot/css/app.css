@@ -657,9 +657,36 @@ kbd {
     color: var(--color-muted);
     font-size: var(--text-xs);
     font-weight: 500;
-    font-weight: 500;
     letter-spacing: var(--tracking-label);
     text-transform: uppercase;
+}
+
+/* The language switch sits above the rail heading, before the list of documents: a reader who wants
+   another edition of this page wants it before reading, and someone who does not want it should
+   meet it once and never again. It renders only where a counterpart exists, so its absence is
+   information too. */
+.lang-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-md);
+    margin: 0 0 var(--space-md);
+    padding: 0;
+    list-style: none;
+}
+
+/* Not .nav-link: the CI guard asserts that exactly one element per route carries the whole value
+   "nav-link active", and a switch link is never the active document. */
+.lang-link {
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-label);
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color var(--dur-micro) var(--ease-out);
+}
+
+.lang-link:hover {
+    color: var(--color-accent);
 }
 
 .rail-list {
@@ -702,6 +729,28 @@ kbd {
 .prose {
     max-width: var(--measure);
     min-width: 0;
+}
+
+/* A translation that has fallen behind says so above its own title, because a reader deciding
+   whether to trust the page needs that before reading it rather than after. The accent rule marks
+   it as the site talking about the document, not part of the document. */
+.stale-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-sm);
+    margin: 0 0 var(--space-lg);
+    padding: var(--space-sm) var(--space-md);
+    border-left: 2px solid var(--color-accent);
+    background: var(--color-paper-2);
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+    line-height: var(--leading-body);
+}
+
+.stale-note a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
 }
 
 .prose > h1 {
