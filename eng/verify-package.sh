@@ -143,6 +143,29 @@ if not declared_version:
     )
 
 root = ET.parse(nuspec_path).getroot()
+
+# Never the ASP.NET Core shared framework, which has no browser-wasm runtime pack and broke WASM
+# consumers (#23). That arrives as its own <frameworkReferences> element rather than as a dependency,
+# so the dependency assertion below cannot see it and the payload check does not read the nuspec's
+# contents at all (#301).
+#
+# First, and matched on the local name, because everything below is bound to one namespace and to a
+# dependency being declared -- and an added framework reference takes both away. It prunes the
+# granular PackageReference, which empties the dependency group, and an empty one drops the nuspec
+# back to the 2012/06 schema. The checks below then fail on a missing metadata element and a missing
+# dependency, neither of which names what is actually wrong.
+framework_reference_names = sorted(
+    element.attrib.get("name", "<missing-name>")
+    for element in root.iter()
+    if element.tag.rpartition("}")[2] == "frameworkReference"
+)
+
+if framework_reference_names:
+    raise SystemExit(
+        "Package nuspec declares framework references, which a browser-wasm consumer cannot "
+        f"resolve: {framework_reference_names}."
+    )
+
 metadata = root.find("n:metadata", namespace)
 
 if metadata is None:
