@@ -30,6 +30,26 @@ export const WIDTHS = [320, 375, 414, 768, 1280, 1920] as const;
  * for index.html, and serve.mjs returns it for any unknown path. layout.spec.ts requests one such
  * path explicitly.
  */
+/**
+ * The slugs a language actually has a document for, read out of the content tree.
+ *
+ * Deliberately not derived from the publish output, which is what everything else here measures.
+ * Whether a page offers a language switch decides which routes the prerenderer discovers, so a
+ * defect that offers a switch it should not have offered *creates* the counterpart route it links
+ * to. An expectation read back out of the routes therefore moves with the defect and confirms it.
+ * That is not hypothetical: deleting the counterpart check in DocsNav.Counterparts published
+ * docs/ja/<slug> for a document with no Japanese source, and the route-derived version of the
+ * assertion in layout.spec.ts stayed green through it.
+ */
+export function translatedSlugs(lang: string): Set<string> {
+  const dir = resolve(__dirname, '../../content', lang);
+  return new Set(
+    readdirSync(dir)
+      .filter((name) => name.endsWith('.md'))
+      .map((name) => name.slice(0, -'.md'.length)),
+  );
+}
+
 export function publishedRoutes(): string[] {
   const routes: string[] = [];
 

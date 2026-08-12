@@ -1,4 +1,4 @@
-import { WIDTHS, expect, gotoSettled, publishedRoutes, test } from './site-pages';
+import { WIDTHS, expect, gotoSettled, publishedRoutes, test, translatedSlugs } from './site-pages';
 
 const ROUTES = publishedRoutes();
 
@@ -214,12 +214,35 @@ test.describe('the Japanese edition', () => {
     await expect(page.locator('.lang-switch a[lang="ja"]')).toHaveAttribute('href', '/docs/ja');
   });
 
-  test('a document with no counterpart offers no switch', async ({ page }) => {
-    // control-flow is English-only, and a switch there would link to a route that was never
-    // generated: a 404 reached by following the site's own navigation.
-    await gotoSettled(page, '/docs/control-flow');
-    await expect(page.locator('.lang-switch')).toHaveCount(0);
-  });
+  // A switch is offered exactly when the document has a Japanese source. Naming one English-only
+  // document here instead would assert that until the document is translated, and then assert
+  // nothing: the test would keep passing against a page that now has a counterpart, having silently
+  // stopped covering the case it was written for.
+  //
+  // The expectation reads translatedSlugs rather than ROUTES on purpose; see the comment on that
+  // helper. The switch decides what the prerenderer discovers, so a route-derived expectation
+  // agrees with a defect instead of catching it.
+  const translated = translatedSlugs('ja');
+  const english = ROUTES
+    .filter((r) => r.startsWith('/docs/') && r !== '/docs/' && !r.startsWith('/docs/ja'))
+    .map((route) => ({ route, slug: route.slice('/docs/'.length).replace(/\/$/, '') }));
+
+  for (const { route, slug } of english) {
+    const hasCounterpart = translated.has(slug);
+
+    test(`${route} offers a switch ${hasCounterpart ? 'to its counterpart' : 'to nothing'}`, async ({ page }) => {
+      await gotoSettled(page, route);
+
+      if (!hasCounterpart) {
+        // A switch here would link to a document that was never written: a page in the wrong
+        // language, or a 404, reached by following the site's own navigation.
+        await expect(page.locator('.lang-switch')).toHaveCount(0);
+        return;
+      }
+
+      await expect(page.locator('.lang-switch a[lang="ja"]')).toHaveAttribute('href', `/docs/ja/${slug}`);
+    });
+  }
 });
 
 test.describe('at 375px', () => {
