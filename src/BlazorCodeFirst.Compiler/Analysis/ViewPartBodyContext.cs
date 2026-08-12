@@ -50,7 +50,8 @@ internal sealed class ViewPartBodyContext
     private readonly Dictionary<ISymbol, int> _renderVariableOverlay =
         new(SymbolEqualityComparer.Default);
     private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
-    private readonly List<SyntaxNode> _transplantedScopes = [];
+    private readonly List<TextSpan> _transplantedScopes = [];
+    private readonly Dictionary<ISymbol, bool> _surfaceBuiltCallees = new(SymbolEqualityComparer.Default);
     private int _renderVariableDepth;
 
     public ViewPartBodyContext(
@@ -166,9 +167,9 @@ internal sealed class ViewPartBodyContext
     }
 
     /// <summary>
-    /// Registers <paramref name="block"/> as a block whose statements are transplanted into the generated
-    /// code (ARCHITECTURE.md §2.3 Transplantable), so a local declared inside it is legal at the
-    /// expansion site.
+    /// Registers <paramref name="span"/> as statements being transplanted into the generated code
+    /// (ARCHITECTURE.md §2.3 Transplantable), so a local declared inside them is legal at the expansion
+    /// site.
     /// </summary>
     /// <remarks>
     /// Needed because the block becomes several templates — one per statement, plus the returned
@@ -178,26 +179,48 @@ internal sealed class ViewPartBodyContext
     /// generated component code. One declared in a transplanted block can: it is written into the
     /// generated block beside the reference.
     /// <para>
-    /// A stack rather than a single value, so a <c>ForEach</c> nested inside a transplanted block can read
-    /// the locals of the block that encloses it, exactly as the C# the author wrote does.
+    /// A span and not the block node, because containment is all any caller asks. A stack and not a single
+    /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block
+    /// that encloses it, exactly as the C# the author wrote does.
     /// </para>
     /// </remarks>
-    public void PushTransplantedScope(SyntaxNode block) => _transplantedScopes.Add(block);
+    public void PushTransplantedScope(TextSpan span) => _transplantedScopes.Add(span);
 
     /// <summary>Removes the scope registered by the matching <see cref="PushTransplantedScope"/>.</summary>
     public void PopTransplantedScope() => _transplantedScopes.RemoveAt(_transplantedScopes.Count - 1);
 
-    /// <summary>Whether <paramref name="span"/> lies inside a block currently being transplanted.</summary>
+    /// <summary>Whether <paramref name="span"/> lies inside statements currently being transplanted.</summary>
     public bool IsInsideTransplantedScope(TextSpan span)
     {
         foreach (var scope in _transplantedScopes)
         {
-            if (scope.FullSpan.Contains(span))
+            if (scope.Contains(span))
                 return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// The memo for "does this callee's body build its <c>View</c> from the design-time surface", the
+    /// predicate BCF3030 turns on.
+    /// </summary>
+    /// <remarks>
+    /// The answer is a property of the callee alone, and deciding it walks that callee's whole declaration,
+    /// binding every candidate node. A body calling one helper in five places would otherwise pay that walk
+    /// five times, on every keystroke. Scoped to this context, which is per body and never reaches the
+    /// cached incremental model, so no symbol escapes into it.
+    /// <para>
+    /// A lookup pair rather than a compute delegate: the computation needs this context, so a delegate
+    /// would capture it and allocate a closure at every call site it exists to make cheaper.
+    /// </para>
+    /// </remarks>
+    public bool TryGetSurfaceBuiltCallee(IMethodSymbol method, out bool answer) =>
+        _surfaceBuiltCallees.TryGetValue(method, out answer);
+
+    /// <summary>Records the answer <see cref="TryGetSurfaceBuiltCallee"/> will give from now on.</summary>
+    public void RecordSurfaceBuiltCallee(IMethodSymbol method, bool answer) =>
+        _surfaceBuiltCallees[method] = answer;
 
     /// <summary>
     /// Records a distinct accessibility requirement for a referenced member/type so expansion can

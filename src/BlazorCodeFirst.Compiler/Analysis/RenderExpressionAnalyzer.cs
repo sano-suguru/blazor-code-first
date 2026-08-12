@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
+using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
 
@@ -143,8 +144,17 @@ internal static class RenderExpressionAnalyzer
         // groups (Body => SomeMethodReturningRenderFragment), whose GetTypeInfo().Type is null so the
         // RenderFragment arm above does not catch them either; without this condition such a group would
         // reach the arms below and have arguments read off a call that was never written.
-        if (expression is not InvocationExpressionSyntax invocation || symbol is not IMethodSymbol method)
+        //
+        // A conversion operator is filtered here so every arm below can trust that `method` is the method
+        // this invocation calls. Overload resolution that fails still resolves a symbol: measured, the
+        // GetSymbolInfo for `Card().Class("x")` — where .Class does not bind on a View — is the View
+        // conversion operator. Left through, it reaches the arms as if the author had called it.
+        if (expression is not InvocationExpressionSyntax invocation
+            || symbol is not IMethodSymbol method
+            || method.MethodKind == MethodKind.Conversion)
+        {
             return null;
+        }
 
         // One arm per SurfaceMethodKind, dispatching on the single lookup that says which method of the
         // design-time surface this is. A switch expression rather than the chain of predicates it
@@ -265,35 +275,10 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // A method group has no lambda parameter to bind, so the iteration variable is bound by the key
-        // lambda alone and the content becomes a call taking it. The three answers are the ones
-        // ClassifyNonSurfaceCall already gives to a written call, so this arm resolves the callee and
-        // routes it there rather than growing a fourth classification.
-        if (contentArg.Expression is not (SimpleLambdaExpressionSyntax or ParenthesizedLambdaExpressionSyntax)
-            && context.SemanticModel.GetSymbolInfo(contentArg.Expression, context.CancellationToken)
-                .Symbol is IMethodSymbol contentMethod)
-        {
-            return ClassifyForEachMethodGroup(
-                invocation, sourceArg, keyArg, contentArg, contentMethod, context);
-        }
-
         if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
-            || !TryExtractContentLambda(
-                contentArg.Expression,
-                out var contentParameter,
-                out var contentStatements,
-                out var contentBlock,
-                out var contentBody))
-        {
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3004,
-                invocation.GetLocation(),
-                []));
-            return null;
-        }
-
-        if (context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken) is not { } keyParamSymbol
-            || context.SemanticModel.GetDeclaredSymbol(contentParameter, context.CancellationToken) is not { } contentParamSymbol)
+            || context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken)
+                is not { } keyParamSymbol
+            || !TryBindForEachContent(contentArg.Expression, context, out var contentShape))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3004,
@@ -306,25 +291,25 @@ internal static class RenderExpressionAnalyzer
         // item, so it is normalized before the iteration variable is registered.
         var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
-        var itemOrdinal = context.PushRenderVariable(contentParamSymbol, keyParamSymbol);
-        if (contentBlock is not null)
-            context.PushTransplantedScope(contentBlock);
+        // A method group binds no lambda parameter, so the iteration variable is named by the key lambda
+        // alone; a content lambda contributes its own parameter at the same ordinal.
+        var itemSymbols = contentShape.LambdaParameter is { } contentParamSymbol
+            ? new[] { contentParamSymbol, keyParamSymbol }
+            : [keyParamSymbol];
+
+        var itemOrdinal = context.PushRenderVariable(itemSymbols);
+        if (!contentShape.TransplantedSpan.IsEmpty)
+            context.PushTransplantedScope(contentShape.TransplantedSpan);
 
         try
         {
             var key = ExpressionTemplateFactory.Create(keyBody, context);
-            var content = Analyze(contentBody, context);
+
+            var content = contentShape.Callee is { } callee
+                ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
+                : BuildLambdaContent(contentShape, context);
             if (content is null)
                 return null;
-
-            // The statements are normalized inside the same render-variable scope as the returned
-            // expression, so a reference to the iteration variable becomes the same hole in both.
-            if (contentStatements.Length > 0)
-            {
-                content = new TransplantedBlockTemplateNode(
-                    ExpressionTemplateFactory.CreateForStatements(contentStatements, context),
-                    content);
-            }
 
             if (!KeyReferencesItemOrdinal(key, itemOrdinal))
             {
@@ -342,110 +327,149 @@ internal static class RenderExpressionAnalyzer
         }
         finally
         {
-            if (contentBlock is not null)
+            if (!contentShape.TransplantedSpan.IsEmpty)
                 context.PopTransplantedScope();
 
-            context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
+            context.PopRenderVariable(itemSymbols);
         }
     }
 
     /// <summary>
-    /// A <c>ForEach</c> whose <c>content</c> is a bare method group, read as the call it stands for with
-    /// the iteration variable in its one argument position.
+    /// The <c>content</c> argument of a <c>ForEach</c>, resolved to one of the two shapes the generator
+    /// accepts. Exactly one of <see cref="Callee"/> and <see cref="LambdaParameter"/> is set.
+    /// </summary>
+    /// <param name="TransplantedSpan">
+    /// The span covering <see cref="Statements"/>, or an empty span when there are none. Carried rather
+    /// than recomputed so the scope is opened and closed on one condition.
+    /// </param>
+    private readonly record struct ForEachContent(
+        IMethodSymbol? Callee,
+        ISymbol? LambdaParameter,
+        ExpressionSyntax? LambdaBody,
+        ImmutableArray<StatementSyntax> Statements,
+        TextSpan TransplantedSpan);
+
+    /// <summary>
+    /// Resolves the <c>content</c> argument to a lambda (expression- or block-bodied) or to a bare method
+    /// group read as the call it stands for.
     /// </summary>
     /// <remarks>
-    /// Restricted to a one-parameter <c>View</c>-returning method, which is the shape
-    /// <c>Func&lt;T, View&gt;</c> binds to directly. Anything wider would need argument binding, and there
-    /// is no invocation syntax here to bind against.
-    /// <para>
-    /// The three answers match <see cref="ClassifyNonSurfaceCall"/>'s. A <c>[ViewPart]</c> expands and the
-    /// key lands on its root; a surface-built callee is BCF3030; anything else is Opaque, whose fragment
-    /// opens no keyable frame and so reaches BCF3003 through <see cref="KeyabilityResolver"/>.
-    /// </para>
+    /// The method group is restricted to one parameter, which is the shape <c>Func&lt;T, View&gt;</c> binds
+    /// to directly. Anything wider would need argument binding, and there is no invocation syntax here to
+    /// bind against. Whether that callee can be translated at all is <see cref="ClassifyCallee"/>'s
+    /// question, asked later so its diagnostics land after the key's.
     /// </remarks>
-    private static ForEachTemplateNode? ClassifyForEachMethodGroup(
-        InvocationExpressionSyntax invocation,
-        ArgumentSyntax sourceArg,
-        ArgumentSyntax keyArg,
-        ArgumentSyntax contentArg,
-        IMethodSymbol contentMethod,
+    private static bool TryBindForEachContent(
+        ExpressionSyntax content, ViewPartBodyContext context, out ForEachContent shape)
+    {
+        shape = default;
+
+        if (content is not LambdaExpressionSyntax)
+        {
+            if (context.SemanticModel.GetSymbolInfo(content, context.CancellationToken).Symbol
+                is not IMethodSymbol { Parameters.Length: 1 } callee)
+            {
+                return false;
+            }
+
+            shape = new ForEachContent(callee, null, null, [], default);
+            return true;
+        }
+
+        if (!TryExtractLambdaParameterAndBody(content, out var parameter, out var bodyNode)
+            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                is not { } parameterSymbol)
+        {
+            return false;
+        }
+
+        if (bodyNode is ExpressionSyntax expressionBody)
+        {
+            shape = new ForEachContent(null, parameterSymbol, expressionBody, [], default);
+            return true;
+        }
+
+        if (bodyNode is not BlockSyntax block
+            || !TryReadTransplantableBlock(block, out var statements, out var returned))
+        {
+            return false;
+        }
+
+        var span = statements.IsEmpty
+            ? default
+            : TextSpan.FromBounds(
+                statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
+
+        shape = new ForEachContent(null, parameterSymbol, returned, statements, span);
+        return true;
+    }
+
+    /// <summary>
+    /// The content of a lambda: the returned expression's node, wrapped in its transplanted statements when
+    /// the lambda had a block body.
+    /// </summary>
+    private static RenderTemplateNode? BuildLambdaContent(
+        ForEachContent shape, ViewPartBodyContext context)
+    {
+        var content = Analyze(shape.LambdaBody!, context);
+        if (content is null)
+            return null;
+
+        // The statements are normalized inside the same render-variable scope as the returned expression,
+        // so a reference to the iteration variable becomes the same hole in both.
+        return shape.Statements.IsEmpty
+            ? content
+            : new TransplantedBlockTemplateNode(
+                ExpressionTemplateFactory.CreateForStatements(shape.Statements, context),
+                content);
+    }
+
+    /// <summary>
+    /// The content of a method group: the call it stands for, with the iteration variable in its one
+    /// argument position, classified exactly as a written call would be.
+    /// </summary>
+    /// <remarks>
+    /// A <c>[ViewPart]</c> expands and the key lands on its root; a surface-built callee is BCF3030;
+    /// anything else is Opaque, whose fragment opens no keyable frame and so reaches BCF3003 through
+    /// <see cref="KeyabilityResolver"/>.
+    /// </remarks>
+    private static RenderTemplateNode? BuildMethodGroupContent(
+        IMethodSymbol callee,
+        ExpressionSyntax contentExpression,
+        int itemOrdinal,
         ViewPartBodyContext context)
     {
-        if (contentMethod.Parameters.Length != 1
-            || contentMethod.MethodKind != MethodKind.Ordinary
-            || !SymbolEqualityComparer.Default.Equals(
-                contentMethod.ReturnType, context.KnownSymbols.ViewType)
-            || !TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
-            || context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken)
-                is not { } keyParamSymbol)
-        {
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3004,
-                invocation.GetLocation(),
-                []));
-            return null;
-        }
+        var itemHole = new ParameterHoleExpressionSegment(itemOrdinal);
 
-        var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
-        var itemOrdinal = context.PushRenderVariable(keyParamSymbol);
-        try
+        switch (ClassifyCallee(callee, contentExpression.GetLocation(), context))
         {
-            var key = ExpressionTemplateFactory.Create(keyBody, context);
-            var itemHole = ExpressionTemplate.Create([new ParameterHoleExpressionSegment(itemOrdinal)]);
-
-            RenderTemplateNode content;
-            if (context.KnownSymbols.IsViewPart(contentMethod))
-            {
-                content = new ViewPartCallTemplateNode(
-                    MethodKey.Create(contentMethod),
-                    contentMethod.Name,
+            case NonSurfaceCallKind.ViewPart:
+                return new ViewPartCallTemplateNode(
+                    MethodKey.Create(callee),
+                    callee.Name,
                     new EquatableArray<ViewPartInvocationArgument>(
-                        [new ViewPartInvocationArgument(0, 0, IsImplicitDefault: false, itemHole)]),
-                    TemplateLocation.From(contentArg.Expression.GetLocation()));
-            }
-            else if (BodyBuildsFromDesignTimeSurface(contentMethod, context))
-            {
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3030,
-                    contentArg.Expression.GetLocation(),
-                    [contentMethod.Name]));
-                return null;
-            }
-            else
-            {
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF2001,
-                    contentArg.Expression.GetLocation(),
-                    [contentMethod.Name]));
+                        [
+                            new ViewPartInvocationArgument(
+                                0, 0, IsImplicitDefault: false, ExpressionTemplate.Create([itemHole])),
+                        ]),
+                    TemplateLocation.From(contentExpression.GetLocation()));
 
-                // The group is written as the call it stands for. Fully qualified because the generated
-                // file carries no using directives.
-                var callee = contentMethod.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                content = new OpaqueViewTemplateNode(ExpressionTemplate.Create(
+            case NonSurfaceCallKind.Opaque:
+                // The group written back as the call it stands for. Qualified through the containing type
+                // rather than through the method symbol, which FullyQualifiedFormat spells as a bare name:
+                // the generated file carries no using directives. Same construction as
+                // ExpressionTemplateFactory's static-call rewrite.
+                var qualified = callee.ContainingType.ToDisplayString(
+                    SymbolDisplayFormat.FullyQualifiedFormat);
+                return new OpaqueViewTemplateNode(ExpressionTemplate.Create(
                     [
-                        new LiteralExpressionSegment($"{callee}("),
-                        new ParameterHoleExpressionSegment(itemOrdinal),
+                        new LiteralExpressionSegment($"{qualified}.{callee.Name}("),
+                        itemHole,
                         new LiteralExpressionSegment(")"),
                     ]));
-            }
 
-            if (!KeyReferencesItemOrdinal(key, itemOrdinal))
-            {
-                context.Diagnostics.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3002,
-                    keyArg.GetLocation(),
-                    []));
-            }
-
-            return new ForEachTemplateNode(
-                source,
-                key,
-                content,
-                TemplateLocation.From(invocation.GetLocation()));
-        }
-        finally
-        {
-            context.PopRenderVariable(keyParamSymbol);
+            default:
+                return null;
         }
     }
 
@@ -1006,57 +1030,92 @@ internal static class RenderExpressionAnalyzer
     private static RenderTemplateNode? ClassifyNonSurfaceCall(
         InvocationExpressionSyntax invocation, IMethodSymbol method, ViewPartBodyContext context)
     {
-        if (context.KnownSymbols.IsViewPart(method))
+        switch (ClassifyCallee(method, invocation.GetLocation(), context))
         {
-            var arguments = CreateInvocationArguments(invocation, method, context, out var contentArguments);
-            if (arguments is null)
+            case NonSurfaceCallKind.ViewPart:
+                var arguments = CreateInvocationArguments(
+                    invocation, method, context, out var contentArguments);
+                if (arguments is null)
+                    return null;
+
+                return new ViewPartCallTemplateNode(
+                    MethodKey.Create(method),
+                    method.Name,
+                    arguments.Value,
+                    TemplateLocation.From(invocation.GetLocation()))
+                {
+                    ContentArguments = contentArguments,
+                };
+
+            case NonSurfaceCallKind.Opaque:
+                return new OpaqueViewTemplateNode(
+                    ExpressionTemplateFactory.Create(invocation, context));
+
+            default:
                 return null;
-
-            return new ViewPartCallTemplateNode(
-                MethodKey.Create(method),
-                method.Name,
-                arguments.Value,
-                TemplateLocation.From(invocation.GetLocation()))
-            {
-                ContentArguments = contentArguments,
-            };
         }
+    }
 
-        // Three conditions, each excluding a shape that would otherwise be routed to a runtime fragment it
-        // does not have.
-        //
-        // Ordinary, because a failed overload resolution can still resolve a symbol: measured, the
-        // GetSymbolInfo for `Card().Class("x")` — where .Class does not bind on a View — is the
-        // View conversion operator, whose return type is View. Routing that would replace BCF3008 with a
-        // silent AddContent.
-        //
-        // Not a reduced extension, because a user extension taking ElementView and returning View is a
-        // wrapping form rather than a decoration, and 付録A's BCF3026 row keeps it at BCF1003.
-        //
-        // View exactly, not every inert type, because ElementView and ComponentView<T> reach View through
-        // conversions that yield the default: a call returning one of those carries no fragment even in
-        // principle.
+    /// <summary>What the generator does with a call that is not design-time surface syntax.</summary>
+    private enum NonSurfaceCallKind
+    {
+        /// <summary>Not this analyzer's business; the enclosing failure answers (BCF1003).</summary>
+        NotTranslatable,
+
+        /// <summary>Expanded into the call site.</summary>
+        ViewPart,
+
+        /// <summary>Refused: the callee's <c>View</c> is empty at runtime. BCF3030 reported.</summary>
+        RendersNothing,
+
+        /// <summary>Rendered at runtime through the fragment it returns. BCF2001 reported.</summary>
+        Opaque,
+    }
+
+    /// <summary>
+    /// Which of the four answers a call to <paramref name="method"/> gets, reporting BCF3030 or BCF2001 as
+    /// it decides.
+    /// </summary>
+    /// <remarks>
+    /// One function for the two sites that ask — a written invocation, and a <c>ForEach</c> content method
+    /// group — so the split cannot drift between them. Only the node each builds is genuinely theirs.
+    /// <para>
+    /// <see cref="MethodKind.Ordinary"/> is required because the callee has to be a method that exists in
+    /// generated code and is called as written. That excludes a local function, which the generated
+    /// <c>RenderView</c> cannot name; a reduced extension, which 付録A's BCF3026 row keeps at BCF1003
+    /// because an <c>ElementView</c>-taking, <c>View</c>-returning extension is a wrapping form rather than
+    /// a decoration; and a conversion operator, which <see cref="Classify"/> already filters but which
+    /// costs nothing to exclude again where the consequence would be silent.
+    /// </para>
+    /// <para>
+    /// The return type must be <c>View</c> exactly. <c>ElementView</c> and <c>ComponentView&lt;T&gt;</c>
+    /// reach <c>View</c> through conversions that yield the default, so a call returning one of those
+    /// carries no fragment even in principle and routing it here would emit an <c>AddContent</c> that
+    /// renders nothing on every path.
+    /// </para>
+    /// </remarks>
+    private static NonSurfaceCallKind ClassifyCallee(
+        IMethodSymbol method, Location location, ViewPartBodyContext context)
+    {
+        if (context.KnownSymbols.IsViewPart(method))
+            return NonSurfaceCallKind.ViewPart;
+
         if (method.MethodKind != MethodKind.Ordinary
-            || !SymbolEqualityComparer.Default.Equals(method.ReturnType, context.KnownSymbols.ViewType))
+            || !context.KnownSymbols.IsContentType(method.ReturnType))
         {
-            return null;
+            return NonSurfaceCallKind.NotTranslatable;
         }
 
         if (BodyBuildsFromDesignTimeSurface(method, context))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3030,
-                invocation.GetLocation(),
-                [method.Name]));
-            return null;
+                DiagnosticDescriptors.BCF3030, location, [method.Name]));
+            return NonSurfaceCallKind.RendersNothing;
         }
 
         context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BCF2001,
-            invocation.GetLocation(),
-            [method.Name]));
-
-        return new OpaqueViewTemplateNode(ExpressionTemplateFactory.Create(invocation, context));
+            DiagnosticDescriptors.BCF2001, location, [method.Name]));
+        return NonSurfaceCallKind.Opaque;
     }
 
     /// <summary>
@@ -1069,12 +1128,29 @@ internal static class RenderExpressionAnalyzer
     /// nothing; nothing here can tell, and 付録A's BCF2001 row records that residue. <c>DESIGN.md</c> §4.3
     /// already routes cross-assembly reuse to components.
     /// <para>
-    /// Reached only from the arm above, so a body full of element helpers never pays for it. The prefilter
-    /// on syntax kind mirrors <see cref="Classify"/>'s, for the same reason: a literal or a lambda must
-    /// not each buy a semantic query.
+    /// Memoized on the context, because the answer is a property of the callee and deciding it binds that
+    /// callee's whole declaration: a body calling one helper five times would otherwise walk it five times
+    /// per keystroke.
     /// </para>
     /// </remarks>
     private static bool BodyBuildsFromDesignTimeSurface(
+        IMethodSymbol method, ViewPartBodyContext context)
+    {
+        if (context.TryGetSurfaceBuiltCallee(method, out var memoized))
+            return memoized;
+
+        var answer = ComputeBodyBuildsFromDesignTimeSurface(method, context);
+        context.RecordSurfaceBuiltCallee(method, answer);
+        return answer;
+    }
+
+    /// <remarks>
+    /// The prefilter on syntax kind mirrors <see cref="Classify"/>'s, for the same reason: a literal or a
+    /// lambda must not each buy a semantic query. An identifier in a member access's <c>Name</c> position
+    /// is skipped because it binds to what its parent already answered for, so asking again can only
+    /// repeat that answer.
+    /// </remarks>
+    private static bool ComputeBodyBuildsFromDesignTimeSurface(
         IMethodSymbol method, ViewPartBodyContext context)
     {
         var symbols = context.KnownSymbols;
@@ -1084,7 +1160,13 @@ internal static class RenderExpressionAnalyzer
             context.CancellationToken.ThrowIfCancellationRequested();
 
             var declaration = reference.GetSyntax(context.CancellationToken);
-            var model = context.SemanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
+
+            // The context's own model when the callee shares the body's tree, which is the common case of a
+            // helper beside the component. A model built here starts with empty bound-node caches, and the
+            // walk below is about to force a bind of every candidate in the declaration.
+            var model = declaration.SyntaxTree == context.SemanticModel.SyntaxTree
+                ? context.SemanticModel
+                : context.SemanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
 
             foreach (var node in declaration.DescendantNodes())
             {
@@ -1096,14 +1178,12 @@ internal static class RenderExpressionAnalyzer
                     continue;
                 }
 
-                if (!symbols.IsInertDesignTimeType(
-                        model.GetTypeInfo(node, context.CancellationToken).Type))
-                {
+                if (node.Parent is MemberAccessExpressionSyntax parent && parent.Name == node)
                     continue;
-                }
 
-                if (model.GetSymbolInfo(node, context.CancellationToken).Symbol is { } member
-                    && symbols.IsDesignTimeApiMember(member))
+                if (symbols.IsDesignTimeApiReference(
+                        model.GetTypeInfo(node, context.CancellationToken).Type,
+                        model.GetSymbolInfo(node, context.CancellationToken).Symbol))
                 {
                     return true;
                 }
@@ -2037,56 +2117,36 @@ internal static class RenderExpressionAnalyzer
     };
 
     /// <summary>
-    /// The <c>ForEach</c> content lambda, in either accepted shape: an expression body, or a block whose
-    /// statements are local declarations and expression statements followed by exactly one
-    /// <c>return</c> (ARCHITECTURE.md §2.3 Transplantable).
+    /// The statements a transplantable block contributes and the expression it returns, or
+    /// <see langword="false"/> when the block is not one of the accepted shapes (ARCHITECTURE.md §2.3
+    /// Transplantable).
     /// </summary>
     /// <remarks>
-    /// The block is narrow on purpose. A second <c>return</c> and a native control statement each need
-    /// their own disjoint sequence space, which is the wider Transplantable slice and not this one.
-    /// <c>await</c> cannot appear because the generated <c>RenderView</c> is not async, and a local
-    /// function cannot exist in the generated body at all; both are excluded by the statement kinds
-    /// admitted here.
+    /// Narrow on purpose. A second <c>return</c> and a native control statement each need their own
+    /// disjoint sequence space, which is the wider Transplantable slice and not this one. <c>await</c>
+    /// cannot appear because the generated <c>RenderView</c> is not async, and a local function cannot
+    /// exist in the generated body at all; both are excluded by the statement kinds admitted here.
     /// <para>
-    /// A declaration whose name starts with the generator's own prefix is refused rather than renamed. The
-    /// rename plan in <see cref="ExpressionTemplateFactory"/> is per template, and the block becomes
-    /// several templates — one per statement, plus the returned expression — so a name renamed in one
-    /// would stay as written in the others. The prefix is reserved, so refusing costs an author nothing.
+    /// A local whose name starts with the generator's own prefix is refused rather than renamed. The rename
+    /// plan in <see cref="ExpressionTemplateFactory"/> is per template, and the block becomes several
+    /// templates — one per statement, plus the returned expression — so a name renamed in one would stay as
+    /// written in the others. The prefix is reserved, so refusing costs an author nothing. Only
+    /// declarations are checked: a reference cannot collide with a name the generator introduces without a
+    /// declaration to collide through.
     /// </para>
     /// </remarks>
-    private static bool TryExtractContentLambda(
-        ExpressionSyntax expression,
-        out ParameterSyntax parameter,
+    private static bool TryReadTransplantableBlock(
+        BlockSyntax block,
         out ImmutableArray<StatementSyntax> statements,
-        out BlockSyntax? block,
-        out ExpressionSyntax body)
+        out ExpressionSyntax returned)
     {
         statements = [];
-        block = null;
-
-        if (TryExtractSingleParameterLambda(expression, out parameter, out body))
-            return true;
-
-        switch (expression)
-        {
-            case SimpleLambdaExpressionSyntax { Body: BlockSyntax simpleBlock } simple:
-                parameter = simple.Parameter;
-                block = simpleBlock;
-                break;
-            case ParenthesizedLambdaExpressionSyntax { Body: BlockSyntax parenBlock } paren
-                when paren.ParameterList.Parameters.Count == 1:
-                parameter = paren.ParameterList.Parameters[0];
-                block = parenBlock;
-                break;
-            default:
-                return false;
-        }
+        returned = null!;
 
         var count = block.Statements.Count;
         if (count == 0
-            || block.Statements[count - 1] is not ReturnStatementSyntax { Expression: { } returned })
+            || block.Statements[count - 1] is not ReturnStatementSyntax { Expression: { } last })
         {
-            block = null;
             return false;
         }
 
@@ -2095,20 +2155,16 @@ internal static class RenderExpressionAnalyzer
         {
             var statement = block.Statements[index];
             if (statement is not (LocalDeclarationStatementSyntax or ExpressionStatementSyntax))
-            {
-                block = null;
                 return false;
-            }
 
             leading.Add(statement);
         }
 
-        foreach (var token in block.DescendantTokens())
+        foreach (var declarator in block.DescendantNodes().OfType<VariableDeclaratorSyntax>())
         {
-            if (token.IsKind(SyntaxKind.IdentifierToken)
-                && token.ValueText.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal))
+            if (declarator.Identifier.ValueText.StartsWith(
+                    GeneratedNamePrefix, System.StringComparison.Ordinal))
             {
-                block = null;
                 return false;
             }
         }
@@ -2116,34 +2172,59 @@ internal static class RenderExpressionAnalyzer
         // The original nodes, not a rebuilt list: SyntaxFactory.List re-parents its members into a new
         // list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
         statements = leading.ToImmutable();
-        body = returned;
+        returned = last;
         return true;
     }
 
-    private static bool TryExtractSingleParameterLambda(
+    /// <summary>
+    /// The parameter and body of a one-parameter lambda, in either body form. The caller decides which
+    /// forms it accepts by testing <paramref name="body"/> for <see cref="ExpressionSyntax"/> or
+    /// <see cref="BlockSyntax"/>.
+    /// </summary>
+    private static bool TryExtractLambdaParameterAndBody(
         ExpressionSyntax expression,
         out ParameterSyntax parameter,
-        out ExpressionSyntax body)
+        out CSharpSyntaxNode body)
     {
         switch (expression)
         {
-            case SimpleLambdaExpressionSyntax { Body: ExpressionSyntax simpleBody } simple:
+            case SimpleLambdaExpressionSyntax simple:
                 parameter = simple.Parameter;
-                body = simpleBody;
+                body = simple.Body;
                 return true;
             // A list pattern ([var single]) on a SeparatedSyntaxList requires System.Index.GetOffset,
             // which is unavailable on netstandard2.0 (CS0656); match the single-parameter shape with an
             // explicit count check instead.
-            case ParenthesizedLambdaExpressionSyntax { Body: ExpressionSyntax parenBody } paren
+            case ParenthesizedLambdaExpressionSyntax paren
                 when paren.ParameterList.Parameters.Count == 1:
                 parameter = paren.ParameterList.Parameters[0];
-                body = parenBody;
+                body = paren.Body;
                 return true;
             default:
                 parameter = null!;
                 body = null!;
                 return false;
         }
+    }
+
+    /// <summary>
+    /// The parameter and expression body of a one-parameter lambda, for the positions that accept no other
+    /// body form: a <c>ForEach</c> key, whose body is transplanted into <c>SetKey</c>.
+    /// </summary>
+    private static bool TryExtractSingleParameterLambda(
+        ExpressionSyntax expression,
+        out ParameterSyntax parameter,
+        out ExpressionSyntax body)
+    {
+        if (TryExtractLambdaParameterAndBody(expression, out parameter, out var bodyNode)
+            && bodyNode is ExpressionSyntax expressionBody)
+        {
+            body = expressionBody;
+            return true;
+        }
+
+        body = null!;
+        return false;
     }
 
     private static bool KeyReferencesItemOrdinal(ExpressionTemplate key, int itemOrdinal)

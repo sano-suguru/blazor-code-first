@@ -45,6 +45,9 @@ internal static class ExpressionTemplateFactory
     private static readonly SymbolDisplayFormat QualifiedNameWithoutTypeArguments =
         SymbolDisplayFormat.FullyQualifiedFormat.WithGenericsOptions(SymbolDisplayGenericsOptions.None);
 
+    /// <summary>What <see cref="CreateForStatements"/> writes between two transplanted statements.</summary>
+    private static readonly LiteralExpressionSegment StatementSeparator = new("\n");
+
     public static ExpressionTemplate Create(ExpressionSyntax expression, ViewPartBodyContext context) =>
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
 
@@ -71,13 +74,16 @@ internal static class ExpressionTemplateFactory
 
         foreach (var statement in statements)
         {
+            // Between statements, not after each: a trailing separator would have to be stripped back off
+            // by whoever emits the text, putting one convention in two files. Adjacent literals still
+            // coalesce in ExpressionTemplate's constructor, so the canonical form is unchanged.
+            if (segments.Count > 0)
+                segments.Add(StatementSeparator);
+
             var template = CreateCore(
                 statement, context, AuthoredContextNameHygiene.Create(statement, context));
 
-            foreach (var segment in template.Segments)
-                segments.Add(segment);
-
-            segments.Add(new LiteralExpressionSegment("\n"));
+            segments.AddRange(template.Segments.AsImmutableArray());
         }
 
         return ExpressionTemplate.Create(segments.ToImmutable());

@@ -2,7 +2,8 @@ namespace BlazorCodeFirst.Compiler.Tests;
 
 public sealed class ForEachTransplantTests
 {
-    private const string AcceptedSource = """
+    /// <summary>A component whose <c>ForEach</c> content is <c>$CONTENT$</c>.</summary>
+    private const string Host = """
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
@@ -10,68 +11,27 @@ public sealed class ForEachTransplantTests
         {
             private readonly List<string> _items = new() { "a", "b" };
 
-            protected override View Body =>
-                Html.ForEach(_items, x => x, x =>
+            protected override View Body => Html.ForEach(_items, x => x, $CONTENT$);
+        }
+        """;
+
+    private const string BlockContent = """
+        x =>
                 {
                     var label = x.ToUpperInvariant();
                     return Html.Span[label];
-                });
-        }
+                }
         """;
 
-    private const string ExpressionSource = """
-        using BlazorCodeFirst;
-        using System.Collections.Generic;
+    private const string ExpressionContent = "x => Html.Span[x.ToUpperInvariant()]";
 
-        public partial class C : BodyComponentBase
-        {
-            private readonly List<string> _items = new() { "a", "b" };
-
-            protected override View Body =>
-                Html.ForEach(_items, x => x, x => Html.Span[x.ToUpperInvariant()]);
-        }
-        """;
-
-    private const string MultipleReturnsSource = """
-        using BlazorCodeFirst;
-        using System.Collections.Generic;
-
-        public partial class C : BodyComponentBase
-        {
-            private readonly List<string> _items = new() { "a", "b" };
-
-            protected override View Body =>
-                Html.ForEach(_items, x => x, x =>
-                {
-                    if (x.Length == 0)
-                        return Html.Span["empty"];
-
-                    return Html.Span[x];
-                });
-        }
-        """;
-
-    private const string ReservedPrefixSource = """
-        using BlazorCodeFirst;
-        using System.Collections.Generic;
-
-        public partial class C : BodyComponentBase
-        {
-            private readonly List<string> _items = new() { "a", "b" };
-
-            protected override View Body =>
-                Html.ForEach(_items, x => x, x =>
-                {
-                    var __bcf_item_0 = x.ToUpperInvariant();
-                    return Html.Span[__bcf_item_0];
-                });
-        }
-        """;
+    private static GeneratorRunResult Run(string content) =>
+        CompilationTestHost.RunGenerator(Host.Replace("$CONTENT$", content));
 
     [Fact]
     public void ForEachContent_WhenBlockBodiedWithOneTrailingReturn_TransplantsTheStatements()
     {
-        var result = CompilationTestHost.RunGenerator(AcceptedSource);
+        var result = Run(BlockContent);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3004");
@@ -91,29 +51,44 @@ public sealed class ForEachTransplantTests
     {
         // Statements emit no sequence-consuming call, so the block form must allocate the same numbers
         // the expression form does.
-        var blockResult = CompilationTestHost.RunGenerator(AcceptedSource);
-        var expressionResult = CompilationTestHost.RunGenerator(ExpressionSource);
-
         Assert.Equal(
             SequenceArguments.InTextOrder(
-                Assert.Single(expressionResult.GeneratedSources).SourceText.ToString()),
+                Assert.Single(Run(ExpressionContent).GeneratedSources).SourceText.ToString()),
             SequenceArguments.InTextOrder(
-                Assert.Single(blockResult.GeneratedSources).SourceText.ToString()));
+                Assert.Single(Run(BlockContent).GeneratedSources).SourceText.ToString()));
     }
 
-    [Fact]
-    public void ForEachContent_WhenBlockHasMoreThanOneReturn_ReportsBCF3004()
+    [Theory]
+    // Two returns: each would need a sequence space of its own, which is the wider Transplantable slice.
+    [InlineData(
+        "two returns",
+        """
+        x =>
+                {
+                    if (x.Length == 0)
+                        return Html.Span["empty"];
+
+                    return Html.Span[x];
+                }
+        """)]
+    // A local spelled with the generator's reserved prefix, which the rename plan cannot carry across the
+    // several templates a block becomes.
+    [InlineData(
+        "generator-reserved local name",
+        """
+        x =>
+                {
+                    var __bcf_item_0 = x.ToUpperInvariant();
+                    return Html.Span[__bcf_item_0];
+                }
+        """)]
+    public void ForEachContent_WhenBlockIsOutsideTheAcceptedShape_ReportsBCF3004(
+        string shape, string content)
     {
-        var result = CompilationTestHost.RunGenerator(MultipleReturnsSource);
+        var result = Run(content);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004");
-    }
-
-    [Fact]
-    public void ForEachContent_WhenBlockDeclaresAGeneratorReservedName_ReportsBCF3004()
-    {
-        var result = CompilationTestHost.RunGenerator(ReservedPrefixSource);
-
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004");
+        Assert.True(
+            result.Diagnostics.Any(d => d.Id == "BCF3004"),
+            $"{shape}: expected BCF3004, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
     }
 }

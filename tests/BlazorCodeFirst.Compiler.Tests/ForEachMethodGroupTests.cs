@@ -2,7 +2,11 @@ namespace BlazorCodeFirst.Compiler.Tests;
 
 public sealed class ForEachMethodGroupTests
 {
-    private const string ViewPartSource = """
+    /// <summary>
+    /// A <c>ForEach</c> whose content is the bare method group <c>Row</c>, declared with
+    /// <c>$ATTRIBUTE$</c>.
+    /// </summary>
+    private const string MethodGroupHost = """
         using BlazorCodeFirst;
         using System.Collections.Generic;
 
@@ -12,37 +16,7 @@ public sealed class ForEachMethodGroupTests
 
             protected override View Body => Html.ForEach(_items, x => x, Row);
 
-            [ViewPart]
-            private static View Row(string item) => Html.Span[item];
-        }
-        """;
-
-    private const string InertSource = """
-        using BlazorCodeFirst;
-        using System.Collections.Generic;
-
-        public partial class C : BodyComponentBase
-        {
-            private readonly List<string> _items = new() { "a", "b" };
-
-            protected override View Body => Html.ForEach(_items, x => x, Row);
-
-            private static View Row(string item) => Html.Span[item];
-        }
-        """;
-
-    private const string ConstructedDelegateSource = """
-        using BlazorCodeFirst;
-        using System;
-        using System.Collections.Generic;
-
-        public partial class C : BodyComponentBase
-        {
-            private readonly List<string> _items = new() { "a", "b" };
-
-            protected override View Body =>
-                Html.ForEach(_items, x => x, new Func<string, View>(Row));
-
+            $ATTRIBUTE$
             private static View Row(string item) => Html.Span[item];
         }
         """;
@@ -50,7 +24,8 @@ public sealed class ForEachMethodGroupTests
     [Fact]
     public void ForEachContent_WhenMethodGroupIsAViewPart_ExpandsStatically()
     {
-        var result = CompilationTestHost.RunGenerator(ViewPartSource);
+        var result = CompilationTestHost.RunGenerator(
+            MethodGroupHost.Replace("$ATTRIBUTE$", "[ViewPart]"));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3004");
@@ -62,7 +37,8 @@ public sealed class ForEachMethodGroupTests
     [Fact]
     public void ForEachContent_WhenMethodGroupBuildsFromTheSurfaceWithoutTheAttribute_ReportsBCF3030()
     {
-        var result = CompilationTestHost.RunGenerator(InertSource);
+        var result = CompilationTestHost.RunGenerator(
+            MethodGroupHost.Replace("$ATTRIBUTE$", string.Empty));
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3030");
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3004");
@@ -71,9 +47,25 @@ public sealed class ForEachMethodGroupTests
     [Fact]
     public void ForEachContent_WhenTheDelegateIsNotABareMethodGroup_ReportsBCF3004()
     {
-        // A constructed delegate is not a method group, so there is no callee to resolve at the call
-        // site; the shape restriction stands.
-        var result = CompilationTestHost.RunGenerator(ConstructedDelegateSource);
+        // A constructed delegate names no callee at the call site, so none of the three answers a bare
+        // method group gets applies and the shape restriction stands.
+        const string Source = """
+            using BlazorCodeFirst;
+            using System;
+            using System.Collections.Generic;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a", "b" };
+
+                protected override View Body =>
+                    Html.ForEach(_items, x => x, new Func<string, View>(Row));
+
+                private static View Row(string item) => Html.Span[item];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(Source);
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004");
     }

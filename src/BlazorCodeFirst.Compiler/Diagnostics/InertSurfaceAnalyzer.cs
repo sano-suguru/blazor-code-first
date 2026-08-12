@@ -138,8 +138,7 @@ public sealed class InertSurfaceAnalyzer : DiagnosticAnalyzer
     /// </remarks>
     private static bool IsDesignTimeApiReference(IOperation operation, KnownSymbols knownSymbols) =>
         ReferencedMember(operation) is { } member
-        && knownSymbols.IsInertDesignTimeType(operation.Type)
-        && knownSymbols.IsDesignTimeApiMember(member);
+        && knownSymbols.IsDesignTimeApiReference(operation.Type, member);
 
     // ---------------------------------------------------------------------------
     // Condition 2: storage into an inert-typed member

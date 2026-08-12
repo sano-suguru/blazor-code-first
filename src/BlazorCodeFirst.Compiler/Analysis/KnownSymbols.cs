@@ -875,6 +875,32 @@ internal sealed class KnownSymbols
     };
 
     /// <summary>
+    /// Whether a reference of type <paramref name="type"/> to <paramref name="member"/> is a reference to
+    /// the design-time surface: an inert-typed expression naming one of the surface's own members.
+    /// </summary>
+    /// <remarks>
+    /// The conjunction, not either half, because either half alone admits the wrong things: a
+    /// <c>View</c>-typed local is inert-typed and names nothing on the surface, and a <c>[ViewPart]</c>
+    /// used as a value is a surface member reached at a type that is not.
+    /// <para>
+    /// Two callers ask it from opposite ends. <c>InertSurfaceAnalyzer</c> asks whether an expression the
+    /// author wrote is such a reference (BCF3029); <c>RenderExpressionAnalyzer</c> asks whether a callee's
+    /// body contains one, which is what makes the <c>View</c> it returns empty at runtime (BCF3030). The
+    /// pair lives here for the reason <see cref="IsInertDesignTimeType"/> does: a fourth conjunct, or a
+    /// reordering, must be made once.
+    /// </para>
+    /// <para>
+    /// The type test precedes the symbol test because it is the more selective of the two and both are
+    /// cheap (#220). The kind prefilter that must precede <em>both</em> belongs to each caller, whose
+    /// available prefilter differs: an operation kind on one side, a syntax kind on the other.
+    /// </para>
+    /// </remarks>
+    public bool IsDesignTimeApiReference(ITypeSymbol? type, ISymbol? member) =>
+        member is not null
+        && IsInertDesignTimeType(type)
+        && IsDesignTimeApiMember(member);
+
+    /// <summary>
     /// Whether <paramref name="property"/> is one of the curated element helpers resolved out of the
     /// referenced runtime, keyed the way <see cref="ElementTags"/> is keyed.
     /// </summary>
