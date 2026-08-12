@@ -14,12 +14,12 @@
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="BlazorCodeFirst" Version="$(BlazorCodeFirstPackageVersion)" />
     <PackageVersion Include="bunit" Version="2.9.0" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components" Version="10.0.11" />
     <!-- Tracks the Microsoft.AspNetCore.Components pin above: same ASP.NET Core patch band. It carries
          the [EventHandler] table BCF3028 reads, and only test projects reference it. Runtime deliberately
          does not (#23, and the comment on its own PackageReference): the generator reads the consumer's
          compilation, not its own references. -->
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
     <!-- Tracks the Microsoft.AspNetCore.Components pin above: same ASP.NET Core patch band. Only
          WasmPackageApp reads this pin (#23; see its ItemGroup). site/ carries its own copy of the
          same package at the same version, because it opts out of central management; the two are
