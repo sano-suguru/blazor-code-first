@@ -137,7 +137,7 @@ internal static class RenderViewEmitter
         if (key is not null)
         {
             Debug.Assert(
-                node is ElementNode or ComponentNode or ExpansionNode,
+                node is ElementNode or ComponentNode or ExpansionNode or TransplantedBlockNode,
                 $"A key reached '{node.GetType().Name}', which opens no keyable frame; SetKey would be silently dropped.");
         }
 
@@ -154,6 +154,8 @@ internal static class RenderViewEmitter
             RenderFragmentContentNode fragmentContent =>
                 EmitRenderFragmentContent(writer, fragmentContent, startSeq),
             OpaqueViewNode opaque => EmitOpaqueView(writer, opaque, startSeq),
+            TransplantedBlockNode transplanted =>
+                EmitTransplantedBlock(writer, transplanted, startSeq, key),
             _ => throw new NotSupportedException(
                 $"Emission for '{node.GetType().Name}' is not yet implemented."),
         };
@@ -535,6 +537,22 @@ internal static class RenderViewEmitter
     /// fragment, which is the same reason <see cref="EmitRenderFragmentContent"/> writes none. A
     /// <see langword="null"/> fragment appends no frame at runtime, so the call needs no null test.
     /// </summary>
+    /// <summary>
+    /// Emits the author's transplanted statements, then the content they lead into. The key is forwarded
+    /// to the content's root frame, exactly as <see cref="EmitExpansion"/> forwards it past its locals.
+    /// </summary>
+    /// <remarks>
+    /// Written verbatim rather than line by line. A statement can span lines — a raw string literal, a
+    /// chained call — and re-indenting the interior would change what a verbatim literal holds.
+    /// </remarks>
+    private static int EmitTransplantedBlock(
+        IndentedWriter writer, TransplantedBlockNode node, int startSeq, string? key)
+    {
+        writer.AppendLine(node.Statements.ToCode().TrimEnd());
+
+        return EmitNode(writer, node.Content, startSeq, key);
+    }
+
     private static int EmitOpaqueView(IndentedWriter writer, OpaqueViewNode node, int seq)
     {
         writer.AppendLine(

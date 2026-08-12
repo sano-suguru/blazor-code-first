@@ -230,6 +230,23 @@ internal static class ViewPartExpander
             case OpaqueViewTemplateNode opaque:
                 return new OpaqueViewNode(opaque.Call.Substitute(substitution));
 
+            case TransplantedBlockTemplateNode transplanted:
+                {
+                    var content = ExpandNode(
+                        transplanted.Content,
+                        substitution,
+                        ref nextLogicalPreorderOrdinal,
+                        activeMethodStack,
+                        registry,
+                        generatedTypeInheritanceKeys,
+                        diagnostics);
+                    if (content is null)
+                        return null;
+
+                    return new TransplantedBlockNode(
+                        transplanted.Statements.Substitute(substitution), content);
+                }
+
             case FragmentTemplateNode fragment:
                 {
                     var children = ImmutableArray.CreateBuilder<RenderNode>(fragment.Children.Length);
@@ -509,6 +526,7 @@ internal static class ViewPartExpander
     private static bool IsKeyableRoot(RenderNode node) => node switch
     {
         ExpansionNode expansion => IsKeyableRoot(expansion.Body),
+        TransplantedBlockNode transplanted => IsKeyableRoot(transplanted.Content),
         ComponentNode or ElementNode => true,
         _ => false,
     };

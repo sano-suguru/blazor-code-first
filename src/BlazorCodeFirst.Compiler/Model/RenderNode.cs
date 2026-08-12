@@ -96,3 +96,7 @@ internal sealed record RenderFragmentContentNode(ExpressionTemplate Content) : R
 /// width is 1 and no OpenRegion is written here.
 /// </summary>
 internal sealed record OpaqueViewNode(ExpressionTemplate Call) : RenderNode;
+
+/// <summary>Expanded counterpart of <see cref="TransplantedBlockTemplateNode"/>.</summary>
+internal sealed record TransplantedBlockNode(
+    ExpressionTemplate Statements, RenderNode Content) : RenderNode;

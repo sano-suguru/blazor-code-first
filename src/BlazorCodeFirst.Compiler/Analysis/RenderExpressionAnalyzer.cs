@@ -25,6 +25,13 @@ internal static class RenderExpressionAnalyzer
     private const string ChildContentParameterName = "ChildContent";
 
     /// <summary>
+    /// The prefix the generator reserves for the names it writes into generated code: loop variables,
+    /// contextual-fragment parameters, and view part locals. An authored declaration inside a transplanted
+    /// block may not use it (see <see cref="TryExtractContentLambda"/>).
+    /// </summary>
+    private const string GeneratedNamePrefix = "__bcf_";
+
+    /// <summary>
     /// <c>EventCallback.Factory.Create&lt;TValue&gt;</c> up to its type argument, which a component
     /// binding's <c>{name}Changed</c> parameter carries. Written in the instance syntax Razor uses:
     /// <c>Create</c> is a real instance method on <c>EventCallbackFactory</c>, not an extension method,
@@ -259,8 +266,12 @@ internal static class RenderExpressionAnalyzer
         }
 
         if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
-            || !TryExtractSingleParameterLambda(
-                contentArg.Expression, out var contentParameter, out var contentBody))
+            || !TryExtractContentLambda(
+                contentArg.Expression,
+                out var contentParameter,
+                out var contentStatements,
+                out var contentBlock,
+                out var contentBody))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3004,
@@ -284,12 +295,24 @@ internal static class RenderExpressionAnalyzer
         var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
         var itemOrdinal = context.PushRenderVariable(contentParamSymbol, keyParamSymbol);
+        if (contentBlock is not null)
+            context.PushTransplantedScope(contentBlock);
+
         try
         {
             var key = ExpressionTemplateFactory.Create(keyBody, context);
             var content = Analyze(contentBody, context);
             if (content is null)
                 return null;
+
+            // The statements are normalized inside the same render-variable scope as the returned
+            // expression, so a reference to the iteration variable becomes the same hole in both.
+            if (contentStatements.Length > 0)
+            {
+                content = new TransplantedBlockTemplateNode(
+                    ExpressionTemplateFactory.CreateForStatements(contentStatements, context),
+                    content);
+            }
 
             if (!KeyReferencesItemOrdinal(key, itemOrdinal))
             {
@@ -307,6 +330,9 @@ internal static class RenderExpressionAnalyzer
         }
         finally
         {
+            if (contentBlock is not null)
+                context.PopTransplantedScope();
+
             context.PopRenderVariable(contentParamSymbol, keyParamSymbol);
         }
     }
@@ -1897,6 +1923,90 @@ internal static class RenderExpressionAnalyzer
         SimpleLambdaExpressionSyntax { Body: ExpressionSyntax body } => body,
         _ => null,
     };
+
+    /// <summary>
+    /// The <c>ForEach</c> content lambda, in either accepted shape: an expression body, or a block whose
+    /// statements are local declarations and expression statements followed by exactly one
+    /// <c>return</c> (ARCHITECTURE.md §2.3 Transplantable).
+    /// </summary>
+    /// <remarks>
+    /// The block is narrow on purpose. A second <c>return</c> and a native control statement each need
+    /// their own disjoint sequence space, which is the wider Transplantable slice and not this one.
+    /// <c>await</c> cannot appear because the generated <c>RenderView</c> is not async, and a local
+    /// function cannot exist in the generated body at all; both are excluded by the statement kinds
+    /// admitted here.
+    /// <para>
+    /// A declaration whose name starts with the generator's own prefix is refused rather than renamed. The
+    /// rename plan in <see cref="ExpressionTemplateFactory"/> is per template, and the block becomes
+    /// several templates — one per statement, plus the returned expression — so a name renamed in one
+    /// would stay as written in the others. The prefix is reserved, so refusing costs an author nothing.
+    /// </para>
+    /// </remarks>
+    private static bool TryExtractContentLambda(
+        ExpressionSyntax expression,
+        out ParameterSyntax parameter,
+        out ImmutableArray<StatementSyntax> statements,
+        out BlockSyntax? block,
+        out ExpressionSyntax body)
+    {
+        statements = [];
+        block = null;
+
+        if (TryExtractSingleParameterLambda(expression, out parameter, out body))
+            return true;
+
+        switch (expression)
+        {
+            case SimpleLambdaExpressionSyntax { Body: BlockSyntax simpleBlock } simple:
+                parameter = simple.Parameter;
+                block = simpleBlock;
+                break;
+            case ParenthesizedLambdaExpressionSyntax { Body: BlockSyntax parenBlock } paren
+                when paren.ParameterList.Parameters.Count == 1:
+                parameter = paren.ParameterList.Parameters[0];
+                block = parenBlock;
+                break;
+            default:
+                return false;
+        }
+
+        var count = block.Statements.Count;
+        if (count == 0
+            || block.Statements[count - 1] is not ReturnStatementSyntax { Expression: { } returned })
+        {
+            block = null;
+            return false;
+        }
+
+        var leading = ImmutableArray.CreateBuilder<StatementSyntax>(count - 1);
+        for (var index = 0; index < count - 1; index++)
+        {
+            var statement = block.Statements[index];
+            if (statement is not (LocalDeclarationStatementSyntax or ExpressionStatementSyntax))
+            {
+                block = null;
+                return false;
+            }
+
+            leading.Add(statement);
+        }
+
+        foreach (var token in block.DescendantTokens())
+        {
+            if (token.IsKind(SyntaxKind.IdentifierToken)
+                && token.ValueText.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal))
+            {
+                block = null;
+                return false;
+            }
+        }
+
+        // The original nodes, not a rebuilt list: SyntaxFactory.List re-parents its members into a new
+        // list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
+        statements = leading.ToImmutable();
+        body = returned;
+        return true;
+    }
 
     private static bool TryExtractSingleParameterLambda(
         ExpressionSyntax expression,

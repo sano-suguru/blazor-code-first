@@ -45,6 +45,8 @@ internal static class KeyabilityResolver
                 or FragmentTemplateNode or RawMarkupTemplateNode
                 or RenderFragmentContentTemplateNode
                 or OpaqueViewTemplateNode => ContentRootKind.Region,
+            TransplantedBlockTemplateNode transplanted =>
+                ResolveRootKind(transplanted.Content, registry, activeKeys, content),
             ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
             ViewPartCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
@@ -148,6 +150,10 @@ internal static class KeyabilityResolver
             case ComponentTemplateNode component:
                 foreach (var slot in component.Slots.AsImmutableArray())
                     CollectForEachContentDiagnostics(slot.Content, registry, sink);
+                break;
+
+            case TransplantedBlockTemplateNode transplanted:
+                CollectForEachContentDiagnostics(transplanted.Content, registry, sink);
                 break;
 
             case ViewPartCallTemplateNode call:

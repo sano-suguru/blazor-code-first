@@ -211,3 +211,16 @@ internal sealed record RenderFragmentContentTemplateNode(ExpressionTemplate Cont
 /// answer <see cref="RenderFragmentContentTemplateNode"/> gets, and for the same reason.
 /// </remarks>
 internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderTemplateNode;
+
+/// <summary>
+/// Statements transplanted ahead of a content root, inside the region that already isolates it
+/// (ARCHITECTURE.md §2.3 Transplantable). The statements consume no sequence numbers, so the wrapped
+/// content keeps the width it has on its own.
+/// </summary>
+/// <remarks>
+/// Structurally the same shape as <c>ExpansionNode</c> — bindings, then a body that still owns the key —
+/// and kept separate because the bindings differ: an expansion declares typed locals the expander built,
+/// this carries statements the author wrote.
+/// </remarks>
+internal sealed record TransplantedBlockTemplateNode(
+    ExpressionTemplate Statements, RenderTemplateNode Content) : RenderTemplateNode;
