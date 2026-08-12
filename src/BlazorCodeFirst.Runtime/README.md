@@ -1,8 +1,8 @@
 # BlazorCodeFirst
 
 Write Blazor components as ordinary C# instead of `.razor` markup. A Roslyn source generator folds
-each `Body` into `RenderTreeBuilder` calls at build time, so there is no UI tree to interpret at run
-time, no reflection, and no expression compilation.
+each `Body` into `RenderTreeBuilder` calls at build time. At run time there is no UI tree to
+interpret, no reflection, and no expression compilation.
 
 You write this:
 
@@ -49,30 +49,35 @@ partial class NoticePage
 
 What the pair shows:
 
-- The two static siblings collapsed into one `AddMarkupContent` frame.
+- `H2` and `P` are both static, so they collapsed into a single `AddMarkupContent` frame.
 - The sequence numbers are literals the generator assigned, not values counted while rendering.
-- `NoticePage` is an ordinary `ComponentBase` descendant, so it diffs the way Razor's output does
-  and stays trimming- and AOT-safe.
+- `NoticePage` is an ordinary `ComponentBase` descendant, so Blazor diffs it exactly as it diffs a
+  Razor component, and it stays trimming-safe and AOT-safe.
 
 ## The vocabulary mirrors HTML
 
 Elements are C# helpers named after their tags. Attributes and events sit next to the tag in a
 decoration chain, children follow in brackets, and layout is left entirely to CSS. That puts
 BlazorCodeFirst in the lineage of kotlinx.html, Scalatags, Feliz and hiccup rather than SwiftUI or
-Jetpack Compose: there are no `VStack` / `HStack` / `Grid` containers and no typed `.Padding()` /
+Jetpack Compose. There are no `VStack` / `HStack` / `Grid` containers, and no typed `.Padding()` /
 `.FontSize()` decorations.
 
-`Body` is a typed C# expression, so the compiler checks names and types and refactorings propagate
-through it. What C# cannot check is the shape of a `Body`: a component that forgets `partial`, state
-mutated inside `Body`, a decoration applied to something that is not a single element, a duplicate
-attribute, a non-constant tag name. The analyzers report those as `BCF****` diagnostics during the
-build.
+`Body` is a typed C# expression, so the compiler checks names and types, and refactorings propagate
+through it. What C# cannot check is the shape of a `Body`:
+
+- a component that forgets `partial`
+- state mutated inside `Body`
+- a decoration applied to something that is not a single element
+- a duplicate attribute
+- a non-constant tag name
+
+The analyzers report those as `BCF****` diagnostics during the build.
 
 ## Requirements
 
 .NET SDK 10.0.100 or later, and a `net10.0` Blazor project. The generator ships as a Roslyn 5.0
-analyzer, so an older compiler refuses to load it; where the IDE is used, that means Visual Studio
-2026 version 18.0 or later.
+analyzer, so an older compiler refuses to load it. In an IDE, that means Visual Studio 2026 version
+18.0 or later.
 
 ## Installation
 
@@ -80,8 +85,9 @@ analyzer, so an older compiler refuses to load it; where the IDE is used, that m
 dotnet add package BlazorCodeFirst
 ```
 
-This is a prerelease, and the surface is deliberately narrow and grows by issue. One package carries
-both halves: the runtime in `lib/net10.0`, and the generator and analyzers in `analyzers/dotnet/cs`.
+This is a prerelease. The surface is deliberately narrow and grows one issue at a time. The single
+package carries both halves: the runtime in `lib/net10.0`, and the generator and analyzers in
+`analyzers/dotnet/cs`.
 
 ## Documentation
 
