@@ -65,6 +65,36 @@ jobs:
         env:
           BLAZORCODEFIRST_TRIM_OUTPUT: ${{ github.workspace }}/tests/BlazorCodeFirst.TrimTestApp/bin/Release/net10.0/${{ matrix.rid }}/publish
 
+  wasm-package:
+    # Builds and publishes the only browser-wasm consumer that restores BlazorCodeFirst as a
+    # package. What that catches, and why nothing else here can, is on the ItemGroup in
+    # tests/BlazorCodeFirst.WasmPackageApp/BlazorCodeFirst.WasmPackageApp.csproj (#23).
+    #
+    # browser-wasm output does not vary with the host OS, so this runs on one OS rather than joining
+    # the build-test matrix. Unlike the browser job below, which shares no step with build-test,
+    # this one duplicates its `dotnet pack`: a parallel job cannot read another job's disk, and
+    # passing the package through upload-artifact would mean `needs: build-test`, which trades a
+    # repeated pack for a wait on the slowest matrix leg. The repeated pack is the price of the
+    # parallelism, and it means the package tested here is a different build of the same source than
+    # the one eng/verify-package.sh verified.
+    #
+    # No `dotnet workload install wasm-tools`; see CONTRIBUTING.md §Build and test for why none is
+    # needed.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - run: dotnet pack src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj -c Release -o artifacts/package
+
+      - run: dotnet publish tests/BlazorCodeFirst.WasmPackageApp/BlazorCodeFirst.WasmPackageApp.csproj -c Release --configfile tests/BlazorCodeFirst.WasmPackageApp/NuGet.config
+
+      - run: bash eng/verify-wasm-package.sh tests/BlazorCodeFirst.WasmPackageApp/bin/Release/net10.0/publish/wwwroot
+
   browser:
     # The two specs in tests/BlazorCodeFirst.WebAppTests/browser measure Blazor's JS renderer:
     # insertMarkup against createTextNode, and the DOM resynchronization SetUpdatesAttributeName

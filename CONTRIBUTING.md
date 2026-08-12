@@ -46,6 +46,12 @@ source.
 repository but stay outside the solution until the package-based trimming
 workflow lands.
 
+`tests/BlazorCodeFirst.WasmPackageApp` is a Blazor WebAssembly app that restores
+BlazorCodeFirst as a package, and it is the only consumer here that is both. It
+is outside the solution because the package has to exist before it can restore.
+Its build is the check; the comment on its `ItemGroup` says what that check is
+(#23).
+
 ## Build and test
 
 ```bash
@@ -143,7 +149,8 @@ A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
 listed there or excluded with a reason.
 
-Three projects (the TrimTestApp and both `diagnostic-fixtures/*.Package`
+Five projects (the TrimTestApp, the WasmPackageApp,
+`msbuild-fixtures/RazorInterop.Package`, and both `diagnostic-fixtures/*.Package`
 fixtures) purge an isolated `blazorcodefirst/<version>` NuGet cache before
 restoring, so a rebuilt package is never shadowed by a stale one. Get that path
 wrong and nothing fails: the tests pass against the old package contents. If you
@@ -222,7 +229,19 @@ dotnet publish tests/BlazorCodeFirst.TrimTestApp/BlazorCodeFirst.TrimTestApp.csp
   --configfile tests/BlazorCodeFirst.TrimTestApp/NuGet.config
 BLAZORCODEFIRST_TRIM_OUTPUT=$(pwd)/tests/BlazorCodeFirst.TrimTestApp/bin/Release/net10.0/osx-arm64/publish \
   dotnet test tests/BlazorCodeFirst.TrimTests/BlazorCodeFirst.TrimTests.csproj
+
+# Publish the package from a Blazor WebAssembly consumer and check what shipped (#23)
+dotnet publish tests/BlazorCodeFirst.WasmPackageApp/BlazorCodeFirst.WasmPackageApp.csproj \
+  -c Release --configfile tests/BlazorCodeFirst.WasmPackageApp/NuGet.config
+bash eng/verify-wasm-package.sh \
+  tests/BlazorCodeFirst.WasmPackageApp/bin/Release/net10.0/publish/wwwroot
 ```
+
+The WebAssembly publish needs the same `dotnet pack` above it, and no
+`wasm-tools` workload. Without one, publish skips the native relink and says so,
+which still resolves every `FrameworkReference` and writes the boot manifest —
+everything either command reads. Installing the workload only makes the publish
+slower and the output smaller. `ci.yml` installs none for the same reason.
 
 Hot Reload against the test host: `dotnet watch --project tests/BlazorCodeFirst.WebAppTestHost/BlazorCodeFirst.WebAppTestHost.csproj`.
 

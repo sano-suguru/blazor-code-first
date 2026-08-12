@@ -20,6 +20,11 @@
          does not (#23, and the comment on its own PackageReference): the generator reads the consumer's
          compilation, not its own references. -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.10" />
+    <!-- Tracks the Microsoft.AspNetCore.Components pin above: same ASP.NET Core patch band. Only
+         WasmPackageApp reads this pin (#23; see its ItemGroup). site/ carries its own copy of the
+         same package at the same version, because it opts out of central management; the two are
+         the repository's only browser-wasm apps, so move them together. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
     <!-- Tracks the Microsoft.AspNetCore.Components pin above: both ship in the same ASP.NET Core
          patch band, and WebApplicationFactory hosts the app those components render in. -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
