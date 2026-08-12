@@ -77,7 +77,7 @@ public static class CSharpDocEmitter
         sb.Append("/// (Order, Slug) within each one.</summary>\n");
         sb.Append("public static class Docs\n{\n");
         sb.Append("    /// <summary>The canonical language, whose documents are the top-level content files.</summary>\n");
-        sb.Append("    public const string Canonical = \"").Append(Escape(DocLang.Canonical)).Append("\";\n\n");
+        sb.Append("    public const string Canonical = \"").Append(CSharpLiteral.Escape(DocLang.Canonical)).Append("\";\n\n");
 
         // Only languages that actually have documents. A language DocGen knows about but nobody has
         // translated into yet must not appear, or the site would offer a switch to an edition with no
@@ -85,7 +85,7 @@ public static class CSharpDocEmitter
         var languages = DocLang.All.Where(l => ordered.Any(d => d.Meta.Lang == l)).ToList();
         sb.Append("    /// <summary>Every language the manifest holds documents for, canonical first.</summary>\n");
         sb.Append("    public static readonly ImmutableArray<string> Languages =\n        [");
-        sb.Append(string.Join(", ", languages.Select(l => $"\"{Escape(l)}\"")));
+        sb.Append(string.Join(", ", languages.Select(l => $"\"{CSharpLiteral.Escape(l)}\"")));
         sb.Append("];\n\n");
 
         // Emitted as a lookup over the languages that exist rather than as the "/docs/{lang}" rule
@@ -95,11 +95,11 @@ public static class CSharpDocEmitter
         sb.Append("    public static string RoutePrefix(string lang) => lang switch\n    {\n");
         foreach (string lang in languages.Where(l => l != DocLang.Canonical))
         {
-            sb.Append("        \"").Append(Escape(lang)).Append("\" => \"")
-              .Append(Escape(DocLang.RoutePrefix(lang))).Append("\",\n");
+            sb.Append("        \"").Append(CSharpLiteral.Escape(lang)).Append("\" => \"")
+              .Append(CSharpLiteral.Escape(DocLang.RoutePrefix(lang))).Append("\",\n");
         }
 
-        sb.Append("        _ => \"").Append(Escape(DocLang.RoutePrefix(DocLang.Canonical))).Append("\",\n");
+        sb.Append("        _ => \"").Append(CSharpLiteral.Escape(DocLang.RoutePrefix(DocLang.Canonical))).Append("\",\n");
         sb.Append("    };\n\n");
         sb.Append("    /// <summary>The route one document is served from.</summary>\n");
         sb.Append("    public static string Href(string lang, string slug) => RoutePrefix(lang) + \"/\" + slug;\n\n");
@@ -111,7 +111,7 @@ public static class CSharpDocEmitter
         sb.Append("    public static ShellText Shell(string lang) => lang switch\n    {\n");
         foreach (string lang in languages.Where(l => l != DocLang.Canonical))
         {
-            sb.Append("        \"").Append(Escape(lang)).Append("\" => ");
+            sb.Append("        \"").Append(CSharpLiteral.Escape(lang)).Append("\" => ");
             AppendShell(sb, shells[lang]);
             sb.Append(",\n");
         }
@@ -124,12 +124,12 @@ public static class CSharpDocEmitter
         foreach (var (meta, html) in ordered)
         {
             sb.Append("        new DocEntry(\n");
-            sb.Append("            \"").Append(Escape(meta.Slug)).Append("\",\n");
-            sb.Append("            \"").Append(Escape(meta.Title)).Append("\",\n");
+            sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Slug)).Append("\",\n");
+            sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Title)).Append("\",\n");
             sb.Append("            ").Append(meta.Order.ToString(CultureInfo.InvariantCulture)).Append(",\n");
-            sb.Append("            \"").Append(Escape(meta.Lang)).Append("\",\n");
+            sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Lang)).Append("\",\n");
             sb.Append("            ").Append(meta.Stale ? "true" : "false").Append(",\n");
-            sb.Append("            \"").Append(Escape(html)).Append("\"),\n");
+            sb.Append("            \"").Append(CSharpLiteral.Escape(html)).Append("\"),\n");
         }
 
         sb.Append("    ];\n\n");
@@ -157,11 +157,11 @@ public static class CSharpDocEmitter
     private static void AppendShell(StringBuilder sb, ShellStrings shell)
     {
         sb.Append("new ShellText(\n");
-        sb.Append("            \"").Append(Escape(shell.Name)).Append("\",\n");
-        sb.Append("            \"").Append(Escape(shell.IndexTitle)).Append("\",\n");
-        sb.Append("            \"").Append(Escape(shell.IndexLead)).Append("\",\n");
-        sb.Append("            \"").Append(Escape(shell.RailHeading)).Append("\",\n");
-        sb.Append("            \"").Append(Escape(shell.LanguageLabel)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.Name)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.IndexTitle)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.IndexLead)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.RailHeading)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.LanguageLabel)).Append("\",\n");
         AppendOptional(sb, shell.StaleNotice);
         sb.Append(",\n");
         AppendOptional(sb, shell.StaleLink);
@@ -177,7 +177,7 @@ public static class CSharpDocEmitter
         }
         else
         {
-            sb.Append('"').Append(Escape(value)).Append('"');
+            sb.Append('"').Append(CSharpLiteral.Escape(value)).Append('"');
         }
     }
 
@@ -186,37 +186,5 @@ public static class CSharpDocEmitter
     {
         int index = Array.IndexOf(DocLang.All, lang);
         return index < 0 ? int.MaxValue : index;
-    }
-
-    private static string Escape(string s)
-    {
-        var sb = new StringBuilder(s.Length + 16);
-        foreach (char c in s)
-        {
-            switch (c)
-            {
-                case '\\': sb.Append("\\\\"); break;
-                case '"': sb.Append("\\\""); break;
-                case '\n': sb.Append("\\n"); break;
-                case '\r': sb.Append("\\r"); break;
-                case '\t': sb.Append("\\t"); break;
-                default:
-                    // U+0085 (NEL), U+2028 (LINE SEPARATOR), and U+2029 (PARAGRAPH SEPARATOR)
-                    // are >= 0x20 but are classified as new-line-characters by the C# lexer,
-                    // so they are forbidden inside a non-verbatim string literal (CS1010) and
-                    // must be escaped just like the control characters below 0x20.
-                    if (c is < ' ' or '\u0085' or '\u2028' or '\u2029')
-                    {
-                        sb.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
-                    }
-                    else
-                    {
-                        sb.Append(c);
-                    }
-                    break;
-            }
-        }
-
-        return sb.ToString();
     }
 }
