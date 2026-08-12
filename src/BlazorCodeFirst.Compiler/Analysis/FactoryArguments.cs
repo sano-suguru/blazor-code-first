@@ -36,7 +36,7 @@ internal readonly struct FactoryArguments
 
     private FactoryArguments(
         ImmutableArray<ArgumentSyntax?> byDeclaredParameter,
-        ImmutableArray<ExpressionSyntax> paramsElements,
+        ImmutableArray<ChildExpression> paramsElements,
         bool hasUnanalyzableParamsArgument)
     {
         _byDeclaredParameter = byDeclaredParameter;
@@ -49,15 +49,16 @@ internal readonly struct FactoryArguments
     /// (<c>Div["a", "b"]</c>) or from a collection-expression literal (<c>Div[["a", "b"]]</c>), which are
     /// the same call. Empty when the callee has no <c>params</c> parameter or it received no elements.
     /// </summary>
-    internal ImmutableArray<ExpressionSyntax> ParamsElements { get; }
+    internal ImmutableArray<ChildExpression> ParamsElements { get; }
 
     /// <summary>
     /// True when the <c>params</c> parameter received one whole collection whose children are not visible
-    /// to the generator, a variable or method result (<c>Div[_kids]</c>, <c>Div[children: Kids()]</c>), a
-    /// written array creation, or anything containing a spread. Callers must reject such an argument
-    /// rather than mis-split it. A collection-expression literal (<c>Div[["a", "b"]]</c>) is <em>not</em>
-    /// such an argument: its children are recovered into <see cref="ParamsElements"/> like an expanded
-    /// bucket's, because it is the same call (#75).
+    /// to the generator, a variable or method result (<c>Div[_kids]</c>, <c>Div[children: Kids()]</c>), or
+    /// a written array creation. Callers must reject such an argument rather than mis-split it. A
+    /// collection-expression literal (<c>Div[["a", "b"]]</c>) is <em>not</em> such an argument: its
+    /// children are recovered into <see cref="ParamsElements"/> like an expanded bucket's, because it is
+    /// the same call (#75). A spread inside such a literal is recovered too, marked as one, and what to
+    /// do with it belongs to the reader (#172).
     /// </summary>
     internal bool HasUnanalyzableParamsArgument { get; }
 
@@ -130,7 +131,7 @@ internal readonly struct FactoryArguments
             return null;
 
         var byParameter = new ArgumentSyntax?[declaredCount];
-        var paramsElements = ImmutableArray<ExpressionSyntax>.Empty;
+        var paramsElements = ImmutableArray<ChildExpression>.Empty;
         var hasUnanalyzableParams = false;
 
         foreach (var argument in arguments)
@@ -211,7 +212,7 @@ internal readonly struct FactoryArguments
     /// <c>params T[]</c> shape is the other half of the language rule, and because dropping it would make
     /// adding such a parameter a silent childless emit rather than a compile-time gap.
     /// </remarks>
-    private static ImmutableArray<ExpressionSyntax>? ExtractParamsElements(IArgumentOperation argument) =>
+    private static ImmutableArray<ChildExpression>? ExtractParamsElements(IArgumentOperation argument) =>
         argument.Value switch
         {
             ICollectionExpressionOperation collection => ExtractElements(collection.Elements),
@@ -243,7 +244,7 @@ internal readonly struct FactoryArguments
     /// BCF1003, where #75 left it.
     /// </para>
     /// </remarks>
-    private static ImmutableArray<ExpressionSyntax>? TryExtractLiteralElements(IArgumentOperation argument)
+    private static ImmutableArray<ChildExpression>? TryExtractLiteralElements(IArgumentOperation argument)
     {
         var value = argument.Value is IConversionOperation conversion ? conversion.Operand : argument.Value;
 
@@ -256,18 +257,20 @@ internal readonly struct FactoryArguments
     /// Maps each element operation to the expression the author wrote for it, or returns
     /// <see langword="null"/> when any element's written expression cannot be recovered. All-or-nothing
     /// on purpose: a partially recovered child list would emit an element missing children the author
-    /// wrote, <c>Div[["a", ..items]]</c> would become a one-child element instead of a rejection.
+    /// wrote. A spread is recovered rather than dropped, so <c>Div[["a", ..items]]</c> comes back as two
+    /// elements and the reader decides what the second one means; dropping it silently is the failure
+    /// this rule exists to prevent.
     /// </summary>
-    private static ImmutableArray<ExpressionSyntax>? ExtractElements(ImmutableArray<IOperation> elements)
+    private static ImmutableArray<ChildExpression>? ExtractElements(ImmutableArray<IOperation> elements)
     {
-        var builder = ImmutableArray.CreateBuilder<ExpressionSyntax>(elements.Length);
+        var builder = ImmutableArray.CreateBuilder<ChildExpression>(elements.Length);
 
         foreach (var element in elements)
         {
-            if (!TryRecoverElementExpression(element, out var syntax))
+            if (!TryRecoverElement(element, out var child))
                 return null;
 
-            builder.Add(syntax);
+            builder.Add(child);
         }
 
         return builder.ToImmutable();
@@ -293,14 +296,17 @@ internal readonly struct FactoryArguments
     /// literal's element containers.
     /// </para>
     /// <para>
-    /// A <see cref="SpreadElementSyntax"/> stops the walk instead of satisfying it: a spread's items are a
-    /// runtime collection, so there is no per-child written expression to return, and continuing would
-    /// reach the enclosing <see cref="ArgumentSyntax"/> and hand back the whole literal as if it were one
-    /// child. Keyed on the syntax rather than on <c>ISpreadOperation</c> so that this one method owns the
-    /// whole question of which container holds a child's written expression, and because the syntax
-    /// records what the author wrote whether or not the spread's operand bound. No input was found where
-    /// the two keys disagree: a spread with an unbound operand was measured to make the entire element
-    /// access an <c>IInvalidOperation</c>, so <see cref="Bind"/> returns before any element is examined.
+    /// A <see cref="SpreadElementSyntax"/> is answered with its own operand, marked as a spread: a
+    /// spread's items are a runtime collection, so there is no per-child written expression, and what
+    /// there is instead is the sequence. #172 folds one shape of that sequence into a loop, and every
+    /// other shape is refused by the reader rather than here. Continuing the walk is what must not
+    /// happen — it would reach the enclosing <see cref="ArgumentSyntax"/> and hand back the whole literal
+    /// as if it were one child — and the marked answer stops it just as the old refusal did. Keyed on the
+    /// syntax rather than on <c>ISpreadOperation</c> so that this one method owns the whole question of
+    /// which container holds a child's written expression, and because the syntax records what the author
+    /// wrote whether or not the spread's operand bound. No input was found where the two keys disagree: a
+    /// spread with an unbound operand was measured to make the entire element access an
+    /// <c>IInvalidOperation</c>, so <see cref="Bind"/> returns before any element is examined.
     /// </para>
     /// <para>
     /// The walk also stops at the containers of those containers, a
@@ -312,30 +318,33 @@ internal readonly struct FactoryArguments
     /// does not recognize.
     /// </para>
     /// </remarks>
-    private static bool TryRecoverElementExpression(
-        IOperation element, [MaybeNullWhen(false)] out ExpressionSyntax syntax)
+    private static bool TryRecoverElement(
+        IOperation element, [MaybeNullWhen(false)] out ChildExpression child)
     {
         for (SyntaxNode? node = element.Syntax; node is not null; node = node.Parent)
         {
             switch (node)
             {
+                case SpreadElementSyntax spread:
+                    child = new ChildExpression(spread.Expression, IsSpread: true);
+                    return true;
+
                 case ExpressionElementSyntax expressionElement:
-                    syntax = expressionElement.Expression;
+                    child = new ChildExpression(expressionElement.Expression, IsSpread: false);
                     return true;
 
                 case ArgumentSyntax argument:
-                    syntax = argument.Expression;
+                    child = new ChildExpression(argument.Expression, IsSpread: false);
                     return true;
 
-                case SpreadElementSyntax:
                 case CollectionExpressionSyntax:
                 case BaseArgumentListSyntax:
-                    syntax = null;
+                    child = default;
                     return false;
             }
         }
 
-        syntax = null;
+        child = default;
         return false;
     }
 }

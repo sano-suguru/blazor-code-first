@@ -2018,12 +2018,21 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
-        ImmutableArray<ExpressionSyntax> children, ViewPartBodyContext context)
+        ImmutableArray<ChildExpression> children, ViewPartBodyContext context)
     {
         var nodes = ImmutableArray.CreateBuilder<RenderTemplateNode>(children.Length);
         foreach (var child in children)
         {
-            var node = Analyze(child, context);
+            // A spread is one expression standing for zero or more children, so it is not a child and is
+            // not analyzed as one. Nothing here can splice it yet, and what cannot be spliced is
+            // untranslatable, which is where every spread sat before (#75).
+            if (child.IsSpread)
+            {
+                context.RecordUntranslatable(child.Expression);
+                return null;
+            }
+
+            var node = Analyze(child.Expression, context);
             if (node is null)
                 return null;
 

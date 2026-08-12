@@ -389,7 +389,7 @@ internal static class UnresolvedValueTypeScanner
             return;
 
         foreach (var child in args.ParamsElements)
-            ScanRenderExpression(child, context);
+            ScanRenderExpression(child.Expression, context);
     }
 
     private static void ScanLambdaBody(ExpressionSyntax? expression, ViewPartBodyContext context)
@@ -1061,7 +1061,7 @@ internal static class UnresolvedValueTypeScanner
 
         private BoundArguments(
             ImmutableArray<ExpressionSyntax?> byDeclaredParameter,
-            ImmutableArray<ExpressionSyntax> paramsElements,
+            ImmutableArray<ChildExpression> paramsElements,
             bool hasUnanalyzableParamsArgument)
         {
             _byDeclaredParameter = byDeclaredParameter;
@@ -1069,7 +1069,7 @@ internal static class UnresolvedValueTypeScanner
             HasUnanalyzableParamsArgument = hasUnanalyzableParamsArgument;
         }
 
-        public ImmutableArray<ExpressionSyntax> ParamsElements { get; }
+        public ImmutableArray<ChildExpression> ParamsElements { get; }
 
         public bool HasUnanalyzableParamsArgument { get; }
 
@@ -1084,7 +1084,7 @@ internal static class UnresolvedValueTypeScanner
                 }
 
                 foreach (var argument in ParamsElements)
-                    yield return argument;
+                    yield return argument.Expression;
             }
         }
 
@@ -1151,7 +1151,7 @@ internal static class UnresolvedValueTypeScanner
                 return null;
 
             var byParameter = new ExpressionSyntax?[declaredCount];
-            var paramsElements = ImmutableArray.CreateBuilder<ExpressionSyntax>();
+            var paramsElements = ImmutableArray.CreateBuilder<ChildExpression>();
             var hasUnanalyzableParams = false;
             var nextPositional = 0;
 
@@ -1198,7 +1198,7 @@ internal static class UnresolvedValueTypeScanner
                     }
                     else
                     {
-                        paramsElements.Add(argument.Expression);
+                        paramsElements.Add(new ChildExpression(argument.Expression, IsSpread: false));
                     }
 
                     nextPositional = index;
@@ -1229,16 +1229,16 @@ internal static class UnresolvedValueTypeScanner
         /// of the bucket, not the whole bucket.
         /// </para>
         /// <para>
-        /// Spread elements are skipped rather than abandoning the whole literal, which is where this
-        /// deliberately parts from <c>FactoryArguments</c>. There, a literal containing a spread is refused
-        /// outright, because emitting a partially recovered child list would drop children the author wrote.
-        /// Nothing is emitted from here, because this binder feeds a diagnostic sweep, so the same caution would
-        /// only silence BCF3015 on the children that <em>are</em> written out. A spread's own operand is not
-        /// collected either: it would never have been emitted as a child, and this scanner reports only on
-        /// expressions the analyzer would emit.
+        /// A spread's operand is collected and marked, exactly as <c>FactoryArguments</c> collects it, so
+        /// that a spliced child list is scanned on this path too. An element this method cannot read at
+        /// all is skipped rather than abandoning the whole literal, which is where this deliberately parts
+        /// from <c>FactoryArguments</c>. There, a literal it cannot fully recover is refused outright,
+        /// because emitting a partially recovered child list would drop children the author wrote. Nothing
+        /// is emitted from here, because this binder feeds a diagnostic sweep, so the same caution would
+        /// only silence BCF3015 on the children that <em>are</em> readable.
         /// </para>
         /// </remarks>
-        private static List<ExpressionSyntax>? TryGetLiteralChildren(
+        private static List<ChildExpression>? TryGetLiteralChildren(
             BaseArgumentListSyntax argumentList, ArgumentSyntax argument)
         {
             if (argumentList.Arguments.Count != 1
@@ -1247,12 +1247,20 @@ internal static class UnresolvedValueTypeScanner
                 return null;
             }
 
-            var children = new List<ExpressionSyntax>(literal.Elements.Count);
+            var children = new List<ChildExpression>(literal.Elements.Count);
 
             foreach (var element in literal.Elements)
             {
-                if (element is ExpressionElementSyntax expressionElement)
-                    children.Add(expressionElement.Expression);
+                switch (element)
+                {
+                    case ExpressionElementSyntax expressionElement:
+                        children.Add(new ChildExpression(expressionElement.Expression, IsSpread: false));
+                        break;
+
+                    case SpreadElementSyntax spread:
+                        children.Add(new ChildExpression(spread.Expression, IsSpread: true));
+                        break;
+                }
             }
 
             return children;
