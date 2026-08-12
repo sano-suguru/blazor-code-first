@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { test as base, expect } from '@playwright/test';
-import type { Page, Route } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 /** The `dotnet publish` output this suite measures. serve.mjs is pointed at the same directory. */
 export const publishRoot = resolve(
@@ -92,89 +92,12 @@ function slugsIn(dir: string): Set<string> {
 }
 
 /**
- * One fetch per worker for each Google Fonts URL the site asks for, replayed to every page after
- * that.
- *
- * index.html loads Geist and JetBrains Mono from fonts.googleapis.com, so every page here would
- * otherwise reach the network, and every width measured is a question about how much room text
- * takes. Without the cache the first run of this suite lost the mono face on 15 of 133 tests: the
- * requests are identical, they arrive in parallel from every worker, and some of them come back
- * empty. A missing face is not a slow page, it is a different measurement, so this cannot be left
- * to chance.
- *
- * Caching keeps the fonts the real ones rather than substituting a local stand-in, which a
- * measurement of text size has to. It does not remove the network from the run: the first request
- * per worker is real, and an unreachable fonts.googleapis.com still fails the suite. #252 tracks
- * removing the dependency at its source by self-hosting the two families.
+ * Re-exported so a spec has one import for everything this suite needs, and so `test` stays a name
+ * this file owns. It used to be a `base.extend` carrying a fetch-and-replay cache for the Google
+ * Fonts URLs index.html asked for; #252 moved both families to this origin, so the pages are served
+ * by the same local server as everything else and the run reaches no network at all.
  */
-const fontCache = new Map<string, { body: Buffer; contentType: string }>();
-
-/**
- * How many times a cold fetch is attempted before the URL is given up on.
- *
- * Three, because one is not enough and was measured not to be: the first CI run of this suite lost
- * every Geist face on a single route out of nine, which is one gstatic response failing once. The
- * cache turns that into a whole-run failure rather than a single missing face, since the entry is
- * fetched once and replayed to every page in the worker.
- *
- * This does not weaken the assertion in `gotoSettled`. A URL that fails all three attempts is still
- * an unavailable face and still fails the test. It only stops one transient answer from a host
- * outside this repository's control deciding whether the site can deploy. #252 removes the host.
- */
-const FONT_FETCH_ATTEMPTS = 3;
-
-async function replayFromCache(route: Route): Promise<void> {
-  const url = route.request().url();
-  let hit = fontCache.get(url);
-
-  if (!hit) {
-    for (let attempt = 1; attempt <= FONT_FETCH_ATTEMPTS; attempt++) {
-      try {
-        // The stylesheet response is negotiated on User-Agent: Google returns woff2 `src` URLs to a
-        // browser and older formats to anything it does not recognise. Forwarding the browser's own
-        // headers is what keeps the cached copy the one the page would have received.
-        const response = await fetch(url, { headers: route.request().headers() });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        hit = {
-          body: Buffer.from(await response.arrayBuffer()),
-          contentType: response.headers.get('content-type') ?? 'application/octet-stream',
-        };
-        fontCache.set(url, hit);
-        break;
-      } catch (error) {
-        // Said out loud on every attempt. Without this the only visible symptom is a font face
-        // assertion naming a family, which does not say that the network was the cause.
-        console.warn(`font fetch ${attempt}/${FONT_FETCH_ATTEMPTS} failed for ${url}: ${error}`);
-      }
-    }
-  }
-
-  if (!hit) {
-    await route.abort();
-    return;
-  }
-
-  await route.fulfill({ body: hit.body, contentType: hit.contentType });
-}
-
-/**
- * The suite's `test`, with the font cache installed on every page before it navigates anywhere.
- * Specs import this rather than `@playwright/test`'s own.
- */
-export const test = base.extend<{ cachedFonts: void }>({
-  cachedFonts: [
-    async ({ page }, use) => {
-      await page.route('https://fonts.googleapis.com/**', replayFromCache);
-      await page.route('https://fonts.gstatic.com/**', replayFromCache);
-      await use();
-    },
-    { auto: true },
-  ],
-});
-
-export { expect };
+export { expect, test };
 
 /**
  * Load a route and wait until what is on screen is what a reader would settle on.
