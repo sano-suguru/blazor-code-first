@@ -62,10 +62,20 @@ public static partial class Html
     /// <summary>Design-time syntax for conditional rendering with an optional else branch.</summary>
     public static View If(bool condition, System.Func<View> then, System.Func<View>? otherwise = null) => default;
 
-    /// <summary>Design-time syntax for a keyed list: one <paramref name="content"/> template per item.</summary>
+    /// <summary>Design-time syntax for a list: one <paramref name="content"/> template per item.</summary>
+    /// <param name="source">The sequence to iterate.</param>
+    /// <param name="key">
+    /// Selects the value identifying an item across renders, emitted as <c>SetKey</c> on the content's
+    /// root element or component frame. Write <see langword="null"/> to decline it, which emits no
+    /// <c>SetKey</c> and lets a <c>Fragment</c>, a <c>Raw</c> or a bare <c>If</c> root the content. The
+    /// parameter has no default value, so the absence is written rather than omitted. A declined key
+    /// diffs as an index-derived one does: a front insertion rewrites every row and loses each row's
+    /// local state (ARCHITECTURE.md §2.7 B).
+    /// </param>
+    /// <param name="content">The template emitted once per item.</param>
     public static View ForEach<T>(
         System.Collections.Generic.IEnumerable<T> source,
-        System.Func<T, object?> key,
+        System.Func<T, object?>? key,
         System.Func<T, View> content) => default;
 
     /// <summary>Design-time syntax for embedding an existing Blazor component into the compose tree.</summary>

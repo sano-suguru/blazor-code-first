@@ -262,6 +262,42 @@ internal static class RenderExpressionAnalyzer
             otherwiseNode);
     }
 
+    /// <summary>
+    /// The <c>key</c> argument of a <c>ForEach</c>: the lambda's parameter symbol and body, or both
+    /// <see langword="null"/> when the author declined the key by writing <c>null</c> (#172).
+    /// </summary>
+    private readonly record struct ForEachKey(ISymbol? Parameter, ExpressionSyntax? Body);
+
+    /// <summary>
+    /// Resolves the <c>key</c> argument to a one-parameter expression lambda, or to the declined form.
+    /// </summary>
+    /// <remarks>
+    /// Absence is read syntactically, exactly as <see cref="ClassifyIf"/> reads its own <c>otherwise</c>:
+    /// this analyzer transplants a written body and has no runtime value to test, so a variable that
+    /// happens to hold null is not an inline expression lambda and falls through to BCF3004 with every
+    /// other unreadable shape.
+    /// </remarks>
+    private static bool TryBindForEachKey(
+        ExpressionSyntax key, ViewPartBodyContext context, out ForEachKey shape)
+    {
+        if (key is LiteralExpressionSyntax { Token.RawKind: (int)SyntaxKind.NullKeyword })
+        {
+            shape = default;
+            return true;
+        }
+
+        if (!TryExtractSingleParameterLambda(key, out var parameter, out var body)
+            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                is not { } parameterSymbol)
+        {
+            shape = default;
+            return false;
+        }
+
+        shape = new ForEachKey(parameterSymbol, body);
+        return true;
+    }
+
     private static ForEachTemplateNode? ClassifyForEach(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
@@ -275,9 +311,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
-            || context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken)
-                is not { } keyParamSymbol
+        if (!TryBindForEachKey(keyArg.Expression, context, out var keyShape)
             || !TryBindForEachContent(contentArg.Expression, context, out var contentShape))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -291,11 +325,17 @@ internal static class RenderExpressionAnalyzer
         // item, so it is normalized before the iteration variable is registered.
         var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
-        // A method group binds no lambda parameter, so the iteration variable is named by the key lambda
-        // alone; a content lambda contributes its own parameter at the same ordinal.
-        var itemSymbols = contentShape.LambdaParameter is { } contentParamSymbol
-            ? new[] { contentParamSymbol, keyParamSymbol }
-            : [keyParamSymbol];
+        // The iteration variable is named by whichever of the two lambdas bound a parameter. A method
+        // group binds none and a declined key binds none, so both at once leaves the list empty. That is
+        // still correct: the variable takes its ordinal either way, and a method group's item is spliced
+        // from the ordinal rather than resolved from a written reference, so there is nothing to name.
+        ISymbol[] itemSymbols = (contentShape.LambdaParameter, keyShape.Parameter) switch
+        {
+            ({ } contentParameter, { } keyParameter) => [contentParameter, keyParameter],
+            ({ } contentParameter, null) => [contentParameter],
+            (null, { } keyParameter) => [keyParameter],
+            (null, null) => [],
+        };
 
         var itemOrdinal = context.PushRenderVariable(itemSymbols);
         if (!contentShape.TransplantedSpan.IsEmpty)
@@ -303,7 +343,9 @@ internal static class RenderExpressionAnalyzer
 
         try
         {
-            var key = ExpressionTemplateFactory.Create(keyBody, context);
+            var key = keyShape.Body is { } keyBody
+                ? ExpressionTemplateFactory.Create(keyBody, context)
+                : null;
 
             var content = contentShape.Callee is { } callee
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
@@ -311,7 +353,10 @@ internal static class RenderExpressionAnalyzer
             if (content is null)
                 return null;
 
-            if (!KeyReferencesItemOrdinal(key, itemOrdinal))
+            // A key that does not read the item cannot express identity. There is nothing to ask when no
+            // key was written: #172 makes the absence a spelling rather than a defect, and BCF3002 is a
+            // warning about a key, not about declining one.
+            if (key is not null && !KeyReferencesItemOrdinal(key, itemOrdinal))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BCF3002,

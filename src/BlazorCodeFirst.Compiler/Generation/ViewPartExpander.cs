@@ -106,7 +106,7 @@ internal static class ViewPartExpander
                     var loopVariableName = $"__bcf_item_{ordinal}";
                     var source = forEach.Source.Substitute(substitution);
                     var extended = substitution.Add(new SubstitutedArgument(loopVariableName, Constant: null));
-                    var key = forEach.Key.Substitute(extended);
+                    var key = forEach.Key?.Substitute(extended);
 
                     var content = ExpandNode(
                         forEach.Content,
@@ -123,8 +123,9 @@ internal static class ViewPartExpander
                     // content (a bare If/ForEach, or a view part whose expanded body is region-rooted)
                     // has no keyable frame. BCF3003 is reported by KeyabilityResolver (reachability-
                     // independent, deduped per definition/component); suppress emission here so no SetKey
-                    // lands on a region.
-                    if (!IsKeyableRoot(content))
+                    // lands on a region. A declined key attaches nothing, so the gate has nothing to
+                    // protect and every root is admitted (#172).
+                    if (key is not null && !IsKeyableRoot(content))
                         return null;
 
                     return new ForEachNode(source, key, content, loopVariableName);

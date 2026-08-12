@@ -91,9 +91,14 @@ internal sealed record ViewPartCallTemplateNode(
     public EquatableArray<ViewPartContentArgument> ContentArguments { get; init; }
 }
 
+/// <param name="Key">
+/// The key selector's transplanted body, or <see langword="null"/> when the author declined it by writing
+/// <c>null</c> (#172). A declined key emits no <c>SetKey</c>, is not asked about by BCF3002, and lifts
+/// BCF3003, which exists only because <c>SetKey</c> needs an element or component frame to attach to.
+/// </param>
 internal sealed record ForEachTemplateNode(
     ExpressionTemplate Source,
-    ExpressionTemplate Key,
+    ExpressionTemplate? Key,
     RenderTemplateNode Content,
     TemplateLocation Location) : RenderTemplateNode;
 

@@ -21,14 +21,19 @@ internal sealed record ExpansionNode(
     RenderNode Body) : RenderNode;
 
 /// <summary>
-/// Represents a <c>ForEach(source, key, content)</c> call. Emits a keyed <c>foreach</c> region:
+/// Represents a <c>ForEach(source, key, content)</c> call. Emits a <c>foreach</c> region:
 /// the content template occupies one static sequence space reused every iteration, and
 /// <see cref="LoopVariableName"/> is the generated iteration variable that content/key expressions
 /// were substituted onto.
 /// </summary>
+/// <param name="Key">
+/// The key expression applied to the content root with <c>SetKey</c>, or <see langword="null"/> when the
+/// author declined the key (#172). A declined key also lets the content root fold, because the fold check
+/// in <c>RenderViewEmitter.EmitNode</c> turns on a threaded key and nothing else.
+/// </param>
 internal sealed record ForEachNode(
     ExpressionTemplate Source,
-    ExpressionTemplate Key,
+    ExpressionTemplate? Key,
     RenderNode Content,
     string LoopVariableName) : RenderNode;
 
