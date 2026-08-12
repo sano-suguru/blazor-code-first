@@ -397,9 +397,9 @@ stale in a place nobody re-reads. #74 is the worked example — it named a
 precondition, the precondition landed as #176, and the Issue still said the
 question was waiting on it.
 
-Every issue gets exactly one `area:` label, plus GitHub's default type labels
-(`bug`, `enhancement`, `documentation`, `question`, `invalid`) where the type is
-unambiguous:
+Every issue gets exactly one `area:` label (the ordering issue below is the one
+exception), plus GitHub's default type labels (`bug`, `enhancement`,
+`documentation`, `question`, `invalid`) where the type is unambiguous:
 
 - `area: compiler`: source generator, analyzers, diagnostics.
 - `area: surface`: the public authoring API and how UI is written.
@@ -425,6 +425,15 @@ milestone here is a bucket with a progress bar and nothing more, and numbered
 names like `M7` or `RM4` drag a per-milestone spec-and-plan ritual back with
 them. An issue that is large and undated, or explicitly unscheduled, carries no
 milestone at all.
+
+Order lives in one issue rather than in milestones. A milestone is a set and
+cannot hold a sequence, so #298 carries the single ordered list of what to work
+on next. It is global rather than one list per milestone: the question it
+answers is which issue to start, and that question has one answer at a time.
+Only its `Now` section is ranked, and it stays short; the rest is grouped and
+promoted into `Now` instead of being ranked in place. It records order, never
+dates. #298 is the one issue with no `area:` label, because those name a subject
+and it has none.
 
 Diagnostic IDs were renamed from `BC****` to `BCF****` in 2026-08 (#103), along
 with the package itself. The four digits did not change, so `BC1001` in an older
