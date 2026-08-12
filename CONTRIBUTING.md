@@ -306,9 +306,13 @@ instead:
 - DocGen's own unit tests
 - `dotnet format` over each of the four projects under `site/`
 - an English-only and trailing-newline scan of the tree
-- a long run of assertions over the `dotnet publish` output, covering the
-  prerendered routes, `404.html`, the stylesheet links, `robots.txt`, the
-  generated sitemap, and `_headers`
+- `eng/verify-site-prerender.sh` over the `dotnet publish` output: first that
+  the published route set equals the set `site/content` backs, and then, for
+  every route in it, the shell, one title element matching what the document's
+  own front matter declares, one active nav link, the stylesheet and script
+  links, and the absence of the prerendering wrappers and a meta robots tag
+- assertions over `404.html`, `robots.txt`, the generated sitemap, and
+  `_headers`
 
 Those assertions read the published files as text, which leaves out everything
 a browser computes. `site/tests/browser` closes that half with Playwright over
@@ -335,9 +339,23 @@ The routes come from the publish output rather than a list, so a new document
 is measured from the commit that adds it.
 
 ```bash
-# Both steps. The suite measures a publish output and does not produce one.
+# Neither suite produces a publish output; both measure one. Delete it first:
+# `dotnet publish` does not clean its output directory, so a route from an
+# earlier run survives into the next one and reads as a route nothing backs.
+rm -rf site/BlazorCodeFirst.Site/bin/Release/net10.0/publish
 dotnet publish site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj -c Release
+bash eng/verify-site-prerender.sh site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 cd site/tests/browser && npm ci && npx playwright install chromium && npx playwright test
+```
+
+A change under `site/content` needs DocGen re-run before the publish, or the
+publish still carries the old manifest and the change has no effect:
+
+```bash
+dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \
+  site/content \
+  site/BlazorCodeFirst.Site/Content/Docs.g.cs \
+  site/BlazorCodeFirst.Site/wwwroot/css/highlight.css
 ```
 
 Two of those checks look obvious and are not, so do not "simplify" them back.
@@ -348,6 +366,11 @@ obvious spelling passes on every input. Labels are checked for spilling out of
 their own box as well as for wrapping, because the header and footer labels
 compute `white-space: nowrap` and can only fail the first way while the rail
 links can only fail the second.
+
+`eng/verify-site-prerender.sh` is a script rather than a block inside `site.yml`
+so that it can be run against a local publish. That is what makes mutating a
+page and watching the check fail affordable, which §Engineering standard
+requires of every check in it.
 
 What no site check covers is anything needing a real deployment: Cloudflare's
 edge routing, the `_headers` rules as the edge applies them, and behaviour that
@@ -566,6 +589,18 @@ exempt or *what* keeps a check out of some position, whether it is in a comment,
 in an expectation's `Note`, or in `ARCHITECTURE.md`. That is a claim about the
 implementation, and mutating the implementation is what separates a reason from
 a plausible guess.
+
+An expectation derived from build output cannot catch a defect that changes the
+build output. The rule above is about mutating the implementation and watching a
+test fail; this is the case where the mutation run comes back GREEN, and that
+means the expectation moved with the defect rather than that the condition was
+unreachable. #278 is the worked example: deleting a check in `DocsNav` published
+a route for a document nobody wrote, and an assertion that read "has a
+counterpart" out of the published routes was confirmed by the very route the
+defect created. Derive the expectation from the source the build reads —
+`site/content` — and assert the output against it. Enumerating the output stays
+fine, and `eng/verify-site-prerender.sh` does it, but only downstream of the
+check that pins the two together.
 
 This is written down because reading was tried first and lost, four times, each
 time on code that was already written and already green:

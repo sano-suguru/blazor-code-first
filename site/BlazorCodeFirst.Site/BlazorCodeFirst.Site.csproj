@@ -26,6 +26,19 @@
          Accepted trade-off: /counter's Increment button is now visible and clickable before
          hydration and does nothing. No disabled-until-hydrated plumbing is being built for it. -->
     <BlazorWasmPrerenderingDeleteLoadingContents>true</BlazorWasmPrerenderingDeleteLoadingContents>
+    <!-- BlazorWasmPrerenderingUrlPathRegexToIgnore is deliberately NOT set, and #278 is why it was
+         considered. Static mode follows links out of the pages it renders, so a page that offers a
+         link it should never have offered turns that link into a route that ships. The property is a
+         DENY list: it suppresses paths named in advance. A route nobody knew to name is the whole
+         defect, so it cannot express the constraint that matters, which is "fetch the explicit list
+         and nothing else". eng/verify-site-prerender.sh asserts that constraint on the output
+         instead, which also survives this tool being replaced. Setting it is how the "did not ship"
+         half of that script's route-set check was watched failing; that is its only use here. -->
+    <!-- No corresponding "clean the output first" property exists, and `dotnet publish` does not
+         clean bin/Release/net10.0/publish. CI checks out fresh so it never notices; a local run
+         does, because a route from the previous publish survives into the next one and the route-set
+         check reads it as a route nothing backs. CONTRIBUTING.md §The documentation site deletes the
+         directory before publishing for that reason. -->
     <!-- Drops icudt_CJK.dat (956KB), icudt_EFIGS.dat (551KB) and icudt_no_CJK.dat (1.1MB). Safe
          because nothing under site/BlazorCodeFirst.Site is culture-sensitive: no CultureInfo, no
          ToUpper/ToLower, no OrderBy/Sort, no String.Compare/CompareTo, no ToString(format).
@@ -63,12 +76,14 @@
 
        If the tool ever renames that target this silently stops applying, and the CI prerender
        verification is what catches it — for a subtler reason than "the routes go missing". A
-       renamed target makes the tool fall back to crawling links from "/", and SiteNav links every
-       "/docs/{slug}" route from every page, so all the per-document routes would still be
-       discovered. What makes the guard bite is a route nothing links to. That used to be bare
-       "/docs"; now that "/docs" is an index page with a nav link, the role belongs to "/404", which
-       is reachable by URL only. CI asserts that 404.html exists, so a renamed target — or a
-       CopyPrerendered404 that stops running — fails the build. Do not add a link to "/404". -->
+       renamed target makes the tool fall back to crawling links from "/", and the documentation rail
+       links every "/docs/{slug}" route from every documentation route, so all the per-document
+       routes would still be discovered. That is measured, not assumed: narrowing the glob above so
+       two documents are left out of the explicit list changes nothing in the publish output. What
+       makes the guard bite is a route nothing links to. That used to be bare "/docs"; now that
+       "/docs" is an index page with a nav link, the role belongs to "/404", which is reachable by
+       URL only. CI asserts that 404.html exists, so a renamed target — or a CopyPrerendered404 that
+       stops running — fails the build. Do not add a link to "/404". -->
   <Target Name="ComputeDocsPrerenderPaths" BeforeTargets="BlazorWasmPrerendering">
     <ItemGroup>
       <DocMarkdown Include="$(MSBuildProjectDirectory)/../content/*.md" />
