@@ -329,7 +329,16 @@ jobs:
           # file loss, rule loss, and a mis-ordered workflow with one check.
           assert_file "$P/_headers" "the publish output has no _headers file"
           assert_grep '^/_framework/\*$' "$P/_headers" "the /_framework/* rule is missing from _headers"
-          assert_grep '^  Cache-Control: public, max-age=31536000, immutable$' "$P/_headers" "the immutable cache directive is missing from the /_framework/* rule"
+          # Losing this rule breaks nothing a reader would see: the fonts still arrive, just on every
+          # visit instead of once a year. No other check here or in the browser suite reads a response
+          # header, so nothing else would notice.
+          assert_grep '^/fonts/\*$' "$P/_headers" "the /fonts/* rule is missing from _headers, so every self-hosted font is refetched on every visit"
+          # Counted, not matched. Two rules freeze a path and their directive lines are identical, so
+          # a presence check passes while EITHER rule is intact and cannot tell which one is. The
+          # count fails in both directions: below two, a frozen path lost its directive; above two, a
+          # third path was frozen without this assertion being revisited, which matters because
+          # freezing a URL for a year is only safe where the name changes with the contents.
+          assert_count '^  Cache-Control: public, max-age=31536000, immutable$' "$P/_headers" 2 "_headers must carry exactly two immutable cache directives, one under /_framework/* and one under /fonts/*"
           assert_grep '^/404$' "$P/_headers" "the /404 rule is missing from _headers"
           assert_grep '^  X-Robots-Tag: noindex$' "$P/_headers" "the /404 noindex directive is missing from _headers"
           # _headers is the third way to deindex production, and the only one the two guards added
