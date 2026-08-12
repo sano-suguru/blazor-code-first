@@ -27,19 +27,16 @@ public static class CSharpSnippetEmitter
         sb.Append("public static class Snippets\n");
         sb.Append("{\n");
 
-        bool first = true;
-        foreach (var (entry, html) in snippets.OrderBy(s => s.Entry.MemberName, StringComparer.Ordinal))
-        {
-            if (!first)
-            {
-                sb.Append('\n');
-            }
-
-            first = false;
-            sb.Append("    /// <summary>The figure read from <c>").Append(entry.Path).Append("</c>.</summary>\n");
-            sb.Append("    public const string ").Append(entry.MemberName).Append(" = \"")
-              .Append(CSharpLiteral.Escape(html)).Append("\";\n");
-        }
+        // The path is quoted as the manifest declares it, which is where a reader goes to change it.
+        // Escaped, because it lands in XML: a path holding an ampersand would otherwise emit a doc
+        // comment that does not parse, and the escaping rule this file already keeps for the value
+        // would have an exception one line above it.
+        sb.Append(string.Join('\n', snippets
+            .OrderBy(s => s.Entry.MemberName, StringComparer.Ordinal)
+            .Select(s =>
+                $"    /// <summary>The figure DocGen read for <c>{XmlText.Escape(s.Entry.Name)}</c>, "
+                    + $"declared in the snippets manifest as <c>{XmlText.Escape(s.Entry.Path)}</c>.</summary>\n"
+                + $"    public const string {s.Entry.MemberName} = \"{CSharpLiteral.Escape(s.Html)}\";\n")));
 
         sb.Append("}\n");
         return sb.ToString();

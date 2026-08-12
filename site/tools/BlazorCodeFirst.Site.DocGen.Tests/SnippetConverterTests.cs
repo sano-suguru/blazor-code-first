@@ -50,7 +50,7 @@ public class SnippetConverterTests
         // A comment-prefixed "// ```" cannot close a fence and so does not exercise this at all.
         string html = SnippetConverter.ToHtml("var md = @\"\n```\n\";\n", "a/b.cs", "sample");
 
-        Assert.Single(Occurrences(html, "<div class=\"csharp\">"));
+        Assert.Equal(1, html.Split("<div class=\"csharp\">").Length - 1);
         Assert.Contains("var", html, StringComparison.Ordinal);
         Assert.DoesNotContain("<p>", html, StringComparison.Ordinal);
     }
@@ -70,14 +70,5 @@ public class SnippetConverterTests
     {
         Assert.Throws<InvalidOperationException>(
             () => SnippetConverter.ToHtml("hello", "a/b", "sample"));
-    }
-
-    private static IEnumerable<int> Occurrences(string haystack, string needle)
-    {
-        for (int i = haystack.IndexOf(needle, StringComparison.Ordinal); i >= 0;
-             i = haystack.IndexOf(needle, i + needle.Length, StringComparison.Ordinal))
-        {
-            yield return i;
-        }
     }
 }

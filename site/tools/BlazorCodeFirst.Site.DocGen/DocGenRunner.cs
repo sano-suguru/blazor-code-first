@@ -268,5 +268,5 @@ public static class DocGenRunner
     }
 
     private static InvalidOperationException Invalid(string fileName, string reason) =>
-        new($"Invalid document '{fileName}': {reason}");
+        KeyValueBlock.Invalid(fileName, "document", reason);
 }

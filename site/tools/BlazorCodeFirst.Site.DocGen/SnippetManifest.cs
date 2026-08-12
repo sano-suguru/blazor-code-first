@@ -3,11 +3,38 @@ using System.Text.RegularExpressions;
 
 namespace BlazorCodeFirst.Site.DocGen;
 
-/// <summary>One declared snippet: the name it is known by, the member it becomes, and where its
-/// text is read from.</summary>
+/// <summary>One declared snippet: the name it is known by, and where its text is read from.</summary>
+/// <param name="Name">
+/// Kebab-case, as the manifest declares it. <see cref="SnippetManifest"/> is what enforces that
+/// shape, so an entry reaching an emitter has already passed it.
+/// </param>
 /// <param name="Path">Relative to the snippets directory. It may leave that directory, which is how
 /// a figure reaches a file that is also compiled.</param>
-public sealed record SnippetEntry(string Name, string MemberName, string Path);
+public sealed record SnippetEntry(string Name, string Path)
+{
+    /// <summary>
+    /// The member this snippet becomes: each dash-separated part with its first letter uppercased,
+    /// concatenated.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than stored, because it carries no information <see cref="Name"/> does not.
+    /// Held as a field it would be a second spelling that has to agree, and a caller building an
+    /// entry by hand -- a test, say -- could pair a name with a member no manifest could produce.
+    /// </remarks>
+    public string MemberName
+    {
+        get
+        {
+            var member = new StringBuilder(Name.Length);
+            foreach (string part in Name.Split('-'))
+            {
+                member.Append(char.ToUpperInvariant(part[0])).Append(part, 1, part.Length - 1);
+            }
+
+            return member.ToString();
+        }
+    }
+}
 
 /// <summary>
 /// Reads the snippets directory's <c>manifest</c>: which files become figures, and under what names.
@@ -30,6 +57,9 @@ public static class SnippetManifest
     /// <summary>The file the snippets directory declares its snippets in.</summary>
     public const string FileName = "manifest";
 
+    /// <summary>What the error calls a file this parser reads.</summary>
+    private const string Kind = "snippet manifest";
+
     private static readonly Regex NamePattern =
         new("^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)*$", RegexOptions.CultureInvariant);
 
@@ -41,11 +71,12 @@ public static class SnippetManifest
         var (lines, remainder) = KeyValueBlock.Parse(
             raw,
             fileName,
+            Kind,
             "the file must be a '---' block declaring 'name: path' for each snippet.");
 
         if (remainder.Trim().Length > 0)
         {
-            throw KeyValueBlock.Invalid(
+            throw Invalid(
                 fileName,
                 "there is text after the closing '---'. This file is the block and nothing else.");
         }
@@ -56,7 +87,7 @@ public static class SnippetManifest
         {
             if (!NamePattern.IsMatch(name))
             {
-                throw KeyValueBlock.Invalid(
+                throw Invalid(
                     fileName,
                     $"snippet name '{name}' is not kebab-case. Each part must open with a lowercase " +
                     "letter and may continue with lowercase letters and digits, joined by single " +
@@ -65,30 +96,20 @@ public static class SnippetManifest
 
             if (!seen.Add(name))
             {
-                throw KeyValueBlock.Invalid(fileName, $"snippet '{name}' is declared twice.");
+                throw Invalid(fileName, $"snippet '{name}' is declared twice.");
             }
 
             if (path.Length == 0)
             {
-                throw KeyValueBlock.Invalid(fileName, $"snippet '{name}' declares no path.");
+                throw Invalid(fileName, $"snippet '{name}' declares no path.");
             }
 
-            entries.Add(new SnippetEntry(name, MemberName(name), path));
+            entries.Add(new SnippetEntry(name, path));
         }
 
         return entries;
     }
 
-    /// <summary>The member one name becomes: each dash-separated part with its first letter
-    /// uppercased, concatenated.</summary>
-    private static string MemberName(string name)
-    {
-        var member = new StringBuilder(name.Length);
-        foreach (string part in name.Split('-'))
-        {
-            member.Append(char.ToUpperInvariant(part[0])).Append(part, 1, part.Length - 1);
-        }
-
-        return member.ToString();
-    }
+    private static InvalidOperationException Invalid(string fileName, string reason) =>
+        KeyValueBlock.Invalid(fileName, Kind, reason);
 }

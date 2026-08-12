@@ -77,20 +77,20 @@
     --color-slab-muted: oklch(70% 0.012 277);
     --color-slab-rule: oklch(31% 0.020 277);
 
-    /* Code colours on the dark slab. Lightness is held at 78-82% so every one clears 4.5:1 against
-       --color-slab; the comment is the tightest at ~4.6:1, which is why it sits at 66% and not
-       lower.
+    /* The build error on the landing page, which is a terminal message rather than code: where the
+       error is, and which error it is. Two colours, on the dark slab, at ~4.6:1 and ~7:1.
 
-       Three of these are declared here and read from C#, not from CSS. ColorCodeTheme's dark
-       palette reproduces --color-code-keyword, --color-code-string and --color-code-comment as
-       hex, because ColorCode mangles a var() reference; this file stays the record they are
-       converted from, and the pair has to be changed together. --color-code-member is the one
-       still reached by a rule -- .diag-id in css/app.css, on the build-error figure, which is not
-       code and so does not use the code vocabulary at all. */
-    --color-code-keyword: oklch(78% 0.14 300);
-    --color-code-string: oklch(80% 0.12 165);
-    --color-code-member: oklch(78% 0.12 350);
-    --color-code-comment: oklch(66% 0.020 277);
+       They are their own names rather than borrowed code colours. The figure is the one on that
+       page that is not a code sample, and a comment colour standing in for "a file and a line"
+       coupled it to a vocabulary it does not belong to.
+
+       There are no --color-code-* tokens any more. Code on this site is coloured by the generated
+       css/highlight.css, whose two palettes are declared in ColorCodeTheme -- see the note in that
+       file for why the values there are hex rather than a var() reference to this one. Declaring
+       them here as well would be a copy no rule renders, so nothing could observe it drifting from
+       the hex that actually paints. */
+    --color-diag-loc: oklch(66% 0.020 277);
+    --color-diag-id: oklch(78% 0.12 350);
 
     /* --- Type ---------------------------------------------------------------
        Two families plus a mono outlier. The mono carries exactly one role -- machine text -- and

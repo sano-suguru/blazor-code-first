@@ -15,8 +15,8 @@ public class SnippetManifestTests
 
         Assert.Collection(
             entries,
-            e => Assert.Equal(new SnippetEntry("counter", "Counter", "../a/CounterPage.cs"), e),
-            e => Assert.Equal(new SnippetEntry("hero", "Hero", "hero.cs"), e));
+            e => Assert.Equal(new SnippetEntry("counter", "../a/CounterPage.cs"), e),
+            e => Assert.Equal(new SnippetEntry("hero", "hero.cs"), e));
     }
 
     [Fact]
@@ -79,5 +79,24 @@ public class SnippetManifestTests
     public void Parse_NoSnippetsDeclared_ReturnsEmpty()
     {
         Assert.Empty(SnippetManifest.Parse("---\n---\n", FileName));
+    }
+
+    /// <summary>
+    /// The shared block parser is reached by three kinds of file, so it takes the noun from its
+    /// caller rather than fixing one. Without this the manifest's errors read "Invalid document
+    /// 'manifest'", which sends an author looking through site/content for a file that is not there.
+    /// </summary>
+    [Fact]
+    public void Parse_AnyFailure_NamesTheFileAsASnippetManifest()
+    {
+        var fromTheBlockParser = Assert.Throws<InvalidOperationException>(
+            () => SnippetManifest.Parse("no fence here\n", FileName));
+        var fromTheManifestRules = Assert.Throws<InvalidOperationException>(
+            () => SnippetManifest.Parse("---\nHero: a.cs\n---\n", FileName));
+
+        Assert.StartsWith(
+            "Invalid snippet manifest 'manifest'", fromTheBlockParser.Message, StringComparison.Ordinal);
+        Assert.StartsWith(
+            "Invalid snippet manifest 'manifest'", fromTheManifestRules.Message, StringComparison.Ordinal);
     }
 }

@@ -521,23 +521,26 @@ kbd {
     color-scheme: light;
 }
 
-.slab pre {
+/* The slab paints the box, so the block inside it carries only the margin reset -- a UA `pre` has
+   no padding, border or background of its own, and its colour already inherits.
+
+   Nothing here may touch the font. `code, pre, kbd` above sets the mono family at specificity
+   0-0-1, and a `font: inherit` here (0-1-1) beats it and resolves to the body sans face, because
+   .slab sets a size and a line-height but never a family. That rendered every figure on the site
+   in Geist. The browser suite reads overflow and contrast, not font-family, so it stayed green. */
+.slab > pre,
+.slab > .csharp > pre {
     margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
 }
 
 /* The build error is not code, so it does not borrow the code vocabulary. Two classes: where the
    error is, and which error it is. */
 .diag-loc {
-    color: var(--color-code-comment);
+    color: var(--color-diag-loc);
 }
 
 .diag-id {
-    color: var(--color-code-member);
+    color: var(--color-diag-id);
 }
 
 /* --- F4 Step sequence -----------------------------------------------------

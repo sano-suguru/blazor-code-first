@@ -302,7 +302,7 @@ of it is covered by the commands above, including the `dotnet format` gate in
 §Code style. `.github/workflows/site.yml` is where all of it is enforced
 instead:
 
-- DocGen regeneration and a drift check on the two generated files
+- DocGen regeneration and a drift check on the three generated files
 - DocGen's own unit tests
 - `dotnet format` over each of the four projects under `site/`
 - an English-only and trailing-newline scan of the tree
@@ -348,15 +348,23 @@ bash eng/verify-site-prerender.sh site/BlazorCodeFirst.Site/bin/Release/net10.0/
 cd site/tests/browser && npm ci && npx playwright install chromium && npx playwright test
 ```
 
-A change under `site/content` needs DocGen re-run before the publish, or the
-publish still carries the old manifest and the change has no effect:
+A change under `site/content`, under `site/snippets`, or to a file a snippet
+reads needs DocGen re-run before the publish, or the publish still carries the
+old manifest and the change has no effect:
 
 ```bash
 dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \
   site/content \
   site/BlazorCodeFirst.Site/Content/Docs.g.cs \
-  site/BlazorCodeFirst.Site/wwwroot/css/highlight.css
+  site/BlazorCodeFirst.Site/wwwroot/css/highlight.css \
+  site/snippets \
+  site/BlazorCodeFirst.Site/Content/Snippets.g.cs
 ```
+
+Every argument is required; the tool prints its usage and exits 1 otherwise. A
+snippet may read a file that is also compiled — `/counter`'s figure is
+`site/BlazorCodeFirst.Site/Pages/CounterPage.cs` — so editing a page can make
+this command's output change. `site/README.md` §Snippets describes the unit.
 
 Two of those checks look obvious and are not, so do not "simplify" them back.
 Overflow is measured as element boxes against the viewport rather than as
