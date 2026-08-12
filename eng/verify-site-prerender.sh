@@ -380,6 +380,15 @@ done <<< "$(pages_with_shell)"
 # premise breaking rather than letting the guard above quietly enforce the wrong thing.
 assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish output, so a .razor.css was added: restore the <link href=\"BlazorCodeFirst.Site.styles.css\"> line in wwwroot/index.html and drop the guard that forbids it"
 
+# The four faces the page draws in. They are ordinary wwwroot files and can be lost the way any file
+# can, and the version in each name means a rename is a silent miss rather than a compile error. The
+# browser suite fails too, on the unavailable face -- it says a family is missing, this says the file
+# is. Named one by one rather than counted, because the name is the half that goes wrong.
+for font in geist-1.800-latin.woff2 geist-1.800-latin-ext.woff2 \
+            jetbrains-mono-2.211-latin.woff2 jetbrains-mono-2.211-latin-ext.woff2; do
+  assert_file "$P/fonts/$font" "the publish output has no fonts/$font, so every page naming that face falls back to a system font"
+done
+
 # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
 assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
 
