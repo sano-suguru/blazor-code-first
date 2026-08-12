@@ -10,10 +10,10 @@ way Razor's output does and stays trimming/AOT-safe. There is no runtime UI tree
 no expression compilation.
 
 The vocabulary mirrors HTML: elements are C# helpers, attributes and events sit next to the tag in
-a decoration chain, children follow in brackets, and layout is left entirely to CSS. That puts
-BlazorCodeFirst in the lineage of kotlinx.html (Kotlin), ScalaTags (Scala), Feliz (F#), Elm's `html`,
-and hiccup (Clojure) rather than SwiftUI or Jetpack Compose. There are no `VStack` / `HStack` /
-`Grid` containers and no typed `.Padding()` / `.FontSize()` decorations.
+a decoration chain, children follow in brackets, and layout is left entirely to CSS. This is not the
+SwiftUI or Jetpack Compose kind of code-first: there are no `VStack` / `HStack` / `Grid` containers
+and no typed `.Padding()` / `.FontSize()` decorations. `DESIGN.md` §4.1 records which lineage this
+follows, and why.
 
 ```csharp
 using BlazorCodeFirst;
@@ -51,13 +51,12 @@ Run it with
 
 `Body` is an ordinary typed C# expression, so the compiler checks names and types, and refactorings
 propagate through it like any other code. It is not compile-time validation of HTML. Every element
-is one unified node type carrying a string tag, in the style of hiccup and ScalaTags rather than
-kotlinx.html, so `Img["child"]` and `Div.Href(…)` both type-check. `DESIGN.md` §4.1 records that
-position and separates the two cases. `.Href(…)` on a `Div` renders as written and is not diagnosed.
-`Img["child"]` renders differently under static SSR than under interactive rendering, so it is
-rejected as BCF3016. What can be checked is bounded by the arity of the check, not by validity: a
-break decidable from the element tag alone can be diagnosed, while one that needs the (parent, child)
-pair, such as `Table[Div["x"]]`, is not.
+is one unified node type carrying a string tag, so `Img["child"]` and `Div.Href(…)` both type-check.
+`DESIGN.md` §4.1 records that position and separates the two cases. `.Href(…)` on a `Div` renders
+as written and is not diagnosed. `Img["child"]` renders differently under static SSR than under
+interactive rendering, so it is rejected as BCF3016. What can be checked is bounded by the arity of
+the check, not by validity: a break decidable from the element tag alone can be diagnosed, while one
+that needs the (parent, child) pair, such as `Table[Div["x"]]`, is not.
 
 What C# cannot check is the *shape* of a `Body`:
 
