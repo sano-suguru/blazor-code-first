@@ -136,6 +136,20 @@ public sealed class ComponentSlotDiagnosticTests
     }
 
     [Fact]
+    public void ChildrenAndTemplate_SameSlot_ReportsBCF3007()
+    {
+        // Brackets reach a generic ChildContent, so this is the same mistake as children plus a fragment
+        // .Param: two channels write one parameter and Blazor applies the last. The indexer arm's own
+        // duplicate check is what reports it, and it runs before the slot is built, so the narrowed
+        // BCF3013 never sees this call (#322).
+        var result = Run(
+            "Component<TypedChildContent>().Template(c => c.ChildContent, Div[\"y\"])[Div[\"x\"]]");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3007" && d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3013");
+    }
+
+    [Fact]
     public void TwoFragmentParams_SameSlot_ReportsBCF3007()
     {
         var result = Run(
