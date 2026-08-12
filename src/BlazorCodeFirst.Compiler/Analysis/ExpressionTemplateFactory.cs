@@ -459,41 +459,43 @@ internal static class ExpressionTemplateFactory
         ExpressionSyntax expression,
         List<Replacement> replacements)
     {
-        // Collected first and appended after the walk, so an added parenthesis never counts as the
-        // rewrite that puts parentheses around an enclosing hole.
-        List<Replacement>? parentheses = null;
+        // Nothing was rewritten, so no hole can need restoring. Checked before the walk because the walk
+        // would otherwise run over every expression in every body, most of which are rewritten nowhere.
+        if (replacements.Count == 0)
+            return;
+
+        // The scan below reads only what was recorded before the walk, so a parenthesis added here never
+        // counts as the rewrite that puts parentheses around an enclosing hole.
+        var rewriteCount = replacements.Count;
 
         foreach (var node in expression.DescendantNodes())
         {
             // An author who already parenthesized the hole -- a conditional expression has to be --
             // left no top level inside it for a rewrite to reach.
             if (node is not InterpolationSyntax { Expression: { } hole and not ParenthesizedExpressionSyntax }
-                || !ContainsSubstitutedText(hole.Span, replacements))
+                || !ContainsSubstitutedText(hole.Span, replacements, rewriteCount))
             {
                 continue;
             }
 
-            parentheses ??= [];
-            parentheses.Add(new Replacement(
+            replacements.Add(new Replacement(
                 new TextSpan(hole.SpanStart, 0),
                 [new LiteralExpressionSegment("(")]));
-            parentheses.Add(new Replacement(
+            replacements.Add(new Replacement(
                 new TextSpan(hole.Span.End, 0),
                 [new LiteralExpressionSegment(")")]));
         }
-
-        if (parentheses is not null)
-            replacements.AddRange(parentheses);
     }
 
     /// <summary>
-    /// Whether any replacement inside <paramref name="span"/> writes text other than a parameter hole's
-    /// substituted name.
+    /// Whether any of the first <paramref name="count"/> replacements inside <paramref name="span"/>
+    /// writes text other than a parameter hole's substituted name.
     /// </summary>
-    private static bool ContainsSubstitutedText(TextSpan span, List<Replacement> replacements)
+    private static bool ContainsSubstitutedText(TextSpan span, List<Replacement> replacements, int count)
     {
-        foreach (var replacement in replacements)
+        for (var index = 0; index < count; index++)
         {
+            var replacement = replacements[index];
             if (span.Contains(replacement.Span) && !IsParameterHole(replacement))
                 return true;
         }
@@ -510,13 +512,10 @@ internal static class ExpressionTemplateFactory
         List<Replacement> replacements,
         ConstantInfo? constant)
     {
-        // Length breaks the tie so an empty-span parenthesis lands outside a replacement that begins
-        // where it does, which is what a hole rewritten from its first character looks like.
-        replacements.Sort(static (left, right) =>
-        {
-            var start = left.Span.Start.CompareTo(right.Span.Start);
-            return start != 0 ? start : left.Span.Length.CompareTo(right.Span.Length);
-        });
+        // TextSpan orders by start and then by length, and the length is what an empty-span parenthesis
+        // needs: it lands outside a replacement that begins where it does, which is what a hole rewritten
+        // from its first character looks like.
+        replacements.Sort(static (left, right) => left.Span.CompareTo(right.Span));
 
         var baseText = expression.ToString();
         var baseStart = expression.Span.Start;
