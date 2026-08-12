@@ -311,6 +311,17 @@ jobs:
             assert_grep 'href="css/highlight\.css"' "$P/$f" "the published HTML no longer links css/highlight.css, so code blocks ship unhighlighted"
             assert_grep 'src="_framework/blazor\.webassembly[^"]*\.js"' "$P/$f" "the published HTML no longer loads the Blazor script, so nothing hydrates"
 
+            # The colour-scheme control, whose two halves fail in different directions and are both
+            # invisible to every other check here.
+            #
+            # The inline script applies a stored choice before first paint and owns the click. Lose
+            # it and the button renders, looks pressable, and does nothing, while a reader whose
+            # choice disagrees with their operating system watches the system's answer flash on
+            # every navigation. Lose the button and the script has nothing to listen for. Neither
+            # failure changes a single assertion above.
+            assert_grep 'data-theme-toggle' "$P/$f" "the published HTML no longer carries the theme control, so a reader cannot choose a colour scheme"
+            assert_grep 'localStorage\.getItem' "$P/$f" "the published HTML no longer carries the inline theme script, so a stored choice is neither applied before paint nor changeable"
+
             # Half of the public switch. A `<meta name="robots" content="noindex, nofollow">` in
             # wwwroot/index.html is what kept this site out of search results before it was
             # published, and restoring that single line would deindex every page again with nothing

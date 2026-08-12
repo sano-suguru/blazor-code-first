@@ -321,6 +321,12 @@ checks:
 - that both `tokens.css` and the generated `highlight.css` actually answer
   `prefers-color-scheme`, without which the dark half of the pass above would
   re-measure the light palette and report it as green
+- that a reader's own choice of scheme lands on the same computed palette the
+  system asking for it does, which is what extends that pass to the half of the
+  ways this site can be dark that no emulated media query reaches
+- that the theme control cycles, persists, overrides the operating system, and
+  answers a click with the WebAssembly runtime blocked outright — the last of
+  those being why the click is not owned by a Blazor handler
 - that the documentation rail sits beside the document above the 60rem
   breakpoint and underneath it below that breakpoint
 

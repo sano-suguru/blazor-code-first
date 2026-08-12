@@ -1,117 +1,57 @@
 .htmlServerSideScript{color:#FFFF00;}
-.htmlComment{color:#008000;}
-.htmlTagDelimiter{color:#0000FF;}
+.htmlComment{color:light-dark(#008000,#57A64A);}
+.htmlTagDelimiter{color:light-dark(#0000FF,#569CD6);}
 .htmlElementName{color:#A31515;}
 .htmlAttributeName{color:#FF0000;}
-.htmlAttributeValue{color:#0000FF;}
-.htmlOperator{color:#0000FF;}
-.comment{color:#676871;}
-.xmlDocTag{color:#676871;}
-.xmlDocComment{color:#676871;}
-.string{color:#006647;}
-.stringCSharpVerbatim{color:#006647;}
-.keyword{color:#463ECC;}
-.preprocessorKeyword{color:#463ECC;}
+.htmlAttributeValue{color:light-dark(#0000FF,#569CD6);}
+.htmlOperator{color:light-dark(#0000FF,#569CD6);}
+.comment{color:light-dark(#676871,#8F919F);}
+.xmlDocTag{color:light-dark(#676871,#8F919F);}
+.xmlDocComment{color:light-dark(#676871,#8F919F);}
+.string{color:light-dark(#006647,#69D6AA);}
+.stringCSharpVerbatim{color:light-dark(#006647,#69D6AA);}
+.keyword{color:light-dark(#463ECC,#C5A2FF);}
+.preprocessorKeyword{color:light-dark(#463ECC,#C5A2FF);}
 .htmlEntity{color:#FF0000;}
 .jsonKey{color:#FF8700;}
 .jsonString{color:#008B8B;}
 .jsonNumber{color:#00d700;}
 .jsonConst{color:#af87ff;}
-.xmlAttribute{color:#FF0000;}
-.xmlAttributeQuotes{color:#000000;}
-.xmlAttributeValue{color:#0000FF;}
-.xmlCDataSection{color:#808080;}
-.xmlComment{color:#008000;}
-.xmlDelimiter{color:#0000FF;}
-.xmlName{color:#A31515;}
-.className{color:#161822;}
+.xmlAttribute{color:light-dark(#FF0000,#92CAF4);}
+.xmlAttributeQuotes{color:light-dark(#000000,#569CD6);}
+.xmlAttributeValue{color:light-dark(#0000FF,#569CD6);}
+.xmlCDataSection{color:light-dark(#808080,#C0D088);}
+.xmlComment{color:light-dark(#008000,#57A64A);}
+.xmlDelimiter{color:light-dark(#0000FF,#808080);}
+.xmlName{color:light-dark(#A31515,#E6E6E6);}
+.className{color:light-dark(#161822,#E6E7ED);}
 .cssSelector{color:#A31515;}
 .cssPropertyName{color:#FF0000;}
-.cssPropertyValue{color:#0000FF;}
+.cssPropertyValue{color:light-dark(#0000FF,#569CD6);}
 .sqlSystemFunction{color:#FF00FF;}
 .powershellAttribute{color:#B0E0E6;}
-.powershellOperator{color:#808080;}
+.powershellOperator{color:light-dark(#808080,#9B9B9B);}
 .powershellType{color:#008080;}
 .powershellVariable{color:#FF4500;}
-.powershellCommand{color:#000080;}
-.powershellParameter{color:#808080;}
+.powershellCommand{color:light-dark(#000080,#FFFF00);}
+.powershellParameter{color:light-dark(#808080,#9B9B9B);}
 .type{color:#008080;}
-.typeVariable{color:#008080;font-style: italic;}
+.typeVariable{color:#008080;font-style:italic;}
 .namespace{color:#000080;}
 .constructor{color:#800080;}
 .predefined{color:#000080;}
 .pseudoKeyword{color:#000080;}
-.stringEscape{color:#808080;}
-.controlKeyword{color:#0000FF;}
-.number{color:#006647;}
+.stringEscape{color:light-dark(#808080,#9B9B9B);}
+.controlKeyword{color:light-dark(#0000FF,#569CD6);}
+.number{color:light-dark(#006647,#69D6AA);}
 .operator{}
 .delimiter{}
-.markdownHeader{color:#0000FF;font-weight: bold;}
-.markdownCode{color:#008080;}
-.markdownListItem{font-weight: bold;}
-.italic{font-style: italic;}
-.bold{font-weight: bold;}
-.builtinFunction{color:#6B8E23;font-weight: bold;}
-.builtinValue{color:#556B2F;font-weight: bold;}
-.attribute{color:#008B8B;font-style: italic;}
+.markdownHeader{color:light-dark(#0000FF,#569CD6);font-weight:bold;}
+.markdownCode{color:light-dark(#008080,#D69D85);}
+.markdownListItem{font-weight:bold;}
+.italic{font-style:italic;}
+.bold{font-weight:bold;}
+.builtinFunction{color:#6B8E23;font-weight:bold;}
+.builtinValue{color:#556B2F;font-weight:bold;}
+.attribute{color:#008B8B;font-style:italic;}
 .specialChar{}
-
-@media (prefers-color-scheme: dark) {
-    .htmlServerSideScript{color:#FFFF00;}
-    .htmlComment{color:#57A64A;}
-    .htmlTagDelimiter{color:#569CD6;}
-    .htmlElementName{color:#A31515;}
-    .htmlAttributeName{color:#FF0000;}
-    .htmlAttributeValue{color:#569CD6;}
-    .htmlOperator{color:#569CD6;}
-    .comment{color:#8F919F;}
-    .xmlDocTag{color:#8F919F;}
-    .xmlDocComment{color:#8F919F;}
-    .string{color:#69D6AA;}
-    .stringCSharpVerbatim{color:#69D6AA;}
-    .keyword{color:#C5A2FF;}
-    .preprocessorKeyword{color:#C5A2FF;}
-    .htmlEntity{color:#FF0000;}
-    .jsonKey{color:#FF8700;}
-    .jsonString{color:#008B8B;}
-    .jsonNumber{color:#00d700;}
-    .jsonConst{color:#af87ff;}
-    .xmlAttribute{color:#92CAF4;}
-    .xmlAttributeQuotes{color:#569CD6;}
-    .xmlAttributeValue{color:#569CD6;}
-    .xmlCDataSection{color:#C0D088;}
-    .xmlComment{color:#57A64A;}
-    .xmlDelimiter{color:#808080;}
-    .xmlName{color:#E6E6E6;}
-    .className{color:#E6E7ED;}
-    .cssSelector{color:#A31515;}
-    .cssPropertyName{color:#FF0000;}
-    .cssPropertyValue{color:#569CD6;}
-    .sqlSystemFunction{color:#FF00FF;}
-    .powershellAttribute{color:#B0E0E6;}
-    .powershellOperator{color:#9B9B9B;}
-    .powershellType{color:#008080;}
-    .powershellVariable{color:#FF4500;}
-    .powershellCommand{color:#FFFF00;}
-    .powershellParameter{color:#9B9B9B;}
-    .type{color:#008080;}
-    .typeVariable{color:#008080;font-style: italic;}
-    .namespace{color:#000080;}
-    .constructor{color:#800080;}
-    .predefined{color:#000080;}
-    .pseudoKeyword{color:#000080;}
-    .stringEscape{color:#9B9B9B;}
-    .controlKeyword{color:#569CD6;}
-    .number{color:#69D6AA;}
-    .operator{}
-    .delimiter{}
-    .markdownHeader{color:#569CD6;font-weight: bold;}
-    .markdownCode{color:#D69D85;}
-    .markdownListItem{font-weight: bold;}
-    .italic{font-style: italic;}
-    .bold{font-weight: bold;}
-    .builtinFunction{color:#6B8E23;font-weight: bold;}
-    .builtinValue{color:#556B2F;font-weight: bold;}
-    .attribute{color:#008B8B;font-style: italic;}
-    .specialChar{}
-}

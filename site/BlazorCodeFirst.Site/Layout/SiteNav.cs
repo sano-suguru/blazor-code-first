@@ -55,7 +55,39 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
                 A.Href("/counter").Class(LinkClass("/counter"))["Demo"],
                 A.Href("https://github.com/sano-suguru/blazor-code-first")
                     .Class("chip")
-                    .Attr("rel", "noopener")["Source"]]];
+                    .Attr("rel", "noopener")["Source"],
+                ThemeToggle()]];
+
+    /// <summary>The colour-scheme control: system, light, dark, in that cycle.</summary>
+    /// <remarks>
+    /// Stateless markup, and no OnClick, neither of which is an omission. All three state words are
+    /// always present and css/app.css shows the one matching the attribute on :root, so this renders
+    /// identically whatever the theme is -- which is what lets the prerendered HTML be correct
+    /// before the runtime exists, and what makes a re-render of this long-lived component harmless.
+    /// wwwroot/index.html owns the click, on a listener delegated to document, because a handler
+    /// here would not answer until WebAssembly had started; the note beside that script has the
+    /// reasoning.
+    ///
+    /// The visible "Theme" is decorative and hidden from assistive technology, and drops out
+    /// visually on a narrow viewport. The accessible name comes from the span before it, hidden at
+    /// every width, so the button reads as "Color theme: Dark" throughout. The two words that are
+    /// not current are visibility:hidden, which excludes them from that name while keeping their
+    /// width.
+    ///
+    /// [ViewPart] is what makes this a method at all rather than more markup inline in Body. It is
+    /// expanded into the caller's frame sequence, so the split costs nothing at runtime; without the
+    /// attribute the call would be Opaque, which is unimplemented and reports BCF1003 today rather
+    /// than the BCF2001 the finished design intends (ARCHITECTURE.md appendix A).
+    /// </remarks>
+    [ViewPart]
+    private static View ThemeToggle() =>
+        Button.Class("theme-toggle").Attr("type", "button").Attr("data-theme-toggle", "")[
+            Span.Class("visually-hidden")["Color theme: "],
+            Span.Class("theme-toggle__label").Attr("aria-hidden", "true")["Theme"],
+            Span.Class("theme-toggle__states")[
+                Span.Class("is-system")["System"],
+                Span.Class("is-light")["Light"],
+                Span.Class("is-dark")["Dark"]]];
 
     /// <summary>The current route as a normalized absolute path ("/", "/counter", "/docs/x").</summary>
     /// <remarks>

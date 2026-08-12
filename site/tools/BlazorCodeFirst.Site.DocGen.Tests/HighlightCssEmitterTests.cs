@@ -1,7 +1,8 @@
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using BlazorCodeFirst.Site.DocGen;
+using ColorCode.Styling;
 using Xunit;
 
 namespace BlazorCodeFirst.Site.DocGen.Tests;
@@ -78,70 +79,81 @@ public class HighlightCssEmitterTests
     // being applied; the absence check catches a repaint that was applied to a duplicate entry
     // while the original rule survived alongside it.
     [Theory]
-    [InlineData("keyword", "#463ECC", "#0000FF")]
-    [InlineData("string", "#006647", "#A31515")]
-    [InlineData("comment", "#676871", "#008000")]
-    public void Emit_RepaintsScopeOntoTheSitePalette(string cls, string expected, string defaultLight)
-    {
-        string css = LightHalf();
-
-        Assert.Contains($".{cls}{{color:{expected};}}", css, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain($".{cls}{{color:{defaultLight};}}", css, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // The dark half, asserted the same two ways and for the same reasons. The defaults differ
-    // because the dark theme is built from DefaultDark, not from the light dictionary: an unreached
-    // scope has to inherit a colour meant for the surface it will land on.
-    [Theory]
-    [InlineData("keyword", "#C5A2FF", "#569CD6")]
-    [InlineData("string", "#69D6AA", "#D69D85")]
-    [InlineData("comment", "#8F919F", "#57A64A")]
-    public void Emit_RepaintsScopeOntoTheDarkPalette(string cls, string expected, string defaultDark)
-    {
-        string css = DarkHalf();
-
-        Assert.Contains($".{cls}{{color:{expected};}}", css, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain($".{cls}{{color:{defaultDark};}}", css, StringComparison.OrdinalIgnoreCase);
-    }
-
-    // Neither half may carry the other's palette. A single Emit() that built both from one
-    // dictionary would still satisfy every presence check above for the half it got right, and
-    // would ship the light hexes onto a dark page.
-    [Theory]
-    [InlineData("#463ECC")]
-    [InlineData("#006647")]
-    [InlineData("#676871")]
-    public void Emit_KeepsTheLightPaletteOutOfTheDarkHalf(string lightHex)
-    {
-        Assert.DoesNotContain(lightHex, DarkHalf(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    // Both halves have to answer for the same selectors. A scope repainted in one dictionary and
-    // forgotten in the other leaves a class styled in one scheme and inherited in the other, which
-    // no single-half assertion above can see.
-    [Fact]
-    public void Emit_StylesTheSameSelectorsInBothHalves()
-    {
-        Assert.Equal(Selectors(LightHalf()), Selectors(DarkHalf()));
-    }
-
-    [Fact]
-    public void Emit_ClosesTheDarkSchemeBlock()
+    [InlineData("keyword", "#463ECC", "#C5A2FF")]
+    [InlineData("string", "#006647", "#69D6AA")]
+    [InlineData("comment", "#676871", "#8F919F")]
+    public void Emit_PairsBothPalettesInOneDeclaration(string cls, string light, string dark)
     {
         string css = HighlightCssEmitter.Emit();
 
-        Assert.Contains(HighlightCssEmitter.DarkSchemeMarker, css, StringComparison.Ordinal);
-        Assert.EndsWith("}\n", css, StringComparison.Ordinal);
-        // A rule outside a selector would mean the split below silently measured the wrong text.
-        Assert.Equal(1, css.Split(HighlightCssEmitter.DarkSchemeMarker).Length - 1);
+        Assert.Contains($".{cls}{{color:light-dark({light},{dark});}}", css, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string LightHalf() =>
-        HighlightCssEmitter.Emit().Split(HighlightCssEmitter.DarkSchemeMarker)[0];
+    // The defaults each palette would have carried had the repaint stopped being applied. They
+    // differ because the dark theme is built from DefaultDark, not from the light dictionary: an
+    // unreached scope has to inherit a colour meant for the surface it will land on.
+    //
+    // Asserting their absence is the other half of the pair above. The presence check catches a
+    // repaint that stopped happening; this catches one applied to a duplicate entry while the
+    // original rule survived alongside it.
+    [Theory]
+    [InlineData("#0000FF")]
+    [InlineData("#A31515")]
+    [InlineData("#008000")]
+    [InlineData("#569CD6")]
+    [InlineData("#D69D85")]
+    [InlineData("#57A64A")]
+    public void Emit_LeavesNoVisualStudioDefaultOnARepaintedScope(string defaultHex)
+    {
+        string css = HighlightCssEmitter.Emit();
 
-    private static string DarkHalf() =>
-        HighlightCssEmitter.Emit().Split(HighlightCssEmitter.DarkSchemeMarker)[1];
+        foreach (string cls in new[] { "keyword", "string", "comment" })
+        {
+            Match rule = Regex.Match(css, @"\." + cls + @"\{([^}]*)\}");
+            Assert.True(rule.Success, $".{cls} has no rule at all");
+            Assert.DoesNotContain(defaultHex, rule.Groups[1].Value, StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
-    private static SortedSet<string> Selectors(string css) =>
-        [.. Regex.Matches(css, @"\.([A-Za-z][A-Za-z0-9]*)\s*\{").Select(m => m.Groups[1].Value)];
+    // A pair is only worth emitting when the two halves differ; a scope both dictionaries agree on
+    // is written once. Without this, light-dark(#FFFF00,#FFFF00) would be correct CSS and pure
+    // noise, and the file would stop showing at a glance which scopes actually turn over.
+    [Fact]
+    public void Emit_WritesAgreedColoursOnce()
+    {
+        string css = HighlightCssEmitter.Emit();
+
+        Assert.Contains(".htmlServerSideScript{color:#FFFF00;}", css, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Non-colour declarations survive the merge. light-dark() takes colours only, so a font-weight
+    // could not have been paired even if the palettes had disagreed on one -- it has to pass
+    // through, and a merge that dropped what it could not pair would silently unbold every
+    // Markdown list item.
+    [Fact]
+    public void Emit_KeepsDeclarationsThatAreNotColours()
+    {
+        string css = HighlightCssEmitter.Emit();
+
+        Assert.Contains(".markdownListItem{font-weight:bold;}", css, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Both dictionaries have to answer for the same selectors, and the merge refuses rather than
+    // dropping one side. This asserts the guard is wired to something real: it fires on dictionaries
+    // that disagree, which is what a scope repainted in one palette and forgotten in the other
+    // produces.
+    [Fact]
+    public void Emit_RefusesPalettesThatStyleDifferentSelectors()
+    {
+        // One scope in the second palette that the first cannot have. Built by addition rather than
+        // by handing in two stock dictionaries, so the test states the asymmetry itself instead of
+        // depending on ColorCode's defaults happening to differ.
+        StyleDictionary lopsided = StyleDictionary.DefaultDark;
+        lopsided.Add(new Style("scopeThatOnlyOnePaletteStyles") { Foreground = "#FF00FF" });
+
+        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(
+            () => { HighlightCssEmitter.Emit(ColorCodeTheme.Styles, lopsided); });
+
+        Assert.Contains("different selectors", thrown.Message, StringComparison.Ordinal);
+    }
 }
