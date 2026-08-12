@@ -66,6 +66,34 @@ public sealed class HtmlForEachGeneratorTests
         }
         """;
 
+    /// <summary>
+    /// <see cref="TextContentSource"/> with the key declined, and nothing else. Written as a pair so the
+    /// key is the only difference between the two, which is what makes the key the subject under test.
+    /// </summary>
+    private const string NullKeyTextContentSource = """
+        using BlazorCodeFirst;
+        using System.Collections.Generic;
+
+        public partial class C : BodyComponentBase
+        {
+            private readonly List<string> _items = new() { "a", "b" };
+            protected override View Body =>
+                Html.Div[Html.ForEach(_items, key: null, content: x => x)];
+        }
+        """;
+
+    private const string NullKeyFragmentContentSource = """
+        using BlazorCodeFirst;
+        using System.Collections.Generic;
+
+        public partial class C : BodyComponentBase
+        {
+            private readonly List<string> _items = new() { "a", "b" };
+            protected override View Body =>
+                Html.Div[Html.ForEach(_items, key: null, content: x => Html.Fragment(Html.Span[x], Html.Em[x]))];
+        }
+        """;
+
     /// <summary>A key that is null at runtime but is not the written null the opt-out is spelled as.</summary>
     private const string NullValuedKeyVariableSource = """
         using System;
@@ -138,6 +166,29 @@ public sealed class HtmlForEachGeneratorTests
         Assert.DoesNotContain("\"<span><em>fixed</em></span>\"", keyedSource);
         CompilationTestHost.AssertOutputCompiles(unkeyed);
         CompilationTestHost.AssertOutputCompiles(keyed);
+    }
+
+    [Fact]
+    public void ForEach_NullKeyWithBareTextContent_DoesNotReportBCF3003()
+    {
+        // BCF3003 says "the key cannot attach here". With no key there is nothing to attach, so a root
+        // that opens no keyable frame is not a defect (#172). The keyed spelling of this same body is
+        // ForEach_WithBareTextContent_ReportsBCF3003 above, which is the other half of the pair.
+        var result = CompilationTestHost.RunGenerator(NullKeyTextContentSource);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3003");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ForEach_NullKeyWithFragmentContent_DoesNotReportBCF3003()
+    {
+        // The wrapper-less root the Issue names: a Fragment opens no element frame of its own, and with
+        // no key that costs nothing.
+        var result = CompilationTestHost.RunGenerator(NullKeyFragmentContentSource);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3003");
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
