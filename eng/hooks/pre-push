@@ -4,25 +4,63 @@
 # EnforceCodeStyleInBuild and is the fastest-failing CI check.
 #
 # Enable once per clone: git config core.hooksPath eng/hooks
-#
-# pre-push passes "<remote> <url>" as args and ref lines on stdin; not needed here.
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
+
+# pre-push passes "<remote> <url>" as args and one line per pushed ref on stdin:
+# "<local-ref> <local-sha> <remote-ref> <remote-sha>". A deleted ref arrives with an all-zero
+# local sha, which is how a `git push --delete` is told apart from a push that carries commits.
+# Deleting a branch sends no code, so verifying the solution for one costs minutes and decides
+# nothing. A run outside git has a terminal on stdin and no ref lines; reading it would hang.
+pushes_code=0
+if [ -t 0 ]; then
+  pushes_code=1
+else
+  while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    case "$local_sha" in
+      *[!0]*) pushes_code=1 ;;
+    esac
+  done
+fi
+
+if [ "$pushes_code" -eq 0 ]; then
+  echo "pre-push: this push carries no commits; nothing to format." >&2
+  exit 0
+fi
 
 if ! command -v dotnet >/dev/null 2>&1; then
   echo "pre-push: 'dotnet' not found on PATH; skipping format check." >&2
   exit 0
 fi
 
+format() {
+  dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore
+}
+
 echo "pre-push: verifying formatting (dotnet format --verify-no-changes)..." >&2
-if ! dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore; then
+if ! format; then
+  # `dotnet format` loads each project as a Roslyn compilation, so an unbuilt tree fails here with
+  # CS0246 and CS0534 rather than with a formatting diff, and `dotnet format` cannot repair that.
+  # Build once and retry, which distinguishes the two cases; `site.yml` builds first for the same
+  # reason. A passing push pays nothing, because this runs only after a failure.
   echo >&2
-  echo "pre-push: formatting check failed. Fix with:" >&2
-  echo "    dotnet format BlazorCodeFirst.slnx" >&2
-  echo "then re-commit and push again. (Bypass in an emergency with: git push --no-verify)" >&2
-  exit 1
+  echo "pre-push: format check failed; building once, since an unbuilt tree fails the same way..." >&2
+  if ! dotnet build BlazorCodeFirst.slnx >&2; then
+    echo >&2
+    echo "pre-push: the solution does not build; fix that first." >&2
+    echo "(Bypass in an emergency with: git push --no-verify)" >&2
+    exit 1
+  fi
+
+  if ! format; then
+    echo >&2
+    echo "pre-push: formatting check failed. Fix with:" >&2
+    echo "    dotnet format BlazorCodeFirst.slnx" >&2
+    echo "then re-commit and push again. (Bypass in an emergency with: git push --no-verify)" >&2
+    exit 1
+  fi
 fi
 
 echo "pre-push: formatting OK." >&2

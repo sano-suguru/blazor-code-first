@@ -309,6 +309,14 @@ output, so a push that does not print `pre-push: verifying formatting...` never
 ran the check. What that costs is bounded: CI fails on the same drift, one round
 trip later.
 
+Two cases the hook decides on its own. A push that only deletes refs carries no
+code, so it prints `pre-push: this push carries no commits` and exits rather than
+verifying a solution the push does not touch. And when the check fails, the hook
+builds once and runs it again, because `dotnet format` loads each project as a
+Roslyn compilation: an unbuilt tree fails it with CS0246 and CS0534 from the
+missing generator output, which `dotnet format` cannot repair. A second failure
+is the real formatting drift.
+
 One Roslyn idiom no tool enforces: ask a `SyntaxTokenList` for a modifier through its own
 `Any(SyntaxKind)` overload, never `Enumerable.Any(m => m.IsKind(...))`. The list is a struct the API
 hands out by value, so the LINQ shape boxes it and allocates an enumerator on a path the generator
