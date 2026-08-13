@@ -84,7 +84,7 @@ to load it. Building this repository is a separate requirement: `global.json` pi
 
 ## Documentation
 
-- [Documentation site](https://blazor-code-first-site.pages.dev): getting started, elements and
+- [Documentation site](https://blazor-code-first-site.snsgr.workers.dev): getting started, elements and
   decorations, control flow, two-way binding, components and reuse, layouts. The site itself is
   written in BlazorCodeFirst.
 - [DESIGN.md](DESIGN.md) (Japanese): the design overview, covering background, goals, API design,

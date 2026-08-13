@@ -1,10 +1,9 @@
-# Cloudflare Pages response headers.
+# Cloudflare Workers static-asset response headers.
 #
-# ONE rule per concern, never two rules setting the same header name. Pages MERGES the headers of
-# every matching rule, and (measured on a preview deployment) a duplicate header name arrives as
-# SEPARATE header lines rather than one comma-joined value -- so adding a catch-all "/*"
-# Cache-Control rule alongside the one below would produce a second, conflicting header line rather
-# than an override.
+# ONE rule per concern, never two rules setting the same header name. A request that matches
+# several rules inherits ALL of their headers, however the edge represents a repeated name, so a
+# catch-all "/*" Cache-Control rule alongside the one below would ADD a second, conflicting
+# directive rather than override it.
 #
 # HTML is deliberately left on the Cloudflare default (public, max-age=0, must-revalidate): every
 # route's index.html is regenerated on each deploy behind an unchanged URL, so it must revalidate.
@@ -21,21 +20,20 @@
 # name (geist-1.800, jetbrains-mono-2.211), so replacing one necessarily changes its URL and pinning
 # the old one for a year is harmless. Rename the file when you replace the font; never reuse a name.
 #
-# A separate path pattern, not a widened /_framework/* one: Pages MERGES matching rules, so a single
+# A separate path pattern, not a widened /_framework/* one: matching rules MERGE, so a single
 # pattern covering both would be the duplicate-header case the note at the top of this file warns
 # about.
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
 
-# /404 is expected to be reachable as an ordinary 200 page, not only as a 404 response body: Pages
-# redirects /404.html to its extension-less counterpart and then serves the file matching /404. A 404
-# STATUS response is already non-indexable; a 200 one is not, hence this rule. Cloudflare documents
-# both redirect steps but NOT the resulting status code, so the 200 is an inference -- measured on a
-# preview deployment, see the PR that added this file. The rule is harmless either way.
+# /404 is reachable as an ordinary 200 page, not only as a 404 response body: with html_handling at
+# its default "auto-trailing-slash", Workers serves 404.html for "/404" with a 200 and redirects
+# "/404.html" to "/404". A 404 STATUS response is already non-indexable; a 200 one is not, hence
+# this rule. Both halves are documented, and site/wrangler.jsonc writes html_handling out rather
+# than relying on the default.
 #
-# CI appends a "/*" noindex rule to preview deploys. Rules MERGE rather than override, so /404 on a
-# preview receives both directives as separate X-Robots-Tag header lines (measured on a preview
-# deployment, see the PR that added this file), not one comma-joined value; the order between the
-# two lines is not documented, only the presence of both.
+# CI appends a "/*" noindex rule to preview deploys, and on a preview that rule is the one thing in
+# this file the edge overrides. The injection step in site.yml records what was measured and why the
+# rule is kept anyway; every other rule here, including the two above, arrives on a preview intact.
 /404
   X-Robots-Tag: noindex

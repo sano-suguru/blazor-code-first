@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Assertions over the site's `dotnet publish` output: the routes that were prerendered, the shell
-# they carry, and the files Cloudflare Pages needs beside them.
+# they carry, and the files the deployment needs beside them.
 #
 # A script rather than an inline block in .github/workflows/site.yml, so it can be RUN. A check that
 # lives inside a YAML string cannot be watched failing without pushing, and CONTRIBUTING.md
@@ -299,14 +299,17 @@ while read -r kind route langdir slug; do
   fi
 done <<< "$(expected_table)"
 
-# A top-level 404.html is what makes Cloudflare Pages serve real 404s. Its documentation is
-# explicit: "If your project does not include a top-level 404.html file, Pages assumes that
-# you are deploying a single-page application." So if this file ever goes missing, Pages
-# silently reverts to answering EVERY unknown URL with 200 and the home page -- an
-# unbounded supply of soft 404s and duplicate content on an indexed site. This assertion is
-# a production-correctness guard, and doubles as the canary for both the prerender route
-# list and the copy target, since nothing links /404.
-assert_file "$P/404.html" "the top-level 404.html is missing, so Cloudflare Pages will treat this deployment as a single-page application and answer every unknown URL with 200 and the home page"
+# A top-level 404.html is the page an unmatched request is answered with: site/wrangler.jsonc sets
+# not_found_handling to 404-page, which serves the nearest 404.html and nothing else. Losing the
+# file leaves every unknown URL on an indexed site answering with an empty body. This assertion is
+# a production-correctness guard, and doubles as the canary for both the prerender route list and
+# the copy target, since nothing links /404.
+#
+# It was written when the site deployed to Cloudflare Pages, where the same file did more: Pages
+# inferred a single-page application from its ABSENCE and then answered every unknown URL with 200
+# and the home page. Workers reads the configuration instead of the file listing, so that failure
+# mode is gone and this check is no longer the only thing standing between the site and it.
+assert_file "$P/404.html" "the top-level 404.html is missing, so every unknown URL will answer with an empty 404 instead of the not-found page"
 assert_grep 'class="site-nav"' "$P/404.html" "the site shell (nav) is missing from 404.html"
 assert_count '<title>' "$P/404.html" 1 "404.html must render exactly one title element"
 # The BODY, not just the shell. This is the guard that keeps the shared [ViewPart] doing

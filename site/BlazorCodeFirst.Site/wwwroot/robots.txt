@@ -11,4 +11,4 @@ Allow: /
 # Must be an absolute URL -- a Sitemap directive is not resolved relative to the host serving this
 # file. CI asserts this origin against the one it generates sitemap.xml with, since it is written in
 # both places.
-Sitemap: https://blazor-code-first-site.pages.dev/sitemap.xml
+Sitemap: https://blazor-code-first-site.snsgr.workers.dev/sitemap.xml
