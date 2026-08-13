@@ -92,7 +92,7 @@ generator and analyzers in `analyzers/dotnet/cs`.
 
 ## Documentation
 
-- [Documentation site](https://blazor-code-first-site.pages.dev): getting started, elements and
+- [Documentation site](https://blazor-code-first-site.snsgr.workers.dev): getting started, elements and
   decorations, control flow, layouts. The site is itself written in BlazorCodeFirst.
 - [Repository](https://github.com/sano-suguru/blazor-code-first): the design overview
   (`DESIGN.md`), the compilation algorithm and the diagnostic table (`ARCHITECTURE.md`), and the

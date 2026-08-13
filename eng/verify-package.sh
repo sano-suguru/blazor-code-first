@@ -179,7 +179,7 @@ expected_values = {
     # license file lands in the payload (#226). NuGet emits a licenseUrl beside it for older
     # clients; that one is derived and not asserted.
     "license": "MIT",
-    "projectUrl": "https://blazor-code-first-site.pages.dev/",
+    "projectUrl": "https://blazor-code-first-site.snsgr.workers.dev/",
     "copyright": "Copyright (c) 2026 Sano Suguru",
     "tags": "blazor razor source-generator html dsl aot trimming components",
 }

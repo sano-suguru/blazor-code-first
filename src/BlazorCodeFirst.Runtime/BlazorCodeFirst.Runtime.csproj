@@ -21,7 +21,7 @@
          nuget.org renders it as a link to the license text instead of embedding a copy. The full text
          is at the repository root in LICENSE (#226). -->
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://blazor-code-first-site.pages.dev</PackageProjectUrl>
+    <PackageProjectUrl>https://blazor-code-first-site.snsgr.workers.dev</PackageProjectUrl>
     <PackageTags>blazor;razor;source-generator;html;dsl;aot;trimming;components</PackageTags>
     <RepositoryUrl>https://github.com/sano-suguru/blazor-code-first</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
