@@ -43,7 +43,8 @@ internal static class ViewPartDefinitionFactory
         var methodKey = MethodKey.Create(method);
         var displayName = method.Name;
 
-        var invalidReason = ValidateDeclaration(method, declaration, knownSymbols);
+        var invalidReason = ValidateDeclaration(
+            method, declaration, knownSymbols, out var bodyStatements, out var bodyExpression);
         if (invalidReason is not null)
             return Invalid(methodKey, displayName, declaration, invalidReason);
 
@@ -51,6 +52,8 @@ internal static class ViewPartDefinitionFactory
             attributeContext,
             method,
             declaration,
+            bodyStatements,
+            bodyExpression,
             knownSymbols!,
             cancellationToken,
             out var bodyDiagnostics);
@@ -67,11 +70,21 @@ internal static class ViewPartDefinitionFactory
             bodyDiagnostics);
     }
 
+    /// <param name="statements">
+    /// The statements the declaration transplants, and <paramref name="returned"/> the expression it
+    /// returns. Read here because the body's shape is one of the things being validated, and handed back
+    /// so the caller does not read the same syntax a second time to get what this already has.
+    /// </param>
     private static string? ValidateDeclaration(
         IMethodSymbol method,
         MethodDeclarationSyntax declaration,
-        KnownSymbols? knownSymbols)
+        KnownSymbols? knownSymbols,
+        out ImmutableArray<StatementSyntax> statements,
+        out ExpressionSyntax returned)
     {
+        statements = [];
+        returned = null!;
+
         // A view part is never an extension member (DESIGN.md §4.3, #203). Rejected ahead of the static
         // test so both spellings answer with the reason that is true of them rather than the instance form
         // answering "must be static". The disjunction is one question the language splits in two: Roslyn
@@ -102,7 +115,7 @@ internal static class ViewPartDefinitionFactory
         // the same reader, so a block a ForEach content lambda accepts is a block a part accepts. What
         // kept a part out until #336 was that its statements are copied into every call site, where the
         // names the author wrote collided; those names are minted now.
-        if (!TryReadBody(declaration, out _, out _))
+        if (!TryReadBody(declaration, out statements, out returned))
         {
             return "body must be an expression, or a block whose local declarations and expression "
                 + "statements lead to a single return";
@@ -170,13 +183,12 @@ internal static class ViewPartDefinitionFactory
         GeneratorAttributeSyntaxContext attributeContext,
         IMethodSymbol method,
         MethodDeclarationSyntax declaration,
+        ImmutableArray<StatementSyntax> bodyStatements,
+        ExpressionSyntax bodyExpression,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken,
         out ImmutableArray<DiagnosticInfo> diagnostics)
     {
-        // ValidateDeclaration has already refused a body this cannot read, so the shape is settled here.
-        TryReadBody(declaration, out var bodyStatements, out var bodyExpression);
-
         var ordinals = ImmutableDictionary.CreateBuilder<ISymbol, int>(SymbolEqualityComparer.Default);
         var contentOrdinals = ImmutableHashSet.CreateBuilder<int>();
         var parameters = ImmutableArray.CreateBuilder<ViewPartParameter>(method.Parameters.Length);

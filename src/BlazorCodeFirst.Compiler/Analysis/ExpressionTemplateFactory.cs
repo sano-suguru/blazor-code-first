@@ -32,9 +32,11 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// that cannot exist in generated code report a single declaration BCF1002;</item>
 /// <item>an interpolation hole any of the above rewrote is parenthesized, because a hole's expression
 /// cannot hold the <c>::</c> or the <c>,</c> that a rewrite introduces at its top level;</item>
-/// <item>local and lambda identifiers plus all trivia are preserved as literal text, except authored
-/// declarations that could capture a generated contextual-fragment parameter after hole substitution;
-/// those declarations and their symbol-bound references receive a deterministic collision-free name.</item>
+/// <item>local and lambda identifiers plus all trivia are preserved as literal text, except where the
+/// generated scope owns the name: a declaration that could capture a generated contextual-fragment
+/// parameter after hole substitution, together with its symbol-bound references, receives a
+/// deterministic collision-free name, and a local a transplanted block declares becomes a hole at its
+/// declaration as well as at its references, so expansion mints one name for all of them (#336).</item>
 /// </list>
 /// </summary>
 internal static class ExpressionTemplateFactory
@@ -978,10 +980,19 @@ internal static class ExpressionTemplateFactory
     }
 
     /// <summary>
-    /// Builds a transient symbol-aware rename plan for authored declarations whose source names could
-    /// equal a generated contextual-fragment parameter at an expansion site. Only rewritten strings flow
-    /// into <see cref="ExpressionTemplate"/>; symbols and spans remain confined to this analysis call.
+    /// Builds a transient symbol-aware plan for what replaces an authored declaration's identifier token.
+    /// Two things reach it, and both are cases of the generated scope owning a name the author wrote: a
+    /// declaration whose source name could equal a generated contextual-fragment parameter at an expansion
+    /// site takes a deterministic safe name, and a local a transplanted block declares takes a hole, whose
+    /// name expansion mints (#336). Only rewritten segments flow into <see cref="ExpressionTemplate"/>;
+    /// symbols and spans remain confined to this analysis call.
     /// </summary>
+    /// <remarks>
+    /// One plan and not two, because both are answered at the same place — a declared identifier token,
+    /// which is not a <see cref="SimpleNameSyntax"/> and so is invisible to the normalization pass that
+    /// rewrites every other name — and because the two are mutually exclusive by construction, which only
+    /// a single walk can assert.
+    /// </remarks>
     private sealed class AuthoredContextNameHygiene
     {
         private const string GeneratedContextPrefix = "__bcf_context_";
@@ -991,13 +1002,13 @@ internal static class ExpressionTemplateFactory
 
         private AuthoredContextNameHygiene(
             Dictionary<ISymbol, string> names,
-            ImmutableArray<AuthoredDeclarationRename> declarations)
+            ImmutableArray<AuthoredDeclarationReplacement> declarations)
         {
             _names = names;
             Declarations = declarations;
         }
 
-        public ImmutableArray<AuthoredDeclarationRename> Declarations { get; }
+        public ImmutableArray<AuthoredDeclarationReplacement> Declarations { get; }
 
         public static AuthoredContextNameHygiene Create(
             SyntaxNode expression,
@@ -1034,7 +1045,7 @@ internal static class ExpressionTemplateFactory
             HashSet<string>? usedNames = null;
 
             var names = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
-            var declarations = ImmutableArray.CreateBuilder<AuthoredDeclarationRename>();
+            var declarations = ImmutableArray.CreateBuilder<AuthoredDeclarationReplacement>();
             var renameOrdinal = 0;
 
             foreach (var node in expression.DescendantNodesAndSelf())
@@ -1054,7 +1065,7 @@ internal static class ExpressionTemplateFactory
                 if (declared is not null
                     && context.ResolveHole(declared, out var holeOrdinal) == BodyHoleKind.Value)
                 {
-                    declarations.Add(new AuthoredDeclarationRename(
+                    declarations.Add(new AuthoredDeclarationReplacement(
                         identifier.Span, new ParameterHoleExpressionSegment(holeOrdinal)));
                     continue;
                 }
@@ -1076,7 +1087,7 @@ internal static class ExpressionTemplateFactory
                     name = $"{baseName}_{++disambiguator}";
 
                 names.Add(symbol, name);
-                declarations.Add(new AuthoredDeclarationRename(
+                declarations.Add(new AuthoredDeclarationReplacement(
                     identifier.Span, new LiteralExpressionSegment(name)));
             }
 
@@ -1143,7 +1154,7 @@ internal static class ExpressionTemplateFactory
     /// that would otherwise shadow a generated one, or a hole for a transplanted block's local, whose name
     /// expansion mints (#336).
     /// </summary>
-    private readonly record struct AuthoredDeclarationRename(TextSpan Span, ExpressionSegment Segment);
+    private readonly record struct AuthoredDeclarationReplacement(TextSpan Span, ExpressionSegment Segment);
 
     private readonly record struct Replacement(
         TextSpan Span,

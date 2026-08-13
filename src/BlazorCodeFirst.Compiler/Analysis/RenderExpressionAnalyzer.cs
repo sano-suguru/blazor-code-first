@@ -2330,6 +2330,11 @@ internal static class RenderExpressionAnalyzer
     /// cannot appear because the generated <c>RenderView</c> is not async, and a local function cannot
     /// exist in the generated body at all; both are excluded by the statement kinds admitted here.
     /// <para>
+    /// Widening those kinds is not a change to this method alone: <see cref="CollectBlockLocals"/> reads
+    /// the same two admitted kinds to decide which syntax shapes can bind a name, and a kind admitted
+    /// here but not registered there would put an authored name back into the generated scope (#336).
+    /// </para>
+    /// <para>
     /// Reachable from outside <c>Analysis</c> because two positions accept the block and neither owns the
     /// rule: <see cref="ComponentModelFactory"/> reads a design-time expression getter with it and reports
     /// BCF1004 on <see langword="false"/>, and <see cref="TryBindForEachContent"/> reads a content lambda
