@@ -92,6 +92,11 @@ jobs:
           # rather than by duplicating the deploy step behind two `if:` conditions. `versions
           # upload` creates a version WITHOUT moving the production deployment onto it, so a
           # preview has no path to production even if this decision were wrong.
+          #
+          # The Worker has to EXIST before a preview can be uploaded for it: Cloudflare documents
+          # that `versions upload` fails on a Worker that has never been deployed. Recreating this
+          # deployment from nothing therefore starts with one `wrangler deploy`, from a machine or
+          # from a push to main, and only then can a pull request produce a preview.
           config="$GITHUB_WORKSPACE/site/wrangler.jsonc"
           if [ "$environment" = production ]; then
             command="deploy --config $config"
