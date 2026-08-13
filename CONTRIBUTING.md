@@ -332,7 +332,9 @@ instead:
   the published route set equals the set `site/content` backs, and then, for
   every route in it, the shell, one title element matching what the document's
   own front matter declares, one active nav link, the stylesheet and script
-  links, and the absence of the prerendering wrappers and a meta robots tag
+  links, and the absence of the prerendering wrappers, a meta robots tag, and
+  any external font host; then, over the output as a whole, that the four
+  self-hosted `wwwroot/fonts` woff2 files are in it
 - assertions over `404.html`, `robots.txt`, the generated sitemap, and
   `_headers`
 
