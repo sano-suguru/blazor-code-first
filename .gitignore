@@ -30,9 +30,9 @@ artifacts/
 .wrangler/
 
 # CI-only install root for wrangler. site.yml points wrangler-action's workingDirectory here so that
-# its `npm i wrangler@4` writes package.json and package-lock.json into an ignored directory. Left at
-# the default those two land at the repository root, where the job's final working-tree check reads
-# them as uncommitted changes and fails (#282). Nothing outside CI creates this directory.
+# its `npm i wrangler@4` writes package.json and package-lock.json somewhere the checkout does not
+# have to carry them; left at the default, those two land at the repository root (#282). Nothing
+# outside CI creates this directory.
 .wrangler-ci/
 
 # Playwright browser test dependencies and run artifacts (tests/BlazorCodeFirst.WebAppTests/browser)

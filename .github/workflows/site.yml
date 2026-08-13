@@ -28,12 +28,13 @@ concurrency:
   # github.ref is refs/pull/<number>/merge on a pull_request, so each PR gets its own group and
   # supersedes only itself.
   group: site-${{ github.ref }}
-  # Never cancel an in-flight PRODUCTION deploy. `wrangler deploy` uploads a version and then points
-  # the deployment at it, so a cancelled run cannot leave the live site in a partial state the way an
-  # interrupted incremental upload could -- but it can end with no record of whether the version was
-  # created, on the one ref where that question is expensive to answer. This keys on the REF rather
-  # than on the production/preview decision, so a workflow_dispatch from main (a preview, see the
-  # target-resolution step below) is also protected from cancellation -- the safe direction.
+  # Never cancel an in-flight PRODUCTION deploy. Not because a cancelled run could leave a partial
+  # site: `wrangler deploy` uploads a version and then points the deployment at it, so the live site
+  # is only ever one whole version or the previous one. The reason is that pushes to main are rare
+  # and a production deploy takes minutes, so there is nothing to gain by superseding one, and
+  # letting it finish leaves the deployment history saying plainly which commit is live. This keys
+  # on the REF rather than on the production/preview decision, so a workflow_dispatch from main (a
+  # preview, see the target-resolution step below) is also protected -- the safe direction.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -78,35 +79,47 @@ jobs:
             alias="dispatch-${REF_NAME//\//-}"
           fi
 
-          # A preview is served at "<alias>-blazor-code-first-site.<subdomain>.workers.dev", and a
-          # DNS label may not exceed 63 characters. The Worker name takes 22 of them plus the
-          # separator, so anything past 40 is truncated here rather than left to fail at deploy
-          # time. "pr-<N>" cannot reach that; a dispatch from a long branch name can.
-          if [ "${#alias}" -gt 40 ]; then
-            alias="${alias:0:40}"
-          fi
+          # The Worker's name and the account's workers.dev subdomain, written here and nowhere else
+          # in this workflow: production serves at "<worker>.<subdomain>" and a preview at
+          # "<alias>-<worker>.<subdomain>", so the sitemap origin, the preview URL, and the alias
+          # length budget below are all functions of these two. WORKER must equal the "name" in
+          # site/wrangler.jsonc, which is the only other place it appears.
+          WORKER=blazor-code-first-site
+          SUBDOMAIN=snsgr.workers.dev
+
+          # A DNS label may not exceed 63 characters, and a preview spends the Worker's name plus a
+          # separator of that budget before the alias starts. Derived rather than written out, so
+          # renaming the Worker cannot leave a stale number here. "pr-<N>" cannot reach the cap; a
+          # dispatch from a long branch name can. Substring expansion returns the whole string when
+          # it is already shorter, so this needs no length test.
+          alias="${alias:0:$(( 63 - ${#WORKER} - 1 ))}"
           # Truncation can leave a trailing "-", which is not a legal way for a DNS label to end.
           alias="${alias%-}"
 
           # wrangler-action takes exactly one command, so the production/preview split is made here
           # rather than by duplicating the deploy step behind two `if:` conditions. `versions
           # upload` creates a version WITHOUT moving the production deployment onto it, so a
-          # preview has no path to production even if this decision were wrong.
+          # preview has no path to production even if this decision were wrong. --config is not
+          # part of this string: it is constant, and it belongs beside the workingDirectory it is
+          # made absolute for.
           #
           # The Worker has to EXIST before a preview can be uploaded for it: Cloudflare documents
           # that `versions upload` fails on a Worker that has never been deployed. Recreating this
           # deployment from nothing therefore starts with one `wrangler deploy`, from a machine or
           # from a push to main, and only then can a pull request produce a preview.
-          config="$GITHUB_WORKSPACE/site/wrangler.jsonc"
           if [ "$environment" = production ]; then
-            command="deploy --config $config"
+            command="deploy"
           else
-            command="versions upload --config $config --preview-alias $alias"
+            command="versions upload --preview-alias $alias"
           fi
 
           echo "environment=$environment" >> "$GITHUB_OUTPUT"
           echo "alias=$alias" >> "$GITHUB_OUTPUT"
           echo "command=$command" >> "$GITHUB_OUTPUT"
+          echo "origin=https://$WORKER.$SUBDOMAIN" >> "$GITHUB_OUTPUT"
+          if [ -n "$alias" ]; then
+            echo "preview_url=https://$alias-$WORKER.$SUBDOMAIN" >> "$GITHUB_OUTPUT"
+          fi
           echo "Deploying as $environment with: wrangler $command"
 
       - name: Setup .NET
@@ -276,8 +289,10 @@ jobs:
           . eng/ci-assert.sh
 
           P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
-          # The one place the production origin is written in this workflow.
-          ORIGIN=https://blazor-code-first-site.snsgr.workers.dev
+          # Built once by the target-resolution step, from the Worker name and the workers.dev
+          # subdomain it also derives the preview URL and the alias length budget from. Nothing in
+          # this workflow writes the origin a second time.
+          ORIGIN=${{ steps.target.outputs.origin }}
           # The same value as an extended regular expression, derived rather than retyped. Needed
           # because the guards below pass patterns to grep -E, where an unescaped "." matches ANY
           # character -- so a typo'd origin like "okXexample" would satisfy a bare "$ORIGIN" pattern.
@@ -343,12 +358,20 @@ jobs:
           # legitimate per-path Disallow later is not forbidden, only made to cost one edit here.
           assert_not_grep '^[[:space:]]*[Dd][Ii][Ss][Aa][Ll][Ll][Oo][Ww]:' "$P/robots.txt" "robots.txt carries a Disallow rule, and this site is meant to be fully crawlable: preview deployments are deindexed with an X-Robots-Tag header instead, which a Disallow would prevent the crawler from ever reading"
 
-      - name: Verify the published _headers
+      - name: Verify the published _headers and .assetsignore
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
 
           P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+
+          # .assetsignore is in the same position as _headers below: an ordinary wwwroot file that
+          # only the deploy reads, so nothing else here would notice it going missing. It would not
+          # fail the deploy either -- every sidecar would simply be uploaded again, silently undoing
+          # #45 and putting /robots.txt.gz back at a reachable URL.
+          assert_file "$P/.assetsignore" "the publish output has no .assetsignore, so the .br/.gz sidecars would all be uploaded again"
+          assert_grep '^\*\*/\*\.br$' "$P/.assetsignore" "the .br pattern is missing from .assetsignore"
+          assert_grep '^\*\*/\*\.gz$' "$P/.assetsignore" "the .gz pattern is missing from .assetsignore"
 
           # _headers is an ordinary wwwroot file, so if it ever stopped being published NOTHING else
           # in this workflow would fail -- and the preview injection below appends with ">>", which
@@ -505,10 +528,11 @@ jobs:
           # See the step above for why the install root is moved off the repository root.
           workingDirectory: .wrangler-ci
           # `deploy` or `versions upload --preview-alias`, decided by the resolved target rather
-          # than here (see that step). Everything else the command needs is in site/wrangler.jsonc,
-          # including the assets directory: wrangler resolves that path against the configuration
-          # file, not against this workingDirectory.
-          command: ${{ steps.target.outputs.command }}
+          # than here (see that step). --config is written here, next to the workingDirectory that
+          # forces it to be absolute; everything else wrangler needs is inside that file, including
+          # the assets directory, which wrangler resolves against the configuration file rather
+          # than against this workingDirectory.
+          command: ${{ steps.target.outputs.command }} --config ${{ github.workspace }}/site/wrangler.jsonc
 
       - name: Comment the preview URL on the pull request
         # Same conditions as the deploy step: with no deployment there is no URL to post. The
@@ -521,26 +545,20 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          ALIAS: ${{ steps.target.outputs.alias }}
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          URL: ${{ steps.target.outputs.preview_url }}
         run: |
           set -euo pipefail
 
-          # The alias URL is CONSTRUCTED rather than read from the step's output. wrangler-action
-          # does set deployment-url for `versions upload`, but from an optional preview_url field
-          # that is not documented to carry the alias rather than the version-prefixed URL -- and a
-          # URL that changes on every push is exactly what setting an alias exists to avoid.
-          #
-          # deployment-url is still READ, as the proof that a version was uploaded at all. Emptiness
-          # is the loud failure the previous `pages deploy` arrangement got from its alias output.
-          if [ -z "$DEPLOYMENT_URL" ]; then
-            echo "::error::the versions upload step produced no preview URL" >&2
-            exit 1
-          fi
-          url="https://$ALIAS-blazor-code-first-site.snsgr.workers.dev"
+          # The alias URL is BUILT by the target-resolution step, not read back from wrangler.
+          # wrangler-action does set deployment-url for `versions upload`, but from an optional
+          # preview_url field that is not documented to carry the alias rather than the
+          # version-prefixed URL, and a URL that changes on every push is exactly what setting an
+          # alias exists to avoid. Nothing here re-tests that the upload happened: wrangler-action
+          # fails the job when wrangler exits non-zero, so this step only runs after it succeeded.
+          url="$URL"
 
-          # Says noindex, not "noindex, nofollow": Cloudflare's own preview header replaces the
-          # injected value, so nofollow never reaches the response (see the injection step).
+          # Says noindex, not the "noindex, nofollow" the injection step writes. See that step for
+          # why the two differ.
           body=$(printf 'Preview deploy: %s\n\nServed with `X-Robots-Tag: noindex`.\n' "$url")
 
           # Edit the bot's previous comment instead of stacking one per push. The `||` fallback covers
@@ -548,17 +566,18 @@ jobs:
           gh pr comment "$PR_NUMBER" --body "$body" --edit-last --create-if-none \
             || gh pr comment "$PR_NUMBER" --body "$body"
 
-      # The invariant the install root above exists to hold: nothing in this job may leave a change
-      # in the tracked tree. A job that writes into it has deployed something other than the commit
-      # it claims to have deployed, and nothing else here would notice -- the publish output is
-      # gitignored, so a stray write to a tracked source file changes what was built without
-      # changing what is reported.
+      # The whole-tree backstop for the drift gate near the top of this job. That gate runs
+      # `git diff --exit-code` over three named generated files, so a step that writes ANY other
+      # tracked path goes unreported: the publish output is gitignored, and no other check reads the
+      # tree at all. This check is what makes "the job wrote nothing" an assertion rather than an
+      # assumption.
       #
-      # A canary, not a gate. The deploy is several steps behind by now, so this cannot stop such a
-      # deployment, only report that one happened. What it catches is the arrangement above
-      # decaying: a wrangler-action release that installs somewhere else, or a new step that writes
-      # into the tree. Either would otherwise surface as one warning line in the middle of a long
-      # green log, which is how #282 went unnoticed for as long as it did.
+      # A canary, not a gate. The deploy is several steps behind by now, so this cannot stop a
+      # deployment built from a tree that was written to, only report that one happened. What it
+      # catches is a wrangler-action release that installs somewhere other than the root prepared
+      # for it, or a new step that writes into the checkout. Either would otherwise surface as one
+      # warning line in the middle of a long green log, which is how #282 went unnoticed for as
+      # long as it did.
       #
       # Last rather than immediately after the deploy, so that a dirty tree still gets its preview
       # URL commented; the step between them only calls `gh` and cannot dirty anything. It carries no

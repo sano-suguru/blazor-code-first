@@ -1,11 +1,9 @@
 # Cloudflare Workers static-asset response headers.
 #
 # ONE rule per concern, never two rules setting the same header name. A request that matches
-# several rules inherits ALL of their headers, so a catch-all "/*" Cache-Control rule alongside the
-# one below would ADD a second, conflicting directive rather than override it. How a duplicate name
-# is then represented on the wire is deliberately not stated here: Cloudflare documents the values
-# as comma-joined, a local `wrangler dev` run returned two separate header lines, and nothing in
-# this file depends on which one the edge does.
+# several rules inherits ALL of their headers, however the edge represents a repeated name, so a
+# catch-all "/*" Cache-Control rule alongside the one below would ADD a second, conflicting
+# directive rather than override it.
 #
 # HTML is deliberately left on the Cloudflare default (public, max-age=0, must-revalidate): every
 # route's index.html is regenerated on each deploy behind an unchanged URL, so it must revalidate.
@@ -34,9 +32,8 @@
 # this rule. Both halves are documented, and site/wrangler.jsonc writes html_handling out rather
 # than relying on the default.
 #
-# CI appends a "/*" noindex rule to preview deploys, and it changes nothing observable: Cloudflare
-# puts its own X-Robots-Tag: noindex on a preview URL, and that replaces whatever this file sets for
-# that header name (measured on pr-340). The merge described at the top still governs every OTHER
-# header, including the two Cache-Control rules above, which do arrive on a preview.
+# CI appends a "/*" noindex rule to preview deploys, and on a preview that rule is the one thing in
+# this file the edge overrides. The injection step in site.yml records what was measured and why the
+# rule is kept anyway; every other rule here, including the two above, arrives on a preview intact.
 /404
   X-Robots-Tag: noindex

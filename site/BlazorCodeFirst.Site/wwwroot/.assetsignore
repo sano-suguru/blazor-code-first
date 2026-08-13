@@ -1,2 +1,7 @@
+# Files under the publish root that Wrangler must not upload. Same format as .gitignore.
+#
+# The .NET publish writes a Brotli and a gzip sidecar beside every asset, and Workers reads
+# neither: it compresses at the edge. Uploading them would spend two thirds of the file count on
+# bytes nothing serves, and would put /robots.txt.gz and the rest at reachable URLs (#45).
 **/*.br
 **/*.gz
