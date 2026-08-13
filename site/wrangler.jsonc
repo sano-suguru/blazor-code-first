@@ -1,0 +1,22 @@
+{
+  "name": "blazor-code-first-site",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    // Resolved against THIS file's directory, not the process working directory, which is what
+    // lets site.yml keep wrangler-action's workingDirectory outside the site tree without also
+    // passing an absolute asset path.
+    "directory": "./BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot",
+    // Written out although it is the default. "/404" answering 200 is the premise of the "/404"
+    // X-Robots-Tag rule in wwwroot/_headers, so it is pinned here rather than left to a default
+    // a future Wrangler could change.
+    "html_handling": "auto-trailing-slash",
+    // Pages inferred a custom-404 site from finding a 404.html in the output. Workers reads this
+    // field and does not inspect the file listing, so losing the file can no longer turn every
+    // unknown URL into a 200 answering with the home page.
+    "not_found_handling": "404-page"
+  }
+  // No "main" and no "assets.binding": both are only valid alongside a Worker script, and this
+  // deployment has none.
+}
