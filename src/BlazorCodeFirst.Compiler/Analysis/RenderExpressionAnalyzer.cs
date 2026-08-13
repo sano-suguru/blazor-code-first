@@ -33,11 +33,11 @@ internal static class RenderExpressionAnalyzer
     private const string GeneratedNamePrefix = "__bcf_";
 
     /// <summary>
-    /// The builder every generated frame is written against, which
-    /// <see cref="RenderViewEmitter"/> spells into each call. Reserved alongside
-    /// <see cref="GeneratedNamePrefix"/> and for the same reason: it is outside that prefix only because
-    /// it is the parameter of the generated method rather than a name minted inside it, and a getter's
-    /// transplanted statements land in its scope.
+    /// The builder every generated frame is written against, and a getter's transplanted statements land
+    /// in its scope. Reserved alongside <see cref="GeneratedNamePrefix"/>, which does not cover it:
+    /// <see cref="RenderViewEmitter"/> writes this name as a bare literal in every call it emits, so the
+    /// two spellings have to agree by hand. They cannot drift far unnoticed, since a rename there fails
+    /// every emitter test that reads the generated text.
     /// </summary>
     private const string BuilderName = "__builder";
 
@@ -79,15 +79,16 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Classifies the expression a design-time expression getter returns, wrapped in the statements the
-    /// getter declared before that return (ARCHITECTURE.md §2.3 Transplantable). With no statements this is
-    /// <see cref="Analyze(ExpressionSyntax, ViewPartBodyContext)"/>, which is the getter shape that reduces
-    /// to a single expression.
+    /// Classifies the expression a transplantable block returns, wrapped in the statements written before
+    /// that return (ARCHITECTURE.md §2.3 Transplantable). With no statements this is
+    /// <see cref="Analyze(ExpressionSyntax, ViewPartBodyContext)"/>, which is the same block written as one
+    /// expression.
     /// </summary>
     /// <remarks>
-    /// The statements are normalized inside the same scope as the returned expression, exactly as a
-    /// <c>ForEach</c> content block's are, so a local declared in one and read in the other is the same
-    /// name in both.
+    /// Both positions that accept the block reach here: a design-time expression getter and a
+    /// <c>ForEach</c> content lambda. The statements are normalized inside the same scope as the returned
+    /// expression, so a local declared in one and read in the other is the same name in both, and the
+    /// scope opens here rather than at either caller so the wrap and the scope cannot be separated.
     /// </remarks>
     public static RenderTemplateNode? Analyze(
         ImmutableArray<StatementSyntax> statements,
@@ -113,12 +114,10 @@ internal static class RenderExpressionAnalyzer
         }
     }
 
-    /// <summary>The span covering <paramref name="statements"/>, or an empty span when there are none.</summary>
+    /// <summary>The span covering <paramref name="statements"/>, which the caller has found non-empty.</summary>
     private static TextSpan SpanOf(ImmutableArray<StatementSyntax> statements) =>
-        statements.IsEmpty
-            ? default
-            : TextSpan.FromBounds(
-                statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
+        TextSpan.FromBounds(
+            statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
 
     private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
@@ -389,8 +388,6 @@ internal static class RenderExpressionAnalyzer
         };
 
         var itemOrdinal = context.PushRenderVariable(itemSymbols);
-        if (!contentShape.TransplantedSpan.IsEmpty)
-            context.PushTransplantedScope(contentShape.TransplantedSpan);
 
         try
         {
@@ -398,9 +395,12 @@ internal static class RenderExpressionAnalyzer
                 ? ExpressionTemplateFactory.Create(keyBody, context)
                 : null;
 
+            // The content's transplanted scope opens inside Analyze rather than around this whole block.
+            // The key is a sibling argument, so its span cannot be inside the content's statements and
+            // the scope could never have covered it.
             var content = contentShape.Callee is { } callee
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
-                : BuildLambdaContent(contentShape, context);
+                : Analyze(contentShape.Statements, contentShape.LambdaBody!, context);
             if (content is null)
                 return null;
 
@@ -423,9 +423,6 @@ internal static class RenderExpressionAnalyzer
         }
         finally
         {
-            if (!contentShape.TransplantedSpan.IsEmpty)
-                context.PopTransplantedScope();
-
             context.PopRenderVariable(itemSymbols);
         }
     }
@@ -493,16 +490,11 @@ internal static class RenderExpressionAnalyzer
     /// The <c>content</c> argument of a <c>ForEach</c>, resolved to one of the two shapes the generator
     /// accepts. Exactly one of <see cref="Callee"/> and <see cref="LambdaParameter"/> is set.
     /// </summary>
-    /// <param name="TransplantedSpan">
-    /// The span covering <see cref="Statements"/>, or an empty span when there are none. Carried rather
-    /// than recomputed so the scope is opened and closed on one condition.
-    /// </param>
     private readonly record struct ForEachContent(
         IMethodSymbol? Callee,
         ISymbol? LambdaParameter,
         ExpressionSyntax? LambdaBody,
-        ImmutableArray<StatementSyntax> Statements,
-        TextSpan TransplantedSpan);
+        ImmutableArray<StatementSyntax> Statements);
 
     /// <summary>
     /// Resolves the <c>content</c> argument to a lambda (expression- or block-bodied) or to a bare method
@@ -527,7 +519,7 @@ internal static class RenderExpressionAnalyzer
                 return false;
             }
 
-            shape = new ForEachContent(callee, null, null, [], default);
+            shape = new ForEachContent(callee, null, null, []);
             return true;
         }
 
@@ -540,7 +532,7 @@ internal static class RenderExpressionAnalyzer
 
         if (bodyNode is ExpressionSyntax expressionBody)
         {
-            shape = new ForEachContent(null, parameterSymbol, expressionBody, [], default);
+            shape = new ForEachContent(null, parameterSymbol, expressionBody, []);
             return true;
         }
 
@@ -550,28 +542,8 @@ internal static class RenderExpressionAnalyzer
             return false;
         }
 
-        shape = new ForEachContent(null, parameterSymbol, returned, statements, SpanOf(statements));
+        shape = new ForEachContent(null, parameterSymbol, returned, statements);
         return true;
-    }
-
-    /// <summary>
-    /// The content of a lambda: the returned expression's node, wrapped in its transplanted statements when
-    /// the lambda had a block body.
-    /// </summary>
-    private static RenderTemplateNode? BuildLambdaContent(
-        ForEachContent shape, ViewPartBodyContext context)
-    {
-        var content = Analyze(shape.LambdaBody!, context);
-        if (content is null)
-            return null;
-
-        // The statements are normalized inside the same render-variable scope as the returned expression,
-        // so a reference to the iteration variable becomes the same hole in both.
-        return shape.Statements.IsEmpty
-            ? content
-            : new TransplantedBlockTemplateNode(
-                ExpressionTemplateFactory.CreateForStatements(shape.Statements, context),
-                content);
     }
 
     /// <summary>
@@ -2291,11 +2263,19 @@ internal static class RenderExpressionAnalyzer
     /// cannot appear because the generated <c>RenderView</c> is not async, and a local function cannot
     /// exist in the generated body at all; both are excluded by the statement kinds admitted here.
     /// <para>
+    /// Reachable from outside <c>Analysis</c> because two positions accept the block and neither owns the
+    /// rule: <see cref="ComponentModelFactory"/> reads a design-time expression getter with it and reports
+    /// BCF1004 on <see langword="false"/>, and <see cref="TryBindForEachContent"/> reads a content lambda
+    /// with it and reports BCF3004. One reader is what keeps the two from drifting.
+    /// </para>
+    /// <para>
     /// A local whose name starts with the generator's own prefix, or is the builder's, is refused rather
     /// than renamed. The rename plan in <see cref="ExpressionTemplateFactory"/> is per template, and the
     /// block becomes several templates — one per statement, plus the returned expression — so a name
     /// renamed in one would stay as written in the others. Both names are reserved, so refusing costs an
-    /// author nothing. Only declarations are checked: a reference cannot collide with a name the generator
+    /// author nothing. The scan covers the whole block rather than the leading statements alone, because
+    /// the returned expression is transplanted too and a lambda written inside it lands in the same
+    /// generated scope. Only declarations are checked: a reference cannot collide with a name the generator
     /// introduces without a declaration to collide through.
     /// </para>
     /// </remarks>
@@ -2312,6 +2292,15 @@ internal static class RenderExpressionAnalyzer
             || block.Statements[count - 1] is not ReturnStatementSyntax { Expression: { } last })
         {
             return false;
+        }
+
+        // A block that is only its return transplants nothing, so there is no name to reserve against and
+        // no list to build. This is the `get { return e; }` spelling, which every component body reaches on
+        // every keystroke; the walk below would traverse the whole view tree to defend nothing.
+        if (count == 1)
+        {
+            returned = last;
+            return true;
         }
 
         var leading = ImmutableArray.CreateBuilder<StatementSyntax>(count - 1);
@@ -2336,7 +2325,9 @@ internal static class RenderExpressionAnalyzer
 
         // The original nodes, not a rebuilt list: SyntaxFactory.List re-parents its members into a new
         // list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
-        statements = leading.ToImmutable();
+        // MoveToImmutable rather than ToImmutable: the loop above either filled every reserved slot or
+        // returned, so the builder is exactly full and its array can be handed over without a copy.
+        statements = leading.MoveToImmutable();
         returned = last;
         return true;
     }

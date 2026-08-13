@@ -1,5 +1,4 @@
-using System.Threading.Tasks;
-using BlazorCodeFirst.Compiler.Diagnostics;
+using System.Linq;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -112,11 +111,14 @@ public sealed class BodyTransplantTests
     }
 
     [Fact]
-    public async Task Body_WhenTransplantedStatementsMutateState_ReportsBCF3001()
+    public void Body_WhenTransplantedStatementsMutateState_LeavesTheRefusalToBCF3001()
     {
-        // Admitting statements does not admit side effects. A design-time expression may not mutate state
-        // (CONTRIBUTING.md §Conventions the code must uphold), and BCF3001 is now the only diagnostic
-        // standing on this shape: BCF1004 used to refuse the getter before the mutation was the point.
+        // Admitting statements does not admit side effects, it changes which diagnostic refuses them. A
+        // design-time expression may not mutate state (CONTRIBUTING.md §Conventions the code must uphold);
+        // BCF1004 used to refuse this getter before the mutation was the point, and BCF3001 is now the only
+        // diagnostic standing on the shape. RenderMutationAnalyzerTests
+        // .RenderMutationAnalyzer_MutationInBlockBodiedGetter_ReportsBCF3001 holds that half on the same
+        // source, so the analyzer is not run twice here.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -136,12 +138,10 @@ public sealed class BodyTransplantTests
             }
             """;
 
-        var generatorResult = CompilationTestHost.RunGenerator(source);
-        Assert.DoesNotContain(generatorResult.Diagnostics, d => d.Id == "BCF1004");
+        var result = CompilationTestHost.RunGenerator(source);
 
-        var analyzerDiagnostics =
-            await CompilationTestHost.RunAnalyzerAsync<RenderMutationAnalyzer>(source);
-        Assert.Contains(analyzerDiagnostics, d => d.Id == "BCF3001");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1004");
+        Assert.Contains("_n++;", Assert.Single(result.GeneratedSources).SourceText.ToString());
     }
 
     [Theory]
@@ -203,9 +203,10 @@ public sealed class BodyTransplantTests
         var result = Run(getter);
 
         Assert.Empty(result.GeneratedSources);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
         // BCF1003 blames an expression and BCF1004 the declaration around it; the author gets one fix.
-        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
-        Assert.NotEmpty(shape);
+        Assert.True(
+            result.Diagnostics.Any(d => d.Id == "BCF1004")
+                && !result.Diagnostics.Any(d => d.Id == "BCF1003"),
+            $"{shape}: expected BCF1004 alone, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
     }
 }

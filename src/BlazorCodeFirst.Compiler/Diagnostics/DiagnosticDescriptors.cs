@@ -127,12 +127,9 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF1004: A design-time expression override declares a getter the generator cannot translate,
-    /// either a getter body outside the accepted shapes, or an auto property, which declares no getter
-    /// body at all. The accepted shapes are one returned expression, optionally preceded by local
-    /// declarations and expression statements the generator transplants ahead of the frames
-    /// (ARCHITECTURE.md §2.3). What is left is a second return, native control flow, and a local spelled
-    /// with a name the generator reserves. Distinct from BCF1003: the getter's shape is the problem, not
-    /// the constructs used inside it, and the fix is to rewrite the getter rather than to change which
+    /// either a getter body outside the shapes <see cref="Analysis.RenderExpressionAnalyzer"/> accepts, or
+    /// an auto property, which declares no getter body at all. Distinct from BCF1003: the getter's shape is
+    /// the problem, not the constructs used inside it, and the fix is to rewrite the getter rather than to change which
     /// element helpers are read. Reported at the property identifier rather than inside the getter, which is
     /// the same distinction: BCF1003 blames an expression, BCF1004 blames the declaration around it. Not
     /// reported when the component overrides <c>RenderView</c> by hand (the design-time expression is

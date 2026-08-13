@@ -365,16 +365,14 @@ internal static class ComponentModelFactory
     /// <summary>
     /// Classifies the elected design-time expression declaration. Three getter spellings reduce to a
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
-    /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
-    /// expression (<c>get { return e; }</c>). A getter block that declares locals or writes expression
-    /// statements before that one return is the Transplantable shape (ARCHITECTURE.md §2.3), the same one
-    /// <c>ForEach</c>'s content accepts, and its statements are returned in
-    /// <paramref name="statements"/>. An auto property (no getter body and no <c>partial</c> modifier) is
-    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial property with
-    /// no implementation part (<c>partial</c> modifier and no getter body) is
-    /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
-    /// property itself. Any other getter shape — a second return, native control flow, a reserved local
-    /// name — is also <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
+    /// getter's expression body (<c>get =&gt; e</c>), and a getter block, which
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and whose leading statements
+    /// it returns in <paramref name="statements"/>. An auto property (no getter body and no
+    /// <c>partial</c> modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns
+    /// BCF1004. A partial property with no implementation part (<c>partial</c> modifier and no getter
+    /// body) is <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names
+    /// the property itself. A block that reader refuses is also
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,

@@ -52,7 +52,9 @@ internal static class ExpressionTemplateFactory
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
 
     /// <summary>
-    /// The statements transplanted ahead of a <c>ForEach</c> content root, as one template.
+    /// The statements transplanted ahead of the content they lead into, as one template. Both positions
+    /// that accept a transplantable block reach here: a <c>ForEach</c> content lambda and a design-time
+    /// expression getter.
     /// </summary>
     /// <remarks>
     /// An <see cref="ExpressionTemplate"/> holds code text with holes in it, and a statement list is that
