@@ -296,6 +296,21 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
+    public void SpreadOfAProjectionInComponentBrackets_IsAcceptedAsChildContent()
+    {
+        // The splice (#172) and the component bracket channel (#329) meet here, and neither branch's
+        // own tests cross them: both reach AnalyzeChildren, so a spliced child list binds to
+        // ChildContent exactly as a written one does. Pinned because the two landed independently and
+        // the shared path is the only thing making them agree.
+        var result = RunResult(
+            """Component<Card>()[[.. _items.Select(i => Span[i])]]""",
+            """private readonly List<string> _items = [];""");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void SplicedProjection_GeneratesSameSourceAsForEachWithTheKeyDeclined()
     {
         // The splice is sugar over ForEach with the key declined, and this is the assertion that keeps it
