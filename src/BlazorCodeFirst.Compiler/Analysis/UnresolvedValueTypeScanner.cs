@@ -417,12 +417,8 @@ internal static class UnresolvedValueTypeScanner
     /// </remarks>
     private static void ScanSplice(ExpressionSyntax expression, ViewPartBodyContext context)
     {
-        if (expression is not InvocationExpressionSyntax
-            { Expression: MemberAccessExpressionSyntax } invocation
-            || invocation.ArgumentList.Arguments.Count != 1)
-        {
+        if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out _, out var selector))
             return;
-        }
 
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is IMethodSymbol method
@@ -431,7 +427,7 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        ScanLambdaBody(invocation.ArgumentList.Arguments[0].Expression, context);
+        ScanLambdaBody(selector, context);
     }
 
     private static void ScanLambdaBody(ExpressionSyntax? expression, ViewPartBodyContext context)
@@ -481,10 +477,13 @@ internal static class UnresolvedValueTypeScanner
             // Asked of the call, not of its overload: a recognized call whose overload could not be named
             // is one the sweep walks through, so a value under it is reached and must not be suppressed
             // here on the way out.
+            // IsSplicedSelect is three syntax tests and IsSurfaceCall is a second GetSymbolInfo plus a
+            // list allocation, so the free one is asked first. It is also the one that answers true in
+            // the case it was added for, where the whole point is that nothing binds.
             InvocationExpressionSyntax invocation =>
-                context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null
-                    && !IsSurfaceCall(invocation, context)
-                    && !IsSplicedSelect(invocation),
+                !IsSplicedSelect(invocation)
+                    && context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is null
+                    && !IsSurfaceCall(invocation, context),
             ElementAccessExpressionSyntax elementAccess =>
                 context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken).Symbol is null
                     && TryGetRecognizedIndexer(elementAccess, context) is null,
@@ -509,8 +508,9 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// <para>
     /// Asked of the syntax and not of a symbol, deliberately: there is no symbol in the case this exists
-    /// for. The spread parent is what bounds it to a child list, so an ordinary <c>Select</c> written
-    /// anywhere else keeps the suppression it had.
+    /// for, which is why <see cref="SpliceSyntax"/> matches the name as written. The spread parent is
+    /// what bounds it to a child list, so an ordinary <c>Select</c> written anywhere else keeps the
+    /// suppression it had.
     /// </para>
     /// <para>
     /// Only the selector needs this. The splice's <em>source</em> is already reached by the ordinary
@@ -522,12 +522,7 @@ internal static class UnresolvedValueTypeScanner
     /// </para>
     /// </remarks>
     private static bool IsSplicedSelect(InvocationExpressionSyntax invocation) =>
-        invocation is
-        {
-            Parent: SpreadElementSyntax,
-            Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Select" },
-        }
-        && invocation.ArgumentList.Arguments.Count == 1;
+        invocation.Parent is SpreadElementSyntax && SpliceSyntax.IsProjection(invocation);
 
     // The caller did not select a decoration route, but a deliberately invoked user method in its value
     // still has its own source expression and must retain diagnostics (notably an escaped @nameof method).

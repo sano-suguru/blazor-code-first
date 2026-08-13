@@ -385,10 +385,10 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Only the fluent spelling is read. The static one, <c>Enumerable.Select(source, item =&gt; …)</c>,
-    /// puts the source in argument space where <see cref="FactoryArguments"/>'s receiver skip removes it,
-    /// so recovering it there would mean re-deriving a binding rule this analyzer deliberately asks
-    /// Roslyn for everywhere else.
+    /// The written shape is <see cref="SpliceSyntax"/>'s, which is also what says why only the fluent
+    /// spelling is read. What this site adds is the requirement that the call actually resolve to
+    /// <c>Enumerable.Select</c>: nothing is emitted from a call that does not, so unlike the diagnostic
+    /// sweep this reader has no reason to fail open.
     /// </para>
     /// <para>
     /// Every other spread returns null here and lands on BCF1003. That is where a stored <c>View</c> read
@@ -401,16 +401,13 @@ internal static class RenderExpressionAnalyzer
     private static ForEachTemplateNode? AnalyzeSplice(
         ExpressionSyntax expression, ViewPartBodyContext context)
     {
-        // A list pattern on Arguments would be the natural spelling and is unavailable: this project
-        // targets netstandard2.0, which has no System.Index for one to lower onto.
-        if (expression is not InvocationExpressionSyntax
-            { Expression: MemberAccessExpressionSyntax access } invocation
-            || invocation.ArgumentList.Arguments.Count != 1
+        // The syntactic match runs first, so a spread of anything but a Select is rejected without a
+        // semantic query.
+        if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector)
             || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is not IMethodSymbol method
             || !context.KnownSymbols.IsEnumerableSelect(method)
-            || !TryExtractSingleParameterLambda(
-                invocation.ArgumentList.Arguments[0].Expression, out var parameter, out var body)
+            || !TryExtractSingleParameterLambda(selector, out var parameter, out var body)
             || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
                 is not { } parameterSymbol)
         {

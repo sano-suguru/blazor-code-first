@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
@@ -239,7 +238,7 @@ internal readonly struct FactoryArguments
     /// <see cref="IArrayCreationOperation"/> shape. That arm is for a <em>synthesized</em> array, whose
     /// elements each still sit inside their own <see cref="ArgumentSyntax"/>. A written
     /// <c>Div[new View[] { … }]</c> reaches the same operation shape, but its elements' nearest container
-    /// is the whole argument, measured, so <see cref="TryRecoverElementExpression"/> would hand back the
+    /// is the whole argument, measured, so <see cref="TryRecoverElement"/> would hand back the
     /// entire array-creation expression for every child. Accepting only the literal keeps that shape on
     /// BCF1003, where #75 left it.
     /// </para>
@@ -318,8 +317,7 @@ internal readonly struct FactoryArguments
     /// does not recognize.
     /// </para>
     /// </remarks>
-    private static bool TryRecoverElement(
-        IOperation element, [MaybeNullWhen(false)] out ChildExpression child)
+    private static bool TryRecoverElement(IOperation element, out ChildExpression child)
     {
         for (SyntaxNode? node = element.Syntax; node is not null; node = node.Parent)
         {

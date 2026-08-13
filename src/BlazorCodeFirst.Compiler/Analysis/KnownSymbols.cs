@@ -398,18 +398,17 @@ internal sealed class KnownSymbols
         method is { IsExtensionMethod: true, ReducedFrom: null } ? 1 : 0;
 
     /// <summary>
-    /// Whether <paramref name="method"/> is the projection overload of <c>Enumerable.Select</c>, in
-    /// either spelling.
+    /// Whether <paramref name="method"/> is the projection overload of <c>Enumerable.Select</c>.
     /// </summary>
     /// <remarks>
-    /// A fluent call resolves to the reduced symbol and a static one to the unreduced symbol, and a call
-    /// with real type arguments resolves to a constructed one, so the comparison is made against the
-    /// unreduced open generic in every case.
+    /// Asked through <see cref="Normalize(IMethodSymbol)"/> like every other keyed comparison here, which
+    /// is what makes a fluent call (resolved to the reduced symbol) and a constructed one (resolved with
+    /// real type arguments) both answer. The static spelling would answer too, but no caller reaches it:
+    /// both gate on a one-argument member-access call first, and <c>Enumerable.Select(src, f)</c> is
+    /// neither.
     /// </remarks>
     public bool IsEnumerableSelect(IMethodSymbol method) =>
-        EnumerableSelect is not null
-        && SymbolEqualityComparer.Default.Equals(
-            (method.ReducedFrom ?? method).OriginalDefinition, EnumerableSelect);
+        Matches(Normalize(method), EnumerableSelect);
 
     /// <summary>
     /// The projection overload of <c>Enumerable.Select</c>, or <see langword="null"/> when it cannot be
