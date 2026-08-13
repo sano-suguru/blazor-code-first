@@ -373,22 +373,23 @@ protected override View Body =>
             P["本文"]];
 ```
 
-`T` が `ChildContent`(settable な `[Parameter]`、型は非ジェネリックの `RenderFragment`)を持たない場合は
-BCF3013 です。この規則は変わっていません。`[...]` は `RenderFragment<TContext>` を受け取れず、
-children から生成されるラムダは非ジェネリックで、実行時にキャスト失敗となるためです。同じパラメータを
-children と `.Param` の両方で与えると BCF3007 です。
+`T` が `ChildContent`(settable な `[Parameter]`、型は `RenderFragment` または
+`RenderFragment<TContext>`)を持たない場合は BCF3013 です。`ChildContent` がジェネリックなら、角括弧は
+コンテキストを捨てる外側のラムダを伴って束縛します。同じ角括弧が対象の型によって違うラムダを発行しますが、
+角括弧の中にはコンテキストを読むための名前が無いため、この読み替えは一意です。同じパラメータを children と
+`.Param` または `.Template` の両方で与えると BCF3007 です。
 
-ジェネリックなフラグメントは括弧ではなく `.Template` で名前を指して渡します。綴りは2つあり、コンテキストを
-使わない側は `View` をそのまま渡して、コンテキストを捨てる外側のラムダを生成側が補います。コンテキストを
-読む側はインラインの式ラムダで名前を与えます。`EditForm.ChildContent`(`RenderFragment<EditContext>`)が
-その代表例です。
+`ChildContent` 以外の名前を持つジェネリックなフラグメントは、括弧では届かず `.Template` で名前を指して
+渡します。`.Template` の綴りは2つあり、コンテキストを使わない側は `View` をそのまま渡して、コンテキストを
+捨てる外側のラムダを生成側が補います。コンテキストを読む側はインラインの式ラムダで名前を与えます。
+`ChildContent` がジェネリックな場合、前者と角括弧は同じものを発行するため角括弧で書き、コンテキストを
+読むときだけ後者を使います。`EditForm.ChildContent`(`RenderFragment<EditContext>`)がその代表例です。
 
 ```csharp
 // コンテキストを使わない
 Component<EditForm>()
-    .Param(form => form.Model, _model)
-    .Template(form => form.ChildContent,
-        Component<NameFields>().Param(fields => fields.Value, _model))
+    .Param(form => form.Model, _model)[
+        Component<NameFields>().Param(fields => fields.Value, _model)]
 
 // コンテキストを読む
 Component<EditForm>()

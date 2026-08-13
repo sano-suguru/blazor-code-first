@@ -34,9 +34,9 @@ public sealed class NameModel
 /// <c>.Bind(ref _name)</c> or a bare expression, neither of which could supply it.
 /// </summary>
 /// <remarks>
-/// <see cref="EditForm.ChildContent"/> is a <c>RenderFragment&lt;EditContext&gt;</c>, and the bracket
-/// children channel binds a non-generic <c>RenderFragment</c> named <c>ChildContent</c>, so
-/// <c>Component&lt;EditForm&gt;()[…]</c> reports BCF3013 (measured). The fields therefore go through
+/// <see cref="EditForm.ChildContent"/> is a <c>RenderFragment&lt;EditContext&gt;</c>, which the bracket
+/// children channel refused when this was written, so <c>Component&lt;EditForm&gt;()[…]</c> reported
+/// BCF3013 (#322 lifted that). The fields therefore go through
 /// <c>.Param</c> with the fragment written out by hand — the one thing here that is not the surface
 /// under test, and kept to rendering <see cref="NameFields"/> and nothing else, so everything the
 /// assertions look at is still generated from a BlazorCodeFirst <c>Body</c>. #161 closed that gap with

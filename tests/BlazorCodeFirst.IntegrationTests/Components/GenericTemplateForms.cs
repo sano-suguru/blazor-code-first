@@ -7,9 +7,10 @@ namespace BlazorCodeFirst.IntegrationTests.Components;
 /// <summary>
 /// <see cref="EditForm.ChildContent"/> bound through the context-ignoring <c>.Template</c> overload. This is the
 /// shape <see cref="ValidatedNameForm"/> had to hand-write a cached <c>RenderFragment&lt;EditContext&gt;</c> for:
-/// the parameter is generic, so the bracket children channel cannot reach it (BCF3013), and the scalar
-/// <c>.Param</c> overload can only take a delegate the author built. Here the generator emits the outer
-/// context lambda, and the content is ordinary BlazorCodeFirst.
+/// the scalar <c>.Param</c> overload can only take a delegate the author built. Here the generator emits the
+/// outer context lambda, and the content is ordinary BlazorCodeFirst.
+/// <see cref="BracketChildContentForm"/> is the shorter spelling of this same emission; this one stays because
+/// <c>.Template</c> is the only channel a generic fragment under another name has.
 /// </summary>
 /// <remarks>
 /// The model and the fields come from <see cref="ValidatedNameForm"/>'s file deliberately, so the two spellings
@@ -24,6 +25,22 @@ public partial class ContextIgnoringTemplateForm : BodyComponentBase
             .Param(form => form.Model, Value)
             .Template(form => form.ChildContent,
                 Component<NameFields>().Param(fields => fields.Value, Value));
+}
+
+/// <summary>
+/// The same form with its content in brackets. <see cref="EditForm.ChildContent"/> is a
+/// <c>RenderFragment&lt;EditContext&gt;</c>, and the bracket channel reaches it by discarding the context,
+/// emitting what <see cref="ContextIgnoringTemplateForm"/> gets from <c>.Template</c>. Kept beside that one
+/// because the two spellings must reach the same parameter and render the same content (#322).
+/// </summary>
+public partial class BracketChildContentForm : BodyComponentBase
+{
+    public NameModel Value { get; } = new();
+
+    protected override View Body =>
+        Component<EditForm>()
+            .Param(form => form.Model, Value)[
+                Component<NameFields>().Param(fields => fields.Value, Value)];
 }
 
 /// <summary>

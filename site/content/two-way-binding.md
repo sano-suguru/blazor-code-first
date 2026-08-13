@@ -172,20 +172,18 @@ reference. A component under an `EditForm` resolves a `FieldIdentifier` from tha
 identifier is what ties the input to a property of your model, so validation messages land on the right
 field. No other spelling could supply it.
 
-The `EditForm` around it is written the same way, once you know which channel its content goes
-through. `EditForm.ChildContent` is a `RenderFragment<EditContext>`, so the brackets cannot supply it
-— `Component<EditForm>()[…]` reports BCF3013, which is about the non-generic `ChildContent` only.
-Name the parameter with `.Template`:
+The `EditForm` around it is written the same way. `EditForm.ChildContent` is a
+`RenderFragment<EditContext>`, and the brackets supply it with the context discarded, so the content
+below needs nothing else. Content that reads the `EditContext` is named with `.Template` instead:
 
 ```csharp
 protected override View Body =>
     Component<EditForm>()
-        .Param(form => form.Model, _model)
-        .Template(form => form.ChildContent,
-            Component<NameFields>().Param(fields => fields.Value, _model));
+        .Param(form => form.Model, _model)[
+            Component<NameFields>().Param(fields => fields.Value, _model)];
 ```
 
-The bound inputs may sit directly in that template or in their own component; the binding above, and
+The bound inputs may sit directly in the brackets or in their own component; the binding above, and
 the `ValueExpression` it supplies, are unaffected either way. See
 [generic fragment parameters](./components-and-reuse.md#generic-fragment-parameters) for the spelling
 that reads the `EditContext`, and for when a cached delegate through `.Param` is the better choice.
