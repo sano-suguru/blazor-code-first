@@ -99,6 +99,14 @@ internal static class RenderExpressionAnalyzer
             return Analyze(expression, context);
 
         context.PushTransplantedScope(SpanOf(statements));
+
+        // Registered before either half is normalized, so the declaration and every reference mint the
+        // same hole, and a ForEach written in the returned expression takes the ordinal after them --
+        // which is the order ViewPartExpander appends them in (#336).
+        var locals = CollectBlockLocals(statements, context);
+        foreach (var local in locals)
+            context.PushRenderVariable(local);
+
         try
         {
             var content = Analyze(expression, context);
@@ -106,12 +114,78 @@ internal static class RenderExpressionAnalyzer
             return content is null
                 ? null
                 : new TransplantedBlockTemplateNode(
-                    ExpressionTemplateFactory.CreateForStatements(statements, context), content);
+                    ExpressionTemplateFactory.CreateForStatements(statements, context),
+                    locals.Length,
+                    content);
         }
         finally
         {
+            for (var index = locals.Length - 1; index >= 0; index--)
+                context.PopRenderVariable(locals[index]);
+
             context.PopTransplantedScope();
         }
+    }
+
+    /// <summary>
+    /// The locals the block's leading statements declare directly, in source order. These are the names
+    /// expansion has to mint, because the statements of two expansions land in one scope (#336).
+    /// </summary>
+    /// <remarks>
+    /// Two syntax shapes and not the whole declared-identifier list: the accepted statement kinds are a
+    /// local declaration and an expression statement, so a declarator and a designation are the only ways
+    /// one of them binds a name. A query expression's range variables are bound and read inside a single
+    /// template and are excluded by the <see cref="ILocalSymbol"/> test.
+    /// <para>
+    /// A declaration written inside a lambda in one of those statements is skipped. It is readable only
+    /// there, so no expansion can collide with it, and the <c>ForEach</c> arm registers a content lambda's
+    /// parameter itself -- registering it twice would leave the overlay holding the second ordinal for a
+    /// symbol the first one named.
+    /// </para>
+    /// </remarks>
+    private static ImmutableArray<ISymbol> CollectBlockLocals(
+        ImmutableArray<StatementSyntax> statements, ViewPartBodyContext context)
+    {
+        var locals = ImmutableArray.CreateBuilder<ISymbol>();
+
+        foreach (var statement in statements)
+        {
+            foreach (var node in statement.DescendantNodesAndSelf())
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+
+                if (node is not (VariableDeclaratorSyntax or SingleVariableDesignationSyntax)
+                    || IsInsideNestedFunction(node, statement))
+                {
+                    continue;
+                }
+
+                if (context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                    is ILocalSymbol local)
+                {
+                    locals.Add(local);
+                }
+            }
+        }
+
+        return locals.ToImmutable();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> sits inside a function written within <paramref name="statement"/>,
+    /// and so binds its name in that function's scope rather than in the block's.
+    /// </summary>
+    private static bool IsInsideNestedFunction(SyntaxNode node, StatementSyntax statement)
+    {
+        for (var current = node.Parent;
+             current is not null && current != statement;
+             current = current.Parent)
+        {
+            if (current is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>The span covering <paramref name="statements"/>, which the caller has found non-empty.</summary>

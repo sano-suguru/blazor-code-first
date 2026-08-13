@@ -233,5 +233,16 @@ internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderT
 /// this carries statements the author wrote.
 /// </para>
 /// </remarks>
+/// <param name="LocalCount">
+/// How many locals the block's own statements declare, and so how many names expansion mints for it
+/// (#336). The statements of two expansions land in one scope, so a name the author wrote cannot be the
+/// name emitted; each of these is a scoped render variable, holed at its declaration and at every
+/// reference, and <c>ViewPartExpander</c> substitutes the minted name into all of them at once.
+/// <para>
+/// The count and not the ordinals: they run contiguously from the length of the substitution the block
+/// is expanded under, which is the arithmetic <c>ForEach</c> already uses for its one iteration variable
+/// (<c>ViewPartBodyContext.PushRenderVariable</c>), widened from one variable to N.
+/// </para>
+/// </param>
 internal sealed record TransplantedBlockTemplateNode(
-    ExpressionTemplate Statements, RenderTemplateNode Content) : RenderTemplateNode;
+    ExpressionTemplate Statements, int LocalCount, RenderTemplateNode Content) : RenderTemplateNode;

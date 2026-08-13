@@ -53,16 +53,19 @@ public sealed class BodyTransplantTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
 
         // `var` is resolved the way every other transplanted type reference is: the generated file
-        // carries no using directives, so the written type has to stand on its own.
-        Assert.Contains("string label = Title;", generated);
+        // carries no using directives, so the written type has to stand on its own. The name is the
+        // block's, minted from its preorder ordinal, because the statements of two expansions land in one
+        // scope and the author's own name would collide there (#336).
+        Assert.Contains("string __bcf_local_0_0 = Title;", generated);
 
         // The statements land ahead of the frames, which is what makes the local readable from them.
         Assert.True(
-            generated.IndexOf("string label = Title;", System.StringComparison.Ordinal)
+            generated.IndexOf("string __bcf_local_0_0 = Title;", System.StringComparison.Ordinal)
                 < generated.IndexOf("__builder.OpenElement(0,", System.StringComparison.Ordinal),
             "The transplanted statements must precede the frame emission that reads them.");
 
-        Assert.Contains("__builder.AddContent(1, label);", generated);
+        // The declaration and the reference take the one substitution, so they cannot disagree.
+        Assert.Contains("__builder.AddContent(1, __bcf_local_0_0);", generated);
         CompilationTestHost.AssertOutputCompiles(result);
         CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
     }
@@ -105,7 +108,7 @@ public sealed class BodyTransplantTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
-        Assert.Contains("string shell = \"shell\";", generated);
+        Assert.Contains("string __bcf_local_0_0 = \"shell\";", generated);
         Assert.Contains("__builder.AddContent(2, Body);", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
@@ -142,6 +145,113 @@ public sealed class BodyTransplantTests
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1004");
         Assert.Contains("_n++;", Assert.Single(result.GeneratedSources).SourceText.ToString());
+    }
+
+    [Fact]
+    public void Body_WhenGetterBlockAndExpandedPartBlockDeclareTheSameName_GeneratesCompilingCode()
+    {
+        // #336: expansion flattens the part's block into the getter's own, so the two `label`
+        // declarations land in one scope. Nothing about that is nested in what the author wrote, and
+        // the CS0136 it produced pointed into a file the author does not write.
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                private static readonly string[] Outer = ["a"];
+                private static readonly string[] Inner = ["b"];
+
+                protected override View Body
+                {
+                    get
+                    {
+                        var label = Outer[0];
+                        return Div[Span[label], Part()];
+                    }
+                }
+
+                [ViewPart]
+                private static View Part() => ForEach(Inner, y => y, y =>
+                {
+                    var label = y.ToUpperInvariant();
+                    return Span[label];
+                });
+            }
+            """;
+
+        CompilationTestHost.AssertOutputCompiles(CompilationTestHost.RunGenerator(source));
+    }
+
+    /// <summary>
+    /// A component whose getter block and whose expanded part's block both write <c>$DECLARATION$</c>,
+    /// reading it back through <c>$READ$</c>. The part's block lands inside the getter's own scope, so a
+    /// name left as written is declared in an enclosing scope and its own — the #336 shape.
+    /// </summary>
+    private const string NestedBlocksHost = """
+        using BlazorCodeFirst;
+        using System.Collections.Generic;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            private static readonly List<string> Items = new() { "a" };
+
+            protected override View Body
+            {
+                get
+                {
+                    var x = Items[0];
+                    $DECLARATION$
+                    return Div[Span[$READ$], Part()];
+                }
+            }
+
+            [ViewPart]
+            private static View Part() => ForEach(Items, x => x, x =>
+            {
+                $DECLARATION$
+                return Span[$READ$];
+            });
+        }
+        """;
+
+    [Theory]
+    // Two declarators in one statement, and a second that reads the first.
+    [InlineData("var a = \"p\"; var b = a + x;", "a + b")]
+    // A designation bound by an expression statement rather than by a declaration.
+    [InlineData("int.TryParse(x, out var n);", "n.ToString()")]
+    // A pattern designation, which binds in the block's scope as a declarator does, and so lands twice
+    // in the flattened one however narrowly the author reads it.
+    [InlineData("var upper = x is { Length: > 0 } s ? s.ToUpperInvariant() : x;", "upper")]
+    public void Body_WhenNestedBlocksDeclareTheSameName_MintsEachDeclarationsName(
+        string declaration, string read)
+    {
+        // #336: the mint has to cover every way a leading statement binds a name, not the single simple
+        // declarator alone. A shape left as written is declared in an enclosing scope and again in the
+        // expanded one, which is CS0136 and not a cosmetic difference.
+        var result = CompilationTestHost.RunGenerator(
+            NestedBlocksHost.Replace("$DECLARATION$", declaration).Replace("$READ$", read));
+
+        Assert.Empty(result.Diagnostics);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Body_WhenALeadingStatementWritesALambda_LeavesItsParameterAsWritten()
+    {
+        // The mint covers what the block's scope binds. A lambda parameter is bound in the lambda's own
+        // scope, is readable only there, and so cannot collide with anything an expansion brings.
+        var result = CompilationTestHost.RunGenerator(
+            NestedBlocksHost
+                .Replace("$DECLARATION$", "var f = (string n) => n + x;")
+                .Replace("$READ$", "f(x)"));
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.Contains("(string n) => n +", generated);
+        Assert.DoesNotContain("var f =", generated);
     }
 
     [Theory]

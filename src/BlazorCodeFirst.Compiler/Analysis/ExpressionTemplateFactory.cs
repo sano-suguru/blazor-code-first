@@ -83,7 +83,7 @@ internal static class ExpressionTemplateFactory
                 segments.Add(StatementSeparator);
 
             var template = CreateCore(
-                statement, context, AuthoredContextNameHygiene.Create(statement, context));
+                statement, context, AuthoredContextNameHygiene.CreateForStatement(statement, context));
 
             segments.AddRange(template.Segments.AsImmutableArray());
         }
@@ -164,19 +164,16 @@ internal static class ExpressionTemplateFactory
             }
         }
 
-        // Declaration identifiers are tokens rather than SimpleNameSyntax nodes, so splice their safe
-        // names explicitly. A declaration inside a whole-invocation rewrite is handled by that rewrite's
-        // recursive CreateCore call with the same symbol-aware plan.
+        // Declaration identifiers are tokens rather than SimpleNameSyntax nodes, so splice their
+        // replacements explicitly. A declaration inside a whole-invocation rewrite is handled by that
+        // rewrite's recursive CreateCore call with the same symbol-aware plan.
         foreach (var declaration in authoredNameHygiene.Declarations)
         {
             if (expression.Span.Contains(declaration.Span)
                 && !IsNestedInReplaced(declaration.Span, replacedSpans))
             {
                 AddReplacement(
-                    replacements,
-                    replacedSpans,
-                    declaration.Span,
-                    new LiteralExpressionSegment(declaration.Name));
+                    replacements, replacedSpans, declaration.Span, declaration.Segment);
             }
         }
 
@@ -1001,7 +998,30 @@ internal static class ExpressionTemplateFactory
 
         public static AuthoredContextNameHygiene Create(
             SyntaxNode expression,
-            ViewPartBodyContext context)
+            ViewPartBodyContext context) =>
+            Create(expression, context, spliceRenderVariableHoles: false);
+
+        /// <summary>
+        /// As <see cref="Create(SyntaxNode, ViewPartBodyContext)"/>, plus a hole at every declaration the
+        /// enclosing transplanted block registered as a render variable (#336). The name is minted at
+        /// expansion, so the declaration carries the same hole its references carry and one substitution
+        /// writes the minted name into all of them.
+        /// </summary>
+        /// <remarks>
+        /// Only the statements path asks, because only a statement declares one of those names. A
+        /// declaration written in the returned expression is not registered, and a <c>ForEach</c> content
+        /// lambda's parameter is registered but declared outside every template, so asking there would
+        /// pay a semantic query per declaration to find nothing.
+        /// </remarks>
+        public static AuthoredContextNameHygiene CreateForStatement(
+            StatementSyntax statement,
+            ViewPartBodyContext context) =>
+            Create(statement, context, spliceRenderVariableHoles: true);
+
+        private static AuthoredContextNameHygiene Create(
+            SyntaxNode expression,
+            ViewPartBodyContext context,
+            bool spliceRenderVariableHoles)
         {
             // Built on the first rename, not up front. Its only reader is the disambiguation loop below,
             // which runs only for an authored declaration literally spelled __bcf_context_<digits> — the
@@ -1018,14 +1038,31 @@ internal static class ExpressionTemplateFactory
             {
                 context.CancellationToken.ThrowIfCancellationRequested();
 
-                if (!TryGetDeclaredIdentifier(node, out var identifier)
-                    || !IsGeneratedContextName(identifier.ValueText)
-                    || context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
-                        is not { } symbol
-                    || names.ContainsKey(symbol))
+                if (!TryGetDeclaredIdentifier(node, out var identifier))
+                    continue;
+
+                var declared = spliceRenderVariableHoles
+                    ? context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                    : null;
+
+                // The two arms cannot both claim one declaration: a block spelling a generator-reserved
+                // name is refused whole by TryReadTransplantableBlock, so nothing registered as a render
+                // variable is also a rename candidate.
+                if (declared is not null
+                    && context.ResolveHole(declared, out var holeOrdinal) == BodyHoleKind.Value)
                 {
+                    declarations.Add(new AuthoredDeclarationRename(
+                        identifier.Span, new ParameterHoleExpressionSegment(holeOrdinal)));
                     continue;
                 }
+
+                if (!IsGeneratedContextName(identifier.ValueText))
+                    continue;
+
+                var symbol = declared
+                    ?? context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken);
+                if (symbol is null || names.ContainsKey(symbol))
+                    continue;
 
                 usedNames ??= CollectIdentifierNames(expression);
 
@@ -1036,7 +1073,8 @@ internal static class ExpressionTemplateFactory
                     name = $"{baseName}_{++disambiguator}";
 
                 names.Add(symbol, name);
-                declarations.Add(new AuthoredDeclarationRename(identifier.Span, name));
+                declarations.Add(new AuthoredDeclarationRename(
+                    identifier.Span, new LiteralExpressionSegment(name)));
             }
 
             return new AuthoredContextNameHygiene(names, declarations.ToImmutable());
@@ -1097,7 +1135,12 @@ internal static class ExpressionTemplateFactory
         }
     }
 
-    private readonly record struct AuthoredDeclarationRename(TextSpan Span, string Name);
+    /// <summary>
+    /// What replaces an authored declaration's identifier token: a literal safe name for a declaration
+    /// that would otherwise shadow a generated one, or a hole for a transplanted block's local, whose name
+    /// expansion mints (#336).
+    /// </summary>
+    private readonly record struct AuthoredDeclarationRename(TextSpan Span, ExpressionSegment Segment);
 
     private readonly record struct Replacement(
         TextSpan Span,

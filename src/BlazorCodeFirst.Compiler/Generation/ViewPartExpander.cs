@@ -233,9 +233,25 @@ internal static class ViewPartExpander
 
             case TransplantedBlockTemplateNode transplanted:
                 {
+                    // The block's authored locals, named from the preorder `ordinal` so two expansions of
+                    // one part cannot produce one name -- the same guarantee, and the same construction, as
+                    // the typed argument locals in ExpandCall. Without it the statements of both expansions
+                    // declare the author's own name in one flattened scope, which is CS0136 in a file the
+                    // author does not write (#336).
+                    //
+                    // Extended before the content is expanded, because the returned expression reads these
+                    // and a ForEach written in it takes the ordinal after them -- the order the analyzer
+                    // registered them in.
+                    var extended = substitution;
+                    for (var index = 0; index < transplanted.LocalCount; index++)
+                    {
+                        extended = extended.Add(new SubstitutedArgument(
+                            CreateBlockLocalName(ordinal, index), Constant: null));
+                    }
+
                     var content = ExpandNode(
                         transplanted.Content,
-                        substitution,
+                        extended,
                         ref nextLogicalPreorderOrdinal,
                         activeMethodStack,
                         registry,
@@ -245,7 +261,7 @@ internal static class ViewPartExpander
                         return null;
 
                     return new TransplantedBlockNode(
-                        transplanted.Statements.Substitute(substitution), content);
+                        transplanted.Statements.Substitute(extended), content);
                 }
 
             case FragmentTemplateNode fragment:
@@ -546,6 +562,14 @@ internal static class ViewPartExpander
 
     private static string CreateLocalName(int callPreorderOrdinal, int parameterOrdinal) =>
         $"__bcf_arg_{callPreorderOrdinal}_{parameterOrdinal}";
+
+    /// <summary>
+    /// The name a transplanted block's authored local is emitted under. Built from the block's own
+    /// preorder ordinal, which is unique across the whole component, so the two expansions that flatten
+    /// into one scope declare two names (#336).
+    /// </summary>
+    private static string CreateBlockLocalName(int blockPreorderOrdinal, int localIndex) =>
+        $"__bcf_local_{blockPreorderOrdinal}_{localIndex}";
 
     private static DiagnosticInfo CreateDiagnostic(ViewPartCallTemplateNode call, string reason) =>
         DiagnosticInfo.Create(
