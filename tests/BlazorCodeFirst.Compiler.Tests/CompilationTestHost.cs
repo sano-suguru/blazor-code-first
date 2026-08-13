@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -26,6 +27,20 @@ public sealed record GeneratorRunResult(
 /// </summary>
 public static class CompilationTestHost
 {
+    /// <summary>One reference set per flag combination, built on first request.</summary>
+    private static readonly ConcurrentDictionary<
+        (bool IncludeRuntime, bool IncludeComponentsWeb),
+        ImmutableArray<MetadataReference>> ReferenceSets = new();
+
+    /// <summary>
+    /// One <see cref="MetadataReference"/> per assembly file, so those sets share theirs instead of
+    /// decoding the same ~200 files once each. Roslyn keys its assembly-symbol cache on metadata identity,
+    /// so a second reference to identical content also costs a second bind in the first compilation that
+    /// uses it.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, MetadataReference> ReferencesByPath =
+        new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Parses <paramref name="source"/> as a single file, creates a test compilation, runs
     /// <see cref="BlazorCodeFirstGenerator"/>, and returns the updated driver together with all
@@ -333,17 +348,31 @@ public static class CompilationTestHost
     }
 
     /// <summary>
-    /// Builds the metadata references shared by every test compilation: the host process's trusted
+    /// Returns the metadata references shared by every test compilation: the host process's trusted
     /// platform assemblies plus <c>Microsoft.AspNetCore.Components</c> and
     /// <c>Microsoft.AspNetCore.Components.Web</c>. When <paramref name="includeRuntime"/>
     /// is <see langword="true"/> (the default) the <c>BlazorCodeFirst.Runtime</c> assembly is also referenced;
     /// pass <see langword="false"/> when the test defines the <c>BlazorCodeFirst</c> types in-source and must
     /// not pull in the compiled runtime. Pass <paramref name="includeComponentsWeb"/> as
     /// <see langword="false"/> to build the compilation an author gets without the <c>[EventHandler]</c>
-    /// table, which is what BCF3028 skips in silence.
+    /// table, which is what BCF3028 skips in silence. Each flag combination is built on first request;
+    /// every later call for it gets the same references back.
     /// </summary>
+    /// <remarks>
+    /// What the flags select is fixed before any test runs: the host process's TPA list and three assembly
+    /// locations. Building it per call meant splitting that list, stat-ing every entry, and reading every
+    /// surviving file's metadata again for every case in this suite (#217). Sharing the results is safe
+    /// because <see cref="MetadataReference"/> instances are immutable, which the callers already relied on
+    /// by handing one returned set to several compilations.
+    /// </remarks>
     internal static ImmutableArray<MetadataReference> BuildMetadataReferences(
-        bool includeRuntime = true, bool includeComponentsWeb = true)
+        bool includeRuntime = true, bool includeComponentsWeb = true) =>
+        ReferenceSets.GetOrAdd(
+            (includeRuntime, includeComponentsWeb),
+            static key => CreateMetadataReferences(key.IncludeRuntime, key.IncludeComponentsWeb));
+
+    private static ImmutableArray<MetadataReference> CreateMetadataReferences(
+        bool includeRuntime, bool includeComponentsWeb)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var references = new List<MetadataReference>();
@@ -351,7 +380,7 @@ public static class CompilationTestHost
         void Add(string path)
         {
             if (!string.IsNullOrEmpty(path) && seen.Add(path) && File.Exists(path))
-                references.Add(MetadataReference.CreateFromFile(path));
+                references.Add(ReferencesByPath.GetOrAdd(path, static p => MetadataReference.CreateFromFile(p)));
         }
 
         var runtimeAssemblyPath = typeof(BlazorCodeFirst.BodyComponentBase).Assembly.Location;
