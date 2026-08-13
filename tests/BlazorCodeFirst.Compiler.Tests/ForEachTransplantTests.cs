@@ -82,6 +82,17 @@ public sealed class ForEachTransplantTests
                     return Html.Span[__bcf_item_0];
                 }
         """)]
+    // The builder the transplanted statements are written beside. Refused from the same reader that
+    // refuses it in a design-time expression getter, so both positions hold the reserved set alike.
+    [InlineData(
+        "the builder's name",
+        """
+        x =>
+                {
+                    var __builder = x.ToUpperInvariant();
+                    return Html.Span[__builder];
+                }
+        """)]
     public void ForEachContent_WhenBlockIsOutsideTheAcceptedShape_ReportsBCF3004(
         string shape, string content)
     {

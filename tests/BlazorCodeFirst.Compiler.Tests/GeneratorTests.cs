@@ -383,23 +383,27 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_MultiStatementGetter_ReportsBCF1004AtTheProperty()
+    public void Generator_UntranslatableGetter_ReportsBCF1004AtTheProperty()
     {
-        // A getter with statements would need the Transplantable path, which is not implemented. The
-        // point of BCF1004 is that the author is told THAT, instead of a bare CS0534 about RenderView
-        // which says nothing about the getter.
+        // A getter with two returns is outside the Transplantable shape: each return needs a sequence
+        // space of its own. The point of BCF1004 is that the author is told THAT, instead of a bare
+        // CS0534 about RenderView which says nothing about the getter.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
             public partial class Counter : BodyComponentBase
             {
+                private int _n;
+
                 protected override View Body
                 {
                     get
                     {
-                        var label = "Count";
-                        return Span[label];
+                        if (_n == 0)
+                            return Span["none"];
+
+                        return Span["some"];
                     }
                 }
             }
@@ -544,10 +548,10 @@ public sealed class GeneratorTests
     [Fact]
     public void Generator_PartialPropertyWithStatementBodyImplementation_ReportsBCF1004()
     {
-        // A partial property's implementation part can carry a statement-bearing getter, which is legal
-        // C# and still untranslatable. The classification must reach the IMPLEMENTATION part to see it,
-        // reading the definition part would find `{ get; }`, classify it as NoDeclaration, and report
-        // nothing at all.
+        // A partial property's implementation part can carry a getter outside the accepted shapes, which
+        // is legal C# and still untranslatable. The classification must reach the IMPLEMENTATION part to
+        // see it, reading the definition part would find `{ get; }`, classify it as NoDeclaration, and
+        // report nothing at all.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -562,8 +566,10 @@ public sealed class GeneratorTests
                 {
                     get
                     {
-                        var label = "Count";
-                        return Span[label];
+                        foreach (var c in "Count")
+                            System.Console.WriteLine(c);
+
+                        return Span["Count"];
                     }
                 }
             }
@@ -576,11 +582,13 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public async Task Generator_MultiStatementGetterWithMutation_ReportsBothBCF1004AndBCF3001()
+    public async Task Generator_UntranslatableGetterWithMutation_ReportsBothBCF1004AndBCF3001()
     {
         // Two analyzers, two separate dedup paths: the generator reports BCF1004 and
         // RenderMutationAnalyzer independently reports BCF3001. Both are actionable, so both firing is
-        // correct, pinned here so nobody "fixes" it into a single report.
+        // correct, pinned here so nobody "fixes" it into a single report. The mutation alone no longer
+        // reaches BCF1004, an expression statement is inside the accepted shape, so the second return
+        // carries that half.
         const string source = """
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
@@ -594,6 +602,9 @@ public sealed class GeneratorTests
                     get
                     {
                         _n++;
+                        if (_n == 1)
+                            return Span["first"];
+
                         return Span["x"];
                     }
                 }

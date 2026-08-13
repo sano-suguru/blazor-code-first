@@ -1,7 +1,7 @@
 ---
 title: はじめに
 order: 10
-source-hash: 604f3251
+source-hash: 371abba0
 ---
 
 BlazorCodeFirst を使うと、Blazor の UI をそのままの C# で書けます。このページ自体も Markdown
@@ -48,31 +48,55 @@ public partial class Home : BodyComponentBase
 に対する CS0534 としてしか現れません。CS0534 が名指しするのは足りないメンバーだけです。どの型
 の入れ子になっているかは教えてくれません。
 
-ゲッターは単一の式に還元できる必要があります。でなければ BCF1004 を報告します。書き方は3通り
-あり、どれも同じものに変換されます。
+ゲッターは1つの `return` へ到達する必要があります。でなければ BCF1004 を報告します。書き方は3
+通りあり、どれも同じものに変換されます。
 
 ```csharp
 protected override View Body => Div[H1["Hello"]];              // これでよい
 protected override View Body { get => Div[H1["Hello"]]; }      // これでもよい
 protected override View Body { get { return Div[H1["Hello"]]; } }   // これでもよい
+```
 
-protected override View Body                                   // BCF1004: return の前にローカル変数がある
+その `return` の手前には、ローカル変数の宣言と式文を置けます。書いた文は生成された
+`RenderView` のフレーム発行の手前へ移植されます。`ForEach` のコンテンツブロックに書いた文が
+落ちる場所と同じです。
+
+```csharp
+protected override View Body                                   // これでよい
 {
     get
     {
-        var greeting = "Hello";
+        var greeting = $"Hello, {_name}";
         return Div[H1[greeting]];
+    }
+}
+```
+
+残った形は BCF1004 のままです。
+
+```csharp
+protected override View Body                                   // BCF1004: 2つ目の return がある
+{
+    get
+    {
+        if (_name is null)
+            return Div[H1["Hello"]];
+
+        return Div[H1[$"Hello, {_name}"]];
     }
 }
 
 protected override View Body { get; } = default;               // BCF1004: 自動プロパティにはゲッターの本体がない
 ```
 
-本体が文の並びになっているゲッターには、変換すべき式がひとつに定まりません。自動プロパティに
-は、そもそもゲッターの本体がありません。BCF1004 が咎めるのは宣言そのものです。ここが BCF1003
-との違いです。BCF1003 は、ゲッターの形は問題なく、その中に書かれた何かを順序付けできなかった、
-という意味です。本体がどうしても単一の式にならないなら、`RenderView` を手で書いてください。
-そのとき設計時の式は使われなくなり、何も報告されません。
+2つ目の `return` とネイティブの制御構文は、それぞれ専用のシーケンス空間を要します。自動プロパ
+ティには、そもそもゲッターの本体がありません。BCF1004 が咎めるのは宣言そのものです。ここが
+BCF1003 との違いです。BCF1003 は、ゲッターの形は問題なく、その中に書かれた何かを順序付けでき
+なかった、という意味です。本体がどうしてもこの形にならないなら、`RenderView` を手で書いてくだ
+さい。そのとき設計時の式は使われなくなり、何も報告されません。
+
+文は翻訳されるだけで、実行はされません。設計時の式が不活性であることは変わらないので、その中
+で状態を書き換えれば、これまでどおり BCF3001 です。
 
 1つのクラスが2つの誤りを同時に抱えることはあります。`partial` が抜けていて、かつゲッターが
 変換できない、という具合に。それでも知らされるのは一度に1つです。`partial` の検査が先に走る

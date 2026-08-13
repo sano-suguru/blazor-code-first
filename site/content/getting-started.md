@@ -45,31 +45,54 @@ enclosing type declarations, including any enclosing type's type parameters, so 
 rejected rather than half emitted. Without the diagnostic the nesting would surface only as CS0534
 against the abstract `RenderView`. CS0534 names the missing member, never the type it is nested in.
 
-The getter must reduce to a single expression, or BCF1004 is reported. Three spellings satisfy that,
+The getter must reach one returned expression, or BCF1004 is reported. Three spellings satisfy that,
 and all three translate identically:
 
 ```csharp
 protected override View Body => Div[H1["Hello"]];              // fine
 protected override View Body { get => Div[H1["Hello"]]; }      // fine
 protected override View Body { get { return Div[H1["Hello"]]; } }   // fine
+```
 
-protected override View Body                                   // BCF1004: a local before the return
+Locals and expression statements may precede that return. They are transplanted into the generated
+`RenderView` ahead of the frames, which is where a `ForEach` content block's statements already go:
+
+```csharp
+protected override View Body                                   // fine
 {
     get
     {
-        var greeting = "Hello";
+        var greeting = $"Hello, {_name}";
         return Div[H1[greeting]];
+    }
+}
+```
+
+What is left over still earns BCF1004:
+
+```csharp
+protected override View Body                                   // BCF1004: a second return
+{
+    get
+    {
+        if (_name is null)
+            return Div[H1["Hello"]];
+
+        return Div[H1[$"Hello, {_name}"]];
     }
 }
 
 protected override View Body { get; } = default;               // BCF1004: an auto property has no getter body
 ```
 
-A getter holding statements has no single expression to translate, and an auto property declares no
-getter body at all. BCF1004 blames the declaration, and that is what separates it from BCF1003.
-BCF1003 means the getter's shape was fine and something written inside it could not be sequenced. If
-the body genuinely cannot be one expression, override `RenderView` by hand — the design-time
-expression is then unused, and nothing is reported.
+A second return and native control flow each need a sequence space of their own, and an auto property
+declares no getter body at all. BCF1004 blames the declaration, and that is what separates it from
+BCF1003. BCF1003 means the getter's shape was fine and something written inside it could not be
+sequenced. If the body genuinely cannot be written in this shape, override `RenderView` by hand — the
+design-time expression is then unused, and nothing is reported.
+
+Statements are translated, not run: the design-time expression is still inert, so mutating state inside
+one is BCF3001 as it always was.
 
 A class can carry two of these faults at once — a missing `partial` and an untranslatable getter — and
 you are told about one at a time. The `partial` check runs first, so BCF1001 comes alone, and adding

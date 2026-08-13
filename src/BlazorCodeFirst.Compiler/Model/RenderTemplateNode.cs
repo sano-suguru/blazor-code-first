@@ -218,14 +218,20 @@ internal sealed record RenderFragmentContentTemplateNode(ExpressionTemplate Cont
 internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderTemplateNode;
 
 /// <summary>
-/// Statements transplanted ahead of a content root, inside the region that already isolates it
-/// (ARCHITECTURE.md §2.3 Transplantable). The statements consume no sequence numbers, so the wrapped
-/// content keeps the width it has on its own.
+/// Statements transplanted ahead of the content they lead into (ARCHITECTURE.md §2.3 Transplantable).
+/// The statements consume no sequence numbers, so the wrapped content keeps the width it has on its own.
 /// </summary>
 /// <remarks>
+/// The scope they land in depends on the position: a <c>ForEach</c> content block is written inside the
+/// generated loop, which the region already isolates, while a design-time expression getter's block is
+/// written into the body of <c>RenderView</c> itself, beside its builder parameter. That second position
+/// is why the names the generated scope binds are refused rather than renamed
+/// (<c>RenderExpressionAnalyzer.TryReadTransplantableBlock</c>).
+/// <para>
 /// Structurally the same shape as <c>ExpansionNode</c> — bindings, then a body that still owns the key —
 /// and kept separate because the bindings differ: an expansion declares typed locals the expander built,
 /// this carries statements the author wrote.
+/// </para>
 /// </remarks>
 internal sealed record TransplantedBlockTemplateNode(
     ExpressionTemplate Statements, RenderTemplateNode Content) : RenderTemplateNode;
