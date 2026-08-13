@@ -15,7 +15,12 @@ public sealed class ViewPartDefinitionTests
     [Theory]
     [InlineData("[ViewPart] private View Helper() => Span[\"x\"];", "must be static")]
     [InlineData("[ViewPart] private static View Helper<T>() => Span[\"x\"];", "must be non-generic")]
-    [InlineData("[ViewPart] private static View Helper() { return Span[\"x\"]; }", "must be expression-bodied")]
+    // A block body is accepted since #336, in the one shape the other Transplantable positions take.
+    // What is refused is a block outside it: a second return needs a sequence space of its own.
+    // ViewPartStatementBodyTests covers the accepted shape and the rest of the refused ones.
+    [InlineData(
+        "[ViewPart] private static View Helper() { if (true) return Span[\"a\"]; return Span[\"x\"]; }",
+        "body must be an expression, or a block")]
     [InlineData("[ViewPart] private static string Helper() => \"x\";", "must return BlazorCodeFirst.View")]
     [InlineData("[ViewPart] private static View Helper(params string[] values) => Span[values[0]];", "params parameters are unsupported")]
     // A View parameter is a content slot now (#34) and needs the SlotView return type that says so;

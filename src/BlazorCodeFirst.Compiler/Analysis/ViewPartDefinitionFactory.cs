@@ -98,8 +98,15 @@ internal static class ViewPartDefinitionFactory
                 return "containing type must be non-generic";
         }
 
-        if (declaration.ExpressionBody is null)
-            return "must be expression-bodied";
+        // The same shape the other three Transplantable positions take (ARCHITECTURE.md §2.3), read from
+        // the same reader, so a block a ForEach content lambda accepts is a block a part accepts. What
+        // kept a part out until #336 was that its statements are copied into every call site, where the
+        // names the author wrote collided; those names are minted now.
+        if (!TryReadBody(declaration, out _, out _))
+        {
+            return "body must be an expression, or a block whose local declarations and expression "
+                + "statements lead to a single return";
+        }
 
         var viewType = knownSymbols?.ViewType;
         if (viewType is null)
@@ -167,6 +174,9 @@ internal static class ViewPartDefinitionFactory
         CancellationToken cancellationToken,
         out ImmutableArray<DiagnosticInfo> diagnostics)
     {
+        // ValidateDeclaration has already refused a body this cannot read, so the shape is settled here.
+        TryReadBody(declaration, out var bodyStatements, out var bodyExpression);
+
         var ordinals = ImmutableDictionary.CreateBuilder<ISymbol, int>(SymbolEqualityComparer.Default);
         var contentOrdinals = ImmutableHashSet.CreateBuilder<int>();
         var parameters = ImmutableArray.CreateBuilder<ViewPartParameter>(method.Parameters.Length);
@@ -212,7 +222,7 @@ internal static class ViewPartDefinitionFactory
             // reached a translatable position. Asked only when there is a slot to count: a part returning View
             // cannot have one, and a Slot written in its body is reported at the reference by ClassifySlot.
             var slotReferences = CountSlotReferences(
-                declaration.ExpressionBody!.Expression,
+                (SyntaxNode?)declaration.Body ?? bodyExpression,
                 attributeContext.SemanticModel,
                 knownSymbols,
                 cancellationToken);
@@ -238,13 +248,13 @@ internal static class ViewPartDefinitionFactory
             cancellationToken,
             contentOrdinals.ToImmutable());
 
-        var body = RenderExpressionAnalyzer.Analyze(declaration.ExpressionBody!.Expression, context);
+        var body = RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, context);
         if (body is null)
         {
             // The same failure-path sweeps the component host runs, from the one list both share: report
             // the specific cause rather than falling through to the generic "not statically sequenceable"
             // text. See FailurePathScanners.
-            FailurePathScanners.ReportAll(declaration.ExpressionBody!.Expression, context);
+            FailurePathScanners.ReportAll(bodyExpression, context);
 
             // Prefer a specific recorded unsupported-reference diagnostic (for example a referenced local
             // that cannot exist in generated code) over the generic non-SSC message.
@@ -274,10 +284,15 @@ internal static class ViewPartDefinitionFactory
     }
 
     /// <summary>
-    /// How many times <paramref name="expression"/> names <c>Html.Slot</c>, counting both the unqualified
+    /// How many times <paramref name="body"/> names <c>Html.Slot</c>, counting both the unqualified
     /// spelling under <c>using static</c> and the qualified escape hatch, and counting references inside
     /// nested lambdas (an <c>If</c> branch) as well.
     /// </summary>
+    /// <param name="body">
+    /// The declaration's whole body, block or expression. The whole of it, so a <c>Slot</c> written in a
+    /// transplanted statement is counted: it is as misplaced there as a second one in the returned
+    /// expression, and counting only the return would let it through as zero.
+    /// </param>
     /// <remarks>
     /// Prefiltered on the name so the semantic query is asked only of candidates: a body of any size holds
     /// far more identifiers than it holds slots. The symbol comparison is what decides — a member of the
@@ -285,13 +300,13 @@ internal static class ViewPartDefinitionFactory
     /// helpers.
     /// </remarks>
     private static int CountSlotReferences(
-        ExpressionSyntax expression,
+        SyntaxNode body,
         SemanticModel semanticModel,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken)
     {
         var count = 0;
-        foreach (var name in expression.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
+        foreach (var name in body.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
         {
             if (name.Identifier.ValueText != "Slot")
                 continue;
@@ -306,6 +321,39 @@ internal static class ViewPartDefinitionFactory
         }
 
         return count;
+    }
+
+    /// <summary>
+    /// The statements a declaration transplants and the expression it returns, for either body form, or
+    /// <see langword="false"/> when the declaration has no body the generator accepts.
+    /// </summary>
+    /// <remarks>
+    /// One reader, because three sites ask — the slot count, the body classification, and the failure
+    /// sweep — and a site that read the syntax for itself would be a site answering for one form only. The
+    /// block form defers to <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/>, which is
+    /// also what the getter and the <c>ForEach</c> content lambda read their block with, so the three
+    /// positions cannot drift on which blocks they accept.
+    /// </remarks>
+    private static bool TryReadBody(
+        MethodDeclarationSyntax declaration,
+        out ImmutableArray<StatementSyntax> statements,
+        out ExpressionSyntax returned)
+    {
+        if (declaration.ExpressionBody is { Expression: { } expression })
+        {
+            statements = [];
+            returned = expression;
+            return true;
+        }
+
+        if (declaration.Body is { } block)
+            return RenderExpressionAnalyzer.TryReadTransplantableBlock(block, out statements, out returned);
+
+        // No body at all: an abstract or partial declaration part, or an interface member. There is
+        // nothing to expand, so it is refused with the same reason the unaccepted shapes get.
+        statements = [];
+        returned = null!;
+        return false;
     }
 
     private static ViewPartDiscoveryResult Invalid(
