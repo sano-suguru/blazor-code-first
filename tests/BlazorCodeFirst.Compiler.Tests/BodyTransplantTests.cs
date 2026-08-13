@@ -233,7 +233,7 @@ public sealed class BodyTransplantTests
         var result = CompilationTestHost.RunGenerator(
             NestedBlocksHost.Replace("$DECLARATION$", declaration).Replace("$READ$", read));
 
-        Assert.Empty(result.Diagnostics);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

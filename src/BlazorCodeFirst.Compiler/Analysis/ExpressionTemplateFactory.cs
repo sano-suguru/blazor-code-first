@@ -268,7 +268,7 @@ internal static class ExpressionTemplateFactory
                 }
             }
 
-            if (IsUnsupportedSourceLocalReference(symbol, expression, context, out var unsupportedReason))
+            if (IsUnsupportedSourceLocalReference(symbol, expression, out var unsupportedReason))
             {
                 context.ReportUnsupportedReference(name.GetLocation(), unsupportedReason);
                 continue;
@@ -598,10 +598,14 @@ internal static class ExpressionTemplateFactory
     /// spliced <paramref name="root"/> travels with the literal text and remains legal; one declared in
     /// an enclosing scope (for example an <c>out var</c> from a sibling argument) does not.
     /// </summary>
+    /// <remarks>
+    /// Purely syntactic, and takes no context for that reason: a local a transplanted block declares used
+    /// to be admitted here by asking the context whether the declaration's span sat inside the block, and
+    /// is now a scoped render variable the caller resolves as a hole before reaching this (#336).
+    /// </remarks>
     private static bool IsUnsupportedSourceLocalReference(
         ISymbol symbol,
         SyntaxNode root,
-        ViewPartBodyContext context,
         out string reason)
     {
         reason = string.Empty;
@@ -1055,27 +1059,33 @@ internal static class ExpressionTemplateFactory
                 if (!TryGetDeclaredIdentifier(node, out var identifier))
                     continue;
 
-                var declared = spliceRenderVariableHoles
-                    ? context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
-                    : null;
+                // The one semantic query, asked only where one of the two arms can apply: for a reserved
+                // spelling, and on the statements path for any declaration at all.
+                var isReservedSpelling = IsGeneratedContextName(identifier.ValueText);
+                if (!isReservedSpelling && !spliceRenderVariableHoles)
+                    continue;
 
-                // The two arms cannot both claim one declaration: a block spelling a generator-reserved
-                // name is refused whole by TryReadTransplantableBlock, so nothing registered as a render
-                // variable is also a rename candidate.
-                if (declared is not null
-                    && context.ResolveHole(declared, out var holeOrdinal) == BodyHoleKind.Value)
+                if (context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                    is not { } symbol)
+                {
+                    continue;
+                }
+
+                // Asked before the rename arm, and the order is what decides between them rather than
+                // any disjointness: TryReadTransplantableBlock's reserved-name refusal reads declarators
+                // only, so a designation spelled __bcf_context_0 (Foo(out var __bcf_context_0)) reaches
+                // both. The hole is the right answer whenever it applies, because the rename exists for a
+                // name that stays as written and a render variable's does not — expansion mints it, and a
+                // minted name cannot equal a contextual-fragment parameter.
+                if (spliceRenderVariableHoles
+                    && context.ResolveHole(symbol, out var holeOrdinal) == BodyHoleKind.Value)
                 {
                     declarations.Add(new AuthoredDeclarationReplacement(
                         identifier.Span, new ParameterHoleExpressionSegment(holeOrdinal)));
                     continue;
                 }
 
-                if (!IsGeneratedContextName(identifier.ValueText))
-                    continue;
-
-                var symbol = declared
-                    ?? context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken);
-                if (symbol is null || names.ContainsKey(symbol))
+                if (!isReservedSpelling || names.ContainsKey(symbol))
                     continue;
 
                 usedNames ??= CollectIdentifierNames(expression);

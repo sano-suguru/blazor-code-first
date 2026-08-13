@@ -130,16 +130,15 @@ internal static class RenderExpressionAnalyzer
     /// expansion has to mint, because the statements of two expansions land in one scope (#336).
     /// </summary>
     /// <remarks>
-    /// Two syntax shapes and not the whole declared-identifier list: the accepted statement kinds are a
-    /// local declaration and an expression statement, so a declarator and a designation are the only ways
-    /// one of them binds a name. A query expression's range variables are bound and read inside a single
-    /// template and are excluded by the <see cref="ILocalSymbol"/> test.
-    /// <para>
-    /// A declaration written inside a lambda in one of those statements is skipped. It is readable only
-    /// there, so no expansion can collide with it, and the <c>ForEach</c> arm registers a content lambda's
-    /// parameter itself -- registering it twice would leave the overlay holding the second ordinal for a
-    /// symbol the first one named.
-    /// </para>
+    /// Two syntax shapes, where the splice that mints the name reads a longer list: the accepted statement
+    /// kinds are a local declaration and an expression statement, so a declarator and a designation are the
+    /// only ways one of them binds a name. This has to stay a subset of what
+    /// <c>ExpressionTemplateFactory</c>'s <c>TryGetDeclaredIdentifier</c> matches, because that switch is
+    /// the gate the hole is spliced through: a shape registered here and not matched there would emit the
+    /// declaration under the author's name while every reference carried the minted hole. Every shape it
+    /// matches and this does not is dropped for a reason that survives -- a lambda parameter and a local
+    /// function by the pruned traversal below, a query clause's range variable by the
+    /// <see cref="ILocalSymbol"/> test.
     /// </remarks>
     private static ImmutableArray<ISymbol> CollectBlockLocals(
         ImmutableArray<StatementSyntax> statements, ViewPartBodyContext context)
@@ -148,15 +147,18 @@ internal static class RenderExpressionAnalyzer
 
         foreach (var statement in statements)
         {
-            foreach (var node in statement.DescendantNodesAndSelf())
+            // A function written inside the statement is not descended into: what it declares binds in its
+            // own scope, is readable only there, and so cannot collide with anything an expansion brings.
+            // Pruning the traversal rather than testing each candidate's ancestors keeps the answer in one
+            // place and never walks the lambda body at all.
+            foreach (var node in statement.DescendantNodesAndSelf(
+                static descendant =>
+                    descendant is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)))
             {
                 context.CancellationToken.ThrowIfCancellationRequested();
 
-                if (node is not (VariableDeclaratorSyntax or SingleVariableDesignationSyntax)
-                    || IsInsideNestedFunction(node, statement))
-                {
+                if (node is not (VariableDeclaratorSyntax or SingleVariableDesignationSyntax))
                     continue;
-                }
 
                 if (context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
                     is ILocalSymbol local)
@@ -167,23 +169,6 @@ internal static class RenderExpressionAnalyzer
         }
 
         return locals.ToImmutable();
-    }
-
-    /// <summary>
-    /// Whether <paramref name="node"/> sits inside a function written within <paramref name="statement"/>,
-    /// and so binds its name in that function's scope rather than in the block's.
-    /// </summary>
-    private static bool IsInsideNestedFunction(SyntaxNode node, StatementSyntax statement)
-    {
-        for (var current = node.Parent;
-             current is not null && current != statement;
-             current = current.Parent)
-        {
-            if (current is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
-                return true;
-        }
-
-        return false;
     }
 
     private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)

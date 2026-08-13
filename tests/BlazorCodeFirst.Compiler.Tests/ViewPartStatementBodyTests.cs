@@ -40,7 +40,7 @@ public sealed class ViewPartStatementBodyTests
 
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Empty(result.Diagnostics);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
 
         // One declaration per call site, each named from its own block's preorder ordinal. The two land
@@ -89,7 +89,7 @@ public sealed class ViewPartStatementBodyTests
             }
             """);
 
-        Assert.Empty(result.Diagnostics);
+        CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -124,6 +124,18 @@ public sealed class ViewPartStatementBodyTests
         {
                 var __builder = title;
                 return Span[__builder];
+            }
+        """)]
+    // A local spelled with the generator's reserved prefix. Held here and not only at the other two
+    // positions because the hole splice cites this refusal: it is why a declaration reaching both the
+    // rename arm and the render-variable arm is a designation and never a declarator
+    // (ExpressionTemplateFactory.AuthoredContextNameHygiene).
+    [InlineData(
+        "generator-reserved local name",
+        """
+        {
+                var __bcf_label = title;
+                return Span[__bcf_label];
             }
         """)]
     public void ViewPart_WhenBodyIsOutsideTheAcceptedShape_StaysBCF1002(string shape, string body)

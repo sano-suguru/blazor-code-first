@@ -118,7 +118,8 @@ internal static class ViewPartDefinitionFactory
         if (!TryReadBody(declaration, out statements, out returned))
         {
             return "body must be an expression, or a block whose local declarations and expression "
-                + "statements lead to a single return";
+                + "statements lead to a single return, declaring no local named '__builder' or "
+                + "prefixed '__bcf_'";
         }
 
         var viewType = knownSymbols?.ViewType;
@@ -234,7 +235,8 @@ internal static class ViewPartDefinitionFactory
             // reached a translatable position. Asked only when there is a slot to count: a part returning View
             // cannot have one, and a Slot written in its body is reported at the reference by ClassifySlot.
             var slotReferences = CountSlotReferences(
-                (SyntaxNode?)declaration.Body ?? bodyExpression,
+                bodyStatements,
+                bodyExpression,
                 attributeContext.SemanticModel,
                 knownSymbols,
                 cancellationToken);
@@ -296,15 +298,30 @@ internal static class ViewPartDefinitionFactory
     }
 
     /// <summary>
-    /// How many times <paramref name="body"/> names <c>Html.Slot</c>, counting both the unqualified
+    /// How many times the body names <c>Html.Slot</c>, counting both the unqualified
     /// spelling under <c>using static</c> and the qualified escape hatch, and counting references inside
     /// nested lambdas (an <c>If</c> branch) as well.
     /// </summary>
-    /// <param name="body">
-    /// The declaration's whole body, block or expression. The whole of it, so a <c>Slot</c> written in a
-    /// transplanted statement is counted: it is as misplaced there as a second one in the returned
-    /// expression, and counting only the return would let it through as zero.
+    /// <param name="statements">
+    /// The transplanted statements, and <paramref name="returned"/> the expression they lead into: the body
+    /// as <see cref="TryReadBody"/> read it, and not the declaration's syntax read a second way here. A
+    /// <c>Slot</c> written in a statement is counted, because it is as misplaced there as a second one in
+    /// the return, and counting the return alone would let it through as zero.
     /// </param>
+    private static int CountSlotReferences(
+        ImmutableArray<StatementSyntax> statements,
+        ExpressionSyntax returned,
+        SemanticModel semanticModel,
+        KnownSymbols knownSymbols,
+        CancellationToken cancellationToken)
+    {
+        var count = CountSlotReferences(returned, semanticModel, knownSymbols, cancellationToken);
+        foreach (var statement in statements)
+            count += CountSlotReferences(statement, semanticModel, knownSymbols, cancellationToken);
+
+        return count;
+    }
+
     /// <remarks>
     /// Prefiltered on the name so the semantic query is asked only of candidates: a body of any size holds
     /// far more identifiers than it holds slots. The symbol comparison is what decides — a member of the
@@ -312,13 +329,13 @@ internal static class ViewPartDefinitionFactory
     /// helpers.
     /// </remarks>
     private static int CountSlotReferences(
-        SyntaxNode body,
+        SyntaxNode node,
         SemanticModel semanticModel,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken)
     {
         var count = 0;
-        foreach (var name in body.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
+        foreach (var name in node.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
         {
             if (name.Identifier.ValueText != "Slot")
                 continue;
