@@ -124,6 +124,30 @@ order: 40
   linking document's own language, so a translation cannot link a reader out of its edition. Raw
   HTML `<a>` tags bypass that rewrite, so use Markdown link syntax.
 - Headings h2 through h6 automatically get a permalink anchor.
+- A `|`-delimited table is a supported construct. See §Tables below for why, and for what the
+  stylesheet does with one.
+
+### Tables
+
+Markdig's pipe-table extension is registered, so a `|`-delimited table renders as a `<table>`.
+`.prose table` in `css/app.css` makes it a horizontal scroll container.
+
+It was not always. The extension was off while that stylesheet rule was already written, so a table
+an author wrote reached the reader as literal pipes and nothing said so (#333). The two ways out
+were to enable the extension or to reject a table the way `MarkdownBodyRules.EnsureNoTopLevelHeading`
+rejects an h1. Enabling it, because rejecting it cannot be done as well:
+
+- The h1 rule reads the parsed document, and the comment on it records why a text scan cannot. A
+  table rule would have had to be that text scan, because with the extension off the parser produces
+  no table node to match — and a `|` is ordinary inside a C# fence, so the scan would have to
+  re-derive fence tracking to avoid rejecting code. With the extension on the fence parser claims
+  the block first, which `ToHtml_PipesInsideAFence_StayCode` holds.
+- Nothing in the design forbids a table. The h1 rule exists because front matter `title` owns the
+  page title and a body h1 would let the two drift; a table has no such conflict.
+
+The scroll container is a guard rather than something today's content exercises: the table in
+`components-and-reuse.md` fits its box at every width the browser suite uses. `layout.spec.ts`
+widens a cell at runtime to measure the rule, and says there why.
 
 ### Translating a document
 

@@ -62,6 +62,29 @@ public class MarkdownConverterTests
     }
 
     [Fact]
+    public void ToHtml_PipeTable_BecomesATable()
+    {
+        string html = MarkdownConverter.ToHtml("| a | b |\n| - | - |\n| 1 | 2 |\n");
+
+        // css/app.css styles `.prose table` as a horizontal scroll container. Without the pipe-table
+        // extension the same source renders as one <p> of literal pipes and that rule styles nothing.
+        Assert.Contains("<table>", html);
+        Assert.Contains("<th>a</th>", html);
+        Assert.Contains("<td>1</td>", html);
+    }
+
+    [Fact]
+    public void ToHtml_PipesInsideAFence_StayCode()
+    {
+        string html = MarkdownConverter.ToHtml("```csharp\nif (a || b) { }\n```");
+
+        // The fence parser claims the block before the table parser sees the line, which is what a
+        // rule written against the source text rather than the parsed document could not have done.
+        Assert.DoesNotContain("<table>", html);
+        Assert.Contains("class=\"csharp\"", html);
+    }
+
+    [Fact]
     public void ToHtml_WithKnownSlugs_EnforcesTheNoH1Rule()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => MarkdownConverter.ToHtml(

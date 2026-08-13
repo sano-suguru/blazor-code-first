@@ -326,6 +326,70 @@ test.describe('the Japanese edition', () => {
   }
 });
 
+test.describe('a prose table', () => {
+  // The narrowest supported width, where the prose column is tightest and a table has the least
+  // room to fit in.
+  test.use({ viewport: { width: 320, height: 900 } });
+
+  const route = '/docs/components-and-reuse/';
+
+  // One navigation for both measurements, and soft assertions so that costs nothing -- the same
+  // trade the per-route test above records at length.
+  test(`${route} publishes a table and keeps a cell too wide for the column inside it`, async ({ page }) => {
+    await gotoSettled(page, route);
+
+    // The pipeline reaching the page, measured on the published document rather than on the
+    // converter. A '|'-delimited table is a paragraph of literal pipes without Markdig's pipe-table
+    // extension, and the extension being dropped from MarkdownConverter's pipeline would show up
+    // here as no table at all -- which is the state #333 found, with css/app.css already carrying a
+    // `.prose table` rule for a construct nothing could emit.
+    expect.soft(await page.locator('.prose table').count(), 'the document published no table').toBe(1);
+
+    /*
+     * Why the cell is widened here rather than written into the document.
+     *
+     * `.prose table` is `display: block; overflow-x: auto`, so the table is its own horizontal
+     * scroll container. The table this page carries never uses it: measured at all six widths, its
+     * scrollWidth equals its clientWidth, because every cell wraps -- `.prose code` is
+     * `overflow-wrap: anywhere`, so even the code spans break rather than push the column open. So
+     * an assertion over the document as authored would pass with the rule deleted and prove
+     * nothing.
+     *
+     * What the rule exists for is the cell that cannot shrink, and that condition is created here.
+     * A document written to have one would be a document contorted to suit a test.
+     */
+    const measured = await page.evaluate(() => {
+      const table = document.querySelector('.prose table') as HTMLElement | null;
+      const cell = table?.querySelector('td') as HTMLElement | null;
+      if (!table || !cell) {
+        return null;
+      }
+      cell.textContent = 'x'.repeat(200);
+      cell.style.whiteSpace = 'pre';
+
+      return {
+        scrollWidth: table.scrollWidth,
+        clientWidth: table.clientWidth,
+        right: Math.round(table.getBoundingClientRect().right),
+        viewport: document.documentElement.clientWidth,
+      };
+    });
+
+    expect(measured, 'the document rendered no table to measure').not.toBeNull();
+    const { scrollWidth, clientWidth, right, viewport } = measured!;
+
+    expect.soft(
+      scrollWidth,
+      'the table did not become wider than its own box, so this measures nothing about the scroll container',
+    ).toBeGreaterThan(clientWidth);
+
+    // html and body are `overflow-x: clip` on this site, so a table that grew the page instead of
+    // scrolling inside itself would have its far side cut off rather than scrolled to. See the
+    // comment at the top of this file.
+    expect.soft(right, 'the overflowing table pushed the page past the viewport').toBeLessThanOrEqual(viewport + 1);
+  });
+});
+
 test.describe('at 375px', () => {
   test.use({ viewport: { width: 375, height: 900 } });
 
