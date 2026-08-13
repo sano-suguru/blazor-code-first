@@ -86,9 +86,11 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// Both positions that accept the block reach here: a design-time expression getter and a
-    /// <c>ForEach</c> content lambda. The statements are normalized inside the same scope as the returned
-    /// expression, so a local declared in one and read in the other is the same name in both, and the
-    /// scope opens here rather than at either caller so the wrap and the scope cannot be separated.
+    /// <c>ForEach</c> content lambda. The block's own locals are registered here rather than at either
+    /// caller, so the registration and the wrap cannot be separated. That registration is what makes a
+    /// local declared in one statement and read in another the same name in both — each becomes one hole,
+    /// however many templates the block is normalized into — and it is what gives expansion a name to
+    /// mint (#336).
     /// </remarks>
     public static RenderTemplateNode? Analyze(
         ImmutableArray<StatementSyntax> statements,
@@ -97,8 +99,6 @@ internal static class RenderExpressionAnalyzer
     {
         if (statements.IsEmpty)
             return Analyze(expression, context);
-
-        context.PushTransplantedScope(SpanOf(statements));
 
         // Registered before either half is normalized, so the declaration and every reference mint the
         // same hole, and a ForEach written in the returned expression takes the ordinal after them --
@@ -122,8 +122,6 @@ internal static class RenderExpressionAnalyzer
         {
             for (var index = locals.Length - 1; index >= 0; index--)
                 context.PopRenderVariable(locals[index]);
-
-            context.PopTransplantedScope();
         }
     }
 
@@ -187,11 +185,6 @@ internal static class RenderExpressionAnalyzer
 
         return false;
     }
-
-    /// <summary>The span covering <paramref name="statements"/>, which the caller has found non-empty.</summary>
-    private static TextSpan SpanOf(ImmutableArray<StatementSyntax> statements) =>
-        TextSpan.FromBounds(
-            statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
 
     private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {

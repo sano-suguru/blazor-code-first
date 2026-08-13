@@ -63,10 +63,9 @@ internal static class ExpressionTemplateFactory
     /// type carrying the identical three properties would be a second thing to keep in step.
     /// <para>
     /// Each statement is normalized under its own rename plan, which is safe only because the caller
-    /// refuses a block declaring a generator-reserved name — the one thing a plan renames. Locals crossing
-    /// from one statement to the next are admitted by
-    /// <see cref="ViewPartBodyContext.IsInsideTransplantedScope"/>, which the caller has already opened
-    /// over the whole block.
+    /// refuses a block declaring a generator-reserved name — the one thing a plan renames. A local
+    /// crossing from one statement to the next is one the caller registered as a scoped render variable,
+    /// so it is the same hole in every template the block becomes, whichever plan normalized it (#336).
     /// </para>
     /// </remarks>
     public static ExpressionTemplate CreateForStatements(
@@ -239,12 +238,11 @@ internal static class ExpressionTemplateFactory
                 continue;
             }
 
-            if (IsUnsupportedSourceLocalReference(symbol, expression, context, out var unsupportedReason))
-            {
-                context.ReportUnsupportedReference(name.GetLocation(), unsupportedReason);
-                continue;
-            }
-
+            // Ahead of the source-local rejection below, because a symbol the body binds as a hole is
+            // supported by construction: it is a view part parameter, the slot, or a scoped render
+            // variable, and the last of those includes the locals a transplanted block declares (#336).
+            // The two tests cannot both answer yes -- overlay membership is settled when the variable is
+            // pushed -- so the order decides which one is asked, not which one is right.
             if (name is IdentifierNameSyntax)
             {
                 switch (context.ResolveHole(symbol, out var ordinal))
@@ -266,6 +264,12 @@ internal static class ExpressionTemplateFactory
                                 + "content can only be placed as a child");
                         continue;
                 }
+            }
+
+            if (IsUnsupportedSourceLocalReference(symbol, expression, context, out var unsupportedReason))
+            {
+                context.ReportUnsupportedReference(name.GetLocation(), unsupportedReason);
+                continue;
             }
 
             if (NeedsGeneratedContextCollisionQualification(name, symbol, context))
@@ -614,13 +618,12 @@ internal static class ExpressionTemplateFactory
 
         foreach (var declaration in symbol.DeclaringSyntaxReferences)
         {
-            // Either the declaration travels with this template, or it sits in a block being transplanted
-            // whole, which puts it in the generated code beside this reference (ARCHITECTURE.md §2.3).
-            if (root.FullSpan.Contains(declaration.Span)
-                || context.IsInsideTransplantedScope(declaration.Span))
-            {
+            // The declaration travels with this template, so the reference keeps its written name. A local
+            // a transplanted block declares does not travel with it -- the block becomes several templates
+            // -- and is not reached here at all: it is a scoped render variable, and the caller answers a
+            // hole before asking this (#336).
+            if (root.FullSpan.Contains(declaration.Span))
                 return false;
-            }
         }
 
         reason = $"references {kindLabel} '{symbol.Name}' that cannot exist in generated component code";

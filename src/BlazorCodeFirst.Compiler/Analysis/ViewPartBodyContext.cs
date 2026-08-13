@@ -50,7 +50,6 @@ internal sealed class ViewPartBodyContext
     private readonly Dictionary<ISymbol, int> _renderVariableOverlay =
         new(SymbolEqualityComparer.Default);
     private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
-    private readonly List<TextSpan> _transplantedScopes = [];
     private readonly Dictionary<ISymbol, bool> _surfaceBuiltCallees = new(SymbolEqualityComparer.Default);
     private int _renderVariableDepth;
 
@@ -164,41 +163,6 @@ internal sealed class ViewPartBodyContext
         foreach (var symbol in symbols)
             _renderVariableOverlay.Remove(symbol);
         _renderVariableDepth--;
-    }
-
-    /// <summary>
-    /// Registers <paramref name="span"/> as statements being transplanted into the generated code
-    /// (ARCHITECTURE.md §2.3 Transplantable), so a local declared inside them is legal at the expansion
-    /// site.
-    /// </summary>
-    /// <remarks>
-    /// Needed because the block becomes several templates — one per statement, plus the returned
-    /// expression — and each is normalized against its own root. Without this, a local declared in one
-    /// statement and read in the next looks like a local from an enclosing scope, which
-    /// <c>ExpressionTemplateFactory</c> rejects with BCF1002 because such a local cannot exist in
-    /// generated component code. One declared in a transplanted block can: it is written into the
-    /// generated block beside the reference.
-    /// <para>
-    /// A span and not the block node, because containment is all any caller asks. A stack and not a single
-    /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block
-    /// that encloses it, exactly as the C# the author wrote does.
-    /// </para>
-    /// </remarks>
-    public void PushTransplantedScope(TextSpan span) => _transplantedScopes.Add(span);
-
-    /// <summary>Removes the scope registered by the matching <see cref="PushTransplantedScope"/>.</summary>
-    public void PopTransplantedScope() => _transplantedScopes.RemoveAt(_transplantedScopes.Count - 1);
-
-    /// <summary>Whether <paramref name="span"/> lies inside statements currently being transplanted.</summary>
-    public bool IsInsideTransplantedScope(TextSpan span)
-    {
-        foreach (var scope in _transplantedScopes)
-        {
-            if (scope.Contains(span))
-                return true;
-        }
-
-        return false;
     }
 
     /// <summary>
