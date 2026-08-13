@@ -34,7 +34,9 @@
 # this rule. Both halves are documented, and site/wrangler.jsonc writes html_handling out rather
 # than relying on the default.
 #
-# CI appends a "/*" noindex rule to preview deploys. Rules MERGE rather than override, so /404 on a
-# preview carries both directives.
+# CI appends a "/*" noindex rule to preview deploys, and it changes nothing observable: Cloudflare
+# puts its own X-Robots-Tag: noindex on a preview URL, and that replaces whatever this file sets for
+# that header name (measured on pr-340). The merge described at the top still governs every OTHER
+# header, including the two Cache-Control rules above, which do arrive on a preview.
 /404
   X-Robots-Tag: noindex

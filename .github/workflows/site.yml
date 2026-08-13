@@ -436,8 +436,13 @@ jobs:
 
           P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
-          # Workers documents no default noindex on a preview URL, so this rule is the whole of what
-          # keeps a preview out of the index rather than a reinforcement of a platform default.
+          # This rule is a hedge, not what actually deindexes a preview. Cloudflare documents no
+          # default for Workers preview URLs, but measured on pr-340 they carry their own
+          # X-Robots-Tag: noindex, and that value REPLACES what _headers sets for the same header
+          # name: every preview path answered `noindex` rather than the `noindex, nofollow` written
+          # below, while the same deployment's Cache-Control rules from _headers arrived intact.
+          # So the `nofollow` does not reach a response today, and the rule earns its place only by
+          # covering an undocumented default that could change.
           #
           # X-Robots-Tag only. robots.txt is deliberately NOT touched: "Disallow: /" stops the crawl,
           # so the crawler never reads the noindex and the two directives CANCEL rather than add.
@@ -534,7 +539,9 @@ jobs:
           fi
           url="https://$ALIAS-blazor-code-first-site.snsgr.workers.dev"
 
-          body=$(printf 'Preview deploy: %s\n\nServed with `X-Robots-Tag: noindex, nofollow`.\n' "$url")
+          # Says noindex, not "noindex, nofollow": Cloudflare's own preview header replaces the
+          # injected value, so nofollow never reaches the response (see the injection step).
+          body=$(printf 'Preview deploy: %s\n\nServed with `X-Robots-Tag: noindex`.\n' "$url")
 
           # Edit the bot's previous comment instead of stacking one per push. The `||` fallback covers
           # a gh build without --create-if-none.
