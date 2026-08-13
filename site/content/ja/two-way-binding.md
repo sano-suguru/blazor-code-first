@@ -1,7 +1,7 @@
 ---
 title: 双方向の束縛
 order: 60
-source-hash: a6f71bef
+source-hash: 00b450ad
 ---
 
 双方向の束縛は、値を DOM へ書き出し、利用者の編集を自分の状態へ読み戻す、1つの装飾です。`.Bind`
@@ -172,20 +172,18 @@ protected override View Body =>
 モデルのプロパティに結び付けます。おかげで検証のメッセージが正しいフィールドに届きます。ほかの
 書き方では、これを渡せません。
 
-周りの `EditForm` も同じ書き方です。ただし、その内容がどの経路を通るかを知っている必要があり
-ます。`EditForm.ChildContent` は `RenderFragment<EditContext>` なので、角括弧では渡せません。
-`Component<EditForm>()[…]` は BCF3013 を報告しますが、これはジェネリックでない `ChildContent`
-についての診断です。パラメーターは `.Template` で名指しします。
+周りの `EditForm` も同じ書き方です。`EditForm.ChildContent` は `RenderFragment<EditContext>` で、
+角括弧はこれをコンテキストを捨てて渡します。下の内容には、ほかに要るものがありません。
+`EditContext` を読む内容だけ、`.Template` で名指しします。
 
 ```csharp
 protected override View Body =>
     Component<EditForm>()
-        .Param(form => form.Model, _model)
-        .Template(form => form.ChildContent,
-            Component<NameFields>().Param(fields => fields.Value, _model));
+        .Param(form => form.Model, _model)[
+            Component<NameFields>().Param(fields => fields.Value, _model)];
 ```
 
-束縛した入力は、そのテンプレートの中に直接置いても、独立したコンポーネントに置いてもかまい
+束縛した入力は、角括弧の中に直接置いても、独立したコンポーネントに置いてもかまい
 ません。上の束縛と、それが渡す `ValueExpression` は、どちらでも変わりません。`EditContext` を
 読む書き方と、`.Param` でキャッシュしたデリゲートを渡すほうがよい場面については、
 [ジェネリックなフラグメントのパラメーター](./components-and-reuse.md#ジェネリックなフラグメントのパラメーター)を

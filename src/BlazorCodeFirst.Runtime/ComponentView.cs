@@ -128,8 +128,11 @@ public readonly struct ComponentView<TComponent>
     /// <returns>The marker <see cref="View"/>; never evaluated at runtime.</returns>
     /// <remarks>
     /// <typeparamref name="TComponent"/> must declare a settable <c>[Parameter]</c> named
-    /// <c>ChildContent</c> of type <see cref="Microsoft.AspNetCore.Components.RenderFragment"/>; otherwise
-    /// BCF3013 is reported. Use
+    /// <c>ChildContent</c> of a fragment type, either
+    /// <see cref="Microsoft.AspNetCore.Components.RenderFragment"/> or
+    /// <c>RenderFragment&lt;TContext&gt;</c>; otherwise BCF3013 is reported. A generic one receives the
+    /// children with its context discarded, so content that reads the context is written with
+    /// <c>Template</c> instead. Use
     /// <see cref="Param(System.Func{TComponent, Microsoft.AspNetCore.Components.RenderFragment?}, View)"/>
     /// for any other fragment-typed parameter. Because this returns <see cref="View"/>, a
     /// <see cref="Param{TValue}"/> call must precede the brackets.

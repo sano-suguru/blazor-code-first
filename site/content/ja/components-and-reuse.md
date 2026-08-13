@@ -1,7 +1,7 @@
 ---
 title: コンポーネントと再利用
 order: 40
-source-hash: 1c94272d
+source-hash: a5d8a622
 ---
 
 再利用の単位はコンポーネントです。BlazorCodeFirst のコンポーネントから別のコンポーネントを呼ぶ
@@ -51,10 +51,10 @@ protected override View Body =>
         P["Body text"]];
 ```
 
-これには `Card` の側に、設定できる `[Parameter] public RenderFragment? ChildContent` が必要です。
-無ければ BCF3013 を報告します。角括弧は `RenderFragment<TContext>` のパラメーターには届きません。
-角括弧が生成するラムダはジェネリックではなく、実行時に不正なキャストで失敗するからです。ジェネ
-リックなフラグメントは `.Template` で名指しします。下の
+これには `Card` の側に、フラグメント型で設定できる `[Parameter] ChildContent` が必要です。無ければ
+BCF3013 を報告します。`RenderFragment<TContext>` も対象です。角括弧はコンテキストを捨てて束縛し
+ます。角括弧の中には、コンテキストを読むための名前が無いからです。`ChildContent` 以外の名前を持つ
+ジェネリックなフラグメントは `.Template` で名指しします。下の
 [ジェネリックなフラグメントのパラメーター](#ジェネリックなフラグメントのパラメーター)を見て
 ください。
 
@@ -102,20 +102,20 @@ Component<Card>().Param(c => c.Payload, Div["x"])   // BCF3014
 
 `RenderFragment<TContext>` のパラメーターが取るのは *テンプレート* です。コンポーネントは、描き
 たいコンテキストの値ごとに、それを1回ずつ呼び出します。最初に出会うのはたいてい
-`EditForm.ChildContent` でしょう。これは `RenderFragment<EditContext>` で、だから角括弧では
-渡せません。
+`EditForm.ChildContent` でしょう。これは `RenderFragment<EditContext>` です。
 
 こうしたパラメーターを名指しするのが `.Template` です。書き方は2通りあり、どちらを使うかは、
-内容がコンテキストを読むかどうかだけで決まります。
+内容がコンテキストを読むかどうかだけで決まります。グリッドの `RowTemplate` のように
+`ChildContent` 以外の名前を持つものには、常に `.Template` が要ります。角括弧はそこへ届きません。
 
-コンテキストを使わないなら、内容をそのまま渡します。
+コンテキストを読まない `ChildContent` は角括弧で書きます。上に出した形であり、
+`.Template(form => form.ChildContent, content)` と同じものを発行します。
 
 ```csharp
 protected override View Body =>
     Component<EditForm>()
-        .Param(form => form.Model, _model)
-        .Template(form => form.ChildContent,
-            Component<NameFields>().Param(fields => fields.Value, _model));
+        .Param(form => form.Model, _model)[
+            Component<NameFields>().Param(fields => fields.Value, _model)];
 ```
 
 使うなら、コンテキストから内容へのラムダで名指しします。

@@ -54,13 +54,14 @@ public sealed class ComponentSlotDiagnosticTests
     }
 
     [Fact]
-    public void ComponentWithChildren_ChildContentIsGenericFragment_ReportsBCF3013()
+    public void ComponentWithChildren_ChildContentIsGenericFragment_IsAccepted()
     {
-        // A non-generic RenderFragment cannot bind to RenderFragment<T>: without this the author gets
-        // "Unable to cast RenderFragment to RenderFragment`1[System.Int32]" at runtime.
+        // The brackets supply the outer lambda that discards the context, which is the emission
+        // .Template's context-ignoring overload already writes (#322).
         var result = Run("Component<TypedChildContent>()[Div[\"x\"]]");
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3013");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3013");
+        Assert.Contains(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
     [Fact]
@@ -131,6 +132,20 @@ public sealed class ComponentSlotDiagnosticTests
         var result = Run("Component<Card>().Param(c => c.ChildContent, null)[Div[\"x\"]]");
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3007");
+    }
+
+    [Fact]
+    public void ChildrenAndTemplate_SameSlot_ReportsBCF3007()
+    {
+        // Brackets reach a generic ChildContent, so this is the same mistake as children plus a fragment
+        // .Param: two channels write one parameter and Blazor applies the last. The indexer arm's own
+        // duplicate check is what reports it, and it runs before the slot is built, so the narrowed
+        // BCF3013 never sees this call (#322).
+        var result = Run(
+            "Component<TypedChildContent>().Template(c => c.ChildContent, Div[\"y\"])[Div[\"x\"]]");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3007" && d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3013");
     }
 
     [Fact]

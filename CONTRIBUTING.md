@@ -332,7 +332,9 @@ instead:
   the published route set equals the set `site/content` backs, and then, for
   every route in it, the shell, one title element matching what the document's
   own front matter declares, one active nav link, the stylesheet and script
-  links, and the absence of the prerendering wrappers and a meta robots tag
+  links, and the absence of the prerendering wrappers, a meta robots tag, and
+  any external font host; then, over the output as a whole, that the four
+  self-hosted `wwwroot/fonts` woff2 files are in it
 - assertions over `404.html`, `robots.txt`, the generated sitemap, and
   `_headers`
 
@@ -571,10 +573,10 @@ command listed there and never run reads exactly like one that was.
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence
   off the shapes that cannot work; 付録A states the exact conditions. `BCF3013`
-  keeps its meaning: the brackets require a settable `[Parameter]` named
-  `ChildContent` of the *non-generic* `RenderFragment` type. A
-  `RenderFragment<TContext>` parameter is never reached through brackets and is
-  always named with `.Template`, so do not widen `BCF3013` to cover it.
+  requires a settable `[Parameter]` named `ChildContent` of a fragment type, of
+  either arity. A generic fragment under any other name is never reached through
+  brackets and is always named with `.Template`, so do not widen the bracket
+  channel past that name.
 - Value expressions copied into generated code must be lexical-context
   independent, because the generated file carries no `using` directives.
   Resolved type names are normalized to `global::`-qualified names and an

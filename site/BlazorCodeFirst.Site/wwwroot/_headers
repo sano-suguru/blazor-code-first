@@ -16,6 +16,17 @@
 /_framework/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Frozen for the same reason /_framework/* is, reached differently. The soft fingerprints described
+# above are why css/*.css is not frozen; a font file instead carries the font's OWN version in its
+# name (geist-1.800, jetbrains-mono-2.211), so replacing one necessarily changes its URL and pinning
+# the old one for a year is harmless. Rename the file when you replace the font; never reuse a name.
+#
+# A separate path pattern, not a widened /_framework/* one: Pages MERGES matching rules, so a single
+# pattern covering both would be the duplicate-header case the note at the top of this file warns
+# about.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # /404 is expected to be reachable as an ordinary 200 page, not only as a 404 response body: Pages
 # redirects /404.html to its extension-less counterpart and then serves the file matching /404. A 404
 # STATUS response is already non-indexable; a 200 one is not, hence this rule. Cloudflare documents

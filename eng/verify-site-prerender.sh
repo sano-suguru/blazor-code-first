@@ -365,6 +365,13 @@ while read -r f; do
   # guard must stay a check of the HTML head only -- a `grep -r` over the publish output
   # would hit the injected header on every preview run.
   assert_not_grep '<meta[^>]*name=.?robots' "$P/$f" "the published HTML carries a meta robots tag, which would keep this page out of search results"
+
+  # The whole privacy half of #252. The fonts are served from this origin now, and nothing else
+  # here or in the browser suite reads font-family or a request log: restoring the Google Fonts
+  # <link> -- or leaving a preconnect behind after it -- would announce every visitor to a third
+  # party before first paint with every other assertion in this file still green.
+  assert_not_grep 'fonts\.googleapis\.com' "$P/$f" "the published HTML contacts fonts.googleapis.com again, which announces every visitor to a third party before first paint"
+  assert_not_grep 'fonts\.gstatic\.com' "$P/$f" "the published HTML contacts fonts.gstatic.com again, which announces every visitor to a third party before first paint"
 done <<< "$(pages_with_shell)"
 
 # The guard above is only correct while NO scoped CSS exists. The SDK does NOT inject the
@@ -372,6 +379,15 @@ done <<< "$(pages_with_shell)"
 # .razor.css, the bundle appears in the publish output and silently has no effect. Catch the
 # premise breaking rather than letting the guard above quietly enforce the wrong thing.
 assert_no_glob "$P" '*.styles.css' "a scoped-CSS bundle appeared in the publish output, so a .razor.css was added: restore the <link href=\"BlazorCodeFirst.Site.styles.css\"> line in wwwroot/index.html and drop the guard that forbids it"
+
+# The four faces the page draws in. They are ordinary wwwroot files and can be lost the way any file
+# can, and the version in each name means a rename is a silent miss rather than a compile error. The
+# browser suite fails too, on the unavailable face -- it says a family is missing, this says the file
+# is. Named one by one rather than counted, because the name is the half that goes wrong.
+for font in geist-1.800-latin.woff2 geist-1.800-latin-ext.woff2 \
+            jetbrains-mono-2.211-latin.woff2 jetbrains-mono-2.211-latin-ext.woff2; do
+  assert_file "$P/fonts/$font" "the publish output has no fonts/$font, so every page naming that face falls back to a system font"
+done
 
 # InvariantGlobalization must actually remove the ICU payloads (about 2.6MB uncompressed).
 assert_no_glob "$P/_framework" 'icudt*.dat' "ICU data survived the publish, so InvariantGlobalization is not in effect"
