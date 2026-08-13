@@ -178,6 +178,10 @@ the element path is checked in a real browser:
 # afterwards. Set BCF_BASE_URL to point the suite at a host you started some
 # other way, which turns that off.
 cd tests/BlazorCodeFirst.WebAppTests/browser && npm ci && npx playwright install chromium && npx playwright test
+
+# Playwright's loader transpiles the specs without typechecking them, so this is
+# the only thing that reads their types. The `browser` job runs it as well.
+npx tsc --noEmit
 ```
 
 `FoldParityTests` in `BlazorCodeFirst.WebAppTests` (which `dotnet test` does
@@ -364,6 +368,10 @@ rm -rf site/BlazorCodeFirst.Site/bin/Release/net10.0/publish
 dotnet publish site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj -c Release
 bash eng/verify-site-prerender.sh site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 cd site/tests/browser && npm ci && npx playwright install chromium && npx playwright test
+
+# As above: the specs run transpiled, never typechecked, so nothing else reads
+# their types. `build-deploy` runs it as well.
+npx tsc --noEmit
 ```
 
 A change under `site/content`, under `site/snippets`, or to a file a snippet

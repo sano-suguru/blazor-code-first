@@ -243,10 +243,25 @@ test.describe('the Japanese edition', () => {
   });
 
   for (const route of japanese) {
-    test(`${route} declares its language on the article`, async ({ page }) => {
+    const slug = route.slice('/docs/ja/'.length).replace(/\/$/, '');
+
+    test(`${route} declares its language on the article and links home to its original`, async ({ page }) => {
       await gotoSettled(page, route);
       await expect(page.locator('article.docs-content')).toHaveAttribute('lang', 'ja');
       await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+
+      /*
+       * The switch in the other direction, which nothing else in this file reaches. `Docs.Href`
+       * spells it as `RoutePrefix(lang) + "/" + slug`, and `RoutePrefix("en")` is the `_` arm that
+       * carries no language segment at all; the English-to-Japanese assertions below only ever
+       * reach the "ja" arm through `Href`, and `/docs/ja and /docs link to each other` reaches
+       * `RoutePrefix` with no slug. So a wrong prefix or a dropped slug on this side would ship
+       * green while every Japanese document pointed somewhere useless.
+       *
+       * Unconditional, unlike the two branches below: a translation is a translation OF something,
+       * so a document reachable at /docs/ja/<slug>/ has an original at /docs/<slug>.
+       */
+      await expect(page.locator('.lang-switch a[lang="en"]')).toHaveAttribute('href', `/docs/${slug}`);
     });
   }
 

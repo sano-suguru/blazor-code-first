@@ -39,3 +39,8 @@ artifacts/
 # Playwright browser test dependencies and run artifacts (tests/BlazorCodeFirst.WebAppTests/browser)
 node_modules/
 test-results/
+
+# Accessibility snapshots the Playwright MCP server writes, one timestamped file per browser tool
+# call. Nothing in either Playwright suite reads them; they are a transcript of one session's
+# browsing, so they accumulate without ever being referenced again.
+.playwright-mcp/
