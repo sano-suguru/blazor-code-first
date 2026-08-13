@@ -85,8 +85,8 @@ internal static class RenderExpressionAnalyzer
     /// expression.
     /// </summary>
     /// <remarks>
-    /// Both positions that accept the block reach here: a design-time expression getter and a
-    /// <c>ForEach</c> content lambda. The statements are normalized inside the same scope as the returned
+    /// Every position that accepts the block reaches here: a design-time expression getter, a
+    /// <c>ForEach</c> content lambda, and a <c>[ViewPart]</c> body. The statements are normalized inside the same scope as the returned
     /// expression, so a local declared in one and read in the other is the same name in both, and the
     /// scope opens here rather than at either caller so the wrap and the scope cannot be separated.
     /// </remarks>
@@ -99,6 +99,18 @@ internal static class RenderExpressionAnalyzer
             return Analyze(expression, context);
 
         context.PushTransplantedScope(SpanOf(statements));
+
+        // On the definition side, every local the block declares becomes a render variable, so its
+        // declaration and its references carry one hole and expansion mints the name (#336). A component's
+        // own expression keeps the names the author wrote; ViewPartBodyContext.IsInlinedAtCallSites says
+        // why the two positions differ.
+        var declared = context.IsInlinedAtCallSites
+            ? CollectDeclaredLocals(statements, context)
+            : [];
+
+        foreach (var symbol in declared)
+            context.PushRenderVariable(symbol);
+
         try
         {
             var content = Analyze(expression, context);
@@ -106,12 +118,54 @@ internal static class RenderExpressionAnalyzer
             return content is null
                 ? null
                 : new TransplantedBlockTemplateNode(
-                    ExpressionTemplateFactory.CreateForStatements(statements, context), content);
+                    ExpressionTemplateFactory.CreateForStatements(statements, context),
+                    content,
+                    declared.Length);
         }
         finally
         {
+            for (var index = declared.Length - 1; index >= 0; index--)
+                context.PopRenderVariable(declared[index]);
+
             context.PopTransplantedScope();
         }
+    }
+
+    /// <summary>
+    /// The locals the block's leading statements declare, in written order — the order expansion appends
+    /// their names in, so the ordinals assigned here index the substitution the expander carries.
+    /// </summary>
+    /// <remarks>
+    /// The declaring forms come from <see cref="ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier"/>,
+    /// which is also what rewrites the declaration itself, so the two cannot recognize different forms.
+    /// The traversal stops at a lambda written inside one of these statements: a local declared there
+    /// lands in the generated code inside that lambda's own braces, exactly as the author wrote it, so no
+    /// expansion can bring two of them into one scope. Bounded by descent and not by
+    /// <see cref="ISymbol.ContainingSymbol"/>, because these statements are themselves a lambda body
+    /// wherever the block is a <c>ForEach</c> content — which is the position the collision was first
+    /// found in.
+    /// </remarks>
+    private static ImmutableArray<ISymbol> CollectDeclaredLocals(
+        ImmutableArray<StatementSyntax> statements, ViewPartBodyContext context)
+    {
+        var builder = ImmutableArray.CreateBuilder<ISymbol>();
+        foreach (var statement in statements)
+        {
+            foreach (var node in statement.DescendantNodes(
+                static child => child is not AnonymousFunctionExpressionSyntax))
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+
+                if (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out _)
+                    && context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                        is ILocalSymbol local)
+                {
+                    builder.Add(local);
+                }
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     /// <summary>The span covering <paramref name="statements"/>, which the caller has found non-empty.</summary>
@@ -2263,10 +2317,11 @@ internal static class RenderExpressionAnalyzer
     /// cannot appear because the generated <c>RenderView</c> is not async, and a local function cannot
     /// exist in the generated body at all; both are excluded by the statement kinds admitted here.
     /// <para>
-    /// Reachable from outside <c>Analysis</c> because two positions accept the block and neither owns the
+    /// Reachable from outside <c>Analysis</c> because three positions accept the block and none owns the
     /// rule: <see cref="ComponentModelFactory"/> reads a design-time expression getter with it and reports
-    /// BCF1004 on <see langword="false"/>, and <see cref="TryBindForEachContent"/> reads a content lambda
-    /// with it and reports BCF3004. One reader is what keeps the two from drifting.
+    /// BCF1004 on <see langword="false"/>, <see cref="TryBindForEachContent"/> reads a content lambda with
+    /// it and reports BCF3004, and <see cref="ViewPartDefinitionFactory"/> reads a view part body with it
+    /// and reports BCF1002. One reader is what keeps the three from drifting.
     /// </para>
     /// <para>
     /// A local whose name starts with the generator's own prefix, or is the builder's, is refused rather

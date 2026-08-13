@@ -60,9 +60,11 @@ internal sealed class ViewPartBodyContext
         string methodDisplayName,
         KnownSymbols knownSymbols,
         ImmutableDictionary<ISymbol, int> parameterOrdinals,
+        bool isInlinedAtCallSites,
         CancellationToken cancellationToken,
         ImmutableHashSet<int>? contentOrdinals = null)
     {
+        IsInlinedAtCallSites = isInlinedAtCallSites;
         SemanticModel = semanticModel;
         ContainingType = containingType;
         MethodDisplayName = methodDisplayName;
@@ -75,6 +77,14 @@ internal sealed class ViewPartBodyContext
     }
 
     public SemanticModel SemanticModel { get; }
+
+    /// <summary>
+    /// Whether this body is written into another member's body at every call, which a <c>[ViewPart]</c>
+    /// definition is and a component's own design-time expression is not. What the naming of a
+    /// transplanted block's authored locals turns on; ARCHITECTURE.md §2.3 records why the two positions
+    /// differ (#336).
+    /// </summary>
+    public bool IsInlinedAtCallSites { get; }
 
     public INamedTypeSymbol ContainingType { get; }
 

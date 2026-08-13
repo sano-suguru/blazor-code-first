@@ -28,6 +28,7 @@ public sealed class ViewPartBodyContextTests
             model, containing, "Body",
             KnownSymbols.TryCreate(compilation)!,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
             CancellationToken.None);
 
         var outer = context.PushRenderVariable(symbols[0], symbols[1]);
@@ -83,6 +84,7 @@ public sealed class ViewPartBodyContextTests
             "Body",
             KnownSymbols.TryCreate(compilation)!,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
             CancellationToken.None);
 
         Assert.Null(RenderExpressionAnalyzer.Analyze(body.ExpressionBody!.Expression, context));

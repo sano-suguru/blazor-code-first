@@ -226,12 +226,18 @@ internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderT
 /// generated loop, which the region already isolates, while a design-time expression getter's block is
 /// written into the body of <c>RenderView</c> itself, beside its builder parameter. That second position
 /// is why the names the generated scope binds are refused rather than renamed
-/// (<c>RenderExpressionAnalyzer.TryReadTransplantableBlock</c>).
+/// (<c>RenderExpressionAnalyzer.TryReadTransplantableBlock</c>). A <c>[ViewPart]</c> body's block lands
+/// wherever the call was written, once per call, which is what <paramref name="LocalCount"/> answers.
 /// <para>
 /// Structurally the same shape as <c>ExpansionNode</c> — bindings, then a body that still owns the key —
 /// and kept separate because the bindings differ: an expansion declares typed locals the expander built,
 /// this carries statements the author wrote.
 /// </para>
 /// </remarks>
+/// <param name="LocalCount">
+/// How many locals the statements declare as render variables, which is how many names expansion mints
+/// for this block (#336). Zero for a component's own expression, whose authored names stand as written.
+/// A count and not the names: the holes carry the ordinals, so the names exist only at expansion.
+/// </param>
 internal sealed record TransplantedBlockTemplateNode(
-    ExpressionTemplate Statements, RenderTemplateNode Content) : RenderTemplateNode;
+    ExpressionTemplate Statements, RenderTemplateNode Content, int LocalCount) : RenderTemplateNode;

@@ -35,6 +35,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// <item>local and lambda identifiers plus all trivia are preserved as literal text, except authored
 /// declarations that could capture a generated contextual-fragment parameter after hole substitution;
 /// those declarations and their symbol-bound references receive a deterministic collision-free name.</item>
+/// <item>a local declared by a transplanted statement and registered as a render variable carries a hole
+/// at its own declaring identifier, so expansion names the declaration and its references alike (#336).</item>
 /// </list>
 /// </summary>
 internal static class ExpressionTemplateFactory
@@ -52,9 +54,9 @@ internal static class ExpressionTemplateFactory
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
 
     /// <summary>
-    /// The statements transplanted ahead of the content they lead into, as one template. Both positions
-    /// that accept a transplantable block reach here: a <c>ForEach</c> content lambda and a design-time
-    /// expression getter.
+    /// The statements transplanted ahead of the content they lead into, as one template. Every position
+    /// that accepts a transplantable block reaches here: a <c>ForEach</c> content lambda, a design-time
+    /// expression getter, and a <c>[ViewPart]</c> body.
     /// </summary>
     /// <remarks>
     /// An <see cref="ExpressionTemplate"/> holds code text with holes in it, and a statement list is that
@@ -180,11 +182,40 @@ internal static class ExpressionTemplateFactory
             }
         }
 
+        // Only a body that is inlined at call sites registers a local as a render variable, so only there
+        // can the arm below produce anything. Read once: it gates a semantic query per declaration, and
+        // this loop runs over every identifier of every component body.
+        var mintsTransplantedLocals = context.IsInlinedAtCallSites;
+
         // Second pass: normalize simple names into parameter holes, fully qualified references, or recorded
         // accessibility requirements.
         foreach (var node in expression.DescendantNodesAndSelf())
         {
             context.CancellationToken.ThrowIfCancellationRequested();
+
+            // A declaration whose local was registered as a render variable carries the hole at its own
+            // identifier, so one ordinal names the declaration and every reference to it, and expansion
+            // mints the name (#336). The statement around it stays literal text: its written type — or
+            // `var`, which the qualification below resolves like any other type reference — travels with
+            // it, so nothing here has to reproduce the local's type. Handled in this pass rather than a
+            // walk of its own, because a declaration and a reference are the same rewrite over the same
+            // traversal, and the spans cannot overlap: a declaring identifier is a token, never a name.
+            if (mintsTransplantedLocals && TryGetDeclaredLocalIdentifier(node, out var declaredIdentifier))
+            {
+                if (!IsNestedInReplaced(declaredIdentifier.Span, replacedSpans)
+                    && context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                        is { } declaredSymbol
+                    && context.ResolveHole(declaredSymbol, out var declaredOrdinal) == BodyHoleKind.Value)
+                {
+                    AddReplacement(
+                        replacements,
+                        replacedSpans,
+                        declaredIdentifier.Span,
+                        new ParameterHoleExpressionSegment(declaredOrdinal));
+                }
+
+                continue;
+            }
 
             if (node is not SimpleNameSyntax name)
                 continue;
@@ -964,6 +995,30 @@ internal static class ExpressionTemplateFactory
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The identifier a local-declaring node binds: a declarator (<c>var x = e</c>) or a designation
+    /// (<c>e is T x</c>). The two forms a transplanted statement can declare a local through, which is why
+    /// this is narrower than <c>AuthoredContextNameHygiene.TryGetDeclaredIdentifier</c> — that one answers
+    /// for every declaring form, including a lambda's own parameter, whose declaration is not the
+    /// generator's to rename.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <see cref="RenderExpressionAnalyzer"/>, which registers these locals as render
+    /// variables. One list of forms for both: a form registered there but not recognized here would leave
+    /// the declaration under the author's name while its references became holes.
+    /// </remarks>
+    internal static bool TryGetDeclaredLocalIdentifier(SyntaxNode node, out SyntaxToken identifier)
+    {
+        identifier = node switch
+        {
+            VariableDeclaratorSyntax variable => variable.Identifier,
+            SingleVariableDesignationSyntax designation => designation.Identifier,
+            _ => default,
+        };
+
+        return identifier.RawKind != 0;
     }
 
     private static bool IsNestedInReplaced(TextSpan span, List<TextSpan> replacedSpans)

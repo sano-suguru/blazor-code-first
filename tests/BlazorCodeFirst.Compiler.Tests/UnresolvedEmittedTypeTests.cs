@@ -1093,6 +1093,7 @@ public sealed class UnresolvedEmittedTypeTests
             "ProbeExpression",
             KnownSymbols.TryCreate(result.SemanticModel.Compilation)!,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
             default);
 
         var first = ExpressionTemplateFactory.Create(result.Expression, context);
@@ -1113,6 +1114,7 @@ public sealed class UnresolvedEmittedTypeTests
             "ProbeExpression",
             KnownSymbols.TryCreate(result.SemanticModel.Compilation)!,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
             default);
 
         _ = ExpressionTemplateFactory.Create(result.Expression, context);
@@ -1178,6 +1180,7 @@ public sealed class UnresolvedEmittedTypeTests
             method.Identifier.ValueText,
             knownSymbols,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
             default);
         var syntax = method.ExpressionBody!.Expression;
         var template = ExpressionTemplateFactory.Create(syntax, context);

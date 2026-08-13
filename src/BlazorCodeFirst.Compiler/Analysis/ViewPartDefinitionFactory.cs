@@ -43,7 +43,11 @@ internal static class ViewPartDefinitionFactory
         var methodKey = MethodKey.Create(method);
         var displayName = method.Name;
 
-        var invalidReason = ValidateDeclaration(method, declaration, knownSymbols);
+        // The body's shape is read once, here, and the answer travels: reading it again inside the build
+        // would walk the whole block a second time on every keystroke to reach the same two values.
+        var bodyAccepted = TryReadBody(declaration, out var bodyExpression, out var bodyStatements);
+
+        var invalidReason = ValidateDeclaration(method, bodyAccepted, knownSymbols);
         if (invalidReason is not null)
             return Invalid(methodKey, displayName, declaration, invalidReason);
 
@@ -51,6 +55,8 @@ internal static class ViewPartDefinitionFactory
             attributeContext,
             method,
             declaration,
+            bodyExpression,
+            bodyStatements,
             knownSymbols!,
             cancellationToken,
             out var bodyDiagnostics);
@@ -69,7 +75,7 @@ internal static class ViewPartDefinitionFactory
 
     private static string? ValidateDeclaration(
         IMethodSymbol method,
-        MethodDeclarationSyntax declaration,
+        bool bodyAccepted,
         KnownSymbols? knownSymbols)
     {
         // A view part is never an extension member (DESIGN.md §4.3, #203). Rejected ahead of the static
@@ -98,8 +104,8 @@ internal static class ViewPartDefinitionFactory
                 return "containing type must be non-generic";
         }
 
-        if (declaration.ExpressionBody is null)
-            return "must be expression-bodied";
+        if (!bodyAccepted)
+            return "must reach one return, with only local declarations and expression statements ahead of it";
 
         var viewType = knownSymbols?.ViewType;
         if (viewType is null)
@@ -159,10 +165,44 @@ internal static class ViewPartDefinitionFactory
         return null;
     }
 
+    /// <summary>
+    /// The expression a view part body returns, and the statements written ahead of that return. Both body
+    /// forms reach here: <c>=&gt; e</c>, and the block a design-time expression getter and a <c>ForEach</c>
+    /// content lambda accept, which <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/>
+    /// reads (ARCHITECTURE.md §2.3 Transplantable). Returns <see langword="false"/> for a body outside
+    /// both, which earns BCF1002 at the declaration.
+    /// </summary>
+    private static bool TryReadBody(
+        MethodDeclarationSyntax declaration,
+        out ExpressionSyntax expression,
+        out ImmutableArray<StatementSyntax> statements)
+    {
+        statements = [];
+
+        if (declaration.ExpressionBody is { Expression: var expressionBody })
+        {
+            expression = expressionBody;
+            return true;
+        }
+
+        if (declaration.Body is { } block
+            && RenderExpressionAnalyzer.TryReadTransplantableBlock(block, out var leading, out var returned))
+        {
+            expression = returned;
+            statements = leading;
+            return true;
+        }
+
+        expression = null!;
+        return false;
+    }
+
     private static ViewPartDefinition? TryBuildDefinition(
         GeneratorAttributeSyntaxContext attributeContext,
         IMethodSymbol method,
         MethodDeclarationSyntax declaration,
+        ExpressionSyntax bodyExpression,
+        ImmutableArray<StatementSyntax> bodyStatements,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken,
         out ImmutableArray<DiagnosticInfo> diagnostics)
@@ -211,11 +251,17 @@ internal static class ViewPartDefinitionFactory
             // Counted from syntax rather than from the classified body, which would only see the slots that
             // reached a translatable position. Asked only when there is a slot to count: a part returning View
             // cannot have one, and a Slot written in its body is reported at the reference by ClassifySlot.
+            // The leading statements are counted too: a Slot named there is written into the expansion just
+            // as one in the returned expression is, so leaving them out would let `var v = Slot;` pass as
+            // "never named" and then place the content twice.
             var slotReferences = CountSlotReferences(
-                declaration.ExpressionBody!.Expression,
-                attributeContext.SemanticModel,
-                knownSymbols,
-                cancellationToken);
+                bodyExpression, attributeContext.SemanticModel, knownSymbols, cancellationToken);
+
+            foreach (var statement in bodyStatements)
+            {
+                slotReferences += CountSlotReferences(
+                    statement, attributeContext.SemanticModel, knownSymbols, cancellationToken);
+            }
 
             if (slotReferences != 1)
             {
@@ -235,16 +281,17 @@ internal static class ViewPartDefinitionFactory
             method.Name,
             knownSymbols,
             ordinals.ToImmutable(),
+            isInlinedAtCallSites: true,
             cancellationToken,
             contentOrdinals.ToImmutable());
 
-        var body = RenderExpressionAnalyzer.Analyze(declaration.ExpressionBody!.Expression, context);
+        var body = RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, context);
         if (body is null)
         {
             // The same failure-path sweeps the component host runs, from the one list both share: report
             // the specific cause rather than falling through to the generic "not statically sequenceable"
             // text. See FailurePathScanners.
-            FailurePathScanners.ReportAll(declaration.ExpressionBody!.Expression, context);
+            FailurePathScanners.ReportAll(bodyExpression, context);
 
             // Prefer a specific recorded unsupported-reference diagnostic (for example a referenced local
             // that cannot exist in generated code) over the generic non-SSC message.
@@ -285,13 +332,13 @@ internal static class ViewPartDefinitionFactory
     /// helpers.
     /// </remarks>
     private static int CountSlotReferences(
-        ExpressionSyntax expression,
+        SyntaxNode body,
         SemanticModel semanticModel,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken)
     {
         var count = 0;
-        foreach (var name in expression.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
+        foreach (var name in body.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
         {
             if (name.Identifier.ValueText != "Slot")
                 continue;

@@ -15,7 +15,10 @@ public sealed class ViewPartDefinitionTests
     [Theory]
     [InlineData("[ViewPart] private View Helper() => Span[\"x\"];", "must be static")]
     [InlineData("[ViewPart] private static View Helper<T>() => Span[\"x\"];", "must be non-generic")]
-    [InlineData("[ViewPart] private static View Helper() { return Span[\"x\"]; }", "must be expression-bodied")]
+    // A block reaching one return is accepted (#336); what stays refused is a body outside that shape.
+    [InlineData(
+        "[ViewPart] private static View Helper() { if (true) return Span[\"x\"]; return Span[\"y\"]; }",
+        "must reach one return")]
     [InlineData("[ViewPart] private static string Helper() => \"x\";", "must return BlazorCodeFirst.View")]
     [InlineData("[ViewPart] private static View Helper(params string[] values) => Span[values[0]];", "params parameters are unsupported")]
     // A View parameter is a content slot now (#34) and needs the SlotView return type that says so;
@@ -268,6 +271,7 @@ public sealed class ViewPartDefinitionTests
             methodSymbol.Name,
             knownSymbols,
             ordinals,
+            isInlinedAtCallSites: false,
             default);
 
         var template = ExpressionTemplateFactory.Create(argument, context);
@@ -302,6 +306,7 @@ public sealed class ViewPartDefinitionTests
             methodSymbol.Name,
             knownSymbols,
             ordinals,
+            isInlinedAtCallSites: false,
             default);
 
         return RenderExpressionAnalyzer.Analyze(method.ExpressionBody!.Expression, context);
