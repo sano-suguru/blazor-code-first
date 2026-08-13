@@ -1,7 +1,7 @@
 ---
 title: コンポーネントと再利用
 order: 40
-source-hash: 79289534
+source-hash: d6c3ed96
 ---
 
 再利用の単位はコンポーネントです。BlazorCodeFirst のコンポーネントから別のコンポーネントを呼ぶ
@@ -364,8 +364,24 @@ Blazor の `RenderFragment` を2回呼んだときと同じ振る舞いです。
 
 - 静的である
 - ジェネリックでなく、ジェネリックでない型で宣言されている
-- 式本体である
+- 式本体である。または、文が 1 つの `return` へ到達するブロックである
 - `View` を返す。内容を取るなら `SlotView`
+
+ブロックの形は、`Body` のゲッターと `ForEach` の `content` がすでに受け取る形と同じです。ローカル
+宣言文と式文が並び、最後に `return` が 1 つ来ます。ブロックが宣言したローカルにはジェネレーターが
+名前を与えるので、宣言を持つパーツも好きなだけ呼び出せます。
+
+```csharp
+[ViewPart]
+private static View StatusBadge(string status)
+{
+    var tone = status == "ok" ? "badge-ok" : "badge-warn";
+    return Span.Class("badge").Class(tone)[status];
+}
+```
+
+2 つ目の `return` と、ネイティブの `if` / `foreach` / `switch` は、いまも BCF1002 です。どちらも
+自分のシーケンス空間を要するからです。
 
 引数は、生成コードから名前を書ける型の、ふつうの値渡しの引数である必要があります。`params`、
 参照渡しの引数、`ElementView` の引数は、どれも拒否します。子を持たない要素を内容として渡すには、

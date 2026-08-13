@@ -361,8 +361,24 @@ A `[ViewPart]` has to satisfy a declaration contract the generator can expand, o
 
 - static
 - non-generic, and declared in a non-generic type
-- expression-bodied
+- expression-bodied, or a block whose statements lead to a single `return`
 - returning `View`, or `SlotView` to take content
+
+The block is the shape a `Body` getter and a `ForEach` content lambda already accept: local
+declarations and expression statements, then one `return`. The generator names the locals such a
+block declares, so a part that declares one can be called as many times as you like:
+
+```csharp
+[ViewPart]
+private static View StatusBadge(string status)
+{
+    var tone = status == "ok" ? "badge-ok" : "badge-warn";
+    return Span.Class("badge").Class(tone)[status];
+}
+```
+
+A second `return`, or a native `if` / `foreach` / `switch`, is still BCF1002 — each would need a
+sequence space of its own.
 
 Its parameters must be ordinary by-value parameters whose types can be named from generated code.
 `params`, by-reference parameters,
