@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.RenderTree;
 
@@ -19,17 +20,40 @@ namespace BlazorCodeFirst.WebAppTests;
 /// </remarks>
 public sealed class NonStringValueFormattingTests
 {
-    /// <summary>Runs <paramref name="action"/> on a fresh thread whose culture is <paramref name="culture"/>.</summary>
+    /// <summary>
+    /// Runs <paramref name="action"/> on a fresh thread whose culture is <paramref name="culture"/>. A
+    /// dedicated thread rather than setting and restoring the culture here: these tests exist to show that
+    /// the culture is the calling thread's, so borrowing xunit's would leave the isolation resting on the
+    /// restore rather than on the thread boundary. Anything the action throws is rethrown after the join,
+    /// because an escaping exception on a foreground thread ends the process instead of the test.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "The catch marshals the failure across a thread boundary rather than swallowing it: " +
+            "ExceptionDispatchInfo rethrows it on the caller after the join, with its original stack. " +
+            "Narrowing the type would let the excluded types escape the foreground thread, which ends the " +
+            "test process instead of failing the test — the very failure mode this exists to prevent.")]
     private static void OnThreadWithCulture(string culture, Action action)
     {
+        ExceptionDispatchInfo? failure = null;
+
         var thread = new Thread(() =>
         {
-            CultureInfo.CurrentCulture = new CultureInfo(culture);
-            action();
+            try
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+                action();
+            }
+            catch (Exception exception)
+            {
+                failure = ExceptionDispatchInfo.Capture(exception);
+            }
         });
 
         thread.Start();
         thread.Join();
+        failure?.Throw();
     }
 
     /// <summary>The text of every <see cref="RenderTreeFrameType.Text"/> frame, in order.</summary>
@@ -88,8 +112,8 @@ public sealed class NonStringValueFormattingTests
         var builder = new RenderTreeBuilder();
         OnThreadWithCulture("de-DE", () => builder.AddContent(0, (object)1234.5d));
 
-        List<string?>? read = null;
-        OnThreadWithCulture("en-US", () => read = TextFrames(builder));
+        var read = new List<string?>();
+        OnThreadWithCulture("en-US", () => read.AddRange(TextFrames(builder)));
 
         Assert.Equal(["1234,5"], read);
     }
@@ -113,13 +137,13 @@ public sealed class NonStringValueFormattingTests
         });
 
         var frames = builder.GetFrames();
-        object? value = null;
+        var values = new List<object?>();
         for (var index = 0; index < frames.Count; index++)
         {
             if (frames.Array[index].FrameType == RenderTreeFrameType.Attribute)
-                value = frames.Array[index].AttributeValue;
+                values.Add(frames.Array[index].AttributeValue);
         }
 
-        Assert.Equal("1234,5", Assert.IsType<string>(value));
+        Assert.Equal("1234,5", Assert.IsType<string>(Assert.Single(values)));
     }
 }

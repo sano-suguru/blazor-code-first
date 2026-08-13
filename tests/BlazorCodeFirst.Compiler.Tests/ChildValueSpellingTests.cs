@@ -35,6 +35,33 @@ public sealed class ChildValueSpellingTests
     }
 
     /// <summary>
+    /// The premise the whole decision rests on: a number is not a child today. C# rejects it before the
+    /// generator sees the expression, so nothing in this repository reports it and nothing else pins it —
+    /// a widened indexer or an added conversion would make <c>DESIGN.md</c> §4.1 false in silence.
+    /// </summary>
+    [Fact]
+    public void ANumericChild_IsRejectedByCSharp()
+    {
+        var source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                private int _n = 3;
+
+                protected override View Body => Div[_n];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(
+            result.OutputCompilation.GetDiagnostics(),
+            diagnostic => diagnostic.Id == "CS1503");
+    }
+
+    /// <summary>
     /// The interpolation is transplanted into <c>RenderView</c> verbatim and evaluated as the
     /// <c>AddContent</c> argument. That is what makes the formatting happen on the render thread: there is
     /// no earlier point at which the string could exist.
@@ -81,10 +108,12 @@ public sealed class ChildValueSpellingTests
         var tree = compilation.SyntaxTrees.Single();
         var model = compilation.GetSemanticModel(tree);
 
+        // Null rather than null-forgiving: an unresolved call then shows as null at a named index, instead
+        // of throwing an unattributed NullReferenceException from inside the projection.
         var chosen = tree.GetRoot()
             .DescendantNodes()
             .OfType<InvocationExpressionSyntax>()
-            .Select(invocation => model.GetSymbolInfo(invocation).Symbol!.ToDisplayString())
+            .Select(invocation => model.GetSymbolInfo(invocation).Symbol?.ToDisplayString())
             .ToList();
 
         const string ObjectOverload =

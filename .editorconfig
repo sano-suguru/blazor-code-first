@@ -132,6 +132,10 @@ dotnet_diagnostic.CA1001.severity = none
 # Prerender tests: same RenderTree access as above, for the same reason. Whether FoldEscapingPage's
 # #140 fold produced exactly one frame is itself the premise the escaping test next to it depends on,
 # and RenderTreeBuilder.GetFrames() is the only way to observe that count; no public API reports it.
+# NonStringValueFormattingTests is here on a second reason: the premise it pins belongs to a document
+# rather than to a browser spec. That a frame already holds a formatted string is what DESIGN.md §4.1
+# and ARCHITECTURE.md §2.7(D) rest on when they refuse non-string values (#158, #245), and the frame's
+# TextContent / AttributeValue are the only way to see it.
 [tests/BlazorCodeFirst.WebAppTests/*.cs]
 dotnet_diagnostic.BL0006.severity = none
 
