@@ -346,12 +346,15 @@ Both kinds are content, though, and content has no value: it becomes frames, not
 slot can only be *placed* as a child. Reading one where a value is expected — as a `ForEach` key, or
 inside an attribute value — reports **BCF1002**.
 
-That is the whole trade-off:
+That is the whole trade-off, dimension by dimension:
 
-- **Reach for `[ViewPart]`** when the part is pure projection: it has no state of its own, and
-  you want it inlined rather than sitting behind a boundary.
-- **Reach for a component** when the part holds state, needs a lifecycle, should re-render on its
-  own, or is used from another assembly.
+| | `[ViewPart]` | A component |
+| --- | --- | --- |
+| State and lifecycle | none; it is a method | its own, as any Blazor component has |
+| Re-rendering | with the caller, having no boundary of its own | on its own, at its own diffing boundary |
+| What the caller's frames hold | the part's frames, expanded in place | one frame that opens the component |
+| Arguments | by-value parameters, named and optional | `[Parameter]` properties, set through `.Param` |
+| From another assembly | not available (BCF1002) | available |
 
 A `[ViewPart]` has to satisfy a declaration contract the generator can expand, or it reports
 **BCF1002**. The method must be:

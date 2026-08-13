@@ -18,6 +18,11 @@ public static class MarkdownConverter
     // order relative to UseColorCode, which can fail silently.
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAutoIdentifiers(AutoIdentifierOptions.GitHub)
+        // A '|'-delimited table becomes a <table>, which css/app.css styles as its own horizontal
+        // scroll container. Registered before UseColorCode because pipe tables are a block-level
+        // construct and a fenced block is claimed by the fence parser first, so a '|' inside a code
+        // sample stays code; MarkdownConverterTests holds both halves of that.
+        .UsePipeTables()
         // HtmlFormatterType.Css => class-based spans (not inline styles); the shared
         // StyleDictionary makes the emitted classes match HighlightCssEmitter's CSS.
         .UseColorCode(HtmlFormatterType.Css, ColorCodeTheme.Styles)
