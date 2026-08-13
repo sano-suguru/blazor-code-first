@@ -28,9 +28,18 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// The prefix the generator reserves for the names it writes into generated code: loop variables,
     /// contextual-fragment parameters, and view part locals. An authored declaration inside a transplanted
-    /// block may not use it (see <see cref="TryExtractContentLambda"/>).
+    /// block may not use it (see <see cref="TryReadTransplantableBlock"/>).
     /// </summary>
     private const string GeneratedNamePrefix = "__bcf_";
+
+    /// <summary>
+    /// The builder every generated frame is written against, which
+    /// <see cref="RenderViewEmitter"/> spells into each call. Reserved alongside
+    /// <see cref="GeneratedNamePrefix"/> and for the same reason: it is outside that prefix only because
+    /// it is the parameter of the generated method rather than a name minted inside it, and a getter's
+    /// transplanted statements land in its scope.
+    /// </summary>
+    private const string BuilderName = "__builder";
 
     /// <summary>
     /// <c>EventCallback.Factory.Create&lt;TValue&gt;</c> up to its type argument, which a component
@@ -68,6 +77,48 @@ internal static class RenderExpressionAnalyzer
 
         return node;
     }
+
+    /// <summary>
+    /// Classifies the expression a design-time expression getter returns, wrapped in the statements the
+    /// getter declared before that return (ARCHITECTURE.md §2.3 Transplantable). With no statements this is
+    /// <see cref="Analyze(ExpressionSyntax, ViewPartBodyContext)"/>, which is the getter shape that reduces
+    /// to a single expression.
+    /// </summary>
+    /// <remarks>
+    /// The statements are normalized inside the same scope as the returned expression, exactly as a
+    /// <c>ForEach</c> content block's are, so a local declared in one and read in the other is the same
+    /// name in both.
+    /// </remarks>
+    public static RenderTemplateNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        ExpressionSyntax expression,
+        ViewPartBodyContext context)
+    {
+        if (statements.IsEmpty)
+            return Analyze(expression, context);
+
+        context.PushTransplantedScope(SpanOf(statements));
+        try
+        {
+            var content = Analyze(expression, context);
+
+            return content is null
+                ? null
+                : new TransplantedBlockTemplateNode(
+                    ExpressionTemplateFactory.CreateForStatements(statements, context), content);
+        }
+        finally
+        {
+            context.PopTransplantedScope();
+        }
+    }
+
+    /// <summary>The span covering <paramref name="statements"/>, or an empty span when there are none.</summary>
+    private static TextSpan SpanOf(ImmutableArray<StatementSyntax> statements) =>
+        statements.IsEmpty
+            ? default
+            : TextSpan.FromBounds(
+                statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
 
     private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
@@ -499,12 +550,7 @@ internal static class RenderExpressionAnalyzer
             return false;
         }
 
-        var span = statements.IsEmpty
-            ? default
-            : TextSpan.FromBounds(
-                statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
-
-        shape = new ForEachContent(null, parameterSymbol, returned, statements, span);
+        shape = new ForEachContent(null, parameterSymbol, returned, statements, SpanOf(statements));
         return true;
     }
 
@@ -2245,15 +2291,15 @@ internal static class RenderExpressionAnalyzer
     /// cannot appear because the generated <c>RenderView</c> is not async, and a local function cannot
     /// exist in the generated body at all; both are excluded by the statement kinds admitted here.
     /// <para>
-    /// A local whose name starts with the generator's own prefix is refused rather than renamed. The rename
-    /// plan in <see cref="ExpressionTemplateFactory"/> is per template, and the block becomes several
-    /// templates — one per statement, plus the returned expression — so a name renamed in one would stay as
-    /// written in the others. The prefix is reserved, so refusing costs an author nothing. Only
-    /// declarations are checked: a reference cannot collide with a name the generator introduces without a
-    /// declaration to collide through.
+    /// A local whose name starts with the generator's own prefix, or is the builder's, is refused rather
+    /// than renamed. The rename plan in <see cref="ExpressionTemplateFactory"/> is per template, and the
+    /// block becomes several templates — one per statement, plus the returned expression — so a name
+    /// renamed in one would stay as written in the others. Both names are reserved, so refusing costs an
+    /// author nothing. Only declarations are checked: a reference cannot collide with a name the generator
+    /// introduces without a declaration to collide through.
     /// </para>
     /// </remarks>
-    private static bool TryReadTransplantableBlock(
+    public static bool TryReadTransplantableBlock(
         BlockSyntax block,
         out ImmutableArray<StatementSyntax> statements,
         out ExpressionSyntax returned)
@@ -2280,8 +2326,9 @@ internal static class RenderExpressionAnalyzer
 
         foreach (var declarator in block.DescendantNodes().OfType<VariableDeclaratorSyntax>())
         {
-            if (declarator.Identifier.ValueText.StartsWith(
-                    GeneratedNamePrefix, System.StringComparison.Ordinal))
+            var name = declarator.Identifier.ValueText;
+            if (name.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal)
+                || string.Equals(name, BuilderName, System.StringComparison.Ordinal))
             {
                 return false;
             }

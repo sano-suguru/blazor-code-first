@@ -127,9 +127,12 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF1004: A design-time expression override declares a getter the generator cannot translate,
-    /// either a getter body that does not reduce to a single expression, or an auto property, which
-    /// declares no getter body at all. Distinct from BCF1003: the getter's shape is the problem, not the
-    /// constructs used inside it, and the fix is to rewrite the getter rather than to change which
+    /// either a getter body outside the accepted shapes, or an auto property, which declares no getter
+    /// body at all. The accepted shapes are one returned expression, optionally preceded by local
+    /// declarations and expression statements the generator transplants ahead of the frames
+    /// (ARCHITECTURE.md §2.3). What is left is a second return, native control flow, and a local spelled
+    /// with a name the generator reserves. Distinct from BCF1003: the getter's shape is the problem, not
+    /// the constructs used inside it, and the fix is to rewrite the getter rather than to change which
     /// element helpers are read. Reported at the property identifier rather than inside the getter, which is
     /// the same distinction: BCF1003 blames an expression, BCF1004 blames the declaration around it. Not
     /// reported when the component overrides <c>RenderView</c> by hand (the design-time expression is
@@ -138,18 +141,20 @@ internal static class DiagnosticDescriptors
     /// </summary>
     public static readonly DiagnosticDescriptor BCF1004 = new(
         id: "BCF1004",
-        title: "Design-time expression getter must reduce to a single expression",
-        messageFormat: "'{0}' declares the {1} design-time expression with a getter that does not reduce to a single expression; write it as '=> expr', 'get => expr', or 'get {{ return expr; }}'",
+        title: "Design-time expression getter must reach a single returned expression",
+        messageFormat: "'{0}' declares the {1} design-time expression with a getter that does not reach a single returned expression; write it as '=> expr', 'get => expr', or a getter block of local declarations and expression statements ending in one 'return expr;'",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "A design-time expression is an inert projection of state to UI that the generator translates " +
-            "statically; it is never evaluated at runtime. Its getter must therefore reduce to a single " +
-            "expression. A getter that contains statements, for example a local variable declared before " +
-            "the return, would require the Transplantable path, which is not implemented. An auto " +
-            "property declares no getter to translate at all. Supply RenderView by hand if the body " +
-            "cannot be expressed as a single expression.");
+            "statically; it is never evaluated at runtime. Its getter must therefore reach one returned " +
+            "expression. Local declarations and expression statements may precede that return and are " +
+            "transplanted into the generated RenderView ahead of the frames. A second return and native " +
+            "control flow each need a sequence space of their own, so neither is accepted; a local " +
+            "spelled with a name the generator reserves is refused rather than renamed. An auto property " +
+            "declares no getter to translate at all. Supply RenderView by hand if the body cannot be " +
+            "written in this shape.");
 
     /// <summary>
     /// BCF1005: A nested class declares a design-time expression. Emitting <c>RenderView</c> into it would

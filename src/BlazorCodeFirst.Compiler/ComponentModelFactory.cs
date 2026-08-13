@@ -111,17 +111,17 @@ internal static class ComponentModelFactory
         }
 
         var shape = FindDesignTimeExpression(
-            elected, out var bodyExpression, out var getterLocation);
+            elected, out var bodyExpression, out var bodyStatements, out var getterLocation);
 
         if (shape == DesignTimeExpressionShape.NoDeclaration)
             return null;
 
-        // A getter that exists but is not a single expression is reported here rather than left to the
+        // A getter that exists but is outside the accepted shapes is reported here rather than left to the
         // bare CS0534 the un-emitted RenderView would raise. Returning an analysis with a null template
         // routes it through Expand's existing dedup, which suppresses BCF1003 when an error is present.
         if (shape == DesignTimeExpressionShape.NotTranslatable)
         {
-            // There is also no expression to blame here, the getter never reduced to one, which is what
+            // There is also no expression to blame here, the getter never reached one, which is what
             // BCF1004 says.
             return DiagnosticOnly(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF1004,
@@ -151,7 +151,7 @@ internal static class ComponentModelFactory
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
             cancellationToken);
 
-        var template = RenderExpressionAnalyzer.Analyze(bodyExpression, bodyContext);
+        var template = RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, bodyContext);
 
         // Translation failed. Sweep the whole expression for the specific cause, an unresolved
         // Component<T>() type argument, a value-position type reference, a misplaced decoration, so the
@@ -349,12 +349,15 @@ internal static class ComponentModelFactory
         /// </summary>
         NoDeclaration,
 
-        /// <summary>An override whose getter reduces to a single expression.</summary>
-        SingleExpression,
+        /// <summary>
+        /// An override whose getter reaches one returned expression, either as its whole body or after
+        /// statements the generator transplants ahead of it.
+        /// </summary>
+        Translatable,
 
         /// <summary>
-        /// A concrete override the generator cannot translate: a getter body that is not a single
-        /// expression, or no getter body at all on a type that needs one (an auto property). Earns BCF1004.
+        /// A concrete override the generator cannot translate: a getter body outside the accepted shapes,
+        /// or no getter body at all on a type that needs one (an auto property). Earns BCF1004.
         /// </summary>
         NotTranslatable,
     }
@@ -363,26 +366,31 @@ internal static class ComponentModelFactory
     /// Classifies the elected design-time expression declaration. Three getter spellings reduce to a
     /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
     /// getter's expression body (<c>get =&gt; e</c>), and a getter block whose only statement returns an
-    /// expression (<c>get { return e; }</c>). An auto property (no getter body and no <c>partial</c>
-    /// modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial
-    /// property with no implementation part (<c>partial</c> modifier and no getter body) is
+    /// expression (<c>get { return e; }</c>). A getter block that declares locals or writes expression
+    /// statements before that one return is the Transplantable shape (ARCHITECTURE.md §2.3), the same one
+    /// <c>ForEach</c>'s content accepts, and its statements are returned in
+    /// <paramref name="statements"/>. An auto property (no getter body and no <c>partial</c> modifier) is
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial property with
+    /// no implementation part (<c>partial</c> modifier and no getter body) is
     /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
-    /// property itself. Any other getter shape (a statement-bearing getter body) is also
-    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
+    /// property itself. Any other getter shape — a second return, native control flow, a reserved local
+    /// name — is also <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,
         out ExpressionSyntax? expression,
+        out ImmutableArray<StatementSyntax> statements,
         out Location? location)
     {
         expression = null;
+        statements = [];
         location = null;
 
         // `=> e;`
         if (prop.ExpressionBody is { Expression: var propertyBody })
         {
             expression = propertyBody;
-            return DesignTimeExpressionShape.SingleExpression;
+            return DesignTimeExpressionShape.Translatable;
         }
 
         var getter = FindGetAccessor(prop);
@@ -408,16 +416,19 @@ internal static class ComponentModelFactory
         if (getter.ExpressionBody is { Expression: var accessorBody })
         {
             expression = accessorBody;
-            return DesignTimeExpressionShape.SingleExpression;
+            return DesignTimeExpressionShape.Translatable;
         }
 
-        // `get { return e; }`
+        // `get { return e; }`, and the same block with statements ahead of that return. One reader for
+        // both, so the getter and a ForEach content block agree on the shape by construction rather than
+        // by two implementations of the same rule.
         if (getter.Body is { } getterBody
-            && getterBody.Statements.Count == 1
-            && getterBody.Statements[0] is ReturnStatementSyntax { Expression: { } returned })
+            && RenderExpressionAnalyzer.TryReadTransplantableBlock(
+                getterBody, out var leading, out var returned))
         {
             expression = returned;
-            return DesignTimeExpressionShape.SingleExpression;
+            statements = leading;
+            return DesignTimeExpressionShape.Translatable;
         }
 
         return DesignTimeExpressionShape.NotTranslatable;

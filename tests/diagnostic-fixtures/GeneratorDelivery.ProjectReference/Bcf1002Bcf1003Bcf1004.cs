@@ -28,15 +28,23 @@ public partial class Bcf1003Host : BodyComponentBase
     protected override View Body => Div[Span["bcf1003"], _cached];
 }
 
-/// <summary>BCF1004: a getter that does not reduce to a single expression.</summary>
+/// <summary>
+/// BCF1004: a getter that does not reach a single returned expression. Two returns, because each needs
+/// a sequence space of its own; a local declared before one return is the Transplantable shape and is
+/// translated (ARCHITECTURE.md §2.3).
+/// </summary>
 public partial class Bcf1004Host : BodyComponentBase
 {
+    private readonly bool _empty;
+
     protected override View Body
     {
         get
         {
-            var label = "bcf1004";
-            return Span[label];
+            if (_empty)
+                return Span["none"];
+
+            return Span["bcf1004"];
         }
     }
 }
