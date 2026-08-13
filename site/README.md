@@ -1,7 +1,7 @@
 # BlazorCodeFirst docs site
 
 Dogfooding target: the documentation site built with BlazorCodeFirst itself,
-hosted statically on Cloudflare Pages. Outstanding work on the site is tracked
+hosted statically on Cloudflare Workers. Outstanding work on the site is tracked
 under the `area: site` label in Issues.
 
 This directory is intentionally outside `BlazorCodeFirst.slnx` and manages
@@ -24,8 +24,9 @@ Output: `site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot`.
 ## Deploy
 
 CI deploys on push to `main` via `.github/workflows/site.yml`
-(`dotnet publish` on GitHub Actions -> `wrangler pages deploy` to Cloudflare Pages).
-Cloudflare Pages hosts static assets only; it does not build .NET.
+(`dotnet publish` on GitHub Actions -> `wrangler deploy` to a Worker whose static
+assets are that publish output, configured in `site/wrangler.jsonc`). The Worker
+runs no script and does not build .NET.
 
 ## Stylesheets
 
