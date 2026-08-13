@@ -90,6 +90,16 @@ internal sealed class KnownSymbols
     public INamedTypeSymbol? RenderFragmentGenericType { get; }
 
     /// <summary>
+    /// Resolved <c>System.Linq.Enumerable.Select&lt;TSource, TResult&gt;(IEnumerable&lt;TSource&gt;,
+    /// Func&lt;TSource, TResult&gt;)</c>, the one projection a spliced child list folds (#172), or null.
+    /// </summary>
+    /// <remarks>
+    /// Degrades the same way every other lookup here does. With this null the splice classifies nothing
+    /// and lands on BCF1003, which is where a spread sat before #172.
+    /// </remarks>
+    public IMethodSymbol? EnumerableSelect { get; }
+
+    /// <summary>
     /// Resolved unbound generic <c>Microsoft.AspNetCore.Components.EventCallback&lt;TValue&gt;</c>, or null.
     /// </summary>
     /// <remarks>
@@ -388,6 +398,46 @@ internal sealed class KnownSymbols
         method is { IsExtensionMethod: true, ReducedFrom: null } ? 1 : 0;
 
     /// <summary>
+    /// Whether <paramref name="method"/> is the projection overload of <c>Enumerable.Select</c>.
+    /// </summary>
+    /// <remarks>
+    /// Asked through <see cref="Normalize(IMethodSymbol)"/> like every other keyed comparison here, which
+    /// is what makes a fluent call (resolved to the reduced symbol) and a constructed one (resolved with
+    /// real type arguments) both answer. The static spelling would answer too, but no caller reaches it:
+    /// both gate on a one-argument member-access call first, and <c>Enumerable.Select(src, f)</c> is
+    /// neither.
+    /// </remarks>
+    public bool IsEnumerableSelect(IMethodSymbol method) =>
+        Matches(Normalize(method), EnumerableSelect);
+
+    /// <summary>
+    /// The projection overload of <c>Enumerable.Select</c>, or <see langword="null"/> when it cannot be
+    /// resolved.
+    /// </summary>
+    /// <remarks>
+    /// Both overloads declare two parameters, so the selector's own arity is the discriminator:
+    /// <c>Func&lt;TSource, TResult&gt;</c> is the projection, and <c>Func&lt;TSource, int, TResult&gt;</c>
+    /// is the indexed form, whose two-parameter lambda has no single iteration variable for a content
+    /// template to bind.
+    /// </remarks>
+    private static IMethodSymbol? FindEnumerableSelect(INamedTypeSymbol? enumerableType)
+    {
+        if (enumerableType is null)
+            return null;
+
+        foreach (var member in enumerableType.GetMembers("Select"))
+        {
+            if (member is IMethodSymbol { Parameters.Length: 2 } method
+                && method.Parameters[1].Type is INamedTypeSymbol { TypeArguments.Length: 2 })
+            {
+                return method;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// <paramref name="parameter"/>'s index in argument space, the receiver excluded, or <c>-1</c> for the
     /// receiver itself, which argument space has no index for.
     /// </summary>
@@ -521,6 +571,8 @@ internal sealed class KnownSymbols
         EventCallbackType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallback`1");
         ExpressionType = compilation.GetTypeByMetadataName("System.Linq.Expressions.Expression`1");
+        EnumerableSelect = FindEnumerableSelect(
+            compilation.GetTypeByMetadataName("System.Linq.Enumerable"));
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
         EventArgsType = compilation.GetTypeByMetadataName("System.EventArgs");
 

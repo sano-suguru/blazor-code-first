@@ -112,8 +112,10 @@ internal static class KeyabilityResolver
     }
 
     /// <summary>
-    /// Walks <paramref name="node"/> and appends a BCF3003 for every ForEach whose content root resolves to
-    /// <see cref="ContentRootKind.Region"/>. Unresolved content is skipped (BCF1002 covers it at expansion).
+    /// Walks <paramref name="node"/> and appends a BCF3003 for every <em>keyed</em> ForEach whose content
+    /// root resolves to <see cref="ContentRootKind.Region"/>. Unresolved content is skipped (BCF1002
+    /// covers it at expansion), and a ForEach whose key was declined is skipped because it attaches no
+    /// key at all (#172).
     /// </summary>
     public static void CollectForEachContentDiagnostics(
         RenderTemplateNode node,
@@ -123,11 +125,19 @@ internal static class KeyabilityResolver
         switch (node)
         {
             case ForEachTemplateNode forEach:
-                if (ResolveRootKind(forEach.Content, registry) == ContentRootKind.Region)
+                // Only a keyed loop asks anything of its content root. A declined key emits no SetKey, so
+                // a Fragment, a Raw or a bare If roots the content legitimately (#172). The walk into the
+                // content continues either way: a keyed ForEach nested inside declined content is still
+                // keyed.
+                if (forEach.Key is not null
+                    && ResolveRootKind(forEach.Content, registry) == ContentRootKind.Region)
+                {
                     sink.Add(DiagnosticInfo.Create(
                         DiagnosticDescriptors.BCF3003,
                         forEach.Location.ToLocation(),
                         []));
+                }
+
                 CollectForEachContentDiagnostics(forEach.Content, registry, sink);
                 break;
 

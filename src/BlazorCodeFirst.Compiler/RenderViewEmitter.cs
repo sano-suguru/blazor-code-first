@@ -312,8 +312,10 @@ internal static class RenderViewEmitter
         writer.AppendLine("{");
         writer.Indent++;
         // The key is threaded into the content's root element/component so SetKey is emitted
-        // immediately after that frame opens, never after OpenRegion (see BCF3003).
-        int next = EmitNode(writer, node.Content, seq + 1, node.Key.ToCode());
+        // immediately after that frame opens, never after OpenRegion (see BCF3003). A declined key
+        // threads nothing, which also makes the content root eligible for the fold in EmitNode: that
+        // check turns on the threaded key and nothing else, so no second predicate says so (#172).
+        int next = EmitNode(writer, node.Content, seq + 1, node.Key?.ToCode());
         writer.Indent--;
         writer.AppendLine("}");
         writer.AppendLine("__builder.CloseRegion();");

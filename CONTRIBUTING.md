@@ -520,8 +520,13 @@ command listed there and never run reads exactly like one that was.
 - Sequence numbers are source syntax positions, never runtime generation order.
   Allocate them statically with preorder traversal and give mutually exclusive
   branches disjoint ranges.
-- `ForEach` requires a key that represents item identity. Sequence numbers
-  identify template positions; keys identify data instances.
+- `ForEach`'s key is either written or explicitly declined with `key: null`; the
+  parameter has no default, so the absence is spelled rather than omitted. A
+  written key represents item identity: sequence numbers identify template
+  positions, keys identify data instances. A declined key gives that up, and the
+  list diffs as an index-derived key does, which is why declining is written at
+  the call site. `[.. source.Select(item => …)]` is the same declined loop,
+  spliced into a child list.
 - Classes that declare the design-time expression override (`Body` or `Chrome`)
   must be `partial` so the generator can emit `RenderView` (otherwise
   `BCF1001`), and must be top-level classes (nested classes are rejected with

@@ -262,6 +262,42 @@ internal static class RenderExpressionAnalyzer
             otherwiseNode);
     }
 
+    /// <summary>
+    /// The <c>key</c> argument of a <c>ForEach</c>: the lambda's parameter symbol and body, or both
+    /// <see langword="null"/> when the author declined the key by writing <c>null</c> (#172).
+    /// </summary>
+    private readonly record struct ForEachKey(ISymbol? Parameter, ExpressionSyntax? Body);
+
+    /// <summary>
+    /// Resolves the <c>key</c> argument to a one-parameter expression lambda, or to the declined form.
+    /// </summary>
+    /// <remarks>
+    /// Absence is read syntactically, exactly as <see cref="ClassifyIf"/> reads its own <c>otherwise</c>:
+    /// this analyzer transplants a written body and has no runtime value to test, so a variable that
+    /// happens to hold null is not an inline expression lambda and falls through to BCF3004 with every
+    /// other unreadable shape.
+    /// </remarks>
+    private static bool TryBindForEachKey(
+        ExpressionSyntax key, ViewPartBodyContext context, out ForEachKey shape)
+    {
+        if (key is LiteralExpressionSyntax { Token.RawKind: (int)SyntaxKind.NullKeyword })
+        {
+            shape = default;
+            return true;
+        }
+
+        if (!TryExtractSingleParameterLambda(key, out var parameter, out var body)
+            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                is not { } parameterSymbol)
+        {
+            shape = default;
+            return false;
+        }
+
+        shape = new ForEachKey(parameterSymbol, body);
+        return true;
+    }
+
     private static ForEachTemplateNode? ClassifyForEach(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
@@ -275,9 +311,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        if (!TryExtractSingleParameterLambda(keyArg.Expression, out var keyParameter, out var keyBody)
-            || context.SemanticModel.GetDeclaredSymbol(keyParameter, context.CancellationToken)
-                is not { } keyParamSymbol
+        if (!TryBindForEachKey(keyArg.Expression, context, out var keyShape)
             || !TryBindForEachContent(contentArg.Expression, context, out var contentShape))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -291,11 +325,17 @@ internal static class RenderExpressionAnalyzer
         // item, so it is normalized before the iteration variable is registered.
         var source = ExpressionTemplateFactory.Create(sourceArg.Expression, context);
 
-        // A method group binds no lambda parameter, so the iteration variable is named by the key lambda
-        // alone; a content lambda contributes its own parameter at the same ordinal.
-        var itemSymbols = contentShape.LambdaParameter is { } contentParamSymbol
-            ? new[] { contentParamSymbol, keyParamSymbol }
-            : [keyParamSymbol];
+        // The iteration variable is named by whichever of the two lambdas bound a parameter. A method
+        // group binds none and a declined key binds none, so both at once leaves the list empty. That is
+        // still correct: the variable takes its ordinal either way, and a method group's item is spliced
+        // from the ordinal rather than resolved from a written reference, so there is nothing to name.
+        ISymbol[] itemSymbols = (contentShape.LambdaParameter, keyShape.Parameter) switch
+        {
+            ({ } contentParameter, { } keyParameter) => [contentParameter, keyParameter],
+            ({ } contentParameter, null) => [contentParameter],
+            (null, { } keyParameter) => [keyParameter],
+            (null, null) => [],
+        };
 
         var itemOrdinal = context.PushRenderVariable(itemSymbols);
         if (!contentShape.TransplantedSpan.IsEmpty)
@@ -303,7 +343,9 @@ internal static class RenderExpressionAnalyzer
 
         try
         {
-            var key = ExpressionTemplateFactory.Create(keyBody, context);
+            var key = keyShape.Body is { } keyBody
+                ? ExpressionTemplateFactory.Create(keyBody, context)
+                : null;
 
             var content = contentShape.Callee is { } callee
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
@@ -311,7 +353,10 @@ internal static class RenderExpressionAnalyzer
             if (content is null)
                 return null;
 
-            if (!KeyReferencesItemOrdinal(key, itemOrdinal))
+            // A key that does not read the item cannot express identity. There is nothing to ask when no
+            // key was written: #172 makes the absence a spelling rather than a defect, and BCF3002 is a
+            // warning about a key, not about declining one.
+            if (key is not null && !KeyReferencesItemOrdinal(key, itemOrdinal))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BCF3002,
@@ -330,6 +375,65 @@ internal static class RenderExpressionAnalyzer
             if (!contentShape.TransplantedSpan.IsEmpty)
                 context.PopTransplantedScope();
 
+            context.PopRenderVariable(itemSymbols);
+        }
+    }
+
+    /// <summary>
+    /// A spliced child list, <c>.. source.Select(item =&gt; …)</c>, folded to the <c>ForEach</c> with a
+    /// declined key that it is sugar for (#172).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The written shape is <see cref="SpliceSyntax"/>'s, which is also what says why only the fluent
+    /// spelling is read. What this site adds is the requirement that the call actually resolve to
+    /// <c>Enumerable.Select</c>: nothing is emitted from a call that does not, so unlike the diagnostic
+    /// sweep this reader has no reason to fail open.
+    /// </para>
+    /// <para>
+    /// Every other spread returns null here and lands on BCF1003. That is where a stored <c>View</c> read
+    /// in the singular already sits (<c>ARCHITECTURE.md</c> 付録A), so admitting the plural to the Opaque
+    /// path would make a sequence of stored Views more permissive than one of them. The Opaque path also
+    /// could not report the difference: a field is not a call, so BCF3030 cannot see it, and a surface-
+    /// built <c>View</c> carries no fragment and would render nothing in silence (付録B).
+    /// </para>
+    /// </remarks>
+    private static ForEachTemplateNode? AnalyzeSplice(
+        ExpressionSyntax expression, ViewPartBodyContext context)
+    {
+        // The syntactic match runs first, so a spread of anything but a Select is rejected without a
+        // semantic query.
+        if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector)
+            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is not IMethodSymbol method
+            || !context.KnownSymbols.IsEnumerableSelect(method)
+            || !TryExtractSingleParameterLambda(selector, out var parameter, out var body)
+            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                is not { } parameterSymbol)
+        {
+            context.RecordUntranslatable(expression);
+            return null;
+        }
+
+        // The source is bound in the enclosing scope, so it is normalized before the iteration variable
+        // is registered, exactly as ForEach's own source is.
+        var source = ExpressionTemplateFactory.Create(access.Expression, context);
+
+        ISymbol[] itemSymbols = [parameterSymbol];
+        context.PushRenderVariable(itemSymbols);
+        try
+        {
+            var content = Analyze(body, context);
+            return content is null
+                ? null
+                : new ForEachTemplateNode(
+                    source,
+                    Key: null,
+                    content,
+                    TemplateLocation.From(expression.GetLocation()));
+        }
+        finally
+        {
             context.PopRenderVariable(itemSymbols);
         }
     }
@@ -1982,12 +2086,17 @@ internal static class RenderExpressionAnalyzer
     }
 
     private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
-        ImmutableArray<ExpressionSyntax> children, ViewPartBodyContext context)
+        ImmutableArray<ChildExpression> children, ViewPartBodyContext context)
     {
         var nodes = ImmutableArray.CreateBuilder<RenderTemplateNode>(children.Length);
         foreach (var child in children)
         {
-            var node = Analyze(child, context);
+            // A spread is one expression standing for zero or more children, so it is not analyzed as a
+            // child. It has its own classification, and everything it does not admit is untranslatable,
+            // which is where every spread sat before (#75).
+            var node = child.IsSpread
+                ? AnalyzeSplice(child.Expression, context)
+                : Analyze(child.Expression, context);
             if (node is null)
                 return null;
 
