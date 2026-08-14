@@ -96,10 +96,9 @@ updates:
     # Both browser suites are CI gates, so a Playwright update that breaks one has to surface as a
     # red pull request rather than sit unnoticed until someone runs the suite by hand: the
     # WebAppTests suite since #163, and the site suite since #251, where it runs after the publish
-    # and before the deploy. The one asymmetry is that site.yml is not a required check (#250), so a
-    # break there is a failed run on the pull request rather than a blocked merge. Each lockfile is
-    # also the cache key for its job's downloaded browser, which only stays correct while the file
-    # moves with the package.
+    # and before the deploy. Both are required checks on main: the site suite via `site-verified`,
+    # which reports what the `verify` job did (#250). Each lockfile is also the cache key for its
+    # job's downloaded browser, which only stays correct while the file moves with the package.
     directories:
       - "/tests/BlazorCodeFirst.WebAppTests/browser"
       - "/site/tests/browser"

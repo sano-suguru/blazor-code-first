@@ -134,6 +134,40 @@ assert_no_glob() {
   fi
 }
 
+# No entry matching the glob may exist ANYWHERE under the directory.
+#
+# The recursive sibling of assert_no_glob, kept separate rather than folded into it behind a depth
+# argument: each call site wants one or the other for a stated reason, and a defaulted depth is the
+# kind of argument that gets passed wrong without anything saying so. The directory-existence check
+# is here for the same reason it is there -- `find` prints nothing both when the glob matches
+# nothing and when the whole tree is gone.
+#
+# The failure message reports a count and a sample rather than every match. What this guards is
+# compression sidecars coming back, and that regression produces them by the hundred, so printing
+# the set would bury the sentence that says what happened.
+assert_no_glob_recursive() {
+  local matches rc prev=$- count sample
+  _assert_argc assert_no_glob_recursive 3 "$#"
+  if [ ! -d "$1" ]; then
+    fail "expected directory does not exist: $1"
+  fi
+
+  set +e
+  matches=$(find "$1" -name "$2" -print)
+  rc=$?
+  case $prev in *e*) set -e ;; esac
+
+  if [ "$rc" -ne 0 ]; then
+    fail "the recursive glob check for '$2' could not run (find exited $rc) in $1"
+  fi
+
+  if [ -n "$matches" ]; then
+    count=$(printf '%s\n' "$matches" | wc -l | tr -d '[:space:]')
+    sample=$(printf '%s\n' "$matches" | head -n 5 | tr '\n' ' ')
+    fail "$3 (directory: $1, forbidden glob: $2, matched $count, first: $sample)"
+  fi
+}
+
 # The file must exist.
 assert_file() {
   _assert_argc assert_file 2 "$#"

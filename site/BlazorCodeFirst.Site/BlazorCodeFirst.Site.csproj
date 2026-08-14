@@ -46,6 +46,23 @@
          OrdinalIgnoreCase, and Markdown conversion and syntax highlighting run at authoring time in
          the DocGen tool, which is a separate project unaffected by this flag. -->
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The publish writes a Brotli and a gzip sidecar beside every asset and nothing reads one:
+         the Worker compresses at the edge, and site/tests/browser/serve.mjs serves the plain file.
+         Measured here over three clean bin/+obj/ publishes each way, the sidecars cost about four
+         seconds and 124 of the 193 files: 12.4-13.9s / 193 files / 9.8MB by default, 8.6-8.7s /
+         69 files / 5.8MB with this set. CI publishes from a fresh checkout on every run, so the
+         saving is every run rather than the first one. (#347 records 14 seconds, from a single
+         first-of-session publish on each side; the cold NuGet cache, not the compression, is most
+         of that gap.)
+
+         CompressionEnabled, not BlazorEnableCompression. The latter appears only in
+         Microsoft.NET.Sdk.BlazorWebAssembly.5_0.targets, so it is a no-op on net10.0. This one gates
+         the whole import of the compression targets in Microsoft.NET.Sdk.StaticWebAssets.targets,
+         which is what makes it skip the work rather than delete the output afterwards.
+
+         site.yml asserts the publish output carries no *.br and no *.gz. That assertion, not this
+         line, is what catches the property being lost or an SDK default changing (#347). -->
+    <CompressionEnabled>false</CompressionEnabled>
   </PropertyGroup>
 
   <ItemGroup>
@@ -116,12 +133,7 @@
        AfterTargets hook runs even when the target it hooks was SKIPPED by its condition, so without
        this line "dotnet publish -p:BlazorWasmPrerendering=disable" — the package's own escape hatch
        — would fail on the Error above, as would the nested publish that the wasm-tools workload
-       triggers (which is why the upstream condition tests WasmBuildingForNestedPublish at all).
-
-       Note: no 404.html.br or 404.html.gz sidecar is produced, because compression sidecar
-       generation has already finished by this point. Nothing serves the sidecars anyway, since
-       wwwroot/.assetsignore keeps every one of them out of the upload, but a guard framed as
-       "every HTML file has a sidecar" or "the file count is N" would trip on this one. -->
+       triggers (which is why the upstream condition tests WasmBuildingForNestedPublish at all). -->
   <Target Name="CopyPrerendered404" AfterTargets="BlazorWasmPrerendering"
           Condition=" '$(BlazorWasmPrerendering)' != 'disable' AND '$(WasmBuildingForNestedPublish)' != 'true' ">
     <PropertyGroup>
