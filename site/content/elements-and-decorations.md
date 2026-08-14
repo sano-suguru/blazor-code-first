@@ -241,8 +241,9 @@ decoration.
 
 `class` is the one attribute that folds: chaining `.Class` more than once merges the values into a
 single `class` attribute, and `.Attr("class", …)` joins the same channel. Every other attribute and
-event is a single binding, and binding one twice on the same element reports BCF3010. There is no
-`style` shortcut, so prefer an external stylesheet and `.Class`.
+event is a single binding, and binding one twice on the same element reports BCF3010. `style` is one of
+those others: write it as `.Attr("style", …)`, and note that two of them on one element is BCF3010
+rather than a second fold.
 
 Because that channel joins its values as text, `class` is the one name that takes a string and nothing
 else. `.Attr("class", flag)` reports BCF3023 — as does `.Attr("class")`, whose bare spelling stands for
