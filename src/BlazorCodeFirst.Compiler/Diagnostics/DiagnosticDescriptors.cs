@@ -929,6 +929,48 @@ internal static class DiagnosticDescriptors
                 + "the call site; making it a component gives it a Body the generator reads.");
 
     /// <summary>
+    /// BCF3031: a <c>.Bind</c> writes a format for a value type the framework declares no format-taking
+    /// converter for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>string format</c> overloads of <c>CreateBinder</c> and <c>BindConverter.FormatValue</c> exist for
+    /// <c>DateTime</c>, <c>DateTimeOffset</c>, <c>DateOnly</c>, <c>TimeOnly</c> and their nullable forms
+    /// only. A format on anything else leaves the generated file's own call unable to bind, and appendix
+    /// A.0 is why that cannot be left to the C# error: it is raised inside generated code, which the
+    /// author does not read.
+    /// </para>
+    /// <para>
+    /// The admitted set is read from <c>EventCallbackFactoryBinderExtensions</c>'s metadata rather than
+    /// enumerated here, which is the criterion <c>DESIGN.md</c> §4.1 states and the precedent BCF3028 set
+    /// by reading <c>[EventHandler]</c>. The message names the type it found rather than assuming which
+    /// one reached the rule, as BCF3023's does.
+    /// </para>
+    /// <para>
+    /// The location is the format argument, because that is what the author rewrites or removes. The
+    /// culture is not in question: every type this surface binds may carry one, and only the format is
+    /// restricted.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3031 = new(
+        id: "BCF3031",
+        title: "Bind format is not supported for this value type",
+        messageFormat:
+            "'.Bind' writes a format for '{0}', which the framework declares no format-taking converter "
+                + "for; drop the format, or format the value in the getter and parse it in an explicit "
+                + "setter",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A format is passed straight through to BindConverter.FormatValue on the way out and to "
+                + "EventCallbackFactoryBinderExtensions.CreateBinder on the way back. Both declare their "
+                + "format-taking overloads for DateTime, DateTimeOffset, DateOnly, TimeOnly and their "
+                + "nullable forms only, so a format written for any other type would leave the generated "
+                + "file with a call that does not bind. The set is read from the framework's own "
+                + "metadata, not enumerated by this compiler.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

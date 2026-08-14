@@ -175,13 +175,27 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// <c>Action&lt;TValue&gt;</c>. Always <see langword="false"/> when there is no setter, so that one
 /// binding has one spelling for the incremental cache to compare.
 /// </param>
+/// <param name="Culture">
+/// The culture expression, or <see langword="null"/> for the <see langword="string"/> and
+/// <see langword="bool"/> overloads that take none. Non-null is the one condition under which the
+/// attribute frame's value is wrapped in <c>BindConverter.FormatValue</c>: the wrapping follows the
+/// resolved overload and never the bound type, which is what keeps the pre-#307 output byte-identical.
+/// An <see cref="ExpressionTemplate"/> for the reason <paramref name="Value"/> is — inside a
+/// <c>[ViewPart]</c> body it may still hold unbound parameter holes.
+/// </param>
+/// <param name="Format">
+/// The format expression, or <see langword="null"/>. Only ever non-null when <paramref name="Culture"/>
+/// is, and only for a type BCF3031 admits.
+/// </param>
 internal sealed record BindTemplate(
     string AttributeName,
     string EventName,
     ExpressionTemplate Value,
     string ValueTypeName,
     ExpressionTemplate? Setter,
-    bool SetterIsAsynchronous);
+    bool SetterIsAsynchronous,
+    ExpressionTemplate? Culture = null,
+    ExpressionTemplate? Format = null);
 
 internal sealed record ElementTemplateNode(
     string Tag,

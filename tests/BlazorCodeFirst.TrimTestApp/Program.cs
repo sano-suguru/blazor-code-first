@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
@@ -17,15 +18,26 @@ public partial class TrimCounter : BodyComponentBase
     private int _count;
     private string _name = "";
     private bool _agreed;
+    private int _age;
+    private System.DateOnly _due = new(2026, 8, 14);
+    private System.DayOfWeek _day;
     private readonly List<Row> _rows = [new Row(1, "First")];
 
-    // Exercises every Bind overload at least once: all six on the element surface (string and bool,
-    // each getter-only, explicit setter, and explicit async setter) and all three on the component
+    // Exercises every Bind overload at least once: all twelve on the element surface (string and bool
+    // with no culture, and the generic form with one — each getter-only, explicit setter, and explicit
+    // async setter, the last three of those also carrying a format) and all three on the component
     // surface (ComponentView<T>.Bind). All are design-time-only, read by the source generator and never
     // invoked at runtime, so the trim tests assert none of their MethodDefs survive publishing — and
     // those assertions only mean anything for an overload that is called here, since an overload no
     // call site reaches would be trimmed as dead code whether or not the generator folded it away.
     // Both ComponentView<T>.Template overloads are reached on the same terms.
+    //
+    // The enum binding is here for a second reason, and is the only binding whose *emitted* code the
+    // trimmer has to be asked about rather than the surface's: parsing an enum is the one path this
+    // surface reaches that runs on reflection, ParserDelegateCache pulling ConvertToEnum out with
+    // MakeGenericMethod (#307). DynamicallyAccessedMembers sits on the type parameter, not on
+    // BindConverter's private method, so whether the trimmer keeps that method is measured by
+    // TrimmedOutputTests rather than assumed.
     protected override View Body =>
         Div[
             CountLabel($"Count: {_count}"),
@@ -44,6 +56,25 @@ public partial class TrimCounter : BodyComponentBase
                 _agreed = v;
                 await Task.Yield();
             }),
+            Input.Type("number").Bind(
+                "value", "oninput", () => _age, CultureInfo.InvariantCulture),
+            Input.Type("number").Bind(
+                "value", "oninput", () => _age, v => _age = v, CultureInfo.InvariantCulture),
+            Input.Type("number").Bind("value", "oninput", () => _age, async v =>
+            {
+                _age = v;
+                await Task.Yield();
+            }, CultureInfo.InvariantCulture),
+            Input.Type("date").Bind(
+                "value", "oninput", () => _due, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Input.Type("date").Bind(
+                "value", "oninput", () => _due, v => _due = v, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Input.Type("date").Bind("value", "oninput", () => _due, async v =>
+            {
+                _due = v;
+                await Task.Yield();
+            }, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Select.Bind("value", "onchange", () => _day, CultureInfo.InvariantCulture),
             Component<InputText>().Bind(c => c.Value, () => _name),
             // InputText.Value is string?, so TValue infers nullable and the setters coalesce.
             Component<InputText>().Bind(c => c.Value, () => _name, v => _name = v ?? ""),

@@ -10,7 +10,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// <remarks>
 /// <para>
 /// One struct rather than four separate derivations, because the surface declares one overload per
-/// <c>(value type, setter shape)</c> pair and a new pair moves every ordinal at once. The emitter arms,
+/// <c>(value type, setter shape, format, culture)</c> tuple and a new member of that tuple moves every
+/// ordinal at once — which #307 then did, adding the last two. The emitter arms,
 /// the failure-path scanner and BCF3001's exemption each used to encode "the setter follows the getter"
 /// in a convention of their own, and they would have gone out of step independently and in different
 /// directions (#206).
@@ -40,6 +41,29 @@ internal readonly struct BindParameters
     /// </summary>
     public int SetterIndex { get; }
 
+    /// <summary>
+    /// The format string's argument index, or <c>-1</c> when the overload declares none. Same encoding
+    /// and same caveat as <see cref="SetterIndex"/>.
+    /// </summary>
+    /// <remarks>
+    /// Only the overloads taking a culture can declare one, and only the framework's four date/time types
+    /// (and their nullable forms) have a format-taking converter to hand it to. That type check is
+    /// BCF3031's, not this struct's: here a format is a position and nothing more.
+    /// </remarks>
+    public int FormatIndex { get; }
+
+    /// <summary>
+    /// The culture's argument index, or <c>-1</c> when the overload declares none. Same encoding and same
+    /// caveat as <see cref="SetterIndex"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is also what the emitter reads to decide whether the attribute value is wrapped in
+    /// <c>BindConverter.FormatValue</c>. The wrapping follows the overload and never the bound type,
+    /// which is what keeps the pre-#307 <see langword="string"/> and <see langword="bool"/> output
+    /// byte-identical.
+    /// </remarks>
+    public int CultureIndex { get; }
+
     /// <summary>The bound value's type: the getter delegate's return type.</summary>
     public ITypeSymbol ValueType { get; }
 
@@ -49,10 +73,14 @@ internal readonly struct BindParameters
     /// </summary>
     public bool SetterIsAsynchronous { get; }
 
-    internal BindParameters(int getterIndex, int setterIndex, ITypeSymbol valueType, bool setterIsAsynchronous)
+    internal BindParameters(
+        int getterIndex, int setterIndex, int formatIndex, int cultureIndex,
+        ITypeSymbol valueType, bool setterIsAsynchronous)
     {
         GetterIndex = getterIndex;
         SetterIndex = setterIndex;
+        FormatIndex = formatIndex;
+        CultureIndex = cultureIndex;
         ValueType = valueType;
         SetterIsAsynchronous = setterIsAsynchronous;
     }

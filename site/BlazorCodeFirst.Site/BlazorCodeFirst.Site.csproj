@@ -77,6 +77,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- DocsNav.Counterparts takes a manifest so a test can construct a case site/content cannot
+         hold (#279; DocsNavTests says which). That overload is the app's own business rather than
+         the rail's API, so it is internal, and this is what lets the test project reach it. -->
+    <InternalsVisibleTo Include="BlazorCodeFirst.Site.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"
                       OutputItemType="Analyzer"

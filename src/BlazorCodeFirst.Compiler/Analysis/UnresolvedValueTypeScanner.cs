@@ -261,19 +261,28 @@ internal static class UnresolvedValueTypeScanner
     }
 
     /// <summary>
-    /// Reports on a binding's getter and, where written, its setter: the two arguments transplanted into
-    /// generated code, and therefore the two that can name a type that does not resolve.
+    /// Reports on a binding's getter and every argument written after it: the arguments transplanted into
+    /// generated code, and therefore the ones that can name a type that does not resolve.
     /// </summary>
     /// <remarks>
-    /// One body for both surfaces, reading the positions off
-    /// <see cref="KnownSymbols.TryGetBindParameters"/> rather than from ordinals written here, so this
+    /// One body for both surfaces, taking the getter's position off
+    /// <see cref="KnownSymbols.TryGetBindParameters"/> rather than from an ordinal written here, so this
     /// scan follows the overload set instead of having to be transcribed alongside it (#206).
     /// <para>
-    /// That holds this scan to the element emitter exactly: <c>ClassifyBind</c> reads the same two
-    /// indices. The component emitter is aligned on the setter only — it takes its getter from the
-    /// shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue, which is a position those three
-    /// spellings share rather than one this overload set owns. The two agree today, and an overload that
-    /// parted them would be moving a position the prologue also reads.
+    /// Everything from the getter onward is reported, rather than the getter and the setter by name. Each
+    /// of those positions — the setter, the format, the culture — is transplanted whole into the
+    /// generated file, so a type that does not resolve in any of them is the same defect, and no
+    /// enumeration of roles has to be kept in step with the overload set. What sits <em>ahead</em> of the
+    /// getter is never a value position on either surface: the element spelling writes the attribute and
+    /// event names there, which are constants BCF3011 owns, and the component spelling writes the
+    /// selector, which names a property and is BCF3005's (#307).
+    /// </para>
+    /// <para>
+    /// Reporting the union is also what lets <see cref="AreInterchangeableOverloads"/> accept two
+    /// bindings whose fourth argument means different things. Before #307 that argument was always the
+    /// setter; a <c>CultureInfo</c> now sits in the same place, and refusing the pair cost BCF3015 the
+    /// case it exists for — a type only this generator cannot resolve, where the author's own build is
+    /// green and the sole symptom would otherwise be a bare BCF1003.
     /// </para>
     /// <para>
     /// A method this compiler was not written against reports nothing rather than reporting at a guessed
@@ -286,8 +295,9 @@ internal static class UnresolvedValueTypeScanner
         if (!KnownSymbols.TryGetBindParameters(method, out var bind))
             return;
 
-        ReportValue(args.At(bind.GetterIndex)?.Expression, context);
-        ReportValue(args.At(bind.SetterIndex)?.Expression, context);
+        var written = WrittenParameterCount(method);
+        for (var index = bind.GetterIndex; index < written; index++)
+            ReportValue(args.At(index)?.Expression, context);
     }
 
     /// <summary>
@@ -820,28 +830,36 @@ internal static class UnresolvedValueTypeScanner
     /// <para>
     /// A single candidate is returned as it stands. Beyond that, an unresolved type inside a <c>.Bind</c>
     /// argument is what makes the invocation fail to bind, and failed overload resolution hands back the
-    /// whole overload group — six for <c>Decorations.Bind</c>, three for <c>ComponentView&lt;T&gt;.Bind</c>
-    /// — including the ones no argument count could have selected. Refusing the group outright is what left
-    /// BCF3015 unreachable on both <c>.Bind</c> surfaces (#197).
+    /// whole overload group — twelve for <c>Decorations.Bind</c>, three for
+    /// <c>ComponentView&lt;T&gt;.Bind</c> — including the ones no argument count could have selected.
+    /// Refusing the group outright is what left BCF3015 unreachable on both <c>.Bind</c> surfaces (#197).
     /// </para>
     /// <para>
     /// So the survivors are those the written arguments fill exactly, which keeps a longer overload from
     /// answering a shorter call. Filling is not on its own enough to name one: the element surface declares
-    /// its getter-only <c>.Bind</c> twice, once per bindable type, and four written arguments fill four
-    /// overloads. Those survivors are accepted anyway, because overloads of one method agree about what
-    /// each argument position means and this scanner never reads a parameter's type. Survivors from two
-    /// <em>different</em> surface methods would not agree, and refuse.
+    /// its getter-only <c>.Bind</c> three times, once per bindable shape, and four written arguments fill
+    /// five overloads. Those survivors are accepted when they agree, and refuse when they do not.
     /// </para>
     /// <para>
-    /// Only the accepting half of that is covered by a test, and deliberately so rather than by oversight.
-    /// Every overload group on this surface is prefix-aligned — an argument position means the same
-    /// thing across every overload of one method, so <c>.Bind</c>'s getter and setter land alike
-    /// whichever survivor is picked — and every recognized name resolves to a single method, so no call
-    /// site can currently be written whose reading changes with the survivor picked. Answering
-    /// the first candidate that merely binds passes the whole suite. What this buys is that adding an
-    /// overload that breaks either property costs a refused diagnostic rather than a silently misread one,
-    /// which is the trade #197 asked for; a later reader finding it untested should weigh it on that, not
-    /// take the absent test for a gap to fill.
+    /// What agreement means is the arm's question, not a property of the declarations. The test used to be
+    /// stated as prefix alignment — an argument position meaning the same thing across every overload of
+    /// one method — and #307 broke that: the fourth argument of a <c>.Bind</c> is a setter in four
+    /// survivors and a <c>CultureInfo</c> in the fifth. Refusing on that would have cost BCF3015 the case
+    /// it exists for, a type only this generator cannot resolve, where the author's own build is green.
+    /// The survivors do agree about what is <em>scanned</em>, because
+    /// <see cref="ReportBindArguments"/> reads the getter and every argument after it without reading a
+    /// role, and every one of those is transplanted whichever role it holds. So
+    /// <see cref="AreInterchangeableOverloads"/> asks that of a binding and keeps the declaration-shape
+    /// proxy for the arms that do read raw ordinals.
+    /// </para>
+    /// <para>
+    /// The refusing half is still untested, and deliberately so rather than by oversight. Every recognized
+    /// name resolves to a single method and no arm that reads raw ordinals has an overload group whose
+    /// positions disagree, so no call site can currently be written whose reading changes with the survivor
+    /// picked; answering the first candidate that merely binds passes the whole suite. What the check buys
+    /// is that a future overload breaking an arm's agreement costs a refused diagnostic rather than a
+    /// silently misread one, which is the trade #197 asked for. A later reader finding it untested should
+    /// weigh it on that, not take the absent test for a gap to fill.
     /// </para>
     /// </remarks>
     private static RecognizedInvocation TrySelectCandidate(
@@ -928,12 +946,30 @@ internal static class UnresolvedValueTypeScanner
     /// since no arm reads one — that is what lets the <see langword="string"/> and <see langword="bool"/>
     /// spellings of <c>.Bind</c> answer as one.
     /// </para>
+    /// <para>
+    /// A binding is the exception, and asks its arm's question instead of that proxy. #307 put a
+    /// <c>CultureInfo</c> where the fourth argument used to be a setter, so the names no longer line up
+    /// across the group; but <see cref="ReportBindArguments"/> reports the getter and everything after it
+    /// without reading a role, so the only position it can disagree about is the getter's. Comparing
+    /// names there would refuse a pair the arm reads identically, and the cost of that refusal is the one
+    /// BCF3015 exists to prevent: no report at all where the author's own build is green and only this
+    /// generator cannot resolve the type. A named argument still binds correctly, because every overload
+    /// of <c>.Bind</c> names its getter <c>get</c>.
+    /// </para>
     /// </remarks>
     private static bool AreInterchangeableOverloads(
         IMethodSymbol left, IMethodSymbol right, KnownSymbols symbols)
     {
-        if (symbols.ClassifySurfaceMethod(left) != symbols.ClassifySurfaceMethod(right))
+        var kind = symbols.ClassifySurfaceMethod(left);
+        if (kind != symbols.ClassifySurfaceMethod(right))
             return false;
+
+        if (kind is SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind)
+        {
+            return KnownSymbols.TryGetBindParameters(left, out var leftBind)
+                && KnownSymbols.TryGetBindParameters(right, out var rightBind)
+                && leftBind.GetterIndex == rightBind.GetterIndex;
+        }
 
         var leftDeclared = left.ReducedFrom ?? left;
         var rightDeclared = right.ReducedFrom ?? right;

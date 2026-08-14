@@ -70,6 +70,25 @@ public sealed class NonStringValueFormattingTests
         return texts;
     }
 
+    /// <summary>The value of every <see cref="RenderTreeFrameType.Attribute"/> frame, in order.</summary>
+    /// <remarks>
+    /// The attribute sibling of <see cref="TextFrames"/>, extracted when the second caller arrived: both
+    /// attribute measurements below read the same four lines, and the whole point of the pair is that one
+    /// holds a value the thread's culture chose and the other one it did not.
+    /// </remarks>
+    private static List<object?> AttributeValues(RenderTreeBuilder builder)
+    {
+        var frames = builder.GetFrames();
+        var values = new List<object?>();
+        for (var index = 0; index < frames.Count; index++)
+        {
+            if (frames.Array[index].FrameType == RenderTreeFrameType.Attribute)
+                values.Add(frames.Array[index].AttributeValue);
+        }
+
+        return values;
+    }
+
     /// <summary>
     /// A boxed value handed to <c>AddContent</c> is formatted at the call, not kept for later: the two
     /// frames disagree even though they sit in one builder, and they were separated by nothing but the
@@ -136,14 +155,38 @@ public sealed class NonStringValueFormattingTests
             builder.CloseElement();
         });
 
-        var frames = builder.GetFrames();
-        var values = new List<object?>();
-        for (var index = 0; index < frames.Count; index++)
-        {
-            if (frames.Array[index].FrameType == RenderTreeFrameType.Attribute)
-                values.Add(frames.Array[index].AttributeValue);
-        }
+        Assert.Equal("1234,5", Assert.IsType<string>(Assert.Single(AttributeValues(builder))));
+    }
 
-        Assert.Equal("1234,5", Assert.IsType<string>(Assert.Single(values)));
+    /// <summary>
+    /// The same call under a written culture, which is what #307 changed and the reason #158's decision
+    /// no longer reaches the element-side <c>.Bind</c>. Every measurement above turns on the culture being
+    /// the calling thread's; here the thread still carries de-DE and the frame holds the invariant
+    /// spelling, because the generated code names the culture instead of letting the thread supply it.
+    /// </summary>
+    /// <remarks>
+    /// Written as the call the generator emits rather than by rendering a component: the point being
+    /// measured is which culture <c>FormatValue</c> uses, and a component would put the generator's own
+    /// arithmetic between the claim and the evidence. The emitted spelling is asserted by
+    /// <c>HtmlBindGeneratorTests</c>, and the round trip by <c>BindRenderingTests</c>; this is the middle
+    /// fact neither of those can see.
+    /// </remarks>
+    [Fact]
+    public void AddAttribute_ThroughBindConverterWithAWrittenCulture_IgnoresTheThreadsCulture()
+    {
+        var builder = new RenderTreeBuilder();
+
+        OnThreadWithCulture("de-DE", () =>
+        {
+            builder.OpenElement(0, "input");
+            builder.AddAttribute(
+                1,
+                "value",
+                Microsoft.AspNetCore.Components.BindConverter.FormatValue(
+                    1234.5m, culture: CultureInfo.InvariantCulture));
+            builder.CloseElement();
+        });
+
+        Assert.Equal("1234.5", Assert.IsType<string>(Assert.Single(AttributeValues(builder))));
     }
 }

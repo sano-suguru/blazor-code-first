@@ -73,6 +73,55 @@ public partial class TrimmingInputProbe : BodyComponentBase
 }
 
 /// <summary>
+/// The other door to the same repair: a value the framework's converter cannot parse. #307 opened it by
+/// letting a non-<see cref="string"/> type be bound at all — every string parses, so before it no
+/// element-side binding could reject its input.
+/// </summary>
+/// <remarks>
+/// The rejection differs from <see cref="TrimmingInputProbe"/>'s normalization in the one way that
+/// matters here: the setter is never called, so the field does not move at all and the re-render
+/// produces exactly what the previous one did. Nothing in the render tree changes, and the repair is the
+/// only thing that can put the element back. Microsoft documents the outcome — "the unparsable value is
+/// automatically reverted to its previous value when the bind event is triggered" — and this measures
+/// that this surface reaches it.
+/// <para>
+/// <c>oninput</c> rather than <c>onchange</c>, which is also what makes the trap visible: the reversion
+/// runs on every keystroke, so an <see langword="int"/> bound this way cannot accept a typed <c>.</c> at
+/// all. The site documentation says so, and this page is where that is measured rather than asserted.
+/// </para>
+/// </remarks>
+[Route("/bind-reject")]
+public partial class BindRejectView : BodyComponentBase
+{
+    protected override View Body =>
+        Fragment(
+            Component<RejectingInputProbe>(),
+            If(RendererInfo.IsInteractive, () => Span.Attr("id", "bind-reject-ready")["ready"]));
+}
+
+/// <summary>The rejecting binding, in its own component for the reason <see cref="TrimmingInputProbe"/>
+/// is: <see cref="Build"/> needs no render handle.</summary>
+public partial class RejectingInputProbe : BodyComponentBase
+{
+    private int _age = 30;
+
+    protected override View Body =>
+        Div.Class("bind-reject")[
+            // type="text" rather than "number": a number input refuses to hold an unparsable string at
+            // all, so the browser would swallow the divergence before Blazor ever saw it.
+            Input.Attr("id", "rejecting-input").Type("text")
+                .Bind("value", "oninput", () => _age, System.Globalization.CultureInfo.InvariantCulture),
+
+            // No settle counter, unlike TrimmingInputProbe. Nothing here can move on a rejected value —
+            // that is the scenario — so the browser test establishes the live circuit with a value that
+            // is accepted, and then relies on Playwright's own retry for the reversion.
+            Span.Attr("id", "reject-field-value")[$"{_age}"]];
+
+    /// <summary>Exposes the generated render path to the premise gate in <c>BindResyncTests</c>.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+}
+
+/// <summary>
 /// The same normalizing input as <see cref="TrimmingInputProbe"/>, with a second binding beside it.
 /// BCF3021's withdrawn justification predicted that the second binding's SetUpdatesAttributeName would
 /// overwrite the first and cost it its repair; the storage is per frame, so it does not (#162).
