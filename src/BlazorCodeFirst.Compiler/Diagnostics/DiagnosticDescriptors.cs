@@ -31,17 +31,36 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF1002: A <c>[ViewPart]</c> method does not satisfy the source generator's supported
-    /// static-expansion contract.
+    /// static-expansion contract, or a component's own design-time expression references something that
+    /// cannot exist in generated code.
     /// </summary>
+    /// <remarks>
+    /// The subject is an argument rather than part of the format because two positions report this: a
+    /// <c>[ViewPart]</c> declaration or one of its call sites, and a component's own design-time
+    /// expression, which normalizes its body through the same check and is not a method (#361). Callers
+    /// build it with <see cref="ViewPartSubject"/> or <see cref="DesignTimeExpressionSubject"/> so the two
+    /// wordings live in one place. The title names both by what they have in common.
+    /// </remarks>
     public static readonly DiagnosticDescriptor BCF1002 = new(
         id: "BCF1002",
-        title: "ViewPart method shape is unsupported",
-        messageFormat: "ViewPart method '{0}' is unsupported: {1}",
+        title: "Statically expanded body is unsupported",
+        messageFormat: "{0} is unsupported: {1}",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "A method marked [ViewPart] must satisfy the compiler's supported static expansion contract.");
+            "A method marked [ViewPart] must satisfy the compiler's supported static expansion contract, " +
+            "and a component's design-time expression must reference only what generated code can name.");
+
+    /// <summary>BCF1002's subject for a <c>[ViewPart]</c> declaration or one of its call sites.</summary>
+    public static string ViewPartSubject(string methodName) => $"ViewPart method '{methodName}'";
+
+    /// <summary>
+    /// BCF1002's subject for a component's own design-time expression. Worded as BCF1003 words the same
+    /// subject, because an author who meets both is looking at one property.
+    /// </summary>
+    public static string DesignTimeExpressionSubject(string expressionName, string typeName) =>
+        $"The {expressionName} design-time expression of '{typeName}'";
 
     /// <summary>
     /// BCF3001: A BlazorCodeFirst base's design-time expression getter (<c>Body</c> on <c>BodyComponentBase</c>,

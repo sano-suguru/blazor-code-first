@@ -374,6 +374,6 @@ internal static class ViewPartDefinitionFactory
         DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF1002,
             declaration.Identifier.GetLocation(),
-            [displayName, reason]);
+            [DiagnosticDescriptors.ViewPartSubject(displayName), reason]);
 
 }
