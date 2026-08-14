@@ -44,6 +44,21 @@ public sealed class BodyTransplantTests
     private static GeneratorRunResult Run(string getter) =>
         CompilationTestHost.RunGenerator(Host.Replace("$GETTER$", getter));
 
+    /// <summary>
+    /// A getter that runs <paramref name="declaration"/>, which may be empty, before returning
+    /// <c>Span[<paramref name="read"/>]</c>.
+    /// </summary>
+    private static GeneratorRunResult RunGetter(string declaration, string read) =>
+        Run($$"""
+            {
+                    get
+                    {
+                        {{declaration}}
+                        return Span[{{read}}];
+                    }
+                }
+            """);
+
     [Fact]
     public void Body_WhenGetterIsBlockBodiedWithOneTrailingReturn_TransplantsTheStatements()
     {
@@ -65,6 +80,37 @@ public sealed class BodyTransplantTests
         Assert.Contains("__builder.AddContent(1, label);", generated);
         CompilationTestHost.AssertOutputCompiles(result);
         CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
+    }
+
+    [Theory]
+    // A deconstruction declares through a parenthesized designation, and the language accepts no type
+    // ahead of that list at all, so `var` is the one type reference the qualification has to leave as
+    // written. Writing the inferred tuple type there produced a file that could not compile (#342).
+    [InlineData("var (a, b) = (Title, Title);", "a + b", "var (a, b) = (Title, Title);")]
+    // The sibling position, which holds the rule to the parenthesized designation rather than to the
+    // node: a single designation takes the inferred type and compiles with it.
+    [InlineData("int.TryParse(Title, out var n);", "n.ToString()", "out int n")]
+    public void Body_WhenGetterDeclaresThroughADesignation_WritesATypeThatPositionAccepts(
+        string declaration, string read, string expected)
+    {
+        var result = RunGetter(declaration, read);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains(expected, generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Body_WhenExpressionDeclaresAPatternVariable_KeepsTheAuthorsName()
+    {
+        // The other side of #343's mint. A design-time expression is written into RenderView once, so its
+        // declarations cannot meet themselves and the author's names stand. Only a body copied to several
+        // call sites needs minting, which is what ViewPartBodyContext.IsInlinedAtCallSites separates.
+        var result = RunGetter(string.Empty, """Title is { Length: > 0 } ok ? ok : "n" """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("Title is { Length: > 0 } ok ? ok : \"n\"", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]

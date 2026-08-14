@@ -85,9 +85,10 @@ public sealed class ViewPartTransplantTests
     [Theory]
     // Two declarators in one statement, the second reading the first.
     [InlineData("var a = title; var b = a + title;", "a + b")]
-    // Deconstruction binds through designations and writes no declarator at all, and the mint covers it.
-    // It has no row here because the shape does not compile for a separate reason: the `var` carrying the
-    // designation list is rewritten to the type it inferred, which cannot declare one (#342).
+    // Deconstruction binds through designations and writes no declarator at all, so both names come from
+    // the mint. Its `var` is the type reference the qualification leaves as written (#342), which is what
+    // lets this row reach the mint at all.
+    [InlineData("var (a, b) = (title, title);", "a + b")]
     // A designation bound by an expression statement rather than by a declaration.
     [InlineData("int.TryParse(title, out var n);", "n.ToString()")]
     // A pattern designation, which binds in the block's scope as a declarator does.
@@ -110,6 +111,72 @@ public sealed class ViewPartTransplantTests
             """);
 
         CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Theory]
+    // A pattern designation in a child value, which binds into the scope the frames are written in.
+    [InlineData("""Span[Inner[0] is { Length: > 0 } ok ? ok : "n"]""")]
+    // An `out var` in an argument, the other form that leaks a name out of the expression it is written in.
+    [InlineData("""Span[int.TryParse(Inner[0], out var n) ? n.ToString() : "0"]""")]
+    // An attribute value rather than a child, so the widening is held to every expression channel the
+    // normalization runs over and not only to the one the collision was measured in.
+    [InlineData("""Span.Attr("title", Inner[0] is { Length: > 0 } ok ? ok : "n")["x"]""")]
+    public void ViewPart_WhenACalledTwicePartDeclaresInsideItsExpression_NamesBothExpansionsApart(
+        string expression)
+    {
+        // No block is involved: the part is one expression and so is the caller's Body. What the mint has
+        // to cover is every declaration the expression binds into its enclosing scope, not only the ones a
+        // leading statement writes, because expansion copies the expression to each call site (#343).
+        var result = Run("""=> Div[Part(), Part()];""", $"Part() => {expression};");
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ViewPart_WhenACalledTwicePartDeclaresInsideItsForEachContent_MintsBesideTheIterationVariable()
+    {
+        // A content lambda is analyzed against a scope of its own, so its declarations are registered by
+        // that recursion rather than by the body's walk, which stops at the lambda. Both mints then sit in
+        // one ordinal space: the ForEach pushes its iteration variable first and the content's designation
+        // after it, and expansion appends the names in that same order.
+        var result = Run(
+            """=> Div[Part(), Part()];""",
+            """Part() => ForEach(Inner, y => y, y => Span[y is { Length: > 0 } ok ? ok : "n"]);""");
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        // One name per expansion, and the iteration variable each reads is still its own loop's.
+        Assert.Equal(
+            2,
+            Regex.Matches(generated, "__bcf_local_[0-9]+_0").Select(m => m.Value).Distinct().Count());
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ViewPart_WhenACalledTwicePartDeclaresInBothAStatementAndItsExpression_NamesThemInWrittenOrder()
+    {
+        // The two sources of minted names in one body. The ordinals are assigned in written order —
+        // statements first, then the expression — and expansion appends the names in that same order, so
+        // this pins the correspondence rather than only that the output compiles.
+        var result = Run(
+            """=> Div[Part("one"), Part("two")];""",
+            """
+            Part(string title)
+                {
+                    var upper = title.ToUpperInvariant();
+                    return Span[upper is { Length: > 0 } ok ? ok : "n"];
+                }
+            """);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains(
+            "__bcf_local_2_0 is { Length: > 0 } __bcf_local_2_1 ? __bcf_local_2_1 : \"n\"", generated);
+        Assert.Contains(
+            "__bcf_local_6_0 is { Length: > 0 } __bcf_local_6_1 ? __bcf_local_6_1 : \"n\"", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

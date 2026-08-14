@@ -259,8 +259,14 @@ internal static class ViewPartExpander
                     if (content is null)
                         return null;
 
-                    return new TransplantedBlockNode(
-                        transplanted.Statements.Substitute(blockSubstitution), content);
+                    // A body that declares through its expression alone reaches here to have its names
+                    // minted and carries no statements to write, so the substitution above is the whole of
+                    // its job and the wrapper is dropped rather than emitted empty (#343).
+                    var statements = transplanted.Statements.Substitute(blockSubstitution);
+
+                    return statements.Segments.Length == 0
+                        ? content
+                        : new TransplantedBlockNode(statements, content);
                 }
 
             case FragmentTemplateNode fragment:

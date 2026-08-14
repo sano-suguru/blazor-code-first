@@ -195,9 +195,10 @@ internal static class ExpressionTemplateFactory
 
             // A declaration whose local was registered as a render variable carries the hole at its own
             // identifier, so one ordinal names the declaration and every reference to it, and expansion
-            // mints the name (#336). The statement around it stays literal text: its written type — or
-            // `var`, which the qualification below resolves like any other type reference — travels with
-            // it, so nothing here has to reproduce the local's type. Handled in this pass rather than a
+            // mints the name (#336). The statement around it stays literal text: its written type travels
+            // with it, so nothing here has to reproduce the local's type. `var` is a type reference like
+            // any other and is resolved below, with the one exception recorded there. Handled in this pass
+            // rather than a
             // walk of its own, because a declaration and a reference are the same rewrite over the same
             // traversal, and the spans cannot overlap: a declaring identifier is a token, never a name.
             if (mintsTransplantedLocals && TryGetDeclaredLocalIdentifier(node, out var declaredIdentifier))
@@ -223,6 +224,15 @@ internal static class ExpressionTemplateFactory
             // A receiver, method, or type-argument name inside an already-rewritten invocation (an
             // extension call, or a collapsed nameof) is owned by that whole-span replacement.
             if (IsNestedInReplaced(name.Span, replacedSpans))
+                continue;
+
+            // The type of a deconstruction declaration. Every other type reference is qualified below,
+            // `var` included, because the generated file carries no using directives and a written type has
+            // to stand on its own. This is the one position where no written form would be legal: a
+            // parenthesized designation takes one type per element or none at all, never one ahead of the
+            // whole list, so the inferred tuple type written there declared nothing (#342). Ahead of the
+            // semantic queries because it needs neither of their answers.
+            if (IsDeconstructionDeclarationType(name))
                 continue;
 
             // The semantic model is asked about this name exactly once, here. Everything below wants the
@@ -978,6 +988,16 @@ internal static class ExpressionTemplateFactory
                 },
             };
     }
+
+    /// <summary>
+    /// Whether <paramref name="name"/> is the type written ahead of a parenthesized designation list, the
+    /// <c>var</c> of <c>var (a, b) = e</c>. Read from the designation rather than from the spelling: the
+    /// same node type carries a single designation in <c>out var x</c>, where the inferred type is legal
+    /// and is written (#342). The parent settles it, because a declaration expression's other child is a
+    /// designation and no designation is a name.
+    /// </summary>
+    private static bool IsDeconstructionDeclarationType(SimpleNameSyntax name) =>
+        name.Parent is DeclarationExpressionSyntax { Designation: ParenthesizedVariableDesignationSyntax };
 
     private static bool IsInsideNameof(SyntaxNode node)
     {
