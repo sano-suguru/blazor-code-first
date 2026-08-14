@@ -135,7 +135,10 @@ dotnet_diagnostic.CA1001.severity = none
 # NonStringValueFormattingTests is here on a second reason: the premise it pins belongs to a document
 # rather than to a browser spec. That a frame already holds a formatted string is what DESIGN.md §4.1
 # and ARCHITECTURE.md §2.7(D) rest on when they refuse non-string values (#158, #245), and the frame's
-# TextContent / AttributeValue are the only way to see it.
+# TextContent / AttributeValue are the only way to see it. AttributeSplatMeasurementTests is here on
+# that same second reason: 付録B.14 refuses a runtime attribute name and an attribute splat over what
+# the builder does with the frames they would produce, and the sequence numbers and the surviving
+# duplicates are visible nowhere else.
 [tests/BlazorCodeFirst.WebAppTests/*.cs]
 dotnet_diagnostic.BL0006.severity = none
 

@@ -49,8 +49,6 @@ async function kindOf(path) {
 function send(res, status, path) {
   res.writeHead(status, {
     'content-type': CONTENT_TYPES.get(extname(path)) ?? 'application/octet-stream',
-    // The publish output ships .br and .gz siblings for some assets. Nothing here negotiates
-    // encodings, so declare plainly that the body is not encoded.
     'cache-control': 'no-store',
   });
   createReadStream(path).pipe(res);

@@ -64,8 +64,12 @@ the build.
 ## Status
 
 Prerelease. The surface is deliberately narrow and grows one issue at a time. Not supported yet:
-`preventDefault` / `stopPropagation`, attribute splatting, `@ref` for elements and components, and
-form helpers.
+`preventDefault` / `stopPropagation`, `@ref` for elements and components, and form helpers.
+
+A tag and an attribute name are always compile-time constants, so there is no `@attributes` splat
+and no runtime-valued name. That is a decision rather than a gap: the class channel folds at compile
+time and the duplicate check reads the name, and both go silent once the name is a value
+(`DESIGN.md` §4.1).
 
 ## Installation
 

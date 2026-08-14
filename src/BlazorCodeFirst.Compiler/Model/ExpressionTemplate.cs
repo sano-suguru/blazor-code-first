@@ -154,6 +154,20 @@ internal sealed record ExpressionTemplate
                 Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(text, quote: true))],
             new StringConstant(text));
 
+    /// <summary>
+    /// A template for the constant <see langword="null"/>: its code is the keyword, and its constant is
+    /// <see cref="NullConstant"/>. The value nothing is written as, for a caller that has a value to
+    /// spell rather than one to read.
+    /// </summary>
+    /// <remarks>
+    /// Beside <see cref="StringLiteral"/> and for its reason: the emitter reads the code and the fold
+    /// reads the constant, so a site that spells one of the pair for itself is a site free to disagree
+    /// with the other about what it means. Held rather than built per call, because it takes no
+    /// argument and so has one value.
+    /// </remarks>
+    public static ExpressionTemplate NullLiteral { get; } =
+        new([new LiteralExpressionSegment("null")], new NullConstant());
+
     public static ExpressionTemplate Create(
         ImmutableArray<ExpressionSegment> segments,
         ConstantInfo? constant = null) =>
@@ -235,9 +249,12 @@ internal sealed record ExpressionTemplate
     /// which is the whole difference; every other value has a type of its own and is written unchanged.
     /// </summary>
     /// <remarks>
-    /// Asked by both paths that write an attribute value — the attribute channel and the class channel's
-    /// lone-term case — so neither can be the one that forgets. The channel's two-or-more case does not
-    /// ask: it writes a call to a join declared to return <see cref="string"/>, whatever its arguments are.
+    /// Asked by every path that writes an attribute value: the attribute channel, the class channel's
+    /// lone-term case, and the value that channel spells when no term survives (#240) — so none of them
+    /// can be the one that forgets. Only the first and the last reach the cast. A surviving class term is
+    /// never a constant <see langword="null"/>, because the channel drops those, and the channel's
+    /// two-or-more case does not ask at all: it writes a call to a join declared to return
+    /// <see cref="string"/>, whatever its arguments are.
     /// <para>
     /// The alternative was to emit no frame for a constant null, which would match the fold exactly.
     /// Rejected because sequence numbers are allocated to <em>emitted</em> <c>RenderTreeBuilder</c> calls

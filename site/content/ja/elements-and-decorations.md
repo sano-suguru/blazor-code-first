@@ -1,7 +1,7 @@
 ---
 title: 要素と装飾
 order: 20
-source-hash: d601abf9
+source-hash: e990908d
 ---
 
 BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素の名前が、そのまま出力される要素
@@ -248,8 +248,8 @@ public static class AppEventHandlers;
 
 `class` は、畳み込まれる唯一の属性です。`.Class` を2回以上繋げると、値は1つの `class` 属性に
 まとまります。`.Attr("class", …)` も同じところへ合流します。ほかの属性とイベントはすべて単一の
-束縛で、同じ要素に2度束縛すると BCF3010 を報告します。`style` の近道はありません。外部の
-スタイルシートと `.Class` を使ってください。
+束縛で、同じ要素に2度束縛すると BCF3010 を報告します。`style` もそのひとつです。`.Attr("style", …)`
+と書き、同じ要素に2つ置くと、畳み込まれずに BCF3010 になります。
 
 この合流は値を文字列として繋ぐので、`class` は文字列しか取らない唯一の名前です。
 `.Attr("class", flag)` は BCF3023 を報告します。`.Attr("class")` も同じです。値を書かない形は

@@ -1,28 +1,19 @@
 name: site
 
+# No `paths:` filter on any trigger, deliberately, and #250 is why. A repository ruleset requires
+# the `site-verified` job below before a pull request can merge, and GitHub reports a required check
+# that never STARTED as pending rather than skipped -- so a filtered workflow would leave a pull
+# request touching only DESIGN.md unmergeable with nothing to re-run. The filter moved into the
+# `plan` job, which decides what the run has to do; every job here is gated on that decision, and
+# `site-verified` is the one that always runs and always reports.
 on:
   push:
     branches: [main]
-    paths:
-      - "site/**"
-      - "src/**"
-      - "eng/ci-assert.sh"
-      - "eng/verify-site-prerender.sh"
-      - ".github/workflows/site.yml"
   pull_request:
-    paths:
-      - "site/**"
-      - "src/**"
-      - "eng/ci-assert.sh"
-      - "eng/verify-site-prerender.sh"
-      - ".github/workflows/site.yml"
   workflow_dispatch:
 
-# Commenting the preview URL needs pull-requests: write. Without an explicit block the job inherits
-# the repository default, which is read-only on many repositories and would 403 at comment time.
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   # github.ref is refs/pull/<number>/merge on a pull_request, so each PR gets its own group and
@@ -38,10 +29,101 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  build-deploy:
+  # Everything this run needs to decide before it does any work: whether there is anything to
+  # verify, and where a deploy would go. Both answers are needed by more than one job below, and
+  # this job is the only one that runs unconditionally, so they are resolved once here rather than
+  # recomputed per job. It checks nothing out -- both steps read the GitHub API and constants.
+  plan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Listing a pull request's files needs it. The push path uses the compare endpoint, which
+      # contents: read already covers.
+      pull-requests: read
+    outputs:
+      site: ${{ steps.changes.outputs.site }}
+      environment: ${{ steps.target.outputs.environment }}
+      alias: ${{ steps.target.outputs.alias }}
+      command: ${{ steps.target.outputs.command }}
+      origin: ${{ steps.target.outputs.origin }}
+      preview_url: ${{ steps.target.outputs.preview_url }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Decide whether this run has anything to verify
+        id: changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # THIS IS THE OLD `paths:` KEY, and it is now ordinary text that nothing validates. A new
+          # input to the site build -- another script the verify job runs, another tree it reads --
+          # has to be added here by hand. Wrong in the permissive direction costs a pointless run;
+          # wrong in the other direction lets a change reach main unverified while the required
+          # check reports green, so err towards matching too much.
+          PATTERN='^(site/|src/|eng/ci-assert\.sh$|eng/verify-site-prerender\.sh$|eng/verify-tree-clean\.sh$|\.github/workflows/site\.yml$)'
+
+          case "$EVENT_NAME" in
+            pull_request)
+              # The API rather than `git diff`, so this job needs no checkout and no fetch depth.
+              files=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')
+              ;;
+            push)
+              # github.event.before is all-zeros on the first push to a ref and names a discarded
+              # commit after a force push, and neither can be compared against. Treat such a run as
+              # changed rather than guessing: being wrong here would skip verification.
+              if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+                echo "site=true" >> "$GITHUB_OUTPUT"
+                echo "No usable base commit for this push, so the run is treated as changed."
+                exit 0
+              fi
+              files=$(gh api --paginate "repos/$REPO/compare/$BEFORE...$SHA" --jq '.files[].filename')
+              ;;
+            *)
+              # workflow_dispatch. Someone asked for this run by hand, so there is nothing to decide.
+              echo "site=true" >> "$GITHUB_OUTPUT"
+              echo "Dispatched by hand, so the run is treated as changed."
+              exit 0
+              ;;
+          esac
+
+          # Both endpoints cap the file list -- the compare one at 300 entries, the pull-request one
+          # at 3000 -- and neither says in the body that it truncated. A capped list read as the whole
+          # change is the one way this scan can answer "nothing changed" about a change that did
+          # touch the site, so a list at or above the smaller cap is treated as changed instead of
+          # being filtered. Nothing in this repository has come close; the guard costs three lines and
+          # removes the failure mode rather than leaving it to be discovered.
+          if [ "$(printf '%s\n' "$files" | wc -l | tr -d '[:space:]')" -ge 300 ]; then
+            echo "site=true" >> "$GITHUB_OUTPUT"
+            echo "The changed-file list reached the API's cap, so the run is treated as changed."
+            exit 0
+          fi
+
+          # grep exits 1 for "no match" and >=2 for a check that could not run, and only the first is
+          # a legitimate "nothing to verify". An `if grep ...` guard reads both as clean, which would
+          # turn a broken scan into a permanently green required check -- the silent-pass shape
+          # eng/ci-assert.sh exists to contain. Capture the status instead.
+          set +e
+          matched=$(printf '%s\n' "$files" | grep -E "$PATTERN")
+          rc=$?
+          set -e
+          if [ "$rc" -gt 1 ]; then
+            echo "::error::the change scan could not run (grep exited $rc)" >&2
+            exit 1
+          fi
+
+          if [ -n "$matched" ]; then
+            echo "site=true" >> "$GITHUB_OUTPUT"
+            echo "The site's inputs changed:"
+            printf '%s\n' "$matched"
+          else
+            echo "site=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing under the site's inputs changed, so there is nothing to verify or deploy."
+          fi
 
       - name: Resolve the deployment target
         id: target
@@ -122,6 +204,20 @@ jobs:
           fi
           echo "Deploying as $environment with: wrangler $command"
 
+  # Everything that can fail on the source and the publish output, and nothing that talks to
+  # Cloudflare. That division is the point of the split (#250): this job is what `site-verified`
+  # reports on, so a Cloudflare outage or an expired token can no longer block a merge.
+  verify:
+    needs: plan
+    if: needs.plan.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      # Read back by the deploy job to prove the artifact round trip dropped nothing. See the
+      # assertion there for what that is guarding against.
+      published_files: ${{ steps.publish.outputs.files }}
+    steps:
+      - uses: actions/checkout@v7
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
@@ -176,10 +272,10 @@ jobs:
           #
           # This step does not source eng/ci-assert.sh even though it hand-rolls the same two
           # shell hazards that library exists to contain (see below). Its helpers all take a
-          # single file plus an ERE, but neither check here fits that shape: the CJK scan is a
-          # recursive `grep -rnP` over a directory tree, and the newline check walks a
-          # `git ls-files` loop rather than testing one path. Reusing the library would mean
-          # restructuring both checks around it rather than just calling it.
+          # single file plus an ERE, or a directory plus a glob, and neither check here fits either
+          # shape: the CJK scan is a recursive `grep -rnP` over a directory tree, and the newline
+          # check walks a `git ls-files` loop rather than testing one path. Reusing the library
+          # would mean restructuring both checks around it rather than just calling it.
 
           echo "Checking for non-English (CJK) characters in site source and English content..."
           # Hiragana, katakana, CJK ideographs, and fullwidth forms. Deliberately excludes the
@@ -284,15 +380,17 @@ jobs:
         run: bash eng/verify-site-prerender.sh site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
       - name: Generate and verify sitemap.xml
+        env:
+          # Built once by the plan job, from the Worker name and the workers.dev subdomain it also
+          # derives the preview URL and the alias length budget from. Nothing in this workflow
+          # writes the origin a second time. Through env rather than interpolated into the script,
+          # for the reason the target-resolution step gives.
+          ORIGIN: ${{ needs.plan.outputs.origin }}
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
 
           P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
-          # Built once by the target-resolution step, from the Worker name and the workers.dev
-          # subdomain it also derives the preview URL and the alias length budget from. Nothing in
-          # this workflow writes the origin a second time.
-          ORIGIN=${{ steps.target.outputs.origin }}
           # The same value as an extended regular expression, derived rather than retyped. Needed
           # because the guards below pass patterns to grep -E, where an unescaped "." matches ANY
           # character -- so a typo'd origin like "okXexample" would satisfy a bare "$ORIGIN" pattern.
@@ -358,26 +456,30 @@ jobs:
           # legitimate per-path Disallow later is not forbidden, only made to cost one edit here.
           assert_not_grep '^[[:space:]]*[Dd][Ii][Ss][Aa][Ll][Ll][Oo][Ww]:' "$P/robots.txt" "robots.txt carries a Disallow rule, and this site is meant to be fully crawlable: preview deployments are deindexed with an X-Robots-Tag header instead, which a Disallow would prevent the crawler from ever reading"
 
-      - name: Verify the published _headers and .assetsignore
+      - name: Verify the published _headers and the absence of compression sidecars
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
 
           P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
-          # .assetsignore is in the same position as _headers below: an ordinary wwwroot file that
-          # only the deploy reads, so nothing else here would notice it going missing. It would not
-          # fail the deploy either -- every sidecar would simply be uploaded again, silently undoing
-          # #45 and putting /robots.txt.gz back at a reachable URL.
-          assert_file "$P/.assetsignore" "the publish output has no .assetsignore, so the .br/.gz sidecars would all be uploaded again"
-          assert_grep '^\*\*/\*\.br$' "$P/.assetsignore" "the .br pattern is missing from .assetsignore"
-          assert_grep '^\*\*/\*\.gz$' "$P/.assetsignore" "the .gz pattern is missing from .assetsignore"
+          # The whole of what enforces CompressionEnabled=false (#347). The property is one line in
+          # site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj and nothing else would notice it
+          # being deleted or an SDK default overriding it: the sidecars are ordinary extra files, so
+          # every other check here passes with 124 of them present. Asserting the publish output --
+          # rather than keeping the wwwroot/.assetsignore that used to drop them at upload time --
+          # is what makes that regression a red run instead of a silent four seconds a run.
+          #
+          # Recursive: sidecars appear under _framework/ as well as at the root, so the
+          # -maxdepth 1 assert_no_glob cannot see most of them.
+          assert_no_glob_recursive "$P" '*.br' "the publish output carries Brotli sidecars, so CompressionEnabled is no longer false"
+          assert_no_glob_recursive "$P" '*.gz' "the publish output carries gzip sidecars, so CompressionEnabled is no longer false"
 
           # _headers is an ordinary wwwroot file, so if it ever stopped being published NOTHING else
-          # in this workflow would fail -- and the preview injection below appends with ">>", which
-          # would create a fresh file and succeed, deploying a _headers that has only the noindex
-          # rule and no immutable cache rule. Asserting the contents BEFORE any injection catches
-          # file loss, rule loss, and a mis-ordered workflow with one check.
+          # in this workflow would fail -- and the preview injection in the deploy job appends with
+          # ">>", which would create a fresh file and succeed, deploying a _headers that has only the
+          # noindex rule and no immutable cache rule. Asserting the contents BEFORE any injection
+          # catches file loss, rule loss, and a mis-ordered workflow with one check.
           assert_file "$P/_headers" "the publish output has no _headers file"
           assert_grep '^/_framework/\*$' "$P/_headers" "the /_framework/* rule is missing from _headers"
           # Losing this rule breaks nothing a reader would see: the fonts still arrive, just on every
@@ -396,8 +498,8 @@ jobs:
           # with the public switch do not cover: adding a "/*" X-Robots-Tag rule to the COMMITTED
           # file would deindex every page while satisfying every presence assertion here. Counting
           # instead of matching is what closes that, and this step is the right home for it because
-          # it runs on production and preview alike -- the post-injection assertions cannot do this
-          # job, since by then a second rule is legitimately present on previews.
+          # it runs on production and preview alike -- the deploy job's post-injection assertions
+          # cannot do this job, since by then a second rule is legitimately present on previews.
           #
           # Anchored to rule lines: the file explains this rule in prose, so an unanchored
           # 'X-Robots-Tag' counts the comment mentions too and can never equal 1.
@@ -406,8 +508,8 @@ jobs:
       # Everything above this point asserts the publish output as text, which can prove the shell
       # rendered and the stylesheet links survived and cannot see anything the browser computes.
       # The suite below is that half: overflow, whether a clickable label fits, WCAG contrast, and
-      # where the documentation rail lands (#251). It runs before the deploy so a failure stops the
-      # bad deployment rather than describing it afterwards.
+      # where the documentation rail lands (#251). It runs in this job rather than the deploy one so
+      # a failure stops the bad deployment rather than describing it afterwards.
       #
       # Against the local publish output, not a deployment. Hydration behaviour and Cloudflare's
       # edge routing genuinely need one and are #47's subject, which is blocked on #66; none of
@@ -451,8 +553,103 @@ jobs:
           name: site-playwright-traces
           path: site/tests/browser/test-results
 
+      # The whole-tree backstop for the drift gate near the top of this job. That gate runs
+      # `git diff --exit-code` over three named generated files, so a step that writes ANY other
+      # tracked path goes unreported: the publish output is gitignored, and no other check reads the
+      # tree at all. This check is what makes "the job wrote nothing" an assertion rather than an
+      # assumption. The deploy job runs it too, for a different writer.
+      - name: Verify the job left the working tree clean
+        run: bash eng/verify-tree-clean.sh
+
+      # Last, so a failure above is reported by the step that found it rather than by a missing
+      # artifact in the deploy job. The publish output is 5.8MB in 69 files, so the round trip costs
+      # seconds against the two minutes a second publish in the deploy job would take.
+      #
+      # PRE-injection, deliberately: the preview noindex rule is appended to _headers in the deploy
+      # job, so the artifact holds the file exactly as the assertions above saw it.
+      - name: Count the publish output
+        id: publish
+        run: |
+          set -euo pipefail
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+          echo "files=$(find "$P" -type f | wc -l | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the publish output for the deploy
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-publish
+          path: site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+          # No include-hidden-files. There is no hidden file in the publish output since
+          # wwwroot/.assetsignore was deleted with the sidecars (#347), and upload-artifact drops
+          # hidden files with a warning rather than an error -- so a future one would go missing
+          # quietly. The file count the deploy job compares is what would catch that.
+          if-no-files-found: error
+
+  # Cloudflare, and nothing that could fail on the source. Split from the verification (#250) so the
+  # required check does not depend on a third party being up, and so a deploy that fails leaves the
+  # merge decision alone.
+  deploy:
+    needs: [plan, verify]
+    # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip. Test the
+    # head repository explicitly instead of probing for an empty secret.
+    #
+    # Dependabot needs its own test. Its branches live in this repository, so they pass the fork
+    # check, but a Dependabot-triggered run reads the Dependabot secret store rather than the Actions
+    # one and would reach wrangler with an empty apiToken. Dependabot touches site/ because the four
+    # projects there hold inline package versions, so this fires often. A dependency bump has no use
+    # for a preview URL; the verification above still runs.
+    #
+    # This condition names no status function, so the implicit requirement that `needs` succeeded
+    # still applies: a failed or skipped verify skips this job.
+    if: >-
+      github.actor != 'dependabot[bot]'
+      && (github.event_name != 'pull_request'
+          || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Commenting the preview URL needs it. Without an explicit block the job inherits the
+      # repository default, which is read-only on many repositories and would 403 at comment time.
+      pull-requests: write
+    steps:
+      # For site/wrangler.jsonc and eng/ci-assert.sh. The publish output is not rebuilt here; it
+      # arrives from the verify job below.
+      - uses: actions/checkout@v7
+
+      # Restored to the path site/wrangler.jsonc resolves its assets directory against, which is
+      # relative to that file rather than to any working directory.
+      - uses: actions/download-artifact@v8
+        with:
+          name: site-publish
+          path: site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+
+      - name: Verify the restored publish output
+        env:
+          EXPECTED: ${{ needs.verify.outputs.published_files }}
+        run: |
+          set -euo pipefail
+          . eng/ci-assert.sh
+
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+
+          # What is deployed is now a COPY of what was verified, which is a way for files to go
+          # missing that did not exist while one job did both. A count comparison catches the whole
+          # class -- a hidden file dropped by upload-artifact, a partial download, a path typo above
+          # -- where naming a few files by hand would only catch the ones someone thought of.
+          actual=$(find "$P" -type f | wc -l | tr -d '[:space:]')
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "::error::the publish output that arrived here has $actual files and the verified one had $EXPECTED, so this deployment would not be what was verified" >&2
+            exit 1
+          fi
+
+          # The two files nothing else here would miss, named anyway because they are the ones whose
+          # loss is silent at the edge rather than obvious: a missing _headers deploys an uncached,
+          # indexable site, and a missing sitemap.xml leaves robots.txt pointing at a 404.
+          assert_file "$P/_headers" "the restored publish output has no _headers file"
+          assert_file "$P/sitemap.xml" "the restored publish output has no sitemap.xml"
+
       - name: Inject the preview noindex header
-        if: steps.target.outputs.environment == 'preview'
+        if: needs.plan.outputs.environment == 'preview'
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
@@ -475,11 +672,11 @@ jobs:
           assert_grep '^/\*$' "$P/_headers" "the injected preview rule has no /* path line"
           assert_grep '^  X-Robots-Tag: noindex, nofollow$' "$P/_headers" "the injected preview noindex directive is missing"
 
-          # Re-assert the /_framework/* rule survived the append above. The step before this one
-          # already proved the rule was present before the append; the only thing left to prove is
-          # that ">>" stayed ">>" -- a future edit turning it into ">" would truncate the file to just
-          # the preview rule while leaving the two assertions above (which only look at what THIS step
-          # just wrote) passing.
+          # Re-assert the /_framework/* rule survived the append above. The verify job already proved
+          # the rule was present before the append; the only thing left to prove is that ">>" stayed
+          # ">>" -- a future edit turning it into ">" would truncate the file to just the preview rule
+          # while leaving the two assertions above (which only look at what THIS step just wrote)
+          # passing.
           assert_grep '^/_framework/\*$' "$P/_headers" "the /_framework/* rule did not survive the preview append -- _headers was truncated instead of extended"
           assert_grep '^  Cache-Control: public, max-age=31536000, immutable$' "$P/_headers" "the immutable cache directive did not survive the preview append -- _headers was truncated instead of extended"
 
@@ -497,10 +694,6 @@ jobs:
       # prefix by walking up from the working directory until it finds a package.json or a
       # node_modules. Writing one pins the prefix to this directory instead of leaving it to whatever
       # happens to sit above the checkout on the runner.
-      #
-      # No fork/Dependabot condition, unlike the two steps below: with no deploy there is no install
-      # and this directory is simply unused, which is cheaper than keeping a third copy of that
-      # condition in step with the other two.
       - name: Prepare the wrangler install root
         run: |
           set -euo pipefail
@@ -509,52 +702,37 @@ jobs:
 
       - name: Deploy to Cloudflare Workers
         id: deploy
-        # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip.
-        # Test the head repository explicitly instead of probing for an empty secret.
-        #
-        # Dependabot needs its own test. Its branches live in this repository, so they pass the fork
-        # check above, but a Dependabot-triggered run reads the Dependabot secret store rather than
-        # the Actions one and would reach wrangler with an empty apiToken. Dependabot touches site/
-        # because the four projects there hold inline package versions, so this fires often. A
-        # dependency bump has no use for a preview URL; build and verification above still run.
-        if: >-
-          github.actor != 'dependabot[bot]'
-          && (github.event_name != 'pull_request'
-              || github.event.pull_request.head.repo.full_name == github.repository)
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           # See the step above for why the install root is moved off the repository root.
           workingDirectory: .wrangler-ci
-          # `deploy` or `versions upload --preview-alias`, decided by the resolved target rather
-          # than here (see that step). --config is written here, next to the workingDirectory that
-          # forces it to be absolute; everything else wrangler needs is inside that file, including
-          # the assets directory, which wrangler resolves against the configuration file rather
-          # than against this workingDirectory.
-          command: ${{ steps.target.outputs.command }} --config ${{ github.workspace }}/site/wrangler.jsonc
+          # `deploy` or `versions upload --preview-alias`, decided by the plan job rather than here
+          # (see that job). --config is written here, next to the workingDirectory that forces it to
+          # be absolute; everything else wrangler needs is inside that file, including the assets
+          # directory, which wrangler resolves against the configuration file rather than against
+          # this workingDirectory.
+          command: ${{ needs.plan.outputs.command }} --config ${{ github.workspace }}/site/wrangler.jsonc
 
       - name: Comment the preview URL on the pull request
-        # Same conditions as the deploy step: with no deployment there is no URL to post. The
-        # Dependabot clause is independently necessary anyway, because a Dependabot-triggered run
-        # gets a read-only GITHUB_TOKEN and `gh pr comment` would answer 403.
-        if: >-
-          github.event_name == 'pull_request'
-          && github.actor != 'dependabot[bot]'
-          && github.event.pull_request.head.repo.full_name == github.repository
+        # The fork and Dependabot conditions are on the job. What is left is that only a pull request
+        # has somewhere to post: a push and a workflow_dispatch both deploy and neither has a
+        # comment thread.
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          URL: ${{ steps.target.outputs.preview_url }}
+          URL: ${{ needs.plan.outputs.preview_url }}
         run: |
           set -euo pipefail
 
-          # The alias URL is BUILT by the target-resolution step, not read back from wrangler.
-          # wrangler-action does set deployment-url for `versions upload`, but from an optional
-          # preview_url field that is not documented to carry the alias rather than the
-          # version-prefixed URL, and a URL that changes on every push is exactly what setting an
-          # alias exists to avoid. Nothing here re-tests that the upload happened: wrangler-action
-          # fails the job when wrangler exits non-zero, so this step only runs after it succeeded.
+          # The alias URL is BUILT by the plan job, not read back from wrangler. wrangler-action does
+          # set deployment-url for `versions upload`, but from an optional preview_url field that is
+          # not documented to carry the alias rather than the version-prefixed URL, and a URL that
+          # changes on every push is exactly what setting an alias exists to avoid. Nothing here
+          # re-tests that the upload happened: wrangler-action fails the job when wrangler exits
+          # non-zero, so this step only runs after it succeeded.
           url="$URL"
 
           # Says noindex, not the "noindex, nofollow" the injection step writes. See that step for
@@ -566,30 +744,58 @@ jobs:
           gh pr comment "$PR_NUMBER" --body "$body" --edit-last --create-if-none \
             || gh pr comment "$PR_NUMBER" --body "$body"
 
-      # The whole-tree backstop for the drift gate near the top of this job. That gate runs
-      # `git diff --exit-code` over three named generated files, so a step that writes ANY other
-      # tracked path goes unreported: the publish output is gitignored, and no other check reads the
-      # tree at all. This check is what makes "the job wrote nothing" an assertion rather than an
-      # assumption.
-      #
-      # A canary, not a gate. The deploy is several steps behind by now, so this cannot stop a
-      # deployment built from a tree that was written to, only report that one happened. What it
-      # catches is a wrangler-action release that installs somewhere other than the root prepared
-      # for it, or a new step that writes into the checkout. Either would otherwise surface as one
-      # warning line in the middle of a long green log, which is how #282 went unnoticed for as
-      # long as it did.
+      # A canary, not a gate. The deploy is two steps behind by now, so this cannot stop a deployment
+      # built from a tree that was written to, only report that one happened. What it catches is a
+      # wrangler-action release that installs somewhere other than the root prepared for it, or a new
+      # step that writes into the checkout. Either would otherwise surface as one warning line in the
+      # middle of a long green log, which is how #282 went unnoticed for as long as it did.
       #
       # Last rather than immediately after the deploy, so that a dirty tree still gets its preview
-      # URL commented; the step between them only calls `gh` and cannot dirty anything. It carries no
-      # condition, so it runs whenever every step before it passed -- including the runs where the
-      # deploy was skipped for a fork or for Dependabot, where a clean tree is equally expected.
+      # URL commented; the step between them only calls `gh` and cannot dirty anything.
       - name: Verify the job left the working tree clean
+        run: bash eng/verify-tree-clean.sh
+
+  # The required check on main, and the only job here that runs on every pull request (#250).
+  #
+  # Its whole contract is that its name is what the repository ruleset asks for and that it reports
+  # what the verification did. That is worth a job because the alternative shapes are worse: a
+  # `paths:` filter leaves the check pending forever on an unrelated pull request, and dropping the
+  # filter to run the verification unconditionally spends four minutes re-verifying a publish output
+  # that is byte-identical to main's whenever the site's inputs did not change.
+  #
+  # `!cancelled()` rather than `always()`: a run superseded by the concurrency group has nothing to
+  # report, and reporting it red would be noise on top of a cancellation. Every other outcome,
+  # including a skipped verify, reaches the script below.
+  site-verified:
+    needs: [plan, verify]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report whether the site was verified
+        env:
+          PLAN: ${{ needs.plan.result }}
+          SITE: ${{ needs.plan.outputs.site }}
+          VERIFY: ${{ needs.verify.result }}
         run: |
           set -euo pipefail
 
-          dirty=$(git status --porcelain)
-          if [ -n "$dirty" ]; then
-            echo "::error::the working tree is not clean, so what was deployed does not match the commit it was built from. Ignore whatever wrote the paths below, or stop it from writing there." >&2
-            printf '%s\n' "$dirty" >&2
+          # A plan job that did not succeed leaves "was there anything to verify" unanswered, and the
+          # honest answer to an unanswered question is to block. Green here would be the one failure
+          # mode this whole arrangement exists to avoid: a required check that passes without
+          # anything having been checked.
+          if [ "$PLAN" != success ]; then
+            echo "::error::the plan job did not succeed ($PLAN), so whether this run had anything to verify is unknown" >&2
             exit 1
           fi
+
+          if [ "$SITE" != true ]; then
+            echo "Nothing under the site's inputs changed, so this pull request cannot break the site."
+            exit 0
+          fi
+
+          if [ "$VERIFY" != success ]; then
+            echo "::error::the site verification did not succeed ($VERIFY)" >&2
+            exit 1
+          fi
+
+          echo "The site verification passed."
