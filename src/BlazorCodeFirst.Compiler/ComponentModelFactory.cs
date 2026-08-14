@@ -149,6 +149,7 @@ internal static class ComponentModelFactory
             expressionName,
             knownSymbols,
             ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
             cancellationToken);
 
         var template = RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, bodyContext);

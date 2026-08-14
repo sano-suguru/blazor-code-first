@@ -233,9 +233,20 @@ internal static class ViewPartExpander
 
             case TransplantedBlockTemplateNode transplanted:
                 {
+                    // One minted name per authored local the block declares, appended in the order analysis
+                    // pushed them, so the ordinals the holes carry index this array (#336). The preorder
+                    // `ordinal` names them apart from every other expansion of the same block, which is the
+                    // collision this exists for.
+                    var blockSubstitution = substitution;
+                    for (var local = 0; local < transplanted.LocalCount; local++)
+                    {
+                        blockSubstitution = blockSubstitution.Add(
+                            new SubstitutedArgument($"__bcf_local_{ordinal}_{local}", Constant: null));
+                    }
+
                     var content = ExpandNode(
                         transplanted.Content,
-                        substitution,
+                        blockSubstitution,
                         ref nextLogicalPreorderOrdinal,
                         activeMethodStack,
                         registry,
@@ -245,7 +256,7 @@ internal static class ViewPartExpander
                         return null;
 
                     return new TransplantedBlockNode(
-                        transplanted.Statements.Substitute(substitution), content);
+                        transplanted.Statements.Substitute(blockSubstitution), content);
                 }
 
             case FragmentTemplateNode fragment:
