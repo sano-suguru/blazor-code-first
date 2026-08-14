@@ -82,6 +82,37 @@ public sealed class ViewPartTransplantTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    [Theory]
+    // Two declarators in one statement, the second reading the first.
+    [InlineData("var a = title; var b = a + title;", "a + b")]
+    // Deconstruction binds through designations and writes no declarator at all, and the mint covers it.
+    // It has no row here because the shape does not compile for a separate reason: the `var` carrying the
+    // designation list is rewritten to the type it inferred, which cannot declare one (#342).
+    // A designation bound by an expression statement rather than by a declaration.
+    [InlineData("int.TryParse(title, out var n);", "n.ToString()")]
+    // A pattern designation, which binds in the block's scope as a declarator does.
+    [InlineData("var upper = title is { Length: > 0 } s ? s.ToUpperInvariant() : title;", "upper")]
+    public void ViewPart_WhenACalledTwicePartDeclaresThroughAnyShape_NamesBothExpansionsApart(
+        string declaration, string read)
+    {
+        // The mint has to cover every way a leading statement binds a name, and which ways those are is one
+        // list read by the registration and by the splice that replaces the identifier
+        // (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier). A shape dropped from it leaves the
+        // declaration under the author's name in both expansions, which is the CS0136 #336 closed.
+        var result = Run(
+            """=> Div[Part("one"), Part("two")];""",
+            $$"""
+            Part(string title)
+                {
+                    {{declaration}}
+                    return Span[{{read}}];
+                }
+            """);
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     [Fact]
     public void ViewPart_WhenBlockBodiedPartIsExpandedBesideAnAuthoredLocal_KeepsTheComponentsOwnName()
     {

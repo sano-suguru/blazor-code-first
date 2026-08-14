@@ -2390,9 +2390,17 @@ internal static class RenderExpressionAnalyzer
             leading.Add(statement);
         }
 
-        foreach (var declarator in block.DescendantNodes().OfType<VariableDeclaratorSyntax>())
+        foreach (var node in block.DescendantNodes())
         {
-            var name = declarator.Identifier.ValueText;
+            // Both shapes a block binds a local through, read from the enumeration the registration reads
+            // (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier), so the two answer one question.
+            // Scanning declarators alone let 'Foo(out var __builder)' through, and in the two positions
+            // that keep the names the author wrote it reached the generated scope and shadowed the builder
+            // every frame is written against (#348).
+            if (!ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out var identifier))
+                continue;
+
+            var name = identifier.ValueText;
             if (name.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal)
                 || string.Equals(name, BuilderName, System.StringComparison.Ordinal))
             {

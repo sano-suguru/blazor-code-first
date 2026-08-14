@@ -93,6 +93,17 @@ public sealed class ForEachTransplantTests
                     return Html.Span[__builder];
                 }
         """)]
+    // The same name bound by a designation. Inside the generated loop it shadowed the builder the frames
+    // around it are written against, and nothing reported it (#348).
+    [InlineData(
+        "the builder's name through a designation",
+        """
+        x =>
+                {
+                    int.TryParse(x, out var __builder);
+                    return Html.Span[x];
+                }
+        """)]
     public void ForEachContent_WhenBlockIsOutsideTheAcceptedShape_ReportsBCF3004(
         string shape, string content)
     {
