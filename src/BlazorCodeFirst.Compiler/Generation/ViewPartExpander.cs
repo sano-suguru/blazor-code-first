@@ -201,13 +201,17 @@ internal static class ViewPartExpander
                     var bindings = ImmutableArray.CreateBuilder<BindTemplate>(element.Bindings.Length);
                     foreach (var b in element.Bindings.AsImmutableArray())
                     {
-                        // Both expression channels of the binding, and only those: the rest of the record
+                        // Every expression channel of the binding, and only those: the rest of the record
                         // is resolved facts. Written as a `with` so that a channel added to BindTemplate
-                        // is carried through rather than silently dropped here.
+                        // is carried through rather than silently dropped here — though carried through
+                        // is not substituted, which is why #307's culture and format are named here as
+                        // well as added there.
                         bindings.Add(b with
                         {
                             Value = b.Value.Substitute(substitution),
                             Setter = b.Setter?.Substitute(substitution),
+                            Culture = b.Culture?.Substitute(substitution),
+                            Format = b.Format?.Substitute(substitution),
                         });
                     }
 

@@ -34,6 +34,16 @@ internal static class RenderViewEmitter
     private const string RuntimeHelpers =
         "global::Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers";
 
+    /// <summary>
+    /// The converter a binding written with a culture formats its attribute value through. Overload
+    /// resolution in the generated file picks the concrete overload for the bound type, which returns a
+    /// <see langword="string"/> (a <see langword="bool"/> for <see langword="bool"/>), so the frame
+    /// receives an already-formatted value and the formatting happens here, under the culture the call
+    /// site wrote, rather than at render time under whichever culture that thread carries (#158, #307).
+    /// </summary>
+    private const string BindConverter =
+        "global::Microsoft.AspNetCore.Components.BindConverter";
+
     private const string RenderFragmentType =
         "global::Microsoft.AspNetCore.Components.RenderFragment";
 
@@ -438,8 +448,13 @@ internal static class RenderViewEmitter
                 global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.AttributeName, quote: true);
             var eventName =
                 global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.EventName, quote: true);
+            // The raw value and the attribute's value part company once a culture is written: the binder
+            // takes the raw one, because CreateBinder's existingValue is the bound field and not the text
+            // the element shows, while the attribute frame takes the formatted string. The two were the
+            // same string before #307, which is why Binder() used to be handed the attribute's.
             var value = bind.Value.ToCode();
-            writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {value});");
+            var attributeValue = bind.Culture is null ? value : $"{BindConverter}.FormatValue({value}{FormatAndCulture(bind)})";
+            writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {attributeValue});");
             next++;
             // The framework's own CreateBinder overload for string annotates its setter parameter
             // Action<string?> defensively; the binder Binder() writes — the inverted getter, the
@@ -483,13 +498,16 @@ internal static class RenderViewEmitter
 
     /// <summary>
     /// The <c>CreateBinder</c> call a binding's event frame carries: the setter in whichever of its three
-    /// shapes the binding records, and <paramref name="value"/> as the current value. All three pass the
-    /// current value as the last argument, and all three are one frame, so the shape changes nothing the
-    /// sequence arithmetic above depends on.
+    /// shapes the binding records, and <paramref name="value"/> as the current value, followed by the
+    /// format and culture the binding was written with. All three shapes pass the current value in the
+    /// same position and all three are one frame, so the shape changes nothing the sequence arithmetic
+    /// above depends on.
     /// </summary>
     /// <param name="value">
-    /// The bound value's code, which the caller has already written into the attribute frame. Passed in
-    /// rather than read again from <see cref="BindTemplate.Value"/>, which would rebuild the same string.
+    /// The bound value's code, raw — <em>not</em> the string the attribute frame received, which a
+    /// binding written with a culture has already put through <c>FormatValue</c>. <c>existingValue</c> is
+    /// the bound field, not the text the element shows. Passed in rather than read again from
+    /// <see cref="BindTemplate.Value"/>, which would rebuild the same string.
     /// </param>
     /// <remarks>
     /// Assembled here rather than in the analyzer, beside the event channel's <c>Create</c> — the same
@@ -504,18 +522,41 @@ internal static class RenderViewEmitter
     /// </remarks>
     private static string Binder(BindTemplate bind, string value)
     {
-        // CreateBinder(this, __value => <value> = __value, <value>)
+        var tail = FormatAndCulture(bind);
+
+        // CreateBinder(this, __value => <value> = __value, <value>[, format:][, culture:])
         if (bind.Setter is not { } setter)
-            return $"{CreateBinderCall}__value => {value} = __value, {value})";
+            return $"{CreateBinderCall}__value => {value} = __value, {value}{tail})";
 
         var setterCode = setter.ToCode();
 
         return bind.SetterIsAsynchronous
             // CreateBinder(this, RuntimeHelpers.CreateInferredBindSetter(callback: <setter>, value: <value>), <value>)
             ? $"{CreateBinderCall}{RuntimeHelpers}.CreateInferredBindSetter("
-                + $"callback: {setterCode}, value: {value}), {value})"
+                + $"callback: {setterCode}, value: {value}), {value}{tail})"
             // CreateBinder(this, (Action<T>)(<setter>), <value>)
-            : $"{CreateBinderCall}(global::System.Action<{bind.ValueTypeName}>)({setterCode}), {value})";
+            : $"{CreateBinderCall}(global::System.Action<{bind.ValueTypeName}>)({setterCode}), "
+                + $"{value}{tail})";
+    }
+
+    /// <summary>
+    /// The trailing <c>format:</c> and <c>culture:</c> arguments that <c>FormatValue</c> and
+    /// <c>CreateBinder</c> share, or the empty string for a binding that carries neither.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than positional. Both framework methods declare their culture optional, so a
+    /// positional format would sit where a reader of the generated file has to count parameters to tell
+    /// the two apart. One helper for both calls because the two must agree: a format the attribute value
+    /// was written with and the binder was not would format one direction of the round trip and parse the
+    /// other differently.
+    /// </remarks>
+    private static string FormatAndCulture(BindTemplate bind)
+    {
+        if (bind.Culture is not { } culture)
+            return string.Empty;
+
+        var format = bind.Format is { } f ? $", format: {f.ToCode()}" : string.Empty;
+        return $"{format}, culture: {culture.ToCode()}";
     }
 
     private static int EmitTextContent(IndentedWriter writer, TextContentNode node, int seq)

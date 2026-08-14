@@ -1523,6 +1523,8 @@ internal static class RenderExpressionAnalyzer
         }
 
         var setter = args.At(bind.SetterIndex)?.Expression;
+        var culture = args.At(bind.CultureIndex)?.Expression;
+        var format = args.At(bind.FormatIndex)?.Expression;
 
         // Only the inverted form needs an assignable target. With an explicit setter the getter is read
         // and never written, so a call or a get-only property is a legitimate thing to show.
@@ -1552,7 +1554,9 @@ internal static class RenderExpressionAnalyzer
                 value,
                 bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
                 setter is null ? null : ExpressionTemplateFactory.Create(setter, context),
-                setter is not null && bind.SetterIsAsynchronous)),
+                setter is not null && bind.SetterIsAsynchronous,
+                culture is null ? null : ExpressionTemplateFactory.Create(culture, context),
+                format is null ? null : ExpressionTemplateFactory.Create(format, context))),
         };
     }
 
