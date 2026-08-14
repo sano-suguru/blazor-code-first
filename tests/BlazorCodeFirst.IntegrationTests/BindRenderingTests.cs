@@ -154,4 +154,131 @@ public sealed class BindRenderingTests : BunitContext
         Assert.Equal("live", cut.Instance.Live);
         Assert.Equal("done", cut.Instance.Committed);
     }
+
+    /// <summary>
+    /// #158 measured that a non-string attribute value follows the formatting thread's culture, and
+    /// withheld non-string values on that ground. A binding formats inside <c>BindConverter.FormatValue</c>
+    /// under the culture written at the call site, so the same measurement run in the opposite direction
+    /// is what says the ground no longer holds (#307).
+    /// </summary>
+    [Fact]
+    public void BoundDecimal_IgnoresTheDefaultThreadCulture()
+    {
+        var previous = System.Globalization.CultureInfo.DefaultThreadCurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.DefaultThreadCurrentCulture =
+                new System.Globalization.CultureInfo("de-DE");
+
+            var cut = Render<BoundDecimalInput>();
+
+            // de-DE writes 1234,5. The call site asked for the invariant culture and gets it.
+            Assert.Equal("1234.5", cut.Find("input").GetAttribute("value"));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.DefaultThreadCurrentCulture = previous;
+        }
+    }
+
+    /// <summary>#171's rule — a null value omits the attribute — reaching the binding path.</summary>
+    [Fact]
+    public void BoundNullableInt_WithNoValue_OmitsTheValueAttribute()
+    {
+        var cut = Render<BoundNullableIntInput>();
+
+        Assert.Null(cut.Find("input").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void BoundNullableInt_OnInput_WritesBackTheParsedValue()
+    {
+        var cut = Render<BoundNullableIntInput>();
+
+        cut.Find("input").Input("41");
+
+        Assert.Equal(41, cut.Instance.Age);
+    }
+
+    [Fact]
+    public void BoundInt_OnInput_WritesBackTheParsedValue()
+    {
+        var cut = Render<BoundIntInput>();
+
+        cut.Find("input").Input("41");
+
+        Assert.Equal(41, cut.Instance.Age);
+    }
+
+    /// <summary>
+    /// The parse-failure semantics, which cost no emission of this compiler's own:
+    /// <c>CreateBinderCore</c> swallows the conversion failure and never calls the setter, so the field
+    /// keeps what it had. The other half — the element still showing what the author typed — is
+    /// <c>SetUpdatesAttributeName</c>'s, which this class's summary records as unobservable from bUnit and
+    /// covered by <c>bind-resync.spec.ts</c> against a real browser.
+    /// </summary>
+    [Fact]
+    public void BoundInt_WithUnparsableInput_KeepsThePreviousValue()
+    {
+        var cut = Render<BoundIntInput>();
+
+        cut.Find("input").Input("not a number");
+
+        Assert.Equal(30, cut.Instance.Age);
+    }
+
+    [Fact]
+    public void BoundEnum_RendersItsName()
+    {
+        var cut = Render<BoundEnumSelect>();
+
+        Assert.Equal("Monday", cut.Find("select").GetAttribute("value"));
+    }
+
+    /// <summary>
+    /// The enum round trip: <c>FormatEnumValueCore</c> writes the name out and <c>ConvertToEnum</c> reads
+    /// the same spelling back. The two are the framework's, and this measures that they meet.
+    /// </summary>
+    [Fact]
+    public void BoundEnum_OnChange_RoundTripsThroughItsName()
+    {
+        var cut = Render<BoundEnumSelect>();
+
+        cut.Find("select").Change("Friday");
+
+        Assert.Equal(System.DayOfWeek.Friday, cut.Instance.Day);
+    }
+
+    [Fact]
+    public void BoundEnum_WithAnUnknownName_KeepsThePreviousValue()
+    {
+        var cut = Render<BoundEnumSelect>();
+
+        cut.Find("select").Change("Caturday");
+
+        Assert.Equal(System.DayOfWeek.Monday, cut.Instance.Day);
+    }
+
+    /// <summary>
+    /// The format's own measurement, and the reason it is in this surface: an <c>input type="date"</c>
+    /// requires <c>yyyy-MM-dd</c> in both directions, and this surface cannot read the element's
+    /// <c>type</c> to supply it the way Razor does.
+    /// </summary>
+    [Fact]
+    public void BoundDate_RendersUnderTheWrittenFormat()
+    {
+        var cut = Render<BoundDateInput>();
+
+        Assert.Equal("2026-08-14", cut.Find("input").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void BoundDate_OnInput_RoundTripsThroughTheWrittenFormat()
+    {
+        var cut = Render<BoundDateInput>();
+
+        cut.Find("input").Input("2027-01-31");
+
+        Assert.Equal(new System.DateOnly(2027, 1, 31), cut.Instance.Due);
+    }
 }
