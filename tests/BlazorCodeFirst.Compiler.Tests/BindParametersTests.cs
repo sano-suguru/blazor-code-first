@@ -51,8 +51,13 @@ public sealed class BindParametersTests
             private string _s = "";
             private bool _b;
             private Probe? _p;
+            private int _n;
+            private System.DateTime _d;
 
             private System.Threading.Tasks.Task SetAsync(string v) =>
+                System.Threading.Tasks.Task.CompletedTask;
+
+            private System.Threading.Tasks.Task SetAsyncInt(int v) =>
                 System.Threading.Tasks.Task.CompletedTask;
 
             public View Subject => {{EXPRESSION}};
@@ -111,6 +116,103 @@ public sealed class BindParametersTests
         var bind = Bind("""Html.Input.Bind("checked", "onchange", () => _b, v => _b = v)""");
 
         Assert.Equal(SpecialType.System_Boolean, bind.ValueType.SpecialType);
+    }
+
+    /// <summary>
+    /// The overloads #307 adds write a <c>CultureInfo</c> after the getter, which the rule this replaced
+    /// read as "not a setter, therefore not a shape I know". The roles are read by type instead, so each
+    /// of these is a position and not a guess.
+    /// </summary>
+    [Fact]
+    public void GenericGetterOnlyWithCulture_ReadsTheCultureAndNoSetter()
+    {
+        var bind = Bind(
+            """
+            Html.Input.Bind(
+                "value", "oninput", () => _n, System.Globalization.CultureInfo.InvariantCulture)
+            """);
+
+        Assert.Equal(2, bind.GetterIndex);
+        Assert.Equal(-1, bind.SetterIndex);
+        Assert.Equal(-1, bind.FormatIndex);
+        Assert.Equal(3, bind.CultureIndex);
+        Assert.Equal(SpecialType.System_Int32, bind.ValueType.SpecialType);
+    }
+
+    [Fact]
+    public void GenericSynchronousSetterWithCulture_ReadsBothRoles()
+    {
+        var bind = Bind(
+            """
+            Html.Input.Bind(
+                "value", "oninput", () => _n, v => _n = v,
+                System.Globalization.CultureInfo.InvariantCulture)
+            """);
+
+        Assert.Equal(2, bind.GetterIndex);
+        Assert.Equal(3, bind.SetterIndex);
+        Assert.False(bind.SetterIsAsynchronous);
+        Assert.Equal(-1, bind.FormatIndex);
+        Assert.Equal(4, bind.CultureIndex);
+    }
+
+    [Fact]
+    public void GenericAsynchronousSetterWithCulture_ReadsTheAsynchrony()
+    {
+        var bind = Bind(
+            """
+            Html.Input.Bind(
+                "value", "oninput", () => _n, SetAsyncInt,
+                System.Globalization.CultureInfo.InvariantCulture)
+            """);
+
+        Assert.Equal(3, bind.SetterIndex);
+        Assert.True(bind.SetterIsAsynchronous);
+        Assert.Equal(4, bind.CultureIndex);
+    }
+
+    [Fact]
+    public void GenericFormatAndCulture_ReadsBothPositions()
+    {
+        var bind = Bind(
+            """
+            Html.Input.Bind(
+                "value", "oninput", () => _d, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture)
+            """);
+
+        Assert.Equal(2, bind.GetterIndex);
+        Assert.Equal(-1, bind.SetterIndex);
+        Assert.Equal(3, bind.FormatIndex);
+        Assert.Equal(4, bind.CultureIndex);
+    }
+
+    [Fact]
+    public void GenericSetterFormatAndCulture_ReadsAllThree()
+    {
+        var bind = Bind(
+            """
+            Html.Input.Bind(
+                "value", "oninput", () => _d, v => _d = v, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture)
+            """);
+
+        Assert.Equal(3, bind.SetterIndex);
+        Assert.Equal(4, bind.FormatIndex);
+        Assert.Equal(5, bind.CultureIndex);
+    }
+
+    /// <summary>
+    /// The overloads that take neither leave both absent, which is what the emitter reads to decide that
+    /// the attribute value is written as it stands rather than through <c>BindConverter.FormatValue</c>.
+    /// </summary>
+    [Fact]
+    public void ElementStringOverload_LeavesCultureAndFormatAbsent()
+    {
+        var bind = Bind("""Html.Input.Bind("value", "oninput", () => _s)""");
+
+        Assert.Equal(-1, bind.FormatIndex);
+        Assert.Equal(-1, bind.CultureIndex);
     }
 
     /// <summary>

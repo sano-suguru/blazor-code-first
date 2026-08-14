@@ -1016,9 +1016,16 @@ internal sealed class KnownSymbols
     /// pair does not have to be transcribed here. <c>ReturnsVoid: false</c> is load-bearing: a
     /// zero-argument <c>Action</c> is a delegate whose invoke method has a non-null <c>void</c> return
     /// type, so without it a callback parameter written ahead of the getter would be read as the getter.
-    /// The setter is required to be both in position and in shape — the parameter after the getter, and
-    /// a one-argument delegate over the same value — which makes this stricter than either convention it
-    /// replaces.
+    /// </para>
+    /// <para>
+    /// Everything written after the getter is a role read off its own type, not off its position. The
+    /// three the surface declares are disjoint types — a one-argument delegate over the bound value, a
+    /// <see langword="string"/> format, a <c>CultureInfo</c> — so each parameter is asked what it is, and
+    /// an overload that reorders them needs no change here. Before #307 the rule was that the parameter
+    /// after the getter is the setter or the shape is unreadable, which every culture-taking overload
+    /// would have failed. Anything outside the three still leaves the shape unread, which is the same
+    /// answer as before: a <c>Bind</c> this compiler was not written against is BCF1003 at the call site,
+    /// never a guess at roles it has just admitted it cannot establish.
     /// </para>
     /// </remarks>
     public static bool TryGetBindParameters(IMethodSymbol method, out BindParameters bind)
@@ -1047,28 +1054,83 @@ internal sealed class KnownSymbols
 
             var valueType = getterInvoke.ReturnType;
             var setterIndex = -1;
+            var formatIndex = -1;
+            var cultureIndex = -1;
             var setterIsAsynchronous = false;
 
-            if (index + 1 < method.Parameters.Length)
+            for (var after = index + 1; after < method.Parameters.Length; after++)
             {
-                var setter = method.Parameters[index + 1];
-                if (setter.Type
-                    is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke }
-                    || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
+                var parameter = method.Parameters[after];
+                var argumentIndex = ArgumentIndex(parameter);
+
+                if (parameter.Type
+                    is INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke })
                 {
-                    return false;
+                    if (setterIndex >= 0
+                        || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
+                    {
+                        return false;
+                    }
+
+                    setterIndex = argumentIndex;
+                    setterIsAsynchronous = !setterInvoke.ReturnsVoid;
+                    continue;
                 }
 
-                setterIndex = ArgumentIndex(setter);
-                setterIsAsynchronous = !setterInvoke.ReturnsVoid;
+                if (parameter.Type.SpecialType == SpecialType.System_String)
+                {
+                    if (formatIndex >= 0)
+                        return false;
+
+                    formatIndex = argumentIndex;
+                    continue;
+                }
+
+                if (IsCultureInfo(parameter.Type))
+                {
+                    if (cultureIndex >= 0)
+                        return false;
+
+                    cultureIndex = argumentIndex;
+                    continue;
+                }
+
+                return false;
             }
 
-            bind = new BindParameters(getterIndex, setterIndex, valueType, setterIsAsynchronous);
+            // A format with no culture is not a shape the surface declares, and reading one would leave
+            // the emitter holding a format with no overload of FormatValue to hand it to.
+            if (formatIndex >= 0 && cultureIndex < 0)
+                return false;
+
+            bind = new BindParameters(
+                getterIndex, setterIndex, formatIndex, cultureIndex, valueType, setterIsAsynchronous);
             return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is <c>System.Globalization.CultureInfo</c>, asked by name rather
+    /// than against a resolved symbol.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="TryGetBindParameters"/> is static and answers from shape alone, holding no compilation
+    /// to resolve a well-known type against. The name is unambiguous at three segments, and a
+    /// user-declared <c>System.Globalization.CultureInfo</c> shadowing the framework's would already have
+    /// broken the overload it appears in.
+    /// </remarks>
+    private static bool IsCultureInfo(ITypeSymbol type) =>
+        type is INamedTypeSymbol
+        {
+            Name: "CultureInfo",
+            ContainingNamespace:
+            {
+                Name: "Globalization",
+                ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true },
+            },
+        };
 
     /// <summary>
     /// The argument roles of a resolved event decoration, a named shortcut or <c>.On</c>, or

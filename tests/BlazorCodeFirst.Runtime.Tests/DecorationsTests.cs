@@ -79,4 +79,69 @@ public sealed class DecorationsTests
         var element = Html.Input;
         Assert.Equal(element, element.Bind("checked", "onchange", () => true, _ => System.Threading.Tasks.Task.CompletedTask));
     }
+
+    [Fact]
+    public void Bind_GenericWithCulture_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(
+            element,
+            element.Bind("value", "oninput", () => 1, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void Bind_GenericWithSyncSetterAndCulture_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(
+            element,
+            element.Bind(
+                "value", "oninput", () => 1m, _ => { },
+                System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void Bind_GenericWithAsyncSetterAndCulture_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(
+            element,
+            element.Bind(
+                "value", "oninput", () => 1m, _ => System.Threading.Tasks.Task.CompletedTask,
+                System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void Bind_GenericWithFormatAndCulture_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(
+            element,
+            element.Bind(
+                "value", "oninput", () => System.DateTime.UnixEpoch, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void Bind_GenericWithFormatSyncSetterAndCulture_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(
+            element,
+            element.Bind(
+                "value", "oninput", () => System.DateTime.UnixEpoch, _ => { }, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void Bind_GenericWithFormatAsyncSetterAndCulture_ReturnsReceiverUnchanged()
+    {
+        var element = Html.Input;
+        Assert.Equal(
+            element,
+            element.Bind(
+                "value", "oninput", () => System.DateTime.UnixEpoch,
+                _ => System.Threading.Tasks.Task.CompletedTask, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture));
+    }
 }

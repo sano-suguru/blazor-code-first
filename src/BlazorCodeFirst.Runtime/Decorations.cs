@@ -333,4 +333,117 @@ public static class Decorations
     public static ElementView Bind(
         this ElementView element, string attributeName, string eventName,
         System.Func<bool> get, System.Func<bool, System.Threading.Tasks.Task> set) => element;
+
+    /// <summary>
+    /// Design-time syntax binding a value of any type through the framework's own converter, with the
+    /// culture written at the call site; see the <see langword="string"/> overload for the rest.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="culture"/> cannot be omitted. #158 withheld non-string values because the
+    /// formatting culture was ambient state no caller could choose; an argument that must be written
+    /// does not reach that reason (#307). Razor picks the culture from the element's literal
+    /// <c>type</c>, which this surface does not read, so <c>type="number"</c> and <c>type="date"</c>
+    /// need <see cref="System.Globalization.CultureInfo.InvariantCulture"/> written here. That mistake
+    /// is not diagnosed: <c>.Type(kind)</c> may be an expression, and a check that only fired on a
+    /// constant would catch the same error or not depending on how it was spelled.
+    /// <para>
+    /// No type is excluded. The generated attribute frame receives
+    /// <c>BindConverter.FormatValue(value, culture:)</c>, which is an already-formatted string for every
+    /// type, so the formatting no longer depends on the rendering thread. A type the framework's
+    /// converter cannot handle throws <see cref="System.InvalidOperationException"/> naming the type,
+    /// which is not the silent failure this surface's diagnostics answer.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TValue">The bound value's type.</typeparam>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
+    /// <param name="culture">Formats the value on the way out and parses it on the way back.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Bind<TValue>(
+        this ElementView element, string attributeName, string eventName,
+        System.Func<TValue> get, System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>Design-time syntax binding a value of any type with an explicit setter; see the getter-only overload.</summary>
+    /// <typeparam name="TValue">The bound value's type.</typeparam>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <param name="culture">Formats the value on the way out and parses it on the way back.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Bind<TValue>(
+        this ElementView element, string attributeName, string eventName,
+        System.Func<TValue> get, System.Action<TValue> set,
+        System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>Design-time syntax binding a value of any type with an explicit async setter; see the getter-only overload.</summary>
+    /// <typeparam name="TValue">The bound value's type.</typeparam>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <param name="culture">Formats the value on the way out and parses it on the way back.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Bind<TValue>(
+        this ElementView element, string attributeName, string eventName,
+        System.Func<TValue> get, System.Func<TValue, System.Threading.Tasks.Task> set,
+        System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>
+    /// Design-time syntax binding a value of any type with an explicit format string; see the
+    /// getter-only overload taking only a culture.
+    /// </summary>
+    /// <remarks>
+    /// The framework declares format-taking converters for <see cref="System.DateTime"/>,
+    /// <see cref="System.DateTimeOffset"/>, <see cref="System.DateOnly"/>, <see cref="System.TimeOnly"/>
+    /// and their nullable forms only. Any other <typeparamref name="TValue"/> is BCF3031. A format is
+    /// how <c>&lt;input type="date"&gt;</c> is bound at all, since the browser requires
+    /// <c>yyyy-MM-dd</c> and this surface cannot read the element's <c>type</c>.
+    /// </remarks>
+    /// <typeparam name="TValue">The bound value's type.</typeparam>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
+    /// <param name="format">The format string handed to the framework's converter in both directions.</param>
+    /// <param name="culture">Formats the value on the way out and parses it on the way back.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Bind<TValue>(
+        this ElementView element, string attributeName, string eventName,
+        System.Func<TValue> get, string format,
+        System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>Design-time syntax binding a value of any type with a format and an explicit setter; see the format overload.</summary>
+    /// <typeparam name="TValue">The bound value's type.</typeparam>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <param name="format">The format string handed to the framework's converter in both directions.</param>
+    /// <param name="culture">Formats the value on the way out and parses it on the way back.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Bind<TValue>(
+        this ElementView element, string attributeName, string eventName,
+        System.Func<TValue> get, System.Action<TValue> set, string format,
+        System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>Design-time syntax binding a value of any type with a format and an explicit async setter; see the format overload.</summary>
+    /// <typeparam name="TValue">The bound value's type.</typeparam>
+    /// <param name="element">The element being decorated.</param>
+    /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
+    /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
+    /// <param name="get">Reads the current value; an inline lambda.</param>
+    /// <param name="set">Writes the new value back. May be a lambda or a method group.</param>
+    /// <param name="format">The format string handed to the framework's converter in both directions.</param>
+    /// <param name="culture">Formats the value on the way out and parses it on the way back.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Bind<TValue>(
+        this ElementView element, string attributeName, string eventName,
+        System.Func<TValue> get, System.Func<TValue, System.Threading.Tasks.Task> set, string format,
+        System.Globalization.CultureInfo culture) => element;
 }
