@@ -102,6 +102,35 @@ internal static class Program
             }
         }
 
+        // #239's two candidates, on the same terms as the gates above: a ratio between two joins that
+        // answer different text would measure the disagreement rather than where the join belongs.
+        // Every shape ClassChannelBenchmarks times, plus the all-null one it does not, which is the
+        // only shape where the two could differ without differing on any of the others.
+        (string? Generated, string?[] Terms)[] joinShapes =
+        [
+            (ClassJoinCandidates.Generated("card", "wide"), ["card", "wide"]),
+            (ClassJoinCandidates.Generated("card", null), ["card", null]),
+            (ClassJoinCandidates.Generated(null, null), [null, null]),
+            (ClassJoinCandidates.Generated("card", "wide", "lg"), ["card", "wide", "lg"]),
+            (ClassJoinCandidates.Generated("card", "wide", "lg", "is-open"),
+                ["card", "wide", "lg", "is-open"]),
+            (ClassJoinCandidates.Generated("card", null, "lg", null), ["card", null, "lg", null]),
+        ];
+
+        foreach (var (generatedJoin, shape) in joinShapes)
+        {
+            string? runtimeJoin = ClassJoinCandidates.Runtime(shape);
+            if (generatedJoin != runtimeJoin)
+            {
+                Console.Error.WriteLine(
+                    $"The class join candidates disagree on [{string.Join(", ", shape)}]: the " +
+                    $"generated class answers '{generatedJoin ?? "null"}' and the runtime method " +
+                    $"'{runtimeJoin ?? "null"}', so a comparison between them would not measure " +
+                    "where the join belongs (#239).");
+                return 1;
+            }
+        }
+
         var config = ManualConfig.Create(DefaultConfig.Instance)
             .WithArtifactsPath(ResolveArtifactsPath());
 
