@@ -1538,6 +1538,20 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
+        // Last of the binding's checks, because it is the only one about the bound type rather than about
+        // what the author wrote where. A format the framework cannot take would leave the generated file's
+        // own FormatValue and CreateBinder calls unable to bind, which appendix A.0 says never reaches the
+        // author (#307).
+        if (format is not null && !context.KnownSymbols.AcceptsBindFormat(bind.ValueType))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3031,
+                args.At(bind.FormatIndex)!.GetLocation(),
+                [bind.ValueType.ToDisplayString()]));
+            return null;
+        }
+
         var value = ExpressionTemplateFactory.Create(getterBody!, context);
 
         // The bound type and the setter's shape are read off the overload the C# compiler picked rather

@@ -366,4 +366,84 @@ public sealed class HtmlBindDiagnosticTests
 
         AssertNoDiagnostics(body);
     }
+
+    /// <summary>
+    /// The framework declares format-taking converters for its four date/time types and their nullable
+    /// forms only. A format on anything else makes the generated file's own call fail to bind, and
+    /// appendix A.0 is why that cannot be left to the C# error: it is raised inside generated code, where
+    /// the author does not read it.
+    /// </summary>
+    [Fact]
+    public void Bind_FormatOnInteger_ReportsBcf3031()
+    {
+        const string body = """
+            private int _age;
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _age, "D4",
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        var diagnostic = Assert.Single(Diags(body), d => d.Id == "BCF3031");
+        Assert.Contains("int", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void Bind_FormatOnString_ReportsBcf3031()
+    {
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _name, "X",
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3031");
+    }
+
+    [Fact]
+    public void Bind_FormatOnDateTime_IsAccepted()
+    {
+        const string body = """
+            private System.DateTime _due;
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _due, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    [Fact]
+    public void Bind_FormatOnNullableDateOnly_IsAccepted()
+    {
+        const string body = """
+            private System.DateOnly? _due;
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _due, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
+    /// The rule is about a format, not about a culture: every type this surface binds may carry one.
+    /// </summary>
+    [Fact]
+    public void Bind_CultureWithoutFormatOnInteger_IsAccepted()
+    {
+        const string body = """
+            private int _age;
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _age,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
 }

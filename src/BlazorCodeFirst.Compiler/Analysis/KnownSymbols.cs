@@ -545,6 +545,24 @@ internal sealed class KnownSymbols
     /// </remarks>
     private readonly System.Lazy<Dictionary<string, INamedTypeSymbol>> _sourceEventArguments;
 
+    /// <summary>
+    /// The value types the framework declares a format-taking <c>CreateBinder</c> overload for, which is
+    /// the set BCF3031 admits a <c>.Bind</c> format on.
+    /// </summary>
+    /// <remarks>
+    /// Read from metadata the framework ships, never enumerated here — the criterion <c>DESIGN.md</c> §4.1
+    /// states, and the shape the <c>[EventHandler]</c> tables above already use. Lazy for the same reason
+    /// they are: a compilation that writes no format asks nothing of it.
+    /// <para>
+    /// Empty when <c>EventCallbackFactoryBinderExtensions</c> cannot be resolved, in which case
+    /// <see cref="AcceptsBindFormat"/> skips the check rather than rejecting everything, as BCF3028 does
+    /// with a missing event table. That case is unreachable in practice: the assembly declaring
+    /// <c>ElementView</c> references <c>Microsoft.AspNetCore.Components</c>, so a compilation able to
+    /// spell <c>.Bind</c> can see this type. It is a defence, not an expected path.
+    /// </para>
+    /// </remarks>
+    private readonly System.Lazy<HashSet<ITypeSymbol>> _formatBindableTypes;
+
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
         ViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.View");
@@ -596,6 +614,12 @@ internal sealed class KnownSymbols
             mappingAvailable
                 ? CollectEventArguments(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
                 : []);
+
+        var binderExtensionsType = compilation.GetTypeByMetadataName(
+            "Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions");
+
+        _formatBindableTypes = new System.Lazy<HashSet<ITypeSymbol>>(() =>
+            binderExtensionsType is null ? [] : CollectFormatBindableTypes(binderExtensionsType));
 
         var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
         _surfaceMethods = new Dictionary<ISymbol, SurfaceMethodKind>(SymbolEqualityComparer.Default);
@@ -1109,6 +1133,58 @@ internal sealed class KnownSymbols
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Whether a <c>.Bind</c> format may be written for <paramref name="valueType"/>.
+    /// </summary>
+    /// <remarks>
+    /// Answers <see langword="true"/> when the table is empty, which is the check skipping itself on a
+    /// compilation that cannot see the framework's binder extensions. BCF3028 declines the same way for
+    /// the same reason: a check with no table to consult reports nothing rather than reporting everything.
+    /// </remarks>
+    public bool AcceptsBindFormat(ITypeSymbol valueType) =>
+        _formatBindableTypes.Value.Count == 0 || _formatBindableTypes.Value.Contains(valueType);
+
+    /// <summary>
+    /// The bound value types of every format-taking <c>CreateBinder</c> overload: the setter parameter's
+    /// first type argument, which carries the bound type in both the <c>Action&lt;T&gt;</c> and the
+    /// <c>Func&lt;T, Task&gt;</c> shape. <c>BindFormatTableSyncTests</c> holds this set against
+    /// <c>BindConverter.FormatValue</c>'s, which the emitter writes the other half of the round trip
+    /// against.
+    /// </summary>
+    private static HashSet<ITypeSymbol> CollectFormatBindableTypes(INamedTypeSymbol binderExtensions)
+    {
+        var types = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var member in binderExtensions.GetMembers("CreateBinder"))
+        {
+            if (member is not IMethodSymbol method)
+                continue;
+
+            var hasFormat = false;
+            foreach (var parameter in method.Parameters)
+            {
+                if (parameter.Name == "format" && parameter.Type.SpecialType == SpecialType.System_String)
+                {
+                    hasFormat = true;
+                    break;
+                }
+            }
+
+            // Parameter 2 is the setter: the list is (factory, receiver, setter, existingValue, …), read
+            // unreduced because these are metadata members rather than a resolved call.
+            if (!hasFormat
+                || method.Parameters.Length < 3
+                || method.Parameters[2].Type is not INamedTypeSymbol { TypeArguments.Length: > 0 } setterType)
+            {
+                continue;
+            }
+
+            types.Add(setterType.TypeArguments[0]);
+        }
+
+        return types;
     }
 
     /// <summary>
