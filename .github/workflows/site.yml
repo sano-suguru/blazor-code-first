@@ -242,6 +242,11 @@ jobs:
       - name: DocGen unit tests
         run: dotnet test site/tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj
 
+      # The site app's own unit tests: the decisions its components make on input site/content
+      # cannot hold, so no publish output can show them. DocsNavTests says why (#279).
+      - name: Site unit tests
+        run: dotnet test site/tests/BlazorCodeFirst.Site.Tests/BlazorCodeFirst.Site.Tests.csproj
+
       # site/ sits outside BlazorCodeFirst.slnx, so it is outside the repository's main
       # `dotnet format` gate (see CONTRIBUTING.md, "Code style"). This step closes that gap for
       # the site projects.
@@ -255,9 +260,12 @@ jobs:
           # generator referenced as an analyzer ProjectReference. On a cold checkout that generator
           # assembly does not exist yet, so the workspace load reports CS0534 ("does not implement
           # inherited abstract member RenderView") for every compose component and the step fails.
-          # Building first produces the generator; the DocGen projects need no such step.
+          # Building first produces the generator; the DocGen projects need no such step. The site
+          # test project references the app, so it needs the same generator and gets it from this
+          # build.
           dotnet build site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj
           dotnet format site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj --verify-no-changes
+          dotnet format site/tests/BlazorCodeFirst.Site.Tests/BlazorCodeFirst.Site.Tests.csproj --verify-no-changes
           dotnet format site/tools/BlazorCodeFirst.Site.DocGen/BlazorCodeFirst.Site.DocGen.csproj --verify-no-changes
           dotnet format site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj --verify-no-changes
           dotnet format site/tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj --verify-no-changes

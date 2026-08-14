@@ -154,10 +154,13 @@ public static class Docs
     ];
 
     /// <summary>One language's documents, in navigation order.</summary>
-    public static ImmutableArray<DocEntry> ForLang(string lang)
+    public static ImmutableArray<DocEntry> ForLang(string lang) => ForLang(All, lang);
+
+    /// <summary>The same, over a manifest given directly rather than this build's.</summary>
+    public static ImmutableArray<DocEntry> ForLang(ImmutableArray<DocEntry> docs, string lang)
     {
         var builder = ImmutableArray.CreateBuilder<DocEntry>();
-        foreach (var entry in All)
+        foreach (var entry in docs)
         {
             if (string.Equals(entry.Lang, lang, StringComparison.Ordinal))
             {
@@ -171,14 +174,17 @@ public static class Docs
     /// <summary>Finds a document by language and slug. Blazor route matching is
     /// case-insensitive, so the slug lookup must be too; the language comes from the route
     /// template rather than from the reader, so it is matched exactly.</summary>
-    public static DocEntry? Find(string lang, string? slug)
+    public static DocEntry? Find(string lang, string? slug) => Find(All, lang, slug);
+
+    /// <summary>The same, over a manifest given directly rather than this build's.</summary>
+    public static DocEntry? Find(ImmutableArray<DocEntry> docs, string lang, string? slug)
     {
         if (slug is null)
         {
             return null;
         }
 
-        foreach (var entry in All)
+        foreach (var entry in docs)
         {
             if (string.Equals(entry.Lang, lang, StringComparison.Ordinal) &&
                 string.Equals(entry.Slug, slug, StringComparison.OrdinalIgnoreCase))

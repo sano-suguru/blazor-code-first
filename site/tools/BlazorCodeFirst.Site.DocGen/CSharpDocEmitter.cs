@@ -133,19 +133,26 @@ public static class CSharpDocEmitter
         }
 
         sb.Append("    ];\n\n");
+        // Each lookup is emitted twice: once over the manifest this build produced, and once over a
+        // manifest handed in. The second is what lets DocsNav.Counterparts be asked about documents
+        // site/content does not hold, without a second copy of the comparison rules (#279).
         sb.Append("    /// <summary>One language's documents, in navigation order.</summary>\n");
-        sb.Append("    public static ImmutableArray<DocEntry> ForLang(string lang)\n    {\n");
+        sb.Append("    public static ImmutableArray<DocEntry> ForLang(string lang) => ForLang(All, lang);\n\n");
+        sb.Append("    /// <summary>The same, over a manifest given directly rather than this build's.</summary>\n");
+        sb.Append("    public static ImmutableArray<DocEntry> ForLang(ImmutableArray<DocEntry> docs, string lang)\n    {\n");
         sb.Append("        var builder = ImmutableArray.CreateBuilder<DocEntry>();\n");
-        sb.Append("        foreach (var entry in All)\n        {\n");
+        sb.Append("        foreach (var entry in docs)\n        {\n");
         sb.Append("            if (string.Equals(entry.Lang, lang, StringComparison.Ordinal))\n");
         sb.Append("            {\n                builder.Add(entry);\n            }\n");
         sb.Append("        }\n\n        return builder.ToImmutable();\n    }\n\n");
         sb.Append("    /// <summary>Finds a document by language and slug. Blazor route matching is\n");
         sb.Append("    /// case-insensitive, so the slug lookup must be too; the language comes from the route\n");
         sb.Append("    /// template rather than from the reader, so it is matched exactly.</summary>\n");
-        sb.Append("    public static DocEntry? Find(string lang, string? slug)\n    {\n");
+        sb.Append("    public static DocEntry? Find(string lang, string? slug) => Find(All, lang, slug);\n\n");
+        sb.Append("    /// <summary>The same, over a manifest given directly rather than this build's.</summary>\n");
+        sb.Append("    public static DocEntry? Find(ImmutableArray<DocEntry> docs, string lang, string? slug)\n    {\n");
         sb.Append("        if (slug is null)\n        {\n            return null;\n        }\n\n");
-        sb.Append("        foreach (var entry in All)\n        {\n");
+        sb.Append("        foreach (var entry in docs)\n        {\n");
         sb.Append("            if (string.Equals(entry.Lang, lang, StringComparison.Ordinal) &&\n");
         sb.Append("                string.Equals(entry.Slug, slug, StringComparison.OrdinalIgnoreCase))\n");
         sb.Append("            {\n                return entry;\n            }\n");
