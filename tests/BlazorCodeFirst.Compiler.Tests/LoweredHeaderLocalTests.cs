@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -7,16 +8,10 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// <summary>
 /// A local declared in the header of a lowered construct and read from the body it encloses: the
 /// <c>If</c> condition, and the source of a <c>ForEach</c> or of the <c>Select</c> a spliced child list
-/// is sugar for (#361).
+/// is sugar for (#361). ARCHITECTURE.md §2.3 states the rule and why nothing wider is admitted; the
+/// refused shapes are here beside the accepted ones because a rule this narrow is only meaningful with
+/// its boundary pinned.
 /// </summary>
-/// <remarks>
-/// The admission is exactly as wide as the generated nesting proves safe, and no wider. An <c>if</c>
-/// header scopes over both branches and a <c>foreach</c> header over the loop body, so a declaration
-/// there reaches every reference the author's own file kept together. A component slot is lowered into a
-/// <c>RenderFragment</c> lambda of its own, so a declaration in one slot does <em>not</em> reach a
-/// sibling slot or a parameter; those shapes stay BCF1002 and are asserted here alongside the ones that
-/// now pass, because a rule this narrow is only meaningful with its boundary pinned.
-/// </remarks>
 public sealed class LoweredHeaderLocalTests
 {
     private const string Host = """
@@ -29,6 +24,7 @@ public sealed class LoweredHeaderLocalTests
         {
             private static int Take(out int v) { v = 1; return 0; }
             private static IEnumerable<int> Items(int seed) => new[] { seed };
+            $PART$
             protected override View Body => $BODY$;
         }
         """;
@@ -43,10 +39,23 @@ public sealed class LoweredHeaderLocalTests
         }
         """;
 
-    private static GeneratorRunResult Run(string body) =>
+    /// <summary>The one body both wording tests and the sibling-attribute refusal run.</summary>
+    private const string SiblingAttributeBody =
+        """Div.Attr("a", Take(out var n).ToString()).Attr("b", n.ToString())""";
+
+    private static GeneratorRunResult Run(string body, string part = "") =>
         CompilationTestHost.RunGenerator(
-            ("Host.cs", Host.Replace("$BODY$", body)),
+            ("Host.cs", Host.Replace("$BODY$", body).Replace("$PART$", part)),
             ("Card.cs", CardSource));
+
+    /// <summary>As <see cref="Run"/>, for a <c>[ViewPart]</c> whose body is <paramref name="partBody"/>.</summary>
+    private static GeneratorRunResult RunViewPart(string partBody) =>
+        Run(
+            """Row("a")""",
+            $$"""
+            [ViewPart]
+                private static View Row(string label) => {{partBody}};
+            """);
 
     private static string AssertAccepted(string body)
     {
@@ -58,13 +67,20 @@ public sealed class LoweredHeaderLocalTests
         return Assert.Single(result.GeneratedSources).SourceText.ToString();
     }
 
-    private static void AssertRefused(string body)
+    /// <summary>
+    /// Asserts the refusal is the one this file is about. The id alone would read green for any other
+    /// BCF1002 the same source could earn, so the reason has to name the local.
+    /// </summary>
+    private static Diagnostic AssertRefusedForTheLocal(string body)
     {
-        var result = Run(body);
+        var diagnostic = Assert.Single(Run(body).Diagnostics, static d => d.Id == "BCF1002");
 
+        Assert.Equal(DiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Contains(
-            result.Diagnostics,
-            static d => d.Id == "BCF1002" && d.Severity == DiagnosticSeverity.Error);
+            "references local 'n' that cannot exist in generated component code",
+            diagnostic.GetMessage(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+        return diagnostic;
     }
 
     [Fact]
@@ -76,9 +92,8 @@ public sealed class LoweredHeaderLocalTests
         // The declaration lands in the generated `if` header and the reference in the branch it scopes
         // over, which is the whole claim. `var` is written as its inferred type for the reason every
         // other transplanted declaration is (#342).
-        Assert.Contains(
-            "if (global::C.Take(out int n) == 0)", generated, System.StringComparison.Ordinal);
-        Assert.Contains("__builder.AddContent(2, n.ToString());", generated, System.StringComparison.Ordinal);
+        Assert.Contains("if (global::C.Take(out int n) == 0)", generated, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(2, n.ToString());", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -92,8 +107,8 @@ public sealed class LoweredHeaderLocalTests
             """ForEach(Items(Take(out var n)), i => i, i => Span[n.ToString()])""");
 
         Assert.Contains(
-            "in global::C.Items(global::C.Take(out int n))", generated, System.StringComparison.Ordinal);
-        Assert.Contains("__builder.AddContent(2, n.ToString());", generated, System.StringComparison.Ordinal);
+            "in global::C.Items(global::C.Take(out int n))", generated, StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(2, n.ToString());", generated, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -106,8 +121,7 @@ public sealed class LoweredHeaderLocalTests
 
     [Fact]
     public void SpliceSource_DeclaringALocalReadFromTheProjection_IsAccepted() =>
-        AssertAccepted(
-            """Div[[..Items(Take(out var n)).Select(i => Span[n.ToString()])]]""");
+        AssertAccepted("""Div[[..Items(Take(out var n)).Select(i => Span[n.ToString()])]]""");
 
     /// <summary>A nested body still reads a local from the header two constructs out.</summary>
     [Fact]
@@ -119,32 +133,6 @@ public sealed class LoweredHeaderLocalTests
                 () => Span["x"])
             """);
 
-    [Fact]
-    public void ComponentSlot_DeclaringALocalReadFromASiblingSlot_StaysRefused() =>
-        AssertRefused(
-            """
-            Component<Card>()
-                .Param(c => c.Footer, Div[Take(out var n).ToString()])
-                .Param(c => c.ChildContent, Div[n.ToString()])
-            """);
-
-    [Fact]
-    public void ComponentSlot_DeclaringALocalReadFromASiblingParameter_StaysRefused() =>
-        AssertRefused(
-            """
-            Component<Card>()
-                .Param(c => c.Footer, Div[Take(out var n).ToString()])
-                .Param(c => c.Title, n.ToString())
-            """);
-
-    /// <summary>
-    /// A sibling argument of the same call is not a header: nothing in the generated code puts the
-    /// declaration in a scope enclosing the reference, so this keeps the refusal it has always had.
-    /// </summary>
-    [Fact]
-    public void SiblingAttribute_DeclaringALocalReadFromALaterAttribute_StaysRefused() =>
-        AssertRefused("""Div.Attr("a", Take(out var n).ToString()).Attr("b", n.ToString())""");
-
     /// <summary>
     /// Both positions that normalize a body read the one check, so closing it closes both (#361). The
     /// component's own design-time expression is covered by every case above; this is the
@@ -153,25 +141,45 @@ public sealed class LoweredHeaderLocalTests
     [Fact]
     public void ViewPartBody_WithALocalDeclaredInAnIfCondition_IsAccepted()
     {
-        var result = CompilationTestHost.RunGenerator("""
-            using BlazorCodeFirst;
-            using static BlazorCodeFirst.Html;
-
-            public partial class C : BodyComponentBase
-            {
-                private static int Take(out int v) { v = 1; return 0; }
-
-                [ViewPart]
-                private static View Row(string label) =>
-                    If(Take(out var n) == 0, () => Span[label + n.ToString()], () => Span["x"]);
-
-                protected override View Body => Row("a");
-            }
-            """);
+        var result = RunViewPart(
+            """If(Take(out var n) == 0, () => Span[label + n.ToString()], () => Span["x"])""");
 
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1002" or "BCF1003");
         CompilationTestHost.AssertOutputCompiles(result);
     }
+
+    /// <summary>
+    /// A slot's content is emitted inside a <c>RenderFragment</c> lambda of its own, so the declaration
+    /// does not reach a sibling slot at all.
+    /// </summary>
+    [Fact]
+    public void ComponentSlot_DeclaringALocalReadFromASiblingSlot_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Component<Card>()
+                .Param(c => c.Footer, Div[Take(out var n).ToString()])
+                .Param(c => c.ChildContent, Div[n.ToString()])
+            """);
+
+    /// <summary>The same lambda, against a parameter that is emitted before it.</summary>
+    [Fact]
+    public void ComponentSlot_DeclaringALocalReadFromASiblingParameter_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Component<Card>()
+                .Param(c => c.Footer, Div[Take(out var n).ToString()])
+                .Param(c => c.Title, n.ToString())
+            """);
+
+    /// <summary>
+    /// An element's siblings do land in one generated block, so containment alone would admit this. They
+    /// do not land in the author's order: the class channel is written ahead of the attribute loop, events
+    /// and bindings after it, and a constant run of children folds into one markup frame. Containment is
+    /// therefore not the test, and a sibling argument is not a header.
+    /// </summary>
+    [Fact]
+    public void SiblingAttribute_DeclaringALocalReadFromALaterAttribute_StaysRefused() =>
+        AssertRefusedForTheLocal(SiblingAttributeBody);
 
     /// <summary>
     /// BCF1002 names the position it is reported at. 付録A describes it as the view part diagnostic, and
@@ -179,42 +187,22 @@ public sealed class LoweredHeaderLocalTests
     /// "ViewPart method" named the wrong thing (#361).
     /// </summary>
     [Fact]
-    public void DesignTimeExpression_RefusedForAnUnsupportedReference_IsNamedAsAnExpressionNotAMethod()
-    {
-        var result = Run("""Div.Attr("a", Take(out var n).ToString()).Attr("b", n.ToString())""");
-
-        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
-
-        Assert.Contains(
+    public void DesignTimeExpression_RefusedForAnUnsupportedReference_IsNamedAsAnExpressionNotAMethod() =>
+        Assert.StartsWith(
             "The Body design-time expression of 'C' is unsupported:",
-            diagnostic.GetMessage(CultureInfo.InvariantCulture),
-            System.StringComparison.Ordinal);
-    }
+            AssertRefusedForTheLocal(SiblingAttributeBody).GetMessage(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
 
     [Fact]
     public void ViewPartMethod_RefusedForAnUnsupportedReference_KeepsItsOwnWording()
     {
-        var result = CompilationTestHost.RunGenerator("""
-            using BlazorCodeFirst;
-            using static BlazorCodeFirst.Html;
-
-            public partial class C : BodyComponentBase
-            {
-                private static int Take(out int v) { v = 1; return 0; }
-
-                [ViewPart]
-                private static View Row(string label) =>
-                    Div.Attr("a", Take(out var n).ToString()).Attr("b", n.ToString())[label];
-
-                protected override View Body => Row("a");
-            }
-            """);
+        var result = RunViewPart($"{SiblingAttributeBody}[label]");
 
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
 
-        Assert.Contains(
+        Assert.StartsWith(
             "ViewPart method 'Row' is unsupported:",
             diagnostic.GetMessage(CultureInfo.InvariantCulture),
-            System.StringComparison.Ordinal);
+            StringComparison.Ordinal);
     }
 }

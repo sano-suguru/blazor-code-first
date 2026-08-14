@@ -214,7 +214,8 @@ internal static class ComponentModelFactory
                 diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BCF1003,
                     analysis.FailureLocation?.ToLocation() ?? Location.None,
-                    [analysis.ClassName, analysis.DesignTimeExpressionName]));
+                    [DiagnosticDescriptors.DesignTimeExpressionSubject(
+                        analysis.ClassName, analysis.DesignTimeExpressionName)]));
             return new ComponentModelResult(null, diagnostics.ToImmutable());
         }
 

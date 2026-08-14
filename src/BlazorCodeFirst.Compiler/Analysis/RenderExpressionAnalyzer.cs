@@ -366,23 +366,23 @@ internal static class RenderExpressionAnalyzer
         if (thenExpr is null)
             return null;
 
-        RenderTemplateNode? thenNode;
-        RenderTemplateNode? otherwiseNode = null;
-
         // The condition is transplanted into the generated `if` header, which scopes over both branches,
         // so a local the author declared there is legal in either one (#361). Registered as a scope for
         // the same reason a transplanted block is: each branch is normalized against a root of its own,
-        // and without this the declaration looks to that root like one from an enclosing scope.
+        // and without this the declaration looks to that root like one from an enclosing scope. The
+        // condition's own template is built inside the scope too, which changes no answer: it is
+        // normalized against itself, and a declaration inside it is already admitted by containment.
         context.PushTransplantedScope(conditionArg.Expression.Span);
         try
         {
-            thenNode = Analyze(thenExpr, context);
+            var thenNode = Analyze(thenExpr, context);
             if (thenNode is null)
                 return null;
 
             // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
             // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
             // An explicitly passed null literal still means "no else branch".
+            RenderTemplateNode? otherwiseNode = null;
             if (args.At(2) is { } otherwiseArg &&
                 otherwiseArg.Expression is not LiteralExpressionSyntax
                 { Token.RawKind: (int)SyntaxKind.NullKeyword })
@@ -395,16 +395,16 @@ internal static class RenderExpressionAnalyzer
                 if (otherwiseNode is null)
                     return null;
             }
+
+            return new IfTemplateNode(
+                ExpressionTemplateFactory.Create(conditionArg.Expression, context),
+                thenNode,
+                otherwiseNode);
         }
         finally
         {
             context.PopTransplantedScope();
         }
-
-        return new IfTemplateNode(
-            ExpressionTemplateFactory.Create(conditionArg.Expression, context),
-            thenNode,
-            otherwiseNode);
     }
 
     /// <summary>

@@ -184,25 +184,10 @@ internal sealed class ViewPartBodyContext
     /// Needed because the enclosing construct becomes several templates, each normalized against its own
     /// root. Without this, a local declared in one and read in another looks like a local from an
     /// enclosing scope, which <c>ExpressionTemplateFactory</c> rejects with BCF1002 because such a local
-    /// cannot exist in generated component code. Two shapes register here, and both put the declaration in
-    /// a generated scope containing the reference:
-    /// <list type="bullet">
-    /// <item>the statements of a transplanted block (ARCHITECTURE.md §2.3 Transplantable), which are
-    /// written into the generated block beside the reference;</item>
-    /// <item>the header expression of a lowered construct — an <c>If</c> condition, which scopes over both
-    /// generated branches, and a <c>ForEach</c> or <c>Select</c> source, which scopes over the generated
-    /// loop body (#361).</item>
-    /// </list>
-    /// <para>
-    /// The two are one mechanism because the check asks one question of both: does the declaration land in
-    /// a generated scope enclosing this reference. A second list would restate that question.
-    /// </para>
-    /// <para>
-    /// Nothing wider is admitted, and the boundary is not a matter of degree. A component slot is lowered
-    /// into a <c>RenderFragment</c> lambda of its own, so a local declared in one slot's content does not
-    /// reach a sibling slot or a parameter even though the author's own file kept them in one scope;
-    /// <c>LoweredHeaderLocalTests</c> pins both sides of that line.
-    /// </para>
+    /// cannot exist in generated component code. Two shapes register here, the statements of a
+    /// transplanted block and the header expression of a lowered construct, and ARCHITECTURE.md §2.3 says
+    /// which positions those are and why nothing wider is admitted. They share one list because the check
+    /// asks one question of both: does the declaration land in a generated scope enclosing this reference.
     /// <para>
     /// A span and not the node, because containment is all any caller asks. A stack and not a single
     /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block
@@ -282,9 +267,8 @@ internal sealed class ViewPartBodyContext
     /// example a co-located BCF3002 warning) that was recorded first.
     /// </summary>
     /// <remarks>
-    /// The one BCF1002 site both positions reach, so it is where the message names which of the two it is
-    /// talking about. A component's design-time expression is a property and not a method, and calling it
-    /// a "ViewPart method" told an author to look for something their file does not contain (#361).
+    /// The one BCF1002 site both positions reach, so it is where the subject is chosen; the two spellings
+    /// and the reason they differ are on <see cref="DiagnosticDescriptors.BCF1002"/>.
     /// </remarks>
     public void ReportUnsupportedReference(Location location, string reason)
     {
@@ -296,7 +280,7 @@ internal sealed class ViewPartBodyContext
 
         var subject = IsInlinedAtCallSites
             ? DiagnosticDescriptors.ViewPartSubject(MethodDisplayName)
-            : DiagnosticDescriptors.DesignTimeExpressionSubject(MethodDisplayName, ContainingType.Name);
+            : DiagnosticDescriptors.DesignTimeExpressionSubject(ContainingType.Name, MethodDisplayName);
 
         Diagnostics.Add(DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF1002,

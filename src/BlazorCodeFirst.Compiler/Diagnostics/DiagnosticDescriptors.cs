@@ -56,10 +56,11 @@ internal static class DiagnosticDescriptors
     public static string ViewPartSubject(string methodName) => $"ViewPart method '{methodName}'";
 
     /// <summary>
-    /// BCF1002's subject for a component's own design-time expression. Worded as BCF1003 words the same
-    /// subject, because an author who meets both is looking at one property.
+    /// The subject BCF1002 and BCF1003 share for a component's own design-time expression. One spelling
+    /// rather than two formats, because an author who meets both is looking at one property. Argument
+    /// order follows the two diagnostics' own, type before expression.
     /// </summary>
-    public static string DesignTimeExpressionSubject(string expressionName, string typeName) =>
+    public static string DesignTimeExpressionSubject(string typeName, string expressionName) =>
         $"The {expressionName} design-time expression of '{typeName}'";
 
     /// <summary>
@@ -132,7 +133,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BCF1003 = new(
         id: "BCF1003",
         title: "Design-time expression could not be translated",
-        messageFormat: "The {1} design-time expression of '{0}' could not be translated to a RenderView; it uses a construct that is not statically analyzable",
+        messageFormat: "{0} could not be translated to a RenderView; it uses a construct that is not statically analyzable",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
