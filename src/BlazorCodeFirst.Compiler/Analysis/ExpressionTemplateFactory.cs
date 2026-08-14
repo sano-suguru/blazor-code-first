@@ -1071,12 +1071,12 @@ internal static class ExpressionTemplateFactory
                     continue;
                 }
 
-                // Asked before the rename arm, and the order is what decides between them rather than
-                // any disjointness: TryReadTransplantableBlock's reserved-name refusal reads declarators
-                // only, so a designation spelled __bcf_context_0 (Foo(out var __bcf_context_0)) reaches
-                // both. The hole is the right answer whenever it applies, because the rename exists for a
-                // name that stays as written and a render variable's does not — expansion mints it, and a
-                // minted name cannot equal a contextual-fragment parameter.
+                // The two arms cannot both claim one declaration. A block declaring a generator-reserved
+                // name is refused whole by TryReadTransplantableBlock, which scans the same two shapes
+                // CollectBlockLocals registers, so nothing registered as a render variable is also a
+                // rename candidate. The order below is therefore a reading order and not a tie-break;
+                // were the two enumerations to drift, it would silently become one, which is why they are
+                // documented against each other (#336).
                 if (spliceRenderVariableHoles
                     && context.ResolveHole(symbol, out var holeOrdinal) == BodyHoleKind.Value)
                 {

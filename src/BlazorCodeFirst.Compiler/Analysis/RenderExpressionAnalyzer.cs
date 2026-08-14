@@ -2335,6 +2335,13 @@ internal static class RenderExpressionAnalyzer
     /// generated scope. Only declarations are checked: a reference cannot collide with a name the generator
     /// introduces without a declaration to collide through.
     /// </para>
+    /// <para>
+    /// Both ways a block declares a name are scanned, a declarator and a designation, which is the
+    /// enumeration <see cref="CollectBlockLocals"/> registers from. The two answer one question — what
+    /// names does this block bind — and a shape refused here but not registered there, or the reverse,
+    /// would leave which plan claims a reserved declaration decided by the order the arms are asked in
+    /// (<c>ExpressionTemplateFactory.AuthoredContextNameHygiene</c>) rather than by the rule (#336).
+    /// </para>
     /// </remarks>
     public static bool TryReadTransplantableBlock(
         BlockSyntax block,
@@ -2370,9 +2377,18 @@ internal static class RenderExpressionAnalyzer
             leading.Add(statement);
         }
 
-        foreach (var declarator in block.DescendantNodes().OfType<VariableDeclaratorSyntax>())
+        foreach (var node in block.DescendantNodes())
         {
-            var name = declarator.Identifier.ValueText;
+            var name = node switch
+            {
+                VariableDeclaratorSyntax declarator => declarator.Identifier.ValueText,
+                SingleVariableDesignationSyntax designation => designation.Identifier.ValueText,
+                _ => null,
+            };
+
+            if (name is null)
+                continue;
+
             if (name.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal)
                 || string.Equals(name, BuilderName, System.StringComparison.Ordinal))
             {

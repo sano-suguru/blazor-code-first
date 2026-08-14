@@ -308,6 +308,20 @@ public sealed class BodyTransplantTests
                 }
             }
         """)]
+    // A reserved name bound by a designation rather than a declarator. Refused for the same reason and
+    // from the same scan, which is what lets the declaration plan treat "is a render variable" and "is a
+    // reserved spelling" as disjoint rather than resolving them by the order it asks (#336).
+    [InlineData(
+        "generator-reserved designation",
+        """
+        {
+                get
+                {
+                    int.TryParse(Title, out var __bcf_parsed);
+                    return Span[Title];
+                }
+            }
+        """)]
     public void Body_WhenGetterIsOutsideTheAcceptedShape_StaysBCF1004(string shape, string getter)
     {
         var result = Run(getter);
