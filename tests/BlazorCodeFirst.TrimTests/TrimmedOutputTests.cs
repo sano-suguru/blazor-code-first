@@ -22,6 +22,45 @@ public sealed class TrimmedOutputTests
 {
     private const string AppAssemblyFileName = "BlazorCodeFirst.TrimTestApp.dll";
     private const string RuntimeAssemblyFileName = "BlazorCodeFirst.Runtime.dll";
+    private const string ComponentsAssemblyFileName = "Microsoft.AspNetCore.Components.dll";
+
+    /// <summary>
+    /// The one method this surface reaches only through reflection, and therefore the one the trimmer
+    /// could take away without a warning. <c>BindConverter.ParserDelegateCache</c> pulls
+    /// <c>ConvertToEnum</c> out with <c>GetMethod(...).MakeGenericMethod(...)</c> when an enum is bound
+    /// (#307), and <c>DynamicallyAccessedMembers</c> sits on the generic parameter rather than on this
+    /// private method, so nothing in the annotations states that it must survive.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The decision to use the framework's parse path instead of writing <c>Enum.TryParse&lt;T&gt;</c>
+    /// into generated code was made conditional on this measurement: an absence here means an enum
+    /// binding throws at the first event in a trimmed app, and the emitter would have to convert enums
+    /// itself. TrimCounter binds a <c>DayOfWeek</c> so that the question is asked at all.
+    /// </para>
+    /// <para>
+    /// It survives because binding anything through the converter roots the converter whole, not because
+    /// the trimmer reasoned about the reflective call. Measured on 2026-08-14 by publishing this app with
+    /// and without its value-type bindings: <c>BindConverter</c> keeps 28 methods with only the
+    /// <see langword="string"/> and <see langword="bool"/> bindings and 53 with the rest, and
+    /// <c>Microsoft.AspNetCore.Components.dll</c> goes from 71,680 to 81,408 bytes (osx-arm64,
+    /// self-contained, <c>TrimMode=full</c>). So this assertion is not measuring the trimmer's analysis
+    /// of the reflection; it is a guard against a framework change that made the method trimmable, which
+    /// would be silent — <c>ILLinkTreatWarningsAsErrors</c> catches an unsuppressed reflection warning,
+    /// and this call site is suppressed.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TrimmedComponents_AfterPublish_RetainsTheEnumParserTheBindingReachesReflectively()
+    {
+        var componentsAssemblyPath = ResolvePublishedAssembly(ComponentsAssemblyFileName);
+
+        var methods = GetMethodNames(
+            componentsAssemblyPath, "BindConverter", expectedNamespace: "Microsoft.AspNetCore.Components");
+
+        Assert.Contains("ConvertToEnum", methods);
+        Assert.Contains("ConvertToNullableEnum", methods);
+    }
 
     private static readonly string? TrimOutputDirectory =
         Environment.GetEnvironmentVariable("BLAZORCODEFIRST_TRIM_OUTPUT");

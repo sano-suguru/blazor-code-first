@@ -7,7 +7,9 @@ A two-way binding is one decoration that writes a value out to the DOM and reads
 into your state. `.Bind` is Razor's `@bind`, spelled so that everything it needs is an argument you can
 see. The generator lowers it to an attribute frame, an event frame carrying Blazor's own
 `CreateBinder`, and — when the bound attribute is `value` or `checked` — the DOM resynchronization
-that keeps the element honest. No reflection, and no expression tree compiled at runtime.
+that keeps the element honest. Nothing generated compiles an expression tree at runtime, and nothing
+generated reflects; binding an enum reaches one reflective lookup inside the framework's own
+converter.
 
 ## Binding an element
 
@@ -124,14 +126,87 @@ non-nullable `string`. Writing to your own state from the setter is allowed, eve
 state anywhere else in a `Body` reports BCF3001: a setter is a deferred handler, like an `.OnClick`
 lambda, and does not run while the tree is being built.
 
-## Values that are not `string` or `bool`
+## Numbers, dates, and enums
 
-Those two types are all an element binding takes. Anything else would be formatted on its way to the
-DOM under the culture of whichever thread does the formatting, which is not the one your component ran
-under. Razor answers that by picking a culture from the element's literal `type` — the literal this
-surface does not read.
+Any type binds, as long as you write the culture. It is the last argument and it cannot be omitted:
 
-So write the conversion yourself, on both sides, where the culture is visible:
+```csharp
+private int _age;
+
+protected override View Body =>
+    Input.Type("number").Bind("value", "oninput", () => _age, CultureInfo.InvariantCulture);
+```
+
+The culture formats the value on the way out and parses it on the way back, through Blazor's own
+`BindConverter`. Numbers, dates, times, `Guid`, enums, and every nullable form of those all work,
+because the conversion is the framework's rather than this library's.
+
+It is an argument rather than a default because the alternative is a culture chosen out of your sight.
+Razor picks one from the element's literal `type` — the literal this surface does not read, for the
+same reason it does not infer the attribute name. So the choice moves to where you can see it.
+
+### Write the invariant culture for `number` and `date`
+
+`<input type="number">` and `<input type="date">` are defined in terms of a fixed format, not the
+user's locale. Binding either under `CultureInfo.CurrentCulture` produces a value the element rejects
+as soon as the current locale writes decimals with a comma.
+
+**This is not diagnosed.** The check would need to read `type`, and `type` is an expression here; a
+rule that fired only when you happened to write a literal would catch the same mistake in one spelling
+and miss it in another. Write `CultureInfo.InvariantCulture` for those two, and use the current
+culture for text the user reads as prose.
+
+### A value that will not parse is put back
+
+If the converter cannot read what was typed, your setter is never called and both your field and the
+element return to the previous value. That is Blazor's behaviour, and `.Bind` reaches it through the
+same DOM resynchronization described above.
+
+It has a consequence worth choosing deliberately. On `"oninput"` the reversion runs on every
+keystroke, so a decimal point typed into an `int` binding never survives: `4.` is rejected and the
+`.` is taken straight back out. For numeric input that is usually not what you want:
+
+```csharp
+// Reverts on blur, so a half-typed number survives being typed.
+Input.Type("number").Bind("value", "onchange", () => _amount, CultureInfo.InvariantCulture);
+```
+
+`"oninput"` is still right when every intermediate value is meaningful — a range slider, or a text
+field whose type accepts anything the user can type.
+
+Emptying the field is a separate matter, and it is not a rejection. Blazor reads an empty string as
+the type's default, so clearing an `int` binding gives you `0` rather than leaving the previous value
+in place. Bind an `int?` where the field is genuinely optional; that takes `null` there.
+
+### Dates need a format
+
+A date input requires `yyyy-MM-dd`, and this surface cannot supply that from `type` the way Razor
+does. Write it as the argument before the culture:
+
+```csharp
+private DateOnly _due = new(2026, 8, 14);
+
+protected override View Body =>
+    Input.Type("date").Bind(
+        "value", "oninput", () => _due, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+```
+
+A format is accepted for `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly` and their nullable
+forms, and for nothing else — those are the types the framework declares a format-taking converter
+for. Writing one for an `int` reports BCF3031. To format a number, format it in the getter and parse
+it in an explicit setter instead.
+
+### If you publish trimmed
+
+Binding any value type roots Blazor's `BindConverter` whole, including converters for types you never
+bind. Measured on a trimmed self-contained publish, that is about 10 KB of
+`Microsoft.AspNetCore.Components.dll`. An app that binds only `string` and `bool` does not pay it. It
+is a one-off, not per binding.
+
+### Doing the conversion yourself
+
+The explicit form still works, and is what you want when the value needs validating rather than
+converting:
 
 ```csharp
 private decimal _amount;
@@ -145,8 +220,8 @@ protected override View Body =>
             : _amount);
 ```
 
-There is deliberately no shorter spelling. A shorter one would have to choose a culture on your
-behalf, and choosing it out of sight is the thing being avoided.
+Use `TryParse` rather than `Parse` here. An exception thrown from a setter is not the framework's
+rejection path; it faults the render.
 
 ## Binding a component parameter
 
@@ -189,8 +264,8 @@ the `ValueExpression` it supplies, are unaffected either way. See
 that reads the `EditContext`, and for when a cached delegate through `.Param` is the better choice.
 
 An explicit setter and an `async` setter are available here too, with the same meaning as on an
-element. `TValue` is not restricted to `string` and `bool`, because the value goes to a parameter
-rather than to the DOM and nothing formats it on the way.
+element. `TValue` takes no culture and no format: the value goes to a parameter rather than to the
+DOM, so nothing formats or parses it on the way and there is no choice to write down.
 
 Remember that `Component<T>()` cannot name a `.razor` component declared in the same project
 ([BCF3012](./components-and-reuse.md#calling-an-existing-razor-or-third-party-component)). Framework
@@ -212,6 +287,8 @@ components such as `InputText`, and hand-written C# components, always resolve.
 - **BCF3024** — the attribute name is `class` and the element also carries a `.Class` or an
   `.Attr("class", …)`. Those fold into one attribute and the binding does not join them, so the
   element would carry `class` twice.
+- **BCF3031** — a format is written for a type the framework declares no format-taking converter for.
+  Only `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly` and their nullable forms accept one.
 
 An element may carry more than one `.Bind`. If two of them share an attribute name or an event name,
 that is BCF3010, the same duplicate any two decorations would report. DOM resynchronization — the

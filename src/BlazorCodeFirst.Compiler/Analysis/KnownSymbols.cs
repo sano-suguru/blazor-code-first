@@ -545,6 +545,24 @@ internal sealed class KnownSymbols
     /// </remarks>
     private readonly System.Lazy<Dictionary<string, INamedTypeSymbol>> _sourceEventArguments;
 
+    /// <summary>
+    /// The value types the framework declares a format-taking <c>CreateBinder</c> overload for, which is
+    /// the set BCF3031 admits a <c>.Bind</c> format on.
+    /// </summary>
+    /// <remarks>
+    /// Read from metadata the framework ships, never enumerated here — the criterion <c>DESIGN.md</c> §4.1
+    /// states, and the shape the <c>[EventHandler]</c> tables above already use. Lazy for the same reason
+    /// they are: a compilation that writes no format asks nothing of it.
+    /// <para>
+    /// Empty when <c>EventCallbackFactoryBinderExtensions</c> cannot be resolved, in which case
+    /// <see cref="AcceptsBindFormat"/> skips the check rather than rejecting everything, as BCF3028 does
+    /// with a missing event table. That case is unreachable in practice: the assembly declaring
+    /// <c>ElementView</c> references <c>Microsoft.AspNetCore.Components</c>, so a compilation able to
+    /// spell <c>.Bind</c> can see this type. It is a defence, not an expected path.
+    /// </para>
+    /// </remarks>
+    private readonly System.Lazy<HashSet<ITypeSymbol>> _formatBindableTypes;
+
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
         ViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.View");
@@ -595,6 +613,18 @@ internal sealed class KnownSymbols
         _sourceEventArguments = new System.Lazy<Dictionary<string, INamedTypeSymbol>>(() =>
             mappingAvailable
                 ? CollectEventArguments(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
+                : []);
+
+        // The lookup is inside the lambda, not beside it. This constructor runs once per [ViewPart] and
+        // once per component, so a lookup hoisted here would be paid by every one of them — including
+        // the great majority that never write a format — for a table only a format reads.
+        // GetTypeByMetadataName is not free: it parses the name and consults every referenced assembly
+        // to detect ambiguity. Nothing is retained by moving it in, because the sibling lambda below
+        // already closes over `compilation` and all three share one display class.
+        _formatBindableTypes = new System.Lazy<HashSet<ITypeSymbol>>(() =>
+            compilation.GetTypeByMetadataName(
+                "Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions") is { } binderExtensions
+                ? CollectFormatBindableTypes(binderExtensions)
                 : []);
 
         var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
@@ -996,10 +1026,20 @@ internal sealed class KnownSymbols
     /// <remarks>
     /// <para>
     /// Static, like <see cref="IsVoidTag"/> and <see cref="Normalize(IMethodSymbol)"/>: the answer is a
-    /// property of the resolved symbol and there is nothing to look up in a compilation. Callers must
-    /// have classified the method as <see cref="SurfaceMethodKind.Bind"/> or
-    /// <see cref="SurfaceMethodKind.ComponentBind"/> first — this answers from shape and does not
-    /// re-ask.
+    /// property of the resolved symbol. Callers must have classified the method as
+    /// <see cref="SurfaceMethodKind.Bind"/> or <see cref="SurfaceMethodKind.ComponentBind"/> first —
+    /// this answers from shape and does not re-ask.
+    /// </para>
+    /// <para>
+    /// #307 gave it one thing that would otherwise be looked up: a parameter is a role only if its type
+    /// is <c>CultureInfo</c>. That is asked by name, in <see cref="IsCultureInfo"/>, rather than against
+    /// a symbol this type resolved from the compilation — which is the one place in this file that names
+    /// a well-known type instead of resolving it, and so is worth saying rather than leaving a reader to
+    /// find. Resolving it would make this an instance member and every caller hold a
+    /// <see cref="KnownSymbols"/>, which all five already do, so the cost is not the reason. The reason
+    /// is that the type being matched arrives from this repository's own <c>Decorations.Bind</c>
+    /// signature: nothing an author writes reaches it, and a shadowing declaration would already have
+    /// broken the overload it appears in. Where a name match reads a type an author supplied, resolve it.
     /// </para>
     /// <para>
     /// <paramref name="method"/> is read in whatever spelling it arrives in, and is deliberately
@@ -1016,9 +1056,16 @@ internal sealed class KnownSymbols
     /// pair does not have to be transcribed here. <c>ReturnsVoid: false</c> is load-bearing: a
     /// zero-argument <c>Action</c> is a delegate whose invoke method has a non-null <c>void</c> return
     /// type, so without it a callback parameter written ahead of the getter would be read as the getter.
-    /// The setter is required to be both in position and in shape — the parameter after the getter, and
-    /// a one-argument delegate over the same value — which makes this stricter than either convention it
-    /// replaces.
+    /// </para>
+    /// <para>
+    /// Everything written after the getter is a role read off its own type, not off its position. The
+    /// three the surface declares are disjoint types — a one-argument delegate over the bound value, a
+    /// <see langword="string"/> format, a <c>CultureInfo</c> — so each parameter is asked what it is, and
+    /// an overload that reorders them needs no change here. Before #307 the rule was that the parameter
+    /// after the getter is the setter or the shape is unreadable, which every culture-taking overload
+    /// would have failed. Anything outside the three still leaves the shape unread, which is the same
+    /// answer as before: a <c>Bind</c> this compiler was not written against is BCF1003 at the call site,
+    /// never a guess at roles it has just admitted it cannot establish.
     /// </para>
     /// </remarks>
     public static bool TryGetBindParameters(IMethodSymbol method, out BindParameters bind)
@@ -1047,28 +1094,143 @@ internal sealed class KnownSymbols
 
             var valueType = getterInvoke.ReturnType;
             var setterIndex = -1;
+            var formatIndex = -1;
+            var cultureIndex = -1;
             var setterIsAsynchronous = false;
 
-            if (index + 1 < method.Parameters.Length)
+            for (var after = index + 1; after < method.Parameters.Length; after++)
             {
-                var setter = method.Parameters[index + 1];
-                if (setter.Type
-                    is not INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke }
-                    || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
+                var parameter = method.Parameters[after];
+                var argumentIndex = ArgumentIndex(parameter);
+
+                if (parameter.Type
+                    is INamedTypeSymbol { DelegateInvokeMethod: { Parameters.Length: 1 } setterInvoke })
                 {
-                    return false;
+                    if (setterIndex >= 0
+                        || !SymbolEqualityComparer.Default.Equals(setterInvoke.Parameters[0].Type, valueType))
+                    {
+                        return false;
+                    }
+
+                    setterIndex = argumentIndex;
+                    setterIsAsynchronous = !setterInvoke.ReturnsVoid;
+                    continue;
                 }
 
-                setterIndex = ArgumentIndex(setter);
-                setterIsAsynchronous = !setterInvoke.ReturnsVoid;
+                if (parameter.Type.SpecialType == SpecialType.System_String)
+                {
+                    if (formatIndex >= 0)
+                        return false;
+
+                    formatIndex = argumentIndex;
+                    continue;
+                }
+
+                if (IsCultureInfo(parameter.Type))
+                {
+                    if (cultureIndex >= 0)
+                        return false;
+
+                    cultureIndex = argumentIndex;
+                    continue;
+                }
+
+                return false;
             }
 
-            bind = new BindParameters(getterIndex, setterIndex, valueType, setterIsAsynchronous);
+            // A format with no culture is not a shape the surface declares, and reading one would leave
+            // the emitter holding a format with no overload of FormatValue to hand it to.
+            if (formatIndex >= 0 && cultureIndex < 0)
+                return false;
+
+            bind = new BindParameters(
+                getterIndex, setterIndex, formatIndex, cultureIndex, valueType, setterIsAsynchronous);
             return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// Whether a <c>.Bind</c> format may be written for <paramref name="valueType"/>.
+    /// </summary>
+    /// <remarks>
+    /// Answers <see langword="true"/> when the table is empty, which is the check skipping itself on a
+    /// compilation that cannot see the framework's binder extensions. BCF3028 declines the same way for
+    /// the same reason: a check with no table to consult reports nothing rather than reporting everything.
+    /// </remarks>
+    public bool AcceptsBindFormat(ITypeSymbol valueType)
+    {
+        var types = _formatBindableTypes.Value;
+        return types.Count == 0 || types.Contains(valueType);
+    }
+
+    /// <summary>
+    /// The bound value types of every format-taking <c>CreateBinder</c> overload: the setter parameter's
+    /// first type argument, which carries the bound type in both the <c>Action&lt;T&gt;</c> and the
+    /// <c>Func&lt;T, Task&gt;</c> shape. <c>BindFormatTableSyncTests</c> holds this set against
+    /// <c>BindConverter.FormatValue</c>'s, which the emitter writes the other half of the round trip
+    /// against.
+    /// </summary>
+    private static HashSet<ITypeSymbol> CollectFormatBindableTypes(INamedTypeSymbol binderExtensions)
+    {
+        var types = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+
+        foreach (var member in binderExtensions.GetMembers("CreateBinder"))
+        {
+            // The two constant-time questions first, so the parameter scan is paid only by an overload
+            // that could contribute. Parameter 2 is the setter: the list is
+            // (factory, receiver, setter, existingValue, …), read unreduced because these are metadata
+            // members rather than a resolved call.
+            if (member is not IMethodSymbol method
+                || method.Parameters.Length < 3
+                || method.Parameters[2].Type is not INamedTypeSymbol { TypeArguments.Length: > 0 } setterType
+                || !DeclaresFormatParameter(method))
+            {
+                continue;
+            }
+
+            types.Add(setterType.TypeArguments[0]);
+        }
+
+        return types;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="method"/> takes a format, which is what separates the overloads a
+    /// <c>.Bind</c> format may be written against from the rest of the <c>CreateBinder</c> group.
+    /// </summary>
+    private static bool DeclaresFormatParameter(IMethodSymbol method)
+    {
+        foreach (var parameter in method.Parameters)
+        {
+            if (parameter.Name == "format" && parameter.Type.SpecialType == SpecialType.System_String)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is <c>System.Globalization.CultureInfo</c>, asked by name rather
+    /// than against a resolved symbol.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="TryGetBindParameters"/> is static and answers from shape alone, holding no compilation
+    /// to resolve a well-known type against. The name is unambiguous at three segments, and a
+    /// user-declared <c>System.Globalization.CultureInfo</c> shadowing the framework's would already have
+    /// broken the overload it appears in.
+    /// </remarks>
+    private static bool IsCultureInfo(ITypeSymbol type) =>
+        type is INamedTypeSymbol
+        {
+            Name: "CultureInfo",
+            ContainingNamespace:
+            {
+                Name: "Globalization",
+                ContainingNamespace: { Name: "System", ContainingNamespace.IsGlobalNamespace: true },
+            },
+        };
 
     /// <summary>
     /// The argument roles of a resolved event decoration, a named shortcut or <c>.On</c>, or

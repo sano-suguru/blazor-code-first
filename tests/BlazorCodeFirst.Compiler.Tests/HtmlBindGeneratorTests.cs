@@ -319,4 +319,151 @@ public sealed class HtmlBindGeneratorTests
         Assert.Contains("__builder.AddAttribute(4, \"data-committed\", __bcf_arg_1_0.Committed);", generated);
         Assert.Contains("__value => __bcf_arg_1_0.Committed = __value, __bcf_arg_1_0.Committed)", generated);
     }
+
+    /// <summary>
+    /// A binding written with a culture formats through the framework's converter, under the culture the
+    /// call site wrote. That is the whole of what #158 said a non-string value could not have, and the
+    /// reason #307 could open this surface.
+    /// </summary>
+    [Fact]
+    public void Bind_IntWithCulture_FormatsThroughBindConverterAndPassesTheCulture()
+    {
+        const string body = """
+            private int _age;
+            protected override View Body =>
+                Html.Input.Type("number").Bind(
+                    "value", "oninput", () => _age,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains(
+            "__builder.AddAttribute(2, \"value\", "
+            + "global::Microsoft.AspNetCore.Components.BindConverter.FormatValue(_age, "
+            + "culture: global::System.Globalization.CultureInfo.InvariantCulture));",
+            generated);
+        Assert.Contains(
+            "__builder.AddAttribute(3, \"oninput\", "
+            + BindFixtures.CreateBinder + "__value => _age = __value, _age, "
+            + "culture: global::System.Globalization.CultureInfo.InvariantCulture));",
+            generated);
+        Assert.Contains("__builder.SetUpdatesAttributeName(\"value\");", generated);
+    }
+
+    [Fact]
+    public void Bind_DateWithFormatAndCulture_PassesBothToBothCalls()
+    {
+        const string body = """
+            private System.DateTime _due;
+            protected override View Body =>
+                Html.Input.Type("date").Bind(
+                    "value", "oninput", () => _due, "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains(
+            "global::Microsoft.AspNetCore.Components.BindConverter.FormatValue(_due, "
+            + "format: \"yyyy-MM-dd\", "
+            + "culture: global::System.Globalization.CultureInfo.InvariantCulture)",
+            generated);
+        Assert.Contains(
+            "__value => _due = __value, _due, format: \"yyyy-MM-dd\", "
+            + "culture: global::System.Globalization.CultureInfo.InvariantCulture)",
+            generated);
+    }
+
+    /// <summary>
+    /// The binder's third argument is the raw value, not the formatted string the attribute frame got.
+    /// The two were the same string before #307, which is why <c>Binder</c> used to be handed the
+    /// attribute's.
+    /// </summary>
+    [Fact]
+    public void Bind_DecimalWithExplicitSetterAndCulture_PassesTheRawValueToTheBinder()
+    {
+        const string body = """
+            private decimal _amount;
+            private void SetAmount(decimal v) => _amount = v;
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _amount, SetAmount,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains(
+            BindFixtures.CreateBinder
+            + "(global::System.Action<global::System.Decimal>)(SetAmount), _amount, "
+            + "culture: global::System.Globalization.CultureInfo.InvariantCulture));",
+            generated);
+    }
+
+    [Fact]
+    public void Bind_EnumWithCulture_FormatsThroughBindConverter()
+    {
+        const string body = """
+            private System.DayOfWeek _day;
+            protected override View Body =>
+                Html.Select.Bind(
+                    "value", "onchange", () => _day,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains(
+            "global::Microsoft.AspNetCore.Components.BindConverter.FormatValue(_day, "
+            + "culture: global::System.Globalization.CultureInfo.InvariantCulture)",
+            generated);
+    }
+
+    /// <summary>
+    /// The wrapping follows the resolved overload and never the bound type, so every spelling that
+    /// predates #307 emits what it always did.
+    /// </summary>
+    [Fact]
+    public void Bind_StringWithoutCulture_DoesNotWrapInBindConverter()
+    {
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Type("text").Bind("value", "oninput", () => _name);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.DoesNotContain("BindConverter.FormatValue", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"value\", _name);", generated);
+    }
+
+    /// <summary>
+    /// The culture and the format are transplanted expressions like the getter and the setter, so a
+    /// <c>[ViewPart]</c> parameter reaches them too. <c>ViewPartExpander</c> substituted the value and the
+    /// setter by name and would have carried these two through unsubstituted.
+    /// </summary>
+    [Fact]
+    public void Bind_CultureInsideViewPart_SubstitutesTheCulture()
+    {
+        const string body = """
+            private sealed class FormModel { public int Age { get; set; } }
+            private readonly FormModel _form = new();
+
+            [ViewPart]
+            private static View Field(FormModel model, System.Globalization.CultureInfo culture) =>
+                Html.Input.Bind("value", "oninput", () => model.Age, culture);
+
+            protected override View Body =>
+                Html.Div[Field(_form, System.Globalization.CultureInfo.InvariantCulture)];
+            """;
+
+        var generated = GenerateBody(body);
+
+        // Both calls carry the expansion local, which is what proves the culture channel is substituted
+        // rather than merely carried through: an unsubstituted hole makes ToCode() throw.
+        Assert.Contains("culture: __bcf_arg_1_1)", generated);
+        Assert.DoesNotContain("culture: culture", generated);
+    }
 }

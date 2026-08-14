@@ -1523,6 +1523,12 @@ internal static class RenderExpressionAnalyzer
         }
 
         var setter = args.At(bind.SetterIndex)?.Expression;
+        var culture = args.At(bind.CultureIndex)?.Expression;
+
+        // The argument rather than its expression: BCF3031 below reports at its location, and holding
+        // only the expression would mean asking for the argument a second time under a null-forgiving
+        // operator whose safety a reader has to trace back to this line.
+        var formatArg = args.At(bind.FormatIndex);
 
         // Only the inverted form needs an assignable target. With an explicit setter the getter is read
         // and never written, so a call or a get-only property is a legitimate thing to show.
@@ -1533,6 +1539,20 @@ internal static class RenderExpressionAnalyzer
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3018, getterBody!.GetLocation(), [getterBody!.ToString()]));
+            return null;
+        }
+
+        // Last of the binding's checks, because it is the only one about the bound type rather than about
+        // what the author wrote where. A format the framework cannot take would leave the generated file's
+        // own FormatValue and CreateBinder calls unable to bind, which appendix A.0 says never reaches the
+        // author (#307).
+        if (formatArg is not null && !context.KnownSymbols.AcceptsBindFormat(bind.ValueType))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3031,
+                formatArg.GetLocation(),
+                [bind.ValueType.ToDisplayString()]));
             return null;
         }
 
@@ -1552,7 +1572,9 @@ internal static class RenderExpressionAnalyzer
                 value,
                 bind.ValueType.ToDisplayString(FullyQualifiedTypeName),
                 setter is null ? null : ExpressionTemplateFactory.Create(setter, context),
-                setter is not null && bind.SetterIsAsynchronous)),
+                setter is not null && bind.SetterIsAsynchronous,
+                culture is null ? null : ExpressionTemplateFactory.Create(culture, context),
+                formatArg is null ? null : ExpressionTemplateFactory.Create(formatArg.Expression, context))),
         };
     }
 

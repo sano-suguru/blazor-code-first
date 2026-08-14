@@ -246,6 +246,15 @@ public static class DiagnosticExpectations
                 "Beside BCF2001 in one fixture because the two split the same classification — the callee " +
                 "there builds no design-time syntax, this one does — and a reader comparing them needs " +
                 "both in view."),
+        new(
+            "BCF3031",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3031.cs",
+            "\"D4\"",
+            Note: "Anchors the format argument, which is what the author drops or rewrites. The value " +
+                "type is the other half of the rule, but it is not what went wrong: binding an int is " +
+                "legitimate, and only the format written beside it is not."),
     ];
 
     /// <summary>

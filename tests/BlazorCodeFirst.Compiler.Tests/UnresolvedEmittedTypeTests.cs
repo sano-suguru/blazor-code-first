@@ -711,6 +711,12 @@ public sealed class UnresolvedEmittedTypeTests
         """Input.Bind("value", "onchange", () => _titles["k"], v => _titles[typeof(Probe).Name] = v)["x"]""")]
     [InlineData(
         """Input.Bind(attributeName: "value", eventName: "onchange", get: () => _titles[typeof(Probe).Name])["x"]""")]
+    // The culture is transplanted like the getter and the setter, so an unresolved type inside it is the
+    // same defect in the same call. This one resolves — the unresolved name sits inside a constructor
+    // argument, not in the overload's own arguments — so it tests what the arm reports rather than what
+    // recovery selects (#307).
+    [InlineData(
+        """Input.Bind("value", "onchange", () => _titles["k"], new System.Globalization.CultureInfo(typeof(Probe).Name))["x"]""")]
     public void BindValueUnresolvedType_ReportsBCF3015(string body)
     {
         // The unresolved type is what makes the .Bind itself fail to bind, so recovery has to name the
