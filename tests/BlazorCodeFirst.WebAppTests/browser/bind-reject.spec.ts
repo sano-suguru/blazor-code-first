@@ -55,13 +55,37 @@ test.describe('a value the converter rejects is reverted in the DOM', () => {
   test('an int bound on oninput swallows a typed dot', async ({ page }) => {
     const input = page.locator('#rejecting-input');
 
-    // Typed one character at a time, which is the whole point: fill() would deliver "4.5" as a single
-    // input event and measure one rejection rather than the per-keystroke reversion an author meets.
-    await input.pressSequentially('4.5');
+    // Start from a value that parses, and append to it. Two things rule out the obvious alternatives.
+    // fill() would deliver the whole string as one input event and measure a single rejection rather
+    // than the per-keystroke reversion an author meets; and clearing first is not available, because
+    // an empty string is itself unparsable for an int and is reverted like any other rejection. That
+    // is the same trap from its other side, and it is why this starts at a digit instead of nothing.
+    await input.fill('4');
+    await expect(page.locator('#reject-field-value')).toHaveText('4');
 
-    // "4" parses. "4." does not, and is reverted to "4" before the "5" arrives, so what the field ends
-    // up holding is 45 — the digits, with the dot dropped between them.
+    // Typed one character at a time. "4." does not parse and is reverted to "4" before the "5"
+    // arrives, so the field ends up holding 45: the digits, with the dot dropped from between them.
+    await input.pressSequentially('.5');
+
     await expect(page.locator('#reject-field-value')).toHaveText('45');
     await expect(input).toHaveValue('45');
+  });
+
+  /**
+   * The same rule from its other side, and the one an author is most likely to be surprised by: an
+   * empty string does not parse as an int either, so emptying the field is a rejection and the
+   * previous value comes straight back. Microsoft names it as a reason to prefer onchange. Measured
+   * here because the site documentation tells authors about it.
+   */
+  test('an int bound on oninput cannot be cleared', async ({ page }) => {
+    const input = page.locator('#rejecting-input');
+
+    await input.fill('41');
+    await expect(page.locator('#reject-field-value')).toHaveText('41');
+
+    await input.fill('');
+
+    await expect(page.locator('#reject-field-value')).toHaveText('41');
+    await expect(input).toHaveValue('41');
   });
 });

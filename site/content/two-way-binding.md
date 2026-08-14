@@ -164,7 +164,9 @@ same DOM resynchronization described above.
 
 It has a consequence worth choosing deliberately. On `"oninput"` the reversion runs on every
 keystroke, so typing `4.5` into an `int` binding leaves you with `45` — the `.` is rejected and
-removed before the `5` arrives. For numeric input that is usually not what you want:
+removed before the `5` arrives. The empty string does not parse either, so the field cannot be
+cleared: emptying it puts the previous value straight back. For numeric input that is usually not
+what you want:
 
 ```csharp
 // Reverts on blur, so a half-typed number survives being typed.
