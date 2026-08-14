@@ -198,6 +198,21 @@ public sealed class BodyTransplantTests
                 }
             }
         """)]
+    // The same name bound by a designation rather than a declarator. Refused from the same scan, because
+    // what the rule is about is the names the block binds and not the syntax it binds them through: this
+    // shape reached the generated scope and shadowed the builder, leaving every frame after it bound
+    // against an int (#348).
+    [InlineData(
+        "the builder's name through a designation",
+        """
+        {
+                get
+                {
+                    int.TryParse(Title, out var __builder);
+                    return Span[Title];
+                }
+            }
+        """)]
     public void Body_WhenGetterIsOutsideTheAcceptedShape_StaysBCF1004(string shape, string getter)
     {
         var result = Run(getter);
