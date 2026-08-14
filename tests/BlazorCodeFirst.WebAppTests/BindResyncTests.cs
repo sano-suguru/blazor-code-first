@@ -111,4 +111,49 @@ public sealed class BindResyncTests
         Assert.Contains("onchange", attributeNames);
         Assert.Contains("data-committed", attributeNames);
     }
+
+    [Fact]
+    public void RejectingInputProbe_marks_the_value_attribute_for_DOM_resynchronization()
+    {
+        var builder = new RenderTreeBuilder();
+        new RejectingInputProbe().Build(builder);
+
+        var frames = builder.GetFrames();
+        var resynchronized = new List<string>();
+        for (int i = 0; i < frames.Count; i++)
+        {
+            if (frames.Array[i].AttributeEventUpdatesAttributeName is { } name)
+            {
+                resynchronized.Add(name);
+            }
+        }
+
+        // The same premise the trimming probe needs, for the other door into the same repair: without
+        // this the browser test would be measuring an element Blazor never repairs, and would report a
+        // reversion failure that was really a missing registration.
+        Assert.Equal(["value"], resynchronized);
+    }
+
+    [Fact]
+    public void RejectingInputProbe_formats_its_value_through_the_written_culture()
+    {
+        var builder = new RenderTreeBuilder();
+        new RejectingInputProbe().Build(builder);
+
+        var frames = builder.GetFrames();
+        string? value = null;
+        for (int i = 0; i < frames.Count; i++)
+        {
+            ref readonly var frame = ref frames.Array[i];
+            if (frame.FrameType == RenderTreeFrameType.Attribute && frame.AttributeName == "value")
+            {
+                value = frame.AttributeValue as string;
+            }
+        }
+
+        // The frame holds a formatted string, which is what the browser test reads back after the
+        // reversion. A frame holding a boxed int would still render "30" and would still pass in the
+        // browser, while meaning the emitter had stopped going through BindConverter (#307).
+        Assert.Equal("30", value);
+    }
 }

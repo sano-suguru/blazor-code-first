@@ -96,12 +96,13 @@ jobs:
       - run: bash eng/verify-wasm-package.sh tests/BlazorCodeFirst.WasmPackageApp/bin/Release/net10.0/publish/wwwroot
 
   browser:
-    # The two specs in tests/BlazorCodeFirst.WebAppTests/browser measure Blazor's JS renderer:
-    # insertMarkup against createTextNode, and the DOM resynchronization SetUpdatesAttributeName
-    # turns on. Neither is visible from dotnet test, and neither is OS-dependent, so this runs on
-    # one OS with one browser rather than joining the build-test matrix -- a second OS would double
-    # the browser download and measure nothing new. It is a separate job so it runs alongside
-    # build-test instead of extending it.
+    # The specs in tests/BlazorCodeFirst.WebAppTests/browser measure Blazor's JS renderer -- what it
+    # does with the frames, rather than which frames were emitted. Nothing there is visible from
+    # dotnet test and nothing there is OS-dependent, so this runs on one OS with one browser rather
+    # than joining the build-test matrix; a second OS would double the browser download and measure
+    # nothing new. It is a separate job so it runs alongside build-test instead of extending it.
+    # Counted by rule rather than by number: the set has grown three times and the count was stale
+    # each time.
     runs-on: ubuntu-latest
 
     steps:
