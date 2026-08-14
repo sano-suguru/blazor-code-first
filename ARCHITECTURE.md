@@ -520,7 +520,7 @@ net11.0ターゲットでは、Runtime Async(ランタイムネイティブ非�
 
 ## 5. WebAssemblyとAOTコンパイル適合性
 
-BlazorCodeFirstは実行時メタデータ分析・動的ディスパッチを排除します。全パラメータバインディング(`Component<T>().Param(...)` を含む)は、Source Generatorが生成する静的セッター経由で行われます。`Param` の式引数はSGが構文解析してセッター生成にのみ利用し、式木(`System.Linq.Expressions`)のランタイムコンパイルは行いません。`System.Reflection` / `System.Linq.Expressions` へのランタイム依存は0です。
+BlazorCodeFirstは実行時メタデータ分析・動的ディスパッチを排除します。全パラメータバインディング(`Component<T>().Param(...)` を含む)は、Source Generatorが生成する静的セッター経由で行われます。`Param` の式引数はSGが構文解析してセッター生成にのみ利用し、式木(`System.Linq.Expressions`)のランタイムコンパイルは行いません。**生成コードが `System.Reflection` / `System.Linq.Expressions` を呼ぶ箇所は0です。** 生成コードが呼び出すフレームワークの側にはリフレクションを通る経路が2つあり、いずれも本節後段の切り分け(契約は自身が生成するコードまで)の内側にあります。`Component<T>().Param` の `ComponentProperties.SetProperties` と、enum を束縛したときの `BindConverter.ParserDelegateCache`(`MakeGenericMethod` で `ConvertToEnum` を取り出す、#307)です。後者はトリムを生き延びることを実測しました(`TrimmedOutputTests`、費用は付録E.2)。
 
 さらに、設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)と設計時APIは、いずれも実行時に到達不能であるため、ILトリマーがこれらを丸ごと除去できます。ここでいう設計時APIとは、`Html`・`Decorations` の全メンバーと、設計時慣性型 `View` / `ComponentView<T>` / `ElementView`(付録A、BCF3014)の全メンバーです。UI記述のソースコードはバイナリサイズに寄与しません。実行時に評価するコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` を有効にした状態で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計です。トリムテストはコンポーネントとレイアウトの双方(派生型の `Body`/`Chrome` と基底の抽象ゲッター)についてこれを検査します。
 
@@ -748,6 +748,10 @@ DEBUG構成では、設計時API群を慣性実装から実働実装(`View` に 
 **定数 `null`** の一致は #171 で実測しました。要素経路のフレーム層・静的SSR・prerender・interactive初回・両方向の再描画のすべてで属性ごと不在に一致し、`""` とは全段で区別されます。対照としてコンポーネントのパラメータ経路は `null` でもフレームを積むため、省略は要素経路だけの性質です。ただし非畳み込み経路が定数 `null` を書くときは `(global::System.String?)` のキャストを伴います。`AddAttribute` の値位置が多重定義されており、裸の `null` は `string?` と `MulticastDelegate?` のどちらにも決まらずCS0121になるためです(#234で実測)。要素経路もフレームを出さない形にすれば markup と完全に一致しますが、シーケンス番号は発行した呼び出しに対して割り当てられるため、発行する定数 `false` の `bool` と扱いが割れます。
 
 **定数 `bool`** の `true` が `name=""` になることはDOM等価として実測しました。prerender 出力は `=""` の無い裸の `name` を書き、これも同じDOMへパースされます。`false` に対して要素経路はフレームを1つも発行しないため、フレーム数も一致します。
+
+**束縛値はこの節の対象外です**(2026-08-14実測、#307)。カルチャを伴う `.Bind` は属性側を `BindConverter.FormatValue(値, culture:)` で包むため、フレームへ入るのは呼び出しサイトに書かれたカルチャの下で整形済みの文字列です。上の実測はいずれも「整形は呼び出したスレッドのカルチャに従う」ことに帰着しますが、この経路では従いません。スレッドが `de-DE` を持ったまま `CultureInfo.InvariantCulture` を書いた束縛が `1234.5` を積むことを実測しました(`NonStringValueFormattingTests`)。包むかどうかは解決されたオーバーロードがカルチャを取るかだけで決まり、束縛値の型は見ないため、`string` と `bool` の既存経路の出力は1バイトも動きません。
+
+この経路の費用は整形時点ではなくトリムに出ます(2026-08-14実測)。値型を1つでも束縛すると `BindConverter` が丸ごと保持されます。`TrimTestApp` を値型束縛の有無で publish した比較では、`BindConverter` の残存メソッドが28から53へ、`Microsoft.AspNetCore.Components.dll` が71,680から81,408バイトへ増えました(osx-arm64、self-contained、`TrimMode=full`)。残る中にはアプリが束縛しない型の変換器も含まれます(`ConvertToGuidCore` など)。`FormatterDelegateCache` と `ParserDelegateCache` が全変換器を一箇所から参照し、そこに `[DynamicallyAccessedMembers(All)]` と `UnconditionalSuppressMessage` が付いているためです。費用はenum固有ではなく、`string` と `bool` だけを束縛するアプリには生じません。`TrimmedOutputTests` が固定します。
 
 ### E.3 掃き出した文字クラス
 
