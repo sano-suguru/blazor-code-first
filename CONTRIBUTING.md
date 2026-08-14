@@ -344,7 +344,8 @@ instead:
   any external font host; then, over the output as a whole, that the four
   self-hosted `wwwroot/fonts` woff2 files are in it
 - assertions over `404.html`, `robots.txt`, the generated sitemap, and
-  `_headers`
+  `_headers`, and that no `.br` or `.gz` compression sidecar is in the output,
+  which is the only thing enforcing `CompressionEnabled=false`
 
 Those assertions read the published files as text, which leaves out everything
 a browser computes. `site/tests/browser` closes that half with Playwright over

@@ -358,20 +358,24 @@ jobs:
           # legitimate per-path Disallow later is not forbidden, only made to cost one edit here.
           assert_not_grep '^[[:space:]]*[Dd][Ii][Ss][Aa][Ll][Ll][Oo][Ww]:' "$P/robots.txt" "robots.txt carries a Disallow rule, and this site is meant to be fully crawlable: preview deployments are deindexed with an X-Robots-Tag header instead, which a Disallow would prevent the crawler from ever reading"
 
-      - name: Verify the published _headers and .assetsignore
+      - name: Verify the published _headers and the absence of compression sidecars
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
 
           P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
 
-          # .assetsignore is in the same position as _headers below: an ordinary wwwroot file that
-          # only the deploy reads, so nothing else here would notice it going missing. It would not
-          # fail the deploy either -- every sidecar would simply be uploaded again, silently undoing
-          # #45 and putting /robots.txt.gz back at a reachable URL.
-          assert_file "$P/.assetsignore" "the publish output has no .assetsignore, so the .br/.gz sidecars would all be uploaded again"
-          assert_grep '^\*\*/\*\.br$' "$P/.assetsignore" "the .br pattern is missing from .assetsignore"
-          assert_grep '^\*\*/\*\.gz$' "$P/.assetsignore" "the .gz pattern is missing from .assetsignore"
+          # The whole of what enforces CompressionEnabled=false (#347). The property is one line in
+          # site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj and nothing else would notice it
+          # being deleted or an SDK default overriding it: the sidecars are ordinary extra files, so
+          # every other check here passes with 124 of them present. Asserting the publish output --
+          # rather than keeping the wwwroot/.assetsignore that used to drop them at upload time --
+          # is what makes that regression a red run instead of a silent four seconds a run.
+          #
+          # Recursive: sidecars appear under _framework/ as well as at the root, so the
+          # -maxdepth 1 assert_no_glob cannot see most of them.
+          assert_no_glob_recursive "$P" '*.br' "the publish output carries Brotli sidecars, so CompressionEnabled is no longer false"
+          assert_no_glob_recursive "$P" '*.gz' "the publish output carries gzip sidecars, so CompressionEnabled is no longer false"
 
           # _headers is an ordinary wwwroot file, so if it ever stopped being published NOTHING else
           # in this workflow would fail -- and the preview injection below appends with ">>", which
