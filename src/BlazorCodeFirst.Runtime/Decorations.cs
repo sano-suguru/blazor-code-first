@@ -75,8 +75,10 @@ public static class Decorations
     /// compile-time constant. A name of <c>"class"</c> folds into the element's class channel; every other
     /// name is single-binding (a duplicate is reported). Styles are set here (<c>.Attr("style", …)</c>);
     /// there is deliberately no <c>.Style</c> shortcut, nudging toward external CSS + <c>.Class</c>.
-    /// A bulk <c>.Attrs(IDictionary&lt;string, string&gt;)</c> splat is deferred (RM3+) and not yet available;
-    /// bind each attribute individually with this overload or a named shortcut until then.
+    /// There is no bulk <c>.Attrs(…)</c> splat and there will not be one (#308 / #320): a name that
+    /// arrives at runtime cannot join the class channel's compile-time fold, and the duplicate check
+    /// cannot see it. Bind each attribute individually with this overload or a named shortcut. The
+    /// reasons are in <c>ARCHITECTURE.md</c> 付録B.14.
     /// </summary>
     /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
