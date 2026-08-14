@@ -381,7 +381,7 @@ bash eng/verify-site-prerender.sh site/BlazorCodeFirst.Site/bin/Release/net10.0/
 cd site/tests/browser && npm ci && npx playwright install chromium && npx playwright test
 
 # As above: the specs run transpiled, never typechecked, so nothing else reads
-# their types. `build-deploy` runs it as well.
+# their types. The `verify` job runs it as well.
 npx tsc --noEmit
 ```
 
@@ -421,8 +421,16 @@ What no site check covers is anything needing a real deployment: Cloudflare's
 edge routing, the `_headers` rules as the edge applies them, and behaviour that
 appears only after WebAssembly starts. `playwright-cli` is the tool for an
 ad-hoc look at a deployed URL; #47 tracks making that a post-deploy step.
-`build-deploy` is also not a required check on `main` yet, so a red site build
-is visible on a pull request and does not block the merge (#250).
+
+`site.yml` runs in four jobs, and the division is what lets one of them be a
+required check on `main` (#250). `plan` decides whether the site's inputs
+changed and where a deploy would go; `verify` runs everything above; `deploy`
+talks to Cloudflare and nothing else, so an outage there cannot block a merge;
+and `site-verified` is the required check, reporting green without work when the
+site's inputs did not change. No trigger carries a `paths:` filter, because a
+required check that never starts is reported as pending rather than skipped. The
+path list that filter held now lives in `plan`, where nothing validates it: a new
+input to the site build has to be added there by hand.
 
 ## Issue tracker
 
@@ -517,12 +525,13 @@ conventional-commit prefix already carries the change type, so a "type of change
 it twice.
 
 `Verification` applies the same economy to results rather than to reasoning. A repository ruleset
-requires `build-test (ubuntu-latest, linux-x64)`, `build-test (macos-latest, osx-arm64)`, and
-`browser`, which between them run the build, `dotnet format`, the whole slnx test run, the package
-and trim verification, and the browser specs. Those results are on the pull request already, so the
-section is for what they cannot reach: the two measurement commands no CI step runs, anything
-checked by hand or against a deployment, and `site.yml`, which is not a required check yet (#250). A
-command listed there and never run reads exactly like one that was.
+requires `build-test (ubuntu-latest, linux-x64)`, `build-test (macos-latest, osx-arm64)`, `browser`,
+and `site-verified`, which between them run the build, `dotnet format`, the whole slnx test run, the
+package and trim verification, the browser specs, and everything under §The documentation site.
+Those results are on the pull request already, so the section is for what they cannot reach: the two
+measurement commands no CI step runs, and anything checked by hand or against a deployment — the
+site deploy included, since `site-verified` reports the verification and not the deploy. A command
+listed there and never run reads exactly like one that was.
 
 ## Conventions the code must uphold
 

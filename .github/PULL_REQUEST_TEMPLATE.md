@@ -18,5 +18,6 @@
 ## Verification
 
 <!-- Only what the required checks cannot reach: the DESIGN.md §7.1 / §7.2 measurements, anything
-     checked by hand or against a deployment, site.yml's result when this touches site/ (#250), a
-     check whose result was not the expected one. Otherwise delete. -->
+     checked by hand or against a deployment, the site deploy when this touches site/ (site-verified
+     reports the verification, not the deploy), a check whose result was not the expected one.
+     Otherwise delete. -->
