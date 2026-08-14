@@ -615,11 +615,17 @@ internal sealed class KnownSymbols
                 ? CollectEventArguments(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
                 : []);
 
-        var binderExtensionsType = compilation.GetTypeByMetadataName(
-            "Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions");
-
+        // The lookup is inside the lambda, not beside it. This constructor runs once per [ViewPart] and
+        // once per component, so a lookup hoisted here would be paid by every one of them — including
+        // the great majority that never write a format — for a table only a format reads.
+        // GetTypeByMetadataName is not free: it parses the name and consults every referenced assembly
+        // to detect ambiguity. Nothing is retained by moving it in, because the sibling lambda below
+        // already closes over `compilation` and all three share one display class.
         _formatBindableTypes = new System.Lazy<HashSet<ITypeSymbol>>(() =>
-            binderExtensionsType is null ? [] : CollectFormatBindableTypes(binderExtensionsType));
+            compilation.GetTypeByMetadataName(
+                "Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions") is { } binderExtensions
+                ? CollectFormatBindableTypes(binderExtensions)
+                : []);
 
         var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
         _surfaceMethods = new Dictionary<ISymbol, SurfaceMethodKind>(SymbolEqualityComparer.Default);
@@ -1020,10 +1026,20 @@ internal sealed class KnownSymbols
     /// <remarks>
     /// <para>
     /// Static, like <see cref="IsVoidTag"/> and <see cref="Normalize(IMethodSymbol)"/>: the answer is a
-    /// property of the resolved symbol and there is nothing to look up in a compilation. Callers must
-    /// have classified the method as <see cref="SurfaceMethodKind.Bind"/> or
-    /// <see cref="SurfaceMethodKind.ComponentBind"/> first — this answers from shape and does not
-    /// re-ask.
+    /// property of the resolved symbol. Callers must have classified the method as
+    /// <see cref="SurfaceMethodKind.Bind"/> or <see cref="SurfaceMethodKind.ComponentBind"/> first —
+    /// this answers from shape and does not re-ask.
+    /// </para>
+    /// <para>
+    /// #307 gave it one thing that would otherwise be looked up: a parameter is a role only if its type
+    /// is <c>CultureInfo</c>. That is asked by name, in <see cref="IsCultureInfo"/>, rather than against
+    /// a symbol this type resolved from the compilation — which is the one place in this file that names
+    /// a well-known type instead of resolving it, and so is worth saying rather than leaving a reader to
+    /// find. Resolving it would make this an instance member and every caller hold a
+    /// <see cref="KnownSymbols"/>, which all five already do, so the cost is not the reason. The reason
+    /// is that the type being matched arrives from this repository's own <c>Decorations.Bind</c>
+    /// signature: nothing an author writes reaches it, and a shadowing declaration would already have
+    /// broken the overload it appears in. Where a name match reads a type an author supplied, resolve it.
     /// </para>
     /// <para>
     /// <paramref name="method"/> is read in whatever spelling it arrives in, and is deliberately
@@ -1143,8 +1159,11 @@ internal sealed class KnownSymbols
     /// compilation that cannot see the framework's binder extensions. BCF3028 declines the same way for
     /// the same reason: a check with no table to consult reports nothing rather than reporting everything.
     /// </remarks>
-    public bool AcceptsBindFormat(ITypeSymbol valueType) =>
-        _formatBindableTypes.Value.Count == 0 || _formatBindableTypes.Value.Contains(valueType);
+    public bool AcceptsBindFormat(ITypeSymbol valueType)
+    {
+        var types = _formatBindableTypes.Value;
+        return types.Count == 0 || types.Contains(valueType);
+    }
 
     /// <summary>
     /// The bound value types of every format-taking <c>CreateBinder</c> overload: the setter parameter's
@@ -1159,24 +1178,14 @@ internal sealed class KnownSymbols
 
         foreach (var member in binderExtensions.GetMembers("CreateBinder"))
         {
-            if (member is not IMethodSymbol method)
-                continue;
-
-            var hasFormat = false;
-            foreach (var parameter in method.Parameters)
-            {
-                if (parameter.Name == "format" && parameter.Type.SpecialType == SpecialType.System_String)
-                {
-                    hasFormat = true;
-                    break;
-                }
-            }
-
-            // Parameter 2 is the setter: the list is (factory, receiver, setter, existingValue, …), read
-            // unreduced because these are metadata members rather than a resolved call.
-            if (!hasFormat
+            // The two constant-time questions first, so the parameter scan is paid only by an overload
+            // that could contribute. Parameter 2 is the setter: the list is
+            // (factory, receiver, setter, existingValue, …), read unreduced because these are metadata
+            // members rather than a resolved call.
+            if (member is not IMethodSymbol method
                 || method.Parameters.Length < 3
-                || method.Parameters[2].Type is not INamedTypeSymbol { TypeArguments.Length: > 0 } setterType)
+                || method.Parameters[2].Type is not INamedTypeSymbol { TypeArguments.Length: > 0 } setterType
+                || !DeclaresFormatParameter(method))
             {
                 continue;
             }
@@ -1185,6 +1194,21 @@ internal sealed class KnownSymbols
         }
 
         return types;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="method"/> takes a format, which is what separates the overloads a
+    /// <c>.Bind</c> format may be written against from the rest of the <c>CreateBinder</c> group.
+    /// </summary>
+    private static bool DeclaresFormatParameter(IMethodSymbol method)
+    {
+        foreach (var parameter in method.Parameters)
+        {
+            if (parameter.Name == "format" && parameter.Type.SpecialType == SpecialType.System_String)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

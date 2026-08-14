@@ -70,6 +70,25 @@ public sealed class NonStringValueFormattingTests
         return texts;
     }
 
+    /// <summary>The value of every <see cref="RenderTreeFrameType.Attribute"/> frame, in order.</summary>
+    /// <remarks>
+    /// The attribute sibling of <see cref="TextFrames"/>, extracted when the second caller arrived: both
+    /// attribute measurements below read the same four lines, and the whole point of the pair is that one
+    /// holds a value the thread's culture chose and the other one it did not.
+    /// </remarks>
+    private static List<object?> AttributeValues(RenderTreeBuilder builder)
+    {
+        var frames = builder.GetFrames();
+        var values = new List<object?>();
+        for (var index = 0; index < frames.Count; index++)
+        {
+            if (frames.Array[index].FrameType == RenderTreeFrameType.Attribute)
+                values.Add(frames.Array[index].AttributeValue);
+        }
+
+        return values;
+    }
+
     /// <summary>
     /// A boxed value handed to <c>AddContent</c> is formatted at the call, not kept for later: the two
     /// frames disagree even though they sit in one builder, and they were separated by nothing but the
@@ -136,15 +155,7 @@ public sealed class NonStringValueFormattingTests
             builder.CloseElement();
         });
 
-        var frames = builder.GetFrames();
-        var values = new List<object?>();
-        for (var index = 0; index < frames.Count; index++)
-        {
-            if (frames.Array[index].FrameType == RenderTreeFrameType.Attribute)
-                values.Add(frames.Array[index].AttributeValue);
-        }
-
-        Assert.Equal("1234,5", Assert.IsType<string>(Assert.Single(values)));
+        Assert.Equal("1234,5", Assert.IsType<string>(Assert.Single(AttributeValues(builder))));
     }
 
     /// <summary>
@@ -176,14 +187,6 @@ public sealed class NonStringValueFormattingTests
             builder.CloseElement();
         });
 
-        var frames = builder.GetFrames();
-        var values = new List<object?>();
-        for (var index = 0; index < frames.Count; index++)
-        {
-            if (frames.Array[index].FrameType == RenderTreeFrameType.Attribute)
-                values.Add(frames.Array[index].AttributeValue);
-        }
-
-        Assert.Equal("1234.5", Assert.IsType<string>(Assert.Single(values)));
+        Assert.Equal("1234.5", Assert.IsType<string>(Assert.Single(AttributeValues(builder))));
     }
 }

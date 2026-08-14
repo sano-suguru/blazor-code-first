@@ -25,15 +25,7 @@ public sealed class BindResyncTests
         var builder = new RenderTreeBuilder();
         new TrimmingInputProbe().Build(builder);
 
-        var frames = builder.GetFrames();
-        var resynchronized = new List<string>();
-        for (int i = 0; i < frames.Count; i++)
-        {
-            if (frames.Array[i].AttributeEventUpdatesAttributeName is { } name)
-            {
-                resynchronized.Add(name);
-            }
-        }
+        var resynchronized = ResynchronizedAttributes(builder);
 
         // Exactly one, and named "value": the browser test types into one input and reads back that one
         // attribute. A second binding appearing on this page, or the name drifting to something the
@@ -71,15 +63,7 @@ public sealed class BindResyncTests
         var builder = new RenderTreeBuilder();
         new TwoBindingProbe().Build(builder);
 
-        var frames = builder.GetFrames();
-        var resynchronized = new List<string>();
-        for (int i = 0; i < frames.Count; i++)
-        {
-            if (frames.Array[i].AttributeEventUpdatesAttributeName is { } name)
-            {
-                resynchronized.Add(name);
-            }
-        }
+        var resynchronized = ResynchronizedAttributes(builder);
 
         // Exactly one, and named "value". The second binding names "data-committed", which the client
         // can never send back — EventFieldInfo carries the element's own value or checked and nothing
@@ -118,15 +102,7 @@ public sealed class BindResyncTests
         var builder = new RenderTreeBuilder();
         new RejectingInputProbe().Build(builder);
 
-        var frames = builder.GetFrames();
-        var resynchronized = new List<string>();
-        for (int i = 0; i < frames.Count; i++)
-        {
-            if (frames.Array[i].AttributeEventUpdatesAttributeName is { } name)
-            {
-                resynchronized.Add(name);
-            }
-        }
+        var resynchronized = ResynchronizedAttributes(builder);
 
         // The same premise the trimming probe needs, for the other door into the same repair: without
         // this the browser test would be measuring an element Blazor never repairs, and would report a
@@ -155,5 +131,29 @@ public sealed class BindResyncTests
         // reversion. A frame holding a boxed int would still render "30" and would still pass in the
         // browser, while meaning the emitter had stopped going through BindConverter (#307).
         Assert.Equal("30", value);
+    }
+
+    /// <summary>
+    /// The attribute names a builder's frames register for DOM resynchronization, in order.
+    /// </summary>
+    /// <remarks>
+    /// Extracted when the third probe arrived. Every premise in this file is the same question asked of a
+    /// different component, and the loop is the question: what did <c>SetUpdatesAttributeName</c> record.
+    /// Keeping one copy is also what makes each test read as the one thing it asserts, which is the count
+    /// and the name rather than how a frame carries them.
+    /// </remarks>
+    private static List<string> ResynchronizedAttributes(RenderTreeBuilder builder)
+    {
+        var frames = builder.GetFrames();
+        var resynchronized = new List<string>();
+        for (int i = 0; i < frames.Count; i++)
+        {
+            if (frames.Array[i].AttributeEventUpdatesAttributeName is { } name)
+            {
+                resynchronized.Add(name);
+            }
+        }
+
+        return resynchronized;
     }
 }

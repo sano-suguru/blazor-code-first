@@ -452,8 +452,14 @@ internal static class RenderViewEmitter
             // takes the raw one, because CreateBinder's existingValue is the bound field and not the text
             // the element shows, while the attribute frame takes the formatted string. The two were the
             // same string before #307, which is why Binder() used to be handed the attribute's.
+            //
+            // Both are built once and threaded, for the reason Binder's own <param> gives about the
+            // value: reading them again would rebuild the same strings. The tail is also the only test
+            // of whether this binding formats at all, so asking it here and asking Binder to ask it
+            // again would be two places encoding one rule.
             var value = bind.Value.ToCode();
-            var attributeValue = bind.Culture is null ? value : $"{BindConverter}.FormatValue({value}{FormatAndCulture(bind)})";
+            var tail = FormatAndCulture(bind);
+            var attributeValue = tail.Length == 0 ? value : $"{BindConverter}.FormatValue({value}{tail})";
             writer.AppendLine($"__builder.AddAttribute({next}, {attributeName}, {attributeValue});");
             next++;
             // The framework's own CreateBinder overload for string annotates its setter parameter
@@ -468,7 +474,7 @@ internal static class RenderViewEmitter
             // whole file: an author's own null assignment inside a transplanted Body expression is not
             // this binder, and must keep failing in the author's own file.
             writer.AppendLine("#pragma warning disable CS8601, CS8620");
-            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {Binder(bind, value)});");
+            writer.AppendLine($"__builder.AddAttribute({next}, {eventName}, {Binder(bind, value, tail)});");
             writer.AppendLine("#pragma warning restore CS8601, CS8620");
             next++;
             // Blazor resynchronizes the DOM from this attribute when a re-render produces the value the
@@ -509,6 +515,11 @@ internal static class RenderViewEmitter
     /// the bound field, not the text the element shows. Passed in rather than read again from
     /// <see cref="BindTemplate.Value"/>, which would rebuild the same string.
     /// </param>
+    /// <param name="tail">
+    /// The <c>format:</c> and <c>culture:</c> arguments, from <see cref="FormatAndCulture"/>. Passed in
+    /// for the same reason <paramref name="value"/> is, and because the caller has already asked the same
+    /// question of it: an empty tail is what tells the attribute frame not to format.
+    /// </param>
     /// <remarks>
     /// Assembled here rather than in the analyzer, beside the event channel's <c>Create</c> — the same
     /// factory call for the same job — and inside the suppression the caller writes for it. The analyzer
@@ -520,10 +531,8 @@ internal static class RenderViewEmitter
     /// <c>CreateInferredBindSetter</c> infers it.
     /// </para>
     /// </remarks>
-    private static string Binder(BindTemplate bind, string value)
+    private static string Binder(BindTemplate bind, string value, string tail)
     {
-        var tail = FormatAndCulture(bind);
-
         // CreateBinder(this, __value => <value> = __value, <value>[, format:][, culture:])
         if (bind.Setter is not { } setter)
             return $"{CreateBinderCall}__value => {value} = __value, {value}{tail})";
