@@ -163,10 +163,8 @@ element return to the previous value. That is Blazor's behaviour, and `.Bind` re
 same DOM resynchronization described above.
 
 It has a consequence worth choosing deliberately. On `"oninput"` the reversion runs on every
-keystroke, so typing `4.5` into an `int` binding leaves you with `45` — the `.` is rejected and
-removed before the `5` arrives. The empty string does not parse either, so the field cannot be
-cleared: emptying it puts the previous value straight back. For numeric input that is usually not
-what you want:
+keystroke, so a decimal point typed into an `int` binding never survives: `4.` is rejected and the
+`.` is taken straight back out. For numeric input that is usually not what you want:
 
 ```csharp
 // Reverts on blur, so a half-typed number survives being typed.
@@ -175,6 +173,10 @@ Input.Type("number").Bind("value", "onchange", () => _amount, CultureInfo.Invari
 
 `"oninput"` is still right when every intermediate value is meaningful — a range slider, or a text
 field whose type accepts anything the user can type.
+
+Emptying the field is a separate matter, and it is not a rejection. Blazor reads an empty string as
+the type's default, so clearing an `int` binding gives you `0` rather than leaving the previous value
+in place. Bind an `int?` where the field is genuinely optional; that takes `null` there.
 
 ### Dates need a format
 

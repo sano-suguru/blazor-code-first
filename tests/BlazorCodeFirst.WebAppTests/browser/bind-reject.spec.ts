@@ -52,32 +52,39 @@ test.describe('a value the converter rejects is reverted in the DOM', () => {
    * `onchange` against `oninput` for a numeric binding: with `oninput` the reversion runs on every
    * keystroke, so a decimal point never survives long enough to be followed by digits.
    */
-  test('an int bound on oninput swallows a typed dot', async ({ page }) => {
+  /**
+   * The consequence an author meets, and the reason the site documentation tells them to weigh
+   * `onchange` against `oninput` for a numeric binding: on `oninput` the reversion runs per keystroke,
+   * so a decimal point never survives being typed into an int binding.
+   *
+   * One keystroke, deliberately. An earlier version typed ".5" and asserted the field ended at 45, on
+   * the reasoning that the dot would be rejected before the 5 arrived. CI measured 4 instead: over a
+   * Server circuit each keystroke is a round trip, and the reversion for "4." can land after the "5"
+   * has been typed and overwrite it. What the end state of a fast multi-key sequence is depends on
+   * that race, so it is not a fact to pin. That the dot itself does not survive does not.
+   */
+  test('an int bound on oninput does not keep a typed dot', async ({ page }) => {
     const input = page.locator('#rejecting-input');
 
-    // Start from a value that parses, and append to it. Two things rule out the obvious alternatives.
-    // fill() would deliver the whole string as one input event and measure a single rejection rather
-    // than the per-keystroke reversion an author meets; and clearing first is not available, because
-    // an empty string is itself unparsable for an int and is reverted like any other rejection. That
-    // is the same trap from its other side, and it is why this starts at a digit instead of nothing.
     await input.fill('4');
     await expect(page.locator('#reject-field-value')).toHaveText('4');
 
-    // Typed one character at a time. "4." does not parse and is reverted to "4" before the "5"
-    // arrives, so the field ends up holding 45: the digits, with the dot dropped from between them.
-    await input.pressSequentially('.5');
+    await input.press('.');
 
-    await expect(page.locator('#reject-field-value')).toHaveText('45');
-    await expect(input).toHaveValue('45');
+    await expect(input).toHaveValue('4');
+    await expect(page.locator('#reject-field-value')).toHaveText('4');
   });
 
   /**
-   * The same rule from its other side, and the one an author is most likely to be surprised by: an
-   * empty string does not parse as an int either, so emptying the field is a rejection and the
-   * previous value comes straight back. Microsoft names it as a reason to prefer onchange. Measured
-   * here because the site documentation tells authors about it.
+   * Emptying the field is not a rejection, which is worth measuring precisely because it looks like
+   * one. `ConvertToIntCore` answers an empty string with success and `default`, so a cleared int
+   * binding becomes 0 rather than keeping what it had. An earlier version of this test asserted the
+   * opposite and CI corrected it.
+   *
+   * The remedy is the type, not the event: a nullable binding takes null there, which is the
+   * distinction the site documentation draws.
    */
-  test('an int bound on oninput cannot be cleared', async ({ page }) => {
+  test('clearing an int binding sets it to zero rather than reverting', async ({ page }) => {
     const input = page.locator('#rejecting-input');
 
     await input.fill('41');
@@ -85,7 +92,7 @@ test.describe('a value the converter rejects is reverted in the DOM', () => {
 
     await input.fill('');
 
-    await expect(page.locator('#reject-field-value')).toHaveText('41');
-    await expect(input).toHaveValue('41');
+    await expect(page.locator('#reject-field-value')).toHaveText('0');
+    await expect(input).toHaveValue('0');
   });
 });
