@@ -396,9 +396,11 @@ public sealed class HtmlAttributeGeneratorTests
     }
 
     /// <summary>
-    /// The class channel writes a lone decoration's value as it stands, so it reaches the same overloaded
-    /// position and needs the same cast. Two or more decorations concatenate, and a concatenation is a
-    /// <see langword="string"/> whatever its terms are, so only the lone case is at risk.
+    /// A constant <see langword="null"/> is dropped from the class channel, so a lone one leaves the
+    /// channel with nothing to join and it spells its own absent value (#240) — into the same overloaded
+    /// position, needing the same cast (#234). The author's <c>null!</c> does not survive that, and the
+    /// defect never was the spelling. Two or more decorations concatenate, and a concatenation is a
+    /// <see langword="string"/> whatever its terms are, so only this case is at risk.
     /// </summary>
     [Fact]
     public void ConstantNullClassValue_OnAnUnfoldableElement_EmitsCodeThatCompiles()
@@ -417,7 +419,7 @@ public sealed class HtmlAttributeGeneratorTests
         // The compile comes first: it is the defect, and the cast's exact spelling is how this fixes it.
         CompilationTestHost.AssertOutputCompiles(result);
         Assert.Contains(
-            """__builder.AddAttribute(1, "class", (global::System.String?)(null!));""",
+            """__builder.AddAttribute(1, "class", (global::System.String?)(null));""",
             Assert.Single(result.GeneratedSources).SourceText.ToString());
     }
 }

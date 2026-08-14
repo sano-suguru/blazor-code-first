@@ -100,6 +100,27 @@ public sealed class ClassChannelJoinTests
         Assert.Contains("__BlazorCodeFirstJoinClasses(string? a0, string? a1, string? a2) =>", generated);
     }
 
+    /// <summary>
+    /// The ladder's body at the three arities <c>ClassJoinCandidates</c> transcribes for #239's
+    /// measurement. Nothing else ties that transcription to what the compiler writes: the benchmark's
+    /// gate compares the two candidates to each other, and both implement the same rule, so a change to
+    /// the generation rule would leave it green while the timing described a spelling this generator no
+    /// longer emits.
+    /// </summary>
+    [Fact]
+    public void JoinHelperCode_WritesTheBodiesTheBenchmarkTranscribes()
+    {
+        Assert.Equal(
+            """private static string? __BlazorCodeFirstJoinClasses(string? a0, string? a1) => a0 is null ? a1 : a1 is null ? a0 : string.Concat(a0, " ", a1);""",
+            ClassChannel.JoinHelperCode(2));
+        Assert.Equal(
+            """private static string? __BlazorCodeFirstJoinClasses(string? a0, string? a1, string? a2) => a0 is null ? __BlazorCodeFirstJoinClasses(a1, a2) : a1 is null ? __BlazorCodeFirstJoinClasses(a0, a2) : a2 is null ? __BlazorCodeFirstJoinClasses(a0, a1) : string.Concat(a0, " ", a1, " ", a2);""",
+            ClassChannel.JoinHelperCode(3));
+        Assert.Equal(
+            """private static string? __BlazorCodeFirstJoinClasses(string? a0, string? a1, string? a2, string? a3) => a0 is null ? __BlazorCodeFirstJoinClasses(a1, a2, a3) : a1 is null ? __BlazorCodeFirstJoinClasses(a0, a2, a3) : a2 is null ? __BlazorCodeFirstJoinClasses(a0, a1, a3) : a3 is null ? __BlazorCodeFirstJoinClasses(a0, a1, a2) : string.Concat(a0, " ", a1, " ", a2, " ", a3);""",
+            ClassChannel.JoinHelperCode(4));
+    }
+
     [Fact]
     public void Emit_WhenNoJoinIsEmitted_WritesNoHelper()
     {

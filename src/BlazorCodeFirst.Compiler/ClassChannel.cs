@@ -83,6 +83,23 @@ internal static class ClassChannel
     private static readonly string SeparatorLiteral = $"\"{Separator}\"";
 
     /// <summary>
+    /// What the channel's value is spelled as when it has none: a constant <see langword="null"/> of the
+    /// channel's own type, carrying through <see cref="ExpressionTemplate.ToAttributeValueCode"/> the
+    /// cast an overloaded argument position needs (#234).
+    /// </summary>
+    /// <remarks>
+    /// Stated here rather than read back from the decorations that folded away. That every term dropped
+    /// means the value is nothing, and what nothing is spelled as is the channel's own answer; deriving
+    /// it from a term makes it an answer about the input instead. The two agree today only because a
+    /// constant <see langword="null"/> is the single reason <see cref="Contributes"/> drops a term, so a
+    /// surviving term is never the one read. Widening that rule would point the derivation at a term the
+    /// fold chose to keep, and what came out would be neither a diagnostic nor an exception but a
+    /// different attribute value (#240).
+    /// </remarks>
+    private static readonly string AbsentValueCode =
+        ExpressionTemplate.NullLiteral.ToAttributeValueCode();
+
+    /// <summary>
     /// Whether a decoration written with <paramref name="name"/> folds into the channel. Ordinal, like
     /// every other name comparison in the compiler: HTML attribute names are matched as written.
     /// </summary>
@@ -135,12 +152,11 @@ internal static class ClassChannel
 
     /// <summary>
     /// The C# expression <paramref name="classes"/> join into, for the one attribute frame the channel
-    /// emits. One surviving term is written as it stands, through
-    /// <see cref="ExpressionTemplate.ToAttributeValueCode"/> so a constant <see langword="null"/> carries
-    /// the cast that overloaded argument position needs (#234); two or more are passed to
-    /// <see cref="JoinHelperName"/> with each term parenthesized, so a ternary or a <c>??</c> keeps its
-    /// own precedence — and that call returns a <see cref="string"/> whatever its arguments are, so it
-    /// needs no cast of its own.
+    /// emits. No surviving term is <see cref="AbsentValueCode"/>; one is written as it stands, through
+    /// <see cref="ExpressionTemplate.ToAttributeValueCode"/>, which is what the position asks whatever
+    /// the term turns out to be; two or more are passed to <see cref="JoinHelperName"/> with each term
+    /// parenthesized, so a ternary or a <c>??</c> keeps its own precedence — and that call returns a
+    /// <see cref="string"/> whatever its arguments are, so it needs no cast of its own.
     /// </summary>
     /// <remarks>
     /// Terms the compiler can read are settled here rather than left to the join: a constant
@@ -158,7 +174,8 @@ internal static class ClassChannel
     /// </remarks>
     /// <param name="classes">
     /// At least one decoration. An element carrying none emits no frame at all, which is the caller's
-    /// decision to make: there is no expression that stands for an absent attribute.
+    /// decision to make and not one an expression can carry: <see cref="AbsentValueCode"/> is a value
+    /// that is nothing, and a frame carrying it is still a different output from no frame.
     /// </param>
     /// <param name="joinArity">
     /// The number of terms the returned code joins, or zero when it joins none. The emitter accumulates
@@ -167,15 +184,12 @@ internal static class ClassChannel
     /// </param>
     internal static string JoinAsCode(EquatableArray<ExpressionTemplate> classes, out int joinArity)
     {
-        var array = classes.AsImmutableArray();
-        var terms = ReadableTerms(array);
+        var terms = ReadableTerms(classes.AsImmutableArray());
         joinArity = 0;
 
-        // Every term was a constant null. The value is a null of the channel's own type, spelled the way
-        // the lone-decoration case spells it, so the cast that overloaded argument position needs comes
-        // from one place whichever route reached it.
+        // Nothing survived the fold, so the channel carries no value and says so itself.
         if (terms.Length == 0)
-            return array[0].ToAttributeValueCode();
+            return AbsentValueCode;
 
         if (terms.Length == 1)
             return terms[0].ToAttributeValueCode();

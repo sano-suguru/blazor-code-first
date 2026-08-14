@@ -125,12 +125,16 @@ required: if the counts diverge, the element spelling stopped folding.
 `FoldFixtureTests` pins each pair's folded frame count and asserts both sides
 render the same DOM.
 
-`ClassChannelBenchmarks` is a third unpublished set. It measures what the class
-channel's join allocates, before and after a change to the generation rule that
-builds it, and it has no second side. Razor has no additive class channel, so
-`Program.Main` has nothing to gate here, and the comparison is this generator
+`ClassChannelBenchmarks` is a third unpublished set, in two groups. The
+`generation rule` rows measure what the class channel's join allocates, before
+and after a change to the generation rule that builds it, against no second
+side: Razor has no additive class channel, so the comparison is this generator
 against its own previous output. That is what #236 needed before it could change
-the rule at all. `--filter '*'` picks it up; to run only it:
+the rule at all. The `join site` rows do have a second side — the join written
+into each generated class, against the one span-taking runtime method #239
+weighed against it — so `Program.Main` gates them on the two candidates
+answering the same text, on the same terms as the frame gates above.
+`--filter '*'` picks the set up; to run only it:
 
 ```bash
 # The #236 decision input only (not a DESIGN.md figure)
