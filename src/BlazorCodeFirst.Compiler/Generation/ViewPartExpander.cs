@@ -572,5 +572,5 @@ internal static class ViewPartExpander
         DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF1002,
             call.Location.ToLocation(),
-            [call.DisplayName, reason]);
+            [DiagnosticDescriptors.ViewPartSubject(call.DisplayName), reason]);
 }

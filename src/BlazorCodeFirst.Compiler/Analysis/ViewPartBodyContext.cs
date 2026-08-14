@@ -177,19 +177,19 @@ internal sealed class ViewPartBodyContext
     }
 
     /// <summary>
-    /// Registers <paramref name="span"/> as statements being transplanted into the generated code
-    /// (ARCHITECTURE.md §2.3 Transplantable), so a local declared inside them is legal at the expansion
-    /// site.
+    /// Registers <paramref name="span"/> as code being transplanted into a generated scope that encloses
+    /// whatever is normalized while it is registered, so a local declared inside it is legal there.
     /// </summary>
     /// <remarks>
-    /// Needed because the block becomes several templates — one per statement, plus the returned
-    /// expression — and each is normalized against its own root. Without this, a local declared in one
-    /// statement and read in the next looks like a local from an enclosing scope, which
-    /// <c>ExpressionTemplateFactory</c> rejects with BCF1002 because such a local cannot exist in
-    /// generated component code. One declared in a transplanted block can: it is written into the
-    /// generated block beside the reference.
+    /// Needed because the enclosing construct becomes several templates, each normalized against its own
+    /// root. Without this, a local declared in one and read in another looks like a local from an
+    /// enclosing scope, which <c>ExpressionTemplateFactory</c> rejects with BCF1002 because such a local
+    /// cannot exist in generated component code. Two shapes register here, the statements of a
+    /// transplanted block and the header expression of a lowered construct, and ARCHITECTURE.md §2.3 says
+    /// which positions those are and why nothing wider is admitted. They share one list because the check
+    /// asks one question of both: does the declaration land in a generated scope enclosing this reference.
     /// <para>
-    /// A span and not the block node, because containment is all any caller asks. A stack and not a single
+    /// A span and not the node, because containment is all any caller asks. A stack and not a single
     /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block
     /// that encloses it, exactly as the C# the author wrote does.
     /// </para>
@@ -266,6 +266,10 @@ internal sealed class ViewPartBodyContext
     /// id-specific: it only suppresses a second BCF1002, so it never drops an unrelated diagnostic (for
     /// example a co-located BCF3002 warning) that was recorded first.
     /// </summary>
+    /// <remarks>
+    /// The one BCF1002 site both positions reach, so it is where the subject is chosen; the two spellings
+    /// and the reason they differ are on <see cref="DiagnosticDescriptors.BCF1002"/>.
+    /// </remarks>
     public void ReportUnsupportedReference(Location location, string reason)
     {
         foreach (var existing in Diagnostics)
@@ -274,10 +278,14 @@ internal sealed class ViewPartBodyContext
                 return;
         }
 
+        var subject = IsInlinedAtCallSites
+            ? DiagnosticDescriptors.ViewPartSubject(MethodDisplayName)
+            : DiagnosticDescriptors.DesignTimeExpressionSubject(ContainingType.Name, MethodDisplayName);
+
         Diagnostics.Add(DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF1002,
             location,
-            [MethodDisplayName, reason]));
+            [subject, reason]));
     }
 
     public void ReportUnresolvedType(Location location, string typeName)

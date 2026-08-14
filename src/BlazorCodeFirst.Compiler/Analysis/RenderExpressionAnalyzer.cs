@@ -366,32 +366,45 @@ internal static class RenderExpressionAnalyzer
         if (thenExpr is null)
             return null;
 
-        var thenNode = Analyze(thenExpr, context);
-        if (thenNode is null)
-            return null;
-
-        RenderTemplateNode? otherwiseNode = null;
-
-        // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
-        // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
-        // An explicitly passed null literal still means "no else branch".
-        if (args.At(2) is { } otherwiseArg &&
-            otherwiseArg.Expression is not LiteralExpressionSyntax
-            { Token.RawKind: (int)SyntaxKind.NullKeyword })
+        // The condition is transplanted into the generated `if` header, which scopes over both branches,
+        // so a local the author declared there is legal in either one (#361). Registered as a scope for
+        // the same reason a transplanted block is: each branch is normalized against a root of its own,
+        // and without this the declaration looks to that root like one from an enclosing scope. The
+        // condition's own template is built inside the scope too, which changes no answer: it is
+        // normalized against itself, and a declaration inside it is already admitted by containment.
+        context.PushTransplantedScope(conditionArg.Expression.Span);
+        try
         {
-            var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
-            if (otherwiseExpr is null)
+            var thenNode = Analyze(thenExpr, context);
+            if (thenNode is null)
                 return null;
 
-            otherwiseNode = Analyze(otherwiseExpr, context);
-            if (otherwiseNode is null)
-                return null;
+            // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
+            // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
+            // An explicitly passed null literal still means "no else branch".
+            RenderTemplateNode? otherwiseNode = null;
+            if (args.At(2) is { } otherwiseArg &&
+                otherwiseArg.Expression is not LiteralExpressionSyntax
+                { Token.RawKind: (int)SyntaxKind.NullKeyword })
+            {
+                var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
+                if (otherwiseExpr is null)
+                    return null;
+
+                otherwiseNode = Analyze(otherwiseExpr, context);
+                if (otherwiseNode is null)
+                    return null;
+            }
+
+            return new IfTemplateNode(
+                ExpressionTemplateFactory.Create(conditionArg.Expression, context),
+                thenNode,
+                otherwiseNode);
         }
-
-        return new IfTemplateNode(
-            ExpressionTemplateFactory.Create(conditionArg.Expression, context),
-            thenNode,
-            otherwiseNode);
+        finally
+        {
+            context.PopTransplantedScope();
+        }
     }
 
     /// <summary>
@@ -471,6 +484,11 @@ internal static class RenderExpressionAnalyzer
 
         var itemOrdinal = context.PushRenderVariable(itemSymbols);
 
+        // The source is transplanted into the generated `foreach` header, which scopes over the loop
+        // body, so a local the author declared there is legal in the content and in the key alike: the
+        // key lands in a SetKey inside that same body (#361).
+        context.PushTransplantedScope(sourceArg.Expression.Span);
+
         try
         {
             var key = keyShape.Body is { } keyBody
@@ -505,6 +523,7 @@ internal static class RenderExpressionAnalyzer
         }
         finally
         {
+            context.PopTransplantedScope();
             context.PopRenderVariable(itemSymbols);
         }
     }
@@ -551,6 +570,10 @@ internal static class RenderExpressionAnalyzer
 
         ISymbol[] itemSymbols = [parameterSymbol];
         context.PushRenderVariable(itemSymbols);
+
+        // The same header scope ForEach's own source opens: this lowers to a foreach over that source,
+        // so a local declared in it is legal in the projection (#361).
+        context.PushTransplantedScope(access.Expression.Span);
         try
         {
             var content = Analyze(body, context);
@@ -564,6 +587,7 @@ internal static class RenderExpressionAnalyzer
         }
         finally
         {
+            context.PopTransplantedScope();
             context.PopRenderVariable(itemSymbols);
         }
     }
