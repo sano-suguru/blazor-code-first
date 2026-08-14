@@ -338,7 +338,9 @@ instead:
 
 - DocGen regeneration and a drift check on the three generated files
 - DocGen's own unit tests
-- `dotnet format` over each of the four projects under `site/`
+- the site app's unit tests, over the decisions its components make on input
+  `site/content` cannot hold (#279)
+- `dotnet format` over each of the five projects under `site/`
 - an English-only and trailing-newline scan of the tree
 - `eng/verify-site-prerender.sh` over the `dotnet publish` output: first that
   the published route set equals the set `site/content` backs, and then, for

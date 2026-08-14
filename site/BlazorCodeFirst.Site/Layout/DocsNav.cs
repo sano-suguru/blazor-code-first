@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using BlazorCodeFirst;
 using BlazorCodeFirst.Site.Content;
 using Microsoft.AspNetCore.Components;
@@ -91,7 +92,16 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
                             .Attr("lang", l)[Docs.Shell(l).Name]])]);
 
     /// <summary>The other editions that can show what the reader is looking at.</summary>
-    private static List<string> Counterparts(string lang, string? slug)
+    private static List<string> Counterparts(string lang, string? slug) =>
+        Counterparts(Docs.All, lang, slug);
+
+    /// <summary>The same decision, over a manifest given directly rather than this build's.</summary>
+    /// <remarks>
+    /// The documents are the parameter and the language set is not, because only the documents vary
+    /// in the case this exists for: a document no other edition has translated, which site/content
+    /// cannot hold. DocsNavTests says why, and holds that case (#279).
+    /// </remarks>
+    internal static List<string> Counterparts(ImmutableArray<DocEntry> docs, string lang, string? slug)
     {
         var others = new List<string>();
         foreach (string other in Docs.Languages)
@@ -102,8 +112,11 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
             }
 
             // An index route needs only that the edition exists; a document needs that edition to
-            // have translated this particular document.
-            bool reachable = slug is null ? Docs.ForLang(other).Length > 0 : Docs.Find(other, slug) is not null;
+            // have translated this particular document. #356 asks whether the first of those can be
+            // false at all, since Docs.Languages already excludes an edition with no documents.
+            bool reachable = slug is null
+                ? Docs.ForLang(docs, other).Length > 0
+                : Docs.Find(docs, other, slug) is not null;
             if (reachable)
             {
                 others.Add(other);

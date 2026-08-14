@@ -278,49 +278,31 @@ test.describe('the Japanese edition', () => {
     await expect(page.locator('.lang-switch a[lang="ja"]')).toHaveAttribute('href', '/docs/ja');
   });
 
-  // A switch is offered exactly when the document has a Japanese source. Naming one English-only
-  // document here instead would assert that until the document is translated, and then assert
-  // nothing: the test would keep passing against a page that now has a counterpart, having silently
-  // stopped covering the case it was written for.
+  // Only what needs a browser: that the rendered switch points where the manifest says. The case
+  // this used to also assert -- a document the Japanese edition has not translated is offered no
+  // switch -- is checked in site/tests/BlazorCodeFirst.Site.Tests, whose DocsNavTests says why it
+  // cannot be published and therefore never ran here (#279).
   //
-  // Both sides read the content tree rather than ROUTES, and neither is arbitrary; see the comments
-  // on the two helpers. The switch decides what the prerenderer discovers, so a route-derived
-  // expectation agrees with a defect instead of catching it, and a route on its own cannot say
-  // whether `/docs/<x>/` is a document or a translation index.
+  // The set is read from the content tree rather than from ROUTES, and that is not arbitrary; see
+  // the comments on the two helpers. The switch decides what the prerenderer discovers, so a
+  // route-derived expectation agrees with a defect instead of catching it, and a route on its own
+  // cannot say whether `/docs/<x>/` is a document or a translation index.
   const canonical = canonicalSlugs();
   const translated = translatedSlugs('ja');
   const english = ROUTES.filter((r) => r.startsWith('/docs/'))
     .map((route) => ({ route, slug: route.slice('/docs/'.length).replace(/\/$/, '') }))
-    .filter(({ slug }) => canonical.has(slug));
+    .filter(({ slug }) => canonical.has(slug) && translated.has(slug));
 
-  test('there is an English document to check', () => {
-    expect(english.length, 'no /docs/<slug> route matched a content/<slug>.md, so the checks below prove nothing')
-      .toBeGreaterThan(0);
+  test('there is a translated English document to check', () => {
+    expect(
+      english.length,
+      'no /docs/<slug> route matched a content/<slug>.md that content/ja also has, so the checks below prove nothing',
+    ).toBeGreaterThan(0);
   });
 
   for (const { route, slug } of english) {
-    const hasCounterpart = translated.has(slug);
-    // Named in full on both branches. Sharing a prefix across the two reads as the opposite of what
-    // the second one asserts: "offers a switch to nothing" for a page that offers no switch at all.
-    const title = hasCounterpart
-      ? `${route} offers a switch to its counterpart`
-      : `${route} offers no switch`;
-
-    test(title, async ({ page }) => {
+    test(`${route} offers a switch to its counterpart`, async ({ page }) => {
       await gotoSettled(page, route);
-
-      if (!hasCounterpart) {
-        // A switch here would link to a document that was never written: a page in the wrong
-        // language, or a 404, reached by following the site's own navigation.
-        //
-        // Dormant as this was written, because every document is translated. Deriving the branch is
-        // what lets it wake up on the commit that adds an untranslated document rather than needing
-        // one named here, but until then it proves nothing; #279 covers moving the case somewhere it
-        // can be constructed.
-        await expect(page.locator('.lang-switch')).toHaveCount(0);
-        return;
-      }
-
       await expect(page.locator('.lang-switch a[lang="ja"]')).toHaveAttribute('href', `/docs/ja/${slug}`);
     });
   }
