@@ -232,8 +232,11 @@ internal sealed record RenderFragmentContentTemplateNode(ExpressionTemplate Cont
 internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderTemplateNode;
 
 /// <summary>
-/// Statements transplanted ahead of the content they lead into (ARCHITECTURE.md §2.3 Transplantable).
-/// The statements consume no sequence numbers, so the wrapped content keeps the width it has on its own.
+/// One generated scope: the names expansion mints for it (<paramref name="LocalCount"/>), and the
+/// statements transplanted ahead of the content they lead into (ARCHITECTURE.md §2.3 Transplantable).
+/// Either half may be absent, and a body that declares only through its expression has no statements at
+/// all. The statements consume no sequence numbers, so the wrapped content keeps the width it has on its
+/// own.
 /// </summary>
 /// <remarks>
 /// The scope they land in depends on the position: a <c>ForEach</c> content block is written inside the
@@ -249,9 +252,11 @@ internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderT
 /// </para>
 /// </remarks>
 /// <param name="LocalCount">
-/// How many locals the statements declare as render variables, which is how many names expansion mints
-/// for this block (#336). Zero for a component's own expression, whose authored names stand as written.
-/// A count and not the names: the holes carry the ordinals, so the names exist only at expansion.
+/// How many locals this body declares as render variables, which is how many names expansion mints for it
+/// (#336). The statements are not the only source: a designation written in the returned expression binds
+/// into the same scope, so a body with no statements at all reaches this node when it declares one (#343).
+/// Zero for a component's own expression, whose authored names stand as written. A count and not the
+/// names: the holes carry the ordinals, so the names exist only at expansion.
 /// </param>
 internal sealed record TransplantedBlockTemplateNode(
     ExpressionTemplate Statements, RenderTemplateNode Content, int LocalCount) : RenderTemplateNode;

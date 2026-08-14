@@ -47,6 +47,26 @@ public sealed class ForEachTransplantTests
     }
 
     [Fact]
+    public void ForEachContent_WhenBlockDeconstructs_KeepsTheVarThatDesignationRequires()
+    {
+        // The other position the deconstruction was measured in (#342). The iteration variable is
+        // substituted as it is in any other transplanted statement; what changes is the type ahead of the
+        // designation list, which stays `var` because no other type can be written there.
+        var result = Run("""
+            x =>
+                    {
+                        var (a, b) = (x, x);
+                        return Html.Span[a + b];
+                    }
+            """);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("var (a, b) = (__bcf_item_0, __bcf_item_0);", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void ForEachContent_WhenBlockBodiedWithOneTrailingReturn_KeepsTheContentSequenceWidth()
     {
         // Statements emit no sequence-consuming call, so the block form must allocate the same numbers

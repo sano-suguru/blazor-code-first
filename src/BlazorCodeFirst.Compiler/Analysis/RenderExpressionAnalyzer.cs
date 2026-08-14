@@ -80,7 +80,7 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Classifies the expression a transplantable block returns, wrapped in the statements written before
-    /// that return (ARCHITECTURE.md §2.3 Transplantable). With no statements this is
+    /// that return (ARCHITECTURE.md §2.3 Transplantable). With no statements and no name to mint this is
     /// <see cref="Analyze(ExpressionSyntax, ViewPartBodyContext)"/>, which is the same block written as one
     /// expression.
     /// </summary>
@@ -95,18 +95,27 @@ internal static class RenderExpressionAnalyzer
         ExpressionSyntax expression,
         ViewPartBodyContext context)
     {
-        if (statements.IsEmpty)
-            return Analyze(expression, context);
-
-        context.PushTransplantedScope(SpanOf(statements));
-
-        // On the definition side, every local the block declares becomes a render variable, so its
+        // On the definition side, every local this body declares becomes a render variable, so its
         // declaration and its references carry one hole and expansion mints the name (#336). A component's
         // own expression keeps the names the author wrote; ViewPartBodyContext.IsInlinedAtCallSites says
-        // why the two positions differ.
+        // why the two positions differ. The returned expression is read alongside the statements because a
+        // pattern designation binds into the same scope a declaration statement does, and expansion copies
+        // it to every call site just the same (#343).
         var declared = context.IsInlinedAtCallSites
-            ? CollectDeclaredLocals(statements, context)
+            ? CollectDeclaredLocals(statements, expression, context)
             : [];
+
+        // An expression that declares nothing, written without statements, is the same body written as one
+        // expression and needs neither the scope nor the wrapping node.
+        if (statements.IsEmpty && declared.IsEmpty)
+            return Analyze(expression, context);
+
+        // Only statements are transplanted; an expression's own declarations travel with the expression, so
+        // there is no span to open when there are none. One flag rather than the same test at the push and
+        // again at the pop: a scope left open is read by every local reference in the rest of the body.
+        var opensTransplantedScope = !statements.IsEmpty;
+        if (opensTransplantedScope)
+            context.PushTransplantedScope(SpanOf(statements));
 
         foreach (var symbol in declared)
             context.PushRenderVariable(symbol);
@@ -127,45 +136,64 @@ internal static class RenderExpressionAnalyzer
             for (var index = declared.Length - 1; index >= 0; index--)
                 context.PopRenderVariable(declared[index]);
 
-            context.PopTransplantedScope();
+            if (opensTransplantedScope)
+                context.PopTransplantedScope();
         }
     }
 
     /// <summary>
-    /// The locals the block's leading statements declare, in written order — the order expansion appends
-    /// their names in, so the ordinals assigned here index the substitution the expander carries.
+    /// The locals this body declares into the scope it lands in — the leading statements', then the
+    /// returned expression's — in written order, which is the order expansion appends their names in, so
+    /// the ordinals assigned here index the substitution the expander carries.
     /// </summary>
     /// <remarks>
     /// The declaring forms come from <see cref="ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier"/>,
     /// which is also what rewrites the declaration itself, so the two cannot recognize different forms.
-    /// The traversal stops at a lambda written inside one of these statements: a local declared there
-    /// lands in the generated code inside that lambda's own braces, exactly as the author wrote it, so no
-    /// expansion can bring two of them into one scope. Bounded by descent and not by
-    /// <see cref="ISymbol.ContainingSymbol"/>, because these statements are themselves a lambda body
-    /// wherever the block is a <c>ForEach</c> content — which is the position the collision was first
-    /// found in.
+    /// The traversal stops at a lambda: a local declared there lands in the generated code inside braces of
+    /// its own — an <c>If</c> branch's block, a <c>ForEach</c> content's loop body, an event handler
+    /// transplanted whole — so no expansion can bring two of them into one scope. That the braces are what
+    /// the rule turns on, and not whether analysis descends into the lambda again, is what a new
+    /// lambda-bearing position has to check: a <c>ForEach</c> content is re-analyzed and registers its own
+    /// locals, a handler is never analyzed at all, and both are correct to skip here. Bounded by descent
+    /// and not by
+    /// <see cref="ISymbol.ContainingSymbol"/>, because this body is itself a lambda body wherever it is a
+    /// <c>ForEach</c> content — which is the position the collision was first found in.
+    /// <para>
+    /// A lambda parameter, a query range variable and the contextual slot are excluded by the shared list
+    /// of declaring forms rather than by a test here: registering one would collide with the ordinal
+    /// <see cref="ViewPartBodyContext.PushRenderVariable"/> already pushes for it.
+    /// </para>
     /// </remarks>
     private static ImmutableArray<ISymbol> CollectDeclaredLocals(
-        ImmutableArray<StatementSyntax> statements, ViewPartBodyContext context)
+        ImmutableArray<StatementSyntax> statements,
+        ExpressionSyntax expression,
+        ViewPartBodyContext context)
     {
         var builder = ImmutableArray.CreateBuilder<ISymbol>();
-        foreach (var statement in statements)
-        {
-            foreach (var node in statement.DescendantNodes(
-                static child => child is not AnonymousFunctionExpressionSyntax))
-            {
-                context.CancellationToken.ThrowIfCancellationRequested();
 
-                if (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out _)
-                    && context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
-                        is ILocalSymbol local)
-                {
-                    builder.Add(local);
-                }
-            }
-        }
+        foreach (var statement in statements)
+            CollectDeclaredLocals(statement, builder, context);
+
+        CollectDeclaredLocals(expression, builder, context);
 
         return builder.ToImmutable();
+    }
+
+    private static void CollectDeclaredLocals(
+        SyntaxNode root, ImmutableArray<ISymbol>.Builder builder, ViewPartBodyContext context)
+    {
+        foreach (var node in root.DescendantNodes(
+            static child => child is not AnonymousFunctionExpressionSyntax))
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            if (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out _)
+                && context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken)
+                    is ILocalSymbol local)
+            {
+                builder.Add(local);
+            }
+        }
     }
 
     /// <summary>The span covering <paramref name="statements"/>, which the caller has found non-empty.</summary>
