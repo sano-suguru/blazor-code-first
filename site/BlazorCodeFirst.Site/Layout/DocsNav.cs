@@ -111,13 +111,10 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
                 continue;
             }
 
-            // An index route needs only that the edition exists; a document needs that edition to
-            // have translated this particular document. #356 asks whether the first of those can be
-            // false at all, since Docs.Languages already excludes an edition with no documents.
-            bool reachable = slug is null
-                ? Docs.ForLang(docs, other).Length > 0
-                : Docs.Find(docs, other, slug) is not null;
-            if (reachable)
+            // An index route is offered every other edition: Docs.Languages already excludes an
+            // edition with no documents, so nothing here has to re-check that. A document route
+            // needs the narrower thing, that this edition has translated this particular document.
+            if (slug is null || Docs.Find(docs, other, slug) is not null)
             {
                 others.Add(other);
             }

@@ -1,0 +1,8 @@
+{
+  "stryker-config": {
+    "project": "BlazorCodeFirst.Compiler.csproj",
+    "mutate": ["!**/Diagnostics/DiagnosticDescriptors.cs"],
+    "reporters": ["progress", "html", "json"],
+    "thresholds": { "high": 100, "low": 100, "break": 0 }
+  }
+}

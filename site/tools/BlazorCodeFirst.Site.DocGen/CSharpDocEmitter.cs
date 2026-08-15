@@ -134,8 +134,8 @@ public static class CSharpDocEmitter
 
         sb.Append("    ];\n\n");
         // Each lookup is emitted twice: once over the manifest this build produced, and once over a
-        // manifest handed in. The second is what lets DocsNav.Counterparts be asked about documents
-        // site/content does not hold, without a second copy of the comparison rules (#279).
+        // manifest handed in. The handed-in Find is what lets DocsNav.Counterparts be asked about
+        // documents site/content does not hold, without a second copy of the comparison rules (#279).
         sb.Append("    /// <summary>One language's documents, in navigation order.</summary>\n");
         sb.Append("    public static ImmutableArray<DocEntry> ForLang(string lang) => ForLang(All, lang);\n\n");
         sb.Append("    /// <summary>The same, over a manifest given directly rather than this build's.</summary>\n");

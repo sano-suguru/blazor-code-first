@@ -48,6 +48,7 @@ public class DocsNavTests
 
     [Fact]
     public void Counterparts_IndexRoute_OffersTheOtherEdition() =>
-        // An index route names no document, so what it needs is only that the other edition exists.
+        // An index route names no document, so every other edition is offered. Keeping an edition
+        // with no pages out of that set is Docs.Languages' job, not this decision's.
         Assert.Equal(["ja"], DocsNav.Counterparts(OneTranslatedOneNot, "en", slug: null));
 }

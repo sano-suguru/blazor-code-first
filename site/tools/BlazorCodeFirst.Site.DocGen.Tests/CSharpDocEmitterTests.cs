@@ -48,8 +48,8 @@ public class CSharpDocEmitterTests
         Assert.Contains("public static readonly ImmutableArray<DocEntry> All", source);
         Assert.Contains("public static ImmutableArray<DocEntry> ForLang(string lang)", source);
         Assert.Contains("public static DocEntry? Find(string lang, string? slug)", source);
-        // The manifest-taking overloads, which DocsNav.Counterparts is written against so that a
-        // test can ask about documents this content tree does not hold (#279).
+        // The manifest-taking overloads. DocsNav.Counterparts is written against the Find one, so
+        // that a test can ask about documents this content tree does not hold (#279).
         Assert.Contains(
             "public static ImmutableArray<DocEntry> ForLang(ImmutableArray<DocEntry> docs, string lang)",
             source);

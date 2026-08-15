@@ -207,6 +207,42 @@ There are two ways around it:
 
 A typo or a missing `using` produces the same BCF3012, alongside CS0246 at the same position.
 
+## Cascading a value
+
+`CascadingValue<T>` is one of those existing components, so this surface adds nothing for cascading.
+Place it with `Component<T>()`, set `Value` through `.Param`, and put the subtree that reads it in
+brackets:
+
+```csharp
+protected override View Body =>
+    Component<CascadingValue<ThemeInfo>>()
+        .Param(c => c.Value, _theme)[
+            Component<Toolbar>(),
+            Component<Editor>()];
+```
+
+`Name` and `IsFixed` are `.Param` targets like any other, so a named cascade is
+`.Param(c => c.Name, "locale")` on this side and `[CascadingParameter(Name = "locale")]` on the
+receiving one.
+
+That receiving side is ordinary Blazor, and the generator never sees it. `[CascadingParameter]` is a
+property on the class, exactly as it is in a `.razor` component:
+
+```csharp
+public partial class Toolbar : BodyComponentBase
+{
+    [CascadingParameter]
+    public ThemeInfo? Theme { get; set; }
+
+    protected override View Body =>
+        Div.Class("toolbar")[Span[Theme?.Name ?? "default"]];
+}
+```
+
+Replacing the value re-renders every descendant that reads it, including ones whose own frames did
+not change. The subscription is Blazor's own: what the generator emits for the call above is what
+`<CascadingValue Value="@_theme">` emits.
+
 ## Using a BlazorCodeFirst component from Razor
 
 The other direction has no such restriction. A BlazorCodeFirst component is a plain Blazor
