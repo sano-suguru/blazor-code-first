@@ -1,0 +1,10 @@
+@page "/event-modifiers"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@*
+    Prerendering is off for the same reason FoldParityPage gives, applied to a different symptom: with it
+    on, the first HTML response carries the markup but no event listeners, and a wheel dispatched before
+    the circuit connects would scroll regardless of what the modifier says. Empty until interactive means
+    the spec cannot race it.
+*@
+<EventModifierView />
