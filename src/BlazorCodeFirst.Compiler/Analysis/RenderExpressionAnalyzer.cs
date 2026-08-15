@@ -977,12 +977,18 @@ internal static class RenderExpressionAnalyzer
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
 
-        // Ahead of the firstArg check below, because the valueless spelling has no argument at all: the
+        // Ahead of the argument guard below, because the valueless spelling has no argument at all: the
         // two overloads of each modifier are one behaviour, and .PreventDefault() would otherwise leave
-        // here as an unanalyzable call (#368).
+        // here as an unanalyzable call (#368). A decoration with a zero-argument overload belongs above
+        // that guard for the same reason, whatever channel it writes to.
         if (kind is SurfaceMethodKind.PreventDefault or SurfaceMethodKind.StopPropagation)
             return ClassifyEventModifier(decoAccess, method, kind, element, args, context);
 
+        // Every kind below reads a first argument, and every kind that can be written without one has
+        // routed above. So this is not "the author wrote no argument" but a call this compiler was not
+        // written against: the decoration declares a first parameter and nothing bound to it. Returning
+        // null without reporting sends the body to BCF1003, which is where an unrecognized call belongs
+        // (#372).
         if (args.At(0) is not { } firstArg)
             return null;
 
@@ -1086,19 +1092,11 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
-        // .Class, an attribute shortcut, or the generic .Attr. The value is the last parameter — the name,
-        // where it is written at all, is the one ahead of it — and this one derivation answers both readings
+        // .Class, an attribute shortcut, or the generic .Attr. This one derivation answers both readings
         // below: the argument index the value is carried at, and the value's type, which is what the class
         // channel admits or refuses on. Deriving it once is what puts .Class and .Attr("class", …) under the
         // same admission, where the type used to be read on the .Attr route alone (#193).
-        //
-        // .Attr(name) is the one spelling with no value parameter at all: the last parameter is the name,
-        // and reading it as the value would hand the class channel a string spelled "class" and emit
-        // class="class" (#178). Named here rather than guarded at each reader, so the two questions below
-        // are still asked once.
-        var attributeValue = HasValueParameter(method, kind)
-            ? method.Parameters[method.Parameters.Length - 1]
-            : null;
+        var attributeValue = ValueParameter(method, kind);
 
         // The presence the bare spelling stands for. A bool, so `class` refuses it as BCF3023 exactly as the
         // written bool overload does, and so the fold writes it as name="" through the branch that overload
@@ -1290,9 +1288,15 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        var value = args.At(0) is { } written
-            ? ExpressionTemplateFactory.Create(written.Expression, context)
-            : ExpressionTemplateFactory.ForBooleanConstant(true);
+        // Read through the attribute channel's own resolver rather than beside it. The implied true of the
+        // valueless overload is then synthesized in the one place #178 put it, and the written value is
+        // normalized where BCF3015 reports — an exemption this arm used to hold only because the parameter
+        // is a bool and could not be anything else (#372). A value parameter that bound no argument is a
+        // call this compiler was not written against, and goes to BCF1003 like the rest of them.
+        if (!TryResolveAttributeValue(args, decoAccess, ValueParameter(method, kind), out var source))
+            return null;
+
+        var value = source.Normalize(context);
 
         var updated = kind == SurfaceMethodKind.PreventDefault
             ? target with { PreventDefault = value }
@@ -1346,11 +1350,25 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Whether the resolved decoration declares a parameter for its value. Every spelling does except
-    /// <c>.Attr(name)</c>, the bare form of a valueless attribute (#178), whose only parameters are the
-    /// receiver and the name.
+    /// The parameter carrying the resolved decoration's value, or <see langword="null"/> for an overload
+    /// that declares none.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The value is the last parameter, and the only thing that can precede it is the receiver and the
+    /// decoration's own name — so what answers this is the arity, and the kind decides one term of it.
+    /// <c>.Attr</c> writes its name into a parameter; a shortcut reads its name from a table and a modifier
+    /// has no name at all, so <c>.Attr</c> is the one spelling that spends a parameter ahead of its value.
+    /// Reading that name as the value would hand the class channel a string spelled <c>"class"</c> and emit
+    /// <c>class="class"</c> (#178).
+    /// </para>
+    /// <para>
+    /// Two overloads declare no value, and each is a spelling rather than an omission: <c>.Attr(name)</c> is
+    /// the bare form of a valueless attribute (#178), and <c>.PreventDefault()</c> /
+    /// <c>.StopPropagation()</c> are the valueless form of a modifier (#368). A third such decoration is
+    /// answered here by its arity, without being named (#372).
+    /// </para>
+    /// <para>
     /// Asked of the parameter count rather than of the argument count, so a named argument answers the same.
     /// The receiver is skipped through <see cref="KnownSymbols.ReceiverOffset(IMethodSymbol)"/> rather than
     /// assumed present: the symbol reaching here is reduced for the fluent spelling
@@ -1358,14 +1376,19 @@ internal static class RenderExpressionAnalyzer
     /// (<c>Decorations.Attr(view, "disabled")</c>), so a count compared against a literal would read one of
     /// the two as the wrong arity — and read <em>every</em> <c>.Attr</c> as valueless in the fluent case,
     /// which is what a first draft of this did.
+    /// </para>
     /// </remarks>
-    private static bool HasValueParameter(IMethodSymbol method, SurfaceMethodKind kind) =>
-        kind != SurfaceMethodKind.Attr
-            || method.Parameters.Length - KnownSymbols.ReceiverOffset(method) > 1;
+    private static IParameterSymbol? ValueParameter(IMethodSymbol method, SurfaceMethodKind kind)
+    {
+        var nameParameters = kind == SurfaceMethodKind.Attr ? 1 : 0;
+        return method.Parameters.Length - KnownSymbols.ReceiverOffset(method) - nameParameters > 0
+            ? method.Parameters[method.Parameters.Length - 1]
+            : null;
+    }
 
     /// <summary>
-    /// Where an attribute-channel decoration's value came from, before it is normalized: the expression the
-    /// author wrote, or nothing at all for the one spelling that declares no value parameter.
+    /// Where a decoration's value came from, before it is normalized: the expression the author wrote, or
+    /// nothing at all for a spelling that declares no value parameter.
     /// </summary>
     /// <remarks>
     /// Normalization is deliberately not done on construction. It is what reports BCF3015 for a value whose
@@ -1375,7 +1398,8 @@ internal static class RenderExpressionAnalyzer
     /// (<c>UnresolvedEmittedTypeTests.DuplicateAttribute_UnresolvedValueType_RemainsBCF3010Owned</c>).
     /// </remarks>
     /// <param name="Written">
-    /// The written value expression, or <see langword="null"/> for <c>.Attr(name)</c>.
+    /// The written value expression, or <see langword="null"/> for the spellings that declare no value
+    /// parameter: <c>.Attr(name)</c> and the valueless event modifiers.
     /// </param>
     /// <param name="Location">
     /// Where a rule about the value reports. The written argument, or the decoration's own name when there
@@ -1388,7 +1412,9 @@ internal static class RenderExpressionAnalyzer
         /// is <c>.Attr(name, true)</c> in every respect but how it reads (#178), so it becomes that same
         /// constant here. Synthesizing it in one place is what keeps the two spellings on one path:
         /// everything downstream — the class channel's admission, the fold's <c>name=""</c> branch, the
-        /// emitted frame — sees the same constant either way, so they cannot translate differently.
+        /// emitted frame — sees the same constant either way, so they cannot translate differently. The
+        /// event modifiers read the same way, <c>.PreventDefault()</c> standing for
+        /// <c>.PreventDefault(true)</c>, and go through here rather than repeating the ternary (#372).
         /// </summary>
         public ExpressionTemplate Normalize(ViewPartBodyContext context) =>
             Written is null
@@ -1412,8 +1438,8 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Reads where an attribute-channel decoration's value comes from, or fails for a call this compiler was
-    /// not written against (a value parameter that received no argument and has no default).
+    /// Reads where a decoration's value comes from, or fails for a call this compiler was not written
+    /// against (a value parameter that received no argument and has no default).
     /// </summary>
     private static bool TryResolveAttributeValue(
         FactoryArguments args,
