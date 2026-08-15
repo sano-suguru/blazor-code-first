@@ -180,7 +180,9 @@ public static class Decorations
     /// <remarks>
     /// <para>
     /// <typeparamref name="TArgs"/> is inferred from an explicitly typed lambda parameter
-    /// (<c>.On("oninput", (ChangeEventArgs e) =&gt; …)</c>), so writing it out is legal but never necessary.
+    /// (<c>.On("oninput", (ChangeEventArgs e) =&gt; …)</c>). Write it out where there is nothing to infer it
+    /// from: a method group (<c>.On&lt;WheelEventArgs&gt;("onwheel", Zoom)</c>), or a lambda whose parameter
+    /// carries no annotation.
     /// Razor <em>infers</em> the argument type from the event name through its <c>[EventHandler]</c>
     /// metadata; a string-named decoration cannot, because C# overload resolution runs before the generator
     /// observes the expression and the generator does not influence binding.

@@ -497,9 +497,16 @@ internal static class RenderViewEmitter
         foreach (var e in node.Events)
         {
             var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(e.Name, quote: true);
+            // The type argument the surface call resolved to, written out rather than left to inference.
+            // `Create` is overloaded and the handler arrives here without the parameter type that gave it
+            // context at the call site, so a method group has nothing to infer TValue from and an untyped
+            // lambda parameter binds as object — both CS1503s in a file the author did not write (#371).
+            // Naming TValue answers every spelling the surface admits at once, which is what Razor's own
+            // output does for a typed handler (measured).
+            var argsType = e.ArgsTypeName is null ? string.Empty : $"<{e.ArgsTypeName}>";
             writer.AppendLine(
                 $"__builder.AddAttribute({next}, {name}, " +
-                $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
+                $"{EventCallbackFactory}.Create{argsType}(this, {e.Handler.ToCode()}));");
             next++;
             // A fixed order rather than the chain's: the two modifiers are independent of each other, and
             // one order has to be chosen so that the sequence numbers are a function of the model alone.

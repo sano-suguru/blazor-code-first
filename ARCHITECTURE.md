@@ -249,6 +249,8 @@ __b.CloseElement();
 
 この `Button` の `FrameWidth` は4(`OpenElement` + `class` 属性 + `onclick` イベント + `AddContent`)です。`.Class` を何回連ねてもフレーム幅は増えませんが、`class` 以外の装飾を1つ追加するとフレーム幅も1つ増えます。ラッパーノード方式(装飾ごとに専用のラッパー要素を生成する方式)であれば装飾はDOMノードそのものを増やしますが、本方式はいずれの装飾も所有要素の属性・イベントとして合成するためDOM深さは増えません。この非対称性が、装飾を重ねても差分検知のシーケンス割当が安定する根拠です。
 
+イベントフレームの値は `EventCallback.Factory.Create` の呼び出しで、ハンドラの式はその引数へ移植します。`.On<TArgs>` が解決した場合は、その型引数を `Create<TArgs>` として書き出します(書かれた型引数と推論された型引数を区別しません。同じオーバーロードに解決した2つの綴りであり、片方だけに書けば同じ呼び出しを2通りに翻訳することになります)。移植先には、呼び出しサイトでハンドラへ型を与えていたパラメータがありません。`Create` は多重定義であるため、型引数が無ければメソッドグループは `TValue` を推論できず、型注釈の無いラムダ引数は `object` へ束縛されます。どちらも作者が書いていないファイルの中のCS1503になるので、呼び出しサイトの型引数をそのまま書き出して推論を経路から外します(#371)。型引数を持たない綴り(引数無しの `.On` とイベントショートカット)は書き出す型を持たないため `Create` のままです。この表層が許すハンドラの綴りすべてが生成コードで束縛することは `HtmlDecorationGeneratorTests.On_WithATypeArgument_NamesItOnCreate` が生成物をコンパイルして押さえます。
+
 1:1の唯一の例外が双方向束縛です。`.Bind` は属性フレーム1つとイベントフレーム1つを発行するため、この装飾の `FrameWidth` は2です。束縛先の属性が `value` または `checked` のときは、加えて `SetUpdatesAttributeName` を1回呼びます。これはシーケンス引数を取らないためフレームを増やしません(直前の属性フレームに、再同期対象の属性名を記録するだけです)。この2つの属性名に限るのは、クライアントが返すのが `EventFieldInfo` の組み立てるその要素自身の `value`(チェックボックスなら `checked`)だけだからです。`RenderTreeUpdater` はその値を、この呼び出しが指名したフレームへ書きます。それ以外の属性名を指名すると、フォーム要素では無関係のフレームを上書きして本来の属性を取り残し、フォーム要素以外では `EventFieldInfo.fromEvent` が `null` を返すため呼び出し自体が空振りになります。記録先が要素ではなく直前の属性フレームであるため、同一要素に2つの束縛を置いても各々が自分の名前を保ち、上書きも再同期の喪失も起きません(実測)。同一要素に束縛を何個置いても構いません。モデル側も要素あたりの束縛をコレクションとして持ちます。名前が衝突した場合はBCF3010が報告し、束縛先が `class` で同じ要素がクラスチャネルへの装飾も持つ場合はBCF3024が報告します。かつてこれをBCF3021で拒否していましたが、根拠が誤りであったため撤回しました(付録B.5)。
 
 ```csharp
@@ -281,7 +283,7 @@ Div.Ref(r => _el = r).On<WheelEventArgs>("onwheel", Zoom).StopPropagation().Prev
 
 // 出力
 __b.OpenElement(k, "div");
-__b.AddAttribute(k+1, "onwheel", EventCallback.Factory.Create(this, (WheelEventArgs e) => Zoom(e)));
+__b.AddAttribute(k+1, "onwheel", EventCallback.Factory.Create<WheelEventArgs>(this, Zoom));
 __b.AddAttribute(k+2, "__internal_preventDefault_onwheel", true);   // 連鎖の順ではなく、常にこの順
 __b.AddAttribute(k+3, "__internal_stopPropagation_onwheel", true);
 __b.AddElementReferenceCapture(k+4, r => _el = r);                  // 修飾子より後ろ

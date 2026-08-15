@@ -176,15 +176,17 @@ public sealed class ExpressionTemplateTests
         var written = ExpressionTemplateFactory.ForBooleanConstant(true);
         var writtenFalse = ExpressionTemplateFactory.ForBooleanConstant(false);
 
-        var trueModifier = new EventTemplate("onwheel", handler, written, null);
-        var falseModifier = new EventTemplate("onwheel", handler, writtenFalse, null);
-        var unwritten = new EventTemplate("onwheel", handler, null, null);
+        // Named rather than positional, so a channel added to EventTemplate cannot shift these into each
+        // other's places and leave the test still passing against the wrong pair.
+        var trueModifier = new EventTemplate("onwheel", handler, PreventDefault: written);
+        var falseModifier = new EventTemplate("onwheel", handler, PreventDefault: writtenFalse);
+        var unwritten = new EventTemplate("onwheel", handler);
 
         // Written false is not unwritten. This is the distinction that decides whether a call is emitted
         // at all, and the one a reader is most likely to collapse.
         Assert.NotEqual(falseModifier, unwritten);
 
         // The two modifiers are separate channels: setting one must not read as setting the other.
-        Assert.NotEqual(trueModifier, new EventTemplate("onwheel", handler, null, written));
+        Assert.NotEqual(trueModifier, new EventTemplate("onwheel", handler, StopPropagation: written));
     }
 }

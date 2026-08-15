@@ -1079,7 +1079,10 @@ internal static class RenderExpressionAnalyzer
             return element with
             {
                 Events = element.Events.AsImmutableArray().Add(
-                    new EventTemplate(eventName, ExpressionTemplateFactory.Create(handlerExpr, context))),
+                    new EventTemplate(
+                        eventName,
+                        ExpressionTemplateFactory.Create(handlerExpr, context),
+                        ResolvedEventArgumentTypeName(method))),
             };
         }
 
@@ -1137,6 +1140,37 @@ internal static class RenderExpressionAnalyzer
             Attributes = element.Attributes.AsImmutableArray().Add(
                 new AttributeTemplate(attrName, value.Normalize(context))),
         };
+    }
+
+    /// <summary>
+    /// The argument type a resolved <c>.On&lt;TArgs&gt;</c> carries, fully qualified for the emitter, or
+    /// <see langword="null"/> for an overload with no type argument to read.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read off the resolved symbol, so an inferred <c>TArgs</c> answers the same as a written one: the two
+    /// spellings resolve to the same overload, and a type argument the emitter wrote for only one of them
+    /// would translate the same call two ways. The arity test is what leaves the argument-less <c>.On</c>
+    /// and the event shortcuts alone, on the same terms as
+    /// <see cref="ReportMistypedEventArgument"/> beside it.
+    /// </para>
+    /// <para>
+    /// An unresolved type is declined rather than written out, for the reason
+    /// <see cref="ClassifyComponentFactory"/> gives: its display string is the written name with no
+    /// qualification, and the generated file has no using directives, so it would either fail with a CS0246
+    /// the author cannot reach or bind to a different same-named type. Declining leaves the call spelled as
+    /// it is today, which keeps that failure in the author's own file where the CS0246 already is.
+    /// </para>
+    /// </remarks>
+    private static string? ResolvedEventArgumentTypeName(IMethodSymbol method)
+    {
+        if (method.TypeArguments.Length != 1)
+            return null;
+
+        var declared = method.TypeArguments[0];
+        return TypeSymbolFacts.ContainsUnresolvedType(declared)
+            ? null
+            : declared.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
 
     /// <summary>

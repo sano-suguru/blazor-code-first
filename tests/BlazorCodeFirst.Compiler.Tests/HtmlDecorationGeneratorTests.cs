@@ -88,7 +88,8 @@ public sealed class HtmlDecorationGeneratorTests
         Assert.Contains("__builder.OpenElement(0, \"input\")", generated);
         Assert.Contains(
             "__builder.AddAttribute(1, \"oninput\", " +
-            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, " +
+            "global::Microsoft.AspNetCore.Components.EventCallback.Factory" +
+            ".Create<global::Microsoft.AspNetCore.Components.ChangeEventArgs>(this, " +
             "(global::Microsoft.AspNetCore.Components.ChangeEventArgs e) => _seen = e.Value))",
             generated);
         CompilationTestHost.AssertOutputCompiles(result);
@@ -102,7 +103,8 @@ public sealed class HtmlDecorationGeneratorTests
 
         Assert.Contains(
             "__builder.AddAttribute(1, \"oninput\", " +
-            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, " +
+            "global::Microsoft.AspNetCore.Components.EventCallback.Factory" +
+            ".Create<global::Microsoft.AspNetCore.Components.ChangeEventArgs>(this, " +
             "(global::Microsoft.AspNetCore.Components.ChangeEventArgs e) => SaveAsync(e.Value)))",
             generated);
         CompilationTestHost.AssertOutputCompiles(result);
@@ -112,10 +114,9 @@ public sealed class HtmlDecorationGeneratorTests
     /// Generates a component whose <c>Body</c> is <paramref name="body"/>, and returns the generated text.
     /// </summary>
     /// <remarks>
-    /// The handlers are lambdas rather than method groups because this helper compiles the generated
-    /// output: <c>EventCallback.Factory.Create</c> is overloaded, so a method group there does not resolve.
-    /// The wheel handler's parameter is typed for the same reason, the generated file carrying no
-    /// <c>using</c> directives of its own.
+    /// It compiles the generated output, which is what the three tests below it measure: every handler
+    /// spelling <c>.On&lt;TArgs&gt;</c> admits has to bind in a file that carries no <c>using</c> directives
+    /// and no parameter type to infer from (#371).
     /// </remarks>
     private static string GenerateWheel(string body)
     {
@@ -129,6 +130,8 @@ public sealed class HtmlDecorationGeneratorTests
                 private bool _locked;
                 private ElementReference _el;
                 private void Zoom(WheelEventArgs e) { }
+                private System.Threading.Tasks.Task ZoomAsync(WheelEventArgs e) =>
+                    System.Threading.Tasks.Task.CompletedTask;
                 private void Click() { }
                 protected override View Body => {{body}};
             }
@@ -137,6 +140,47 @@ public sealed class HtmlDecorationGeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         CompilationTestHost.AssertOutputCompiles(result);
         return generated;
+    }
+
+    /// <summary>
+    /// The two spellings that used to reach generated code and fail there: a method group, and a lambda
+    /// whose parameter type is left to inference (#371).
+    /// </summary>
+    /// <remarks>
+    /// The assertion on the emitted text says what fixes them, but the check that matters is
+    /// <c>GenerateWheel</c>'s own <c>AssertOutputCompiles</c>: both bound at the call site before this
+    /// change too, and the defect was a CS1503 in the generated file rather than anything the author could
+    /// see.
+    /// </remarks>
+    [Theory]
+    [InlineData("Zoom")]
+    [InlineData("e => Zoom(e)")]
+    [InlineData("ZoomAsync")]
+    [InlineData("async e => await ZoomAsync(e)")]
+    public void On_WithATypeArgument_NamesItOnCreate(string handler)
+    {
+        var generated = GenerateWheel($$"""Html.Div.On<WheelEventArgs>("onwheel", {{handler}})""");
+
+        Assert.Contains(
+            "__builder.AddAttribute(1, \"onwheel\", " +
+            "global::Microsoft.AspNetCore.Components.EventCallback.Factory" +
+            ".Create<global::Microsoft.AspNetCore.Components.Web.WheelEventArgs>(this, ",
+            generated);
+    }
+
+    /// <summary>
+    /// The overloads that carry no type argument keep the unqualified call. There is nothing to name: the
+    /// handler takes no argument, and the event's own name is a string this surface does not infer from.
+    /// </summary>
+    [Fact]
+    public void On_WithoutATypeArgument_LeavesCreateUnqualified()
+    {
+        var generated = GenerateWheel("""Html.Div.On("onclick", () => Click())""");
+
+        Assert.Contains(
+            "__builder.AddAttribute(1, \"onclick\", " +
+            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => Click()))",
+            generated);
     }
 
     [Fact]
