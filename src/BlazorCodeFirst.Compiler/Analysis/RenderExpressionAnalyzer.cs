@@ -977,11 +977,7 @@ internal static class RenderExpressionAnalyzer
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
 
-        // Ahead of the argument guard below, because the valueless spelling has no argument at all: the
-        // two overloads of each modifier are one behaviour, and .PreventDefault() would otherwise leave
-        // here as an unanalyzable call (#368). A decoration with a zero-argument overload belongs above
-        // that guard for the same reason, whatever channel it writes to.
-        if (kind is SurfaceMethodKind.PreventDefault or SurfaceMethodKind.StopPropagation)
+        if (RoutesBeforeArgumentGuard(kind))
             return ClassifyEventModifier(decoAccess, method, kind, element, args, context);
 
         // Every kind below reads a first argument, and every kind that can be written without one has
@@ -1141,35 +1137,39 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// The argument type a resolved <c>.On&lt;TArgs&gt;</c> carries, fully qualified for the emitter, or
-    /// <see langword="null"/> for an overload with no type argument to read.
+    /// The argument type a resolved <c>.On&lt;TArgs&gt;</c> declares, or <see langword="null"/> for an
+    /// overload that carries no type argument: the argument-less <c>.On</c> and the event shortcuts.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Read off the resolved symbol, so an inferred <c>TArgs</c> answers the same as a written one: the two
-    /// spellings resolve to the same overload, and a type argument the emitter wrote for only one of them
-    /// would translate the same call two ways. The arity test is what leaves the argument-less <c>.On</c>
-    /// and the event shortcuts alone, on the same terms as
-    /// <see cref="ReportMistypedEventArgument"/> beside it.
-    /// </para>
-    /// <para>
+    /// Read off the resolved symbol, so an inferred <c>TArgs</c> answers the same as a written one. The two
+    /// spellings resolve to the same overload, and anything reading only the written one would treat one
+    /// call as two. Both readers of the type argument come through here, so widening the surface moves this
+    /// arity test rather than each of them.
+    /// </remarks>
+    private static ITypeSymbol? DeclaredEventArgumentType(IMethodSymbol method) =>
+        method.TypeArguments.Length == 1 ? method.TypeArguments[0] : null;
+
+    /// <summary>
+    /// The same type, fully qualified for the emitter, or <see langword="null"/> where none can be written.
+    /// </summary>
+    /// <remarks>
     /// An unresolved type is declined rather than written out, for the reason
     /// <see cref="ClassifyComponentFactory"/> gives: its display string is the written name with no
     /// qualification, and the generated file has no using directives, so it would either fail with a CS0246
     /// the author cannot reach or bind to a different same-named type. Declining leaves the call spelled as
     /// it is today, which keeps that failure in the author's own file where the CS0246 already is.
+    /// <para>
+    /// The test is wider than <see cref="ReportMistypedEventArgument"/>'s, deliberately. That one asks
+    /// whether the type is an error type, because a type that resolved and is wrong is exactly what it
+    /// reports on; this one has to write the name into another file, so a resolved type carrying an
+    /// unresolved argument is no more writable than an error type.
     /// </para>
     /// </remarks>
-    private static string? ResolvedEventArgumentTypeName(IMethodSymbol method)
-    {
-        if (method.TypeArguments.Length != 1)
-            return null;
-
-        var declared = method.TypeArguments[0];
-        return TypeSymbolFacts.ContainsUnresolvedType(declared)
-            ? null
-            : declared.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-    }
+    private static string? ResolvedEventArgumentTypeName(IMethodSymbol method) =>
+        DeclaredEventArgumentType(method) is { } declared
+            && !TypeSymbolFacts.ContainsUnresolvedType(declared)
+                ? declared.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                : null;
 
     /// <summary>
     /// Reports BCF3028 when the argument type a resolved <c>.On&lt;TArgs&gt;</c> declares is not one the named
@@ -1186,8 +1186,8 @@ internal static class RenderExpressionAnalyzer
     /// Both sides are already in hand: <paramref name="eventName"/> is a compile-time constant, BCF3011
     /// having required one, and the argument type is the type argument C# resolved before the generator
     /// looked at anything, so nothing here has to inspect the lambda. The argument-less overloads and the
-    /// event shortcuts carry no type argument, so the arity test below is what leaves them alone rather than
-    /// a classification test.
+    /// event shortcuts carry no type argument, which <see cref="DeclaredEventArgumentType"/> is what
+    /// answers, rather than a classification test here.
     /// </para>
     /// <para>
     /// An event with no <c>[EventHandler]</c> registration has no mapping and is not reported, which is the
@@ -1201,11 +1201,7 @@ internal static class RenderExpressionAnalyzer
         ArgumentSyntax handlerArgument,
         ViewPartBodyContext context)
     {
-        if (method.TypeArguments.Length != 1)
-            return false;
-
-        var declared = method.TypeArguments[0];
-        if (declared.TypeKind == TypeKind.Error)
+        if (DeclaredEventArgumentType(method) is not { } declared || declared.TypeKind == TypeKind.Error)
             return false;
 
         if (!context.KnownSymbols.TryGetEventArgumentType(eventName, out var delivered))
@@ -1231,6 +1227,23 @@ internal static class RenderExpressionAnalyzer
 
         return true;
     }
+
+    /// <summary>
+    /// Whether <see cref="ClassifyDecoration"/> classifies this kind ahead of its argument guard, which
+    /// every kind with a zero-argument overload has to be.
+    /// </summary>
+    /// <remarks>
+    /// The valueless spelling has no argument at all, so a kind reaching that guard leaves as an
+    /// unanalyzable call and the whole <c>Body</c> becomes BCF1003 with nothing naming the decoration. The
+    /// two modifiers were the first to need this (#368), and the rule is a predicate rather than a
+    /// condition written inline so that it has one spelling and a test can read it:
+    /// <c>ZeroArgumentDecorationRoutingTests</c> resolves every zero-argument decoration the runtime
+    /// declares and asks this, which is what makes the next one a red test rather than a silent
+    /// disappearance (#372). Same construction as <c>EventModifierParityTests</c> reading
+    /// <c>RenderViewEmitter</c>'s own attribute-name constants.
+    /// </remarks>
+    internal static bool RoutesBeforeArgumentGuard(SurfaceMethodKind kind) =>
+        kind is SurfaceMethodKind.PreventDefault or SurfaceMethodKind.StopPropagation;
 
     /// <summary>
     /// <c>.PreventDefault</c> / <c>.StopPropagation</c>, attached to the event written before them.
