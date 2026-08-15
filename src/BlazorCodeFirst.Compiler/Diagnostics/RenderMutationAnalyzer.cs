@@ -29,9 +29,18 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// <para>
 /// Which calls those are is asked of <see cref="Analysis.KnownSymbols.ClassifySurfaceMethod"/> — the one
 /// place the compiler records what a surface method is — rather than decided from the method's name here.
-/// The exemption set is therefore a consequence of what the referenced runtime declares and the generator
-/// already recognizes: a decoration added there is exempt without an edit to this file, and a decoration
-/// this compiler does not recognize cannot claim the exemption by sharing a name with one that is (#194).
+/// A decoration this compiler does not recognize therefore cannot claim the exemption by sharing a name
+/// with one that is (#194).
+/// </para>
+/// <para>
+/// The classification decides <em>whether</em> a method may carry a deferred delegate; it does not decide
+/// on its own <em>which</em> of that method's parameters is the deferred one, so a new channel carrying
+/// one has to be listed in <see cref="IsDeferredHandlerArgument"/>'s switch. That is a real edit and not a
+/// free consequence, which this paragraph used to claim it was: <c>.Ref</c> (#309) landed with the switch
+/// unchanged and made the capture spelling its own documentation prescribes a BCF3001, because a capture
+/// action assigns the captured value and that assignment is the whole point of the channel. The default
+/// arm is <see langword="false"/>, so the failure is a spurious error rather than a silent exemption,
+/// which is the right way round; <c>RenderMutationAnalyzerTests</c> now carries a case per channel.
 /// </para>
 /// <para>
 /// Arbitrary interprocedural side effects (mutations inside a helper method called from Body) are
@@ -321,6 +330,17 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind =>
                 KnownSymbols.TryGetBindParameters(invocation.TargetMethod, out var bind)
                     && bind.IsSetter(argument.Parameter),
+            // A capture action runs when the captured reference changes, which is after the frames are
+            // built, so assigning the captured value is deferred exactly as a handler's mutation is — and
+            // it is the only thing the channel exists to do. No KnownSymbols reader answers which
+            // parameter carries it, unlike the two shapes above where the delegate sits among strings:
+            // the capture is the decoration's last parameter, and comparing against it rather than
+            // accepting any argument keeps this arm honest if an overload ever adds one after it.
+            SurfaceMethodKind.Ref or SurfaceMethodKind.ComponentRef =>
+                invocation.TargetMethod.Parameters.Length > 0
+                    && SymbolEqualityComparer.Default.Equals(
+                        argument.Parameter,
+                        invocation.TargetMethod.Parameters[invocation.TargetMethod.Parameters.Length - 1]),
             _ => false,
         };
     }

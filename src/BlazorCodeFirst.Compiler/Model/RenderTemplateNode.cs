@@ -124,7 +124,28 @@ internal sealed record ComponentSlot(string Name, RenderTemplateNode Content)
 internal sealed record ComponentTemplateNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlot> Slots = default) : RenderTemplateNode;
+    EquatableArray<ComponentSlot> Slots = default) : RenderTemplateNode
+{
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/>. The same channel
+    /// <see cref="ElementTemplateNode.Key"/> holds, on the same <c>SetKey</c> (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The render mode written with <c>.RenderMode</c>, or <see langword="null"/>. Emitted as
+    /// <c>AddComponentRenderMode</c>, which appends a frame but consumes no sequence number, after every
+    /// parameter frame this component carries (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? RenderMode { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Emitted as
+    /// <c>AddComponentReferenceCapture</c>, which consumes one sequence number, after the render mode
+    /// frame (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
+}
 
 internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
 
@@ -206,6 +227,24 @@ internal sealed record ElementTemplateNode(
 {
     /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>
     public EquatableArray<BindTemplate> Bindings { get; init; }
+
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/> when none was written or the author
+    /// declined it with a literal <c>null</c> (§2.7(E)).
+    /// </summary>
+    /// <remarks>
+    /// A channel of its own and not an <see cref="AttributeTemplate"/>: it lowers to <c>SetKey</c>, which
+    /// consumes no sequence number and appends no frame. It is also what stops the element folding, since
+    /// markup cannot carry a key. One key at most; a second is BCF3033.
+    /// </remarks>
+    public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Unlike
+    /// <see cref="Key"/> this appends a frame, so it consumes one sequence number, and it stops the fold
+    /// for the same reason (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
 }
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

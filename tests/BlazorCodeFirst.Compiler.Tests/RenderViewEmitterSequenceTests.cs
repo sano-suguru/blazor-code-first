@@ -187,6 +187,48 @@ public sealed class RenderViewEmitterSequenceTests
                     ImmutableArray.Create(new ComponentParameter("Title", Code("\"t\""))),
                     ImmutableArray.Create(new ComponentSlotNode("ChildContent", Element("p", StaticSpan("a"))))),
                 StaticSpan("after")),
+
+            // --- non-attribute frame decorations (§2.7(E)) -----------------------------------------
+            // Of the three, only a reference capture reserves a number, and it reserves it between the
+            // element's attributes and its children. Each case puts a following sibling after the
+            // decorated node, which is where a capture that reserved without writing (or wrote without
+            // reserving) would show.
+            ["element-ref-then-sibling"] = Element(
+                "div",
+                new ElementNode(
+                    "input",
+                    default,
+                    ImmutableArray.Create(new AttributeTemplate("type", Code("\"text\""))),
+                    default,
+                    default)
+                {
+                    Ref = Code("r => _input = r"),
+                },
+                Span("\"after\"")),
+
+            // A key takes no number, so the child after it keeps the number it would have had. The
+            // sibling is what makes that observable rather than merely asserted.
+            ["element-key-and-ref-then-sibling"] = Element(
+                "div",
+                new ElementNode("li", default, default, default, ImmutableArray.Create<RenderNode>(Span("\"x\"")))
+                {
+                    Key = Code("item.Id"),
+                    Ref = Code("r => _row = r"),
+                },
+                Span("\"after\"")),
+
+            ["component-render-mode-and-ref-then-sibling"] = Element(
+                "div",
+                new ComponentNode(
+                    "global::T.Card",
+                    ImmutableArray.Create(new ComponentParameter("Title", Code("\"t\""))),
+                    ImmutableArray.Create(new ComponentSlotNode("ChildContent", Element("p", Span("\"a\"")))))
+                {
+                    Key = Code("_id"),
+                    RenderMode = Code("_mode"),
+                    Ref = Code("c => _card = c"),
+                },
+                Span("\"after\"")),
         };
 
     [Theory]

@@ -311,14 +311,19 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.FragmentParam
                 or SurfaceMethodKind.GenericTemplateIgnored
                 or SurfaceMethodKind.GenericTemplateContextual
-                or SurfaceMethodKind.ComponentBind =>
+                or SurfaceMethodKind.ComponentBind
+                or SurfaceMethodKind.ComponentKey
+                or SurfaceMethodKind.ComponentRenderMode
+                or SurfaceMethodKind.ComponentRef =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
                 or SurfaceMethodKind.EventShortcut
                 or SurfaceMethodKind.Attr
                 or SurfaceMethodKind.On
-                or SurfaceMethodKind.Bind =>
+                or SurfaceMethodKind.Bind
+                or SurfaceMethodKind.Key
+                or SurfaceMethodKind.Ref =>
                 ClassifyDecoration(invocation, method, kind, context),
             SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };
@@ -773,6 +778,38 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
+        // Neither .Key nor .RenderMode selects a parameter, so both route out before everything below: the
+        // selector, the settability rule, and BCF3007 are all about a parameter they do not have. They
+        // share this method only for the receiver recursion above, which every chained spelling needs.
+        if (kind is SurfaceMethodKind.ComponentKey
+            or SurfaceMethodKind.ComponentRenderMode
+            or SurfaceMethodKind.ComponentRef)
+        {
+            if (FactoryArguments.Bind(invocation, context) is not { } frameArgs
+                || frameArgs.At(0) is not { } frameArg)
+            {
+                return null;
+            }
+
+            return kind switch
+            {
+                SurfaceMethodKind.ComponentKey =>
+                    ReportDuplicateFrameDecoration(paramAccess, inner.Key, context)
+                        ? null
+                        : TakeKey(frameArg, context) is { } key ? inner with { Key = key } : inner,
+                SurfaceMethodKind.ComponentRenderMode =>
+                    ClassifyComponentRenderMode(paramAccess, method, inner, frameArg, context),
+                SurfaceMethodKind.ComponentRef =>
+                    ReportDuplicateFrameDecoration(paramAccess, inner.Ref, context)
+                        ? null
+                        : inner with { Ref = ExpressionTemplateFactory.Create(frameArg.Expression, context) },
+                // Unreachable: the `if` above admits exactly the three kinds named here. Written out so a
+                // fourth added to that condition fails loudly rather than landing in the ref channel.
+                _ => throw new System.NotSupportedException(
+                    $"'{kind}' reached the component frame-decoration route without an arm."),
+            };
+        }
+
         // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
         var paramArgs = FactoryArguments.Bind(invocation, context);
         if (paramArgs is not { } args ||
@@ -898,7 +935,11 @@ internal static class RenderExpressionAnalyzer
 
         var value = ExpressionTemplateFactory.Create(valueExpression, context);
         var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
-        return new ComponentTemplateNode(inner.TypeName, appended, inner.Slots);
+        // A `with` and not a fresh construction: every channel this call does not touch has to survive it,
+        // and a constructor call names the ones that existed when it was written. `.Key(k).Param(…)` lost
+        // its key exactly that way (measured), and a channel added later would lose its value the same
+        // way with nothing failing.
+        return inner with { Parameters = appended };
     }
 
     /// <summary>
@@ -939,6 +980,26 @@ internal static class RenderExpressionAnalyzer
 
         if (kind == SurfaceMethodKind.Bind)
             return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
+
+        // A declined key is recorded as the absence of a key and not as a key whose value is null, which
+        // keeps the emitter to one question and leaves the fold available to an element that declined.
+        if (kind == SurfaceMethodKind.Key)
+        {
+            if (ReportDuplicateFrameDecoration(decoAccess, element.Key, context))
+                return null;
+
+            return TakeKey(firstArg, context) is { } key ? element with { Key = key } : element;
+        }
+
+        // Nothing to resolve beyond the duplicate: the argument is an Action<ElementReference> the frame
+        // takes verbatim, and C# has already checked its type. A null written there is not diagnosed, for
+        // the same reason `.On("onclick", null)` is not: it binds, and no author reaches it by accident.
+        if (kind == SurfaceMethodKind.Ref)
+        {
+            return ReportDuplicateFrameDecoration(decoAccess, element.Ref, context)
+                ? null
+                : element with { Ref = ExpressionTemplateFactory.Create(firstArg.Expression, context) };
+        }
 
         // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an
         // argument. The lookup cannot miss: the kind and the map entry are written by the same arm of
@@ -1469,6 +1530,145 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// <summary>
+    /// Records a <c>.RenderMode</c> on <paramref name="component"/>, or reports why it cannot be recorded.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two rules, in this order. A second <c>.RenderMode</c> is BCF3033, the duplicate rule <c>.Key</c>
+    /// answers to. A first one on a component whose own declaration fixes its mode is BCF3034, which is
+    /// not a duplicate: nothing on this chain is wrong twice, and the fix is to delete the decoration
+    /// rather than to choose between two of them.
+    /// </para>
+    /// <para>
+    /// A written <see langword="null"/> is <em>not</em> declined the way a null key is. The two look alike
+    /// and are not: <c>SetKey</c> ignores a null and so does <c>AddComponentRenderMode</c>, but a key is
+    /// data the author computes per item while a render mode written null is the author saying "no
+    /// mode here", which is what the framework's own null already means. Recording it keeps a conditional
+    /// mode (<c>interactive ? RenderMode.InteractiveServer : null</c>) spelled as one expression instead of
+    /// splitting on which branch the analyzer could fold.
+    /// </para>
+    /// <para>
+    /// BCF3034 reads the attribute off <typeparamref name="TComponent"/> taken from the constructed
+    /// <c>ComponentView&lt;TComponent&gt;</c>, the same place the component binding takes it from and for
+    /// the same reason: it is the type the author wrote. Attributes ride in metadata, so a component from a
+    /// referenced assembly answers as well as one declared in this compilation.
+    /// </para>
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentRenderMode(
+        MemberAccessExpressionSyntax paramAccess,
+        IMethodSymbol method,
+        ComponentTemplateNode component,
+        ArgumentSyntax modeArg,
+        ViewPartBodyContext context)
+    {
+        if (ReportDuplicateFrameDecoration(paramAccess, component.RenderMode, context))
+            return null;
+
+        if (method.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
+            return null;
+
+        var componentType = componentViewType.TypeArguments[0];
+        if (DeclaredRenderMode(componentType, context) is { } declared)
+        {
+            context.RejectUnresolvedValueRecovery(paramAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3034,
+                paramAccess.Name.GetLocation(),
+                [
+                    componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                ]));
+            return null;
+        }
+
+        return component with
+        {
+            RenderMode = ExpressionTemplateFactory.Create(modeArg.Expression, context),
+        };
+    }
+
+    /// <summary>
+    /// The <c>RenderModeAttribute</c> subclass <paramref name="componentType"/> or one of its bases
+    /// declares, or <see langword="null"/> when its declaration fixes no render mode.
+    /// </summary>
+    /// <remarks>
+    /// Walked up the base chain because the framework reads the attribute the same way: a component
+    /// deriving from one that fixes a mode is fixed too, and stopping at the derived type would let
+    /// exactly that case through to the runtime throw this diagnostic exists to replace.
+    /// </remarks>
+    private static INamedTypeSymbol? DeclaredRenderMode(
+        ITypeSymbol componentType, ViewPartBodyContext context)
+    {
+        if (context.KnownSymbols.RenderModeAttributeType is not { } renderModeAttribute)
+            return null;
+
+        for (var current = componentType; current is not null; current = current.BaseType)
+        {
+            foreach (var attribute in current.GetAttributes())
+            {
+                if (attribute.AttributeClass is { } attributeClass
+                    && TypeSymbolFacts.IsAssignableTo(attributeClass, renderModeAttribute))
+                {
+                    return attributeClass;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Reports BCF3033 and answers <see langword="true"/> when <paramref name="existing"/> shows the node
+    /// already carries this frame decoration.
+    /// </summary>
+    /// <remarks>
+    /// One implementation for all five spellings of the rule (<c>.Key</c> and <c>.Ref</c> on either
+    /// receiver, <c>.RenderMode</c> on a component). The check is the same question about the same kind of
+    /// channel, and the message names the decoration from the syntax rather than from a per-channel
+    /// constant, so a channel added later reports correctly by writing nothing here.
+    /// </remarks>
+    private static bool ReportDuplicateFrameDecoration(
+        MemberAccessExpressionSyntax access, ExpressionTemplate? existing, ViewPartBodyContext context)
+    {
+        if (existing is null)
+            return false;
+
+        context.RejectUnresolvedValueRecovery(access.Span);
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3033,
+            access.Name.GetLocation(),
+            [access.Name.Identifier.ValueText]));
+        return true;
+    }
+
+    /// <summary>
+    /// The key a <c>.Key</c> writes, or <see langword="null"/> when the author declined it by writing a
+    /// constant <see langword="null"/>.
+    /// </summary>
+    /// <remarks>
+    /// One implementation for the element and component arms because it is one rule: the receiver decides
+    /// which node the key lands on and nothing else about it. Both spellings lower to the same
+    /// <c>SetKey</c>, so a rule that read differently on one of them would be a difference the generated
+    /// code cannot express.
+    /// <para>
+    /// The test is on the built template's constant rather than on the syntax, so <c>.Key(null)</c> and a
+    /// <c>const object? None = null</c> reach the same answer. A non-constant expression that happens to
+    /// evaluate to null is not this case: the call is emitted, and <c>SetKey</c> ignores a null at runtime.
+    /// </para>
+    /// <para>
+    /// The caller runs <see cref="ReportDuplicateFrameDecoration"/> first, which is what makes
+    /// <c>.Key(a).Key(null)</c> the duplicate it is rather than a silent retraction of the first key.
+    /// Writing null says "no key here"; it does not unwrite one.
+    /// </para>
+    /// </remarks>
+    private static ExpressionTemplate? TakeKey(ArgumentSyntax argument, ViewPartBodyContext context)
+    {
+        var written = ExpressionTemplateFactory.Create(argument.Expression, context);
+        return written.Constant is NullConstant ? null : written;
+    }
+
+    /// <summary>
     /// Classifies <c>.Bind(attribute, event, get)</c> and its explicit-setter form onto
     /// <paramref name="element"/>, or reports why it cannot be.
     /// </summary>
@@ -1774,7 +1974,8 @@ internal static class RenderExpressionAnalyzer
 
         // Value, then {name}Changed, then {name}Expression: the order Razor emits, and the order the
         // sequence numbers have to follow, since they stand for source positions in one expression.
-        return new ComponentTemplateNode(inner.TypeName, parameters, inner.Slots);
+        // A `with` for the reason AppendParameter gives.
+        return inner with { Parameters = parameters };
     }
 
     /// <summary>
@@ -2612,11 +2813,12 @@ internal static class RenderExpressionAnalyzer
         RenderTemplateNode content,
         ComponentSlotKind kind = ComponentSlotKind.NonGeneric,
         string? contextTypeName = null) =>
-        new(
-            inner.TypeName,
-            inner.Parameters,
-            inner.Slots.AsImmutableArray().Add(
-                new ComponentSlot(name, content) { Kind = kind, ContextTypeName = contextTypeName }));
+        // A `with` for the reason AppendParameter gives: the channels this call does not touch survive it.
+        inner with
+        {
+            Slots = inner.Slots.AsImmutableArray().Add(
+                new ComponentSlot(name, content) { Kind = kind, ContextTypeName = contextTypeName }),
+        };
 
     /// <summary>
     /// Succeeds only when <paramref name="selector"/> is <c>p =&gt; p.Property</c>, a member access whose

@@ -255,6 +255,32 @@ public static class DiagnosticExpectations
             Note: "Anchors the format argument, which is what the author drops or rewrites. The value " +
                 "type is the other half of the rule, but it is not what went wrong: binding an int is " +
                 "legitimate, and only the format written beside it is not."),
+        new(
+            "BCF3032",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3032.cs",
+            "ForEach(_items, item => item, item => Div.Key(item)[item])",
+            Note: "Anchors the whole loop, as BCF3003 does from the same walk: the defect is the pair, and "
+                + "either half is a legitimate way to write a key on its own."),
+        new(
+            "BCF3033",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3033.cs",
+            "Key",
+            AnchorOccurrence.Last,
+            "Anchors the second decoration's name, which is the one to delete. Last rather than first "
+                + "for the reason BCF3007 gives: on a line carrying both, the duplicate is the later one."),
+        new(
+            "BCF3034",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3034.cs",
+            "RenderMode",
+            Note: "Anchors the decoration's name, which is what the author deletes. The attribute on the "
+                + "component is the other half of the rule and is not the mistake: fixing a component's "
+                + "render mode on its declaration is exactly what that attribute is for."),
     ];
 
     /// <summary>

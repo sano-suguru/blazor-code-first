@@ -159,6 +159,36 @@ public sealed class RenderMutationAnalyzerTests
         }
         """;
 
+    /// <summary>
+    /// A reference capture assigns the captured value, and that is the only thing a capture is for: the
+    /// action runs when the reference changes, which is after the frames are built. Same exemption as an
+    /// event handler and a bind setter, on the channel that has no other spelling (#309).
+    /// </summary>
+    private const string CaptureInElementRefSource = """
+        using BlazorCodeFirst;
+        using Microsoft.AspNetCore.Components;
+
+        public partial class Counter : BodyComponentBase
+        {
+            private ElementReference _input;
+            protected override View Body => Html.Input.Ref(r => _input = r);
+        }
+        """;
+
+    /// <summary>The same exemption on the component receiver, whose action takes the component itself.</summary>
+    private const string CaptureInComponentRefSource = """
+        using BlazorCodeFirst;
+        using Microsoft.AspNetCore.Components;
+
+        public class Row : ComponentBase { }
+
+        public partial class Counter : BodyComponentBase
+        {
+            private Row? _row;
+            protected override View Body => Html.Component<Row>().Ref(c => _row = c);
+        }
+        """;
+
     private const string HelperMutationSource = """
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
@@ -197,6 +227,8 @@ public sealed class RenderMutationAnalyzerTests
         IncrementInHtmlOnClickHandlerSource,
         PropertyIncrementInHtmlOnClickHandlerSource,
         IncrementInHtmlOnClickAnonymousMethodSource,
+        CaptureInElementRefSource,
+        CaptureInComponentRefSource,
         HelperMutationSource);
 
     private static TheoryData<string> BuildTheoryData(params string[] sources)

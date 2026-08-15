@@ -446,4 +446,66 @@ public static class Decorations
         this ElementView element, string attributeName, string eventName,
         System.Func<TValue> get, System.Func<TValue, System.Threading.Tasks.Task> set, string format,
         System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>
+    /// Design-time syntax giving the element a key, which is Razor's <c>@key</c>: the value Blazor's diff
+    /// uses to decide which frame of the previous render this element is, independently of the sequence
+    /// number that says where in the template it was written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not an attribute, and so outside the fold every other decoration here takes part in. It lowers to
+    /// <c>SetKey</c>, which writes into the element frame that is already open rather than appending one,
+    /// so it consumes no sequence number and the attributes after it keep the numbers they would have had
+    /// (<c>ARCHITECTURE.md</c> §2.7(E)). It does stop the element folding into a markup frame: markup has
+    /// no way to carry a key.
+    /// </para>
+    /// <para>
+    /// A key written as the literal <see langword="null"/> declines the key rather than setting one, the
+    /// same reading <c>ForEach(source, key: null, content)</c> gets (#172), and no <c>SetKey</c> is
+    /// emitted. A non-constant expression that happens to evaluate to <see langword="null"/> is not that
+    /// case: the call is emitted, and <c>SetKey</c> ignores a null value at runtime.
+    /// </para>
+    /// <para>
+    /// Writing this on the content root of a keyed <c>ForEach</c> is BCF3032. The loop already applies its
+    /// own key to that frame, and the two would be one <c>SetKey</c> overwriting the other.
+    /// </para>
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="value">The key; any expression. A literal <see langword="null"/> declines the key.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Key(this ElementView element, object? value) => element;
+
+    /// <summary>
+    /// Design-time syntax capturing a reference to the rendered element, which is Razor's <c>@ref</c>:
+    /// <paramref name="capture"/> receives the <see cref="Microsoft.AspNetCore.Components.ElementReference"/>
+    /// whenever it changes, and that reference is what JS interop takes to reach the real DOM node.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Razor names a field (<c>@ref="_input"</c>) and its generated code assigns to it. Here the
+    /// assignment is written at the call site, <c>.Ref(r =&gt; _input = r)</c>, because
+    /// <c>AddElementReferenceCapture</c> takes an <see cref="System.Action{T}"/> and there is nothing for
+    /// the generator to build. Nothing has to be a settable member this compiler can name: the lambda is
+    /// carried into generated code under the same rules as any other transplanted expression.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="Key(ElementView, object?)"/> this appends a frame of its own, so it costs the
+    /// element one sequence number, and it is emitted after every attribute, event and binding the element
+    /// carries (<c>ARCHITECTURE.md</c> §2.7(E)). It stops the element folding into a markup frame for the
+    /// same reason a key does.
+    /// </para>
+    /// <para>
+    /// The captured reference is only usable once the element exists, which is
+    /// <c>OnAfterRender</c> onward. Reading it while the design-time expression is being evaluated reaches
+    /// a reference to nothing, and this surface does not diagnose that: the read happens in the author's
+    /// own C#, not in anything the generator sees.
+    /// </para>
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Input</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="capture">Receives the element reference whenever it changes.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Ref(
+        this ElementView element,
+        System.Action<Microsoft.AspNetCore.Components.ElementReference> capture) => element;
 }

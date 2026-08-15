@@ -18,39 +18,62 @@ internal enum ContentRootKind
 }
 
 /// <summary>
+/// What a template's root resolves to: the frame kind, and whether that frame already carries a key of
+/// its own.
+/// </summary>
+/// <remarks>
+/// Two answers from one walk rather than two walks. They are separate questions — one about the frame a
+/// node opens, one about a decoration written on it — but reaching the root is the same traversal, and a
+/// second copy of it would be free to disagree about which node the root is. That is the disagreement
+/// BCF3003 and BCF3032 cannot afford, since between them they decide whether a <c>SetKey</c> has a frame
+/// to land on and whether it would be the second one landing there.
+/// </remarks>
+/// <param name="IsKeyed">
+/// Whether the root carries a <c>.Key</c>. Always <see langword="false"/> for a root that is not an
+/// element or component, which has nowhere to carry one.
+/// </param>
+internal readonly record struct ContentRoot(ContentRootKind Kind, bool IsKeyed);
+
+/// <summary>
 /// Determines ForEach content keyability from the value-model templates and the view part registry, and
-/// collects BCF3003 for region-rooted content. This is reachability-independent (it walks templates, not
+/// collects BCF3003 for region-rooted content and BCF3032 for content already keyed at its root. This is reachability-independent (it walks templates, not
 /// expansions) and registry-driven for view-part-call content, so BCF3003 fires once per definition/
 /// component regardless of call sites, replacing the former per-expansion emission.
 /// </summary>
 internal static class KeyabilityResolver
 {
-    /// <summary>Resolves the root frame kind of <paramref name="node"/>, following view part calls transitively.</summary>
-    public static ContentRootKind ResolveRootKind(RenderTemplateNode node, ViewPartRegistry registry) =>
-        ResolveRootKind(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
+    /// <summary>
+    /// Resolves the root of <paramref name="node"/>, following view part calls transitively: the frame kind
+    /// and whether that frame is already keyed.
+    /// </summary>
+    public static ContentRoot ResolveRoot(RenderTemplateNode node, ViewPartRegistry registry) =>
+        ResolveRoot(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
 
     /// <param name="content">
     /// The content the enclosing call supplied, by callee ordinal, or <see langword="null"/> when this walk has
     /// no call above it — which is the registry pass over a definition nobody calls.
     /// </param>
-    private static ContentRootKind ResolveRootKind(
+    private static ContentRoot ResolveRoot(
         RenderTemplateNode node,
         ViewPartRegistry registry,
         HashSet<string> activeKeys,
         IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
         node switch
         {
-            ComponentTemplateNode or ElementTemplateNode => ContentRootKind.Element,
+            ComponentTemplateNode component =>
+                new ContentRoot(ContentRootKind.Element, component.Key is not null),
+            ElementTemplateNode element =>
+                new ContentRoot(ContentRootKind.Element, element.Key is not null),
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
                 or FragmentTemplateNode or RawMarkupTemplateNode
                 or RenderFragmentContentTemplateNode
-                or OpaqueViewTemplateNode => ContentRootKind.Region,
+                or OpaqueViewTemplateNode => new ContentRoot(ContentRootKind.Region, IsKeyed: false),
             TransplantedBlockTemplateNode transplanted =>
-                ResolveRootKind(transplanted.Content, registry, activeKeys, content),
+                ResolveRoot(transplanted.Content, registry, activeKeys, content),
             ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
             ViewPartCallTemplateNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
-                $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRootKind case for it."),
+                $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRoot case for it."),
         };
 
     /// <summary>
@@ -67,16 +90,16 @@ internal static class KeyabilityResolver
     /// the only one available — the case the reachability-independence of this resolver is about.
     /// </para>
     /// </remarks>
-    private static ContentRootKind ResolveHole(
+    private static ContentRoot ResolveHole(
         ContentHoleTemplateNode hole,
         ViewPartRegistry registry,
         HashSet<string> activeKeys,
         IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
         content is not null && content.TryGetValue(hole.ParameterOrdinal, out var supplied)
-            ? ResolveRootKind(supplied, registry, activeKeys, content: null)
-            : ContentRootKind.Region;
+            ? ResolveRoot(supplied, registry, activeKeys, content: null)
+            : new ContentRoot(ContentRootKind.Region, IsKeyed: false);
 
-    private static ContentRootKind ResolveCall(
+    private static ContentRoot ResolveCall(
         ViewPartCallTemplateNode call,
         ViewPartRegistry registry,
         HashSet<string> activeKeys)
@@ -84,12 +107,12 @@ internal static class KeyabilityResolver
         // A cycle cannot be resolved to a concrete root; treat as unresolved and let expansion's BCF1002
         // (call-dependent) report the cycle.
         if (!activeKeys.Add(call.MethodKey))
-            return ContentRootKind.Unresolved;
+            return new ContentRoot(ContentRootKind.Unresolved, IsKeyed: false);
 
         try
         {
             if (!registry.TryGet(call.MethodKey, out var entry) || entry.Definition is null)
-                return ContentRootKind.Unresolved;
+                return new ContentRoot(ContentRootKind.Unresolved, IsKeyed: false);
 
             // The callee's body is resolved with this call's content in hand, so a hole in it answers with what
             // was actually passed. The supplied subtree is then resolved with no content of its own: it was
@@ -103,7 +126,7 @@ internal static class KeyabilityResolver
                 content = byOrdinal;
             }
 
-            return ResolveRootKind(entry.Definition.Body, registry, activeKeys, content);
+            return ResolveRoot(entry.Definition.Body, registry, activeKeys, content);
         }
         finally
         {
@@ -112,10 +135,10 @@ internal static class KeyabilityResolver
     }
 
     /// <summary>
-    /// Walks <paramref name="node"/> and appends a BCF3003 for every <em>keyed</em> ForEach whose content
-    /// root resolves to <see cref="ContentRootKind.Region"/>. Unresolved content is skipped (BCF1002
-    /// covers it at expansion), and a ForEach whose key was declined is skipped because it attaches no
-    /// key at all (#172).
+    /// Walks <paramref name="node"/> and appends, for every <em>keyed</em> ForEach, a BCF3003 when its
+    /// content root resolves to <see cref="ContentRootKind.Region"/> and a BCF3032 when that root already
+    /// carries a key of its own. Unresolved content is skipped (BCF1002 covers it at expansion), and a
+    /// ForEach whose key was declined is skipped because it attaches no key at all (#172).
     /// </summary>
     public static void CollectForEachContentDiagnostics(
         RenderTemplateNode node,
@@ -126,16 +149,29 @@ internal static class KeyabilityResolver
         {
             case ForEachTemplateNode forEach:
                 // Only a keyed loop asks anything of its content root. A declined key emits no SetKey, so
-                // a Fragment, a Raw or a bare If roots the content legitimately (#172). The walk into the
-                // content continues either way: a keyed ForEach nested inside declined content is still
-                // keyed.
-                if (forEach.Key is not null
-                    && ResolveRootKind(forEach.Content, registry) == ContentRootKind.Region)
+                // a Fragment, a Raw or a bare If roots the content legitimately (#172), and so does a root
+                // that keys itself. The walk into the content continues either way: a keyed ForEach nested
+                // inside declined content is still keyed.
+                if (forEach.Key is not null)
                 {
-                    sink.Add(DiagnosticInfo.Create(
-                        DiagnosticDescriptors.BCF3003,
-                        forEach.Location.ToLocation(),
-                        []));
+                    var root = ResolveRoot(forEach.Content, registry);
+
+                    // Exclusive by construction, not by ordering: a region root has nowhere to write a
+                    // .Key, so IsKeyed cannot hold where Kind is Region.
+                    if (root.Kind == ContentRootKind.Region)
+                    {
+                        sink.Add(DiagnosticInfo.Create(
+                            DiagnosticDescriptors.BCF3003,
+                            forEach.Location.ToLocation(),
+                            []));
+                    }
+                    else if (root.IsKeyed)
+                    {
+                        sink.Add(DiagnosticInfo.Create(
+                            DiagnosticDescriptors.BCF3032,
+                            forEach.Location.ToLocation(),
+                            []));
+                    }
                 }
 
                 CollectForEachContentDiagnostics(forEach.Content, registry, sink);
@@ -178,7 +214,7 @@ internal static class KeyabilityResolver
 
             // No nested template children to walk. Listed as cases rather than left to fall through, so the
             // default arm below can exist: this is the third exhaustive dispatch over the hierarchy, and the
-            // other two (ResolveRootKind above, ViewPartExpander.ExpandNode) both throw on an unknown node.
+            // other two (ResolveRoot above, ViewPartExpander.ExpandNode) both throw on an unknown node.
             // A node type added without a case here would mean a BCF3003 that never fires, which is invisible.
             case TextContentTemplateNode:
             case ContentHoleTemplateNode:

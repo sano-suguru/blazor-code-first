@@ -991,6 +991,88 @@ internal static class DiagnosticDescriptors
                 + "metadata, not enumerated by this compiler.");
 
     /// <summary>
+    /// BCF3032: A keyed <c>ForEach</c> whose content root keys itself with <c>.Key</c>.
+    /// </summary>
+    /// <remarks>
+    /// The loop applies its key to the content root's frame, and the root's own decoration applies to that
+    /// same frame. Two <c>SetKey</c> calls on one frame, of which the second wins, so the key the author
+    /// reads as authoritative depends on emission order rather than on anything at the call site.
+    /// <para>
+    /// Sibling of BCF3003 and resolved from the same walk: that one fires when the root can carry no key
+    /// at all, this one when it already carries one. The two cannot both fire on one loop, because a root
+    /// with nowhere to put a <c>SetKey</c> also has nowhere to write a <c>.Key</c>.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3032 = new(
+        id: "BCF3032",
+        title: "ForEach content root is keyed twice",
+        messageFormat: "this ForEach applies a key to a content root that already writes its own .Key; remove one of the two",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A ForEach key is applied to the content root's element or component frame, which is the frame "
+                + "a .Key on that root writes to as well. SetKey overwrites, so one of the two keys is "
+                + "dead, and which one depends on the order the frames are emitted in. Key the root or key "
+                + "the loop, not both.");
+
+    /// <summary>
+    /// BCF3034: A call-site <c>.RenderMode</c> on a component whose own declaration fixes its render mode.
+    /// </summary>
+    /// <remarks>
+    /// The framework refuses the pair outright: <c>ComponentFactory</c> throws an
+    /// <c>InvalidOperationException</c> naming the fixed mode when a type carrying a
+    /// <c>RenderModeAttribute</c> also receives a caller-specified one. The attribute is a unary predicate
+    /// on the component type and rides in metadata, so this is decidable at the call site for a referenced
+    /// assembly's component as well as for one declared here.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3034 = new(
+        id: "BCF3034",
+        title: "Render mode is fixed by the component's declaration",
+        messageFormat: "'{0}' declares [{1}], so its render mode is fixed and cannot be set here; remove the .RenderMode",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A component whose declaration carries a RenderModeAttribute has a fixed render mode. Supplying "
+                + "one at the call site as well makes the framework throw when it instantiates the "
+                + "component, so the call site is where it is stopped. The call-site form is for a "
+                + "component that declares no mode of its own, which is the case it exists for: the same "
+                + "component rendered interactively from one page and statically from another.");
+
+    /// <summary>
+    /// BCF3033: The same non-attribute frame decoration is written twice on one element or component.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Separate from BCF3010, which asks the same question of the attribute and event channels. Those two
+    /// are keyed by a name the author wrote, and this one is not: <c>.Key</c> and its siblings each occupy
+    /// a channel that holds one value and has nothing to key on but the decoration itself. Folding them
+    /// into BCF3010 would make one descriptor answer for two different rules and give its message a name
+    /// argument that half its reports could not fill.
+    /// </para>
+    /// <para>
+    /// All three break differently and none of them breaks visibly, which is the shared reason to refuse
+    /// them (ARCHITECTURE.md §2.7(E)). <c>SetKey</c> writes into the open frame, so the second call
+    /// overwrites the first. <c>AddComponentRenderMode</c> appends, and the renderer reads the first frame
+    /// it finds, so there the <em>second</em> is the one that dies. A reference capture appends too, and
+    /// both actions run.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3033 = new(
+        id: "BCF3033",
+        title: "Frame decoration is written more than once",
+        messageFormat: "'{0}' is written more than once on this node; remove the duplicate",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A decoration that is not an attribute occupies a channel holding one value. Writing it twice "
+                + "cannot do what the author asked, and which of the two survives depends on the "
+                + "RenderTreeBuilder call the decoration lowers to rather than on anything visible at the "
+                + "call site, so the duplicate is reported at compile time.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

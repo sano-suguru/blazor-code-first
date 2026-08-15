@@ -63,9 +63,12 @@ internal static class UnresolvedValueTypeScanner
 
         // One arm per SurfaceMethodKind, dispatching on the same lookup that recognized the call, so an
         // arm and its recognition cannot disagree the way the three predicate chains this replaced could
-        // (#191, #201). A kind added to the enum without an arm here falls out of the switch and is
-        // scanned as nothing; what makes that hard to miss is RenderExpressionAnalyzer.Classify, whose
-        // twin of this dispatch is a switch expression and stops compiling until it is handled.
+        // (#191, #201). A kind added to the enum without an arm here used to fall out of the switch and be
+        // scanned as nothing, and the prompt this comment relied on — RenderExpressionAnalyzer.Classify
+        // being a switch expression that stops compiling — is a prompt in another file and not a check
+        // here. It was not enough: the five kinds #309/#310/#311 added were handled there and missed here.
+        // The default arm below is the check, in the exhaustiveness contract RenderViewEmitter.EmitNode
+        // and KeyabilityResolver.ResolveRoot already state for their own dispatches.
         var kind = context.KnownSymbols.ClassifySurfaceMethod(method);
         switch (kind)
         {
@@ -111,7 +114,24 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.Attr:
             case SurfaceMethodKind.On:
             case SurfaceMethodKind.Bind:
+            // The non-attribute frame decorations reach ScanDecoration's tail, which reports argument 0:
+            // both carry their one value there and neither has a name argument, exactly as .Class does.
+            // A capture action is a lambda rather than a value, and that changes nothing — the event arm
+            // reports its own handler with the same ReportValue, because what is scanned is the expression
+            // transplanted into generated code.
+            case SurfaceMethodKind.Key:
+            case SurfaceMethodKind.Ref:
                 ScanDecoration(invocation, method, kind, args, recoverOwnValue, context);
+                return;
+
+            // The component receivers of the same three channels. They take no selector, so they route
+            // past ScanComponentParameter rather than through it, and their value is argument 0.
+            case SurfaceMethodKind.ComponentKey:
+            case SurfaceMethodKind.ComponentRenderMode:
+            case SurfaceMethodKind.ComponentRef:
+                if (recoverOwnValue)
+                    ReportValue(args.At(0)?.Expression, context);
+
                 return;
 
             // A [ViewPart] call. The walk above reaches the receiver of one written fluently, which is
@@ -127,6 +147,12 @@ internal static class UnresolvedValueTypeScanner
                 }
 
                 return;
+
+            default:
+                throw new System.NotSupportedException(
+                    $"Unknown SurfaceMethodKind '{kind}'; add a scan arm for it. A kind with no arm is "
+                        + "scanned as nothing, which costs the author a pointed unresolved-type report and "
+                        + "leaves only the blanket BCF1003.");
         }
     }
 

@@ -16,8 +16,11 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// file happened not to exercise went unseen.
 /// </para>
 /// <para>
-/// <c>CloseElement</c>, <c>CloseRegion</c>, <c>CloseComponent</c>, and <c>SetKey</c> consume no sequence
-/// number and are deliberately absent from the pattern.
+/// <c>CloseElement</c>, <c>CloseRegion</c>, <c>CloseComponent</c>, <c>SetKey</c>,
+/// <c>SetUpdatesAttributeName</c> and <c>AddComponentRenderMode</c> consume no sequence number and are
+/// deliberately absent from the pattern. The two reference captures are present, and are the only
+/// non-attribute frame decorations that belong here: they append a frame of their own, which the other
+/// two do not (<c>ARCHITECTURE.md</c> §2.7(E)).
 /// </para>
 /// </remarks>
 internal static partial class SequenceArguments
@@ -27,7 +30,8 @@ internal static partial class SequenceArguments
     // generic component type (OpenComponent<global::Foo<Bar>>) still matches: the lazy run extends past
     // the inner '>' because only the final one is followed by '('.
     [GeneratedRegex(
-        @"__builder\.(?:OpenElement|OpenRegion|AddAttribute|AddContent|AddMarkupContent|AddComponentParameter)\((\d+)"
+        @"__builder\.(?:OpenElement|OpenRegion|AddAttribute|AddContent|AddMarkupContent"
+            + @"|AddComponentParameter|AddElementReferenceCapture|AddComponentReferenceCapture)\((\d+)"
             + @"|__builder\.OpenComponent<.+?>\((\d+)")]
     private static partial Regex SequenceConsumingCall();
 

@@ -86,4 +86,38 @@ internal enum SurfaceMethodKind
 
     /// <summary><c>Decorations.Bind</c>, any overload.</summary>
     Bind,
+
+    /// <summary>
+    /// <c>Decorations.Key(this ElementView, object?)</c>. A decoration that is not an attribute: it lowers
+    /// to <c>SetKey</c> rather than to an attribute frame (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </summary>
+    Key,
+
+    /// <summary>
+    /// <c>ComponentView&lt;T&gt;.Key(object?)</c>. The same channel as <see cref="Key"/> on the same
+    /// <c>SetKey</c>, and a member of its own because the receiver decides which node the classification
+    /// arm has to reach for: an <c>ElementTemplateNode</c> there, a <c>ComponentTemplateNode</c> here.
+    /// </summary>
+    ComponentKey,
+
+    /// <summary>
+    /// <c>ComponentView&lt;T&gt;.RenderMode(IComponentRenderMode?)</c>. A non-attribute frame decoration
+    /// like the two above, and the only one with no element counterpart: a render mode belongs to a
+    /// component frame and there is nothing for it to mean on an element.
+    /// </summary>
+    ComponentRenderMode,
+
+    /// <summary>
+    /// <c>Decorations.Ref(this ElementView, Action&lt;ElementReference&gt;)</c>. A non-attribute frame
+    /// decoration that, unlike <see cref="Key"/>, appends a frame and so consumes a sequence number
+    /// (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </summary>
+    Ref,
+
+    /// <summary>
+    /// <c>ComponentView&lt;T&gt;.Ref(Action&lt;T&gt;)</c>. The same channel as <see cref="Ref"/> on a
+    /// different builder call, split for the reason <see cref="ComponentKey"/> is split from
+    /// <see cref="Key"/>.
+    /// </summary>
+    ComponentRef,
 }

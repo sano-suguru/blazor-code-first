@@ -356,8 +356,7 @@ internal static class RenderViewEmitter
     {
         // TypeName already carries the global:: prefix (fully qualified format).
         writer.AppendLine($"__builder.OpenComponent<{node.TypeName}>({seq});");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
+        EmitKey(writer, node.Key, key);
         int next = seq + 1;
         foreach (var parameter in node.Parameters)
         {
@@ -416,6 +415,29 @@ internal static class RenderViewEmitter
             next = afterSlotContent;
         }
 
+        // After every parameter frame, scalar and slot alike, and not merely after the scalars: a slot is
+        // an AddComponentParameter too, and AssertCanAddComponentParameter reads the last non-attribute
+        // frame's type, so a render mode written between the two would make the next slot throw. It takes
+        // no sequence number, so `next` is untouched by it (ARCHITECTURE.md §2.7(E)).
+        if (node.RenderMode is { } renderMode)
+            writer.AppendLine($"__builder.AddComponentRenderMode({renderMode.ToCode()});");
+
+        // After the render mode, not before. The renderer finds a caller-specified mode by scanning the
+        // component's frames for the first ComponentRenderMode, and putting the capture frame in front of
+        // it puts a frame of another type in that scan's way for no gain. Both orders are legal to the
+        // builder, so this is the order chosen rather than the order forced.
+        if (node.Ref is { } componentCapture)
+        {
+            // The framework hands the action an object; the surface takes an Action<TComponent> because
+            // this type is known here. The cast on the delegate is what lets a lambda written in argument
+            // position be invoked at all, the same reason a synchronous bind setter carries one.
+            writer.AppendLine(
+                $"__builder.AddComponentReferenceCapture({next}, __value => "
+                    + $"((global::System.Action<{node.TypeName}>)({componentCapture.ToCode()}))"
+                    + $"(({node.TypeName})__value));");
+            next++;
+        }
+
         writer.AppendLine("__builder.CloseComponent();");
         return next;
     }
@@ -423,8 +445,7 @@ internal static class RenderViewEmitter
     private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
     {
         writer.AppendLine($"__builder.OpenElement({seq}, \"{node.Tag}\");");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
+        EmitKey(writer, node.Key, key);
         int next = seq + 1;
         next = EmitClassAttribute(writer, node.Classes, next);
         foreach (var attribute in node.Attributes)
@@ -490,9 +511,41 @@ internal static class RenderViewEmitter
             if (ResynchronizesFromDom(bind.AttributeName))
                 writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
         }
+        // After every attribute, event and binding frame, and before the children. Both halves are forced:
+        // AssertCanAddAttribute reads the last non-attribute frame's type, so an attribute written after
+        // this would throw, and Blazor's diff reads an element's capture frame as part of its attribute
+        // range, so a capture written after the children would fall outside it (ARCHITECTURE.md §2.7(E)).
+        if (node.Ref is { } elementCapture)
+        {
+            writer.AppendLine(
+                $"__builder.AddElementReferenceCapture({next}, {elementCapture.ToCode()});");
+            next++;
+        }
+
         next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;
+    }
+
+    /// <summary>
+    /// Writes the <c>SetKey</c> for a frame that has just opened, from the two channels that can supply
+    /// one: the node's own <c>.Key</c> decoration and the key an enclosing <c>ForEach</c> threaded into its
+    /// content root. Consumes no sequence number, so it reports nothing back to the caller's arithmetic.
+    /// </summary>
+    /// <remarks>
+    /// The two are never both present. <c>SetKey</c> writes into the open frame, so a second call would
+    /// overwrite the first, and BCF3032 refuses that pair at the template layer before emission is reached.
+    /// Asserted rather than resolved by precedence: a precedence rule here would be a second answer to a
+    /// question the diagnostic has already settled, and the two would be free to disagree.
+    /// </remarks>
+    private static void EmitKey(IndentedWriter writer, ExpressionTemplate? own, string? threaded)
+    {
+        Debug.Assert(
+            own is null || threaded is null,
+            "A node carries both its own .Key and a ForEach key; BCF3032 should have refused this pair.");
+
+        if ((own?.ToCode() ?? threaded) is { } key)
+            writer.AppendLine($"__builder.SetKey({key});");
     }
 
     /// <summary>

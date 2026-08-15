@@ -366,7 +366,7 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>The number of distinct decoration names <c>BlazorCodeFirst.Decorations</c> declares.</summary>
-    private const int DecorationNameCount = 12;
+    private const int DecorationNameCount = 14;
 
     /// <summary>
     /// The distinct names of the public static extension methods <c>BlazorCodeFirst.Decorations</c> declares,
@@ -421,11 +421,20 @@ public sealed class KnownSymbolsSyncTests
     /// name at all, and that the name is spelled as an event.
     /// </para>
     /// <para>
-    /// That no other decoration has this shape is a fact about today's surface, not a law. A capability
-    /// like <c>@ref</c> (#72) would naturally be spelled <c>Ref(this ElementView, Action&lt;ElementReference&gt;)</c>
-    /// and match it while standing for no event. That is why the failure message below states the shape it
-    /// matched rather than instructing the reader to add a row: the answer for such a decoration is a new
-    /// classification and a revision of this rule, not an <c>EventShortcutNames</c> entry.
+    /// That prediction came true. <c>.Ref(this ElementView, Action&lt;ElementReference&gt;)</c> (#309) is an
+    /// extension on <c>ElementView</c> whose sole non-receiver parameter is a delegate, matches the shape
+    /// above exactly, and stands for no event. The answer was the one this rule's earlier wording called
+    /// for: a classification of its own (<see cref="SurfaceMethodKind.Ref"/>) and this revision, not an
+    /// <c>EventShortcutNames</c> row.
+    /// </para>
+    /// <para>
+    /// The revision is the argument test below. A handler either takes nothing (<c>Action</c>,
+    /// <c>Func&lt;Task&gt;</c>) or takes an argument the event delivers, which is a
+    /// <see cref="System.EventArgs"/> — that is the same constraint the surface declares on
+    /// <c>.On&lt;TArgs&gt;</c> and BCF3028 enforces, so this narrowing costs no new knowledge. A delegate
+    /// taking anything else is carrying something other than an event's argument to somewhere other than
+    /// an event, and that is what makes it a different channel. The shape stays load-bearing: a real event
+    /// shortcut added without a row still lands here.
     /// </para>
     /// </remarks>
     [Fact]
@@ -436,12 +445,19 @@ public sealed class KnownSymbolsSyncTests
         var decorations = html.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.Decorations");
         Assert.NotNull(decorations);
 
+        var eventArgs = symbols.EventArgsType;
+        Assert.NotNull(eventArgs);
+
         var shortcuts = decorations!.GetMembers()
             .OfType<IMethodSymbol>()
             .Where(method => method is { IsExtensionMethod: true, Parameters.Length: > 0 }
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, elementView)
                 && KnownSymbols.TryGetEventParameters(method, out var eventParameters)
-                && !eventParameters.CarriesEventName)
+                && !eventParameters.CarriesEventName
+                // The last parameter, not Parameters[HandlerIndex]: that index is in argument space, which
+                // excludes the extension receiver, while these symbols are unreduced. TryGetEventParameters
+                // answers only for a handler written last, so the two agree here by its own contract.
+                && CarriesAnEventsArgument(method.Parameters[method.Parameters.Length - 1].Type, eventArgs!))
             .ToList();
 
         // A resolution or shape-rule failure would otherwise make the whole guard vacuous rather than red.
@@ -464,6 +480,25 @@ public sealed class KnownSymbolsSyncTests
             // (ondblclick, say) is a table row, not a special case.
             Assert.StartsWith("on", eventName, StringComparison.Ordinal);
         }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="handler"/> is a delegate an event could invoke: one taking no argument, or
+    /// one taking an argument the event delivers, which is an <see cref="System.EventArgs"/>.
+    /// </summary>
+    /// <remarks>
+    /// A delegate taking anything else belongs to another channel. <c>.Ref</c> is the case that forced the
+    /// question: its <c>Action&lt;ElementReference&gt;</c> is a handler in shape and receives an element,
+    /// not an event. Nothing is asserted about the return type, since both <c>Action</c> and
+    /// <c>Func&lt;Task&gt;</c> are handlers.
+    /// </remarks>
+    private static bool CarriesAnEventsArgument(ITypeSymbol handler, INamedTypeSymbol eventArgs)
+    {
+        if (handler is not INamedTypeSymbol { DelegateInvokeMethod: { } invoke })
+            return false;
+
+        return invoke.Parameters.Length == 0
+            || TypeSymbolFacts.IsAssignableTo(invoke.Parameters[0].Type, eventArgs);
     }
 
     /// <summary>

@@ -64,7 +64,29 @@ internal sealed record ComponentSlotNode(string Name, RenderNode Content)
 internal sealed record ComponentNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode;
+    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode
+{
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ComponentTemplateNode.Key"/>; emitted as <c>SetKey</c> immediately after the component
+    /// opens, consuming no sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The render mode written with <c>.RenderMode</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ComponentTemplateNode.RenderMode"/>; emitted after the parameter frames, consuming no
+    /// sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? RenderMode { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ComponentTemplateNode.Ref"/>; emitted as <c>AddComponentReferenceCapture</c> after the
+    /// render mode frame, consuming one sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
+}
 
 /// <summary>An HTML element: tag, folded class channel, attributes, event list, and mixed children.</summary>
 internal sealed record ElementNode(
@@ -76,6 +98,20 @@ internal sealed record ElementNode(
 {
     /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>
     public EquatableArray<BindTemplate> Bindings { get; init; }
+
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.Key"/>; emitted as <c>SetKey</c> immediately after the element opens,
+    /// consuming no sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.Ref"/>; emitted as <c>AddElementReferenceCapture</c> after the
+    /// attribute, event and binding frames, consuming one sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>
