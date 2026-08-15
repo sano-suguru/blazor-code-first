@@ -299,6 +299,15 @@ public static class DiagnosticExpectations
             AnchorOccurrence.Last,
             "Anchors the second decoration, which is the one to delete. Last rather than first for the "
                 + "reason BCF3033 gives: on a chain carrying both, the duplicate is the later one."),
+        new(
+            "BCF3037",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3037.cs",
+            "PreventDefault",
+            Note: "Anchors the modifier, not the .Bind. The binding is correct code and stays; what the "
+                + "author changes is the modifier, by moving it after an .On or dropping it until the "
+                + "surface can modify a binding's event."),
     ];
 
     /// <summary>

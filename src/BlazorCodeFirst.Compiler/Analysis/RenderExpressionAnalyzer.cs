@@ -1226,6 +1226,17 @@ internal static class RenderExpressionAnalyzer
         FactoryArguments args,
         ViewPartBodyContext context)
     {
+        // Ahead of the empty-channel test, because a .Bind makes both answers below wrong rather than one:
+        // with an earlier .On the modifier would attach to it, and without one BCF3035 would send the
+        // author to an .On that is not what they wrote this after.
+        if (NearestEventProducerIsBinding(decoAccess.Expression, context))
+        {
+            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3037, decoAccess.Name.GetLocation(), [method.Name]));
+            return null;
+        }
+
         var events = element.Events.AsImmutableArray();
         if (events.Length == 0)
         {
@@ -1254,6 +1265,50 @@ internal static class RenderExpressionAnalyzer
             : target with { StopPropagation = value };
 
         return element with { Events = events.SetItem(events.Length - 1, updated) };
+    }
+
+    /// <summary>
+    /// Whether the nearest decoration to the left of an event modifier that produces an event is a
+    /// <c>.Bind</c> rather than an <c>.On</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asked of the syntax rather than of the node, because the node cannot answer it: <c>.On</c> appends
+    /// to <c>Events</c> and <c>.Bind</c> to <c>Bindings</c>, and neither channel records where its entries
+    /// sat relative to the other's. The chain is the only place the order survives, so this walks it,
+    /// skipping decorations that produce no event at all (<c>.Class</c>, <c>.Attr</c>, a shortcut, another
+    /// modifier) until it reaches one that does.
+    /// </para>
+    /// <para>
+    /// A binding's own event is a real event, and Razor can modify it. This surface cannot yet, which is
+    /// why the answer here is a refusal (BCF3037) rather than an attachment. Supporting it means giving
+    /// <c>BindTemplate</c> the same two channels and emitting them after the binding's event frame.
+    /// </para>
+    /// </remarks>
+    private static bool NearestEventProducerIsBinding(
+        ExpressionSyntax receiver, ViewPartBodyContext context)
+    {
+        var current = receiver;
+        while (current is InvocationExpressionSyntax invocation
+            && invocation.Expression is MemberAccessExpressionSyntax access)
+        {
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is IMethodSymbol method)
+            {
+                switch (context.KnownSymbols.ClassifySurfaceMethod(method))
+                {
+                    case SurfaceMethodKind.Bind:
+                        return true;
+                    case SurfaceMethodKind.On:
+                    case SurfaceMethodKind.EventShortcut:
+                        return false;
+                }
+            }
+
+            current = access.Expression;
+        }
+
+        return false;
     }
 
     /// <summary>

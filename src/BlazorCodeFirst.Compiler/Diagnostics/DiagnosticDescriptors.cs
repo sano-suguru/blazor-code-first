@@ -1116,6 +1116,35 @@ internal static class DiagnosticDescriptors
                 + "resolved silently.");
 
     /// <summary>
+    /// BCF3037: An event modifier written after a <c>.Bind</c>, whose event it cannot reach.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A modifier attaches to the event written before it, and <c>.Bind</c> writes one. It writes it into
+    /// the binding channel rather than the event channel, though, so the modifier would attach to whatever
+    /// <c>.On</c> came earlier on the element, or to nothing at all. Both are wrong and neither is visible
+    /// at the call site, which is why the pair is refused rather than resolved.
+    /// </para>
+    /// <para>
+    /// Reported separately from BCF3035 because the fix is different. BCF3035's message sends the author
+    /// to the <c>.On</c> the modifier belongs after; here there is an event and the surface simply cannot
+    /// modify it yet. Razor can (<c>@bind:event</c> beside <c>@oninput:preventDefault</c>), so this is a
+    /// gap rather than a rule, and the message says so instead of proposing a move that would not help.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3037 = new(
+        id: "BCF3037",
+        title: "Event modifier cannot reach a binding's event",
+        messageFormat: "'.{0}' follows a .Bind, whose event it cannot modify; move it after an .On, or drop it",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "An event modifier attaches to the event written before it. A .Bind writes its event into the "
+                + "binding channel, which the modifier cannot reach, so the modifier would silently attach "
+                + "to an earlier event or to none. Modifiers on a binding's event are not supported yet.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static
