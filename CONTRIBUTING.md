@@ -262,6 +262,36 @@ dotnet build <project> -t:Rebuild \
   -p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedFilesOutputPath=gen
 ```
 
+Mutation testing over the compiler, which is the §Engineering standard rule run
+over every condition at once rather than over one claim at a time:
+
+```bash
+dotnet tool restore
+(cd tests/BlazorCodeFirst.Compiler.Tests && \
+  dotnet stryker --config-file ../../eng/stryker-config.json --output ../../artifacts/stryker)
+```
+
+The `cd` is required. Run from the repository root, Stryker discovers
+`BlazorCodeFirst.slnx` and takes every test project that references the compiler
+as its test set, which puts `DiagnosticTests` — a `dotnet pack` and four real
+builds — behind every mutant. Run from the test project's own directory, the
+test set is that project alone.
+
+Read the survivors, not the score. A survivor is a question about a test, so no
+threshold is configured and no CI step runs the sweep, for the same reason the
+measurements above are not gated. It takes about an hour.
+
+`DiagnosticDescriptors.cs` is excluded in the config. All 416 of its mutants
+rewrite a message or a title, and what a descriptor is held to — its ID and its
+severity against 付録A — is `DiagnosticTableTests`'s assertion rather than the
+message text's. Mutating the file reported the same non-finding 185 times.
+
+Two limits bound what it covers. A mutant that fails to compile takes every
+other mutant in its method with it, and the shape that trips this most often is
+`TryGet…(out var …)`, which most of this compiler's analysis is written in. Only
+`BlazorCodeFirst.Compiler` is mutated, because `DiagnosticTests` builds against
+packed packages that a rebuilt assembly never reaches.
+
 ## The package version
 
 `eng/Versions.props` is the only place the version is written. `Directory.Build.props` and
@@ -656,9 +686,12 @@ A negative test is not finished until the implementation has been mutated and
 the test has been watched to fail. Delete or invert the condition it is supposed
 to cover, run it, read the failure, then restore. "Not reported" passes against
 an analyzer that reports nothing at all, against a source that never reached the
-code under test, and against a condition that some earlier condition already
-excluded — and none of those three is visible from the test, from the diff, or
-from a green run. The same applies to any sentence that says *why* a shape is
+code under test, against a condition that some earlier condition already
+excluded, and against an analyzer that threw. None of the first three is visible
+from the test, from the diff, or from a green run. The fourth now is:
+`CompilationTestHost.RunAnalyzerAsync` fails on `AD0001`, which is what Roslyn
+turns an analyzer's exception into, and every assertion here reads one ID.
+The same applies to any sentence that says *why* a shape is
 exempt or *what* keeps a check out of some position, whether it is in a comment,
 in an expectation's `Note`, or in `ARCHITECTURE.md`. That is a claim about the
 implementation, and mutating the implementation is what separates a reason from
