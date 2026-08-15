@@ -86,4 +86,10 @@ internal enum SurfaceMethodKind
 
     /// <summary><c>Decorations.Bind</c>, any overload.</summary>
     Bind,
+
+    /// <summary>
+    /// <c>Decorations.Key(this ElementView, object?)</c>. A decoration that is not an attribute: it lowers
+    /// to <c>SetKey</c> rather than to an attribute frame (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </summary>
+    Key,
 }

@@ -446,4 +446,33 @@ public static class Decorations
         this ElementView element, string attributeName, string eventName,
         System.Func<TValue> get, System.Func<TValue, System.Threading.Tasks.Task> set, string format,
         System.Globalization.CultureInfo culture) => element;
+
+    /// <summary>
+    /// Design-time syntax giving the element a key, which is Razor's <c>@key</c>: the value Blazor's diff
+    /// uses to decide which frame of the previous render this element is, independently of the sequence
+    /// number that says where in the template it was written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not an attribute, and so outside the fold every other decoration here takes part in. It lowers to
+    /// <c>SetKey</c>, which writes into the element frame that is already open rather than appending one,
+    /// so it consumes no sequence number and the attributes after it keep the numbers they would have had
+    /// (<c>ARCHITECTURE.md</c> §2.7(E)). It does stop the element folding into a markup frame: markup has
+    /// no way to carry a key.
+    /// </para>
+    /// <para>
+    /// A key written as the literal <see langword="null"/> declines the key rather than setting one, the
+    /// same reading <c>ForEach(source, key: null, content)</c> gets (#172), and no <c>SetKey</c> is
+    /// emitted. A non-constant expression that happens to evaluate to <see langword="null"/> is not that
+    /// case: the call is emitted, and <c>SetKey</c> ignores a null value at runtime.
+    /// </para>
+    /// <para>
+    /// Writing this on the content root of a keyed <c>ForEach</c> is BCF3032. The loop already applies its
+    /// own key to that frame, and the two would be one <c>SetKey</c> overwriting the other.
+    /// </para>
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="value">The key; any expression. A literal <see langword="null"/> declines the key.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Key(this ElementView element, object? value) => element;
 }

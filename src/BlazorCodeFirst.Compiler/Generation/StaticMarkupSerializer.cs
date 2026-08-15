@@ -267,6 +267,12 @@ internal static class StaticMarkupSerializer
         if (element.Bindings.Length > 0)
             return false;
 
+        // A key is not markup. SetKey writes into the open element frame, and a markup frame has no frame
+        // to write into, so folding would drop the key and leave the element looking unkeyed. Same shape
+        // as the binding case above: what disqualifies it is the channel, not the value (§2.7(E)).
+        if (element.Key is not null)
+            return false;
+
         // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
         // left here is not the value's type but whether it is a constant this markup can carry: a constant
         // null has no text to join and no attribute to write — the frame path drops it too (#236), so both

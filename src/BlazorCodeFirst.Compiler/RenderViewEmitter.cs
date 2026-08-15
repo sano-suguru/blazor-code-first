@@ -423,8 +423,7 @@ internal static class RenderViewEmitter
     private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
     {
         writer.AppendLine($"__builder.OpenElement({seq}, \"{node.Tag}\");");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
+        EmitKey(writer, node.Key, key);
         int next = seq + 1;
         next = EmitClassAttribute(writer, node.Classes, next);
         foreach (var attribute in node.Attributes)
@@ -493,6 +492,29 @@ internal static class RenderViewEmitter
         next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;
+    }
+
+    /// <summary>
+    /// Writes the <c>SetKey</c> for a frame that has just opened, from the two channels that can supply
+    /// one: the node's own <c>.Key</c> decoration and the key an enclosing <c>ForEach</c> threaded into its
+    /// content root. Consumes no sequence number, so it reports nothing back to the caller's arithmetic.
+    /// </summary>
+    /// <remarks>
+    /// The two are never both present. <c>SetKey</c> writes into the open frame, so a second call would
+    /// overwrite the first, and BCF3032 refuses that pair at the template layer before emission is reached.
+    /// Asserted rather than resolved by precedence: a precedence rule here would be a second answer to a
+    /// question the diagnostic has already settled, and the two would be free to disagree.
+    /// </remarks>
+    private static void EmitKey(IndentedWriter writer, ExpressionTemplate? own, string? threaded)
+    {
+        Debug.Assert(
+            own is null || threaded is null,
+            "A node carries both its own .Key and a ForEach key; BCF3032 should have refused this pair.");
+
+        if (own is not null)
+            writer.AppendLine($"__builder.SetKey({own.ToCode()});");
+        else if (threaded is not null)
+            writer.AppendLine($"__builder.SetKey({threaded});");
     }
 
     /// <summary>

@@ -713,6 +713,10 @@ internal sealed class KnownSymbols
                     // folded out of it below is what lets DeclaresDecorationNamed report a misplaced
                     // .Bind(…) as BCF3008 rather than BCF1003.
                     case "Bind": kind = SurfaceMethodKind.Bind; break;           // all six overloads
+                    // Registered here rather than beside the shortcut tables because it stands for no
+                    // attribute name at all: the decoration arm routes on the classification and reads the
+                    // key straight off the argument (§2.7(E)).
+                    case "Key": kind = SurfaceMethodKind.Key; break;
                     default:
                         // Every overload of a shortcut lands on the same row: .OnClick(Action) and
                         // .OnClick(Func<Task>) both stand for "onclick", and the decoration arm of

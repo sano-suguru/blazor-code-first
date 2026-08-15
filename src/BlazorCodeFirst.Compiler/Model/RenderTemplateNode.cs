@@ -206,6 +206,17 @@ internal sealed record ElementTemplateNode(
 {
     /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>
     public EquatableArray<BindTemplate> Bindings { get; init; }
+
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/> when none was written or the author
+    /// declined it with a literal <c>null</c> (§2.7(E)).
+    /// </summary>
+    /// <remarks>
+    /// A channel of its own and not an <see cref="AttributeTemplate"/>: it lowers to <c>SetKey</c>, which
+    /// consumes no sequence number and appends no frame. It is also what stops the element folding, since
+    /// markup cannot carry a key. One key at most; a second is BCF3033.
+    /// </remarks>
+    public ExpressionTemplate? Key { get; init; }
 }
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

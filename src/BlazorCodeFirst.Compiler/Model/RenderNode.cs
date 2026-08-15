@@ -76,6 +76,13 @@ internal sealed record ElementNode(
 {
     /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>
     public EquatableArray<BindTemplate> Bindings { get; init; }
+
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.Key"/>; emitted as <c>SetKey</c> immediately after the element opens,
+    /// consuming no sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Key { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>

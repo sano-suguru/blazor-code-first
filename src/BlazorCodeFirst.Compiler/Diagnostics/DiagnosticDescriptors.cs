@@ -991,6 +991,38 @@ internal static class DiagnosticDescriptors
                 + "metadata, not enumerated by this compiler.");
 
     /// <summary>
+    /// BCF3033: The same non-attribute frame decoration is written twice on one element or component.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Separate from BCF3010, which asks the same question of the attribute and event channels. Those two
+    /// are keyed by a name the author wrote, and this one is not: <c>.Key</c> and its siblings each occupy
+    /// a channel that holds one value and has nothing to key on but the decoration itself. Folding them
+    /// into BCF3010 would make one descriptor answer for two different rules and give its message a name
+    /// argument that half its reports could not fill.
+    /// </para>
+    /// <para>
+    /// All three break differently and none of them breaks visibly, which is the shared reason to refuse
+    /// them (ARCHITECTURE.md §2.7(E)). <c>SetKey</c> writes into the open frame, so the second call
+    /// overwrites the first. <c>AddComponentRenderMode</c> appends, and the renderer reads the first frame
+    /// it finds, so there the <em>second</em> is the one that dies. A reference capture appends too, and
+    /// both actions run.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3033 = new(
+        id: "BCF3033",
+        title: "Frame decoration is written more than once",
+        messageFormat: "'{0}' is written more than once on this node; remove the duplicate",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A decoration that is not an attribute occupies a channel holding one value. Writing it twice "
+                + "cannot do what the author asked, and which of the two survives depends on the "
+                + "RenderTreeBuilder call the decoration lowers to rather than on anything visible at the "
+                + "call site, so the duplicate is reported at compile time.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

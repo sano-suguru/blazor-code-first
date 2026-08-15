@@ -223,6 +223,7 @@ internal static class ViewPartExpander
                         children.ToImmutable())
                     {
                         Bindings = bindings.ToImmutable(),
+                        Key = element.Key?.Substitute(substitution),
                     };
                 }
 

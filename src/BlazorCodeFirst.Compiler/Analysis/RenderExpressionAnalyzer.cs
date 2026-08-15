@@ -318,7 +318,8 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.EventShortcut
                 or SurfaceMethodKind.Attr
                 or SurfaceMethodKind.On
-                or SurfaceMethodKind.Bind =>
+                or SurfaceMethodKind.Bind
+                or SurfaceMethodKind.Key =>
                 ClassifyDecoration(invocation, method, kind, context),
             SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };
@@ -940,6 +941,9 @@ internal static class RenderExpressionAnalyzer
         if (kind == SurfaceMethodKind.Bind)
             return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
 
+        if (kind == SurfaceMethodKind.Key)
+            return ClassifyKey(decoAccess, element, firstArg, context);
+
         // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an
         // argument. The lookup cannot miss: the kind and the map entry are written by the same arm of
         // KnownSymbols' member switch.
@@ -1466,6 +1470,43 @@ internal static class RenderExpressionAnalyzer
         {
             Classes = element.Classes.AsImmutableArray().Add(value.Normalize(context)),
         };
+    }
+
+    /// <summary>
+    /// Records a <c>.Key</c> on <paramref name="element"/>, or reports why it cannot be recorded.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A literal <see langword="null"/> declines the key rather than setting one, which is the reading
+    /// <c>ForEach(source, key: null, content)</c> already gets (#172). Declining is recorded as the absence
+    /// of a key and not as a key whose value is null, so the emitter has one question to ask and the fold
+    /// stays available to an element that declined. The test is on the built template's constant rather
+    /// than on the syntax, so `.Key(null)` and a `const object? None = null` reach the same answer.
+    /// </para>
+    /// <para>
+    /// The duplicate check runs before the decline, so <c>.Key(a).Key(null)</c> is BCF3033 rather than a
+    /// silent retraction of the first key. Declining is a way to write "no key here", not a way to unwrite
+    /// one.
+    /// </para>
+    /// </remarks>
+    private static ElementTemplateNode? ClassifyKey(
+        MemberAccessExpressionSyntax decoAccess,
+        ElementTemplateNode element,
+        ArgumentSyntax firstArg,
+        ViewPartBodyContext context)
+    {
+        if (element.Key is not null)
+        {
+            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3033,
+                decoAccess.Name.GetLocation(),
+                [decoAccess.Name.Identifier.ValueText]));
+            return null;
+        }
+
+        var key = ExpressionTemplateFactory.Create(firstArg.Expression, context);
+        return key.Constant is NullConstant ? element : element with { Key = key };
     }
 
     /// <summary>

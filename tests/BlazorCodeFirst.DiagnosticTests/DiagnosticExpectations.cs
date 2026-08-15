@@ -255,6 +255,15 @@ public static class DiagnosticExpectations
             Note: "Anchors the format argument, which is what the author drops or rewrites. The value " +
                 "type is the other half of the rule, but it is not what went wrong: binding an int is " +
                 "legitimate, and only the format written beside it is not."),
+        new(
+            "BCF3033",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3033.cs",
+            "Key",
+            AnchorOccurrence.Last,
+            "Anchors the second decoration's name, which is the one to delete. Last rather than first "
+                + "for the reason BCF3007 gives: on a line carrying both, the duplicate is the later one."),
     ];
 
     /// <summary>
@@ -276,10 +285,6 @@ public static class DiagnosticExpectations
         ("BCF3032",
             "The ForEach key and a content root's own .Key colliding. Specified with 付録A 2.7(E); the " +
             "descriptor arrives with .Key itself (#310)."),
-        ("BCF3033",
-            "A non-attribute frame decoration written twice on one node. The row states the finished " +
-            "design, so it names .Ref as well, which .Key and .RenderMode (#310, #311) do not yet ship; " +
-            "the descriptor arrives with the first of the three."),
         ("BCF3034",
             "A call-site render mode on a type whose declaration fixes one. Specified with the surface " +
             "it checks; the descriptor arrives with .RenderMode (#311)."),
