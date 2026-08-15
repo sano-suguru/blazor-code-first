@@ -79,6 +79,13 @@ internal sealed record ComponentNode(
     /// sequence number (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? RenderMode { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ComponentTemplateNode.Ref"/>; emitted as <c>AddComponentReferenceCapture</c> after the
+    /// render mode frame, consuming one sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
 }
 
 /// <summary>An HTML element: tag, folded class channel, attributes, event list, and mixed children.</summary>
@@ -98,6 +105,13 @@ internal sealed record ElementNode(
     /// consuming no sequence number (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.Ref"/>; emitted as <c>AddElementReferenceCapture</c> after the
+    /// attribute, event and binding frames, consuming one sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>

@@ -313,7 +313,8 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.GenericTemplateContextual
                 or SurfaceMethodKind.ComponentBind
                 or SurfaceMethodKind.ComponentKey
-                or SurfaceMethodKind.ComponentRenderMode =>
+                or SurfaceMethodKind.ComponentRenderMode
+                or SurfaceMethodKind.ComponentRef =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
@@ -321,7 +322,8 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.Attr
                 or SurfaceMethodKind.On
                 or SurfaceMethodKind.Bind
-                or SurfaceMethodKind.Key =>
+                or SurfaceMethodKind.Key
+                or SurfaceMethodKind.Ref =>
                 ClassifyDecoration(invocation, method, kind, context),
             SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };
@@ -779,7 +781,9 @@ internal static class RenderExpressionAnalyzer
         // Neither .Key nor .RenderMode selects a parameter, so both route out before everything below: the
         // selector, the settability rule, and BCF3007 are all about a parameter they do not have. They
         // share this method only for the receiver recursion above, which every chained spelling needs.
-        if (kind is SurfaceMethodKind.ComponentKey or SurfaceMethodKind.ComponentRenderMode)
+        if (kind is SurfaceMethodKind.ComponentKey
+            or SurfaceMethodKind.ComponentRenderMode
+            or SurfaceMethodKind.ComponentRef)
         {
             if (FactoryArguments.Bind(invocation, context) is not { } frameArgs
                 || frameArgs.At(0) is not { } frameArg)
@@ -787,9 +791,15 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            return kind == SurfaceMethodKind.ComponentKey
-                ? ClassifyComponentKey(paramAccess, inner, frameArg, context)
-                : ClassifyComponentRenderMode(paramAccess, method, inner, frameArg, context);
+            return kind switch
+            {
+                SurfaceMethodKind.ComponentKey => ClassifyComponentKey(paramAccess, inner, frameArg, context),
+                SurfaceMethodKind.ComponentRenderMode =>
+                    ClassifyComponentRenderMode(paramAccess, method, inner, frameArg, context),
+                _ => ReportDuplicateFrameDecoration(paramAccess, inner.Ref, context)
+                    ? null
+                    : inner with { Ref = ExpressionTemplateFactory.Create(frameArg.Expression, context) },
+            };
         }
 
         // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
@@ -965,6 +975,16 @@ internal static class RenderExpressionAnalyzer
 
         if (kind == SurfaceMethodKind.Key)
             return ClassifyKey(decoAccess, element, firstArg, context);
+
+        // Nothing to resolve beyond the duplicate: the argument is an Action<ElementReference> the frame
+        // takes verbatim, and C# has already checked its type. A null written there is not diagnosed, for
+        // the same reason `.On("onclick", null)` is not: it binds, and no author reaches it by accident.
+        if (kind == SurfaceMethodKind.Ref)
+        {
+            return ReportDuplicateFrameDecoration(decoAccess, element.Ref, context)
+                ? null
+                : element with { Ref = ExpressionTemplateFactory.Create(firstArg.Expression, context) };
+        }
 
         // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an
         // argument. The lookup cannot miss: the kind and the map entry are written by the same arm of
@@ -1557,15 +1577,8 @@ internal static class RenderExpressionAnalyzer
         ArgumentSyntax modeArg,
         ViewPartBodyContext context)
     {
-        if (component.RenderMode is not null)
-        {
-            context.RejectUnresolvedValueRecovery(paramAccess.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3033,
-                paramAccess.Name.GetLocation(),
-                [paramAccess.Name.Identifier.ValueText]));
+        if (ReportDuplicateFrameDecoration(paramAccess, component.RenderMode, context))
             return null;
-        }
 
         if (method.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
             return null;
@@ -1621,6 +1634,30 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// Reports BCF3033 and answers <see langword="true"/> when <paramref name="existing"/> shows the node
+    /// already carries this frame decoration.
+    /// </summary>
+    /// <remarks>
+    /// One implementation for all five spellings of the rule (<c>.Key</c> and <c>.Ref</c> on either
+    /// receiver, <c>.RenderMode</c> on a component). The check is the same question about the same kind of
+    /// channel, and the message names the decoration from the syntax rather than from a per-channel
+    /// constant, so a channel added later reports correctly by writing nothing here.
+    /// </remarks>
+    private static bool ReportDuplicateFrameDecoration(
+        MemberAccessExpressionSyntax access, ExpressionTemplate? existing, ViewPartBodyContext context)
+    {
+        if (existing is null)
+            return false;
+
+        context.RejectUnresolvedValueRecovery(access.Span);
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3033,
+            access.Name.GetLocation(),
+            [access.Name.Identifier.ValueText]));
+        return true;
+    }
+
+    /// <summary>
     /// Reads the key a <c>.Key</c> writes, reporting BCF3033 when the node already carries one.
     /// <see langword="false"/> means reported and rejected; <see langword="true"/> with a
     /// <see langword="null"/> <paramref name="key"/> means the author declined it.
@@ -1644,15 +1681,8 @@ internal static class RenderExpressionAnalyzer
 
         // Ahead of the decline below, so `.Key(a).Key(null)` is the duplicate it is rather than a silent
         // retraction of the first key. Writing null says "no key here"; it does not unwrite one.
-        if (existing is not null)
-        {
-            context.RejectUnresolvedValueRecovery(access.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3033,
-                access.Name.GetLocation(),
-                [access.Name.Identifier.ValueText]));
+        if (ReportDuplicateFrameDecoration(access, existing, context))
             return false;
-        }
 
         // The test is on the built template's constant rather than on the syntax, so `.Key(null)` and a
         // `const object? None = null` reach the same answer. A non-constant expression that happens to

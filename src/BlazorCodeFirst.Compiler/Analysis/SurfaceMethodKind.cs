@@ -106,4 +106,18 @@ internal enum SurfaceMethodKind
     /// component frame and there is nothing for it to mean on an element.
     /// </summary>
     ComponentRenderMode,
+
+    /// <summary>
+    /// <c>Decorations.Ref(this ElementView, Action&lt;ElementReference&gt;)</c>. A non-attribute frame
+    /// decoration that, unlike <see cref="Key"/>, appends a frame and so consumes a sequence number
+    /// (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </summary>
+    Ref,
+
+    /// <summary>
+    /// <c>ComponentView&lt;T&gt;.Ref(Action&lt;T&gt;)</c>. The same channel as <see cref="Ref"/> on a
+    /// different builder call, split for the reason <see cref="ComponentKey"/> is split from
+    /// <see cref="Key"/>.
+    /// </summary>
+    ComponentRef,
 }

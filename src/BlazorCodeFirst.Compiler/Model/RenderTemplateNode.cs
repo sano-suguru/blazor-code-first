@@ -138,6 +138,13 @@ internal sealed record ComponentTemplateNode(
     /// parameter frame this component carries (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? RenderMode { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Emitted as
+    /// <c>AddComponentReferenceCapture</c>, which consumes one sequence number, after the render mode
+    /// frame (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
 }
 
 internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
@@ -231,6 +238,13 @@ internal sealed record ElementTemplateNode(
     /// markup cannot carry a key. One key at most; a second is BCF3033.
     /// </remarks>
     public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The capture action written with <c>.Ref</c>, or <see langword="null"/>. Unlike
+    /// <see cref="Key"/> this appends a frame, so it consumes one sequence number, and it stops the fold
+    /// for the same reason (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Ref { get; init; }
 }
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

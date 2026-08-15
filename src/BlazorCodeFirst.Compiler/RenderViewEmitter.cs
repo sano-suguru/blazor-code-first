@@ -422,6 +422,22 @@ internal static class RenderViewEmitter
         if (node.RenderMode is { } renderMode)
             writer.AppendLine($"__builder.AddComponentRenderMode({renderMode.ToCode()});");
 
+        // After the render mode, not before. The renderer finds a caller-specified mode by scanning the
+        // component's frames for the first ComponentRenderMode, and putting the capture frame in front of
+        // it puts a frame of another type in that scan's way for no gain. Both orders are legal to the
+        // builder, so this is the order chosen rather than the order forced.
+        if (node.Ref is { } componentCapture)
+        {
+            // The framework hands the action an object; the surface takes an Action<TComponent> because
+            // this type is known here. The cast on the delegate is what lets a lambda written in argument
+            // position be invoked at all, the same reason a synchronous bind setter carries one.
+            writer.AppendLine(
+                $"__builder.AddComponentReferenceCapture({next}, __value => "
+                    + $"((global::System.Action<{node.TypeName}>)({componentCapture.ToCode()}))"
+                    + $"(({node.TypeName})__value));");
+            next++;
+        }
+
         writer.AppendLine("__builder.CloseComponent();");
         return next;
     }
@@ -495,6 +511,17 @@ internal static class RenderViewEmitter
             if (ResynchronizesFromDom(bind.AttributeName))
                 writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
         }
+        // After every attribute, event and binding frame, and before the children. Both halves are forced:
+        // AssertCanAddAttribute reads the last non-attribute frame's type, so an attribute written after
+        // this would throw, and Blazor's diff reads an element's capture frame as part of its attribute
+        // range, so a capture written after the children would fall outside it (ARCHITECTURE.md §2.7(E)).
+        if (node.Ref is { } elementCapture)
+        {
+            writer.AppendLine(
+                $"__builder.AddElementReferenceCapture({next}, {elementCapture.ToCode()});");
+            next++;
+        }
+
         next = EmitChildren(writer, node.Children, next);
         writer.AppendLine("__builder.CloseElement();");
         return next;

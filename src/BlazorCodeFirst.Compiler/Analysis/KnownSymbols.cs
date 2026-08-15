@@ -688,6 +688,12 @@ internal sealed class KnownSymbols
                 if (member is IMethodSymbol renderModeMethod)
                     _surfaceMethods[Normalize(renderModeMethod)] = SurfaceMethodKind.ComponentRenderMode;
             }
+
+            foreach (var member in ComponentViewType.GetMembers("Ref"))
+            {
+                if (member is IMethodSymbol refMethod)
+                    _surfaceMethods[Normalize(refMethod)] = SurfaceMethodKind.ComponentRef;
+            }
         }
 
         var decorationsType =
@@ -748,6 +754,7 @@ internal sealed class KnownSymbols
                     // attribute name at all: the decoration arm routes on the classification and reads the
                     // key straight off the argument (§2.7(E)).
                     case "Key": kind = SurfaceMethodKind.Key; break;
+                    case "Ref": kind = SurfaceMethodKind.Ref; break;
                     default:
                         // Every overload of a shortcut lands on the same row: .OnClick(Action) and
                         // .OnClick(Func<Task>) both stand for "onclick", and the decoration arm of

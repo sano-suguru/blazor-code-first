@@ -457,10 +457,12 @@ __b.CloseComponent();
 
 フレームを積む3つは、**その所有ノードの属性・イベント・バインド・スロットをすべて発行し終えた後、子より前**に置かなければなりません。`RenderTreeBuilder` の `AssertCanAddAttribute` と `AssertCanAddComponentParameter` は直前の非属性フレームの種別を見ており、参照キャプチャやレンダーモードのフレームを積んだ後に属性を足すと `InvalidOperationException` になります。コンポーネントではスロットも `AddComponentParameter` として積まれるため、「パラメータの後」はスカラーとスロットの両方の後を意味します。`SetKey` だけはフレームを積まず親フレームを書き換えるだけなので、この規則の外にあり、`ForEach` のキーと同じく `OpenElement` / `OpenComponent` の直後に出します((B))。
 
+要素側にはもう1つ、子より前でなければならない理由があります。Blazorの差分は要素の参照キャプチャフレームを属性の範囲の一部として読むため、子の後ろに置いたキャプチャはその範囲から外れます。コンポーネント側の2つの順序は、レンダーモードが先、参照キャプチャが後です。こちらはビルダーがどちらの順序も受けるため強制ではなく選択で、レンダラが呼び出しサイトのモードを探すとき最初の `ComponentRenderMode` フレームを返す走査の前に別種のフレームを置く理由が無い、というだけの根拠によります。
+
 ```csharp
 // 入力(設計時のC#式)
-Div.Class("tab").Key(tab.Id)[Span[tab.Label]]
-Component<Editor>().Param(c => c.Text, _text).RenderMode(RenderMode.InteractiveServer)
+Div.Class("tab").Key(tab.Id).Ref(r => _tab = r)[Span[tab.Label]]
+Component<Editor>().Param(c => c.Text, _text).RenderMode(_mode).Ref(c => _editor = c)
 ```
 
 ```csharp
@@ -468,14 +470,19 @@ Component<Editor>().Param(c => c.Text, _text).RenderMode(RenderMode.InteractiveS
 __b.OpenElement(k,   "div");
 __b.SetKey(tab.Id);                                       // シーケンスを消費しない
 __b.AddAttribute(k+1, "class", "tab");
-__b.OpenElement(k+2, "span"); __b.AddContent(k+3, tab.Label); __b.CloseElement();
+__b.AddElementReferenceCapture(k+2, r => _tab = r);        // 属性の後、子より前。1つ消費する
+__b.OpenElement(k+3, "span"); __b.AddContent(k+4, tab.Label); __b.CloseElement();
 __b.CloseElement();
 
 __b.OpenComponent<Editor>(m);
 __b.AddComponentParameter(m+1, "Text", _text);
-__b.AddComponentRenderMode(RenderMode.InteractiveServer);  // 属性の後、シーケンスを消費しない
+__b.AddComponentRenderMode(_mode);                         // パラメータの後、シーケンスを消費しない
+__b.AddComponentReferenceCapture(m+2, __value =>           // レンダーモードの後。1つ消費する
+    ((System.Action<Editor>)(c => _editor = c))((Editor)__value));
 __b.CloseComponent();
 ```
+
+コンポーネント側のキャプチャにキャストが要るのは、フレームワークが `Action<object>` を取るのに対し表層が `Action<TComponent>` を取るためです。型を知っているのは `ComponentView<TComponent>` の側なので、作者にキャストを書かせずに生成側が書きます。デリゲートへのキャストは、引数位置に書かれたラムダをその場で呼び出すために要るもので、同期setterの束縛が同じ理由で持つのと同型です。
 
 `FrameWidth` を増やすのは `.Ref` だけです。ただし `.Key` も要素のフレーム数を動かし得ます。`SetKey` はマークアップで表現できないため、`.Key` を持つ要素は畳み込み不可となり、定数だけで書かれていても(D)の1フレームに畳まれず自前のフレーム列を出します。同じことが `.Ref` にも当てはまります。コンポーネントは元から畳み込みの対象外なので、`.RenderMode` はどちらにも効きません。幅を定めるのは発行そのものであるという(D)末尾の規則はここでも変わらず、これら3つのために独立した幅計算を足してはいけません。
 

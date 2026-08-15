@@ -177,3 +177,5 @@ static BlazorCodeFirst.CompilerServices.ViewRuntime.FragmentOf(BlazorCodeFirst.V
 static BlazorCodeFirst.Decorations.Key(this BlazorCodeFirst.ElementView element, object? value) -> BlazorCodeFirst.ElementView
 BlazorCodeFirst.ComponentView<TComponent>.Key(object? value) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.RenderMode(Microsoft.AspNetCore.Components.IComponentRenderMode? mode) -> BlazorCodeFirst.ComponentView<TComponent>
+static BlazorCodeFirst.Decorations.Ref(this BlazorCodeFirst.ElementView element, System.Action<Microsoft.AspNetCore.Components.ElementReference>! capture) -> BlazorCodeFirst.ElementView
+BlazorCodeFirst.ComponentView<TComponent>.Ref(System.Action<TComponent>! capture) -> BlazorCodeFirst.ComponentView<TComponent>

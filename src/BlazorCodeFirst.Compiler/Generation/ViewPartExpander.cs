@@ -175,6 +175,7 @@ internal static class ViewPartExpander
                     {
                         Key = component.Key?.Substitute(substitution),
                         RenderMode = component.RenderMode?.Substitute(substitution),
+                        Ref = component.Ref?.Substitute(substitution),
                     };
                 }
 
@@ -228,6 +229,7 @@ internal static class ViewPartExpander
                     {
                         Bindings = bindings.ToImmutable(),
                         Key = element.Key?.Substitute(substitution),
+                        Ref = element.Ref?.Substitute(substitution),
                     };
                 }
 

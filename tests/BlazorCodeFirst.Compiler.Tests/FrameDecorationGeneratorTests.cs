@@ -313,6 +313,104 @@ public sealed class FrameDecorationGeneratorTests
         Assert.Contains(diagnostics, d => d.Id == "BCF3033");
     }
 
+    [Fact]
+    public void Ref_OnElement_IsCapturedAfterTheAttributesAndConsumesASequenceNumber()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public partial class C : BodyComponentBase
+            {
+                private ElementReference _input;
+                private string _cls => "field";
+                protected override View Body =>
+                    Html.Input.Class(_cls).Ref(r => _input = r);
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenElement(0, \"input\")", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", _cls)", generated);
+
+        // Unlike SetKey this one takes a number, and it takes the one after the attributes.
+        Assert.Contains("__builder.AddElementReferenceCapture(2, r => _input = r)", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Ref_OnElement_ComesBeforeTheChildren()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public partial class C : BodyComponentBase
+            {
+                private ElementReference _box;
+                private string _text => "x";
+
+                // A dynamic child, so it stays a frame of its own rather than folding into markup: what
+                // this fixes is the order of two frames, which a fold would remove one of.
+                protected override View Body => Html.Div.Ref(r => _box = r)[Html.Span[_text]];
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        var captureAt = generated.IndexOf("AddElementReferenceCapture(1", System.StringComparison.Ordinal);
+        var childAt = generated.IndexOf("OpenElement(2", System.StringComparison.Ordinal);
+        Assert.True(captureAt >= 0 && childAt > captureAt, "the capture must precede the children");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Ref_OnComponent_CastsTheInstanceForTheAuthorsAction()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public class Row : ComponentBase
+            {
+                [Parameter] public string? Label { get; set; }
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                private Row? _row;
+                protected override View Body =>
+                    Html.Component<Row>().Param(c => c.Label, "x").Ref(c => _row = c);
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        Assert.Contains(
+            "__builder.AddComponentReferenceCapture(2, __value => "
+                + "((global::System.Action<global::Row>)(c => _row = c))((global::Row)__value));",
+            generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void SecondRef_ReportsBCF3033()
+    {
+        var diagnostics = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public partial class C : BodyComponentBase
+            {
+                private ElementReference _a;
+                private ElementReference _b;
+                protected override View Body =>
+                    Html.Div.Ref(r => _a = r).Ref(r => _b = r);
+            }
+            """).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3033");
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

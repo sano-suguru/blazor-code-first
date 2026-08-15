@@ -177,6 +177,27 @@ public readonly struct ComponentView<TComponent>
         Microsoft.AspNetCore.Components.IComponentRenderMode? mode) => this;
 
     /// <summary>
+    /// Design-time syntax capturing the component instance, which is Razor's <c>@ref</c> on a component:
+    /// <paramref name="capture"/> receives the <typeparamref name="TComponent"/> whenever it changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The framework's own <c>AddComponentReferenceCapture</c> hands back an <see cref="object"/> and
+    /// leaves the cast to generated code. This takes an <see cref="System.Action{T}"/> of the component's
+    /// own type instead, because <c>ComponentView&lt;TComponent&gt;</c> already knows what that type is and
+    /// there is no reason to make the author write a cast the generator can write. The assignment itself
+    /// stays at the call site, <c>.Ref(c =&gt; _row = c)</c>, for the reason the element decoration gives.
+    /// </para>
+    /// <para>
+    /// Appends a frame, so it costs one sequence number, and it is emitted after every parameter the
+    /// component carries, scalar and slot alike (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </para>
+    /// </remarks>
+    /// <param name="capture">Receives the component instance whenever it changes.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Ref(System.Action<TComponent> capture) => this;
+
+    /// <summary>
     /// Design-time syntax binding <paramref name="children"/> to the component's <c>ChildContent</c>
     /// parameter, mirroring how Razor binds nested content.
     /// </summary>
