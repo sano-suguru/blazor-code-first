@@ -145,6 +145,38 @@ public readonly struct ComponentView<TComponent>
     public ComponentView<TComponent> Key(object? value) => this;
 
     /// <summary>
+    /// Design-time syntax setting the component's render mode at the call site, which is Razor's
+    /// <c>@rendermode</c>. The other half of the feature is an ordinary C# attribute on
+    /// <typeparamref name="TComponent"/>'s own declaration, which needs nothing from this surface.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Lowers to <c>AddComponentRenderMode</c>, which takes no sequence number, so like
+    /// <see cref="Key"/> it costs the component no frame width. It does append a frame, so it is emitted
+    /// after every parameter the component carries, scalar and slot alike
+    /// (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </para>
+    /// <para>
+    /// The two forms cannot be combined. A <typeparamref name="TComponent"/> whose declaration carries a
+    /// <c>RenderModeAttribute</c> has a fixed mode, and supplying one here makes the framework throw when
+    /// it instantiates the component; that is BCF3034. The call site form is for the component that
+    /// declares no mode of its own, which is the case it exists for: the same component rendered
+    /// interactively from one page and statically from another. Note that the declaration form is an
+    /// attribute the author declares: <c>RenderModeAttribute</c> is abstract and the framework ships no
+    /// concrete subclass, since Razor's <c>@rendermode</c> directive generates one per component.
+    /// </para>
+    /// <para>
+    /// A <see langword="null"/> mode sets none, which is what the framework's own overload does with it.
+    /// A conditional mode is therefore written as an ordinary conditional expression, and no diagnostic
+    /// stands between the two branches.
+    /// </para>
+    /// </remarks>
+    /// <param name="mode">The render mode, or <see langword="null"/> to set none.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> RenderMode(
+        Microsoft.AspNetCore.Components.IComponentRenderMode? mode) => this;
+
+    /// <summary>
     /// Design-time syntax binding <paramref name="children"/> to the component's <c>ChildContent</c>
     /// parameter, mirroring how Razor binds nested content.
     /// </summary>

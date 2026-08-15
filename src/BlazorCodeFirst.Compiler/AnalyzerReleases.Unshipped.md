@@ -40,3 +40,4 @@ BCF3030 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3031 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3032 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
 BCF3033 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator
+BCF3034 | BlazorCodeFirst | Error | BlazorCodeFirstGenerator

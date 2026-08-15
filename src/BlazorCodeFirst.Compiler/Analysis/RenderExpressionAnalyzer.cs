@@ -312,7 +312,8 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.GenericTemplateIgnored
                 or SurfaceMethodKind.GenericTemplateContextual
                 or SurfaceMethodKind.ComponentBind
-                or SurfaceMethodKind.ComponentKey =>
+                or SurfaceMethodKind.ComponentKey
+                or SurfaceMethodKind.ComponentRenderMode =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
@@ -775,18 +776,20 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // .Key selects no parameter, so it routes out before everything below: the selector, the
-        // settability rule, and the duplicate check are all about a parameter it does not have. It shares
-        // this method only for the receiver recursion above, which every chained spelling needs.
-        if (kind == SurfaceMethodKind.ComponentKey)
+        // Neither .Key nor .RenderMode selects a parameter, so both route out before everything below: the
+        // selector, the settability rule, and BCF3007 are all about a parameter they do not have. They
+        // share this method only for the receiver recursion above, which every chained spelling needs.
+        if (kind is SurfaceMethodKind.ComponentKey or SurfaceMethodKind.ComponentRenderMode)
         {
-            if (FactoryArguments.Bind(invocation, context) is not { } keyArgs
-                || keyArgs.At(0) is not { } keyArg)
+            if (FactoryArguments.Bind(invocation, context) is not { } frameArgs
+                || frameArgs.At(0) is not { } frameArg)
             {
                 return null;
             }
 
-            return ClassifyComponentKey(paramAccess, inner, keyArg, context);
+            return kind == SurfaceMethodKind.ComponentKey
+                ? ClassifyComponentKey(paramAccess, inner, frameArg, context)
+                : ClassifyComponentRenderMode(paramAccess, method, inner, frameArg, context);
         }
 
         // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
@@ -1521,6 +1524,101 @@ internal static class RenderExpressionAnalyzer
         TryTakeKey(paramAccess, component.Key, keyArg, context, out var key)
             ? key is null ? component : component with { Key = key }
             : null;
+
+    /// <summary>
+    /// Records a <c>.RenderMode</c> on <paramref name="component"/>, or reports why it cannot be recorded.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two rules, in this order. A second <c>.RenderMode</c> is BCF3033, the duplicate rule <c>.Key</c>
+    /// answers to. A first one on a component whose own declaration fixes its mode is BCF3034, which is
+    /// not a duplicate: nothing on this chain is wrong twice, and the fix is to delete the decoration
+    /// rather than to choose between two of them.
+    /// </para>
+    /// <para>
+    /// A written <see langword="null"/> is <em>not</em> declined the way a null key is. The two look alike
+    /// and are not: <c>SetKey</c> ignores a null and so does <c>AddComponentRenderMode</c>, but a key is
+    /// data the author computes per item while a render mode written null is the author saying "no
+    /// mode here", which is what the framework's own null already means. Recording it keeps a conditional
+    /// mode (<c>interactive ? RenderMode.InteractiveServer : null</c>) spelled as one expression instead of
+    /// splitting on which branch the analyzer could fold.
+    /// </para>
+    /// <para>
+    /// BCF3034 reads the attribute off <typeparamref name="TComponent"/> taken from the constructed
+    /// <c>ComponentView&lt;TComponent&gt;</c>, the same place the component binding takes it from and for
+    /// the same reason: it is the type the author wrote. Attributes ride in metadata, so a component from a
+    /// referenced assembly answers as well as one declared in this compilation.
+    /// </para>
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentRenderMode(
+        MemberAccessExpressionSyntax paramAccess,
+        IMethodSymbol method,
+        ComponentTemplateNode component,
+        ArgumentSyntax modeArg,
+        ViewPartBodyContext context)
+    {
+        if (component.RenderMode is not null)
+        {
+            context.RejectUnresolvedValueRecovery(paramAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3033,
+                paramAccess.Name.GetLocation(),
+                [paramAccess.Name.Identifier.ValueText]));
+            return null;
+        }
+
+        if (method.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
+            return null;
+
+        var componentType = componentViewType.TypeArguments[0];
+        if (DeclaredRenderMode(componentType, context) is { } declared)
+        {
+            context.RejectUnresolvedValueRecovery(paramAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3034,
+                paramAccess.Name.GetLocation(),
+                [
+                    componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                    declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                ]));
+            return null;
+        }
+
+        return component with
+        {
+            RenderMode = ExpressionTemplateFactory.Create(modeArg.Expression, context),
+        };
+    }
+
+    /// <summary>
+    /// The <c>RenderModeAttribute</c> subclass <paramref name="componentType"/> or one of its bases
+    /// declares, or <see langword="null"/> when its declaration fixes no render mode.
+    /// </summary>
+    /// <remarks>
+    /// Walked up the base chain because the framework reads the attribute the same way: a component
+    /// deriving from one that fixes a mode is fixed too, and stopping at the derived type would let
+    /// exactly that case through to the runtime throw this diagnostic exists to replace.
+    /// </remarks>
+    private static INamedTypeSymbol? DeclaredRenderMode(
+        ITypeSymbol componentType, ViewPartBodyContext context)
+    {
+        if (context.KnownSymbols.RenderModeAttributeType is not { } renderModeAttribute)
+            return null;
+
+        for (var current = componentType; current is not null; current = current.BaseType)
+        {
+            foreach (var attribute in current.GetAttributes())
+            {
+                if (attribute.AttributeClass is { } attributeClass
+                    && TypeSymbolFacts.IsAssignableTo(attributeClass, renderModeAttribute))
+                {
+                    return attributeClass;
+                }
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Reads the key a <c>.Key</c> writes, reporting BCF3033 when the node already carries one.

@@ -415,6 +415,13 @@ internal static class RenderViewEmitter
             next = afterSlotContent;
         }
 
+        // After every parameter frame, scalar and slot alike, and not merely after the scalars: a slot is
+        // an AddComponentParameter too, and AssertCanAddComponentParameter reads the last non-attribute
+        // frame's type, so a render mode written between the two would make the next slot throw. It takes
+        // no sequence number, so `next` is untouched by it (ARCHITECTURE.md §2.7(E)).
+        if (node.RenderMode is { } renderMode)
+            writer.AppendLine($"__builder.AddComponentRenderMode({renderMode.ToCode()});");
+
         writer.AppendLine("__builder.CloseComponent();");
         return next;
     }

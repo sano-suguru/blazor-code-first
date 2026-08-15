@@ -1017,6 +1017,30 @@ internal static class DiagnosticDescriptors
                 + "the loop, not both.");
 
     /// <summary>
+    /// BCF3034: A call-site <c>.RenderMode</c> on a component whose own declaration fixes its render mode.
+    /// </summary>
+    /// <remarks>
+    /// The framework refuses the pair outright: <c>ComponentFactory</c> throws an
+    /// <c>InvalidOperationException</c> naming the fixed mode when a type carrying a
+    /// <c>RenderModeAttribute</c> also receives a caller-specified one. The attribute is a unary predicate
+    /// on the component type and rides in metadata, so this is decidable at the call site for a referenced
+    /// assembly's component as well as for one declared here.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3034 = new(
+        id: "BCF3034",
+        title: "Render mode is fixed by the component's declaration",
+        messageFormat: "'{0}' declares [{1}], so its render mode is fixed and cannot be set here; remove the .RenderMode",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A component whose declaration carries a RenderModeAttribute has a fixed render mode. Supplying "
+                + "one at the call site as well makes the framework throw when it instantiates the "
+                + "component, so the call site is where it is stopped. The call-site form is for a "
+                + "component that declares no mode of its own, which is the case it exists for: the same "
+                + "component rendered interactively from one page and statically from another.");
+
+    /// <summary>
     /// BCF3033: The same non-attribute frame decoration is written twice on one element or component.
     /// </summary>
     /// <remarks>

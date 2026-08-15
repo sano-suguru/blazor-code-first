@@ -189,6 +189,130 @@ public sealed class FrameDecorationGeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// A component with a scalar parameter and a <c>ChildContent</c> slot, so the render mode has both
+    /// kinds of parameter frame to land after. Declares no render mode of its own, which is the case
+    /// BCF3034 leaves open.
+    /// </summary>
+    private const string RenderModeHostSource = """
+        using BlazorCodeFirst;
+        using Microsoft.AspNetCore.Components;
+        using Microsoft.AspNetCore.Components.Web;
+
+        public class Panel : ComponentBase
+        {
+            [Parameter] public string? Label { get; set; }
+            [Parameter] public RenderFragment? ChildContent { get; set; }
+        }
+
+        public partial class C : BodyComponentBase
+        {
+            protected override View Body =>
+                Html.Component<Panel>()
+                    .Param(c => c.Label, "x")
+                    .RenderMode(RenderMode.InteractiveServer)[Html.Span["body"]];
+        }
+        """;
+
+    [Fact]
+    public void RenderMode_IsEmittedAfterEveryParameterFrameAndConsumesNoSequence()
+    {
+        var result = CompilationTestHost.RunGenerator(RenderModeHostSource);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        var renderModeAt = generated.IndexOf("AddComponentRenderMode", System.StringComparison.Ordinal);
+        var slotAt = generated.IndexOf("\"ChildContent\"", System.StringComparison.Ordinal);
+        Assert.True(slotAt >= 0 && renderModeAt > slotAt, "the render mode must follow the slot parameter");
+
+        // The slot's content keeps numbering from the flat counter; the render mode took nothing.
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        Assert.Contains(
+            "__builder.AddComponentRenderMode(global::Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer)",
+            generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void RenderMode_OnAComponentWhoseDeclarationFixesIt_ReportsBCF3034()
+    {
+        var diagnostics = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using Microsoft.AspNetCore.Components.Web;
+
+            // The framework ships no concrete RenderModeAttribute: it is abstract, and Razor's
+            // `@rendermode` directive generates a subclass. A C#-authored component declares its own.
+            public sealed class InteractiveAttribute : RenderModeAttribute
+            {
+                public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
+            }
+
+            [Interactive]
+            public class Fixed : ComponentBase { }
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body =>
+                    Html.Component<Fixed>().RenderMode(RenderMode.InteractiveServer);
+            }
+            """).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3034");
+    }
+
+    [Fact]
+    public void RenderMode_OnAComponentInheritingAFixedMode_ReportsBCF3034()
+    {
+        // The framework reads the attribute up the base chain, so stopping at the derived type would let
+        // this shape through to the runtime throw the diagnostic replaces.
+        var diagnostics = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using Microsoft.AspNetCore.Components.Web;
+
+            // The framework ships no concrete RenderModeAttribute: it is abstract, and Razor's
+            // `@rendermode` directive generates a subclass. A C#-authored component declares its own.
+            public sealed class InteractiveAttribute : RenderModeAttribute
+            {
+                public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
+            }
+
+            [Interactive]
+            public class FixedBase : ComponentBase { }
+            public class Derived : FixedBase { }
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body =>
+                    Html.Component<Derived>().RenderMode(RenderMode.InteractiveServer);
+            }
+            """).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3034");
+    }
+
+    [Fact]
+    public void SecondRenderMode_ReportsBCF3033()
+    {
+        var diagnostics = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using Microsoft.AspNetCore.Components.Web;
+
+            public class Panel : ComponentBase { }
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body =>
+                    Html.Component<Panel>()
+                        .RenderMode(RenderMode.InteractiveServer)
+                        .RenderMode(RenderMode.InteractiveAuto);
+            }
+            """).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3033");
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

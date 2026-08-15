@@ -72,6 +72,13 @@ internal sealed record ComponentNode(
     /// opens, consuming no sequence number (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The render mode written with <c>.RenderMode</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ComponentTemplateNode.RenderMode"/>; emitted after the parameter frames, consuming no
+    /// sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? RenderMode { get; init; }
 }
 
 /// <summary>An HTML element: tag, folded class channel, attributes, event list, and mixed children.</summary>

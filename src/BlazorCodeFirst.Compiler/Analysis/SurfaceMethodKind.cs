@@ -99,4 +99,11 @@ internal enum SurfaceMethodKind
     /// arm has to reach for: an <c>ElementTemplateNode</c> there, a <c>ComponentTemplateNode</c> here.
     /// </summary>
     ComponentKey,
+
+    /// <summary>
+    /// <c>ComponentView&lt;T&gt;.RenderMode(IComponentRenderMode?)</c>. A non-attribute frame decoration
+    /// like the two above, and the only one with no element counterpart: a render mode belongs to a
+    /// component frame and there is nothing for it to mean on an element.
+    /// </summary>
+    ComponentRenderMode,
 }

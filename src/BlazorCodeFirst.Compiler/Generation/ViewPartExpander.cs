@@ -174,6 +174,7 @@ internal static class ViewPartExpander
                         component.TypeName, parameters.ToImmutable(), slots.ToImmutable())
                     {
                         Key = component.Key?.Substitute(substitution),
+                        RenderMode = component.RenderMode?.Substitute(substitution),
                     };
                 }
 

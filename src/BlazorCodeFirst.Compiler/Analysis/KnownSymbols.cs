@@ -131,6 +131,19 @@ internal sealed class KnownSymbols
     /// </remarks>
     public INamedTypeSymbol? EventArgsType { get; }
 
+    /// <summary>
+    /// Resolved <c>Microsoft.AspNetCore.Components.RenderModeAttribute</c>, the base every declaration-form
+    /// render mode attribute derives from, or null.
+    /// </summary>
+    /// <remarks>
+    /// Read only by BCF3034, which asks whether a component's own declaration fixes its render mode. Guard
+    /// on this being non-null before comparing against it, for the reason
+    /// <see cref="ElementViewType"/>'s remarks give — though a compilation able to spell
+    /// <c>.RenderMode</c> can always see it, since the assembly declaring <c>ComponentView&lt;T&gt;</c>
+    /// references the one declaring this.
+    /// </remarks>
+    public INamedTypeSymbol? RenderModeAttributeType { get; }
+
     private readonly Dictionary<ISymbol, SurfaceMethodKind> _surfaceMethods;
 
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
@@ -593,6 +606,8 @@ internal sealed class KnownSymbols
             compilation.GetTypeByMetadataName("System.Linq.Enumerable"));
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
         EventArgsType = compilation.GetTypeByMetadataName("System.EventArgs");
+        RenderModeAttributeType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderModeAttribute");
 
         // Two sources for one table, and both are gated on the framework's own. EventHandlerAttribute is
         // declared in Microsoft.AspNetCore.Components, which this compiler's own runtime references, but the
@@ -666,6 +681,12 @@ internal sealed class KnownSymbols
             {
                 if (member is IMethodSymbol keyMethod)
                     _surfaceMethods[Normalize(keyMethod)] = SurfaceMethodKind.ComponentKey;
+            }
+
+            foreach (var member in ComponentViewType.GetMembers("RenderMode"))
+            {
+                if (member is IMethodSymbol renderModeMethod)
+                    _surfaceMethods[Normalize(renderModeMethod)] = SurfaceMethodKind.ComponentRenderMode;
             }
         }
 

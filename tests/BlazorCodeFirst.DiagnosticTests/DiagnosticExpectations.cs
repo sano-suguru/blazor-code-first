@@ -272,6 +272,15 @@ public static class DiagnosticExpectations
             AnchorOccurrence.Last,
             "Anchors the second decoration's name, which is the one to delete. Last rather than first "
                 + "for the reason BCF3007 gives: on a line carrying both, the duplicate is the later one."),
+        new(
+            "BCF3034",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3034.cs",
+            "RenderMode",
+            Note: "Anchors the decoration's name, which is what the author deletes. The attribute on the "
+                + "component is the other half of the rule and is not the mistake: fixing a component's "
+                + "render mode on its declaration is exactly what that attribute is for."),
     ];
 
     /// <summary>
@@ -290,9 +299,6 @@ public static class DiagnosticExpectations
     /// </summary>
     public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
     [
-        ("BCF3034",
-            "A call-site render mode on a type whose declaration fixes one. Specified with the surface " +
-            "it checks; the descriptor arrives with .RenderMode (#311)."),
     ];
 
     /// <summary>

@@ -140,7 +140,16 @@ public partial class CounterPage : BodyComponentBase
 - タグ名と属性名は実行時の値になりません(2026-08-14決定、#308 / #320)。`Element(GetTagName())` はBCF3009 のまま、`.Attr($"data-{kind}", value)` はBCF3011 のままです。属性を辞書でまとめて渡すスプレッド(Razorの `@attributes`)も設けません。理由は、この表層が名前を読んで翻訳を決めていることです。直前の2項のクラスチャネルは、装飾がそこへ加わるかどうかを名前で決めます。BCF3010 の重複検査も名前で決めます。名前が値になると、前者は壊れ、後者は黙ります。実行時の `class` は畳み込みに加われないため、自分のフレームを持ちます。スプレッドのある要素ではBlazorが重複を後勝ちで解決するため、畳み込み済みの値はそこで消えます(実測、`AttributeSplatMeasurementTests`)。連結というチャネルの規則の隣に置換が並び、どちらが働くかをソースに書かれていないキーが決めることになります。タグ側で失われるのはBCF3016 の全域性です。curatedヘルパーと `Element` が単一のタグ文字列に落ちてから同じ表を引くという一致は、そのタグ文字列が定数であることに依っています。今日この形を書いた作者は、書いた位置で診断を受け取り、定数の綴りへ書き直します。経路を開けば受け取るのは、`class` を黙って失った出力か、黙って飛ばされた検査です(退けた機構と費用の全体は `ARCHITECTURE.md` 付録B.14)。再検討には、定数のタグと定数の属性名では担えない事例が要ります。
 - 属性ではない装飾が3つあります。`.Key`(Razorの `@key`)、`.Ref`(`@ref`)、`.RenderMode`(`@rendermode`)であり、いずれも属性チャネルにもクラスチャネルにも入らず、`RenderTreeBuilder` の専用の呼び出しへ落ちます(2026-08-15決定、#309 / #310 / #311)。受け手はチャネルごとに割れます。`.Key` と `.Ref` は要素とコンポーネントの両方が取り、`.RenderMode` はコンポーネントだけが取ります。したがってこの3つは `Decorations` だけでは宣言しきれず、`ComponentView<T>` 自身のメンバーとしても現れます。要素側と同じ名前を別の型が宣言することになりますが、綴りが割れるよりは受け手が割れるほうを採ります。Razorではどれも同じ `@` 接頭辞の一族であり、名前を分けると写しがそこで途切れます。`.Key(null)` を定数で書いた形は `ForEach(key: null)` と同じ辞退で、`SetKey` を発行しません(§4.2)。
 - `.Ref` が受けるのは代入先ではなくActionです。Razorは `@ref="_input"` とフィールドを名指し、生成コードがそこへ代入します。この表層は `.Ref(r => _input = r)` と書き、代入は作者のラムダが行います。`RenderTreeBuilder.AddElementReferenceCapture` が取るのが `Action<ElementReference>` である以上、代入を生成器が組み立てる理由がありません。`.Bind` の getter に課した「設定可能なメンバーを名指せること」(BCF3017 / BCF3018)はここには要らず、ラムダは他のあらゆる移植式と同じ規則で運ばれます。コンポーネント側が受けるのは `Action<TComponent>` です。フレームワークの綴りは `Action<object>` ですが、`ComponentView<TComponent>` は型を知っているので、作者にキャストを書かせる理由もありません。
-- `.RenderMode` は宣言形と併用できません(BCF3034)。`[RenderModeInteractiveServer]` を宣言している型に呼び出しサイトの指定を足すと、`ComponentFactory` が実行時に投げます。呼び出しサイト形がそれでも要るのは、同じコンポーネントをあるページからはinteractiveに、別のページからは静的に描く場合であり、その形は宣言形を持たないので併用にはなりません。宣言形が固定である型かどうかは型シンボルの属性を1つ引けば決まります。検査が依拠する表をこのリポジトリで著述して維持することになるかどうか、という上の基準に照らせば、ここに維持する表はありません。
+- `.RenderMode` は宣言形と併用できません(BCF3034)。宣言形の属性を持つ型に呼び出しサイトの指定を足すと、`ComponentFactory` が実行時に投げます。呼び出しサイト形がそれでも要るのは、同じコンポーネントをあるページからはinteractiveに、別のページからは静的に描く場合であり、その形は宣言形を持たないので併用にはなりません。宣言形が固定である型かどうかは型シンボルの属性を1つ引けば決まります。検査が依拠する表をこのリポジトリで著述して維持することになるかどうか、という上の基準に照らせば、ここに維持する表はありません。
+- その宣言形の属性は、作者が自分で宣言します(2026-08-15調査、#311)。フレームワークが出荷する `Microsoft.AspNetCore.Components.RenderModeAttribute` は抽象であり、具象の派生は net10.0 の参照アセンブリに1つもありません。Razorの `@rendermode` ディレクティブは、コンポーネントごとに派生クラスを生成して付けています。したがって `.cs` の作者が書くのは次の形です。BCF3034 が引く述語は「`RenderModeAttribute` を派生する属性を持つか」であり、この自前の宣言も基底クラス経由の継承も同じく捉えます。
+
+```csharp
+public sealed class InteractiveAttribute : RenderModeAttribute
+{
+    public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
+}
+```
+
 
 HTML要素にマップしない構文が5つあることは、この表層が系譜に対して5つの語彙を足したという意味ではありません。読んだのは11のHTML DSL(elm/html / Giraffe.ViewEngine / Falco.Markup / Feliz / Scalatags / kotlinx.html / maud / TSX / Plot / Lucid / TyXML)です。`Fragment` には11すべてに対応物があり(`frag`、`<>`、あるいは裸のリスト)、`Raw` も同様です(`rawText`、`PreEscaped`、`Unsafe`)。`Component<T>()` はBlazorが実体を所有することから来ており、系譜が再利用と呼ぶもの、すなわちマークアップを返す関数に当たるのは `[ViewPart]`(§4.3)の側です。`Slot` はHTML自身の `<slot>` の名前であり、Razorの `ChildContent` にもOxpeckerのブロックにも対応物があります。系譜に無いのは `If` と `ForEach` の2つだけです(2026-08-09調査、#175)。
 

@@ -176,3 +176,4 @@ BlazorCodeFirst.CompilerServices.ViewRuntime
 static BlazorCodeFirst.CompilerServices.ViewRuntime.FragmentOf(BlazorCodeFirst.View view) -> Microsoft.AspNetCore.Components.RenderFragment?
 static BlazorCodeFirst.Decorations.Key(this BlazorCodeFirst.ElementView element, object? value) -> BlazorCodeFirst.ElementView
 BlazorCodeFirst.ComponentView<TComponent>.Key(object? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.RenderMode(Microsoft.AspNetCore.Components.IComponentRenderMode? mode) -> BlazorCodeFirst.ComponentView<TComponent>

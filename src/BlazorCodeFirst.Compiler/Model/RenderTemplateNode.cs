@@ -131,6 +131,13 @@ internal sealed record ComponentTemplateNode(
     /// <see cref="ElementTemplateNode.Key"/> holds, on the same <c>SetKey</c> (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? Key { get; init; }
+
+    /// <summary>
+    /// The render mode written with <c>.RenderMode</c>, or <see langword="null"/>. Emitted as
+    /// <c>AddComponentRenderMode</c>, which appends a frame but consumes no sequence number, after every
+    /// parameter frame this component carries (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? RenderMode { get; init; }
 }
 
 internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
