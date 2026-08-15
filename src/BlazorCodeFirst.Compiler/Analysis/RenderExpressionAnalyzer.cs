@@ -977,6 +977,12 @@ internal static class RenderExpressionAnalyzer
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
 
+        // Ahead of the firstArg check below, because the valueless spelling has no argument at all: the
+        // two overloads of each modifier are one behaviour, and .PreventDefault() would otherwise leave
+        // here as an unanalyzable call (#368).
+        if (kind is SurfaceMethodKind.PreventDefault or SurfaceMethodKind.StopPropagation)
+            return ClassifyEventModifier(decoAccess, method, kind, element, args, context);
+
         if (args.At(0) is not { } firstArg)
             return null;
 
@@ -1157,6 +1163,66 @@ internal static class RenderExpressionAnalyzer
     /// event's arguments against.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// <c>.PreventDefault</c> / <c>.StopPropagation</c>, attached to the event written before them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The decorations name no event, so "the event before it" is the only reading the chain offers, and it
+    /// is the last one recorded: the arm above walks a decoration chain from its receiver outward, so the
+    /// events already on the node are exactly those written to the left of this call. With none, the
+    /// modifier has nothing to attach to and is BCF3035; with the same modifier already set on that event,
+    /// one of the two would be dead and it is BCF3036.
+    /// </para>
+    /// <para>
+    /// The valueless overload stands for a constant <see langword="true"/>, which is what makes the two
+    /// spellings one behaviour at the emitter. Written is not the same as true: a written
+    /// <see langword="false"/> still produces a template here, and so still emits a call that consumes a
+    /// sequence number, while an unwritten modifier stays <see langword="null"/> and emits nothing (#368).
+    /// </para>
+    /// </remarks>
+    private static ElementTemplateNode? ClassifyEventModifier(
+        MemberAccessExpressionSyntax decoAccess,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        ElementTemplateNode element,
+        FactoryArguments args,
+        ViewPartBodyContext context)
+    {
+        var events = element.Events.AsImmutableArray();
+        if (events.Length == 0)
+        {
+            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3035, decoAccess.Name.GetLocation(), [method.Name]));
+            return null;
+        }
+
+        // Not events[^1]: this project targets netstandard2.0 with no System.Index polyfill, the same
+        // constraint KnownSymbols' member switch records for list patterns.
+        var target = events[events.Length - 1];
+        var existing = kind == SurfaceMethodKind.PreventDefault ? target.PreventDefault : target.StopPropagation;
+        if (existing is not null)
+        {
+            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3036,
+                decoAccess.Name.GetLocation(),
+                [method.Name, target.Name]));
+            return null;
+        }
+
+        var value = args.At(0) is { } written
+            ? ExpressionTemplateFactory.Create(written.Expression, context)
+            : ExpressionTemplateFactory.ForBooleanConstant(true);
+
+        var updated = kind == SurfaceMethodKind.PreventDefault
+            ? target with { PreventDefault = value }
+            : target with { StopPropagation = value };
+
+        return element with { Events = events.SetItem(events.Length - 1, updated) };
+    }
+
     private static bool ReportMistypedEventArgument(
         IMethodSymbol method,
         string eventName,

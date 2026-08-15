@@ -1073,6 +1073,49 @@ internal static class DiagnosticDescriptors
                 + "call site, so the duplicate is reported at compile time.");
 
     /// <summary>
+    /// BCF3035: An event modifier written where no event precedes it on the element.
+    /// </summary>
+    /// <remarks>
+    /// <c>.PreventDefault</c> and <c>.StopPropagation</c> attach to the event written before them, which is
+    /// the only reading a chain offers: the decorations carry no event name of their own. Written with no
+    /// event ahead of them they would emit an attribute whose name no handler on this element answers to,
+    /// and the framework validates nothing there (measured), so nothing downstream would report it.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3035 = new(
+        id: "BCF3035",
+        title: "Event modifier has no event to modify",
+        messageFormat: "'.{0}' has no event before it on this element; write it after the .On it modifies",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "An event modifier attaches to the event written before it on the same element. Written before "
+                + "every event, or on an element carrying none, it would emit an attribute no handler "
+                + "reads. Move it after the .On it belongs to.");
+
+    /// <summary>
+    /// BCF3036: The same event modifier is written twice for one event.
+    /// </summary>
+    /// <remarks>
+    /// The defect BCF3033 reports for the non-attribute frame decorations, on a channel that holds one
+    /// value for the same reason. A separate ID because BCF3033's entry is explicitly about the three
+    /// decorations that are <em>not</em> attribute frames, and these two are: they lower to an ordinary
+    /// <c>AddAttribute</c> whose name carries the event. Reported rather than resolved because one of the
+    /// two is dead whichever way the model takes it, and which one is not visible at the call site.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3036 = new(
+        id: "BCF3036",
+        title: "Event modifier written twice for one event",
+        messageFormat: "'.{0}' is already written for '{1}' on this element; remove one of the two",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "An event modifier occupies a channel holding one value per event. Writing it twice cannot do "
+                + "what the author asked, so the duplicate is reported at compile time rather than "
+                + "resolved silently.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static
