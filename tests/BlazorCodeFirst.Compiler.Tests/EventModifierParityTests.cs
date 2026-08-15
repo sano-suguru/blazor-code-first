@@ -1,6 +1,8 @@
-#pragma warning disable BL0006 // Reading render-tree frames is what a compiler-contract test is for:
-                               // CONTRIBUTING.md §Engineering standard names generated source and sequence
-                               // numbers as the architectural contract compiler tests may reach into.
+// Reading render-tree frames is what a compiler-contract test is for: CONTRIBUTING.md §Engineering
+// standard names generated source and sequence numbers as the architectural contract compiler tests may
+// reach into. BL0006 warns against the RenderTree namespace outside the framework, which is the position
+// this file deliberately takes.
+#pragma warning disable BL0006
 using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Components;

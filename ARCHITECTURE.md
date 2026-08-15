@@ -273,6 +273,29 @@ __b.CloseElement();
 
 コンポーネント側の `.Bind` はこの非対称性を持ちません。導かれた `{名前}Changed` と `{名前}Expression` は、通常のパラメータフレームとして積まれます。したがってフレーム幅は `.Param` 2回ぶんで、`{名前}Expression` を宣言している型に対しては3回ぶんです((D)末尾のコンポーネントのフレーム幅の式がそのまま成り立ちます)。要素側の `SetUpdatesAttributeName` に相当するものもありません。DOMを持つのは束縛先のコンポーネントであって、この呼び出し元ではないためです。
 
+イベント修飾子(`.PreventDefault` / `.StopPropagation`、Razorの `@onwheel:preventDefault`)は、直前に書かれたイベントに付き、そのイベントのフレームの直後に自分のフレームを1つ積みます。名前は `__internal_preventDefault_<イベント名>` と `__internal_stopPropagation_<イベント名>` で、値は `bool` です。
+
+```csharp
+// 入力
+Div.Ref(r => _el = r).On<WheelEventArgs>("onwheel", Zoom).StopPropagation().PreventDefault()
+
+// 出力
+__b.OpenElement(k, "div");
+__b.AddAttribute(k+1, "onwheel", EventCallback.Factory.Create(this, (WheelEventArgs e) => Zoom(e)));
+__b.AddAttribute(k+2, "__internal_preventDefault_onwheel", true);   // 連鎖の順ではなく、常にこの順
+__b.AddAttribute(k+3, "__internal_stopPropagation_onwheel", true);
+__b.AddElementReferenceCapture(k+4, r => _el = r);                  // 修飾子より後ろ
+__b.CloseElement();
+```
+
+この形について、決めた点が3つあります。
+
+1つ目は、フレームワークの `AddEventPreventDefaultAttribute` を呼ばず `AddAttribute` を直接書くことです。あの2つは `RenderTreeBuilder` のメンバーではなく `Microsoft.AspNetCore.Components.Web` の `WebRenderTreeBuilderExtensions` が持つ拡張メソッドで、中身はここに書いたのと同一の `AddAttribute` 呼び出しです(実測)。呼べば出荷パッケージの依存集合にそのアセンブリが入ります。#23 が選んだ粒度の細かい参照を崩し、#156 がまだ決めていない問いを副作用で確定させることになるため、名前を自分で書きます。代償は生成コードにフレームワーク内部の名前が入ることで、`EventModifierParityTests` がそれを買い戻します。生成側の綴りを `RenderViewEmitter` の定数から読み、拡張メソッドの出すフレームと突き合わせるため、命名規則が変われば黙った no-op ではなくテストが落ちます。
+
+2つ目は、呼び出しを出す引き金が値ではなく「呼び出しサイトに書かれたかどうか」であることです。書かなければ何も出ません。`.PreventDefault(false)` と書けば呼び出しは出てシーケンス番号を1つ消費し、フレームはフレームワーク側が落とします(実測)。番号は生じたフレームではなく発行した呼び出しに付くという、付録Dが定数 `false` の `bool` について既に置いている規則をそのまま適用したものです。値は実行時の式でよく、`.Attr(name, bool)` と同じ扱いになります。
+
+3つ目は、位置に新しい規則が要らないことです。修飾子は属性フレームなので、(E)の3つと違って属性の範囲の中に入ります。`AssertCanAddAttribute` が参照キャプチャの後ろに属性を置くことを拒む以上、`.Ref` より前でなければなりませんが、エミッタは元から属性・イベント・束縛をすべて出し終えてからキャプチャを積むため((E))、この順序は構成上満たされます。作者が連鎖をどの順で書いても出力は上の順になります。
+
 **(B) `ForEach`。入力: リストの変異 / 出力: キー整合の最小パッチ**
 
 `ForEach`(SSC-3)は `foreach` へ展開され、テンプレート `content` に単一の静的シーケンス空間を割り当てた上で、反復インスタンス間の同一性を `SetKey(key(item))` で識別します。シーケンスが「テンプレート内の構文位置」を、キーが「データ同一性」を担い、責務が直交します。
@@ -770,6 +793,17 @@ DEBUG構成では、設計時API群を慣性実装から実働実装(`View` に 
 - interactive: `table > tr` が一致し、`table > tbody > tr` は一致しません
 
 どちらかに合わせて書いたスタイルシートは、ハイドレーションで意味が変わります。ここには診断で直せる対象がありません。コードはすでに正しいためです。直す価値があるとすれば、直す場所は発行側かドキュメントです。
+
+### D.2b イベント修飾子: そのイベントが受け付けない修飾子
+
+`.PreventDefault` / `.StopPropagation` が、そのイベントの `[EventHandler]` 登録で無効にされている場合を報告しません。Blazorは修飾子ごとの可否を `EventHandlerAttribute` の `enableStopPropagation` / `enablePreventDefault` で持ち、Razorは無効な組み合わせを拒否します。したがってこの不在は、この一点でRazorに劣ります(`DESIGN.md` §4.1)。
+
+計測した範囲は次のとおりです(2026-08-15、`Microsoft.AspNetCore.Components.Web` 10.0.10)。登録は96件あり、`preventDefault` は96件すべてで有効です。`stopPropagation` を無効にしているのは `oncancel` と `onclose` の2件だけです。4引数コンストラクタの並びは `(attributeName, eventArgsType, enableStopPropagation, enablePreventDefault)` で、直感とは逆順です。2引数コンストラクタは両方を `false` にするため、作者が自分で登録したカスタムイベントは既定で両方を拒みます。
+
+検査を置かなかった理由は、費用が上の範囲に釣り合わないことです。この検査は `Components.Web` が参照されていることを条件とする表(`KnownSymbols.cs` の `mappingAvailable`。ソース側の登録を集める表も同じ条件で門番されています)だけを読み、表を引かない第二の腕を持ちません。一方 `tests/diagnostic-fixtures/GeneratorDelivery.ProjectReference` は `Components.Web` を意図的に参照しません。BCF3028 が同じ事情を持ち、E2Eフィクスチャでは制約違反の腕だけを、対応表を引く腕はin-processだけで覆っています(`Bcf3028.cs` の注記)。第二の腕を持たない検査を同じ形で出荷するには、`Components.Web` を参照する新しいフィクスチャプロジェクトを足すか、`DiagnosticExpectations.Excluded` に初の項目を作るかのいずれかを要します。
+
+再検討には、カスタムイベントの登録でこの拒否に当たった実例を要します。
+
 
 ### D.3 再現手順
 
