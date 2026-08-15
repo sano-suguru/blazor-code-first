@@ -656,9 +656,12 @@ A negative test is not finished until the implementation has been mutated and
 the test has been watched to fail. Delete or invert the condition it is supposed
 to cover, run it, read the failure, then restore. "Not reported" passes against
 an analyzer that reports nothing at all, against a source that never reached the
-code under test, and against a condition that some earlier condition already
-excluded — and none of those three is visible from the test, from the diff, or
-from a green run. The same applies to any sentence that says *why* a shape is
+code under test, against a condition that some earlier condition already
+excluded, and against an analyzer that threw. None of the first three is visible
+from the test, from the diff, or from a green run. The fourth now is:
+`CompilationTestHost.RunAnalyzerAsync` fails on `AD0001`, which is what Roslyn
+turns an analyzer's exception into, and every assertion here reads one ID.
+The same applies to any sentence that says *why* a shape is
 exempt or *what* keeps a check out of some position, whether it is in a comment,
 in an expectation's `Note`, or in `ARCHITECTURE.md`. That is a claim about the
 implementation, and mutating the implementation is what separates a reason from

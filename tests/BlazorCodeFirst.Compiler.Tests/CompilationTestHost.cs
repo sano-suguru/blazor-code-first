@@ -279,7 +279,16 @@ public static class CompilationTestHost
         where T : DiagnosticAnalyzer, new()
     {
         var compilationWithAnalyzers = compilation.WithAnalyzers([new T()]);
-        return await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
+        var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync();
+
+        // An analyzer that throws does not fail the run: Roslyn catches the exception and reports it as
+        // AD0001, a warning, and the analyzer's own diagnostics are simply absent from that point on.
+        // Every negative test here asserts the absence of one ID, so a crash reads as the exemption it was
+        // written to check. Failing on AD0001 is what makes those assertions mean what they say.
+        if (diagnostics.FirstOrDefault(static d => d.Id == "AD0001") is { } crash)
+            Assert.Fail(crash.GetMessage());
+
+        return diagnostics;
     }
 
     // ---------------------------------------------------------------------------
