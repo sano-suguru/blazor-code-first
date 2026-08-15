@@ -1,13 +1,7 @@
-// Reading render-tree frames is what a compiler-contract test is for: CONTRIBUTING.md §Engineering
-// standard names generated source and sequence numbers as the architectural contract compiler tests may
-// reach into. BL0006 warns against the RenderTree namespace outside the framework, which is the position
-// this file deliberately takes.
-#pragma warning disable BL0006
 using System;
-using System.Collections.Generic;
+using BlazorCodeFirst.IntegrationTests.DiffCost;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
-using Microsoft.AspNetCore.Components.RenderTree;
 using Microsoft.AspNetCore.Components.Web;
 
 namespace BlazorCodeFirst.Compiler.Tests;
@@ -22,72 +16,67 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// <remarks>
 /// This is where a framework change to the naming scheme fails a test instead of shipping a silent no-op.
 /// Both sides read <see cref="RenderViewEmitter"/>'s own constants rather than transcribing the literal,
-/// so a typo in the emitter cannot hide behind a matching typo here (#368).
+/// so a typo in the emitter cannot hide behind a matching typo here. The comparison itself is
+/// <see cref="FrameEquivalence"/>, the same gate the diff-cost harness uses, so a mismatch names the
+/// differing frame rather than reporting that two string lists differ (#368).
 /// </remarks>
 public sealed class EventModifierParityTests
 {
     [Fact]
-    public void PreventDefaultTrue_GeneratedSpelling_MatchesTheFrameworkExtensionFrameForFrame() =>
-        Assert.Equal(
-            Describe(builder => builder.AddEventPreventDefaultAttribute(2, "onwheel", true)),
-            Describe(builder => builder.AddAttribute(
-                2, RenderViewEmitter.PreventDefaultAttributePrefix + "onwheel", true)));
+    public void PreventDefaultTrue_GeneratedSpelling_MatchesTheFrameworkExtension() =>
+        AssertSameFrames(
+            builder => builder.AddEventPreventDefaultAttribute(2, "onwheel", true),
+            builder => builder.AddAttribute(
+                2, RenderViewEmitter.PreventDefaultAttributePrefix + "onwheel", true));
 
     [Fact]
-    public void StopPropagationTrue_GeneratedSpelling_MatchesTheFrameworkExtensionFrameForFrame() =>
-        Assert.Equal(
-            Describe(builder => builder.AddEventStopPropagationAttribute(2, "onwheel", true)),
-            Describe(builder => builder.AddAttribute(
-                2, RenderViewEmitter.StopPropagationAttributePrefix + "onwheel", true)));
+    public void StopPropagationTrue_GeneratedSpelling_MatchesTheFrameworkExtension() =>
+        AssertSameFrames(
+            builder => builder.AddEventStopPropagationAttribute(2, "onwheel", true),
+            builder => builder.AddAttribute(
+                2, RenderViewEmitter.StopPropagationAttributePrefix + "onwheel", true));
 
     /// <summary>
-    /// A <see langword="false"/> appends no frame on either spelling, asserted as an absence.
+    /// A <see langword="false"/> appends no frame, asserted against a builder that writes nothing.
     /// </summary>
     /// <remarks>
-    /// Deliberately not an equality against the extension: both sides append nothing, so comparing them
-    /// would hold for any attribute name whatsoever and would keep holding after a typo. What is worth
-    /// pinning here is that the emitted call really does drop out of the frames, which is the premise the
-    /// sequence-number rule rests on.
+    /// Comparing the two spellings against each other would hold here for any attribute name whatsoever,
+    /// since both append nothing, and would keep holding after a typo. Comparing against the empty
+    /// spelling states the premise the sequence-number rule actually rests on: the emitted call drops out
+    /// of the frames while its number stays spent.
     /// </remarks>
     [Fact]
     public void False_AppendsNoFrameOnEitherSpelling()
     {
-        var viaExtension = Describe(builder => builder.AddEventPreventDefaultAttribute(2, "onwheel", false));
-        var viaGenerator = Describe(builder => builder.AddAttribute(
-            2, RenderViewEmitter.PreventDefaultAttributePrefix + "onwheel", false));
+        AssertSameFrames(
+            _ => { },
+            builder => builder.AddAttribute(
+                2, RenderViewEmitter.PreventDefaultAttributePrefix + "onwheel", false));
 
-        Assert.Equal(viaExtension, viaGenerator);
-        Assert.DoesNotContain(
-            viaGenerator,
-            frame => frame.Contains("__internal_", StringComparison.Ordinal));
+        AssertSameFrames(
+            _ => { },
+            builder => builder.AddEventPreventDefaultAttribute(2, "onwheel", false));
     }
 
     /// <summary>
-    /// The frames of a div carrying an <c>onwheel</c> handler plus whatever <paramref name="write"/> adds,
-    /// as comparable text.
+    /// Builds a div carrying an <c>onwheel</c> handler plus whatever each writer adds, and compares the
+    /// two frame lists on everything except sequence numbers.
     /// </summary>
-    private static string[] Describe(Action<RenderTreeBuilder> write)
+    private static void AssertSameFrames(Action<RenderTreeBuilder> expected, Action<RenderTreeBuilder> actual)
     {
-        using var builder = new RenderTreeBuilder();
+        using var expectedBuilder = Build(expected);
+        using var actualBuilder = Build(actual);
+        FrameEquivalence.AssertEquivalent(expectedBuilder, actualBuilder);
+    }
+
+    private static RenderTreeBuilder Build(Action<RenderTreeBuilder> write)
+    {
+        var builder = new RenderTreeBuilder();
         builder.OpenElement(0, "div");
         builder.AddAttribute(
             1, "onwheel", EventCallback.Factory.Create<WheelEventArgs>(new object(), _ => { }));
         write(builder);
         builder.CloseElement();
-
-        var range = builder.GetFrames();
-        var described = new List<string>(range.Count);
-        for (var i = 0; i < range.Count; i++)
-        {
-            var frame = range.Array[i];
-            described.Add(
-                $"{frame.FrameType}|{frame.Sequence}|" +
-                (frame.FrameType == RenderTreeFrameType.Attribute
-                    ? $"{frame.AttributeName}={frame.AttributeValue}"
-                    : string.Empty));
-        }
-
-        return [.. described];
+        return builder;
     }
 }
-#pragma warning restore BL0006

@@ -169,18 +169,17 @@ public sealed class KnownSymbolsSyncTests
     {
         var (symbols, _) = ResolveHtml();
 
-        var rows = symbols.SurfaceMethods
-            .Where(entry => entry.Key.Name is "PreventDefault" or "StopPropagation")
-            .GroupBy(entry => entry.Key.Name, StringComparer.Ordinal)
-            .ToDictionary(
-                group => group.Key,
-                group => group.Select(entry => entry.Value).Distinct().ToList(),
-                StringComparer.Ordinal);
+        // Duplicates kept rather than distinct: the row and the overload count are one fact, and asserting
+        // the multiplicity is what would notice a mis-typed switch case leaving one spelling unclassified.
+        List<SurfaceMethodKind> RowsFor(string name) =>
+            [.. symbols.SurfaceMethods.Where(entry => entry.Key.Name == name).Select(entry => entry.Value)];
 
-        Assert.Equal([SurfaceMethodKind.PreventDefault], rows["PreventDefault"]);
-        Assert.Equal([SurfaceMethodKind.StopPropagation], rows["StopPropagation"]);
-        Assert.Equal(2, symbols.SurfaceMethods.Count(entry => entry.Key.Name == "PreventDefault"));
-        Assert.Equal(2, symbols.SurfaceMethods.Count(entry => entry.Key.Name == "StopPropagation"));
+        Assert.Equal(
+            [SurfaceMethodKind.PreventDefault, SurfaceMethodKind.PreventDefault],
+            RowsFor("PreventDefault"));
+        Assert.Equal(
+            [SurfaceMethodKind.StopPropagation, SurfaceMethodKind.StopPropagation],
+            RowsFor("StopPropagation"));
     }
 
     /// <summary>

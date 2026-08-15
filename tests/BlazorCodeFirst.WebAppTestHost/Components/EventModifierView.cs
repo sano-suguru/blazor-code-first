@@ -1,5 +1,4 @@
 using System.Globalization;
-using Microsoft.AspNetCore.Components.Web;
 using static BlazorCodeFirst.Html;
 
 namespace BlazorCodeFirst.WebAppTestHost.Components;
@@ -27,13 +26,15 @@ public sealed partial class EventModifierView : BodyComponentBase
     protected override View Body => Div[
         Div.Id("blocked")
            .Attr("style", "height: 200px; background: #eee")
-           .On<WheelEventArgs>("onwheel", (WheelEventArgs e) => CountWheel(e)).PreventDefault()["blocked"],
+           .On("onwheel", () => CountWheel()).PreventDefault()["blocked"],
         Div.Id("plain")
            .Attr("style", "height: 200px; background: #ddd")
-           .On<WheelEventArgs>("onwheel", (WheelEventArgs e) => CountWheel(e))["plain"],
+           .On("onwheel", () => CountWheel())["plain"],
         Div.Id("filler").Attr("style", "height: 4000px"),
         Div.Id("wheel-count")[_wheelCount.ToString(CultureInfo.InvariantCulture)]
     ];
 
-    private void CountWheel(WheelEventArgs e) => _wheelCount++;
+    // The wheel arguments are not read: the spec only checks that the count moved, which is what
+    // separates preventDefault stopping the scroll from the event never reaching Blazor.
+    private void CountWheel() => _wheelCount++;
 }

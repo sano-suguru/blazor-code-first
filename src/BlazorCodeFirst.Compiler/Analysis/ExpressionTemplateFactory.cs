@@ -104,9 +104,7 @@ internal static class ExpressionTemplateFactory
     /// constant — and this is the file where that agreement is otherwise established.
     /// </remarks>
     public static ExpressionTemplate ForBooleanConstant(bool value) =>
-        ExpressionTemplate.Create(
-            [new LiteralExpressionSegment(value ? "true" : "false")],
-            new BooleanConstant(value));
+        value ? ExpressionTemplate.TrueLiteral : ExpressionTemplate.FalseLiteral;
 
     private static ExpressionTemplate CreateCore(
         SyntaxNode expression,

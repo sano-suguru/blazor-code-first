@@ -1163,6 +1163,43 @@ internal static class RenderExpressionAnalyzer
     /// event's arguments against.
     /// </para>
     /// </remarks>
+    private static bool ReportMistypedEventArgument(
+        IMethodSymbol method,
+        string eventName,
+        ArgumentSyntax handlerArgument,
+        ViewPartBodyContext context)
+    {
+        if (method.TypeArguments.Length != 1)
+            return false;
+
+        var declared = method.TypeArguments[0];
+        if (declared.TypeKind == TypeKind.Error)
+            return false;
+
+        if (!context.KnownSymbols.TryGetEventArgumentType(eventName, out var delivered))
+            return false;
+
+        if (TypeSymbolFacts.IsAssignableTo(delivered, declared))
+            return false;
+
+        var deliveredName = delivered.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+
+        // Located at the handler, because the parameter type written there is what has to change. The event
+        // name could have been the mistake instead, and the message names it so that reading stays open to
+        // the author; but only one of the two can carry the location, and nothing here can tell which of them
+        // was meant.
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3028,
+            handlerArgument.GetLocation(),
+            [
+                declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                $"'{eventName}' delivers '{deliveredName}'; write the handler's parameter as that type or "
+                    + "as a base of it",
+            ]));
+
+        return true;
+    }
+
     /// <summary>
     /// <c>.PreventDefault</c> / <c>.StopPropagation</c>, attached to the event written before them.
     /// </summary>
@@ -1202,13 +1239,9 @@ internal static class RenderExpressionAnalyzer
         // constraint KnownSymbols' member switch records for list patterns.
         var target = events[events.Length - 1];
         var existing = kind == SurfaceMethodKind.PreventDefault ? target.PreventDefault : target.StopPropagation;
-        if (existing is not null)
+        if (ReportDuplicateFrameDecoration(
+                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, target.Name))
         {
-            context.RejectUnresolvedValueRecovery(decoAccess.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3036,
-                decoAccess.Name.GetLocation(),
-                [method.Name, target.Name]));
             return null;
         }
 
@@ -1221,43 +1254,6 @@ internal static class RenderExpressionAnalyzer
             : target with { StopPropagation = value };
 
         return element with { Events = events.SetItem(events.Length - 1, updated) };
-    }
-
-    private static bool ReportMistypedEventArgument(
-        IMethodSymbol method,
-        string eventName,
-        ArgumentSyntax handlerArgument,
-        ViewPartBodyContext context)
-    {
-        if (method.TypeArguments.Length != 1)
-            return false;
-
-        var declared = method.TypeArguments[0];
-        if (declared.TypeKind == TypeKind.Error)
-            return false;
-
-        if (!context.KnownSymbols.TryGetEventArgumentType(eventName, out var delivered))
-            return false;
-
-        if (TypeSymbolFacts.IsAssignableTo(delivered, declared))
-            return false;
-
-        var deliveredName = delivered.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-
-        // Located at the handler, because the parameter type written there is what has to change. The event
-        // name could have been the mistake instead, and the message names it so that reading stays open to
-        // the author; but only one of the two can carry the location, and nothing here can tell which of them
-        // was meant.
-        context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BCF3028,
-            handlerArgument.GetLocation(),
-            [
-                declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                $"'{eventName}' delivers '{deliveredName}'; write the handler's parameter as that type or "
-                    + "as a base of it",
-            ]));
-
-        return true;
     }
 
     /// <summary>
@@ -1691,22 +1687,33 @@ internal static class RenderExpressionAnalyzer
     /// already carries this frame decoration.
     /// </summary>
     /// <remarks>
-    /// One implementation for all five spellings of the rule (<c>.Key</c> and <c>.Ref</c> on either
-    /// receiver, <c>.RenderMode</c> on a component). The check is the same question about the same kind of
-    /// channel, and the message names the decoration from the syntax rather than from a per-channel
-    /// constant, so a channel added later reports correctly by writing nothing here.
+    /// One implementation for all seven spellings of the rule (<c>.Key</c> and <c>.Ref</c> on either
+    /// receiver, <c>.RenderMode</c> on a component, and the two event modifiers). The check is the same
+    /// question about the same kind of channel, and the message names the decoration from the syntax rather
+    /// than from a per-channel constant, so a channel added later reports correctly by writing nothing here.
+    /// <para>
+    /// The event modifiers pass their own descriptor and a second message argument. They are the same
+    /// mechanics on a different rule: BCF3033 is about the channels that hold one value per node, and
+    /// BCF3036 about a channel that holds one per event, so the descriptor varies while the recovery span
+    /// and the report location do not (#368).
+    /// </para>
     /// </remarks>
     private static bool ReportDuplicateFrameDecoration(
-        MemberAccessExpressionSyntax access, ExpressionTemplate? existing, ViewPartBodyContext context)
+        MemberAccessExpressionSyntax access,
+        ExpressionTemplate? existing,
+        ViewPartBodyContext context,
+        DiagnosticDescriptor? descriptor = null,
+        string? extraMessageArgument = null)
     {
         if (existing is null)
             return false;
 
+        var name = access.Name.Identifier.ValueText;
         context.RejectUnresolvedValueRecovery(access.Span);
         context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BCF3033,
+            descriptor ?? DiagnosticDescriptors.BCF3033,
             access.Name.GetLocation(),
-            [access.Name.Identifier.ValueText]));
+            extraMessageArgument is null ? [name] : [name, extraMessageArgument]));
         return true;
     }
 

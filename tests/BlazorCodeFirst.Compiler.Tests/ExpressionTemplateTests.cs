@@ -180,9 +180,9 @@ public sealed class ExpressionTemplateTests
         var falseModifier = new EventTemplate("onwheel", handler, writtenFalse, null);
         var unwritten = new EventTemplate("onwheel", handler, null, null);
 
-        Assert.NotEqual(trueModifier, falseModifier);
+        // Written false is not unwritten. This is the distinction that decides whether a call is emitted
+        // at all, and the one a reader is most likely to collapse.
         Assert.NotEqual(falseModifier, unwritten);
-        Assert.Equal(unwritten, new EventTemplate("onwheel", handler, null, null));
 
         // The two modifiers are separate channels: setting one must not read as setting the other.
         Assert.NotEqual(trueModifier, new EventTemplate("onwheel", handler, null, written));

@@ -168,6 +168,23 @@ internal sealed record ExpressionTemplate
     public static ExpressionTemplate NullLiteral { get; } =
         new([new LiteralExpressionSegment("null")], new NullConstant());
 
+    /// <summary>
+    /// A template for the constant <see langword="true"/>; see <see cref="NullLiteral"/> for the pairing
+    /// rule the code text and the constant follow.
+    /// </summary>
+    /// <remarks>
+    /// Held rather than built per call, for <see cref="NullLiteral"/>'s reason applied to a type with two
+    /// values instead of one. Distinct instances would also defeat the reference check that opens this
+    /// record's synthesized <c>Equals</c>, which the incremental cache pays on every comparison of a node
+    /// carrying one.
+    /// </remarks>
+    public static ExpressionTemplate TrueLiteral { get; } =
+        new([new LiteralExpressionSegment("true")], new BooleanConstant(true));
+
+    /// <summary>A template for the constant <see langword="false"/>; see <see cref="TrueLiteral"/>.</summary>
+    public static ExpressionTemplate FalseLiteral { get; } =
+        new([new LiteralExpressionSegment("false")], new BooleanConstant(false));
+
     public static ExpressionTemplate Create(
         ImmutableArray<ExpressionSegment> segments,
         ConstantInfo? constant = null) =>

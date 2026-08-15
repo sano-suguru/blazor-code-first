@@ -108,24 +108,32 @@ public sealed class HtmlDecorationGeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
-    private const string WheelSource = """
-        using BlazorCodeFirst;
-        using Microsoft.AspNetCore.Components;
-        using Microsoft.AspNetCore.Components.Web;
-
-        public partial class C : BodyComponentBase
-        {
-            private bool _locked;
-            private ElementReference _el;
-            private void Zoom(WheelEventArgs e) { }
-            private void Click() { }
-            protected override View Body => BODY;
-        }
-        """;
-
+    /// <summary>
+    /// Generates a component whose <c>Body</c> is <paramref name="body"/>, and returns the generated text.
+    /// </summary>
+    /// <remarks>
+    /// The handlers are lambdas rather than method groups because this helper compiles the generated
+    /// output: <c>EventCallback.Factory.Create</c> is overloaded, so a method group there does not resolve.
+    /// The wheel handler's parameter is typed for the same reason, the generated file carrying no
+    /// <c>using</c> directives of its own.
+    /// </remarks>
     private static string GenerateWheel(string body)
     {
-        var result = CompilationTestHost.RunGenerator(WheelSource.Replace("BODY", body, System.StringComparison.Ordinal));
+        var result = CompilationTestHost.RunGenerator($$"""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using Microsoft.AspNetCore.Components.Web;
+
+            public partial class C : BodyComponentBase
+            {
+                private bool _locked;
+                private ElementReference _el;
+                private void Zoom(WheelEventArgs e) { }
+                private void Click() { }
+                protected override View Body => {{body}};
+            }
+            """);
+
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         CompilationTestHost.AssertOutputCompiles(result);
         return generated;
