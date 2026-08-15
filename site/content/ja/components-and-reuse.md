@@ -1,7 +1,7 @@
 ---
 title: コンポーネントと再利用
 order: 40
-source-hash: acd2823b
+source-hash: b8d4c8c3
 ---
 
 再利用の単位はコンポーネントです。BlazorCodeFirst のコンポーネントから別のコンポーネントを呼ぶ
@@ -211,6 +211,41 @@ protected override View Body =>
   プロジェクトの中でも必ず解決します。
 
 綴り違いや `using` の書き忘れも同じ BCF3012 になり、同じ位置に CS0246 が並びます。
+
+## 値をカスケードする
+
+`CascadingValue<T>` もその既存のコンポーネントの1つです。カスケードのために、この API が足すもの
+はありません。`Component<T>()` で置き、`Value` を `.Param` で渡し、それを読む部分木を角括弧に
+入れます。
+
+```csharp
+protected override View Body =>
+    Component<CascadingValue<ThemeInfo>>()
+        .Param(c => c.Value, _theme)[
+            Component<Toolbar>(),
+            Component<Editor>()];
+```
+
+`Name` と `IsFixed` も、ほかと変わらない `.Param` の宛先です。名前つきのカスケードなら、渡す側は
+`.Param(c => c.Name, "locale")`、受け取る側は `[CascadingParameter(Name = "locale")]` になります。
+
+その受け取る側はふつうの Blazor で、ジェネレーターはそこを見ません。`[CascadingParameter]` は
+クラスのプロパティで、`.razor` のコンポーネントとまったく同じです。
+
+```csharp
+public partial class Toolbar : BodyComponentBase
+{
+    [CascadingParameter]
+    public ThemeInfo? Theme { get; set; }
+
+    protected override View Body =>
+        Div.Class("toolbar")[Span[Theme?.Name ?? "default"]];
+}
+```
+
+値を差し替えると、それを読む子孫はすべて再レンダリングされます。自分のフレームが変わらなかった
+子孫も含みます。購読しているのは Blazor 自身です。上の呼び出しからジェネレーターが出すフレーム
+は、`<CascadingValue Value="@_theme">` が出すものと同じです。
 
 ## Razor から BlazorCodeFirst のコンポーネントを使う
 
