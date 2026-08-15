@@ -136,15 +136,46 @@ internal sealed class KnownSymbols
     /// render mode attribute derives from, or null.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Read only by BCF3034, which asks whether a component's own declaration fixes its render mode. Guard
     /// on this being non-null before comparing against it, for the reason
     /// <see cref="ElementViewType"/>'s remarks give — though a compilation able to spell
     /// <c>.RenderMode</c> can always see it, since the assembly declaring <c>ComponentView&lt;T&gt;</c>
     /// references the one declaring this.
+    /// </para>
+    /// <para>
+    /// Resolved lazily, for the reason <see cref="_formatBindableTypes"/> gives about its own lookup: this
+    /// type's constructor runs once per <c>[ViewPart]</c> and once per component, and
+    /// <c>GetTypeByMetadataName</c> parses the name and consults every referenced assembly to detect
+    /// ambiguity. A <c>.RenderMode</c> is rarer than a <c>.Bind</c> carrying a format, so hoisting this
+    /// would charge every component for a lookup almost none of them reach.
+    /// </para>
     /// </remarks>
-    public INamedTypeSymbol? RenderModeAttributeType { get; }
+    public INamedTypeSymbol? RenderModeAttributeType => _renderModeAttributeType.Value;
+
+    private readonly System.Lazy<INamedTypeSymbol?> _renderModeAttributeType;
 
     private readonly Dictionary<ISymbol, SurfaceMethodKind> _surfaceMethods;
+
+    /// <summary>
+    /// The <c>ComponentView&lt;T&gt;</c> members whose name decides their classification, rather than the
+    /// parameter syntax <see cref="ClassifyComponentParameterDefinition"/> reads. Every overload of a name
+    /// lands on its row.
+    /// </summary>
+    /// <remarks>
+    /// A table and not a chain of loops, so a channel added here is one row rather than a copied loop that
+    /// could pair a name with the wrong kind. The parameter-syntax channels (<c>.Param</c>,
+    /// <c>.Template</c>) are deliberately absent: their names carry no meaning, which is the distinction
+    /// this table draws.
+    /// </remarks>
+    private static readonly Dictionary<string, SurfaceMethodKind> ComponentBuilderChannels =
+        new(System.StringComparer.Ordinal)
+        {
+            ["Bind"] = SurfaceMethodKind.ComponentBind,
+            ["Key"] = SurfaceMethodKind.ComponentKey,
+            ["RenderMode"] = SurfaceMethodKind.ComponentRenderMode,
+            ["Ref"] = SurfaceMethodKind.ComponentRef,
+        };
 
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
     /// runtime helper declarations are kept in sync by KnownSymbolsSyncTests.</summary>
@@ -606,8 +637,6 @@ internal sealed class KnownSymbols
             compilation.GetTypeByMetadataName("System.Linq.Enumerable"));
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
         EventArgsType = compilation.GetTypeByMetadataName("System.EventArgs");
-        RenderModeAttributeType =
-            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderModeAttribute");
 
         // Two sources for one table, and both are gated on the framework's own. EventHandlerAttribute is
         // declared in Microsoft.AspNetCore.Components, which this compiler's own runtime references, but the
@@ -636,6 +665,11 @@ internal sealed class KnownSymbols
         // GetTypeByMetadataName is not free: it parses the name and consults every referenced assembly
         // to detect ambiguity. Nothing is retained by moving it in, because the sibling lambda below
         // already closes over `compilation` and all three share one display class.
+        // Beside the lookup below and lazy for the same reason; the two lambdas close over `compilation`
+        // and share one display class, so this retains nothing the other did not already retain.
+        _renderModeAttributeType = new System.Lazy<INamedTypeSymbol?>(() =>
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderModeAttribute"));
+
         _formatBindableTypes = new System.Lazy<HashSet<ITypeSymbol>>(() =>
             compilation.GetTypeByMetadataName(
                 "Microsoft.AspNetCore.Components.EventCallbackFactoryBinderExtensions") is { } binderExtensions
@@ -647,10 +681,29 @@ internal sealed class KnownSymbols
 
         if (ComponentViewType is not null)
         {
+            // One walk of the type's members, classifying each by name where the name decides and by
+            // parameter syntax otherwise, which is the shape the Decorations loop below already uses. The
+            // name-keyed channels are read from a table rather than written as a loop apiece: four copies
+            // of one five-line loop differing in a string and an enum member gave every future channel its
+            // own chance to pair the wrong kind with a name, and nothing fails on that — a mis-registered
+            // kind just routes to the wrong classification arm.
+            //
+            // Every overload of a named channel lands on its row. Bind has three, differing only in their
+            // setter parameter, and the analyzer reads the setter's own type to tell the synchronous one
+            // from the asynchronous one, so nothing here has to discriminate them. The others have one
+            // each today, and a second would be registered rather than silently unclassified.
             foreach (var member in ComponentViewType.GetMembers())
             {
                 if (member is not IMethodSymbol method)
                     continue;
+
+                // The name gate wins, and cannot collide with the parameter-syntax classification below:
+                // ClassifyComponentParameterDefinition answers None for every one of these names.
+                if (ComponentBuilderChannels.TryGetValue(method.Name, out var named))
+                {
+                    _surfaceMethods[Normalize(method)] = named;
+                    continue;
+                }
 
                 var kind = ClassifyComponentParameterDefinition(
                     method,
@@ -661,38 +714,6 @@ internal sealed class KnownSymbols
                     funcWithArgumentType);
                 if (kind != SurfaceMethodKind.None)
                     _surfaceMethods[Normalize(method)] = kind;
-            }
-
-            // All three overloads, which differ only in their setter parameter; the analyzer reads the
-            // setter's own type to tell the synchronous one from the asynchronous one, so nothing here
-            // has to discriminate them. The name gate above answers None for every one of them, so this
-            // registration cannot overwrite a parameter-syntax classification.
-            foreach (var member in ComponentViewType.GetMembers("Bind"))
-            {
-                if (member is IMethodSymbol bindMethod)
-                    _surfaceMethods[Normalize(bindMethod)] = SurfaceMethodKind.ComponentBind;
-            }
-
-            // Registered the same way and for the same reason as Bind above: the name gate in
-            // ClassifyComponentParameterDefinition answers None for it, so this cannot overwrite a
-            // parameter-syntax classification. One overload today, and the loop rather than a single
-            // lookup so a second would be registered rather than silently unclassified.
-            foreach (var member in ComponentViewType.GetMembers("Key"))
-            {
-                if (member is IMethodSymbol keyMethod)
-                    _surfaceMethods[Normalize(keyMethod)] = SurfaceMethodKind.ComponentKey;
-            }
-
-            foreach (var member in ComponentViewType.GetMembers("RenderMode"))
-            {
-                if (member is IMethodSymbol renderModeMethod)
-                    _surfaceMethods[Normalize(renderModeMethod)] = SurfaceMethodKind.ComponentRenderMode;
-            }
-
-            foreach (var member in ComponentViewType.GetMembers("Ref"))
-            {
-                if (member is IMethodSymbol refMethod)
-                    _surfaceMethods[Normalize(refMethod)] = SurfaceMethodKind.ComponentRef;
             }
         }
 

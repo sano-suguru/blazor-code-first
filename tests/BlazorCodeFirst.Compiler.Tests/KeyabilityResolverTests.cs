@@ -12,38 +12,38 @@ public sealed class KeyabilityResolverTests
         new("span", default, default, default, ImmutableArray.Create<RenderTemplateNode>(new TextContentTemplateNode(content)));
 
     [Fact]
-    public void ResolveRootKind_Div_IsElement()
+    public void ResolveRoot_Div_IsElement()
     {
         var node = new ElementTemplateNode(
             "div", default, default, default,
             ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
 
-        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 
     [Fact]
-    public void ResolveRootKind_BareIf_IsRegion()
+    public void ResolveRoot_BareIf_IsRegion()
     {
         var node = new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null);
 
-        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 
     [Fact]
-    public void ResolveRootKind_Component_IsElement()
+    public void ResolveRoot_Component_IsElement()
     {
         var node = new ComponentTemplateNode("global::X.C", EquatableArray<ComponentParameter>.Empty);
 
-        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 
     [Fact]
-    public void ResolveRootKind_ViewPartCallToUnknown_IsUnresolved()
+    public void ResolveRoot_ViewPartCallToUnknown_IsUnresolved()
     {
         var node = new ViewPartCallTemplateNode(
             "K:Missing", "Missing", default, new TemplateLocation("f", default, default));
 
-        Assert.Equal(ContentRootKind.Unresolved, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Unresolved, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 
     [Fact]
@@ -76,18 +76,18 @@ public sealed class KeyabilityResolverTests
     }
 
     [Fact]
-    public void ResolveRootKind_Fragment_IsRegion()
+    public void ResolveRoot_Fragment_IsRegion()
     {
         var node = new FragmentTemplateNode(
             ImmutableArray.Create<RenderTemplateNode>(Span(Lit("\"x\""))));
-        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 
     [Fact]
-    public void ResolveRootKind_RawMarkup_IsRegion()
+    public void ResolveRoot_RawMarkup_IsRegion()
     {
         var node = new RawMarkupTemplateNode(Lit("\"<b>x</b>\""));
-        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Region, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public sealed class KeyabilityResolverTests
     }
 
     [Fact]
-    public void ResolveRootKind_ComponentWithSlots_IsStillElement()
+    public void ResolveRoot_ComponentWithSlots_IsStillElement()
     {
         // SetKey lands right after OpenComponent, before any parameter, so slots do not affect keyability.
         var node = new ComponentTemplateNode(
@@ -185,6 +185,6 @@ public sealed class KeyabilityResolverTests
             ImmutableArray.Create(
                 new ComponentSlot("ChildContent", new TextContentTemplateNode(Lit("\"x\"")))));
 
-        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRootKind(node, ViewPartRegistry.Empty));
+        Assert.Equal(ContentRootKind.Element, KeyabilityResolver.ResolveRoot(node, ViewPartRegistry.Empty).Kind);
     }
 }

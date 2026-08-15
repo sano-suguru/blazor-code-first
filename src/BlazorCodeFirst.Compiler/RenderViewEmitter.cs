@@ -544,10 +544,8 @@ internal static class RenderViewEmitter
             own is null || threaded is null,
             "A node carries both its own .Key and a ForEach key; BCF3032 should have refused this pair.");
 
-        if (own is not null)
-            writer.AppendLine($"__builder.SetKey({own.ToCode()});");
-        else if (threaded is not null)
-            writer.AppendLine($"__builder.SetKey({threaded});");
+        if ((own?.ToCode() ?? threaded) is { } key)
+            writer.AppendLine($"__builder.SetKey({key});");
     }
 
     /// <summary>

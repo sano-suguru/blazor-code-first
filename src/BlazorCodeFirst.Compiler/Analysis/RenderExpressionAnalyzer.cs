@@ -793,12 +793,20 @@ internal static class RenderExpressionAnalyzer
 
             return kind switch
             {
-                SurfaceMethodKind.ComponentKey => ClassifyComponentKey(paramAccess, inner, frameArg, context),
+                SurfaceMethodKind.ComponentKey =>
+                    ReportDuplicateFrameDecoration(paramAccess, inner.Key, context)
+                        ? null
+                        : TakeKey(frameArg, context) is { } key ? inner with { Key = key } : inner,
                 SurfaceMethodKind.ComponentRenderMode =>
                     ClassifyComponentRenderMode(paramAccess, method, inner, frameArg, context),
-                _ => ReportDuplicateFrameDecoration(paramAccess, inner.Ref, context)
-                    ? null
-                    : inner with { Ref = ExpressionTemplateFactory.Create(frameArg.Expression, context) },
+                SurfaceMethodKind.ComponentRef =>
+                    ReportDuplicateFrameDecoration(paramAccess, inner.Ref, context)
+                        ? null
+                        : inner with { Ref = ExpressionTemplateFactory.Create(frameArg.Expression, context) },
+                // Unreachable: the `if` above admits exactly the three kinds named here. Written out so a
+                // fourth added to that condition fails loudly rather than landing in the ref channel.
+                _ => throw new System.NotSupportedException(
+                    $"'{kind}' reached the component frame-decoration route without an arm."),
             };
         }
 
@@ -973,8 +981,15 @@ internal static class RenderExpressionAnalyzer
         if (kind == SurfaceMethodKind.Bind)
             return ClassifyBind(invocation, decoAccess, method, element, args, firstArg, context);
 
+        // A declined key is recorded as the absence of a key and not as a key whose value is null, which
+        // keeps the emitter to one question and leaves the fold available to an element that declined.
         if (kind == SurfaceMethodKind.Key)
-            return ClassifyKey(decoAccess, element, firstArg, context);
+        {
+            if (ReportDuplicateFrameDecoration(decoAccess, element.Key, context))
+                return null;
+
+            return TakeKey(firstArg, context) is { } key ? element with { Key = key } : element;
+        }
 
         // Nothing to resolve beyond the duplicate: the argument is an Action<ElementReference> the frame
         // takes verbatim, and C# has already checked its type. A null written there is not diagnosed, for
@@ -1515,36 +1530,6 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Records a <c>.Key</c> on <paramref name="element"/>, or reports why it cannot be recorded.
-    /// </summary>
-    /// <remarks>
-    /// A declined key is recorded as the absence of a key and not as a key whose value is null, which is
-    /// what keeps the emitter to one question and leaves the fold available to an element that declined.
-    /// The rules the decline and the duplicate follow are in <see cref="TryTakeKey"/>, shared with the
-    /// component arm.
-    /// </remarks>
-    private static ElementTemplateNode? ClassifyKey(
-        MemberAccessExpressionSyntax decoAccess,
-        ElementTemplateNode element,
-        ArgumentSyntax firstArg,
-        ViewPartBodyContext context) =>
-        TryTakeKey(decoAccess, element.Key, firstArg, context, out var key)
-            ? key is null ? element : element with { Key = key }
-            : null;
-
-    /// <summary>
-    /// Records a <c>.Key</c> on <paramref name="component"/>, or reports why it cannot be recorded. The
-    /// element arm's twin, on the same rules; see <see cref="TryTakeKey"/>, which holds them.
-    /// </summary>
-    private static ComponentTemplateNode? ClassifyComponentKey(
-        MemberAccessExpressionSyntax paramAccess,
-        ComponentTemplateNode component,
-        ArgumentSyntax keyArg,
-        ViewPartBodyContext context) =>
-        TryTakeKey(paramAccess, component.Key, keyArg, context, out var key)
-            ? key is null ? component : component with { Key = key }
-            : null;
-
     /// <summary>
     /// Records a <c>.RenderMode</c> on <paramref name="component"/>, or reports why it cannot be recorded.
     /// </summary>
@@ -1658,40 +1643,29 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Reads the key a <c>.Key</c> writes, reporting BCF3033 when the node already carries one.
-    /// <see langword="false"/> means reported and rejected; <see langword="true"/> with a
-    /// <see langword="null"/> <paramref name="key"/> means the author declined it.
+    /// The key a <c>.Key</c> writes, or <see langword="null"/> when the author declined it by writing a
+    /// constant <see langword="null"/>.
     /// </summary>
     /// <remarks>
     /// One implementation for the element and component arms because it is one rule: the receiver decides
     /// which node the key lands on and nothing else about it. Both spellings lower to the same
     /// <c>SetKey</c>, so a rule that read differently on one of them would be a difference the generated
     /// code cannot express.
+    /// <para>
+    /// The test is on the built template's constant rather than on the syntax, so <c>.Key(null)</c> and a
+    /// <c>const object? None = null</c> reach the same answer. A non-constant expression that happens to
+    /// evaluate to null is not this case: the call is emitted, and <c>SetKey</c> ignores a null at runtime.
+    /// </para>
+    /// <para>
+    /// The caller runs <see cref="ReportDuplicateFrameDecoration"/> first, which is what makes
+    /// <c>.Key(a).Key(null)</c> the duplicate it is rather than a silent retraction of the first key.
+    /// Writing null says "no key here"; it does not unwrite one.
+    /// </para>
     /// </remarks>
-    /// <param name="access">The decoration's member access, which the report anchors at.</param>
-    /// <param name="existing">The key the node already holds, if any.</param>
-    private static bool TryTakeKey(
-        MemberAccessExpressionSyntax access,
-        ExpressionTemplate? existing,
-        ArgumentSyntax argument,
-        ViewPartBodyContext context,
-        out ExpressionTemplate? key)
+    private static ExpressionTemplate? TakeKey(ArgumentSyntax argument, ViewPartBodyContext context)
     {
-        key = null;
-
-        // Ahead of the decline below, so `.Key(a).Key(null)` is the duplicate it is rather than a silent
-        // retraction of the first key. Writing null says "no key here"; it does not unwrite one.
-        if (ReportDuplicateFrameDecoration(access, existing, context))
-            return false;
-
-        // The test is on the built template's constant rather than on the syntax, so `.Key(null)` and a
-        // `const object? None = null` reach the same answer. A non-constant expression that happens to
-        // evaluate to null is not this case: the call is emitted, and SetKey ignores a null at runtime.
         var written = ExpressionTemplateFactory.Create(argument.Expression, context);
-        if (written.Constant is not NullConstant)
-            key = written;
-
-        return true;
+        return written.Constant is NullConstant ? null : written;
     }
 
     /// <summary>

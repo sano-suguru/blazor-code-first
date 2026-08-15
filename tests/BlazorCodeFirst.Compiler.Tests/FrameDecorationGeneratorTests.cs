@@ -235,27 +235,10 @@ public sealed class FrameDecorationGeneratorTests
     [Fact]
     public void RenderMode_OnAComponentWhoseDeclarationFixesIt_ReportsBCF3034()
     {
-        var diagnostics = CompilationTestHost.RunGenerator("""
-            using BlazorCodeFirst;
-            using Microsoft.AspNetCore.Components;
-            using Microsoft.AspNetCore.Components.Web;
-
-            // The framework ships no concrete RenderModeAttribute: it is abstract, and Razor's
-            // `@rendermode` directive generates a subclass. A C#-authored component declares its own.
-            public sealed class InteractiveAttribute : RenderModeAttribute
-            {
-                public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
-            }
-
+        var diagnostics = CompilationTestHost.RunGenerator(FixedModeHost("""
             [Interactive]
             public class Fixed : ComponentBase { }
-
-            public partial class C : BodyComponentBase
-            {
-                protected override View Body =>
-                    Html.Component<Fixed>().RenderMode(RenderMode.InteractiveServer);
-            }
-            """).Diagnostics;
+            """, "Fixed")).Diagnostics;
 
         Assert.Contains(diagnostics, d => d.Id == "BCF3034");
     }
@@ -265,31 +248,43 @@ public sealed class FrameDecorationGeneratorTests
     {
         // The framework reads the attribute up the base chain, so stopping at the derived type would let
         // this shape through to the runtime throw the diagnostic replaces.
-        var diagnostics = CompilationTestHost.RunGenerator("""
-            using BlazorCodeFirst;
-            using Microsoft.AspNetCore.Components;
-            using Microsoft.AspNetCore.Components.Web;
-
-            // The framework ships no concrete RenderModeAttribute: it is abstract, and Razor's
-            // `@rendermode` directive generates a subclass. A C#-authored component declares its own.
-            public sealed class InteractiveAttribute : RenderModeAttribute
-            {
-                public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
-            }
-
+        var diagnostics = CompilationTestHost.RunGenerator(FixedModeHost("""
             [Interactive]
             public class FixedBase : ComponentBase { }
             public class Derived : FixedBase { }
-
-            public partial class C : BodyComponentBase
-            {
-                protected override View Body =>
-                    Html.Component<Derived>().RenderMode(RenderMode.InteractiveServer);
-            }
-            """).Diagnostics;
+            """, "Derived")).Diagnostics;
 
         Assert.Contains(diagnostics, d => d.Id == "BCF3034");
     }
+
+    /// <summary>
+    /// A component source declaring the render-mode attribute an author has to write, plus
+    /// <paramref name="declarations"/>, and a host writing <c>.RenderMode</c> on
+    /// <paramref name="componentName"/>.
+    /// </summary>
+    /// <remarks>
+    /// The attribute is declared here because the framework ships none: <c>RenderModeAttribute</c> is
+    /// abstract, and Razor's <c>@rendermode</c> directive generates a subclass per component. Shared by the
+    /// two BCF3034 cases so the explanation and the shim cannot drift apart.
+    /// </remarks>
+    private static string FixedModeHost(string declarations, string componentName) => $$"""
+        using BlazorCodeFirst;
+        using Microsoft.AspNetCore.Components;
+        using Microsoft.AspNetCore.Components.Web;
+
+        public sealed class InteractiveAttribute : RenderModeAttribute
+        {
+            public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
+        }
+
+        {{declarations}}
+
+        public partial class C : BodyComponentBase
+        {
+            protected override View Body =>
+                Html.Component<{{componentName}}>().RenderMode(RenderMode.InteractiveServer);
+        }
+        """;
 
     [Fact]
     public void SecondRenderMode_ReportsBCF3033()

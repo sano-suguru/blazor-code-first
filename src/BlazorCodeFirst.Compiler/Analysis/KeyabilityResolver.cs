@@ -42,10 +42,6 @@ internal readonly record struct ContentRoot(ContentRootKind Kind, bool IsKeyed);
 /// </summary>
 internal static class KeyabilityResolver
 {
-    /// <summary>Resolves the root frame kind of <paramref name="node"/>, following view part calls transitively.</summary>
-    public static ContentRootKind ResolveRootKind(RenderTemplateNode node, ViewPartRegistry registry) =>
-        ResolveRoot(node, registry).Kind;
-
     /// <summary>
     /// Resolves the root of <paramref name="node"/>, following view part calls transitively: the frame kind
     /// and whether that frame is already keyed.
@@ -218,7 +214,7 @@ internal static class KeyabilityResolver
 
             // No nested template children to walk. Listed as cases rather than left to fall through, so the
             // default arm below can exist: this is the third exhaustive dispatch over the hierarchy, and the
-            // other two (ResolveRootKind above, ViewPartExpander.ExpandNode) both throw on an unknown node.
+            // other two (ResolveRoot above, ViewPartExpander.ExpandNode) both throw on an unknown node.
             // A node type added without a case here would mean a BCF3003 that never fires, which is invisible.
             case TextContentTemplateNode:
             case ContentHoleTemplateNode:

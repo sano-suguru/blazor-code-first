@@ -297,9 +297,7 @@ public static class DiagnosticExpectations
     /// not yet implemented. Without the list, a deliberate row is indistinguishable from a row that
     /// outlived its descriptor.
     /// </summary>
-    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
-    [
-    ];
+    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } = [];
 
     /// <summary>
     /// IDs that were implemented and then withdrawn. The number is retired, not freed: a reader who hits
