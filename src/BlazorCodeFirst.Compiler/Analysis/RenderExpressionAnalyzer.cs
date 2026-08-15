@@ -323,7 +323,9 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.On
                 or SurfaceMethodKind.Bind
                 or SurfaceMethodKind.Key
-                or SurfaceMethodKind.Ref =>
+                or SurfaceMethodKind.Ref
+                or SurfaceMethodKind.PreventDefault
+                or SurfaceMethodKind.StopPropagation =>
                 ClassifyDecoration(invocation, method, kind, context),
             SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };

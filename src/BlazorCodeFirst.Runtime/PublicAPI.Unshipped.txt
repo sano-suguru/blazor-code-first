@@ -179,3 +179,7 @@ BlazorCodeFirst.ComponentView<TComponent>.Key(object? value) -> BlazorCodeFirst.
 BlazorCodeFirst.ComponentView<TComponent>.RenderMode(Microsoft.AspNetCore.Components.IComponentRenderMode? mode) -> BlazorCodeFirst.ComponentView<TComponent>
 static BlazorCodeFirst.Decorations.Ref(this BlazorCodeFirst.ElementView element, System.Action<Microsoft.AspNetCore.Components.ElementReference>! capture) -> BlazorCodeFirst.ElementView
 BlazorCodeFirst.ComponentView<TComponent>.Ref(System.Action<TComponent>! capture) -> BlazorCodeFirst.ComponentView<TComponent>
+static BlazorCodeFirst.Decorations.PreventDefault(this BlazorCodeFirst.ElementView element) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.PreventDefault(this BlazorCodeFirst.ElementView element, bool value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.StopPropagation(this BlazorCodeFirst.ElementView element) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.StopPropagation(this BlazorCodeFirst.ElementView element, bool value) -> BlazorCodeFirst.ElementView
