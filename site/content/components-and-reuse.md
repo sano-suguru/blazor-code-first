@@ -389,6 +389,10 @@ that reaches a `private` or `protected` member the expansion site cannot see.
 
 If you need the part in another project, make it a component and use it through `Component<T>()`.
 
+BCF1002 is not only the `[ViewPart]` diagnostic. A component's own `Body` and a layout's `Chrome` are
+normalized through the same check, and a report from there names the expression rather than a method
+— see [what the class has to be](./getting-started.md#what-the-class-has-to-be).
+
 ## Next
 
 See [layouts](./layouts.md) for wrapping routed pages in shared chrome,
