@@ -994,4 +994,55 @@ public sealed class BracketSurfaceDiagnosticTests
     private static ImmutableArray<Diagnostic> OutputErrors(GeneratorRunResult result) =>
         [.. result.OutputCompilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
+
+    /// <summary>A handler for the modifier tests below, which are about placement and not about events.</summary>
+    private const string WheelMembers = "private void Zoom() { }";
+
+    [Fact]
+    public void PreventDefault_WithNoEventBeforeIt_ReportsBCF3035()
+    {
+        var diagnostics = Run("""Div.Class("x").PreventDefault()""", WheelMembers);
+
+        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3035");
+        Assert.Contains("PreventDefault", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Written before the event it was meant for, which is the shape the chain makes easy to reach.
+    /// </summary>
+    /// <remarks>
+    /// The event exists on this element, so a rule that merely counted the element's events would let this
+    /// through. What decides it is that the modifier attaches to what precedes it, and nothing does.
+    /// </remarks>
+    [Fact]
+    public void PreventDefault_BeforeTheEventItWasMeantFor_ReportsBCF3035()
+    {
+        var diagnostics = Run("""Div.PreventDefault().On("onwheel", Zoom)""", WheelMembers);
+
+        Assert.Single(diagnostics, static d => d.Id == "BCF3035");
+    }
+
+    [Fact]
+    public void PreventDefault_Twice_ReportsBCF3036()
+    {
+        var diagnostics = Run("""Div.On("onwheel", Zoom).PreventDefault().PreventDefault()""", WheelMembers);
+
+        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3036");
+        Assert.Contains("onwheel", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The two modifiers are separate channels, so writing both on one event is not a duplicate.
+    /// </summary>
+    /// <remarks>
+    /// This is what keeps BCF3036 from degenerating into "reject a second modifier of any kind", which a
+    /// rule written against the count of modifiers rather than against the channel would do.
+    /// </remarks>
+    [Fact]
+    public void PreventDefaultAndStopPropagation_OnOneEvent_ReportNothing()
+    {
+        var diagnostics = Run("""Div.On("onwheel", Zoom).PreventDefault().StopPropagation()""", WheelMembers);
+
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036");
+    }
 }

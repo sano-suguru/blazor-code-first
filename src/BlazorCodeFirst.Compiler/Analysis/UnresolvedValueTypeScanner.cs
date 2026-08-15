@@ -121,6 +121,11 @@ internal static class UnresolvedValueTypeScanner
             // transplanted into generated code.
             case SurfaceMethodKind.Key:
             case SurfaceMethodKind.Ref:
+            // The event modifiers reach the same tail for the same reason, and their valueless overload
+            // needs nothing extra: the tail reads argument 0 through a null-conditional, so the spelling
+            // that writes no argument reports nothing rather than throwing (#368).
+            case SurfaceMethodKind.PreventDefault:
+            case SurfaceMethodKind.StopPropagation:
                 ScanDecoration(invocation, method, kind, args, recoverOwnValue, context);
                 return;
 
