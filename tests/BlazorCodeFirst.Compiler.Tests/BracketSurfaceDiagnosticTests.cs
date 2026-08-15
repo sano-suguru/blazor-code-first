@@ -994,4 +994,126 @@ public sealed class BracketSurfaceDiagnosticTests
     private static ImmutableArray<Diagnostic> OutputErrors(GeneratorRunResult result) =>
         [.. result.OutputCompilation.GetDiagnostics()
             .Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)];
+
+    /// <summary>A handler for the modifier tests below, which are about placement and not about events.</summary>
+    private const string WheelMembers = "private void Zoom() { }";
+
+    [Fact]
+    public void PreventDefault_WithNoEventBeforeIt_ReportsBCF3035()
+    {
+        var diagnostics = Run("""Div.Class("x").PreventDefault()""", WheelMembers);
+
+        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3035");
+        Assert.Contains("PreventDefault", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Written before the event it was meant for, which is the shape the chain makes easy to reach.
+    /// </summary>
+    /// <remarks>
+    /// The event exists on this element, so a rule that merely counted the element's events would let this
+    /// through. What decides it is that the modifier attaches to what precedes it, and nothing does.
+    /// </remarks>
+    [Fact]
+    public void PreventDefault_BeforeTheEventItWasMeantFor_ReportsBCF3035()
+    {
+        var diagnostics = Run("""Div.PreventDefault().On("onwheel", Zoom)""", WheelMembers);
+
+        Assert.Single(diagnostics, static d => d.Id == "BCF3035");
+    }
+
+    [Fact]
+    public void PreventDefault_Twice_ReportsBCF3036()
+    {
+        var diagnostics = Run("""Div.On("onwheel", Zoom).PreventDefault().PreventDefault()""", WheelMembers);
+
+        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3036");
+        Assert.Contains("onwheel", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The two modifiers are separate channels, so writing both on one event is not a duplicate.
+    /// </summary>
+    /// <remarks>
+    /// This is what keeps BCF3036 from degenerating into "reject a second modifier of any kind", which a
+    /// rule written against the count of modifiers rather than against the channel would do.
+    /// </remarks>
+    [Fact]
+    public void PreventDefaultAndStopPropagation_OnOneEvent_ReportNothing()
+    {
+        var diagnostics = Run("""Div.On("onwheel", Zoom).PreventDefault().StopPropagation()""", WheelMembers);
+
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036");
+    }
+
+    /// <summary>A handler and a bound field, for the <c>.Bind</c> interaction tests below.</summary>
+    private const string BindMembers = WheelMembers + "\n    private string _text = \"\";";
+
+    /// <summary>
+    /// A modifier after a <c>.Bind</c> is refused rather than attached to the earlier <c>.On</c>.
+    /// </summary>
+    /// <remarks>
+    /// The shape that made this diagnostic necessary. <c>.Bind</c> writes its event into the binding
+    /// channel, so before BCF3037 this attached to <c>onkeydown</c> and reported nothing: the author got
+    /// a modifier on an event they did not write it after, with no way to see it.
+    /// </remarks>
+    [Fact]
+    public void PreventDefault_AfterABindFollowingAnEvent_ReportsBCF3037()
+    {
+        var diagnostics = Run(
+            """
+            Input.On("onkeydown", Zoom)
+                 .Bind("value", "oninput", () => _text, v => _text = v)
+                 .PreventDefault()
+            """,
+            BindMembers);
+
+        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3037");
+        Assert.Contains("PreventDefault", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3035");
+    }
+
+    [Fact]
+    public void PreventDefault_AfterABindAlone_ReportsBCF3037RatherThanBCF3035()
+    {
+        var diagnostics = Run(
+            """Input.Bind("value", "oninput", () => _text, v => _text = v).PreventDefault()""",
+            BindMembers);
+
+        Assert.Single(diagnostics, static d => d.Id == "BCF3037");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3035");
+    }
+
+    /// <summary>
+    /// A <c>.Bind</c> earlier in the chain than the <c>.On</c> being modified is not the refused shape.
+    /// </summary>
+    /// <remarks>
+    /// This is what keeps BCF3037 from degenerating into "any element carrying a binding refuses
+    /// modifiers". The walk stops at the first event-producing decoration, and here that is the
+    /// <c>.On</c>.
+    /// </remarks>
+    [Fact]
+    public void PreventDefault_AfterAnEventFollowingABind_ReportsNothing()
+    {
+        var diagnostics = Run(
+            """
+            Input.Bind("value", "oninput", () => _text, v => _text = v)
+                 .On("onwheel", Zoom)
+                 .PreventDefault()
+            """,
+            BindMembers);
+
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036" or "BCF3037");
+    }
+
+    /// <summary>
+    /// A decoration that produces no event does not stop the walk.
+    /// </summary>
+    [Fact]
+    public void PreventDefault_SeparatedFromItsEventByAnAttribute_ReportsNothing()
+    {
+        var diagnostics = Run("""Div.On("onwheel", Zoom).Class("x").PreventDefault()""", WheelMembers);
+
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036" or "BCF3037");
+    }
 }

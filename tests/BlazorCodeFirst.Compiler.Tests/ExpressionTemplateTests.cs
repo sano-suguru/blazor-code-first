@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler;
+using BlazorCodeFirst.Compiler.Analysis;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -156,5 +157,34 @@ public sealed class ExpressionTemplateTests
         Assert.NotEqual(
             ExpressionTemplate.Create(segments, new StringConstant("a")),
             ExpressionTemplate.Create(segments, constant: null));
+    }
+
+    /// <summary>
+    /// An event's modifiers take part in its equality, and an unwritten modifier is distinct from a
+    /// written <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is what stops the incremental generator handing back a cached result across a changed
+    /// modifier: the templates are compared structurally, and nothing else in the pipeline re-reads the
+    /// call site once a node has been cached. The null/false distinction is the one a reader is most
+    /// likely to collapse, and it decides whether a call is emitted at all (#368).
+    /// </remarks>
+    [Fact]
+    public void EventTemplate_ModifiersTakePartInEquality()
+    {
+        var handler = ExpressionTemplate.Literal("Handler");
+        var written = ExpressionTemplateFactory.ForBooleanConstant(true);
+        var writtenFalse = ExpressionTemplateFactory.ForBooleanConstant(false);
+
+        var trueModifier = new EventTemplate("onwheel", handler, written, null);
+        var falseModifier = new EventTemplate("onwheel", handler, writtenFalse, null);
+        var unwritten = new EventTemplate("onwheel", handler, null, null);
+
+        // Written false is not unwritten. This is the distinction that decides whether a call is emitted
+        // at all, and the one a reader is most likely to collapse.
+        Assert.NotEqual(falseModifier, unwritten);
+
+        // The two modifiers are separate channels: setting one must not read as setting the other.
+        Assert.NotEqual(trueModifier, new EventTemplate("onwheel", handler, null, written));
     }
 }

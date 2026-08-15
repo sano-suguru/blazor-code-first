@@ -201,7 +201,18 @@ internal static class ViewPartExpander
 
                     var events = ImmutableArray.CreateBuilder<EventTemplate>(element.Events.Length);
                     foreach (var e in element.Events.AsImmutableArray())
-                        events.Add(new EventTemplate(e.Name, e.Handler.Substitute(substitution)));
+                    {
+                        // Every expression channel of the event, written as a `with` for the reason the
+                        // bindings below give: a channel added to EventTemplate is carried through rather
+                        // than silently dropped. The modifiers travel because a [ViewPart] may take one as
+                        // a parameter, and a dropped one would emit nothing with no diagnostic (#368).
+                        events.Add(e with
+                        {
+                            Handler = e.Handler.Substitute(substitution),
+                            PreventDefault = e.PreventDefault?.Substitute(substitution),
+                            StopPropagation = e.StopPropagation?.Substitute(substitution),
+                        });
+                    }
 
                     var bindings = ImmutableArray.CreateBuilder<BindTemplate>(element.Bindings.Length);
                     foreach (var b in element.Bindings.AsImmutableArray())

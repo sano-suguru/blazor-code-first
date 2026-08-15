@@ -120,4 +120,14 @@ internal enum SurfaceMethodKind
     /// <see cref="Key"/>.
     /// </summary>
     ComponentRef,
+
+    /// <summary>
+    /// <c>Decorations.PreventDefault</c>, either overload. Unlike the three above it is an ordinary
+    /// attribute frame: it lowers to an <c>AddAttribute</c> whose name carries the event it attaches to,
+    /// so it lives inside the attribute range rather than after it (<c>ARCHITECTURE.md</c> §2.7).
+    /// </summary>
+    PreventDefault,
+
+    /// <summary><c>Decorations.StopPropagation</c>, either overload; see <see cref="PreventDefault"/>.</summary>
+    StopPropagation,
 }

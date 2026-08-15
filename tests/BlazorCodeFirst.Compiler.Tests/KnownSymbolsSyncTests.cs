@@ -155,6 +155,34 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
+    /// Both event-modifier decorations are classified, and both overloads of each land on one row.
+    /// </summary>
+    /// <remarks>
+    /// The pair is registered by name in the decoration switch, as <c>.Key</c> and <c>.Ref</c> are, so a
+    /// rename on either side leaves the decoration arm reaching a classification nothing produces and the
+    /// modifier silently ignored. The overload count is asserted alongside because the valueless and the
+    /// <see langword="bool"/> spelling are two symbols standing for one behaviour: losing one to a
+    /// mis-typed switch case would leave half the surface unclassified with the other half green (#368).
+    /// </remarks>
+    [Fact]
+    public void EventModifierDecorations_AreClassified()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        // Duplicates kept rather than distinct: the row and the overload count are one fact, and asserting
+        // the multiplicity is what would notice a mis-typed switch case leaving one spelling unclassified.
+        List<SurfaceMethodKind> RowsFor(string name) =>
+            [.. symbols.SurfaceMethods.Where(entry => entry.Key.Name == name).Select(entry => entry.Value)];
+
+        Assert.Equal(
+            [SurfaceMethodKind.PreventDefault, SurfaceMethodKind.PreventDefault],
+            RowsFor("PreventDefault"));
+        Assert.Equal(
+            [SurfaceMethodKind.StopPropagation, SurfaceMethodKind.StopPropagation],
+            RowsFor("StopPropagation"));
+    }
+
+    /// <summary>
     /// The three void tags with no curated helper are exactly <c>base</c>, <c>link</c> and <c>meta</c>.
     /// </summary>
     /// <remarks>
@@ -366,7 +394,7 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>The number of distinct decoration names <c>BlazorCodeFirst.Decorations</c> declares.</summary>
-    private const int DecorationNameCount = 14;
+    private const int DecorationNameCount = 16;
 
     /// <summary>
     /// The distinct names of the public static extension methods <c>BlazorCodeFirst.Decorations</c> declares,

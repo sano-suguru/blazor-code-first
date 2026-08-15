@@ -147,7 +147,19 @@ internal sealed record ComponentTemplateNode(
     public ExpressionTemplate? Ref { get; init; }
 }
 
-internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
+/// <param name="Name">The event's attribute name, <c>on</c> prefix included.</param>
+/// <param name="Handler">The handler expression, lowered to an <c>EventCallback</c> at emission.</param>
+/// <param name="PreventDefault">
+/// The <c>preventDefault</c> modifier's value, or <see langword="null"/> when no modifier was written on
+/// this event. Null is not the same as a written <c>false</c>: the first emits nothing at all, the second
+/// emits a call that consumes a sequence number and whose frame the framework then drops (#368).
+/// </param>
+/// <param name="StopPropagation">The <c>stopPropagation</c> modifier's value; see PreventDefault.</param>
+internal sealed record EventTemplate(
+    string Name,
+    ExpressionTemplate Handler,
+    ExpressionTemplate? PreventDefault = null,
+    ExpressionTemplate? StopPropagation = null);
 
 /// <summary>An element attribute: a resolved constant name plus a value expression template.</summary>
 internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
@@ -222,7 +234,7 @@ internal sealed record ElementTemplateNode(
     string Tag,
     EquatableArray<ExpressionTemplate> Classes = default,       // folded class channel (RM1)
     EquatableArray<AttributeTemplate> Attributes = default,     // one frame each (RM2)
-    EquatableArray<EventTemplate> Events = default,             // one frame each
+    EquatableArray<EventTemplate> Events = default,             // one frame each, plus one per written modifier
     EquatableArray<RenderTemplateNode> Children = default) : RenderTemplateNode
 {
     /// <summary>The element's two-way bindings in source order. Two frames each: the attribute, then the event.</summary>

@@ -281,6 +281,33 @@ public static class DiagnosticExpectations
             Note: "Anchors the decoration's name, which is what the author deletes. The attribute on the "
                 + "component is the other half of the rule and is not the mistake: fixing a component's "
                 + "render mode on its declaration is exactly what that attribute is for."),
+        new(
+            "BCF3035",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3035.cs",
+            "PreventDefault",
+            Note: "Anchors the decoration's name, which is what the author moves or deletes. The event it "
+                + "was meant for is not necessarily missing — it may be written later in the chain, and "
+                + "moving the modifier after it is the fix, so the location cannot name an event."),
+        new(
+            "BCF3036",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3036.cs",
+            "PreventDefault",
+            AnchorOccurrence.Last,
+            "Anchors the second decoration, which is the one to delete. Last rather than first for the "
+                + "reason BCF3033 gives: on a chain carrying both, the duplicate is the later one."),
+        new(
+            "BCF3037",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3037.cs",
+            "PreventDefault",
+            Note: "Anchors the modifier, not the .Bind. The binding is correct code and stays; what the "
+                + "author changes is the modifier, by moving it after an .On or dropping it until the "
+                + "surface can modify a binding's event."),
     ];
 
     /// <summary>

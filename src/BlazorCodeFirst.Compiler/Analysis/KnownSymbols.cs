@@ -776,6 +776,12 @@ internal sealed class KnownSymbols
                     // key straight off the argument (§2.7(E)).
                     case "Key": kind = SurfaceMethodKind.Key; break;
                     case "Ref": kind = SurfaceMethodKind.Ref; break;
+                    // Both overloads of each land on one row, as the event shortcuts do: the decoration arm
+                    // reads the value off the argument list and needs no per-overload symbol. Named here
+                    // rather than in a shortcut table because neither stands for an attribute name the
+                    // author wrote — the name is built from the event they attach to (#368).
+                    case "PreventDefault": kind = SurfaceMethodKind.PreventDefault; break;
+                    case "StopPropagation": kind = SurfaceMethodKind.StopPropagation; break;
                     default:
                         // Every overload of a shortcut lands on the same row: .OnClick(Action) and
                         // .OnClick(Func<Task>) both stand for "onclick", and the decoration arm of

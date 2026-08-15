@@ -17,6 +17,24 @@ internal static class RenderViewEmitter
         "global::Microsoft.AspNetCore.Components.EventCallback.Factory";
 
     /// <summary>
+    /// The attribute-name prefix Blazor reads a <c>preventDefault</c> modifier from, the event's own name
+    /// appended to it.
+    /// </summary>
+    /// <remarks>
+    /// Written here rather than called through <c>AddEventPreventDefaultAttribute</c>, which is only an
+    /// extension method producing exactly this <c>AddAttribute</c> call and which lives in
+    /// <c>Microsoft.AspNetCore.Components.Web</c> — an assembly the shipped package deliberately does not
+    /// reference (#23), and whether it should is a question #156 holds rather than one this channel may
+    /// answer by accident. The cost is a framework-internal name in generated code with no compile-time
+    /// tie to the version that defines it, and <c>EventModifierParityTests</c> is what buys that back: it
+    /// reads this constant rather than transcribing it, so the two cannot drift (#368).
+    /// </remarks>
+    internal const string PreventDefaultAttributePrefix = "__internal_preventDefault_";
+
+    /// <summary>The <c>stopPropagation</c> half; see <see cref="PreventDefaultAttributePrefix"/>.</summary>
+    internal const string StopPropagationAttributePrefix = "__internal_stopPropagation_";
+
+    /// <summary>
     /// A binding's <c>CreateBinder</c> call up to its setter argument, written as the static call it is.
     /// It is an extension method on <c>EventCallbackFactory</c>, and the generated file carries no
     /// <c>using</c> directives, so the instance spelling Razor uses
@@ -442,6 +460,27 @@ internal static class RenderViewEmitter
         return next;
     }
 
+    /// <summary>
+    /// One event modifier's call, or nothing when the call site wrote no modifier.
+    /// </summary>
+    /// <remarks>
+    /// A written <c>false</c> still emits. The frame it would produce is dropped by the framework, but a
+    /// sequence number belongs to the emitted call rather than to the resulting frame, which is the rule
+    /// 付録D already records for <c>.Attr(name, false)</c>. That is what keeps the width of an element a
+    /// function of the decorations written on it rather than of the values they carry (#234).
+    /// </remarks>
+    private static int EmitEventModifier(
+        IndentedWriter writer, string prefix, string eventName, ExpressionTemplate? value, int seq)
+    {
+        if (value is null)
+            return seq;
+
+        var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
+            prefix + eventName, quote: true);
+        writer.AppendLine($"__builder.AddAttribute({seq}, {name}, {value.ToCode()});");
+        return seq + 1;
+    }
+
     private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
     {
         writer.AppendLine($"__builder.OpenElement({seq}, \"{node.Tag}\");");
@@ -462,6 +501,10 @@ internal static class RenderViewEmitter
                 $"__builder.AddAttribute({next}, {name}, " +
                 $"{EventCallbackFactory}.Create(this, {e.Handler.ToCode()}));");
             next++;
+            // A fixed order rather than the chain's: the two modifiers are independent of each other, and
+            // one order has to be chosen so that the sequence numbers are a function of the model alone.
+            next = EmitEventModifier(writer, PreventDefaultAttributePrefix, e.Name, e.PreventDefault, next);
+            next = EmitEventModifier(writer, StopPropagationAttributePrefix, e.Name, e.StopPropagation, next);
         }
         foreach (var bind in node.Bindings)
         {

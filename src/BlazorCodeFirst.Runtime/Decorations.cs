@@ -508,4 +508,63 @@ public static class Decorations
     public static ElementView Ref(
         this ElementView element,
         System.Action<Microsoft.AspNetCore.Components.ElementReference> capture) => element;
+
+    /// <summary>
+    /// Design-time syntax making the preceding event call <c>preventDefault()</c> in the browser, which is
+    /// Razor's <c>@onwheel:preventDefault</c>. It attaches to the event written before it on the same
+    /// element, so <c>.On("onwheel", Zoom).PreventDefault()</c> modifies <c>onwheel</c>. A modifier with no
+    /// event before it is BCF3035, and a second one for the same event is BCF3036. The event has to come
+    /// from <c>.On</c> or a named event shortcut: <c>.Bind</c> writes its event into a channel this cannot
+    /// reach, so a modifier after one is BCF3037 rather than a modifier of the binding.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two overloads rather than one carrying a default, for the reason recorded on
+    /// <see cref="Attr(ElementView, string)"/>: an optional parameter here is RS0026, because the valueless
+    /// spelling and the <see langword="bool"/> one are overloads of a single name.
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="Key"/> and <see cref="Ref"/>, this is not a non-attribute frame decoration. It
+    /// lowers to an ordinary attribute whose name carries the event, which is what the framework's own
+    /// <c>AddEventPreventDefaultAttribute</c> writes, and it is emitted inside the element's attribute
+    /// range whatever order the chain was written in, because a reference capture closes that range
+    /// (<c>ARCHITECTURE.md</c> §2.7).
+    /// </para>
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView PreventDefault(this ElementView element) => element;
+
+    /// <summary>
+    /// Design-time syntax deciding at runtime whether the preceding event calls <c>preventDefault()</c>.
+    /// Equivalent to <see cref="PreventDefault(ElementView)"/> when <paramref name="value"/> is
+    /// <see langword="true"/>.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="false"/> emits the call and consumes a sequence number, and the framework then
+    /// appends no frame — the same trade <see cref="Attr(ElementView, string, bool)"/> makes. Writing
+    /// nothing at all is what emits nothing.
+    /// </remarks>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="value">Whether the event prevents its default; any bool expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView PreventDefault(this ElementView element, bool value) => element;
+
+    /// <summary>
+    /// Design-time syntax making the preceding event call <c>stopPropagation()</c> in the browser, which is
+    /// Razor's <c>@onwheel:stopPropagation</c>. Attaches and reports exactly as
+    /// <see cref="PreventDefault(ElementView)"/> does.
+    /// </summary>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView StopPropagation(this ElementView element) => element;
+
+    /// <summary>
+    /// Design-time syntax deciding at runtime whether the preceding event stops propagating; see
+    /// <see cref="PreventDefault(ElementView, bool)"/> for what a <see langword="false"/> costs.
+    /// </summary>
+    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <param name="value">Whether the event stops propagating; any bool expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView StopPropagation(this ElementView element, bool value) => element;
 }

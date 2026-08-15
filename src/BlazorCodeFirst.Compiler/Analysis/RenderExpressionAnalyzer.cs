@@ -323,7 +323,9 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.On
                 or SurfaceMethodKind.Bind
                 or SurfaceMethodKind.Key
-                or SurfaceMethodKind.Ref =>
+                or SurfaceMethodKind.Ref
+                or SurfaceMethodKind.PreventDefault
+                or SurfaceMethodKind.StopPropagation =>
                 ClassifyDecoration(invocation, method, kind, context),
             SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };
@@ -975,6 +977,12 @@ internal static class RenderExpressionAnalyzer
         if (FactoryArguments.Bind(invocation, context) is not { } args)
             return null;
 
+        // Ahead of the firstArg check below, because the valueless spelling has no argument at all: the
+        // two overloads of each modifier are one behaviour, and .PreventDefault() would otherwise leave
+        // here as an unanalyzable call (#368).
+        if (kind is SurfaceMethodKind.PreventDefault or SurfaceMethodKind.StopPropagation)
+            return ClassifyEventModifier(decoAccess, method, kind, element, args, context);
+
         if (args.At(0) is not { } firstArg)
             return null;
 
@@ -1190,6 +1198,117 @@ internal static class RenderExpressionAnalyzer
             ]));
 
         return true;
+    }
+
+    /// <summary>
+    /// <c>.PreventDefault</c> / <c>.StopPropagation</c>, attached to the event written before them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The decorations name no event, so "the event before it" is the only reading the chain offers, and it
+    /// is the last one recorded: the arm above walks a decoration chain from its receiver outward, so the
+    /// events already on the node are exactly those written to the left of this call. With none, the
+    /// modifier has nothing to attach to and is BCF3035; with the same modifier already set on that event,
+    /// one of the two would be dead and it is BCF3036.
+    /// </para>
+    /// <para>
+    /// The valueless overload stands for a constant <see langword="true"/>, which is what makes the two
+    /// spellings one behaviour at the emitter. Written is not the same as true: a written
+    /// <see langword="false"/> still produces a template here, and so still emits a call that consumes a
+    /// sequence number, while an unwritten modifier stays <see langword="null"/> and emits nothing (#368).
+    /// </para>
+    /// </remarks>
+    private static ElementTemplateNode? ClassifyEventModifier(
+        MemberAccessExpressionSyntax decoAccess,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        ElementTemplateNode element,
+        FactoryArguments args,
+        ViewPartBodyContext context)
+    {
+        // Ahead of the empty-channel test, because a .Bind makes both answers below wrong rather than one:
+        // with an earlier .On the modifier would attach to it, and without one BCF3035 would send the
+        // author to an .On that is not what they wrote this after.
+        if (NearestEventProducerIsBinding(decoAccess.Expression, context))
+        {
+            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3037, decoAccess.Name.GetLocation(), [method.Name]));
+            return null;
+        }
+
+        var events = element.Events.AsImmutableArray();
+        if (events.Length == 0)
+        {
+            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3035, decoAccess.Name.GetLocation(), [method.Name]));
+            return null;
+        }
+
+        // Not events[^1]: this project targets netstandard2.0 with no System.Index polyfill, the same
+        // constraint KnownSymbols' member switch records for list patterns.
+        var target = events[events.Length - 1];
+        var existing = kind == SurfaceMethodKind.PreventDefault ? target.PreventDefault : target.StopPropagation;
+        if (ReportDuplicateFrameDecoration(
+                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, target.Name))
+        {
+            return null;
+        }
+
+        var value = args.At(0) is { } written
+            ? ExpressionTemplateFactory.Create(written.Expression, context)
+            : ExpressionTemplateFactory.ForBooleanConstant(true);
+
+        var updated = kind == SurfaceMethodKind.PreventDefault
+            ? target with { PreventDefault = value }
+            : target with { StopPropagation = value };
+
+        return element with { Events = events.SetItem(events.Length - 1, updated) };
+    }
+
+    /// <summary>
+    /// Whether the nearest decoration to the left of an event modifier that produces an event is a
+    /// <c>.Bind</c> rather than an <c>.On</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Asked of the syntax rather than of the node, because the node cannot answer it: <c>.On</c> appends
+    /// to <c>Events</c> and <c>.Bind</c> to <c>Bindings</c>, and neither channel records where its entries
+    /// sat relative to the other's. The chain is the only place the order survives, so this walks it,
+    /// skipping decorations that produce no event at all (<c>.Class</c>, <c>.Attr</c>, a shortcut, another
+    /// modifier) until it reaches one that does.
+    /// </para>
+    /// <para>
+    /// A binding's own event is a real event, and Razor can modify it. This surface cannot yet, which is
+    /// why the answer here is a refusal (BCF3037) rather than an attachment. Supporting it means giving
+    /// <c>BindTemplate</c> the same two channels and emitting them after the binding's event frame.
+    /// </para>
+    /// </remarks>
+    private static bool NearestEventProducerIsBinding(
+        ExpressionSyntax receiver, ViewPartBodyContext context)
+    {
+        var current = receiver;
+        while (current is InvocationExpressionSyntax invocation
+            && invocation.Expression is MemberAccessExpressionSyntax access)
+        {
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is IMethodSymbol method)
+            {
+                switch (context.KnownSymbols.ClassifySurfaceMethod(method))
+                {
+                    case SurfaceMethodKind.Bind:
+                        return true;
+                    case SurfaceMethodKind.On:
+                    case SurfaceMethodKind.EventShortcut:
+                        return false;
+                }
+            }
+
+            current = access.Expression;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1623,22 +1742,33 @@ internal static class RenderExpressionAnalyzer
     /// already carries this frame decoration.
     /// </summary>
     /// <remarks>
-    /// One implementation for all five spellings of the rule (<c>.Key</c> and <c>.Ref</c> on either
-    /// receiver, <c>.RenderMode</c> on a component). The check is the same question about the same kind of
-    /// channel, and the message names the decoration from the syntax rather than from a per-channel
-    /// constant, so a channel added later reports correctly by writing nothing here.
+    /// One implementation for all seven spellings of the rule (<c>.Key</c> and <c>.Ref</c> on either
+    /// receiver, <c>.RenderMode</c> on a component, and the two event modifiers). The check is the same
+    /// question about the same kind of channel, and the message names the decoration from the syntax rather
+    /// than from a per-channel constant, so a channel added later reports correctly by writing nothing here.
+    /// <para>
+    /// The event modifiers pass their own descriptor and a second message argument. They are the same
+    /// mechanics on a different rule: BCF3033 is about the channels that hold one value per node, and
+    /// BCF3036 about a channel that holds one per event, so the descriptor varies while the recovery span
+    /// and the report location do not (#368).
+    /// </para>
     /// </remarks>
     private static bool ReportDuplicateFrameDecoration(
-        MemberAccessExpressionSyntax access, ExpressionTemplate? existing, ViewPartBodyContext context)
+        MemberAccessExpressionSyntax access,
+        ExpressionTemplate? existing,
+        ViewPartBodyContext context,
+        DiagnosticDescriptor? descriptor = null,
+        string? extraMessageArgument = null)
     {
         if (existing is null)
             return false;
 
+        var name = access.Name.Identifier.ValueText;
         context.RejectUnresolvedValueRecovery(access.Span);
         context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BCF3033,
+            descriptor ?? DiagnosticDescriptors.BCF3033,
             access.Name.GetLocation(),
-            [access.Name.Identifier.ValueText]));
+            extraMessageArgument is null ? [name] : [name, extraMessageArgument]));
         return true;
     }
 

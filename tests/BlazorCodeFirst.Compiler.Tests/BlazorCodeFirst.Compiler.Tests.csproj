@@ -37,6 +37,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- EventModifierParityTests compares the frames the generator's spelling produces against the
+         frames the framework's own extension method produces, which is the same question the diff-cost
+         harness answers and needs no second answer. Linked rather than copied for the reason the
+         benchmark project's own link records, and its physical path keeps the .editorconfig BL0006
+         allowance the DiffCost directory carries, so no per-file pragma is needed here (#368). -->
+    <Compile Include="..\BlazorCodeFirst.IntegrationTests\DiffCost\FrameEquivalence.cs"
+             Link="FrameEquivalence.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj" />
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
   </ItemGroup>
