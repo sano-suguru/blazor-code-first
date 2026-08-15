@@ -271,7 +271,19 @@ public static class DiagnosticExpectations
     /// not yet implemented. Without the list, a deliberate row is indistinguishable from a row that
     /// outlived its descriptor.
     /// </summary>
-    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } = [];
+    public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
+    [
+        ("BCF3032",
+            "The ForEach key and a content root's own .Key colliding. Specified with 付録A 2.7(E); the " +
+            "descriptor arrives with .Key itself (#310)."),
+        ("BCF3033",
+            "A non-attribute frame decoration written twice on one node. The row states the finished " +
+            "design, so it names .Ref as well, which .Key and .RenderMode (#310, #311) do not yet ship; " +
+            "the descriptor arrives with the first of the three."),
+        ("BCF3034",
+            "A call-site render mode on a type whose declaration fixes one. Specified with the surface " +
+            "it checks; the descriptor arrives with .RenderMode (#311)."),
+    ];
 
     /// <summary>
     /// IDs that were implemented and then withdrawn. The number is retired, not freed: a reader who hits
