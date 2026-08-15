@@ -335,6 +335,19 @@ public sealed class RenderingTests : BunitContext
     }
 
     [Fact]
+    public void GenericComponent_CallingAnotherWithItsOwnTypeParameter_ClosesTheTypeArgument()
+    {
+        var cut = Render<GenericCascadeHost<string>>(parameters => parameters
+            .Add(p => p.Value, "alpha"));
+
+        // The cascade is matched by the receiving property's type, so this text is "alpha" only if the
+        // emitted OpenComponent<CascadingValue<TValue>> closed over string. Verified by mutation: writing
+        // the call as Component<CascadingValue<object>>() still compiles, and the reader then finds no
+        // cascade of its own type and renders "none".
+        Assert.Equal("alpha", cut.Find(".received").TextContent);
+    }
+
+    [Fact]
     public void TypedEventComponent_WhenInputRaised_ReceivesTheEventArgumentAndRerenders()
     {
         // Reads TextContent rather than matching markup: the claim under test is that the handler received
