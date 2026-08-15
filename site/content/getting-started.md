@@ -91,6 +91,24 @@ BCF1003. BCF1003 means the getter's shape was fine and something written inside 
 sequenced. If the body genuinely cannot be written in this shape, override `RenderView` by hand — the
 design-time expression is then unused, and nothing is reported.
 
+A third diagnostic reads the same getter. BCF1002 is reported when the expression names something
+generated code cannot name: a local, a local function, a range variable, or a label whose declaration
+does not reach the generated file beside the reference. The usual way in is a declaration written in
+one part of the expression and read from another, because the generator does not emit an element's
+parts in the order you wrote them:
+
+```csharp
+protected override View Body =>
+    Div.Attr("data-found", _rows.TryGetValue(_key, out var row))
+       .Attr("title", row.Name);                               // BCF1002: 'row' cannot exist there
+```
+
+Two positions do carry a declaration across, because each becomes a header in the generated code that
+encloses whatever reads it: an `If` condition scopes over both branches, and a `ForEach` source over
+the content and the key. Anywhere else, declare the local in a statement ahead of the return, the way
+`greeting` is declared above. That is what separates BCF1002 from BCF1003: BCF1003 means the expression could not be
+sequenced, BCF1002 that it could, and named something the generated file cannot see.
+
 Statements are translated, not run: the design-time expression is still inert, so mutating state inside
 one is BCF3001 as it always was.
 

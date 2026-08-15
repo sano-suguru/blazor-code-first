@@ -73,8 +73,9 @@ public static class Decorations
     /// <summary>
     /// Design-time syntax setting an arbitrary attribute. <paramref name="name"/> must be a non-empty
     /// compile-time constant. A name of <c>"class"</c> folds into the element's class channel; every other
-    /// name is single-binding (a duplicate is reported). Styles are set here (<c>.Attr("style", …)</c>);
-    /// there is deliberately no <c>.Style</c> shortcut, nudging toward external CSS + <c>.Class</c>.
+    /// name is single-binding (a duplicate is reported). <c>style</c> is one of those ordinary names:
+    /// <c>.Attr("style", …)</c> writes it, and two of them on one element is BCF3010 rather than a
+    /// second fold. There is deliberately no <c>.Style</c> shortcut (#321, <c>DESIGN.md</c> §4.1).
     /// There is no bulk <c>.Attrs(…)</c> splat and there will not be one (#308 / #320): a name that
     /// arrives at runtime cannot join the class channel's compile-time fold, and the duplicate check
     /// cannot see it. Bind each attribute individually with this overload or a named shortcut. The
