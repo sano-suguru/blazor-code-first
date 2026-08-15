@@ -256,6 +256,14 @@ public static class DiagnosticExpectations
                 "type is the other half of the rule, but it is not what went wrong: binding an int is " +
                 "legitimate, and only the format written beside it is not."),
         new(
+            "BCF3032",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3032.cs",
+            "ForEach(_items, item => item, item => Div.Key(item)[item])",
+            Note: "Anchors the whole loop, as BCF3003 does from the same walk: the defect is the pair, and "
+                + "either half is a legitimate way to write a key on its own."),
+        new(
             "BCF3033",
             FixtureKind.GeneratorViaProjectReference,
             "error",
@@ -282,9 +290,6 @@ public static class DiagnosticExpectations
     /// </summary>
     public static ImmutableArray<(string Id, string Reason)> DocumentedWithoutDescriptor { get; } =
     [
-        ("BCF3032",
-            "The ForEach key and a content root's own .Key colliding. Specified with 付録A 2.7(E); the " +
-            "descriptor arrives with .Key itself (#310)."),
         ("BCF3034",
             "A call-site render mode on a type whose declaration fixes one. Specified with the surface " +
             "it checks; the descriptor arrives with .RenderMode (#311)."),

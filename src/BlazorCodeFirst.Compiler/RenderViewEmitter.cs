@@ -356,8 +356,7 @@ internal static class RenderViewEmitter
     {
         // TypeName already carries the global:: prefix (fully qualified format).
         writer.AppendLine($"__builder.OpenComponent<{node.TypeName}>({seq});");
-        if (key is not null)
-            writer.AppendLine($"__builder.SetKey({key});");
+        EmitKey(writer, node.Key, key);
         int next = seq + 1;
         foreach (var parameter in node.Parameters)
         {

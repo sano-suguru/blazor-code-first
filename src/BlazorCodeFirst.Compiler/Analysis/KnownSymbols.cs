@@ -657,6 +657,16 @@ internal sealed class KnownSymbols
                 if (member is IMethodSymbol bindMethod)
                     _surfaceMethods[Normalize(bindMethod)] = SurfaceMethodKind.ComponentBind;
             }
+
+            // Registered the same way and for the same reason as Bind above: the name gate in
+            // ClassifyComponentParameterDefinition answers None for it, so this cannot overwrite a
+            // parameter-syntax classification. One overload today, and the loop rather than a single
+            // lookup so a second would be registered rather than silently unclassified.
+            foreach (var member in ComponentViewType.GetMembers("Key"))
+            {
+                if (member is IMethodSymbol keyMethod)
+                    _surfaceMethods[Normalize(keyMethod)] = SurfaceMethodKind.ComponentKey;
+            }
         }
 
         var decorationsType =

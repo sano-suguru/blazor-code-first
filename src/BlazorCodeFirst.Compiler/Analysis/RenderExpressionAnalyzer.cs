@@ -311,7 +311,8 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.FragmentParam
                 or SurfaceMethodKind.GenericTemplateIgnored
                 or SurfaceMethodKind.GenericTemplateContextual
-                or SurfaceMethodKind.ComponentBind =>
+                or SurfaceMethodKind.ComponentBind
+                or SurfaceMethodKind.ComponentKey =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
@@ -774,6 +775,20 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
+        // .Key selects no parameter, so it routes out before everything below: the selector, the
+        // settability rule, and the duplicate check are all about a parameter it does not have. It shares
+        // this method only for the receiver recursion above, which every chained spelling needs.
+        if (kind == SurfaceMethodKind.ComponentKey)
+        {
+            if (FactoryArguments.Bind(invocation, context) is not { } keyArgs
+                || keyArgs.At(0) is not { } keyArg)
+            {
+                return null;
+            }
+
+            return ClassifyComponentKey(paramAccess, inner, keyArg, context);
+        }
+
         // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
         var paramArgs = FactoryArguments.Bind(invocation, context);
         if (paramArgs is not { } args ||
@@ -899,7 +914,11 @@ internal static class RenderExpressionAnalyzer
 
         var value = ExpressionTemplateFactory.Create(valueExpression, context);
         var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
-        return new ComponentTemplateNode(inner.TypeName, appended, inner.Slots);
+        // A `with` and not a fresh construction: every channel this call does not touch has to survive it,
+        // and a constructor call names the ones that existed when it was written. `.Key(k).Param(…)` lost
+        // its key exactly that way (measured), and a channel added later would lose its value the same
+        // way with nothing failing.
+        return inner with { Parameters = appended };
     }
 
     /// <summary>
@@ -1476,37 +1495,75 @@ internal static class RenderExpressionAnalyzer
     /// Records a <c>.Key</c> on <paramref name="element"/>, or reports why it cannot be recorded.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A literal <see langword="null"/> declines the key rather than setting one, which is the reading
-    /// <c>ForEach(source, key: null, content)</c> already gets (#172). Declining is recorded as the absence
-    /// of a key and not as a key whose value is null, so the emitter has one question to ask and the fold
-    /// stays available to an element that declined. The test is on the built template's constant rather
-    /// than on the syntax, so `.Key(null)` and a `const object? None = null` reach the same answer.
-    /// </para>
-    /// <para>
-    /// The duplicate check runs before the decline, so <c>.Key(a).Key(null)</c> is BCF3033 rather than a
-    /// silent retraction of the first key. Declining is a way to write "no key here", not a way to unwrite
-    /// one.
-    /// </para>
+    /// A declined key is recorded as the absence of a key and not as a key whose value is null, which is
+    /// what keeps the emitter to one question and leaves the fold available to an element that declined.
+    /// The rules the decline and the duplicate follow are in <see cref="TryTakeKey"/>, shared with the
+    /// component arm.
     /// </remarks>
     private static ElementTemplateNode? ClassifyKey(
         MemberAccessExpressionSyntax decoAccess,
         ElementTemplateNode element,
         ArgumentSyntax firstArg,
-        ViewPartBodyContext context)
+        ViewPartBodyContext context) =>
+        TryTakeKey(decoAccess, element.Key, firstArg, context, out var key)
+            ? key is null ? element : element with { Key = key }
+            : null;
+
+    /// <summary>
+    /// Records a <c>.Key</c> on <paramref name="component"/>, or reports why it cannot be recorded. The
+    /// element arm's twin, on the same rules; see <see cref="TryTakeKey"/>, which holds them.
+    /// </summary>
+    private static ComponentTemplateNode? ClassifyComponentKey(
+        MemberAccessExpressionSyntax paramAccess,
+        ComponentTemplateNode component,
+        ArgumentSyntax keyArg,
+        ViewPartBodyContext context) =>
+        TryTakeKey(paramAccess, component.Key, keyArg, context, out var key)
+            ? key is null ? component : component with { Key = key }
+            : null;
+
+    /// <summary>
+    /// Reads the key a <c>.Key</c> writes, reporting BCF3033 when the node already carries one.
+    /// <see langword="false"/> means reported and rejected; <see langword="true"/> with a
+    /// <see langword="null"/> <paramref name="key"/> means the author declined it.
+    /// </summary>
+    /// <remarks>
+    /// One implementation for the element and component arms because it is one rule: the receiver decides
+    /// which node the key lands on and nothing else about it. Both spellings lower to the same
+    /// <c>SetKey</c>, so a rule that read differently on one of them would be a difference the generated
+    /// code cannot express.
+    /// </remarks>
+    /// <param name="access">The decoration's member access, which the report anchors at.</param>
+    /// <param name="existing">The key the node already holds, if any.</param>
+    private static bool TryTakeKey(
+        MemberAccessExpressionSyntax access,
+        ExpressionTemplate? existing,
+        ArgumentSyntax argument,
+        ViewPartBodyContext context,
+        out ExpressionTemplate? key)
     {
-        if (element.Key is not null)
+        key = null;
+
+        // Ahead of the decline below, so `.Key(a).Key(null)` is the duplicate it is rather than a silent
+        // retraction of the first key. Writing null says "no key here"; it does not unwrite one.
+        if (existing is not null)
         {
-            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.RejectUnresolvedValueRecovery(access.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3033,
-                decoAccess.Name.GetLocation(),
-                [decoAccess.Name.Identifier.ValueText]));
-            return null;
+                access.Name.GetLocation(),
+                [access.Name.Identifier.ValueText]));
+            return false;
         }
 
-        var key = ExpressionTemplateFactory.Create(firstArg.Expression, context);
-        return key.Constant is NullConstant ? element : element with { Key = key };
+        // The test is on the built template's constant rather than on the syntax, so `.Key(null)` and a
+        // `const object? None = null` reach the same answer. A non-constant expression that happens to
+        // evaluate to null is not this case: the call is emitted, and SetKey ignores a null at runtime.
+        var written = ExpressionTemplateFactory.Create(argument.Expression, context);
+        if (written.Constant is not NullConstant)
+            key = written;
+
+        return true;
     }
 
     /// <summary>
@@ -1815,7 +1872,8 @@ internal static class RenderExpressionAnalyzer
 
         // Value, then {name}Changed, then {name}Expression: the order Razor emits, and the order the
         // sequence numbers have to follow, since they stand for source positions in one expression.
-        return new ComponentTemplateNode(inner.TypeName, parameters, inner.Slots);
+        // A `with` for the reason AppendParameter gives.
+        return inner with { Parameters = parameters };
     }
 
     /// <summary>
@@ -2653,11 +2711,12 @@ internal static class RenderExpressionAnalyzer
         RenderTemplateNode content,
         ComponentSlotKind kind = ComponentSlotKind.NonGeneric,
         string? contextTypeName = null) =>
-        new(
-            inner.TypeName,
-            inner.Parameters,
-            inner.Slots.AsImmutableArray().Add(
-                new ComponentSlot(name, content) { Kind = kind, ContextTypeName = contextTypeName }));
+        // A `with` for the reason AppendParameter gives: the channels this call does not touch survive it.
+        inner with
+        {
+            Slots = inner.Slots.AsImmutableArray().Add(
+                new ComponentSlot(name, content) { Kind = kind, ContextTypeName = contextTypeName }),
+        };
 
     /// <summary>
     /// Succeeds only when <paramref name="selector"/> is <c>p =&gt; p.Property</c>, a member access whose

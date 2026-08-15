@@ -124,7 +124,14 @@ internal sealed record ComponentSlot(string Name, RenderTemplateNode Content)
 internal sealed record ComponentTemplateNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlot> Slots = default) : RenderTemplateNode;
+    EquatableArray<ComponentSlot> Slots = default) : RenderTemplateNode
+{
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/>. The same channel
+    /// <see cref="ElementTemplateNode.Key"/> holds, on the same <c>SetKey</c> (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Key { get; init; }
+}
 
 internal sealed record EventTemplate(string Name, ExpressionTemplate Handler);
 

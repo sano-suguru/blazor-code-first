@@ -991,6 +991,32 @@ internal static class DiagnosticDescriptors
                 + "metadata, not enumerated by this compiler.");
 
     /// <summary>
+    /// BCF3032: A keyed <c>ForEach</c> whose content root keys itself with <c>.Key</c>.
+    /// </summary>
+    /// <remarks>
+    /// The loop applies its key to the content root's frame, and the root's own decoration applies to that
+    /// same frame. Two <c>SetKey</c> calls on one frame, of which the second wins, so the key the author
+    /// reads as authoritative depends on emission order rather than on anything at the call site.
+    /// <para>
+    /// Sibling of BCF3003 and resolved from the same walk: that one fires when the root can carry no key
+    /// at all, this one when it already carries one. The two cannot both fire on one loop, because a root
+    /// with nowhere to put a <c>SetKey</c> also has nowhere to write a <c>.Key</c>.
+    /// </para>
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3032 = new(
+        id: "BCF3032",
+        title: "ForEach content root is keyed twice",
+        messageFormat: "this ForEach applies a key to a content root that already writes its own .Key; remove one of the two",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A ForEach key is applied to the content root's element or component frame, which is the frame "
+                + "a .Key on that root writes to as well. SetKey overwrites, so one of the two keys is "
+                + "dead, and which one depends on the order the frames are emitted in. Key the root or key "
+                + "the loop, not both.");
+
+    /// <summary>
     /// BCF3033: The same non-attribute frame decoration is written twice on one element or component.
     /// </summary>
     /// <remarks>

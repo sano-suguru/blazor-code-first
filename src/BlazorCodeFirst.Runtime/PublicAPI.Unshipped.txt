@@ -175,3 +175,4 @@ BlazorCodeFirst.ComponentView<TComponent>.Bind<TValue>(System.Func<TComponent, T
 BlazorCodeFirst.CompilerServices.ViewRuntime
 static BlazorCodeFirst.CompilerServices.ViewRuntime.FragmentOf(BlazorCodeFirst.View view) -> Microsoft.AspNetCore.Components.RenderFragment?
 static BlazorCodeFirst.Decorations.Key(this BlazorCodeFirst.ElementView element, object? value) -> BlazorCodeFirst.ElementView
+BlazorCodeFirst.ComponentView<TComponent>.Key(object? value) -> BlazorCodeFirst.ComponentView<TComponent>

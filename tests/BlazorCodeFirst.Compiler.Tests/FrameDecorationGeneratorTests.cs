@@ -93,6 +93,102 @@ public sealed class FrameDecorationGeneratorTests
         Assert.Contains(diagnostics, d => d.Id == "BCF3033");
     }
 
+    [Fact]
+    public void Key_OnComponent_EmitsSetKeyBeforeTheParameters()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public class Row : ComponentBase
+            {
+                [Parameter] public string? Label { get; set; }
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                private int _id = 3;
+                protected override View Body =>
+                    Html.Component<Row>().Key(_id).Param(c => c.Label, "x");
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenComponent<global::Row>(0)", generated);
+        Assert.Contains("__builder.SetKey(_id)", generated);
+
+        // The parameter keeps seq 1: SetKey took no number here either.
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Key_WrittenAfterAParameter_ReachesTheSameComponent()
+    {
+        // .Key selects no parameter, so it has to survive the chain in either order.
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public class Row : ComponentBase
+            {
+                [Parameter] public string? Label { get; set; }
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                private int _id = 3;
+                protected override View Body =>
+                    Html.Component<Row>().Param(c => c.Label, "x").Key(_id);
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.SetKey(_id)", generated);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void KeyOnAKeyedForEachContentRoot_ReportsBCF3032()
+    {
+        var diagnostics = CompilationTestHost.RunGenerator("""
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = ["a"];
+                protected override View Body =>
+                    Html.ForEach(_items, i => i, i => Html.Div.Key(i)[i]);
+            }
+            """).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3032");
+    }
+
+    [Fact]
+    public void KeyOnADeclinedForEachContentRoot_IsAccepted()
+    {
+        // key: null attaches nothing, so the root's own key is the only one and there is no collision.
+        // The rule BCF3003 follows for the same reason (#172), on the other half of the same walk.
+        var result = CompilationTestHost.RunGenerator("""
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = ["a"];
+                protected override View Body =>
+                    Html.ForEach(_items, null, i => Html.Div.Key(i)[i]);
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF3032" or "BCF3003");
+        Assert.Contains("__builder.SetKey(", Assert.Single(result.GeneratedSources).SourceText.ToString());
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

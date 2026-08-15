@@ -121,6 +121,30 @@ public readonly struct ComponentView<TComponent>
         System.Func<TValue, System.Threading.Tasks.Task> set) => this;
 
     /// <summary>
+    /// Design-time syntax giving the component a key, which is Razor's <c>@key</c>: the value Blazor's
+    /// diff uses to decide which frame of the previous render this component is, independently of the
+    /// sequence number that says where in the template it was written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Declared here rather than in <see cref="Decorations"/> because a component's builder is this type
+    /// and not <c>ElementView</c>. The name is deliberately the one the element decoration carries: Razor
+    /// spells both <c>@key</c>, and splitting the name would end the mirror at exactly the point the two
+    /// receivers behave identically. It lowers to the same <c>SetKey</c>, which writes into the open
+    /// component frame rather than appending one, so it consumes no sequence number and the parameters
+    /// after it keep the numbers they would have had (<c>ARCHITECTURE.md</c> §2.7(E)).
+    /// </para>
+    /// <para>
+    /// A key written as the literal <see langword="null"/> declines the key rather than setting one, and
+    /// writing this on the content root of a keyed <c>ForEach</c> is BCF3032. Both rules are the element
+    /// decoration's, unchanged.
+    /// </para>
+    /// </remarks>
+    /// <param name="value">The key; any expression. A literal <see langword="null"/> declines the key.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Key(object? value) => this;
+
+    /// <summary>
     /// Design-time syntax binding <paramref name="children"/> to the component's <c>ChildContent</c>
     /// parameter, mirroring how Razor binds nested content.
     /// </summary>

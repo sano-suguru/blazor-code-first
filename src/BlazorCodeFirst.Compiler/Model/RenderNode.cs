@@ -64,7 +64,15 @@ internal sealed record ComponentSlotNode(string Name, RenderNode Content)
 internal sealed record ComponentNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode;
+    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode
+{
+    /// <summary>
+    /// The key written with <c>.Key</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ComponentTemplateNode.Key"/>; emitted as <c>SetKey</c> immediately after the component
+    /// opens, consuming no sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? Key { get; init; }
+}
 
 /// <summary>An HTML element: tag, folded class channel, attributes, event list, and mixed children.</summary>
 internal sealed record ElementNode(

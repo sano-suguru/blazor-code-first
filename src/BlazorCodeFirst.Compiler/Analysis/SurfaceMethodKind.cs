@@ -92,4 +92,11 @@ internal enum SurfaceMethodKind
     /// to <c>SetKey</c> rather than to an attribute frame (<c>ARCHITECTURE.md</c> §2.7(E)).
     /// </summary>
     Key,
+
+    /// <summary>
+    /// <c>ComponentView&lt;T&gt;.Key(object?)</c>. The same channel as <see cref="Key"/> on the same
+    /// <c>SetKey</c>, and a member of its own because the receiver decides which node the classification
+    /// arm has to reach for: an <c>ElementTemplateNode</c> there, a <c>ComponentTemplateNode</c> here.
+    /// </summary>
+    ComponentKey,
 }

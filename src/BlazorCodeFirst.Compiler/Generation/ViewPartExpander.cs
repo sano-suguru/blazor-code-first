@@ -171,7 +171,10 @@ internal static class ViewPartExpander
                     }
 
                     return new ComponentNode(
-                        component.TypeName, parameters.ToImmutable(), slots.ToImmutable());
+                        component.TypeName, parameters.ToImmutable(), slots.ToImmutable())
+                    {
+                        Key = component.Key?.Substitute(substitution),
+                    };
                 }
 
             case TextContentTemplateNode text:
@@ -550,7 +553,11 @@ internal static class ViewPartExpander
     {
         ExpansionNode expansion => IsKeyableRoot(expansion.Body),
         TransplantedBlockNode transplanted => IsKeyableRoot(transplanted.Content),
-        ComponentNode or ElementNode => true,
+        // A root that keys itself is not keyable by the loop: the second SetKey would overwrite the first.
+        // BCF3032 refuses that pair at the template layer, so reaching here with one means the two layers
+        // have drifted, and this is the layer whose default is to answer no.
+        ComponentNode component => component.Key is null,
+        ElementNode element => element.Key is null,
         _ => false,
     };
 
