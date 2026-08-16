@@ -30,10 +30,9 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// that never appeared is the one the argument rests on.
 /// </para>
 /// <para>
-/// A generator diagnostic does survive that cutoff, since BCF1003 was delivered in the very same build,
-/// so a
-/// BlazorCodeFirst diagnostic is the only vehicle that reaches the author, and BCF3008 is the one that says
-/// what is actually wrong. Without this scanner the author is told instead that the expression "uses a
+/// A generator diagnostic does survive that cutoff, since BCF1003 was delivered in the very same build, so
+/// a BlazorCodeFirst diagnostic is the only vehicle that reaches the author, and BCF3008 is the one that
+/// says what is actually wrong. Without this scanner the author is told instead that the expression "uses a
 /// construct that is not statically analyzable", which is both generic and untrue: the construct is
 /// perfectly analyzable, and only the attributes' position is wrong.
 /// </para>

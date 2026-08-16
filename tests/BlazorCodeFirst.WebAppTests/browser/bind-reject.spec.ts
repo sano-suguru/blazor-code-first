@@ -49,11 +49,6 @@ test.describe('a value the converter rejects is reverted in the DOM', () => {
 
   /**
    * The consequence an author meets, and the reason the site documentation tells them to weigh
-   * `onchange` against `oninput` for a numeric binding: with `oninput` the reversion runs on every
-   * keystroke, so a decimal point never survives long enough to be followed by digits.
-   */
-  /**
-   * The consequence an author meets, and the reason the site documentation tells them to weigh
    * `onchange` against `oninput` for a numeric binding: on `oninput` the reversion runs per keystroke,
    * so a decimal point never survives being typed into an int binding.
    *

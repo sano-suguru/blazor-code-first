@@ -132,10 +132,11 @@ public sealed class KeyabilityResolverTests
         var forEach = new ForEachTemplateNode(
             Lit("_items"),
             Lit("__bcf_item_0"),
-            new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null),   // region-rooted content
-                                                                         // Not `default`: a default TemplateLocation has a null FilePath, and reporting BCF3003 calls
-                                                                         // ToLocation() -> Location.Create(filePath: null, …) which throws ArgumentNullException.
-                                                                         // Every existing case in this file uses this same spelling.
+            // region-rooted content
+            new IfTemplateNode(Lit("true"), Span(Lit("\"x\"")), null),
+            // Not `default`: a default TemplateLocation has a null FilePath, and reporting BCF3003 calls
+            // ToLocation() -> Location.Create(filePath: null, …) which throws ArgumentNullException.
+            // Every existing case in this file uses this same spelling.
             new TemplateLocation("f", default, default));
 
         var node = new ComponentTemplateNode(
