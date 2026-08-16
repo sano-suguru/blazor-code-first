@@ -197,6 +197,12 @@ a reader sees.
 Paste the new hash by hand after revising. There is no `--update-hashes` flag, deliberately: it
 would let a stamp land without a revision behind it.
 
+Wrap the body to the same column as the rest of the tree. A soft line break renders as a space, so
+DocGen drops the one that falls between two CJK characters and keeps the one beside a Latin word, a
+number, or a code span: a wrapped Japanese sentence reaches the reader as it was written, and the
+spaces this edition sets around an inline `<code>` survive. A hard break (two trailing spaces) is
+still a `<br>`. `MarkdownConverterTests` holds each of those boundaries.
+
 ### Shell text
 
 Every language that has documents declares a `shell.yml` beside them, the English edition included

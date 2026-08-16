@@ -57,6 +57,10 @@ public static class MarkdownConverter
 
         var document = Markdig.Markdown.Parse(markdown, Pipeline);
 
+        // Runs for both overloads, unguarded: how a wrapped line reaches the reader is a property of
+        // the text, not one of the body rules, and a fragment is read by the same eyes as a document.
+        AstRewriter.JoinCjkSoftLineBreaks(document);
+
         if (knownSlugs is not null && fileName is not null && routePrefix is not null)
         {
             MarkdownBodyRules.EnsureNoTopLevelHeading(document, fileName);
