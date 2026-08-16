@@ -17,8 +17,15 @@ namespace BlazorCodeFirst.Site.Pages;
 /// language — so a page whose repeating unit is a pair says it before any sentence does.
 ///
 /// Nothing here is a mock. The figures are the surface's real spelling, the generated frames are the
-/// ones ARCHITECTURE.md §2.4 documents, and the build error is BCF3016's message as the compiler
-/// reports it.
+/// ones ARCHITECTURE.md §2.4 documents, the build error is BCF3016's message as the compiler reports
+/// it, and the first pair's output half is what rendering its left half actually produces
+/// (FigureTests).
+///
+/// The hero carries no figure. The pair under it is the first thing the page shows, because the
+/// correspondence a reader needs first is the one between the expression and the HTML — not the one
+/// between the expression and the frames, which is the compiler's question and comes second. The
+/// page ran for a while without that pair at all, which left it arguing a correspondence it never
+/// exhibited.
 /// </remarks>
 [Route("/")]
 public sealed partial class Home : BodyComponentBase
@@ -35,36 +42,46 @@ public sealed partial class Home : BodyComponentBase
             Component<PageTitle>()["BlazorCodeFirst"],
             Div.Class("shell")[
                 Section.Class("hero")[
+                    H1.Class("hero-title")["Write Blazor UI as plain C#"],
+                    P.Class("hero-lede")[
+                        "An ordinary Blazor component, written in the language the rest of the app is "
+                            + "written in."],
+                    Div.Class("hero-actions")[
+                        Div.Class("install")[
+                            Code[InstallCommand],
+                            Button
+                                .Class("install-copy")
+                                .Attr("type", "button")
+                                .Attr("aria-label", "Copy the install command")
+                                .OnClick(() => CopyInstallCommandAsync())[
+                                    _copied ? "Copied" : "Copy"]],
+                        A.Href("/docs/getting-started").Class("chip chip--primary")["Get started"]]],
+
+                // The correspondence a reader needs first, before any claim about what the build
+                // does with it. Full width: two code columns need the measure.
+                Section.Class("split split--wide")[
                     Div[
-                        H1.Class("hero-title")["Write Blazor UI as plain C#"],
-                        P.Class("hero-lede")[
-                            "A design-time Body expression becomes a RenderTreeBuilder method at compile "
-                                + "time. No runtime UI tree, no reflection, no expression compilation — the "
-                                + "result is an ordinary Blazor component."],
-                        Div.Class("hero-actions")[
-                            Div.Class("install")[
-                                Code[InstallCommand],
-                                Button
-                                    .Class("install-copy")
-                                    .Attr("type", "button")
-                                    .Attr("aria-label", "Copy the install command")
-                                    .OnClick(() => CopyInstallCommandAsync())[
-                                        _copied ? "Copied" : "Copy"]],
-                            A.Href("/docs/getting-started").Class("chip chip--primary")["Get started"]]],
-                    Figure.Class("figure")[
-                        Figcaption["Pages/Home.cs", Em["surface"]],
-                        CodeSamples.Component()]],
+                        H2.Class("split-title")["The expression names the HTML it produces"],
+                        P.Class("split-body")[
+                            "Attributes chain onto the element, children go in brackets, and a bare string "
+                                + "is a text node."]],
+                    Div.Class("pair")[
+                        Figure.Class("figure")[
+                            Figcaption["What you write", Em["C#"]],
+                            CodeSamples.Surface()],
+                        Figure.Class("figure")[
+                            Figcaption["What it renders", Em["HTML"]],
+                            CodeSamples.SurfaceOutput()]]],
 
                 // What the compiler does with it. Full width: two code columns need the measure.
                 Section.Class("split split--wide")[
                     Div[
                         H2.Class("split-title")["The expression does not survive the build"],
                         P.Class("split-body")[
-                            "The generator translates the expression into an override of RenderView on the "
-                                + "same partial class, and the design-time API it was written with is "
-                                + "unreachable at runtime — the IL trimmer removes it. Adjacent constants "
-                                + "fold, so the class channel below costs one attribute frame no matter how "
-                                + "many times it is written."]],
+                            "The generator translates it into a RenderView override on the same partial "
+                                + "class, and the IL trimmer removes the design-time API it was written "
+                                + "with. Adjacent constants fold, so the class channel below costs one "
+                                + "attribute frame."]],
                     Div.Class("pair")[
                         Figure.Class("figure")[
                             Figcaption["What you write", Em["design time"]],
@@ -73,49 +90,13 @@ public sealed partial class Home : BodyComponentBase
                             Figcaption["What it compiles to", Em["generated"]],
                             CodeSamples.Generated()]]],
 
-                Section.Class("split")[
-                    Div[
-                        H2.Class("split-title")["Three stages, all before the app runs"],
-                        P.Class("split-body")[
-                            "Nothing in this sequence happens in the browser. Sequence numbers are assigned "
-                                + "at emit time and are stable against the syntax, which is what lets Blazor "
-                                + "diff the result."]],
-                    // The index sits above its heading, never beside it. A number in a narrow left
-                    // column with the heading to its right is the single most recognisable
-                    // templated-editorial shape there is, and this is the only numbered section on
-                    // the site precisely because the order here is load-bearing.
-                    Ol.Class("steps")[
-                        Li.Class("step")[
-                            Span.Class("step-index")["1.0"],
-                            H3.Class("step-title")["Read the expression"],
-                            P.Class("step-note")[
-                                "The Body or Chrome getter is classified against the statically "
-                                    + "sequenceable subset."]],
-                        Li.Class("step")[
-                            Span.Class("step-index")["2.0"],
-                            H3.Class("step-title")["Fold what is constant"],
-                            P.Class("step-note")[
-                                "Runs of constant siblings collapse into a single markup frame, and the "
-                                    + "class channel joins into one attribute."]],
-                        Li.Class("step")[
-                            Span.Class("step-index")["3.0"],
-                            H3.Class("step-title")["Emit RenderView"],
-                            P.Class("step-note")[
-                                "A partial-class override of RenderView, called from the base "
-                                    + "BuildRenderTree like any other component."]]]],
-
                 // Reversed: the failure is the evidence, so it takes the left half at wide widths.
                 Section.Class("split split--flip")[
                     Div[
                         H2.Class("split-title")["Some HTML that parses is still wrong"],
                         P.Class("split-body")[
-                            "A void element with children serializes a closing tag under static SSR, and the "
-                                + "HTML parser pushes those children out to siblings. Interactive rendering "
-                                + "has no parser in the way and keeps them inside, so the prerendered page "
-                                + "and the hydrated one disagree."],
-                        P.Class("split-body")[
-                            "The build refuses it by name rather than letting the two disagree in "
-                                + "production."]],
+                            "A void element with children prerenders one DOM tree and hydrates another, so "
+                                + "the build refuses it by name."]],
                     Figure.Class("figure")[
                         Figcaption["dotnet build", Em["error"]],
                         CodeSamples.Diagnostic()]],
@@ -124,8 +105,7 @@ public sealed partial class Home : BodyComponentBase
                     Div[
                         H2.Class("split-title")["Read the guide"],
                         P.Class("split-body")[
-                            "The surface is small enough to read end to end. Start with installation and the "
-                                + "first component."]],
+                            "The surface is small enough to read end to end."]],
                     Ul.Class("index-list")[
                         ForEach(
                             Docs.ForLang(Docs.Canonical),

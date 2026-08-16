@@ -86,10 +86,13 @@ public static class ColorCodeTheme
         Repaint(styles, ScopeName.XmlDocTag, palette.Comment);
         Repaint(styles, ScopeName.ClassName, palette.Neutral);
 
-        // The output half of a figure. Corresponding things take the same colour as the C# half --
-        // <div> reads as Div does, and an attribute value as the string literal it came from -- so
-        // the pair is read as one correspondence rather than as two languages. HTML has no keyword,
-        // so the accent stays reserved for one.
+        // The output half of a figure, mapped onto the roles the C# half already uses so the two
+        // are read as one correspondence rather than as two languages. An element name takes the
+        // neutral, which is what an element helper takes on the other side -- Section and H1 match
+        // no highlighter scope, so they render in the slab's own ink -- and an attribute value takes
+        // the literal its string came from. HTML has no keyword, so the accent stays reserved for
+        // one. Same role, not the same hex: the two halves of a pair sit on slabs that declare
+        // opposite color-schemes, so each resolves the pair's light-dark() on its own surface.
         //
         // The operator is the '=' between an attribute's name and its value, which the highlighter
         // scopes separately from both. It is punctuation, so it goes with the delimiters; left
