@@ -29,13 +29,10 @@ That is also why the shape is fenced in by diagnostics. Every channel that names
 selector lambda answers to them — `.Param`, `.Template`, and the component `.Bind` alike, not
 `.Param` alone:
 
-- The selector must be a plain property selection. A cast, a method call, or a member of a
-  captured variable reports BCF3005, because none of those name a property the generator can emit
-  a setter for.
-- The target must be a settable `[Parameter]` property, or BCF3006 is reported. Blazor would
-  otherwise throw at runtime, so the rejection is moved to compile time.
-- Binding the same property twice reports BCF3007, whichever channels the two bindings came from.
-  Blazor applies only the last value, so the earlier binding would silently die.
+- The selector must be a plain property selection ([BCF3005](./diagnostics.md#bcf3005)).
+- The target must be a settable `[Parameter]` property ([BCF3006](./diagnostics.md#bcf3006)).
+- Each property is bound at most once per chain, counting every channel
+  ([BCF3007](./diagnostics.md#bcf3007)).
 
 ## Passing child content
 
@@ -50,7 +47,7 @@ protected override View Body =>
 ```
 
 This requires `Card` to have a settable `[Parameter]` named `ChildContent` of a fragment type;
-otherwise BCF3013 is reported. A `RenderFragment<TContext>` counts: the brackets bind it with the
+otherwise [BCF3013](./diagnostics.md#bcf3013) is reported. A `RenderFragment<TContext>` counts: the brackets bind it with the
 context discarded, because there is no name inside brackets to read a context through. A generic
 fragment under any *other* name is named with `.Template` instead — see
 [Generic fragment parameters](#generic-fragment-parameters) below.
@@ -69,7 +66,7 @@ protected override View Body =>
 
 Naming `ChildContent` through `.Param` is also legal. That is verbose, but it matches Razor's
 attribute form (`<Card><ChildContent>...</ChildContent></Card>`). Binding the same parameter
-through both channels reports BCF3007.
+through both channels reports [BCF3007](./diagnostics.md#bcf3007).
 
 A real `RenderFragment` value (as opposed to a BlazorCodeFirst `View` expression) still binds
 through the generic `.Param<TValue>` overload and is emitted verbatim.
@@ -77,7 +74,8 @@ through the generic `.Param<TValue>` overload and is emitted verbatim.
 Which overload runs is decided by the target parameter's type: a `RenderFragment?` parameter takes
 the content overload, everything else takes the generic one. So content aimed at a parameter that is
 not a `RenderFragment` lands on the generic overload, which emits its value verbatim — and the
-runtime value of a design-time expression is an empty marker. That reports BCF3014:
+runtime value of a design-time expression is an empty marker. That reports
+[BCF3014](./diagnostics.md#bcf3014):
 
 ```csharp
 [Parameter] public object? Payload { get; set; }
@@ -85,14 +83,11 @@ runtime value of a design-time expression is an empty marker. That reports BCF30
 Component<Card>().Param(c => c.Payload, Div["x"])   // BCF3014
 ```
 
-Without the diagnostic the failure is either invisible or late. An `object`-typed parameter accepts
-the marker with no exception at all and renders wrong output; a typed parameter throws an invalid
-cast while Blazor applies parameters. `View`, `ElementView`, `ComponentView<T>` and `SlotView` are
-all reported the same way. To pass content, give the receiving component a `RenderFragment`
-parameter.
+`View`, `ElementView`, `ComponentView<T>` and `SlotView` are all reported the same way. To pass
+content, give the receiving component a `RenderFragment` parameter.
 
 For unresolved type names inside parameter values, see
-[Values copied into generated code](./getting-started.md#values-copied-into-generated-code).
+[BCF3015](./diagnostics.md#bcf3015).
 
 ## Generic fragment parameters
 
@@ -160,7 +155,7 @@ is yours to choose; the generated code uses a name of its own and rewrites the p
 it, so a field that happens to share the name is not disturbed.
 
 The second argument must be an inline lambda. A method group, or a delegate held in a variable or
-field, reports **BCF3022**: what gets copied into the generated code is the lambda's body syntax, and
+field, reports [BCF3022](./diagnostics.md#bcf3022): what gets copied into the generated code is the lambda's body syntax, and
 a delegate whose declaration is elsewhere has no body to copy.
 
 If you already hold a `RenderFragment<TContext>` *value*, pass it through the scalar
@@ -196,7 +191,7 @@ One restriction applies, and it is the first wall most authors hit. The type arg
 the generated code as a literal `OpenComponent<T>`, so it has to resolve while the generator runs.
 The Razor compiler is itself a source generator, and source generators cannot observe each other's
 output. A `.razor` component declared in the *same project* therefore does not exist yet when
-BlazorCodeFirst's generator runs, and naming it reports **BCF3012**.
+BlazorCodeFirst's generator runs, and naming it reports [BCF3012](./diagnostics.md#bcf3012).
 
 There are two ways around it:
 
@@ -393,7 +388,7 @@ The caller's content reaches `Card.ChildContent`, by the rule
 
 Two rules are worth knowing. A `SlotView` part must name `Slot` **exactly once**: naming it twice
 would emit the caller's content twice from one bracket, and never naming it would discard content the
-caller was required to supply. Either reports **BCF3025**, as does a `Slot` written anywhere that
+caller was required to supply. Either reports [BCF3025](./diagnostics.md#bcf3025), as does a `Slot` written anywhere that
 receives no caller content — a component's own `Body`, or a part returning `View`.
 
 A `View` parameter, by contrast, may be referenced any number of times, because it is an ordinary
@@ -403,7 +398,7 @@ argument with side effects runs once per reference. That is the same behaviour a
 
 Both kinds are content, though, and content has no value: it becomes frames, not an expression. So a
 slot can only be *placed* as a child. Reading one where a value is expected — as a `ForEach` key, or
-inside an attribute value — reports **BCF1002**.
+inside an attribute value — reports [BCF1002](./diagnostics.md#bcf1002).
 
 That is the whole trade-off, dimension by dimension:
 
@@ -450,7 +445,7 @@ If you need the part in another project, make it a component and use it through 
 
 BCF1002 is not only the `[ViewPart]` diagnostic. A component's own `Body` and a layout's `Chrome` are
 normalized through the same check, and a report from there names the expression rather than a method
-— see [what the class has to be](./getting-started.md#what-the-class-has-to-be).
+— see [BCF1002](./diagnostics.md#bcf1002).
 
 ## Next
 
