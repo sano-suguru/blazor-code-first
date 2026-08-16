@@ -270,4 +270,73 @@ public sealed class BodyTransplantTests
                 && !result.Diagnostics.Any(d => d.Id == "BCF1003"),
             $"{shape}: expected BCF1004 alone, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
     }
+
+    /// <summary>
+    /// The reserved name declared in the returned expression rather than in a leading statement, in each
+    /// getter spelling that reaches one. The returned expression is transplanted like the statements are,
+    /// so the same names are reserved there; the scan used to run over the block alone, which left three
+    /// of the four spellings unchecked and the collision to surface as C# errors inside the generated file
+    /// (#389).
+    /// </summary>
+    [Theory]
+    [InlineData("property expression body", """=> If(Title is string __builder, () => Span["x"]);""")]
+    [InlineData(
+        "accessor expression body",
+        """
+        {
+                get => If(Title is string __builder, () => Span["x"]);
+            }
+        """)]
+    [InlineData(
+        "block that is only its return",
+        """
+        {
+                get
+                {
+                    return If(Title is string __builder, () => Span["x"]);
+                }
+            }
+        """)]
+    public void Body_WhenTheReturnedExpressionDeclaresTheBuildersName_ReportsBCF1004(
+        string shape, string getter)
+    {
+        var result = Run(getter);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.True(
+            result.Diagnostics.Any(d => d.Id == "BCF1004"),
+            $"{shape}: expected BCF1004, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
+    }
+
+    /// <summary>
+    /// The same name declared inside an <c>If</c> branch, which is a lambda the getter's own scan stops at
+    /// because a lambda's body belongs to whichever position accepts it. This is that position, and the
+    /// branch is transplanted under the author's names, so it asks the scan itself (#389).
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "property expression body",
+        """=> If(true, () => Span[Title is string __builder ? __builder : "x"]);""")]
+    [InlineData(
+        "block with a leading statement",
+        """
+        {
+                get
+                {
+                    var pad = "p";
+                    return If(true, () => Span[Title is string __builder ? __builder : pad]);
+                }
+            }
+        """)]
+    public void Body_WhenAnIfBranchDeclaresTheBuildersName_ReportsBCF1003(string shape, string getter)
+    {
+        var result = Run(getter);
+
+        Assert.Empty(result.GeneratedSources);
+        // BCF1003 rather than BCF1004: the refusal comes from the branch, and that is the expression the
+        // author has to change.
+        Assert.True(
+            result.Diagnostics.Any(d => d.Id == "BCF1003"),
+            $"{shape}: expected BCF1003, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
+    }
 }

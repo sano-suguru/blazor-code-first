@@ -133,4 +133,17 @@ public sealed class ForEachTransplantTests
             result.Diagnostics.Any(d => d.Id == "BCF3004"),
             $"{shape}: expected BCF3004, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
     }
+
+    [Fact]
+    public void ForEachContent_WhenAnExpressionBodiedLambdaDeclaresTheBuildersName_ReportsBCF3004()
+    {
+        // An expression-bodied content lambda is transplanted into the generated loop with the author's
+        // names kept, exactly as a block-bodied one is, so it holds the same reserved set. The scan reached
+        // only the block arm, and this shape emitted the collision instead (#389).
+        var result = Run("""x => Html.Span[x is string __builder ? __builder : "x"]""");
+
+        Assert.True(
+            result.Diagnostics.Any(d => d.Id == "BCF3004"),
+            $"expected BCF3004, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
+    }
 }
