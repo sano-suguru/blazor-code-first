@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -66,8 +65,8 @@ public sealed partial class LandingPageFigureTests
         var result = CompilationTestHost.RunGenerator(source);
         CompilationTestHost.AssertOutputCompiles(result);
 
-        var emitted = BuilderCalls(Assert.Single(result.GeneratedSources).SourceText.ToString());
-        var figure = BuilderCalls(ReadSnippet("generated.cs"));
+        var emitted = BuilderCalls.InTextOrder(Assert.Single(result.GeneratedSources).SourceText.ToString());
+        var figure = BuilderCalls.InTextOrder(ReadSnippet("generated.cs"));
 
         // Equal counts alone would report two empty figures as agreement, and a guard that reports
         // nothing to compare as agreement is worse than no guard.
@@ -145,27 +144,6 @@ public sealed partial class LandingPageFigureTests
         File.ReadAllText(Path.Combine(SiteDirectory, "snippets", fileName))
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Trim();
-
-    /// <summary>
-    /// The <c>__builder</c> calls in <paramref name="text"/>, in order and with their indentation
-    /// dropped. A line that is neither a call nor commentary fails here rather than being skipped:
-    /// silently ignoring a line the figure grew is how a frame stops being compared.
-    /// </summary>
-    private static ImmutableArray<string> BuilderCalls(string text)
-    {
-        var calls = ImmutableArray.CreateBuilder<string>();
-
-        foreach (var line in text.Split('\n').Select(static line => line.Trim()))
-        {
-            if (line.Length == 0 || line.StartsWith("//", StringComparison.Ordinal))
-                continue;
-
-            if (line.StartsWith("__builder.", StringComparison.Ordinal))
-                calls.Add(line);
-        }
-
-        return calls.ToImmutable();
-    }
 
     /// <summary>
     /// Asserts that <paramref name="actual"/> is what <paramref name="shown"/> shows, where a

@@ -46,6 +46,35 @@ public sealed class ViewPartContentGeneratorTests
         }
         """;
 
+    /// <summary>
+    /// The one position the other sources here never put a slot in: a component's brackets rather than
+    /// an element's, which is how a part that names a component call takes content.
+    /// </summary>
+    private const string ComponentSlotSource = """
+        using BlazorCodeFirst;
+        using Microsoft.AspNetCore.Components;
+        using static BlazorCodeFirst.Html;
+
+        public partial class Card : BodyComponentBase
+        {
+            [Parameter] public string Title { get; set; } = "";
+            [Parameter] public RenderFragment? ChildContent { get; set; }
+
+            protected override View Body => Div.Class("card")[Fragment(ChildContent)];
+        }
+
+        public partial class C : BodyComponentBase
+        {
+            private string _title => "Profile";
+            private string _body => "text";
+
+            [ViewPart] private static SlotView Framed(string title) =>
+                Component<Card>().Param(c => c.Title, title)[Slot];
+
+            protected override View Body => Framed(_title)[P[_body]];
+        }
+        """;
+
     private const string MultipleChildrenSource = """
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
@@ -152,6 +181,30 @@ public sealed class ViewPartContentGeneratorTests
         // The value argument still becomes a typed local; only content skips that.
         Assert.Contains("__bcf_arg_0_0 = _title;", generated);
         Assert.Contains("__builder.AddContent(3, __bcf_arg_0_0)", generated);
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ContentTakingViewPart_WhoseSlotSitsInAComponentsBrackets_FillsThatComponentsChildContent()
+    {
+        var result = CompilationTestHost.RunGenerator(ComponentSlotSource);
+        var generated = Assert.Single(
+            result.GeneratedSources.Where(static source => source.HintName == "C.g.cs"))
+            .SourceText.ToString();
+
+        Assert.Contains("__builder.OpenComponent<global::Card>(0);", generated);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Title\", __bcf_arg_0_0)", generated);
+
+        // The caller's content reaches the component the way any bracketed content does, through the
+        // ChildContent fragment the emitter writes.
+        Assert.Contains(
+            "__builder.AddComponentParameter(2, \"ChildContent\", " +
+            "(global::Microsoft.AspNetCore.Components.RenderFragment)",
+            generated);
+        Assert.Contains("__builder.OpenElement(3, \"p\")", generated);
+        Assert.Contains("__builder.AddContent(4, _body)", generated);
 
         CompilationTestHost.AssertNoDiagnostics(result);
         CompilationTestHost.AssertOutputCompiles(result);

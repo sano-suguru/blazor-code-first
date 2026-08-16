@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -8,24 +7,34 @@ using System.Text.RegularExpressions;
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
-/// Holds §Naming a component call in <c>site/content/components-and-reuse.md</c> to the compiler
-/// (#169). The passage tells a reader that a <c>[ViewPart]</c> whose body is a component call gives
-/// that call a name, and it makes four claims about what happens next: the expansion renders what
-/// writing the call out twice renders, the selector rules are reported at the part rather than at
-/// each call, the component named may come from another assembly while the part may not, and a
-/// <c>SlotView</c> part may put its caller's content in a component's brackets.
+/// Holds the two claims §Naming a component call in <c>site/content/components-and-reuse.md</c> makes
+/// about this compiler (#169): its figure renders what writing the component call out twice renders,
+/// and the component a part names may come from another assembly even though the part may not.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The figure is read from the published document rather than restated here, on the same grounds as
-/// <see cref="LandingPageFigureTests"/> and <see cref="PackageReadmeTests"/>: a figure a reader is
-/// invited to compile is only checked if the file they read is the file that is compiled.
+/// <see cref="LandingPageFigureTests"/> and <see cref="PackageReadmeTests"/>: a figure that claims
+/// what the compiler emits is only checked if the file a reader reads is the file that is compiled.
 /// <c>site/</c> is outside <c>BlazorCodeFirst.slnx</c> and cannot reference the compiler, so the
-/// assertion lives on this side of that boundary.
+/// assertion lives on this side of that boundary. The section's other figures make no such claim and
+/// are read the way every other example on the page is — by a person.
+/// </para>
+/// <para>
+/// The passage says two further things that are general compiler behaviour rather than claims about
+/// its own figure, and both are held where that behaviour lives:
+/// <c>ComponentInteropTests.Component_ParamInsideAViewPartCalledTwice_ReportsOnceAtThePart</c> and
+/// <c>ViewPartContentGeneratorTests.ContentTakingViewPart_WhoseSlotSitsInAComponentsBrackets_FillsThatComponentsChildContent</c>.
+/// A later rewrite of the prose must not be able to take either with it.
+/// </para>
 /// </remarks>
 public sealed partial class NamedComponentCallTests
 {
     private static readonly string DocumentPath = Path.Combine(
         GeneratedSourceSnapshot.FindRepositoryRoot(), "site", "content", "components-and-reuse.md");
+
+    /// <summary>The section whose figure this holds to the compiler.</summary>
+    private const string Heading = "### Naming a component call";
 
     /// <summary>
     /// What the figure leaves out: the usings every example on the page shares, and the component it
@@ -68,7 +77,7 @@ public sealed partial class NamedComponentCallTests
     [Fact]
     public void TheFigure_RendersWhatWritingTheComponentCallTwiceRenders()
     {
-        var figure = ReadFigure("### Naming a component call");
+        var figure = ReadFigure();
 
         var named = CompilationTestHost.RunGenerator(Surroundings + figure);
         CompilationTestHost.AssertNoDiagnostics(named);
@@ -90,59 +99,6 @@ public sealed partial class NamedComponentCallTests
             expected.SequenceEqual(actual),
             "The figure does not render what writing the component call twice renders.\n\n" +
             $"by hand:\n{string.Join("\n", expected)}\n\nfigure:\n{string.Join("\n", actual)}");
-    }
-
-    /// <summary>
-    /// A part is checked once, where its selector is written. The two rows are the two rules the
-    /// passage names, and each part is called twice, which is what separates "reported at the
-    /// declaration" from "reported at every call site".
-    /// </summary>
-    [Theory]
-    [InlineData(".Param(b => b.Tooltip, label)", "BCF3006")]
-    [InlineData(".Param(b => b.Label, label)\n            .Param(b => b.Label, label)", "BCF3007")]
-    public void ASelectorRuleTheNamedCallBreaks_IsReportedOnceAtThePart(string bindings, string id)
-    {
-        // Its own badge rather than the figure's: BCF3006 needs a settable property that is not a
-        // [Parameter], and the figure is compiled against a component carrying only what it binds.
-        var source = $$"""
-            using BlazorCodeFirst;
-            using Microsoft.AspNetCore.Components;
-            using static BlazorCodeFirst.Html;
-
-            public partial class Badge : BodyComponentBase
-            {
-                [Parameter] public string Label { get; set; } = "";
-                public string Tooltip { get; set; } = "";
-
-                protected override View Body => Span[Label];
-            }
-
-            public static class Widgets
-            {
-                [ViewPart]
-                public static View Named(string label) =>
-                    Component<Badge>()
-                        {{bindings}};
-            }
-
-            public partial class Dashboard : BodyComponentBase
-            {
-                protected override View Body =>
-                    Div[Widgets.Named("hello"), Widgets.Named("x")];
-            }
-            """;
-
-        var result = CompilationTestHost.RunGenerator(source);
-
-        var reported = Assert.Single(result.Diagnostics);
-        Assert.Equal(id, reported.Id);
-
-        var line = source
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Split('\n')[reported.Location.GetLineSpan().StartLinePosition.Line]
-            .Trim();
-
-        Assert.StartsWith(".Param(", line, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -205,75 +161,31 @@ public sealed partial class NamedComponentCallTests
     }
 
     /// <summary>
-    /// §Wrapping content's last figure: a <c>Slot</c> in a component's brackets, which is the one
-    /// position the content-slot examples otherwise never put it in.
+    /// The figure the passage is written around: the first <c>csharp</c> fence under
+    /// <see cref="Heading"/>. A heading that no longer exists, or a section that no longer opens with
+    /// a figure, fails here rather than silently compiling some other page's code.
     /// </summary>
-    [Fact]
-    public void ASlotInAComponentsBrackets_ReachesThatComponentsChildContent()
-    {
-        const string source = """
-            using BlazorCodeFirst;
-            using Microsoft.AspNetCore.Components;
-            using static BlazorCodeFirst.Html;
-
-            public partial class Card : BodyComponentBase
-            {
-                [Parameter] public string Title { get; set; } = "";
-                [Parameter] public RenderFragment? ChildContent { get; set; }
-
-                protected override View Body => Div[Fragment(ChildContent)];
-            }
-
-            public partial class Dashboard : BodyComponentBase
-            {
-                protected override View Body => Div[Framed("Profile")[P["Body text"]]];
-
-                [ViewPart]
-                private static SlotView Framed(string title) =>
-                    Component<Card>().Param(c => c.Title, title)[Slot];
-            }
-            """;
-
-        var result = CompilationTestHost.RunGenerator(source);
-
-        CompilationTestHost.AssertNoDiagnostics(result);
-        CompilationTestHost.AssertOutputCompiles(result);
-
-        var generated = result.GeneratedSources
-            .Single(source => source.HintName == "Dashboard.g.cs")
-            .SourceText.ToString();
-
-        Assert.Contains("__builder.OpenComponent<global::Card>(1);", generated);
-        Assert.Contains("\"ChildContent\", (global::Microsoft.AspNetCore.Components.RenderFragment)", generated);
-        Assert.Contains("<p>Body text</p>", generated);
-    }
-
-    /// <summary>
-    /// The first <c>csharp</c> fence under <paramref name="heading"/>, which is the figure the passage
-    /// is written around. A heading that no longer exists, or a section that no longer opens with a
-    /// figure, fails here rather than silently compiling some other page's code.
-    /// </summary>
-    private static string ReadFigure(string heading)
+    private static string ReadFigure()
     {
         var document = File.ReadAllText(DocumentPath).Replace("\r\n", "\n", StringComparison.Ordinal);
 
-        var headingIndex = document.IndexOf("\n" + heading + "\n", StringComparison.Ordinal);
+        var headingIndex = document.IndexOf("\n" + Heading + "\n", StringComparison.Ordinal);
         Assert.True(
             headingIndex >= 0,
-            $"site/content/components-and-reuse.md has no '{heading}' heading. The passage this test " +
+            $"site/content/components-and-reuse.md has no '{Heading}' heading. The passage this test " +
             "holds to the compiler moved; point it at wherever it lives now.");
 
         const string Fence = "\n```csharp\n";
         var open = document.IndexOf(Fence, headingIndex, StringComparison.Ordinal);
-        var next = document.IndexOf("\n#", headingIndex + heading.Length, StringComparison.Ordinal);
+        var next = document.IndexOf("\n#", headingIndex + Heading.Length, StringComparison.Ordinal);
 
         Assert.True(
             open >= 0 && (next < 0 || open < next),
-            $"'{heading}' no longer opens with a C# figure, so there is nothing to compile.");
+            $"'{Heading}' no longer opens with a C# figure, so there is nothing to compile.");
 
         var content = open + Fence.Length;
         var close = document.IndexOf("\n```", content, StringComparison.Ordinal);
-        Assert.True(close >= 0, $"The figure under '{heading}' has an unterminated fence.");
+        Assert.True(close >= 0, $"The figure under '{Heading}' has an unterminated fence.");
 
         return document[content..close];
     }
@@ -295,31 +207,25 @@ public sealed partial class NamedComponentCallTests
     /// </summary>
     private static ImmutableArray<string> Frames(string generated)
     {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        var frames = ImmutableArray.CreateBuilder<string>();
+        var values = ArgumentLocal().Matches(generated)
+            .ToDictionary(
+                static local => local.Groups["name"].Value,
+                static local => local.Groups["value"].Value,
+                StringComparer.Ordinal);
 
-        foreach (var line in generated
-                     .Replace("\r\n", "\n", StringComparison.Ordinal)
-                     .Split('\n')
-                     .Select(static line => line.Trim()))
-        {
-            if (ArgumentLocal().Match(line) is { Success: true } local)
-            {
-                values[local.Groups["name"].Value] = local.Groups["value"].Value;
-                continue;
-            }
-
-            if (line.StartsWith("__builder.", StringComparison.Ordinal))
-                frames.Add(ArgumentName().Replace(line, match => values.TryGetValue(match.Value, out var value)
-                    ? value
-                    : match.Value));
-        }
-
-        return frames.ToImmutable();
+        return
+        [
+            .. BuilderCalls.InTextOrder(generated)
+                .Select(line => ArgumentName().Replace(
+                    line,
+                    match => values.TryGetValue(match.Value, out var value) ? value : match.Value)),
+        ];
     }
 
     /// <summary>The local an expansion binds one argument to, declared ahead of the frames it feeds.</summary>
-    [GeneratedRegex(@"^[\w\.<>\[\]?:]+ (?<name>__bcf_arg_\d+_\d+) = (?<value>.+);$", RegexOptions.ExplicitCapture)]
+    [GeneratedRegex(
+        @"^[^\S\n]*[\w\.<>\[\]?:]+ (?<name>__bcf_arg_\d+_\d+) = (?<value>[^\r\n]+);[^\S\n]*$",
+        RegexOptions.Multiline | RegexOptions.ExplicitCapture)]
     private static partial Regex ArgumentLocal();
 
     [GeneratedRegex(@"__bcf_arg_\d+_\d+")]
