@@ -9,10 +9,13 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// BCF3038: an event modifier the event's own <c>[EventHandler]</c> registration disables.
 /// </summary>
 /// <remarks>
-/// Every arm of this diagnostic consults the registration table, which needs
-/// <c>Microsoft.AspNetCore.Components.Web</c>, so these run against the default compilation that
-/// references it. The one arm that does not is <see cref="StopPropagation_WithoutComponentsWeb_IsSilent"/>,
-/// which is what makes "reported" here mean the table was read rather than that anything was analyzed.
+/// Every arm of this diagnostic consults a registration, and most of these ask about one the framework
+/// ships, so they run against the default compilation that references
+/// <c>Microsoft.AspNetCore.Components.Web</c>. The pair that does not —
+/// <see cref="StopPropagation_WithoutComponentsWeb_IsSilent"/> and
+/// <see cref="StopPropagation_OnASourceRegistration_WithoutComponentsWeb_IsReported"/> — is what makes
+/// "reported" here mean a registration was read rather than that anything was analyzed, and what
+/// separates the two tables (#396).
 /// </remarks>
 public sealed class EventModifierSupportDiagnosticTests
 {
@@ -117,13 +120,15 @@ public sealed class EventModifierSupportDiagnosticTests
     }
 
     /// <summary>
-    /// A compilation that cannot see the table skips the check in silence rather than reporting.
+    /// A compilation that cannot see the framework's registrations skips the check in silence for an
+    /// event only they name, rather than reporting.
     /// </summary>
     /// <remarks>
     /// Paired with <see cref="StopPropagation_WithComponentsWeb_IsReported"/>, which runs the very same
     /// source with that one reference present. Without the pair, "no diagnostic" would hold just as well if
-    /// the body had never been analyzed. Every arm of BCF3038 reads the table, so this is the whole of its
-    /// behaviour without one.
+    /// the body had never been analyzed. <c>oncancel</c> is a framework registration, and
+    /// <see cref="StopPropagation_OnASourceRegistration_WithoutComponentsWeb_IsReported"/> is the same
+    /// compilation reporting on one the compilation declares itself (#396).
     /// </remarks>
     [Fact]
     public void StopPropagation_WithoutComponentsWeb_IsSilent()
@@ -140,6 +145,41 @@ public sealed class EventModifierSupportDiagnosticTests
     {
         var result = CompilationTestHost.RunGenerator(
             CompilationTestHost.CreateCompilation(WebFreeHost));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3038");
+    }
+
+    /// <summary>
+    /// An author's own registration is read without <c>Components.Web</c>, so the modifier it refuses is
+    /// reported there too (#396).
+    /// </summary>
+    /// <remarks>
+    /// The two-argument constructor is the whole of the case: it declares neither flag, so this event
+    /// refuses both modifiers, and a compilation with no framework table beside it still has this one to
+    /// disagree with.
+    /// </remarks>
+    [Fact]
+    public void StopPropagation_OnASourceRegistration_WithoutComponentsWeb_IsReported()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            CompilationTestHost.CreateCompilationWithoutComponentsWeb(
+                ("Host.cs", """
+                    using System;
+                    using BlazorCodeFirst;
+                    using Microsoft.AspNetCore.Components;
+                    using static BlazorCodeFirst.Html;
+
+                    namespace T;
+
+                    [EventHandler("oncustom", typeof(EventArgs))]
+                    public static class CustomHandlers;
+
+                    public partial class Host : BodyComponentBase
+                    {
+                        private void Go() { }
+                        protected override View Body => Div.On("oncustom", Go).StopPropagation();
+                    }
+                    """)));
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3038");
     }

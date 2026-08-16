@@ -9,18 +9,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- BCF3038 has no arm that works without this assembly: every one of them reads the [EventHandler]
-         registrations, which KnownSymbols gates on Microsoft.AspNetCore.Components.Web being resolvable.
-         So the shape cannot be delivered from a project that does not reference it (#369).
+    <!-- Bcf3038.cs asks about oncancel, one of the two framework registrations that disable
+         stopPropagation, and those ship here. Since #396 a registration the compilation declares itself is
+         read without this assembly, so a fixture spelling BCF3038 that way would not need it; oncancel is
+         kept because it is the shape an author actually meets, and the custom-registration path is pinned
+         in-process by EventModifierSupportDiagnosticTests.
 
          Referencing it here rather than adding a fifth fixture project, because a real consumer has it:
          BlazorCodeFirst.WebAppTestHost builds on Microsoft.NET.Sdk.Web and the WasmPackageApp gets it
          through Components.WebAssembly, so this is a step toward what this fixture claims to be and not
-         away from it. The cost is that a real build no longer covers the branch where the table is absent
-         and the check is skipped in silence; EventModifierSupportDiagnosticTests and
-         EventArgumentTypeDiagnosticTests cover that in-process, through
-         CompilationTestHost.CreateCompilationWithoutComponentsWeb. The alternative that would have avoided
-         this reference is recorded where its own reader is, on KnownSymbols' mappingAvailable gate. -->
+         away from it. The cost is that a real build no longer covers the branch where the framework table
+         is absent; EventModifierSupportDiagnosticTests and EventArgumentTypeDiagnosticTests cover that
+         in-process, through CompilationTestHost.CreateCompilationWithoutComponentsWeb (#369). -->
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
   </ItemGroup>
 

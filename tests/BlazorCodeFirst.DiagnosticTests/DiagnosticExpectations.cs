@@ -219,9 +219,9 @@ public static class DiagnosticExpectations
                 "the body. Measured on #155, the author's whole list was CS0534 and a BCF1003 saying the " +
                 "expression is not statically analyzable. The other shape, a handler whose type merely " +
                 "disagrees with the event's [EventHandler] mapping, binds and raises no C# error at all, " +
-                "so it has no delivery claim of its own; it is covered in-process, where a reference to " +
-                "Microsoft.AspNetCore.Components.Web supplies the mapping this fixture does not have. " +
-                "Anchors the handler, because the parameter type written there is what has to change."),
+                "so it has no delivery claim of its own; it is covered in-process, against both tables " +
+                "the mapping is read from. Anchors the handler, because the parameter type written there " +
+                "is what has to change."),
         new(
             "BCF3029",
             FixtureKind.AnalyzerViaProjectReference,
@@ -305,10 +305,11 @@ public static class DiagnosticExpectations
             "error",
             "Bcf3038.cs",
             "StopPropagation",
-            Note: "The only shape this diagnostic has, rather than one of several: every arm reads the "
-                + "[EventHandler] registrations. That is also why this fixture project references "
-                + "Microsoft.AspNetCore.Components.Web, which BCF3028's own note used to record it as "
-                + "lacking."),
+            Note: "The only shape this diagnostic has, rather than one of several: every arm reads an "
+                + "[EventHandler] registration. The one here is a framework registration, which is why "
+                + "this fixture project references Microsoft.AspNetCore.Components.Web; since #396 a "
+                + "registration the compilation declares itself is read without it, and that path is "
+                + "pinned in-process rather than by a second fixture."),
     ];
 
     /// <summary>
