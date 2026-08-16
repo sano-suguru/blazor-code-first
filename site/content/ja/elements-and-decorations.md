@@ -1,7 +1,7 @@
 ---
 title: 要素と装飾
 order: 20
-source-hash: e990908d
+source-hash: a54e521a
 ---
 
 BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素の名前が、そのまま出力される要素
@@ -56,12 +56,18 @@ BCF3009 を報告します。`Element` はタグをリテラルの `OpenElement`
 宣言的であることです。計算されたタグは、インジェクションの危険でも順序付けの問題でもありません。
 ただ、書いた場所で要素が自分の名前を名乗らなくなるだけです。
 
+定数の綴りも、タグ名の形である必要があります。先頭がASCII英字、以降はASCII英数字・`-`・`_`・`.`
+です。要素が名乗れない綴りは、2つの経路が別のものを描画し、そのどちらも書いたとおりになりません。
+プリレンダはマークアップへ書き出すため、HTMLパーサが別のものとして読み直します。interactive描画は
+`createElement` に渡すため、拒否されて回路ごと落ちます。
+
 ```csharp
 private const string Widget = "my-widget";
 
 Element(Widget)                  // これでよい
 Element(_kind + "-widget")       // BCF3009
 Element("")                      // BCF3009。タグは空にできない
+Element("my widget")             // BCF3009。タグ名の綴りでない
 ```
 
 ## 子に置けるもの

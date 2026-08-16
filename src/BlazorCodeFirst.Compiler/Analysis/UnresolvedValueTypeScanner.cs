@@ -372,7 +372,8 @@ internal static class UnresolvedValueTypeScanner
 
     /// <summary>
     /// Whether <paramref name="receiver"/> resolves through its decoration chain to an
-    /// <c>Element(tag)</c> call whose tag is not a non-empty constant string, the shape BCF3009 rejects.
+    /// <c>Element(tag)</c> call whose tag BCF3009 rejects, whether for not being a constant string or for
+    /// not being spelled like a tag name.
     /// </summary>
     /// <remarks>
     /// The chain is unwound rather than inspected at the top, because decorations sit between the element
@@ -404,7 +405,7 @@ internal static class UnresolvedValueTypeScanner
                 // evidence of a rejected tag, and answering true on one would suppress the children's
                 // diagnostics on nothing.
                 return BindArguments(invocation, method, context)?.At(0)?.Expression is { } tag
-                    && !IsNonEmptyConstantString(tag, context);
+                    && !ElementTag.TryResolve(tag, context, out _);
             }
 
             if (!IsElementDecoration(kind))
@@ -606,6 +607,11 @@ internal static class UnresolvedValueTypeScanner
             ExpressionTemplateFactory.TryCreateNameofConstant(invocation, context) is not null
                 && invocation.ArgumentList.Span.Contains(name.Span));
 
+    /// <summary>
+    /// The name half of BCF3011, which stops at non-empty. The tag half is
+    /// <see cref="ElementTag.TryResolve"/>, and the two are separate because the two diagnostics ask
+    /// different questions: a <c>.Attr</c> name is not held to a tag name's spelling.
+    /// </summary>
     private static bool IsNonEmptyConstantString(ExpressionSyntax? expression, ViewPartBodyContext context) =>
         expression is not null
         && context.SemanticModel.GetConstantValue(expression, context.CancellationToken) is

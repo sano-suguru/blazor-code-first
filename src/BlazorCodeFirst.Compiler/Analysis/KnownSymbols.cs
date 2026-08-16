@@ -368,6 +368,47 @@ internal sealed class KnownSymbols
     /// <summary>The void tags, for <c>KnownSymbolsSyncTests</c> to hold against its own transcription.</summary>
     public static IReadOnlyCollection<string> VoidTags => VoidTagSet;
 
+    /// <summary>
+    /// Whether <paramref name="tag"/> is spelled like a name an element can have: an ASCII letter,
+    /// then ASCII letters, digits, hyphen, underscore or period. The condition BCF3009 adds to the
+    /// constant one, and a character class rather than a table, so it stays on this side of
+    /// <c>DESIGN.md</c> §4.1's boundary.
+    /// </summary>
+    /// <remarks>
+    /// Inside the intersection of what the two render paths accept, not the union. HTML's tokenizer
+    /// takes almost anything that is not whitespace, <c>/</c> or <c>&gt;</c>, while the interactive
+    /// path goes through <c>createElement</c> and takes the XML <c>Name</c> production. A tag one of
+    /// them accepts and the other does not is what makes them disagree rather than merely render
+    /// something unusual (#394). The leading character is where they differ most: XML admits a leading
+    /// <c>_</c>, but HTML's tokenizer needs an ASCII letter to open a tag at all, so <c>&lt;_x&gt;</c>
+    /// prerenders as text and hydrates as an element.
+    /// <para>
+    /// Deliberately ASCII, for the reason <c>StaticMarkupSerializer.IsCustomElementName</c> gives:
+    /// both productions admit a wide range of non-ASCII characters, and refusing an exotic name costs
+    /// a spelling nobody writes. Uppercase stays admitted, since both paths lower it to the same
+    /// element and <see cref="IsVoidTag"/> already records that <c>Element("IMG")</c> is emitted as
+    /// written.
+    /// </para>
+    /// </remarks>
+    public static bool IsValidTagName(string tag)
+    {
+        if (tag.Length == 0 || !IsAsciiLetter(tag[0]))
+            return false;
+
+        for (var index = 1; index < tag.Length; index++)
+        {
+            if (tag[index] is not ((>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9')
+                or '-' or '_' or '.'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAsciiLetter(char c) => c is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z');
+
     /// <summary>Named attribute shortcut method name → attribute name.</summary>
     private static readonly Dictionary<string, string> AttributeShortcutNames = new(System.StringComparer.Ordinal)
     {
