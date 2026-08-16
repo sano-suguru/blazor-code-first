@@ -155,6 +155,14 @@ internal sealed class KnownSymbols
 
     private readonly System.Lazy<INamedTypeSymbol?> _renderModeAttributeType;
 
+    /// <summary>
+    /// Resolved <c>Microsoft.AspNetCore.Components.EventCallbackFactory</c>, the type
+    /// <c>EventCallback.Factory</c> hands back, read only through
+    /// <see cref="IsEventCallbackFactoryMethod"/>. Lazy for the reason
+    /// <see cref="_renderModeAttributeType"/> gives.
+    /// </summary>
+    private readonly System.Lazy<INamedTypeSymbol?> _eventCallbackFactoryType;
+
     private readonly Dictionary<ISymbol, SurfaceMethodKind> _surfaceMethods;
 
     /// <summary>
@@ -496,6 +504,38 @@ internal sealed class KnownSymbols
         Matches(Normalize(method), EnumerableSelect);
 
     /// <summary>
+    /// Whether <paramref name="method"/> is declared on <c>EventCallbackFactory</c>, the type
+    /// <c>EventCallback.Factory</c> hands back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The type rather than a member of it, which is what lets one comparison answer for every overload —
+    /// thirteen in <c>Microsoft.AspNetCore.Components</c> 10.0, eleven <c>Create</c> and two
+    /// <c>CreateInferred</c>, differing in the callback's shape — without this file enumerating a
+    /// framework's overload set. Nothing else is declared there that a delegate can be written into: every
+    /// parameter of every one of them is the receiver, the callback, or the value <c>CreateInferred</c>
+    /// carries after it. That is also why the comparison is against the type and not against a parameter
+    /// position: <c>CreateInferred</c>'s callback is not its last parameter, so the rule the capture
+    /// channel uses one file over would answer differently on two members of one type. The caller in
+    /// <c>RenderMutationAnalyzer</c> can therefore read this as "the delegate is stored, not invoked"
+    /// without naming a parameter role, where the surface's own channels have to name one (#221).
+    /// </para>
+    /// <para>
+    /// <c>CreateBinder</c> is not covered: it is an extension method declared on
+    /// <c>EventCallbackFactoryBinderExtensions</c>, so it answers <see langword="false"/> here. Its setter
+    /// is as deferred as a callback is, and exempting it is a decision waiting on someone writing one by
+    /// hand — the surface's own <c>.Bind</c> is what an author reaches for, and Razor writes the binder
+    /// call itself.
+    /// </para>
+    /// <para>
+    /// Answers <see langword="false"/> when the type cannot be resolved, which degrades the way every
+    /// other lookup here does.
+    /// </para>
+    /// </remarks>
+    public bool IsEventCallbackFactoryMethod(IMethodSymbol method) =>
+        Matches(method.ContainingType, _eventCallbackFactoryType.Value);
+
+    /// <summary>
     /// The projection overload of <c>Enumerable.Select</c>, or <see langword="null"/> when it cannot be
     /// resolved.
     /// </summary>
@@ -724,6 +764,9 @@ internal sealed class KnownSymbols
         // and share one display class, so this retains nothing the other did not already retain.
         _renderModeAttributeType = new System.Lazy<INamedTypeSymbol?>(() =>
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderModeAttribute"));
+
+        _eventCallbackFactoryType = new System.Lazy<INamedTypeSymbol?>(() =>
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallbackFactory"));
 
         _formatBindableTypes = new System.Lazy<HashSet<ITypeSymbol>>(() =>
             compilation.GetTypeByMetadataName(
