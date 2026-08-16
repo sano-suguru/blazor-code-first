@@ -17,8 +17,9 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// The initial detectable boundary covers statically identifiable direct writes: field assignments,
 /// property assignments, and increment/decrement operators whose target is an instance member of the
 /// containing component. The recognized deferred event handlers — the handler argument of an event
-/// decoration (<c>.OnClick(...)</c> or <c>.On(...)</c>), and the setter argument of a two-way
-/// <c>.Bind(...)</c> call — are excluded because state mutations there are the correct
+/// decoration (<c>.OnClick(...)</c> or <c>.On(...)</c>), the setter argument of a two-way
+/// <c>.Bind(...)</c> call, and the value of a component's <c>.Param(...)</c>, which the child invokes
+/// when it raises the callback — are excluded because state mutations there are the correct
 /// location for imperative state transitions and execute after rendering, not during it. The getter
 /// argument of a <c>.Bind(...)</c> call is not exempt: it is evaluated while the frames are built, so
 /// a mutation there is still a one-way-flow break. A mutation is exempt when <em>any</em> enclosing
@@ -30,7 +31,11 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// Which calls those are is asked of <see cref="Analysis.KnownSymbols.ClassifySurfaceMethod"/> — the one
 /// place the compiler records what a surface method is — rather than decided from the method's name here.
 /// A decoration this compiler does not recognize therefore cannot claim the exemption by sharing a name
-/// with one that is (#194).
+/// with one that is (#194). One deferred position is not a surface method at all: a handler written for a
+/// component's <c>EventCallback</c> parameter sits inside <c>EventCallback.Factory.Create</c>, which is
+/// Blazor's call. That one is asked of
+/// <see cref="Analysis.KnownSymbols.IsEventCallbackFactoryMethod"/>, so the spelling is still resolved
+/// against a symbol there rather than matched by name here (#385).
 /// </para>
 /// <para>
 /// The classification decides <em>whether</em> a method may carry a deferred delegate; it does not decide
@@ -255,9 +260,10 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="anonymousFunction"/> is a deferred handler
     /// argument: the handler of an event decoration (a named event shortcut such as <c>.OnClick(...)</c>,
-    /// or <c>.On(...)</c>), or the setter of a two-way <c>.Bind(...)</c> — the element decoration
+    /// or <c>.On(...)</c>), the setter of a two-way <c>.Bind(...)</c> — the element decoration
     /// <c>Decorations.Bind(...)</c> or the component decoration
-    /// <c>ComponentView&lt;TComponent&gt;.Bind(...)</c>.
+    /// <c>ComponentView&lt;TComponent&gt;.Bind(...)</c> — a capture action, the value of a component's
+    /// <c>.Param(...)</c>, or the callback of an <c>EventCallback.Factory.Create</c>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -330,6 +336,16 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind =>
                 KnownSymbols.TryGetBindParameters(invocation.TargetMethod, out var bind)
                     && bind.IsSetter(argument.Parameter),
+            // A component parameter's value. The delegate written there is handed to the child, which
+            // invokes it when it raises the callback, so nothing invokes it while the parent's frames are
+            // built — the child-to-parent callback is the most common thing this channel carries (#385).
+            // The value is the second parameter, and it is there to be indexed: ScalarParam is classified
+            // from the parameter list itself, which answers None for any arity but two. The selector
+            // beside it names a parameter rather than carrying one, exactly as the component .Bind
+            // selector does, so a mutation written there is reported.
+            SurfaceMethodKind.ScalarParam =>
+                SymbolEqualityComparer.Default.Equals(
+                    argument.Parameter, invocation.TargetMethod.Parameters[1]),
             // A capture action runs when the captured reference changes, which is after the frames are
             // built, so assigning the captured value is deferred exactly as a handler's mutation is — and
             // it is the only thing the channel exists to do. No KnownSymbols reader answers which
@@ -341,6 +357,16 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
                     && SymbolEqualityComparer.Default.Equals(
                         argument.Parameter,
                         invocation.TargetMethod.Parameters[invocation.TargetMethod.Parameters.Length - 1]),
+            // Not a surface method, which is where the framework's own spelling of a handler lands:
+            // .Param(c => c.OnPicked, EventCallback.Factory.Create(this, () => _count++)) reaches here
+            // with Create in hand, and no arm above can match a call this surface does not declare. What
+            // the factory does with the delegate is store it, so the callback runs when the child raises
+            // the event, wherever the EventCallback it returns is written — which is why this asks about
+            // the call alone rather than walking back to the .Param value it is almost always written in
+            // (#385). Asked in this arm rather than ahead of the switch so a handler on a decoration is
+            // still answered by the classification alone, and never forces the factory's own lookup.
+            SurfaceMethodKind.None =>
+                knownSymbols.IsEventCallbackFactoryMethod(invocation.TargetMethod),
             _ => false,
         };
     }

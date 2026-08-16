@@ -635,6 +635,16 @@ public sealed class RenderMutationAnalyzerTests
                 [Microsoft.AspNetCore.Components.Parameter] public Probe? Self { get; set; }
                 [Microsoft.AspNetCore.Components.Parameter]
                 public Microsoft.AspNetCore.Components.EventCallback<Probe> SelfChanged { get; set; }
+
+                // The three shapes a .Param value takes in the child-to-parent callback (#385): a plain
+                // delegate, and the two EventCallback spellings. Label is the non-delegate parameter the
+                // selector and value tests need.
+                [Microsoft.AspNetCore.Components.Parameter] public System.Action? OnPlain { get; set; }
+                [Microsoft.AspNetCore.Components.Parameter]
+                public Microsoft.AspNetCore.Components.EventCallback OnPicked { get; set; }
+                [Microsoft.AspNetCore.Components.Parameter]
+                public Microsoft.AspNetCore.Components.EventCallback<string> OnPickedValue { get; set; }
+                [Microsoft.AspNetCore.Components.Parameter] public string Label { get; set; } = "";
             }
 
             public partial class Counter : BodyComponentBase
@@ -737,6 +747,132 @@ public sealed class RenderMutationAnalyzerTests
             private int _reads;
             protected override View Body =>
                 Html.Input.Bind("value", "oninput", () => (_reads++).ToString(), v => _name = v);
+            """;
+
+        AssertDiagnostic(body, "BCF3001");
+    }
+
+    // -----------------------------------------------------------------------
+    // .Param's value: the child-to-parent callback (#385). The delegate a component parameter carries
+    // is invoked by the child when it raises the callback, never while the parent's frames are built,
+    // so a mutation written in it is deferred exactly as a handler's is. The selector beside it is not
+    // a deferred position, for the reason the .Bind selector is not.
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void Param_PlainDelegateValueMutatingState_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private int _count;
+            protected override View Body =>
+                Html.Component<Probe>().Param(c => c.OnPlain, () => _count++);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>The value above in the <c>delegate</c> spelling, exempt for the reason #209 gives:
+    /// the compiler has already erased the difference between the two.</summary>
+    [Fact]
+    public void Param_PlainDelegateValueAsAnonymousMethod_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private int _count;
+            protected override View Body =>
+                Html.Component<Probe>().Param(c => c.OnPlain, delegate { _count++; });
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
+    /// The <c>EventCallback</c> spelling of the same handler. The lambda's enclosing invocation is
+    /// <c>EventCallback.Factory.Create</c>, a framework call rather than a surface method, so the
+    /// exemption cannot come from the surface classification alone.
+    /// </summary>
+    [Fact]
+    public void Param_EventCallbackFactoryCallbackMutatingState_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private int _count;
+            protected override View Body =>
+                Html.Component<Probe>().Param(
+                    c => c.OnPicked,
+                    Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => _count++));
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
+    /// The generic overload, whose callback takes the raised value. It pins that the exemption covers
+    /// <c>EventCallbackFactory</c>'s overloads rather than the one arity a single fixture happens to
+    /// spell.
+    /// </summary>
+    [Fact]
+    public void Param_GenericEventCallbackFactoryCallbackMutatingState_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private string _label = "";
+            protected override View Body =>
+                Html.Component<Probe>().Param(
+                    c => c.OnPickedValue,
+                    Microsoft.AspNetCore.Components.EventCallback.Factory.Create<string>(
+                        this, s => _label = s));
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
+    /// <c>CreateInferred</c>, whose callback is followed by the value rather than ending the parameter
+    /// list. It is exempt for the reason every other member of the factory is, and it is the member that
+    /// makes the comparison a type identity rather than a parameter position.
+    /// </summary>
+    [Fact]
+    public void Param_InferredEventCallbackFactoryCallbackMutatingState_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private string _label = "";
+            protected override View Body =>
+                Html.Component<Probe>().Param(
+                    c => c.OnPickedValue,
+                    Microsoft.AspNetCore.Components.EventCallback.Factory.CreateInferred(
+                        this, (string s) => _label = s, _label));
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
+    /// The selector names a parameter rather than carrying a value, so it is not a deferred position —
+    /// the same answer <c>Bind_ComponentSelectorMutatingState_ReportsBcf3001</c> gives one channel over.
+    /// </summary>
+    [Fact]
+    public void Param_SelectorMutatingState_ReportsBcf3001()
+    {
+        const string body = """
+            private bool _touched;
+            protected override View Body =>
+                Html.Component<Probe>().Param(c => { _touched = true; return c.Label; }, "x");
+            """;
+
+        AssertDiagnostic(body, "BCF3001");
+    }
+
+    /// <summary>
+    /// A lambda written inside the value but invoked while the frames are built is still reported. This
+    /// is what separates the exemption from the wider one #385 weighed and rejected, which would have
+    /// exempted every anonymous function enclosed by a <c>.Param</c> value wherever it was written.
+    /// </summary>
+    [Fact]
+    public void Param_NonDeferredLambdaInsideTheValue_StillReportsBcf3001()
+    {
+        const string body = """
+            private int _n;
+            private static string Read(System.Func<int> read) => read().ToString();
+            protected override View Body =>
+                Html.Component<Probe>().Param(c => c.Label, Read(() => _n++));
             """;
 
         AssertDiagnostic(body, "BCF3001");
