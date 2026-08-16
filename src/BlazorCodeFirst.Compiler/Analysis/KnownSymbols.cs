@@ -565,16 +565,17 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// The <c>[EventHandler]</c> registrations the framework ships, event name → argument type, resolved on
-    /// first use. Read before <see cref="_sourceEventArguments"/>: this table is the canonical one, and a
+    /// first use. Read before <see cref="_sourceEventRegistrations"/>: this table is the canonical one, and a
     /// compilation re-registering a name it already carries does not displace it.
     /// </summary>
     /// <remarks>
-    /// Lazy for cost rather than for correctness. A compilation that never writes <c>.On&lt;TArgs&gt;</c>
-    /// asks nothing of either table, and <see cref="System.Lazy{T}"/> rather than a null check because
+    /// Lazy for cost rather than for correctness. A compilation that writes neither a typed
+    /// <c>.On&lt;TArgs&gt;</c> nor an event modifier asks nothing of either table, and
+    /// <see cref="System.Lazy{T}"/> rather than a null check because
     /// <c>RenderMutationAnalyzer</c> resolves one instance at compilation-start and its per-node callbacks
     /// run concurrently against it.
     /// </remarks>
-    private readonly System.Lazy<Dictionary<string, INamedTypeSymbol>> _frameworkEventArguments;
+    private readonly System.Lazy<Dictionary<string, EventRegistration>> _frameworkEventRegistrations;
 
     /// <summary>
     /// The <c>[EventHandler]</c> registrations declared in the compilation being built, which is how a
@@ -587,7 +588,7 @@ internal sealed class KnownSymbols
     /// registration living in one goes unread and is recorded as residue (<c>ARCHITECTURE.md</c> 付録A
     /// BCF3028).
     /// </remarks>
-    private readonly System.Lazy<Dictionary<string, INamedTypeSymbol>> _sourceEventArguments;
+    private readonly System.Lazy<Dictionary<string, EventRegistration>> _sourceEventRegistrations;
 
     /// <summary>
     /// The value types the framework declares a format-taking <c>CreateBinder</c> overload for, which is
@@ -643,20 +644,26 @@ internal sealed class KnownSymbols
         // registrations that give an event name a meaning ship in Microsoft.AspNetCore.Components.Web. A
         // compilation without that assembly has no mapping to disagree with, so the check is skipped in
         // silence rather than reported (#155) -- and the walk below is then never paid either.
+        //
+        // Splitting the gate, so that the source-declared table needs only EventHandlerAttribute, was
+        // considered in #369 and rejected. It would let a compilation without Components.Web read an
+        // author's own registration, which is a change to what the shipped compiler reports and therefore
+        // #155's decision to revisit rather than a modifier diagnostic's. The fixture that needed the
+        // registrations references the assembly instead.
         var eventHandlerAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventHandlerAttribute");
         var eventHandlersType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.Web.EventHandlers");
         var mappingAvailable = eventHandlerAttributeType is not null && eventHandlersType is not null;
 
-        _frameworkEventArguments = new System.Lazy<Dictionary<string, INamedTypeSymbol>>(() =>
+        _frameworkEventRegistrations = new System.Lazy<Dictionary<string, EventRegistration>>(() =>
             mappingAvailable
-                ? CollectEventArguments(eventHandlersType!, eventHandlerAttributeType!)
+                ? CollectEventRegistrations(eventHandlersType!, eventHandlerAttributeType!)
                 : []);
 
-        _sourceEventArguments = new System.Lazy<Dictionary<string, INamedTypeSymbol>>(() =>
+        _sourceEventRegistrations = new System.Lazy<Dictionary<string, EventRegistration>>(() =>
             mappingAvailable
-                ? CollectEventArguments(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
+                ? CollectEventRegistrations(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
                 : []);
 
         // The lookup is inside the lambda, not beside it. This constructor runs once per [ViewPart] and
@@ -1385,18 +1392,71 @@ internal sealed class KnownSymbols
     /// </para>
     /// </remarks>
     public bool TryGetEventArgumentType(
-        string eventName, [MaybeNullWhen(false)] out INamedTypeSymbol argumentType) =>
-        _frameworkEventArguments.Value.TryGetValue(eventName, out argumentType)
-        || _sourceEventArguments.Value.TryGetValue(eventName, out argumentType);
+        string eventName, [MaybeNullWhen(false)] out INamedTypeSymbol argumentType)
+    {
+        argumentType = RegistrationFor(eventName)?.ArgumentType;
+        return argumentType is not null;
+    }
+
+    /// <summary>
+    /// Whether the event named <paramref name="eventName"/> has a registration that disables the modifier
+    /// <paramref name="kind"/> asks about, which is the condition BCF3038 reports.
+    /// </summary>
+    /// <remarks>
+    /// <see langword="false"/> where no registration answers, on the same terms BCF3028 states for its own
+    /// arm: this surface's event names are strings, and a name the table does not carry has nothing to
+    /// disagree with. A compilation that cannot see the table gets the same answer for every name, so the
+    /// check is skipped in silence rather than reporting everything. Which flag each modifier reads is
+    /// decided where the attribute is read, in <see cref="Collect"/>.
+    /// </remarks>
+    public bool RefusesEventModifier(string eventName, SurfaceMethodKind kind) =>
+        RegistrationFor(eventName) is { } registration
+        && !(kind == SurfaceMethodKind.PreventDefault
+            ? registration.EnablesPreventDefault
+            : registration.EnablesStopPropagation);
+
+    /// <summary>
+    /// The registration for <paramref name="eventName"/>, or <see langword="null"/> where neither table
+    /// carries the name. Nullable rather than <c>out</c> so that no caller can read a registration whose
+    /// <see cref="EventRegistration.ArgumentType"/> was never assigned.
+    /// </summary>
+    private EventRegistration? RegistrationFor(string eventName) =>
+        _frameworkEventRegistrations.Value.TryGetValue(eventName, out var registration)
+        || _sourceEventRegistrations.Value.TryGetValue(eventName, out registration)
+            ? registration
+            : null;
+
+    /// <summary>
+    /// One <c>[EventHandler]</c> registration: the argument type it delivers and the two modifier flags.
+    /// </summary>
+    /// <remarks>
+    /// A <see langword="struct"/> and not a class because <c>KnownSymbols</c> is constructed once per
+    /// component and per <c>[ViewPart]</c>, and the framework table it builds carries 96 entries; a
+    /// reference type would add that many heap allocations to every one of those runs. Not a
+    /// <see langword="record"/> struct: its synthesized <c>==</c> would compare
+    /// <see cref="ArgumentType"/> by reference rather than through <c>SymbolEqualityComparer</c>, and the
+    /// one place two registrations are compared (<see cref="Collect"/>) must not reach for it by accident.
+    /// </remarks>
+    private readonly struct EventRegistration(
+        INamedTypeSymbol argumentType,
+        bool enablesStopPropagation,
+        bool enablesPreventDefault)
+    {
+        public INamedTypeSymbol ArgumentType { get; } = argumentType;
+
+        public bool EnablesStopPropagation { get; } = enablesStopPropagation;
+
+        public bool EnablesPreventDefault { get; } = enablesPreventDefault;
+    }
 
     /// <summary>
     /// The <c>[EventHandler]</c> registrations on <paramref name="declaringType"/>, which is how the
     /// framework's table is declared: one attribute per event on a single otherwise empty class.
     /// </summary>
-    private static Dictionary<string, INamedTypeSymbol> CollectEventArguments(
+    private static Dictionary<string, EventRegistration> CollectEventRegistrations(
         INamedTypeSymbol declaringType, INamedTypeSymbol eventHandlerAttributeType)
     {
-        var registrations = new Dictionary<string, INamedTypeSymbol>(System.StringComparer.Ordinal);
+        var registrations = new Dictionary<string, EventRegistration>(System.StringComparer.Ordinal);
         var ambiguous = new HashSet<string>(System.StringComparer.Ordinal);
         Collect(declaringType, eventHandlerAttributeType, registrations, ambiguous);
         return registrations;
@@ -1406,10 +1466,10 @@ internal sealed class KnownSymbols
     /// The <c>[EventHandler]</c> registrations anywhere under <paramref name="root"/>, nested types
     /// included, which is where a consumer's own custom-event registration lives.
     /// </summary>
-    private static Dictionary<string, INamedTypeSymbol> CollectEventArguments(
+    private static Dictionary<string, EventRegistration> CollectEventRegistrations(
         INamespaceSymbol root, INamedTypeSymbol eventHandlerAttributeType)
     {
-        var registrations = new Dictionary<string, INamedTypeSymbol>(System.StringComparer.Ordinal);
+        var registrations = new Dictionary<string, EventRegistration>(System.StringComparer.Ordinal);
         var ambiguous = new HashSet<string>(System.StringComparer.Ordinal);
         CollectFromNamespace(root, eventHandlerAttributeType, registrations, ambiguous);
         return registrations;
@@ -1418,7 +1478,7 @@ internal sealed class KnownSymbols
     private static void CollectFromNamespace(
         INamespaceSymbol container,
         INamedTypeSymbol eventHandlerAttributeType,
-        Dictionary<string, INamedTypeSymbol> registrations,
+        Dictionary<string, EventRegistration> registrations,
         HashSet<string> ambiguous)
     {
         foreach (var member in container.GetMembers())
@@ -1438,7 +1498,7 @@ internal sealed class KnownSymbols
     private static void Collect(
         INamedTypeSymbol type,
         INamedTypeSymbol eventHandlerAttributeType,
-        Dictionary<string, INamedTypeSymbol> registrations,
+        Dictionary<string, EventRegistration> registrations,
         HashSet<string> ambiguous)
     {
         foreach (var attribute in type.GetAttributes())
@@ -1446,14 +1506,19 @@ internal sealed class KnownSymbols
             if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, eventHandlerAttributeType))
                 continue;
 
+            // Read once. ConstructorArguments is virtual and reloads lazy members on a metadata attribute,
+            // and this reads four positions out of it rather than the two it used to.
+            var arguments = attribute.ConstructorArguments;
+
             // Both constructors the attribute declares start with (attributeName, eventArgsType); the
-            // longer one adds the two propagation flags, which say nothing about the argument type. Read by
+            // longer one adds the two modifier flags, in the order (enableStopPropagation,
+            // enablePreventDefault) — the reverse of the intuitive one, measured on 10.0.10 (#369). Read by
             // position rather than by parameter name because that is what an attribute's constructor
-            // arguments are, and reject anything that does not have the two.
-            if (attribute.ConstructorArguments.Length < 2
-                || attribute.ConstructorArguments[0].Value is not string eventName
+            // arguments are, and reject anything that does not have the first two.
+            if (arguments.Length < 2
+                || arguments[0].Value is not string eventName
                 || eventName.Length == 0
-                || attribute.ConstructorArguments[1].Value is not INamedTypeSymbol argumentType)
+                || arguments[1].Value is not INamedTypeSymbol argumentType)
             {
                 continue;
             }
@@ -1461,17 +1526,31 @@ internal sealed class KnownSymbols
             if (ambiguous.Contains(eventName))
                 continue;
 
+            // The two-argument constructor declares neither flag, and Blazor reads the absent ones as
+            // false: a custom event registered with it refuses both modifiers until it is respelled.
+            var registration = new EventRegistration(
+                argumentType,
+                arguments.Length > 2 && arguments[2].Value is true,
+                arguments.Length > 3 && arguments[3].Value is true);
+
             if (registrations.TryGetValue(eventName, out var existing))
             {
-                if (SymbolEqualityComparer.Default.Equals(existing, argumentType))
+                // Compared whole rather than on the argument type alone. Two registrations of one name that
+                // agree on the type and disagree on a flag are as ambiguous as two that disagree on the
+                // type, and first-wins would answer one of the two by an order nobody wrote down.
+                if (SymbolEqualityComparer.Default.Equals(existing.ArgumentType, registration.ArgumentType)
+                    && existing.EnablesStopPropagation == registration.EnablesStopPropagation
+                    && existing.EnablesPreventDefault == registration.EnablesPreventDefault)
+                {
                     continue;
+                }
 
                 ambiguous.Add(eventName);
                 registrations.Remove(eventName);
                 continue;
             }
 
-            registrations[eventName] = argumentType;
+            registrations[eventName] = registration;
         }
 
         foreach (var nested in type.GetTypeMembers())

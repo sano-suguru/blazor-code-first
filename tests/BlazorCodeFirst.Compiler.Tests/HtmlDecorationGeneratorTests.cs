@@ -128,6 +128,7 @@ public sealed class HtmlDecorationGeneratorTests
             public partial class C : BodyComponentBase
             {
                 private bool _locked;
+                private string _text = "";
                 private ElementReference _el;
                 private void Zoom(WheelEventArgs e) { }
                 private System.Threading.Tasks.Task ZoomAsync(WheelEventArgs e) =>
@@ -272,5 +273,91 @@ public sealed class HtmlDecorationGeneratorTests
 
         Assert.Contains("__internal_preventDefault_onwheel", generated);
         Assert.DoesNotContain("__internal_preventDefault_onclick", generated);
+    }
+
+    /// <summary>
+    /// A modifier after a <c>.Bind</c> attaches to the binding's own event (#370).
+    /// </summary>
+    /// <remarks>
+    /// The sequence numbers are the assertion. A binding emits its attribute frame and then its event
+    /// frame, so a modifier that reached the binding's event is at 3; one that had folded into the
+    /// attribute channel, or attached to something else, could not be.
+    /// </remarks>
+    [Fact]
+    public void StopPropagation_AfterABind_AttachesToTheBindingsEvent()
+    {
+        var generated = GenerateWheel(
+            """Html.Input.Bind("value", "oninput", () => _text, v => _text = v).StopPropagation()""");
+
+        Assert.Contains("__builder.AddAttribute(1, \"value\", ", generated);
+        Assert.Contains("__builder.AddAttribute(2, \"oninput\", ", generated);
+        Assert.Contains("__builder.AddAttribute(3, \"__internal_stopPropagation_oninput\", true)", generated);
+    }
+
+    /// <summary>
+    /// With both channels carrying an event, the modifier reaches the one written nearest to its left.
+    /// </summary>
+    /// <remarks>
+    /// The silent defect BCF3037 was raised to replace, now asserted the other way round: reading the event
+    /// channel's tail here attaches the modifier to <c>onkeydown</c>, an event the author did not write it
+    /// after. Only the chain says which of the two came last.
+    /// </remarks>
+    [Fact]
+    public void ModifierAfterABindFollowingAnEvent_AttachesToTheBinding()
+    {
+        var generated = GenerateWheel(
+            """
+            Html.Input.On("onkeydown", () => Click())
+                      .Bind("value", "oninput", () => _text, v => _text = v)
+                      .PreventDefault()
+            """);
+
+        Assert.Contains("__internal_preventDefault_oninput", generated);
+        Assert.DoesNotContain("__internal_preventDefault_onkeydown", generated);
+    }
+
+    /// <summary>
+    /// A modifier on a binding consumes a sequence number, which widens the binding past the two frames
+    /// <c>ARCHITECTURE.md</c> §2.7 records for it.
+    /// </summary>
+    /// <remarks>
+    /// The reference capture is what carries the assertion, because it is the only frame the emitter puts
+    /// after a binding: attributes, events and bindings are each emitted as whole channels, in that order,
+    /// so a decoration written later in the chain than this modifier still lands ahead of the binding
+    /// unless it is the capture.
+    /// </remarks>
+    [Fact]
+    public void ModifierOnABinding_ConsumesASequenceNumber()
+    {
+        var generated = GenerateWheel(
+            """
+            Html.Input.Bind("value", "oninput", () => _text, v => _text = v)
+                      .StopPropagation()
+                      .Ref(r => _el = r)
+            """);
+
+        Assert.Contains("__builder.AddAttribute(3, \"__internal_stopPropagation_oninput\", true)", generated);
+        Assert.Contains("__builder.AddElementReferenceCapture(4, ", generated);
+    }
+
+    /// <summary>
+    /// The modifier is emitted after <c>SetUpdatesAttributeName</c>, not between it and the event frame.
+    /// </summary>
+    /// <remarks>
+    /// That call records the resynchronized attribute name into the immediately preceding attribute frame.
+    /// A modifier emitted first would take the name onto its own frame, leaving the binding's event frame
+    /// without one and pointing <c>RenderTreeUpdater</c> at a frame that carries no value to write.
+    /// </remarks>
+    [Fact]
+    public void ModifierOnABinding_IsEmittedAfterSetUpdatesAttributeName()
+    {
+        var generated = GenerateWheel(
+            """Html.Input.Bind("value", "oninput", () => _text, v => _text = v).StopPropagation()""");
+
+        var resync = generated.IndexOf("SetUpdatesAttributeName", System.StringComparison.Ordinal);
+        var modifier = generated.IndexOf("__internal_stopPropagation_oninput", System.StringComparison.Ordinal);
+
+        Assert.True(resync >= 0 && modifier >= 0);
+        Assert.True(resync < modifier, "the modifier follows the resynchronized name");
     }
 }

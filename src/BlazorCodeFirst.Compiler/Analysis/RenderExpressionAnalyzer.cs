@@ -64,6 +64,21 @@ internal static class RenderExpressionAnalyzer
             SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
     /// <summary>
+    /// The same, carrying the nullable reference annotation.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="FullyQualifiedTypeName"/> rather than added to it. That format also writes
+    /// the type argument of the <c>Action&lt;T&gt;</c> a binding's setter is cast to and the value type a
+    /// change callback is built around, and the binding channel writes its own suppression for the
+    /// nullability it knows it mismatches (#195). Widening the shared format would change what that channel
+    /// emits for a reason measured on this one.
+    /// </remarks>
+    private static readonly SymbolDisplayFormat AnnotatedFullyQualifiedTypeName =
+        FullyQualifiedTypeName.WithMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+                | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+    /// <summary>
     /// Classifies <paramref name="expression"/>, recording it on <paramref name="context"/> when it cannot
     /// be classified. Every recursive descent goes through here rather than through
     /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
@@ -936,12 +951,67 @@ internal static class RenderExpressionAnalyzer
         }
 
         var value = ExpressionTemplateFactory.Create(valueExpression, context);
-        var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
+        var appended = inner.Parameters.AsImmutableArray()
+            .Add(new ComponentParameter(property.Name, value, ResolvedParameterValueTypeName(method)));
         // A `with` and not a fresh construction: every channel this call does not touch has to survive it,
         // and a constructor call names the ones that existed when it was written. `.Key(k).Param(…)` lost
         // its key exactly that way (measured), and a channel added later would lose its value the same
         // way with nothing failing.
         return inner with { Parameters = appended };
+    }
+
+    /// <summary>
+    /// The type a scalar <c>.Param</c> resolved its value to, fully qualified for the emitter, or
+    /// <see langword="null"/> where none can be written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read off the resolved symbol rather than from the selected property, and the two differ only where
+    /// the author writes the type argument out. The resolved one is the type C# already converted the value
+    /// to at the call site, so the cast the emitter writes is an identity conversion by construction and
+    /// cannot fail to bind. The declared property type carries no such guarantee. A property whose type
+    /// converts to the value's implicitly and not back — a struct with an <c>implicit operator string</c>
+    /// is enough — binds <c>.Param&lt;string&gt;</c> at the call site and gets CS0030 from a cast to the
+    /// declared type (measured), inside a file the author cannot reach (付録A A.0). That is the failure
+    /// this is here to remove rather than move.
+    /// </para>
+    /// <para>
+    /// An unresolved type is declined rather than written out, for the reason
+    /// <see cref="ClassifyComponentFactory"/> gives about the component's own type argument: its display
+    /// string is the written name with no qualification, and the generated file has no using directives.
+    /// Declining leaves the value spelled as it is emitted today. A type parameter is not declined — the
+    /// generated method is a member of the component that wrote the call, so the caller's own type
+    /// parameters are in scope there, exactly as they are for <c>OpenComponent&lt;T&gt;</c>.
+    /// </para>
+    /// <para>
+    /// The type argument is read without an arity check, as <see cref="ClassifyComponentFactory"/> reads
+    /// the component's. Only <see cref="SurfaceMethodKind.ScalarParam"/> reaches here — every other kind
+    /// <see cref="ClassifyComponentParameter"/> admits has returned above — and
+    /// <c>KnownSymbols</c> classifies a call as that kind only at arity 1.
+    /// </para>
+    /// </remarks>
+    private static string? ResolvedParameterValueTypeName(IMethodSymbol method)
+    {
+        var type = method.TypeArguments[0];
+        if (TypeSymbolFacts.ContainsUnresolvedType(type))
+            return null;
+
+        var name = type.ToDisplayString(AnnotatedFullyQualifiedTypeName);
+
+        // A reference type is written nullable whatever the resolved type says, because the cast asserts
+        // nothing about null: it is there to name a type, and the value it wraps has already type-checked
+        // in the author's file. Without this the generated file — which is #nullable enable whatever the
+        // author's project is — warns CS8600 on a value written as `null`, and a warning inside generated
+        // code is a build failure for every consumer building warnings as errors and one they cannot fix
+        // (#235 is the precedent). Two shapes reach it: the author's own `#nullable disable`, where the
+        // resolved type is oblivious and carries no annotation to write, and inference that lands on the
+        // non-annotated type anyway. Value types are left alone — a null value reaches them as
+        // Nullable<T>, which the name already spells — and so is an unconstrained type parameter, where
+        // `T?` would mean something else. Measured: the annotated form of every shape the surface admits
+        // binds and warns about nothing, dynamic and arrays included.
+        return type.IsReferenceType && type.NullableAnnotation != NullableAnnotation.Annotated
+            ? name + "?"
+            : name;
     }
 
     /// <summary>
@@ -1271,19 +1341,37 @@ internal static class RenderExpressionAnalyzer
         FactoryArguments args,
         ViewPartBodyContext context)
     {
-        // Ahead of the empty-channel test, because a .Bind makes both answers below wrong rather than one:
-        // with an earlier .On the modifier would attach to it, and without one BCF3035 would send the
-        // author to an .On that is not what they wrote this after.
-        if (NearestEventProducerIsBinding(decoAccess.Expression, context))
-        {
-            context.RejectUnresolvedValueRecovery(decoAccess.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3037, decoAccess.Name.GetLocation(), [method.Name]));
-            return null;
-        }
-
         var events = element.Events.AsImmutableArray();
-        if (events.Length == 0)
+        var bindings = element.Bindings.AsImmutableArray();
+
+        // Not events[^1]: this project targets netstandard2.0 with no System.Index polyfill, the same
+        // constraint KnownSymbols' member switch records for list patterns.
+        //
+        // The channel the walk names decides which tail is read, and an empty tail falls back to BCF3035
+        // rather than being asserted away. The two answers cannot disagree today (every route that fills a
+        // channel is a decoration the walk sees, and every failure aborts the chain), and this is what keeps
+        // a route added later from resolving a target that is not there.
+        var channel = NearestEventProducer(decoAccess.Expression, context);
+        var preventDefault = kind == SurfaceMethodKind.PreventDefault;
+
+        // The branch reads the resolved target's name and its existing value; everything after it is one
+        // path for both channels, because a modifier is the same decoration wherever its event came from.
+        // Only the write back at the end has to know which channel it is returning to.
+        string eventName;
+        ExpressionTemplate? existing;
+        if (channel == EventProducer.Event && events.Length > 0)
+        {
+            var target = events[events.Length - 1];
+            eventName = target.Name;
+            existing = preventDefault ? target.PreventDefault : target.StopPropagation;
+        }
+        else if (channel == EventProducer.Binding && bindings.Length > 0)
+        {
+            var target = bindings[bindings.Length - 1];
+            eventName = target.EventName;
+            existing = preventDefault ? target.PreventDefault : target.StopPropagation;
+        }
+        else
         {
             context.RejectUnresolvedValueRecovery(decoAccess.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -1291,15 +1379,16 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // Not events[^1]: this project targets netstandard2.0 with no System.Index polyfill, the same
-        // constraint KnownSymbols' member switch records for list patterns.
-        var target = events[events.Length - 1];
-        var existing = kind == SurfaceMethodKind.PreventDefault ? target.PreventDefault : target.StopPropagation;
         if (ReportDuplicateFrameDecoration(
-                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, target.Name))
+                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, eventName))
         {
             return null;
         }
+
+        // After the duplicate check, because a modifier written twice on an event that refuses it is one
+        // mistake to the author and the duplicate is what they delete first.
+        if (ReportRefusedEventModifier(decoAccess, method, kind, eventName, context))
+            return null;
 
         // Read through the attribute channel's own resolver rather than beside it. The implied true of the
         // valueless overload is then synthesized in the one place #178 put it, and the written value is
@@ -1311,16 +1400,72 @@ internal static class RenderExpressionAnalyzer
 
         var value = source.Normalize(context);
 
-        var updated = kind == SurfaceMethodKind.PreventDefault
-            ? target with { PreventDefault = value }
-            : target with { StopPropagation = value };
+        if (channel == EventProducer.Event)
+        {
+            var target = events[events.Length - 1];
+            return element with
+            {
+                Events = events.SetItem(
+                    events.Length - 1,
+                    preventDefault
+                        ? target with { PreventDefault = value }
+                        : target with { StopPropagation = value }),
+            };
+        }
 
-        return element with { Events = events.SetItem(events.Length - 1, updated) };
+        var binding = bindings[bindings.Length - 1];
+        return element with
+        {
+            Bindings = bindings.SetItem(
+                bindings.Length - 1,
+                preventDefault
+                    ? binding with { PreventDefault = value }
+                    : binding with { StopPropagation = value }),
+        };
     }
 
     /// <summary>
-    /// Whether the nearest decoration to the left of an event modifier that produces an event is a
-    /// <c>.Bind</c> rather than an <c>.On</c>.
+    /// BCF3038: the event's own <c>[EventHandler]</c> registration disables this modifier.
+    /// </summary>
+    /// <remarks>
+    /// A <c>Report…</c> predicate beside <see cref="ReportMistypedEventArgument"/>, which is the other
+    /// check reading the same registration table and reports on the same terms: an event the table does not
+    /// carry, or a compilation that cannot see the table at all, is passed in silence. Called from the
+    /// modifier's resolution point because the event it reached is known there and nowhere earlier, and
+    /// both channels arrive at it the same way.
+    /// </remarks>
+    private static bool ReportRefusedEventModifier(
+        MemberAccessExpressionSyntax decoAccess,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        string eventName,
+        ViewPartBodyContext context)
+    {
+        if (!context.KnownSymbols.RefusesEventModifier(eventName, kind))
+            return false;
+
+        context.RejectUnresolvedValueRecovery(decoAccess.Span);
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3038, decoAccess.Name.GetLocation(), [method.Name, eventName]));
+        return true;
+    }
+
+    /// <summary>Which channel the decoration nearest to a modifier's left wrote its event into.</summary>
+    private enum EventProducer
+    {
+        /// <summary>Nothing to the modifier's left produces an event; the modifier is BCF3035.</summary>
+        None,
+
+        /// <summary><c>.On</c> or a named event shortcut, which append to <c>Events</c>.</summary>
+        Event,
+
+        /// <summary><c>.Bind</c>, which appends to <c>Bindings</c>.</summary>
+        Binding,
+    }
+
+    /// <summary>
+    /// Which channel the nearest decoration to the left of an event modifier wrote its event into, or
+    /// <see cref="EventProducer.None"/> when nothing to the left produces one.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1331,12 +1476,13 @@ internal static class RenderExpressionAnalyzer
     /// modifier) until it reaches one that does.
     /// </para>
     /// <para>
-    /// A binding's own event is a real event, and Razor can modify it. This surface cannot yet, which is
-    /// why the answer here is a refusal (BCF3037) rather than an attachment. Supporting it means giving
-    /// <c>BindTemplate</c> the same two channels and emitting them after the binding's event frame.
+    /// The answer names a channel and not an index, and the caller reads that channel's tail. The two agree
+    /// because <c>ClassifyDecoration</c> analyses a decoration's receiver before appending to it, so the
+    /// entries on the node when a modifier is classified are exactly those written to its left, and the
+    /// nearest producer to the left is therefore the last one appended to whichever channel it writes.
     /// </para>
     /// </remarks>
-    private static bool NearestEventProducerIsBinding(
+    private static EventProducer NearestEventProducer(
         ExpressionSyntax receiver, ViewPartBodyContext context)
     {
         var current = receiver;
@@ -1349,17 +1495,17 @@ internal static class RenderExpressionAnalyzer
                 switch (context.KnownSymbols.ClassifySurfaceMethod(method))
                 {
                     case SurfaceMethodKind.Bind:
-                        return true;
+                        return EventProducer.Binding;
                     case SurfaceMethodKind.On:
                     case SurfaceMethodKind.EventShortcut:
-                        return false;
+                        return EventProducer.Event;
                 }
             }
 
             current = access.Expression;
         }
 
-        return false;
+        return EventProducer.None;
     }
 
     /// <summary>

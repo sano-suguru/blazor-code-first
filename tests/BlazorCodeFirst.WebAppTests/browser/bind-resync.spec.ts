@@ -73,6 +73,36 @@ test.describe('a normalizing setter resynchronizes the DOM', () => {
  * only the element's own value or checked, so "data-committed" is never sent back. The emitter records
  * no resynchronized name for it, which BindResyncTests pins on the .NET side.
  */
+/**
+ * The same measurement with an event modifier on the binding's own event. SetUpdatesAttributeName records
+ * into the attribute frame immediately before it, so the modifier has to be emitted after the call and not
+ * between it and the binding's event frame; emitted first, it would take the resynchronized name onto its
+ * own frame and the repair below would vanish. The emission order is pinned on the .NET side by
+ * HtmlDecorationGeneratorTests; this is where the order is shown to be the correct one (#370).
+ */
+test.describe('an event modifier on a binding does not cost it its resynchronization', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/bind-resync-modifier');
+    await page.waitForSelector('#modified-binding-ready');
+  });
+
+  test('a value the setter normalizes away is still written back over what the user typed', async ({
+    page,
+  }) => {
+    const input = page.locator('#modified-bound-input');
+
+    await input.fill('x');
+    await expect(page.locator('#modified-write-count')).toHaveText('1');
+    await expect(page.locator('#modified-field-value')).toHaveText('x');
+    await expect(input).toHaveValue('x');
+
+    await input.fill('  x  ');
+    await expect(page.locator('#modified-write-count')).toHaveText('2');
+    await expect(page.locator('#modified-field-value')).toHaveText('x');
+    await expect(input).toHaveValue('x');
+  });
+});
+
 test.describe('a second binding does not cost the first its resynchronization', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/bind-resync-two');

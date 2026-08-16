@@ -134,8 +134,11 @@ internal static class ViewPartExpander
             case ComponentTemplateNode component:
                 {
                     var parameters = ImmutableArray.CreateBuilder<ComponentParameter>(component.Parameters.Length);
+                    // A `with`: expansion substitutes holes in the value and changes nothing else, and a
+                    // constructor call here names the channels that existed when it was written. The value
+                    // type this parameter carries would have been dropped exactly that way, silently.
                     foreach (var parameter in component.Parameters)
-                        parameters.Add(new ComponentParameter(parameter.Name, parameter.Value.Substitute(substitution)));
+                        parameters.Add(parameter with { Value = parameter.Value.Substitute(substitution) });
 
                     var slots = ImmutableArray.CreateBuilder<ComponentSlotNode>(component.Slots.Length);
                     foreach (var slot in component.Slots)
@@ -228,6 +231,8 @@ internal static class ViewPartExpander
                             Setter = b.Setter?.Substitute(substitution),
                             Culture = b.Culture?.Substitute(substitution),
                             Format = b.Format?.Substitute(substitution),
+                            PreventDefault = b.PreventDefault?.Substitute(substitution),
+                            StopPropagation = b.StopPropagation?.Substitute(substitution),
                         });
                     }
 

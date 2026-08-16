@@ -300,14 +300,15 @@ public static class DiagnosticExpectations
             "Anchors the second decoration, which is the one to delete. Last rather than first for the "
                 + "reason BCF3033 gives: on a chain carrying both, the duplicate is the later one."),
         new(
-            "BCF3037",
+            "BCF3038",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bcf3037.cs",
-            "PreventDefault",
-            Note: "Anchors the modifier, not the .Bind. The binding is correct code and stays; what the "
-                + "author changes is the modifier, by moving it after an .On or dropping it until the "
-                + "surface can modify a binding's event."),
+            "Bcf3038.cs",
+            "StopPropagation",
+            Note: "The only shape this diagnostic has, rather than one of several: every arm reads the "
+                + "[EventHandler] registrations. That is also why this fixture project references "
+                + "Microsoft.AspNetCore.Components.Web, which BCF3028's own note used to record it as "
+                + "lacking."),
     ];
 
     /// <summary>
@@ -336,6 +337,10 @@ public static class DiagnosticExpectations
     public static ImmutableArray<(string Id, string Reason)> RetiredIds { get; } =
     [
         ("BCF3021", "One binding per element. Withdrawn in #162; the justification was false and no break stood behind the rule."),
+        ("BCF3037",
+            "An event modifier after a .Bind. Retired in #370, and for the opposite reason to BCF3021: the "
+                + "rule was right for as long as it stood, and it is gone because the surface now does what "
+                + "it refused. Nothing it reported is a defect any more, so no rule replaces it."),
     ];
 
     public static TheoryData<string> Ids

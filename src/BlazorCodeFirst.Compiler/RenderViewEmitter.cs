@@ -378,8 +378,23 @@ internal static class RenderViewEmitter
         int next = seq + 1;
         foreach (var parameter in node.Parameters)
         {
+            // Cast to the type the call site resolved. AddComponentParameter takes object?, so the value
+            // loses the target type it was written against: a lambda with no natural type does not bind
+            // here at all, and one whose natural type is not the declared type binds as that type and
+            // fails when the renderer assigns the property (#377).
+            //
+            // Razor writes two spellings in this position, the cast for a delegate-typed parameter and
+            // RuntimeHelpers.TypeCheck<T> for the rest, and that split is not forced by C#: both bind every
+            // shape this surface admits (measured). One spelling is written here rather than two, because a
+            // second would need a rule saying which value gets which, and nothing measured supplies one.
+            // The cast is that spelling. It is what this file already writes wherever a transplanted
+            // expression has to be given its type — the bind setter's Action<T>, a slot's RenderFragment,
+            // the .Ref capture — and it names the type without reaching for a framework helper.
+            var value = parameter.ValueTypeName is { } typeName
+                ? $"({typeName})({parameter.Value.ToCode()})"
+                : parameter.Value.ToCode();
             writer.AppendLine(
-                $"__builder.AddComponentParameter({next}, \"{parameter.Name}\", {parameter.Value.ToCode()});");
+                $"__builder.AddComponentParameter({next}, \"{parameter.Name}\", {value});");
             next++;
         }
 
@@ -469,6 +484,26 @@ internal static class RenderViewEmitter
     /// 付録D already records for <c>.Attr(name, false)</c>. That is what keeps the width of an element a
     /// function of the decorations written on it rather than of the values they carry (#234).
     /// </remarks>
+    /// <summary>
+    /// Both modifiers of one event, in the order the emitter fixes for them.
+    /// </summary>
+    /// <remarks>
+    /// A fixed order rather than the chain's: the two are independent of each other, and one order has to
+    /// be chosen so that the sequence numbers are a function of the model alone. Written once and called
+    /// from both the event channel and the binding channel, so that order is one rule in one place rather
+    /// than two copies that can drift apart with nothing failing (#370).
+    /// </remarks>
+    private static int EmitEventModifiers(
+        IndentedWriter writer,
+        string eventName,
+        ExpressionTemplate? preventDefault,
+        ExpressionTemplate? stopPropagation,
+        int seq)
+    {
+        seq = EmitEventModifier(writer, PreventDefaultAttributePrefix, eventName, preventDefault, seq);
+        return EmitEventModifier(writer, StopPropagationAttributePrefix, eventName, stopPropagation, seq);
+    }
+
     private static int EmitEventModifier(
         IndentedWriter writer, string prefix, string eventName, ExpressionTemplate? value, int seq)
     {
@@ -508,10 +543,7 @@ internal static class RenderViewEmitter
                 $"__builder.AddAttribute({next}, {name}, " +
                 $"{EventCallbackFactory}.Create{argsType}(this, {e.Handler.ToCode()}));");
             next++;
-            // A fixed order rather than the chain's: the two modifiers are independent of each other, and
-            // one order has to be chosen so that the sequence numbers are a function of the model alone.
-            next = EmitEventModifier(writer, PreventDefaultAttributePrefix, e.Name, e.PreventDefault, next);
-            next = EmitEventModifier(writer, StopPropagationAttributePrefix, e.Name, e.StopPropagation, next);
+            next = EmitEventModifiers(writer, e.Name, e.PreventDefault, e.StopPropagation, next);
         }
         foreach (var bind in node.Bindings)
         {
@@ -560,6 +592,11 @@ internal static class RenderViewEmitter
             // retained tree and leave the real attribute stranded (#162).
             if (ResynchronizesFromDom(bind.AttributeName))
                 writer.AppendLine($"__builder.SetUpdatesAttributeName({attributeName});");
+            // After SetUpdatesAttributeName and not between it and the event frame. That call records into
+            // the immediately preceding attribute frame, so a modifier written in between would take the
+            // resynchronized name onto itself and leave the binding's event frame without one (#370).
+            next = EmitEventModifiers(
+                writer, bind.EventName, bind.PreventDefault, bind.StopPropagation, next);
         }
         // After every attribute, event and binding frame, and before the children. Both halves are forced:
         // AssertCanAddAttribute reads the last non-attribute frame's type, so an attribute written after

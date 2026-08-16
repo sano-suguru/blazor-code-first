@@ -579,17 +579,24 @@ public sealed class ComponentTemplateGeneratorTests
 
         CompilationTestHost.AssertOutputCompiles(result);
         var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
-        Assert.Contains("__builder.AddComponentParameter(1, \"RowTemplate\", null);", generated);
-        Assert.Contains("__builder.AddComponentParameter(3, \"RowTemplate\", default);", generated);
+        // Every one of the five carries the resolved value type. The first two are the shapes #377 is
+        // about: `null` and `default` have no natural type at all, so what they mean in an `object?` slot
+        // is decided by the slot rather than by the parameter they were written for.
+        const string fragmentOfInt =
+            "(global::Microsoft.AspNetCore.Components.RenderFragment<global::System.Int32>?)";
+        Assert.Contains($"__builder.AddComponentParameter(1, \"RowTemplate\", {fragmentOfInt}(null));", generated);
+        Assert.Contains($"__builder.AddComponentParameter(3, \"RowTemplate\", {fragmentOfInt}(default));", generated);
         Assert.Contains(
-            "__builder.AddComponentParameter(5, \"RowTemplate\", "
-                + "default(global::Microsoft.AspNetCore.Components.RenderFragment<int>));",
+            $"__builder.AddComponentParameter(5, \"RowTemplate\", {fragmentOfInt}"
+                + "(default(global::Microsoft.AspNetCore.Components.RenderFragment<int>)));",
             generated);
         Assert.Contains(
-            "__builder.AddComponentParameter(7, \"RowTemplate\", "
-                + "(global::Microsoft.AspNetCore.Components.RenderFragment<int>?)null);",
+            $"__builder.AddComponentParameter(7, \"RowTemplate\", {fragmentOfInt}"
+                + "((global::Microsoft.AspNetCore.Components.RenderFragment<int>?)null));",
             generated);
-        Assert.Contains("__builder.AddComponentParameter(9, \"RowTemplate\", _fragment);", generated);
+        Assert.Contains(
+            $"__builder.AddComponentParameter(9, \"RowTemplate\", {fragmentOfInt}(_fragment));",
+            generated);
     }
 
     private static void AssertGeneratedContextReferencesBindOuterParameter(

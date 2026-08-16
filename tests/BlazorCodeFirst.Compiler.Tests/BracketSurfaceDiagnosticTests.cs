@@ -1050,15 +1050,17 @@ public sealed class BracketSurfaceDiagnosticTests
     private const string BindMembers = WheelMembers + "\n    private string _text = \"\";";
 
     /// <summary>
-    /// A modifier after a <c>.Bind</c> is refused rather than attached to the earlier <c>.On</c>.
+    /// A modifier after a <c>.Bind</c> modifies the binding's own event, and is not refused (#370).
     /// </summary>
     /// <remarks>
-    /// The shape that made this diagnostic necessary. <c>.Bind</c> writes its event into the binding
-    /// channel, so before BCF3037 this attached to <c>onkeydown</c> and reported nothing: the author got
-    /// a modifier on an event they did not write it after, with no way to see it.
+    /// The earlier <c>.On</c> is what makes this worth its own case. The two channels do not record their
+    /// order relative to each other, so a resolution that read the event channel's tail would attach this
+    /// to <c>onkeydown</c> — the silent defect BCF3037 was raised to replace, and the one the chain walk
+    /// answers instead. Which event it reached is asserted on the emitted frames, in
+    /// <c>HtmlDecorationGeneratorTests</c>.
     /// </remarks>
     [Fact]
-    public void PreventDefault_AfterABindFollowingAnEvent_ReportsBCF3037()
+    public void PreventDefault_AfterABindFollowingAnEvent_ReportsNothing()
     {
         var diagnostics = Run(
             """
@@ -1068,29 +1070,60 @@ public sealed class BracketSurfaceDiagnosticTests
             """,
             BindMembers);
 
-        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3037");
-        Assert.Contains("PreventDefault", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
-        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3035");
-    }
-
-    [Fact]
-    public void PreventDefault_AfterABindAlone_ReportsBCF3037RatherThanBCF3035()
-    {
-        var diagnostics = Run(
-            """Input.Bind("value", "oninput", () => _text, v => _text = v).PreventDefault()""",
-            BindMembers);
-
-        Assert.Single(diagnostics, static d => d.Id == "BCF3037");
-        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3035");
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036");
     }
 
     /// <summary>
-    /// A <c>.Bind</c> earlier in the chain than the <c>.On</c> being modified is not the refused shape.
+    /// The duplicate check follows the resolved target rather than the event channel.
     /// </summary>
     /// <remarks>
-    /// This is what keeps BCF3037 from degenerating into "any element carrying a binding refuses
-    /// modifiers". The walk stops at the first event-producing decoration, and here that is the
-    /// <c>.On</c>.
+    /// Written because the check reads whichever channel the walk named. A resolution that attached to the
+    /// binding but kept reading <c>Events</c> for the existing value would let the second modifier through
+    /// and emit two frames for one event, which is the shape BCF3036 exists to refuse.
+    /// </remarks>
+    [Fact]
+    public void PreventDefault_TwiceAfterABind_ReportsBCF3036()
+    {
+        var diagnostics = Run(
+            """
+            Input.Bind("value", "oninput", () => _text, v => _text = v)
+                 .PreventDefault()
+                 .PreventDefault()
+            """,
+            BindMembers);
+
+        var reported = Assert.Single(diagnostics, static d => d.Id == "BCF3036");
+        Assert.Contains("oninput", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The two modifiers are separate channels on a binding too, so writing both is not a duplicate.
+    /// </summary>
+    /// <remarks>
+    /// Also the case for a modifier after a <c>.Bind</c> with no earlier event on the element: this chain
+    /// contains that one, so a separate test for it would assert a strict subset of these assertions.
+    /// </remarks>
+    [Fact]
+    public void BothModifiers_OnOneBinding_ReportNothing()
+    {
+        var diagnostics = Run(
+            """
+            Input.Bind("value", "oninput", () => _text, v => _text = v)
+                 .PreventDefault()
+                 .StopPropagation()
+            """,
+            BindMembers);
+
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036");
+    }
+
+    /// <summary>
+    /// A <c>.Bind</c> earlier in the chain than the <c>.On</c> being modified resolves to the <c>.On</c>.
+    /// </summary>
+    /// <remarks>
+    /// The walk stops at the first event-producing decoration, and here that is the <c>.On</c>. Its mirror
+    /// image is <c>PreventDefault_AfterABindFollowingAnEvent_ReportsNothing</c> above: the same two
+    /// decorations in the other order have to resolve the other way.
     /// </remarks>
     [Fact]
     public void PreventDefault_AfterAnEventFollowingABind_ReportsNothing()
@@ -1103,7 +1136,7 @@ public sealed class BracketSurfaceDiagnosticTests
             """,
             BindMembers);
 
-        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036" or "BCF3037");
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036");
     }
 
     /// <summary>
@@ -1114,6 +1147,6 @@ public sealed class BracketSurfaceDiagnosticTests
     {
         var diagnostics = Run("""Div.On("onwheel", Zoom).Class("x").PreventDefault()""", WheelMembers);
 
-        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036" or "BCF3037");
+        Assert.DoesNotContain(diagnostics, static d => d.Id is "BCF3035" or "BCF3036");
     }
 }
