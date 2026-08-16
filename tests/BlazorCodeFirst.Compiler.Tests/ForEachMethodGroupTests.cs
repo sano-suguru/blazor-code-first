@@ -106,6 +106,77 @@ public sealed class ForEachMethodGroupTests
     }
 
     [Fact]
+    public void ForEachContent_WhenTheOpaqueMethodGroupIsNamedThroughAValueReceiver_KeepsTheReceiver()
+    {
+        // The receiver the author wrote is part of the name, so it is spelled from the written expression
+        // rather than rebuilt from the callee symbol, which knows only the containing type (#403).
+        const string Source = """
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using System.Collections.Generic;
+
+            public sealed class Helper
+            {
+                public View Wrap(string item)
+                {
+                    RenderFragment fragment = builder => builder.AddContent(0, "helper:" + item);
+                    return fragment;
+                }
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a" };
+                private readonly Helper _helper = new();
+
+                protected override View Body => Html.ForEach(_items, null, _helper.Wrap);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(Source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("FragmentOf(_helper.Wrap(", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ForEachContent_WhenTheOpaqueMethodGroupIsNamedThroughATypeReceiver_QualifiesTheType()
+    {
+        // A type receiver is qualified on the terms every other written name is held to, which is what the
+        // generated file's absence of using directives needs (#403).
+        const string Source = """
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using System.Collections.Generic;
+
+            namespace Root.Features;
+
+            public static class Helper
+            {
+                public static View Wrap(string item)
+                {
+                    RenderFragment fragment = builder => builder.AddContent(0, "helper:" + item);
+                    return fragment;
+                }
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a" };
+
+                protected override View Body => Html.ForEach(_items, null, Helper.Wrap);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(Source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("FragmentOf(global::Root.Features.Helper.Wrap(", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void ForEachContent_WhenTheOpaqueMethodGroupIsInaccessibleAtTheExpansionSite_ReportsBCF1002()
     {
         // The value path records what an expanded body has to be able to reach, and a method group names a

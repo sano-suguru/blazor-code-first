@@ -382,8 +382,11 @@ internal static class RenderExpressionAnalyzer
         if (args.At(0) is not { } conditionArg || args.At(1) is not { } thenArg)
             return null;
 
+        // A branch is transplanted under the author's own names, so it holds the reserved set every such
+        // position holds. Asked here rather than by the getter's scan, which stops at the lambda: the
+        // branch is this arm's to transplant, and the condition beside it is the getter's (#389).
         var thenExpr = ExtractLambdaBody(thenArg.Expression);
-        if (thenExpr is null)
+        if (thenExpr is null || DeclaresReservedName(thenExpr))
             return null;
 
         // The condition is transplanted into the generated `if` header, which scopes over both branches,
@@ -408,7 +411,7 @@ internal static class RenderExpressionAnalyzer
                 { Token.RawKind: (int)SyntaxKind.NullKeyword })
             {
                 var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
-                if (otherwiseExpr is null)
+                if (otherwiseExpr is null || DeclaresReservedName(otherwiseExpr))
                     return null;
 
                 otherwiseNode = Analyze(otherwiseExpr, context);
@@ -658,6 +661,11 @@ internal static class RenderExpressionAnalyzer
 
         if (bodyNode is ExpressionSyntax expressionBody)
         {
+            // The expression-bodied lambda keeps the author's names exactly as the block-bodied one does,
+            // so it holds the same reserved set (#389).
+            if (DeclaresReservedName(expressionBody))
+                return false;
+
             shape = new ForEachContent(null, parameterSymbol, expressionBody, []);
             return true;
         }
@@ -689,41 +697,37 @@ internal static class RenderExpressionAnalyzer
     {
         var itemHole = new ParameterHoleExpressionSegment(itemOrdinal);
 
-        switch (ClassifyCallee(callee, contentExpression.GetLocation(), context))
+        return ClassifyCallee(callee, contentExpression.GetLocation(), context) switch
         {
-            case NonSurfaceCallKind.ViewPart:
-                return new ViewPartCallTemplateNode(
-                    MethodKey.Create(callee),
-                    callee.Name,
-                    new EquatableArray<ViewPartInvocationArgument>(
-                        [
-                            new ViewPartInvocationArgument(
-                                0, 0, IsImplicitDefault: false, ExpressionTemplate.Create([itemHole])),
-                        ]),
-                    TemplateLocation.From(contentExpression.GetLocation()));
-
-            case NonSurfaceCallKind.Opaque:
-                // The group written back as the call it stands for, on the terms the value path sets for
-                // a name: what the expansion site has to be able to reach is recorded, and only a static
-                // callee is qualified through its containing type. That qualification is what a using-less
-                // generated file needs to name a static method (FullyQualifiedFormat spells the method
-                // symbol itself as a bare name, hence the containing type). An instance callee was written
-                // with an implicit `this` the generated RenderView has too, so there the bare name is the
-                // spelling that works (#390).
-                ExpressionTemplateFactory.RecordAccessRequirement(callee, context);
-                var qualification = callee.IsStatic
-                    ? callee.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "."
-                    : string.Empty;
-                return new OpaqueViewTemplateNode(ExpressionTemplate.Create(
+            NonSurfaceCallKind.ViewPart => new ViewPartCallTemplateNode(
+                MethodKey.Create(callee),
+                callee.Name,
+                new EquatableArray<ViewPartInvocationArgument>(
                     [
-                        new LiteralExpressionSegment($"{qualification}{callee.Name}("),
-                        itemHole,
-                        new LiteralExpressionSegment(")"),
-                    ]));
+                        new ViewPartInvocationArgument(
+                            0, 0, IsImplicitDefault: false, ExpressionTemplate.Create([itemHole])),
+                    ]),
+                TemplateLocation.From(contentExpression.GetLocation())),
 
-            default:
-                return null;
-        }
+            // The group written back as the call it stands for, spelled from the written expression on the
+            // terms every other name is held to. Routing through the value path is what keeps a receiver
+            // the author wrote: it is part of the name, and the callee symbol knows only the containing
+            // type, so building the text from the symbol alone dropped it (#403). That path settles the
+            // three spellings #390 needed by hand — an unqualified static callee qualified through its
+            // containing type, an instance callee written with an implicit `this` left bare because the
+            // generated RenderView carries that same `this`, and a member accessed through a receiver left
+            // as written — and it records what the expansion site has to be able to reach for all of them.
+            NonSurfaceCallKind.Opaque => new OpaqueViewTemplateNode(ExpressionTemplate.Create(
+                [
+                    .. ExpressionTemplateFactory.Create(contentExpression, context)
+                        .Segments.AsImmutableArray(),
+                    new LiteralExpressionSegment("("),
+                    itemHole,
+                    new LiteralExpressionSegment(")"),
+                ])),
+
+            _ => null,
+        };
     }
 
     private static ComponentTemplateNode? ClassifyComponentFactory(IMethodSymbol method)
@@ -2953,13 +2957,8 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// <para>
     /// A local whose name starts with the generator's own prefix, or is the builder's, is refused rather
-    /// than renamed. The rename plan in <see cref="ExpressionTemplateFactory"/> is per template, and the
-    /// block becomes several templates — one per statement, plus the returned expression — so a name
-    /// renamed in one would stay as written in the others. Both names are reserved, so refusing costs an
-    /// author nothing. The scan covers the whole block rather than the leading statements alone, because
-    /// the returned expression is transplanted too and a lambda written inside it lands in the same
-    /// generated scope. Only declarations are checked: a reference cannot collide with a name the generator
-    /// introduces without a declaration to collide through.
+    /// than renamed; <see cref="DeclaresReservedName"/> is the scan, and the four positions that transplant
+    /// an author's names each ask it.
     /// </para>
     /// </remarks>
     public static bool TryReadTransplantableBlock(
@@ -2977,11 +2976,15 @@ internal static class RenderExpressionAnalyzer
             return false;
         }
 
-        // A block that is only its return transplants nothing, so there is no name to reserve against and
-        // no list to build. This is the `get { return e; }` spelling, which every component body reaches on
-        // every keystroke; the walk below would traverse the whole view tree to defend nothing.
+        // A block that is only its return transplants no statement, so there is no list to build and the
+        // returned expression is the whole of what the reserved names have to be checked against. This is
+        // the `get { return e; }` spelling, which every component body reaches on every keystroke, so the
+        // scan is held to that expression rather than run over the block.
         if (count == 1)
         {
+            if (DeclaresReservedName(last))
+                return false;
+
             returned = last;
             return true;
         }
@@ -2996,23 +2999,8 @@ internal static class RenderExpressionAnalyzer
             leading.Add(statement);
         }
 
-        foreach (var node in block.DescendantNodes())
-        {
-            // Both shapes a block binds a local through, read from the enumeration the registration reads
-            // (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier), so the two answer one question.
-            // Scanning declarators alone let 'Foo(out var __builder)' through, and in the two positions
-            // that keep the names the author wrote it reached the generated scope and shadowed the builder
-            // every frame is written against (#348).
-            if (!ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out var identifier))
-                continue;
-
-            var name = identifier.ValueText;
-            if (name.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal)
-                || string.Equals(name, BuilderName, System.StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
+        if (DeclaresReservedName(block))
+            return false;
 
         // The original nodes, not a rebuilt list: SyntaxFactory.List re-parents its members into a new
         // list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
@@ -3021,6 +3009,62 @@ internal static class RenderExpressionAnalyzer
         statements = leading.MoveToImmutable();
         returned = last;
         return true;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> declares a local under a name the generator reserves: the builder's,
+    /// or one carrying the generator's own prefix.
+    /// </summary>
+    /// <remarks>
+    /// Such a local is refused rather than renamed. The rename plan in
+    /// <see cref="ExpressionTemplateFactory"/> is per template, and a transplanted body becomes several —
+    /// one per leading statement, plus the returned expression — so a name renamed in one would stay as
+    /// written in the others. Both names are reserved, so refusing costs an author nothing.
+    /// <para>
+    /// Asked by every position that transplants under the author's names: the design-time expression getter
+    /// in all three of its spellings (<see cref="ComponentModelFactory"/>,
+    /// <see cref="TryReadTransplantableBlock"/>), a <c>ForEach</c> content lambda in both of its
+    /// (<see cref="TryBindForEachContent"/>), and each branch of an <c>If</c>
+    /// (<see cref="ClassifyIf"/>). One scan for all of them, so a spelling cannot be admitted on terms the
+    /// others refuse: every position but the multi-statement block used to skip it and emit the collision
+    /// into a generated file the author cannot edit (#389).
+    /// </para>
+    /// <para>
+    /// Both shapes a body binds a local through, read from the enumeration the registration reads
+    /// (<see cref="ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier"/>), so the two answer one
+    /// question. Scanning declarators alone let <c>Foo(out var __builder)</c> through, and where the
+    /// author's names are kept it reached the generated scope and shadowed the builder every frame is
+    /// written against (#348). Only declarations are checked: a reference cannot collide with a name the
+    /// generator introduces without a declaration to collide through.
+    /// </para>
+    /// <para>
+    /// The walk stops at a lambda rather than descending through it, because a lambda's body is not this
+    /// position's to transplant: the position that accepts it either renames what it declares (a
+    /// contextual fragment, through <c>AuthoredContextNameHygiene</c>) or asks this scan itself. Descending
+    /// would refuse a name one of those positions renames today. Written the same way as
+    /// <see cref="CollectDeclaredLocals(SyntaxNode, ImmutableArray{ISymbol}.Builder, ViewPartBodyContext)"/>,
+    /// which partitions the declarations of a transplanted body by the same boundary and for the same
+    /// reason; the two walks answer about one set and are kept in the same shape so a change to that
+    /// boundary is visible in both.
+    /// </para>
+    /// </remarks>
+    public static bool DeclaresReservedName(SyntaxNode node)
+    {
+        foreach (var descendant in node.DescendantNodes(
+            static child => child is not AnonymousFunctionExpressionSyntax))
+        {
+            if (!ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(descendant, out var identifier))
+                continue;
+
+            var name = identifier.ValueText;
+            if (name.StartsWith(GeneratedNamePrefix, System.StringComparison.Ordinal)
+                || string.Equals(name, BuilderName, System.StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

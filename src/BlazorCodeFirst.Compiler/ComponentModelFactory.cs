@@ -375,6 +375,11 @@ internal static class ComponentModelFactory
     /// body) is <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names
     /// the property itself. A block that reader refuses is also
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
+    /// <para>
+    /// The three stay equivalent under the reserved names as well: each asks
+    /// <see cref="RenderExpressionAnalyzer.DeclaresReservedName"/> over what it transplants, so a name the
+    /// generator cannot rename earns BCF1004 in whichever spelling declared it (#389).
+    /// </para>
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,
@@ -389,6 +394,15 @@ internal static class ComponentModelFactory
         // `=> e;`
         if (prop.ExpressionBody is { Expression: var propertyBody })
         {
+            // The expression is transplanted under the author's own names, so it holds the reserved set
+            // the block spelling holds. Refusing it here is what turns the collision into BCF1004 rather
+            // than into C# errors inside the generated file (#389).
+            if (RenderExpressionAnalyzer.DeclaresReservedName(propertyBody))
+            {
+                location = prop.Identifier.GetLocation();
+                return DesignTimeExpressionShape.NotTranslatable;
+            }
+
             expression = propertyBody;
             return DesignTimeExpressionShape.Translatable;
         }
@@ -415,6 +429,9 @@ internal static class ComponentModelFactory
         // `get => e;`
         if (getter.ExpressionBody is { Expression: var accessorBody })
         {
+            if (RenderExpressionAnalyzer.DeclaresReservedName(accessorBody))
+                return DesignTimeExpressionShape.NotTranslatable;
+
             expression = accessorBody;
             return DesignTimeExpressionShape.Translatable;
         }
