@@ -5,43 +5,66 @@ order: 60
 
 A two-way binding is one decoration that writes a value out to the DOM and reads the user's edit back
 into your state. `.Bind` is Razor's `@bind`, spelled so that everything it needs is an argument you can
-see. The generator lowers it to an attribute frame, an event frame carrying Blazor's own
-`CreateBinder`, and — when the bound attribute is `value` or `checked` — the DOM resynchronization
-that keeps the element honest. Nothing generated compiles an expression tree at runtime, and nothing
-generated reflects; binding an enum reaches one reflective lookup inside the framework's own
-converter.
+see. Nothing generated compiles an expression tree at runtime, and nothing generated reflects; binding
+an enum reaches one reflective lookup inside the framework's own converter.
 
 ## Binding an element
 
 Name the attribute that carries the value, the event that reports a change, and a lambda that reads
-the current value:
+the current value. Only the first of those three leaves a mark in the markup:
+
+<!-- bcf-figure: TextBinding -->
 
 ```csharp
-public partial class NameField : BodyComponentBase
-{
-    private string _name = "";
+protected override View Body =>
+    Div[
+        Input.Type("text").Bind("value", "oninput", () => _name),
+        P[$"Hello, {_name}"]];
+```
 
-    protected override View Body =>
-        Div[
-            Input.Type("text").Bind("value", "oninput", () => _name),
-            P[$"Hello, {_name}"]];
-}
+```html
+<div>
+    <input type="text" value="Ada">
+    <p>Hello, Ada</p>
+</div>
 ```
 
 The lambda is read in both directions. Its body becomes the attribute's value, and — in this
 getter-only form — the same body becomes the left-hand side of the assignment the generator writes
 for you. So the target has to be assignable: a field, a property with a setter, or a path through
 either (`_form.Name`, `Model.Items[0].Title`, `_dict["k"]`). A computed expression such as
-`() => _name.ToUpper()` reports BCF3018, and the way to write that is the explicit setter below.
+`() => _name.ToUpper()` reports [BCF3018](./diagnostics.md#bcf3018), and the way to write that is the
+explicit setter below.
 
 Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus.
-Those are the two you will usually want, but no list restricts the pair. Three rules do:
-
-- both names have to be non-empty compile-time constants (BCF3011)
-- the event name has to start with `on` (BCF3019)
-- neither may already be bound on the same element by another decoration (BCF3010)
+Those are the two you will usually want, but no list restricts the pair. Three rules do: both names
+have to be non-empty compile-time constants ([BCF3011](./diagnostics.md#bcf3011)), the event name has
+to start with `on` ([BCF3019](./diagnostics.md#bcf3019)), and neither may already be bound on the same
+element by another decoration ([BCF3010](./diagnostics.md#bcf3010)).
 
 Nothing checks the names against HTML.
+
+## Checkboxes bind `checked`
+
+A checkbox binds a `bool` to the `checked` attribute, on `onchange`. The same decoration, a different
+first argument, and a different attribute in the output:
+
+<!-- bcf-figure: CheckboxBinding -->
+
+```csharp
+protected override View Body =>
+    Label[
+        Input.Type("checkbox").Bind("checked", "onchange", () => _agreed),
+        " I agree"];
+```
+
+```html
+<label><input type="checkbox" checked> I agree</label>
+```
+
+`bool` is HTML's boolean-attribute form, the same one
+[`.Attr` takes](./elements-and-decorations.md#decorations): `true` renders the attribute with an empty
+value, `false` leaves it out entirely.
 
 ## Why you write both names
 
@@ -56,28 +79,11 @@ the whole surface is **infer only what you can verify**. The element side cannot
 not infer, and you write two short strings instead.
 
 The half of the mistake that *is* checkable is caught: an event name that does not start with `on`
-reports BCF3019, so swapping the two arguments stops at compile time rather than adding a dead
-attribute.
+reports [BCF3019](./diagnostics.md#bcf3019), so swapping the two arguments stops at compile time
+rather than adding a dead attribute.
 
 The component side of `.Bind` does infer names, because the same rule allows it there — see
 [binding a component parameter](#binding-a-component-parameter).
-
-## Checkboxes bind `checked`
-
-A checkbox binds a `bool` to the `checked` attribute, on `onchange`:
-
-```csharp
-private bool _agreed;
-
-protected override View Body =>
-    Label[
-        Input.Type("checkbox").Bind("checked", "onchange", () => _agreed),
-        " I agree"];
-```
-
-`bool` is HTML's boolean-attribute form, the same one
-[`.Attr` takes](./elements-and-decorations.md#decorations): `true` renders the attribute with an empty
-value, `false` leaves it out entirely.
 
 ## Normalizing with an explicit setter
 
@@ -106,7 +112,9 @@ Input.Type("text").Bind("value", "oninput", () => _query, async v =>
 ```
 
 Only the getter-only form needs an assignable getter. With a setter, the getter is only ever read, so
-any expression will do.
+any expression will do. The getter itself must be an inline lambda with an expression body either way
+([BCF3017](./diagnostics.md#bcf3017)), because its body is copied into both the attribute value and
+the binder.
 
 A normalizing setter creates a divergence: the element shows what was typed, while your field holds
 the trimmed value. Ordinary diffing writes nothing, because the render tree has not changed since the
@@ -123,8 +131,8 @@ normalizing leaves the render tree unchanged and the element goes on showing wha
 
 The setter receives `""` for an emptied text input, never `null` — which is why it takes a
 non-nullable `string`. Writing to your own state from the setter is allowed, even though writing to
-state anywhere else in a `Body` reports BCF3001: a setter is a deferred handler, like an `.OnClick`
-lambda, and does not run while the tree is being built.
+state anywhere else in a `Body` reports [BCF3001](./diagnostics.md#bcf3001): a setter is a deferred
+handler, like an `.OnClick` lambda, and does not run while the tree is being built.
 
 ## Numbers, dates, and enums
 
@@ -193,8 +201,8 @@ protected override View Body =>
 
 A format is accepted for `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly` and their nullable
 forms, and for nothing else — those are the types the framework declares a format-taking converter
-for. Writing one for an `int` reports BCF3031. To format a number, format it in the getter and parse
-it in an explicit setter instead.
+for. Writing one for an `int` reports [BCF3031](./diagnostics.md#bcf3031). To format a number, format
+it in the getter and parse it in an explicit setter instead.
 
 ### If you publish trimmed
 
@@ -239,8 +247,9 @@ protected override View Body =>
 ```
 
 That single call supplies `Value`, `ValueChanged`, and `ValueExpression`. Every derived name is looked
-up on the component type, so a missing or mistyped `{Name}Changed` reports BCF3020 rather than binding
-nothing. This is what makes the asymmetry with the element side a rule and not an inconsistency.
+up on the component type, so a missing or mistyped `{Name}Changed` reports
+[BCF3020](./diagnostics.md#bcf3020) rather than binding nothing. This is what makes the asymmetry with
+the element side a rule and not an inconsistency.
 
 `{Name}Expression` is the reason the target is written as a getter lambda rather than passed by
 reference. A component under an `EditForm` resolves a `FieldIdentifier` from that expression, and the
@@ -268,32 +277,23 @@ element. `TValue` takes no culture and no format: the value goes to a parameter 
 DOM, so nothing formats or parses it on the way and there is no choice to write down.
 
 Remember that `Component<T>()` cannot name a `.razor` component declared in the same project
-([BCF3012](./components-and-reuse.md#calling-an-existing-razor-or-third-party-component)). Framework
-components such as `InputText`, and hand-written C# components, always resolve.
+([BCF3012](./diagnostics.md#bcf3012)). Framework components such as `InputText`, and hand-written C#
+components, always resolve.
 
 ## What is checked
 
-- **BCF3017** — the getter is not an inline lambda with an expression body, such as a block-bodied
-  lambda or a method group. Its body has to be extractable, because it is copied into both the
-  attribute value and the binder. The setter has no such restriction; it is only handed over.
-- **BCF3018** — the getter-only form's getter body is not assignable. Calls and operators, get-only
-  properties, `readonly` fields, and locals or `ForEach` iteration variables themselves are rejected;
-  a *member* of an iteration variable (`o.Title`) is fine, since writing it changes the underlying
-  item. Write an explicit setter instead.
-- **BCF3019** — the event name does not start with `on`. Such a name would be added as a plain
-  attribute and the handler would never fire, so this is what catches the two names swapped.
-- **BCF3020** — the component's `{Name}Changed` parameter is missing or is not an
-  `EventCallback<TValue>`.
-- **BCF3024** — the attribute name is `class` and the element also carries a `.Class` or an
-  `.Attr("class", …)`. Those fold into one attribute and the binding does not join them, so the
-  element would carry `class` twice.
-- **BCF3031** — a format is written for a type the framework declares no format-taking converter for.
-  Only `DateTime`, `DateTimeOffset`, `DateOnly`, `TimeOnly` and their nullable forms accept one.
+Six diagnostics read a `.Bind`, and each has an entry in the
+[reference](./diagnostics.md): [BCF3017](./diagnostics.md#bcf3017) on the getter's shape,
+[BCF3018](./diagnostics.md#bcf3018) on a getter-only target that cannot be assigned,
+[BCF3019](./diagnostics.md#bcf3019) on an event name missing its `on`,
+[BCF3020](./diagnostics.md#bcf3020) on a component with no matching change callback,
+[BCF3024](./diagnostics.md#bcf3024) on a bound `class` beside a `.Class`, and
+[BCF3031](./diagnostics.md#bcf3031) on a format the value's type has no converter for.
 
 An element may carry more than one `.Bind`. If two of them share an attribute name or an event name,
-that is BCF3010, the same duplicate any two decorations would report. DOM resynchronization — the
-repair that puts a normalized value back over what the user typed — applies to `value` and `checked`
-only, because those are the only two the browser sends back with the event.
+that is [BCF3010](./diagnostics.md#bcf3010), the same duplicate any two decorations would report. DOM
+resynchronization — the repair that puts a normalized value back over what the user typed — applies to
+`value` and `checked` only, because those are the only two the browser sends back with the event.
 
 ## Next
 
