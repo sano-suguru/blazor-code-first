@@ -153,6 +153,42 @@ public sealed class ComponentInteropTests
         Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 
+    /// <summary>
+    /// A binding written inside a <c>[ViewPart]</c> is checked where the selector is, not where the
+    /// part is called. Both rows call the part twice, which is what separates one report at the
+    /// declaration from one per expansion.
+    /// </summary>
+    [Theory]
+    [InlineData(".Param(c => c.NotAParam, label)", "BCF3006")]
+    [InlineData(".Param(c => c.Label, label).Param(c => c.Label, label)", "BCF3007")]
+    public void Component_ParamInsideAViewPartCalledTwice_ReportsOnceAtThePart(string bindings, string id)
+    {
+        var host = $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public static class Widgets
+            {
+                [ViewPart]
+                public static View Named(string label) => Component<Child>(){{bindings}};
+            }
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Div[Widgets.Named("a"), Widgets.Named("b")];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
+
+        var reported = Assert.Single(result.Diagnostics);
+        Assert.Equal(id, reported.Id);
+
+        // The line reported on, read back out of the source: the part's declaration carries the
+        // selector, and neither call site does.
+        var line = host.Split('\n')[reported.Location.GetLineSpan().StartLinePosition.Line];
+        Assert.Contains("public static View Named", line, System.StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Component_DistinctParams_DoNotReportBCF3007()
     {

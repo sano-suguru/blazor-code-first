@@ -1,7 +1,7 @@
 ---
 title: コンポーネントと再利用
 order: 40
-source-hash: b8d4c8c3
+source-hash: e7956220
 ---
 
 再利用の単位はコンポーネントです。BlazorCodeFirst のコンポーネントから別のコンポーネントを呼ぶ
@@ -316,15 +316,27 @@ public static class Widgets
             .Param(b => b.Compact, compact);
 }
 
-protected override View Body =>
-    Div[
-        Widgets.Badge("hello"),
-        Widgets.Badge("x", compact: true)];
+public partial class Dashboard : BodyComponentBase
+{
+    protected override View Body =>
+        Div[
+            Widgets.Badge("hello"),
+            Widgets.Badge("x", compact: true)];
+}
 ```
 
 呼び出し側はふつうの C# の呼び出しなので、名前付き引数と省略可能な引数が使えます。展開はあく
 まで展開です。呼び出した側の生成された `RenderView` は、呼び出しのたびに `StatusBadge` を直接
 開きます。だから描かれるツリーは、`Component<StatusBadge>()` を2回書いたときと同じものです。
+`.Param` の規則は、セレクターを書いた場所で検査します。だから BCF3006 と BCF3007 は、呼び出す
+箇所がいくつあっても、パーツの宣言で1回だけ報告されます。
+
+名前を付ける相手のコンポーネントは、パッケージのものを含めてどこにあってもかまいません。
+`MudDataGrid<Order>` も、自分で書いたコンポーネントと同じ条件で名前を持てます。パーツのほうは
+そうはいきません。宣言のソースの構文から展開するので、呼び出すプロジェクトの中になければなり
+ません（後述の BCF1002）。だからコンポーネントのライブラリが配れるのはコンポーネントまでで、
+名前を付けるパーツは配れません。使う側のプロジェクトがそれぞれ書きます。BCF3012 の非対称を裏
+返した形です。
 
 ### 内容を包む
 
@@ -369,6 +381,18 @@ private static SlotView Panel(View header) =>
 
 名前の付いた経路が先、主な内容は角括弧の中。`Div.Class("card")[…]` や
 `Component<T>().Template(…)[…]` が、この API で既に取っている形です。
+
+スロットは、要素の角括弧と同じようにコンポーネントの角括弧にも置けます。名前を付けたコンポー
+ネントの呼び出しが内容を受け取るのは、この形です。
+
+```csharp
+[ViewPart]
+private static SlotView Framed(string title) =>
+    Component<Card>().Param(c => c.Title, title)[Slot];
+```
+
+呼び出し側の内容は、[子の内容を渡す](#子の内容を渡す)の規則どおり `Card.ChildContent` に届き
+ます。
 
 知っておきたい規則が2つあります。`SlotView` のパーツは、`Slot` を **ちょうど1回** 名指しする
 必要があります。2回名指しすれば、1つの角括弧から呼び出し側の内容を2度出すことになります。一度も

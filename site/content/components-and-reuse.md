@@ -312,15 +312,26 @@ public static class Widgets
             .Param(b => b.Compact, compact);
 }
 
-protected override View Body =>
-    Div[
-        Widgets.Badge("hello"),
-        Widgets.Badge("x", compact: true)];
+public partial class Dashboard : BodyComponentBase
+{
+    protected override View Body =>
+        Div[
+            Widgets.Badge("hello"),
+            Widgets.Badge("x", compact: true)];
+}
 ```
 
 Named and optional arguments work, because the call site is an ordinary C# call. The expansion is
 still an expansion: the caller's generated `RenderView` opens `StatusBadge` directly at each call, so
-the rendered tree is the one writing `Component<StatusBadge>()` twice would have produced.
+the rendered tree is the one writing `Component<StatusBadge>()` twice would have produced. The
+`.Param` rules are checked where the selector is written, so BCF3006 and BCF3007 are reported once at
+the part's declaration, however many call sites it has.
+
+The component being named can come from anywhere, a package included, so `MudDataGrid<Order>` takes a
+name on the same terms as a component you wrote. The part cannot: it is expanded from its
+declaration's source syntax, so it has to live in the project that calls it (BCF1002, below). A
+component library therefore ships components and not the parts that name them, and each consuming
+project writes its own — the BCF3012 asymmetry seen from the other side.
 
 ### Wrapping content
 
@@ -367,6 +378,18 @@ private static SlotView Panel(View header) =>
 
 Named channels first, the main content in brackets — the shape `Div.Class("card")[…]` and
 `Component<T>().Template(…)[…]` already have on this surface.
+
+A slot sits in a component's brackets as readily as in an element's, which is how a named component
+call takes content:
+
+```csharp
+[ViewPart]
+private static SlotView Framed(string title) =>
+    Component<Card>().Param(c => c.Title, title)[Slot];
+```
+
+The caller's content reaches `Card.ChildContent`, by the rule
+[Passing child content](#passing-child-content) states.
 
 Two rules are worth knowing. A `SlotView` part must name `Slot` **exactly once**: naming it twice
 would emit the caller's content twice from one bracket, and never naming it would discard content the
