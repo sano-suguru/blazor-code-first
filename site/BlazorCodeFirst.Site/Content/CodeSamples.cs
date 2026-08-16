@@ -47,8 +47,11 @@ internal static class CodeSamples
     /// </summary>
     /// <remarks>
     /// Kept in step with ARCHITECTURE.md §2.4, which carries this same pair as its worked example of
-    /// the class channel folding while every other decoration costs one frame each. Nothing checks
-    /// site/snippets/generated.cs against what the generator actually emits.
+    /// the class channel folding while every other decoration costs one frame each.
+    /// LandingPageFigureTests compiles site/snippets/design-time.cs and holds site/snippets/generated.cs
+    /// to the frames the generator emits for it, frame for frame. The only text the figure may differ in
+    /// is what its /* … */ placeholder stands for: the callback wrapper, elided so the figure reads at a
+    /// glance.
     /// </remarks>
     [ViewPart]
     public static View Generated() =>
@@ -57,8 +60,10 @@ internal static class CodeSamples
     /// <summary>A build failure, quoted from the diagnostic the compiler actually reports.</summary>
     /// <remarks>
     /// The message is BCF3016's messageFormat verbatim, wrapped by hand so it does not need a
-    /// horizontal scroll on a phone. If that wording changes, this figure has to change with it —
-    /// nothing checks the two against each other.
+    /// horizontal scroll on a phone. If that wording changes, this figure has to change with it, and
+    /// LandingPageFigureTests fails until it does: it reads the literals below back out of this file and
+    /// holds them to the descriptor's ID, severity and message, taking each hand-written line break as
+    /// the space it replaced.
     /// </remarks>
     /// <remarks>
     /// Hand-written, unlike the three above, because a build error is not code. Its own two classes

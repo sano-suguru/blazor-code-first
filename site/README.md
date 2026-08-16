@@ -91,10 +91,13 @@ the language of the documents in it, and DocGen rejects one that does not.
 
 One landing-page figure is not a snippet. The build error in
 `BlazorCodeFirst.Site/Content/CodeSamples.cs` stays hand-written, because it is a terminal message
-rather than code, and it carries `.diag-loc` and `.diag-id` instead of the code classes. Two figures
-are also unchecked against what they claim: that error quotes BCF3016's `messageFormat`, and
-`site/snippets/generated.cs` claims to be the frames the generator emits. Nothing compares either
-with the compiler.
+rather than code, and it carries `.diag-loc` and `.diag-id` instead of the code classes.
+
+Two landing-page figures claim to be compiler output: that error quotes BCF3016's `messageFormat`,
+and `site/snippets/generated.cs` claims to be the frames the generator emits for `design-time.cs`.
+`LandingPageFigureTests` holds both against the compiler. It lives in
+`tests/BlazorCodeFirst.Compiler.Tests` because nothing under `site/` can reference the compiler, so
+editing either figure is checked by `dotnet test BlazorCodeFirst.slnx` and not by `site.yml`.
 
 ### Authoring a document
 
