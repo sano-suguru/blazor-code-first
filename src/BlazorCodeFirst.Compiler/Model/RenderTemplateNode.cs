@@ -149,6 +149,14 @@ internal sealed record ComponentTemplateNode(
 
 /// <param name="Name">The event's attribute name, <c>on</c> prefix included.</param>
 /// <param name="Handler">The handler expression, lowered to an <c>EventCallback</c> at emission.</param>
+/// <param name="ArgsTypeName">
+/// The argument type <c>.On&lt;TArgs&gt;</c> resolved to, fully qualified, or <see langword="null"/> for
+/// the overloads that carry no type argument at all — the argument-less <c>.On</c> and the event
+/// shortcuts. The emitter writes it onto <c>EventCallback.Factory.Create</c>, which is what takes
+/// inference out of the picture there: the handler expression is transplanted without the parameter type
+/// that supplied its context at the call site, so a method group or an untyped lambda that bound
+/// perfectly well in the author's file would otherwise fail to bind in generated code (#371).
+/// </param>
 /// <param name="PreventDefault">
 /// The <c>preventDefault</c> modifier's value, or <see langword="null"/> when no modifier was written on
 /// this event. Null is not the same as a written <c>false</c>: the first emits nothing at all, the second
@@ -158,6 +166,7 @@ internal sealed record ComponentTemplateNode(
 internal sealed record EventTemplate(
     string Name,
     ExpressionTemplate Handler,
+    string? ArgsTypeName = null,
     ExpressionTemplate? PreventDefault = null,
     ExpressionTemplate? StopPropagation = null);
 
