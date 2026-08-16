@@ -323,8 +323,12 @@ internal static class ExpressionTemplateFactory
 
             // A type reference, including a generic one such as List<string>, is fully qualified. A
             // generic name qualifies only its identifier token so the written type-argument list (with any
-            // nullable annotations) survives and each type argument is qualified independently below.
-            if (symbol is INamedTypeSymbol typeSymbol && name is IdentifierNameSyntax or GenericNameSyntax)
+            // nullable annotations) survives and each type argument is qualified independently below. A
+            // name under an alias qualification (global::Data) is skipped: it is fully qualified by
+            // construction already, and a second qualification is not even legal syntax (#392).
+            if (symbol is INamedTypeSymbol typeSymbol
+                && name is IdentifierNameSyntax or GenericNameSyntax
+                && name.Parent is not AliasQualifiedNameSyntax)
             {
                 RecordAccessRequirement(typeSymbol, context);
                 var span = IdentifierSpan(name);
@@ -340,7 +344,7 @@ internal static class ExpressionTemplateFactory
             if ((name is IdentifierNameSyntax or GenericNameSyntax)
                 && symbol is IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol
                 && symbol.IsStatic
-                && !IsQualifiedReference(name))
+                && !IsMemberAccessName(name))
             {
                 RecordAccessRequirement(symbol, context);
                 var span = IdentifierSpan(name);
@@ -669,7 +673,14 @@ internal static class ExpressionTemplateFactory
         return true;
     }
 
-    private static void RecordAccessRequirement(ISymbol symbol, ViewPartBodyContext context)
+    /// <summary>
+    /// Records what the expansion site has to be able to reach for <paramref name="symbol"/> to be
+    /// nameable there, so a body naming a non-public member is refused with BCF1002 rather than emitted
+    /// into a type that cannot see it. Internal because <see cref="RenderExpressionAnalyzer"/> writes a
+    /// <c>ForEach</c> method group back as the call it stands for, and so names a member without going
+    /// through the walk above (#390).
+    /// </summary>
+    internal static void RecordAccessRequirement(ISymbol symbol, ViewPartBodyContext context)
     {
         var kind = symbol.DeclaredAccessibility switch
         {
@@ -933,6 +944,11 @@ internal static class ExpressionTemplateFactory
     private static TextSpan IdentifierSpan(SimpleNameSyntax name) =>
         name is GenericNameSyntax generic ? generic.Identifier.Span : name.Span;
 
+    /// <summary>
+    /// Whether <paramref name="name"/> is the member a receiver names, and so is already spelled by
+    /// whatever stands to its left. A receiver is not one of these: it is the name that carries the
+    /// reference into scope, so it is the name a using-less file still has to have qualified (#392).
+    /// </summary>
     private static bool IsMemberAccessName(SimpleNameSyntax name) =>
         name.Parent switch
         {
@@ -941,9 +957,6 @@ internal static class ExpressionTemplateFactory
             MemberBindingExpressionSyntax binding => binding.Name == name,
             _ => false,
         };
-
-    private static bool IsQualifiedReference(SimpleNameSyntax name) =>
-        name.Parent is MemberAccessExpressionSyntax or QualifiedNameSyntax or MemberBindingExpressionSyntax;
 
     /// <summary>
     /// Whether an unqualified author member would be shadowed by a generated contextual-fragment lambda
@@ -959,7 +972,7 @@ internal static class ExpressionTemplateFactory
         if (!name.Identifier.ValueText.StartsWith("__bcf_context_", System.StringComparison.Ordinal)
             || symbol.IsStatic
             || symbol is not (IFieldSymbol or IPropertySymbol or IMethodSymbol or IEventSymbol)
-            || IsQualifiedReference(name))
+            || IsMemberAccessName(name))
         {
             return false;
         }

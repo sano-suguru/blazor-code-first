@@ -335,6 +335,37 @@ public sealed class ComponentTemplateGeneratorTests
     }
 
     /// <summary>
+    /// A colliding member read through a member access of its own. The shadowing is the same wherever the
+    /// name stands, and the receiver is the position it stands in here: the context is <c>int</c>, so an
+    /// unqualified receiver binds to the generated parameter and the call on it does not exist (#392).
+    /// </summary>
+    [Fact]
+    public void ContextualTemplate_CollidingMemberAtReceiverPosition_IsQualifiedWithThis()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                private readonly string __bcf_context_1 = "member";
+
+                protected override View Body =>
+                    Component<TemplateTarget>().Template(c => c.RowTemplate, context =>
+                        Span[__bcf_context_1.ToUpperInvariant() + context.ToString()]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("TemplateTarget.cs", TemplateTargetSource), ("Host.cs", host));
+
+        var code = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
+        Assert.Contains("((__bcf_context_1) => (__builder) =>", code);
+        Assert.Contains("this.__bcf_context_1.ToUpperInvariant()", code);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
     /// The member name on the left of an object- or nested-initializer assignment names a member of the
     /// object being initialized, not of the containing instance, so <c>this.</c> would not compile there
     /// even though the spelling collides. The same spelling as a bare reference in the same expression is
