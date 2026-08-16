@@ -32,10 +32,13 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// land on.
 /// </para>
 /// <para>
-/// Inheriting was not an option for the HTML five. The parity test passes on them either way --
+/// Inheriting was not an option for HTML's seven. The parity test passes on them either way --
 /// ColorCode's own dictionaries already carry every HTML scope, so the rules exist and only their
 /// colour is wrong -- which is exactly the shape of defect the paragraph above says this list is
-/// here to prevent. HighlightCssEmitterTests names the five instead.
+/// here to prevent. What separates the two cases is whether a fence in the language can be written:
+/// HighlightCssEmitterTests reads the scopes of every language SnippetConverter maps and requires
+/// each one's colour to be from the palette above, so a language added to that map brings its own
+/// obligation here rather than a list someone has to remember (#400).
 /// </para>
 /// </remarks>
 public static class ColorCodeTheme
@@ -70,6 +73,25 @@ public static class ColorCodeTheme
     public static StyleDictionary Styles { get; } = BuildStyles(StyleDictionary.DefaultLight, Light);
 
     public static StyleDictionary DarkStyles { get; } = BuildStyles(StyleDictionary.DefaultDark, Dark);
+
+    /// <summary>The four colours the light half paints, spelled as the stylesheet spells them.</summary>
+    /// <remarks>
+    /// A scope whose colour is one of these was repainted; a scope whose colour is anything else kept
+    /// the base dictionary's. That is the distinction #400 needed and could not make: the parity check
+    /// asserted a rule existed, and ColorCode's own dictionaries already carry one for every scope of
+    /// every language they know, so an HTML figure rendered in Visual Studio red with every test
+    /// green. The '#' is ColorCode's, which writes <c>color:#{Foreground}</c>.
+    /// </remarks>
+    public static IReadOnlySet<string> LightColours { get; } = ColoursOf(Light);
+
+    /// <summary>The dark half's four, which share no value with the light half's — so a repainted
+    /// scope always reaches the stylesheet as a <c>light-dark()</c> pair.</summary>
+    public static IReadOnlySet<string> DarkColours { get; } = ColoursOf(Dark);
+
+    private static HashSet<string> ColoursOf(Palette palette) =>
+        new HashSet<string>(
+            [$"#{palette.Keyword}", $"#{palette.Literal}", $"#{palette.Comment}", $"#{palette.Neutral}"],
+            StringComparer.OrdinalIgnoreCase);
 
     private static StyleDictionary BuildStyles(StyleDictionary styles, Palette palette)
     {

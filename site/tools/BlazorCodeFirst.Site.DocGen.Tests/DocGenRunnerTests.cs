@@ -496,4 +496,46 @@ public class DocGenRunnerTests
             Assert.Contains("control-flow", ex.Message, StringComparison.Ordinal);
         });
     }
+
+    [Fact]
+    public void Run_TranslationLinkingToASectionOnlyTheEnglishDocumentHas_Throws()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md#loops)\n");
+
+            // The English document publishes "loops"; its translation publishes "repetition", the way
+            // a real translation publishes a translated heading. A fragment resolves in the linking
+            // document's own language, the same way its document half does, so a translator who
+            // copied the English link is told rather than shipping a link that lands at the top of
+            // the page. (The heading here is English because site.yml scans this file for Japanese;
+            // MarkdownConverterTests holds the non-ASCII half.)
+            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\norder: 20\nsource-hash: deadbeef\n---\n\n## Repetition\n");
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
+
+            Assert.Contains("ja/getting-started.md", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("loops", ex.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Run_TranslationLinkingToASectionItsOwnEditionPublishes_Resolves()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md#repetition)\n");
+            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\norder: 20\nsource-hash: deadbeef\n---\n\n## Repetition\n");
+
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            Assert.Contains(
+                "/docs/ja/control-flow#repetition", File.ReadAllText(docsOut), StringComparison.Ordinal);
+        });
+    }
 }

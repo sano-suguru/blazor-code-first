@@ -19,7 +19,8 @@ public static class AstRewriter
 
     /// <summary>
     /// Rewrites links to sibling documents ("other.md", "./other.md#frag") into their SPA routes
-    /// ("/docs/other", "/docs/other#frag"), and fails the build on a target that cannot resolve.
+    /// ("/docs/other", "/docs/other#frag"), and fails the build on a target that cannot resolve —
+    /// a document that does not exist, or a fragment that names no heading in it.
     /// </summary>
     /// <remarks>
     /// Only <see cref="LinkInline"/> nodes are considered. A raw HTML anchor written directly in the
@@ -27,23 +28,37 @@ public static class AstRewriter
     /// through untouched, neither rewritten nor checked, so document bodies must use Markdown link
     /// syntax. Autolinks are a different node type and are likewise out of scope.
     /// <para>
-    /// <paramref name="knownSlugs"/> and <paramref name="routePrefix"/> both belong to the linking
+    /// <paramref name="anchorsBySlug"/> and <paramref name="routePrefix"/> both belong to the linking
     /// document's own language. A sibling link stays inside that language, which is what makes it a
     /// sibling: a reader following one from a translated page should land on the translation of the
     /// target, and a translation that has not been written yet is a missing target rather than a
     /// silent hop back into English.
     /// </para>
+    /// <para>
+    /// The map carries each document's anchors rather than its slug alone, because the fragment is
+    /// half of what a link resolves to: <c>./other.md#gone</c> lands a reader at the top of a page
+    /// that has no such section, which looks the same as landing where the link meant to (#405).
+    /// Its keys are therefore also the set of documents that exist. A fragment is compared to a
+    /// heading id verbatim, against the URL as the author wrote it: the renderer percent-encodes the
+    /// href later and writes the heading's id literally, which is the asymmetry a browser resolves by
+    /// decoding before it matches. Comparing here therefore reads the Japanese edition's non-ASCII
+    /// anchors as written.
+    /// </para>
     /// </remarks>
     public static void RewriteRelativeLinks(
         MarkdownDocument document,
-        IReadOnlySet<string> knownSlugs,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> anchorsBySlug,
         string fileName,
         string routePrefix)
     {
         ArgumentNullException.ThrowIfNull(document);
-        ArgumentNullException.ThrowIfNull(knownSlugs);
+        ArgumentNullException.ThrowIfNull(anchorsBySlug);
         ArgumentNullException.ThrowIfNull(fileName);
         ArgumentNullException.ThrowIfNull(routePrefix);
+
+        // Read on the first link that needs it. Most documents have one, and a document with none
+        // should not pay a walk of its headings.
+        IReadOnlySet<string>? ownAnchors = null;
 
         foreach (var link in document.Descendants<LinkInline>())
         {
@@ -62,6 +77,17 @@ public static class AstRewriter
             {
                 fragment = path[hash..];
                 path = path[..hash];
+            }
+
+            if (path.Length == 0)
+            {
+                // A link with nothing but a fragment jumps inside this document. There is no route
+                // to rewrite -- the reader is already on it -- but the fragment still names a
+                // heading, and one that does not exist is the same broken link as one across
+                // documents.
+                EnsureAnchorExists(
+                    fragment, ownAnchors ??= HeadingAnchors.Of(document), "this document", fileName, link.Url);
+                continue;
             }
 
             if (!IsSiblingFileTarget(path))
@@ -101,23 +127,55 @@ public static class AstRewriter
                 continue;
             }
 
-            if (!knownSlugs.Contains(stem))
+            if (!anchorsBySlug.TryGetValue(stem, out var targetAnchors))
             {
                 throw new InvalidOperationException(
                     $"Invalid document '{fileName}': the link '{link.Url}' points at a document that " +
                     "does not exist in the content directory.");
             }
 
+            EnsureAnchorExists(fragment, targetAnchors, $"'{stem}{MarkdownExtension}'", fileName, link.Url);
+
             link.Url = $"{routePrefix}/{stem}{fragment}";
         }
+    }
+
+    /// <summary>Fails unless <paramref name="fragment"/> names a heading the target document
+    /// publishes. A link with no fragment names the top of that document and needs nothing.</summary>
+    /// <remarks>
+    /// The message names the heading id rather than the heading, because the id is what the author
+    /// wrote and what moved: an id is derived from the heading's text, so rewriting a heading
+    /// silently invalidates every link into it.
+    /// </remarks>
+    private static void EnsureAnchorExists(
+        string fragment,
+        IReadOnlySet<string> anchors,
+        string target,
+        string fileName,
+        string url)
+    {
+        if (fragment.Length == 0)
+        {
+            return;
+        }
+
+        string id = fragment[1..];
+        if (anchors.Contains(id))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Invalid document '{fileName}': the link '{url}' points at a section that does not " +
+            $"exist. No heading in {target} has the id '{id}'.");
     }
 
     /// <summary>Recognizes a same-directory file reference, rejecting rooted paths, absolute URLs,
     /// scheme-like targets ("mailto:", "tel:"), and any path with a directory part.</summary>
     /// <remarks>
     /// Takes the URL with its fragment already removed, so a colon inside a fragment cannot be read as
-    /// a scheme. A pure fragment ("#section") therefore arrives here as an empty string and is
-    /// rejected by the length guard.
+    /// a scheme. A pure fragment ("#section") is answered by the caller before this runs, so the empty
+    /// string does not reach the length guard from that shape; the guard is what an empty URL hits.
     /// </remarks>
     private static bool IsSiblingFileTarget(string url)
     {

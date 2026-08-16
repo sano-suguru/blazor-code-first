@@ -7,10 +7,11 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// artifacts (Docs.g.cs and highlight.css) deterministically (UTF-8 no BOM, LF).</summary>
 /// <remarks>
 /// Two passes are required because cross-document validation must happen before any conversion:
-/// pass 1 reads and validates every document, file name, front matter, and duplicate order, and
-/// <see cref="Run"/> derives the per-language slug sets from that output before pass 2 begins; pass 2
-/// then converts each document, rewriting relative links and failing the build on a link that points
-/// at a document that does not exist in the same language.
+/// pass 1 reads and validates every document, file name, front matter, and duplicate order; pass 2
+/// parses all of them, derives each language's slugs and heading anchors from the parsed set, and
+/// only then converts each document, rewriting relative links and failing the build on a link that
+/// points at a document that does not exist in the same language or at a heading that document does
+/// not publish.
 ///
 /// Duplicate order is detected here rather than in <see cref="CSharpDocEmitter"/> because only pass 1
 /// holds the file name of each colliding document, so only pass 1 can name both halves of the
@@ -49,24 +50,33 @@ public static class DocGenRunner
 
         sources = ResolveStaleness(sources, report);
 
-        // Pass 2 needs each language's own slug set, so a link to a document that has no counterpart
-        // in the linking document's language fails the build rather than resolving to a route that
-        // was never prerendered.
-        var slugsByLang = sources
-            .GroupBy(s => s.Meta.Lang, StringComparer.Ordinal)
+        // Pass 2 parses every document before it converts any of them. A link resolves to a document
+        // and to a heading inside it, and a document's headings are known only once it has been
+        // parsed, so nothing can be checked until the whole set is in hand.
+        var parsed = sources
+            .Select(s => (Source: s, Document: MarkdownConverter.ParseBody(s.Body, s.FileName)))
+            .ToList();
+
+        // Per language, so a link to a document that has no counterpart in the linking document's
+        // language fails the build rather than resolving to a route that was never prerendered.
+        var anchorsByLang = parsed
+            .GroupBy(p => p.Source.Meta.Lang, StringComparer.Ordinal)
             .ToDictionary(
                 g => g.Key,
-                g => (IReadOnlySet<string>)g.Select(s => s.Meta.Slug).ToHashSet(StringComparer.Ordinal),
+                g => (IReadOnlyDictionary<string, IReadOnlySet<string>>)g.ToDictionary(
+                    p => p.Source.Meta.Slug,
+                    p => HeadingAnchors.Of(p.Document),
+                    StringComparer.Ordinal),
                 StringComparer.Ordinal);
 
         var docs = new List<(DocMeta Meta, string Html)>(sources.Count);
-        foreach (var source in sources)
+        foreach (var (source, document) in parsed)
         {
             docs.Add((
                 source.Meta,
                 MarkdownConverter.ToHtml(
-                    source.Body,
-                    slugsByLang[source.Meta.Lang],
+                    document,
+                    anchorsByLang[source.Meta.Lang],
                     source.FileName,
                     DocLang.RoutePrefix(source.Meta.Lang))));
         }

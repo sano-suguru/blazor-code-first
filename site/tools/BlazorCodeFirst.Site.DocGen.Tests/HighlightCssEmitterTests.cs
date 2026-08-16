@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using BlazorCodeFirst.Site.DocGen;
+using ColorCode.Common;
 using ColorCode.Styling;
 using Xunit;
 
@@ -75,20 +77,14 @@ public class HighlightCssEmitterTests
     // a new entry instead of overwriting the old one -- would leave the Visual Studio palette in
     // place with every other test here still green.
     //
-    // Asserting both directions is the point. The presence check catches a repaint that stopped
-    // being applied; the absence check catches a repaint that was applied to a duplicate entry
-    // while the original rule survived alongside it.
+    // One row per role, not per scope. Which scopes have to be repainted is derived below; this pins
+    // what each of the four roles is painted with, so a palette edit that swapped two of them is read
+    // as the change to the design it would be.
     [Theory]
     [InlineData("keyword", "#463ECC", "#C5A2FF")]
     [InlineData("string", "#006647", "#69D6AA")]
     [InlineData("comment", "#676871", "#8F919F")]
     [InlineData("htmlElementName", "#161822", "#E6E7ED")]
-    [InlineData("htmlAttributeName", "#161822", "#E6E7ED")]
-    [InlineData("htmlTagDelimiter", "#161822", "#E6E7ED")]
-    [InlineData("htmlOperator", "#161822", "#E6E7ED")]
-    [InlineData("htmlAttributeValue", "#006647", "#69D6AA")]
-    [InlineData("htmlEntity", "#006647", "#69D6AA")]
-    [InlineData("htmlComment", "#676871", "#8F919F")]
     public void Emit_PairsBothPalettesInOneDeclaration(string cls, string light, string dark)
     {
         string css = HighlightCssEmitter.Emit();
@@ -96,34 +92,129 @@ public class HighlightCssEmitterTests
         Assert.Contains($".{cls}{{color:light-dark({light},{dark});}}", css, StringComparison.OrdinalIgnoreCase);
     }
 
-    // The defaults each palette would have carried had the repaint stopped being applied. They
-    // differ because the dark theme is built from DefaultDark, not from the light dictionary: an
-    // unreached scope has to inherit a colour meant for the surface it will land on.
-    //
-    // Asserting their absence is the other half of the pair above. The presence check catches a
-    // repaint that stopped happening; this catches one applied to a duplicate entry while the
-    // original rule survived alongside it.
-    [Theory]
-    [InlineData("#0000FF")]
-    [InlineData("#A31515")]
-    [InlineData("#008000")]
-    [InlineData("#569CD6")]
-    [InlineData("#D69D85")]
-    [InlineData("#57A64A")]
-    public void Emit_LeavesNoVisualStudioDefaultOnARepaintedScope(string defaultHex)
+    /// <summary>Every fence language a snippet can open, as the extension map spells it.</summary>
+    public static TheoryData<string> MappedLanguages()
     {
+        var data = new TheoryData<string>();
+        foreach (string language in SnippetConverter.Languages.Values.Distinct().Order(StringComparer.Ordinal))
+        {
+            data.Add(language);
+        }
+
+        return data;
+    }
+
+    // A language ColorCode does not know renders as unhighlighted text, which is the state
+    // SnippetConverter's own map exists to prevent ("a figure that silently lost its highlighting
+    // looks like a theme regression"). The fence token is what Markdown.ColorCode resolves, so the
+    // lookup here is the one the pipeline performs.
+    [Theory]
+    [MemberData(nameof(MappedLanguages))]
+    public void Emit_HasALanguageBehindEveryMappedFenceToken(string language) =>
+        Assert.True(
+            ColorCode.Languages.FindById(language) is not null,
+            $"SnippetConverter maps a source extension to the fence language '{language}', which " +
+            "ColorCode does not know. A fence in it renders as plain text.");
+
+    /// <summary>Every scope those languages can emit, one case each.</summary>
+    public static TheoryData<string, string> ScopesOfMappedLanguages()
+    {
+        var data = new TheoryData<string, string>();
+        foreach (string language in SnippetConverter.Languages.Values.Distinct().Order(StringComparer.Ordinal))
+        {
+            foreach (string scope in ScopesOf(language))
+            {
+                data.Add(language, scope);
+            }
+        }
+
+        return data;
+    }
+
+    [Fact]
+    public void ScopesOfMappedLanguages_AreFound() =>
+        // The theory below reads as a pass over an empty set if the scope walk stops finding
+        // anything, which is what a ColorCode release that reshaped LanguageRule would produce.
+        Assert.NotEmpty(ScopesOfMappedLanguages());
+
+    // The check #400 records as missing. Adding ".html" to the extension map needed every HTML scope
+    // repainted, and nothing said so: Emit_CoversEveryClassUsedInRealHtml asserts a rule EXISTS for
+    // every emitted class, and ColorCode's own dictionaries already carry one for every scope of
+    // every language they know. Measured at the time, the landing page's HTML figure rendered with
+    // .htmlElementName at #A31515 and .htmlAttributeName at #FF0000 while that test stayed green.
+    //
+    // Derived from the language rather than from a sample, so it covers a scope no figure has reached
+    // yet -- .htmlEntity is in no figure today and arrives red the first time prose about HTML writes
+    // an entity. It is also why the seven no longer have to be hand-listed above, which was the step
+    // a third language would have had to remember.
+    [Theory]
+    [MemberData(nameof(ScopesOfMappedLanguages))]
+    public void Emit_PaintsEveryScopeAMappedLanguageCanEmit(string language, string scope)
+    {
+        Assert.True(
+            ColorCodeTheme.Styles.Contains(scope),
+            $"'{language}' can emit the scope '{scope}', which ColorCodeTheme does not style at all.");
+
+        string cls = ColorCodeTheme.Styles[scope].ReferenceName;
         string css = HighlightCssEmitter.Emit();
 
-        foreach (string cls in new[]
-                 {
-                     "keyword", "string", "comment",
-                     "htmlElementName", "htmlAttributeName", "htmlTagDelimiter",
-                     "htmlOperator", "htmlAttributeValue", "htmlEntity", "htmlComment",
-                 })
+        // Every rule for the class, not the first: a repaint applied to a duplicate dictionary entry
+        // would leave the original beside it, and reading only one of the two would miss that.
+        MatchCollection rules = Regex.Matches(css, @"\." + Regex.Escape(cls) + @"\{([^}]*)\}");
+        Assert.True(rules.Count > 0, $"'{scope}' emits class '{cls}', which has no rule in the stylesheet.");
+
+        foreach (Match rule in rules)
         {
-            Match rule = Regex.Match(css, @"\." + cls + @"\{([^}]*)\}");
-            Assert.True(rule.Success, $".{cls} has no rule at all");
-            Assert.DoesNotContain(defaultHex, rule.Groups[1].Value, StringComparison.OrdinalIgnoreCase);
+            Match colour = Regex.Match(rule.Groups[1].Value, @"color:light-dark\((#[0-9A-Fa-f]{6}),(#[0-9A-Fa-f]{6})\);");
+
+            Assert.True(
+                colour.Success
+                && ColorCodeTheme.LightColours.Contains(colour.Groups[1].Value)
+                && ColorCodeTheme.DarkColours.Contains(colour.Groups[2].Value),
+                $"'{scope}' emits class '{cls}', whose rule is '{rule.Value}'. A scope a mapped fence " +
+                "language can reach has to be repainted onto the site's palette; this one kept " +
+                "ColorCode's Visual Studio colour.");
+        }
+    }
+
+    /// <summary>Every scope one language can emit, following the languages it embeds.</summary>
+    /// <remarks>
+    /// ColorCode marks an embedded language with a "&amp;" prefix where a scope name would go, which
+    /// is how an HTML rule hands a <c>&lt;script&gt;</c> body to the JavaScript language. Those
+    /// scopes reach the same stylesheet, so they are the same obligation.
+    /// </remarks>
+    private static SortedSet<string> ScopesOf(string language)
+    {
+        var scopes = new SortedSet<string>(StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        Walk(language);
+        return scopes;
+
+        void Walk(string id)
+        {
+            if (!visited.Add(id) || ColorCode.Languages.FindById(id) is not { } found)
+            {
+                return;
+            }
+
+            foreach (var rule in found.Rules)
+            {
+                foreach (string? scope in rule.Captures.Values)
+                {
+                    if (scope is null)
+                    {
+                        continue;
+                    }
+
+                    if (scope.StartsWith(ScopeName.LanguagePrefix, StringComparison.Ordinal))
+                    {
+                        Walk(scope[ScopeName.LanguagePrefix.Length..]);
+                        continue;
+                    }
+
+                    scopes.Add(scope);
+                }
+            }
         }
     }
 
