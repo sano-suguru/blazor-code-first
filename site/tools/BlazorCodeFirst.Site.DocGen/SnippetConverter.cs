@@ -19,6 +19,7 @@ public static class SnippetConverter
     private static readonly Dictionary<string, string> Languages = new(StringComparer.Ordinal)
     {
         [".cs"] = "csharp",
+        [".html"] = "html",
     };
 
     public static string ToHtml(string sourceText, string path, string snippetName)

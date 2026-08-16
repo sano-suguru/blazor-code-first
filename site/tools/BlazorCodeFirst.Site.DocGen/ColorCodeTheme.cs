@@ -26,9 +26,16 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// Scopes outside this list keep the base dictionary's hex. That is deliberate: the parity test
 /// asserts every class the pipeline emits has a rule, and inheriting the rest means a fence in a
 /// language nobody has written yet still renders legibly rather than as unstyled text. Today's
-/// documents reach only keyword, string, comment and number. It is also why the dark theme starts
-/// from DefaultDark rather than from the light dictionary: an unreached scope has to inherit a
-/// colour meant for the surface it will actually land on.
+/// documents reach keyword, string, comment and number, plus the five an output figure's HTML
+/// reaches. It is also why the dark theme starts from DefaultDark rather than from the light
+/// dictionary: an unreached scope has to inherit a colour meant for the surface it will actually
+/// land on.
+/// </para>
+/// <para>
+/// Inheriting was not an option for the HTML five. The parity test passes on them either way --
+/// ColorCode's own dictionaries already carry every HTML scope, so the rules exist and only their
+/// colour is wrong -- which is exactly the shape of defect the paragraph above says this list is
+/// here to prevent. HighlightCssEmitterTests names the five instead.
 /// </para>
 /// </remarks>
 public static class ColorCodeTheme
@@ -78,6 +85,31 @@ public static class ColorCodeTheme
         Repaint(styles, ScopeName.XmlDocComment, palette.Comment);
         Repaint(styles, ScopeName.XmlDocTag, palette.Comment);
         Repaint(styles, ScopeName.ClassName, palette.Neutral);
+
+        // The output half of a figure, mapped onto the roles the C# half already uses so the two
+        // are read as one correspondence rather than as two languages. An element name takes the
+        // neutral, which is what an element helper takes on the other side -- Section and H1 match
+        // no highlighter scope, so they render in the slab's own ink -- and an attribute value takes
+        // the literal its string came from. HTML has no keyword, so the accent stays reserved for
+        // one. Same role, not the same hex: the two halves of a pair sit on slabs that declare
+        // opposite color-schemes, so each resolves the pair's light-dark() on its own surface.
+        //
+        // The operator is the '=' between an attribute's name and its value, which the highlighter
+        // scopes separately from both. It is punctuation, so it goes with the delimiters; left
+        // inherited it is the one blue mark on an otherwise neutral figure. The entity is here on
+        // the same reasoning as the attribute value rather than from a figure that has one:
+        // &amp; is ordinary in prose about HTML, and inherited it arrives red.
+        //
+        // HtmlServerSideScript is deliberately not repainted. No output figure can contain <% %>,
+        // and Emit_WritesAgreedColoursOnce reads its inherited yellow as the worked example of a
+        // scope both palettes agree on.
+        Repaint(styles, ScopeName.HtmlElementName, palette.Neutral);
+        Repaint(styles, ScopeName.HtmlAttributeName, palette.Neutral);
+        Repaint(styles, ScopeName.HtmlTagDelimiter, palette.Neutral);
+        Repaint(styles, ScopeName.HtmlOperator, palette.Neutral);
+        Repaint(styles, ScopeName.HtmlAttributeValue, palette.Literal);
+        Repaint(styles, ScopeName.HtmlEntity, palette.Literal);
+        Repaint(styles, ScopeName.HtmlComment, palette.Comment);
 
         return styles;
     }

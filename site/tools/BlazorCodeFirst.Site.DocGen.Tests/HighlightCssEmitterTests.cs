@@ -82,6 +82,13 @@ public class HighlightCssEmitterTests
     [InlineData("keyword", "#463ECC", "#C5A2FF")]
     [InlineData("string", "#006647", "#69D6AA")]
     [InlineData("comment", "#676871", "#8F919F")]
+    [InlineData("htmlElementName", "#161822", "#E6E7ED")]
+    [InlineData("htmlAttributeName", "#161822", "#E6E7ED")]
+    [InlineData("htmlTagDelimiter", "#161822", "#E6E7ED")]
+    [InlineData("htmlOperator", "#161822", "#E6E7ED")]
+    [InlineData("htmlAttributeValue", "#006647", "#69D6AA")]
+    [InlineData("htmlEntity", "#006647", "#69D6AA")]
+    [InlineData("htmlComment", "#676871", "#8F919F")]
     public void Emit_PairsBothPalettesInOneDeclaration(string cls, string light, string dark)
     {
         string css = HighlightCssEmitter.Emit();
@@ -107,7 +114,12 @@ public class HighlightCssEmitterTests
     {
         string css = HighlightCssEmitter.Emit();
 
-        foreach (string cls in new[] { "keyword", "string", "comment" })
+        foreach (string cls in new[]
+                 {
+                     "keyword", "string", "comment",
+                     "htmlElementName", "htmlAttributeName", "htmlTagDelimiter",
+                     "htmlOperator", "htmlAttributeValue", "htmlEntity", "htmlComment",
+                 })
         {
             Match rule = Regex.Match(css, @"\." + cls + @"\{([^}]*)\}");
             Assert.True(rule.Success, $".{cls} has no rule at all");

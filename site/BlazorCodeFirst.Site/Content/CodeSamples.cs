@@ -23,19 +23,31 @@ namespace BlazorCodeFirst.Site.Content;
 /// </remarks>
 internal static class CodeSamples
 {
-    /// <summary>The hero figure: an ordinary BlazorCodeFirst page component.</summary>
-    /// <remarks>
-    /// Deliberately close to this site's own Pages/Home.cs. The claim in the headline is checkable
-    /// against the file next to it.
-    /// </remarks>
+    /// <summary>The left half of the first pair: the expression an author writes.</summary>
     /// <remarks>
     /// site/snippets/hero.cs keeps its lines under about 45 characters. The figure sits in half of a
-    /// two-column hero, and a code block that needs a horizontal scrollbar to show its own first
+    /// two-column pair, and a code block that needs a horizontal scrollbar to show its own first
     /// statement is not a figure, it is a puzzle.
     /// </remarks>
+    /// <remarks>
+    /// Light, and the output half beside it dark, which is the arrangement DesignTime and Generated
+    /// already use for the same relation. Each slab declares its own color-scheme, so the pair reads
+    /// as source on paper becoming output on the machine, twice down the page rather than once each
+    /// way.
+    /// </remarks>
     [ViewPart]
-    public static View Component() =>
-        Div.Class("slab")[Raw(Snippets.Hero)];
+    public static View Surface() =>
+        Div.Class("slab slab--light")[Raw(Snippets.Hero)];
+
+    /// <summary>The right half of the first pair: the HTML that expression renders.</summary>
+    /// <remarks>
+    /// FigureTests renders Content/Examples/Hero and holds site/snippets/hero.html to the markup, so
+    /// this half cannot drift from the half beside it. That pairing is why this figure is worth
+    /// having at all: an output figure nobody renders is a drawing of one.
+    /// </remarks>
+    [ViewPart]
+    public static View SurfaceOutput() =>
+        Div.Class("slab")[Raw(Snippets.HeroOutput)];
 
     /// <summary>The left half of the comparison: the design-time expression an author writes.</summary>
     [ViewPart]

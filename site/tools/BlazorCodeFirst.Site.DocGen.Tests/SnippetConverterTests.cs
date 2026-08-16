@@ -71,4 +71,14 @@ public class SnippetConverterTests
         Assert.Throws<InvalidOperationException>(
             () => SnippetConverter.ToHtml("hello", "a/b", "sample"));
     }
+
+    [Fact]
+    public void ToHtml_HtmlSource_HighlightsWithTheHtmlFenceClasses()
+    {
+        string html = SnippetConverter.ToHtml("<p class=\"lede\">hi</p>\n", "a/b.html", "sample");
+
+        Assert.Contains("<div class=\"html\">", html, StringComparison.Ordinal);
+        Assert.Contains("htmlElementName", html, StringComparison.Ordinal);
+        Assert.Contains("htmlAttributeValue", html, StringComparison.Ordinal);
+    }
 }

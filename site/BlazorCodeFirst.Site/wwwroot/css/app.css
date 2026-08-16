@@ -527,9 +527,15 @@ kbd {
    Nothing here may touch the font. `code, pre, kbd` above sets the mono family at specificity
    0-0-1, and a `font: inherit` here (0-1-1) beats it and resolves to the body sans face, because
    .slab sets a size and a line-height but never a family. That rendered every figure on the site
-   in Geist. The browser suite reads overflow and contrast, not font-family, so it stayed green. */
+   in Geist. The browser suite reads overflow and contrast, not font-family, so it stayed green.
+
+   One selector per fence language, because the wrapper carries the language as its class. Adding a
+   language to SnippetConverter's map without adding it here leaves that figure with the UA `pre`
+   margin: measured, `.html` stood 26px taller than the `.csharp` figure beside it in the same pair,
+   which is what caught it. */
 .slab > pre,
-.slab > .csharp > pre {
+.slab > .csharp > pre,
+.slab > .html > pre {
     margin: 0;
 }
 
@@ -970,14 +976,6 @@ kbd {
 /* --- Layout breakpoint (60rem) -------------------------------------------- */
 
 @media (min-width: 60rem) {
-    /* Even halves. 7/5 gave the headline more room than it needed and left the code figure
-       narrower than its own longest line, which is the wrong trade when the figure is the proof. */
-    .hero {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: var(--space-3xl);
-        align-items: center;
-    }
-
     .pair {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: var(--space-xl);
