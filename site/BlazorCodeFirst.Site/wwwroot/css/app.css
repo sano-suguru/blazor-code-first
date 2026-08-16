@@ -532,7 +532,8 @@ kbd {
    One selector per fence language, because the wrapper carries the language as its class. Adding a
    language to SnippetConverter's map without adding it here leaves that figure with the UA `pre`
    margin: measured, `.html` stood 26px taller than the `.csharp` figure beside it in the same pair,
-   which is what caught it. */
+   which is what caught it. StylesheetTests now reads the language list off that map and holds this
+   selector list to it, so the next language is caught by a test instead of by eye. */
 .slab > pre,
 .slab > .csharp > pre,
 .slab > .html > pre {

@@ -18,6 +18,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BlazorCodeFirst.Site\BlazorCodeFirst.Site.csproj" />
+    <!-- For SnippetConverter.Languages. `css/app.css` carries one `pre` margin reset per fence
+         language, because the wrapper element carries the language as its class, and StylesheetTests
+         holds the two lists together (#400). The stylesheet is the site's file, so the check reading
+         it belongs here rather than beside the tool. -->
+    <ProjectReference Include="..\..\tools\BlazorCodeFirst.Site.DocGen\BlazorCodeFirst.Site.DocGen.csproj" />
   </ItemGroup>
 
 </Project>

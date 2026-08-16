@@ -16,11 +16,19 @@ public static class SnippetConverter
     /// an error rather than an unhighlighted fence: a figure that silently lost its highlighting
     /// looks like a theme regression, and the author would have no reason to suspect the
     /// manifest.</summary>
-    private static readonly Dictionary<string, string> Languages = new(StringComparer.Ordinal)
-    {
-        [".cs"] = "csharp",
-        [".html"] = "html",
-    };
+    /// <remarks>
+    /// Public because adding an entry here obliges two edits elsewhere and neither is local: every
+    /// scope the new language emits has to be repainted in <see cref="ColorCodeTheme"/>, and
+    /// <c>css/app.css</c> has to reset the UA <c>pre</c> margin for the wrapper class, which carries
+    /// the language name. Both were found by eye when <c>.html</c> was added (#400), so the checks
+    /// that now hold them read the list from here rather than repeating it.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, string> Languages { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [".cs"] = "csharp",
+            [".html"] = "html",
+        };
 
     public static string ToHtml(string sourceText, string path, string snippetName)
     {

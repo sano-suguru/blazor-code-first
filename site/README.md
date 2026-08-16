@@ -88,7 +88,14 @@ roles the C# half uses, so `<div>` carries the colour `Div` does and an attribut
 its string literal does — the pair reads as one correspondence rather than as two languages.
 `ColorCodeTheme` says which and why. Inheriting them was not an option and the parity check would
 not have said so: ColorCode's own dictionaries already carry every HTML scope, so the rules exist
-and only their colour is wrong. `HighlightCssEmitterTests` names the seven.
+and only their colour is wrong.
+
+Adding a language to that map therefore obliges two edits elsewhere, and both are now checked rather
+than remembered (#400). `HighlightCssEmitterTests` reads the scopes of every mapped language out of
+ColorCode — following the languages it embeds, so a `<script>` in a figure counts — and requires
+each one's colour in `highlight.css` to come from the palette. `StylesheetTests` requires
+`css/app.css` to reset the UA `pre` margin for the wrapper class, which carries the language name;
+without it the `.html` figure stood 26px taller than the C# figure beside it in the same pair.
 
 A declared path may leave `site/snippets/`, which is how `/counter`'s figure reads
 `BlazorCodeFirst.Site/Pages/CounterPage.cs` — the file the page is compiled from. The freshness gate
