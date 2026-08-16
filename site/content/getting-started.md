@@ -3,15 +3,23 @@ title: Getting Started
 order: 10
 ---
 
-BlazorCodeFirst lets you write Blazor UI as plain C#. This page is itself rendered
-from Markdown, converted at build time and injected through `Html.Raw`.
+BlazorCodeFirst lets you write Blazor UI as plain C#. This page is itself rendered from Markdown,
+converted at build time and injected through `Html.Raw`.
 
 ## Installation
 
-Add the runtime and the source generator to your project, then derive your
-components from `BodyComponentBase`.
+Add the runtime and the source generator to your project, then derive your components from
+`BodyComponentBase`.
+
+```
+dotnet add package BlazorCodeFirst
+```
 
 ## A first component
+
+A component is a `partial` class with one overridden property. The class must be `partial`, because
+the generator writes the rendering into it, and top-level, because generated code cannot reproduce a
+chain of enclosing types.
 
 ```csharp
 using Microsoft.AspNetCore.Components;
@@ -28,37 +36,40 @@ public partial class Home : BodyComponentBase
 }
 ```
 
-## What the class has to be
+That expression names the HTML it produces. Attributes chain onto the element, children go in
+brackets, and a bare string is a text node.
 
-The generator writes a `RenderView` override into the class you declared, so that class has to be one
-it can write into. Three shapes are rejected, each by its own diagnostic.
-
-The class must be `partial`, or BCF1001 is reported. Only the class that declares the override needs
-the modifier, because nothing is generated into any of these:
-
-- an intermediate abstract base
-- a leaf whose base already declares the override
-- a re-abstraction
-
-The class must be top-level, or BCF1005 is reported. Generated code cannot reproduce a chain of
-enclosing type declarations, including any enclosing type's type parameters, so a nested component is
-rejected rather than half emitted. Without the diagnostic the nesting would surface only as CS0534
-against the abstract `RenderView`. CS0534 names the missing member, never the type it is nested in.
-
-The getter must reach one returned expression, or BCF1004 is reported. Three spellings satisfy that,
-and all three translate identically:
+<!-- bcf-figure: Greeting -->
 
 ```csharp
-protected override View Body => Div[H1["Hello"]];              // fine
-protected override View Body { get => Div[H1["Hello"]]; }      // fine
-protected override View Body { get { return Div[H1["Hello"]]; } }   // fine
+protected override View Body =>
+    Div[
+        H1["Hello"],
+        Span["Welcome to BlazorCodeFirst."]];
+```
+
+```html
+<div>
+    <h1>Hello</h1>
+    <span>Welcome to BlazorCodeFirst.</span>
+</div>
+```
+
+## The getter reaches one expression
+
+Three spellings satisfy that, and all three translate identically:
+
+```csharp
+protected override View Body => Div[H1["Hello"]];                    // fine
+protected override View Body { get => Div[H1["Hello"]]; }            // fine
+protected override View Body { get { return Div[H1["Hello"]]; } }    // fine
 ```
 
 Locals and expression statements may precede that return. They are transplanted into the generated
-`RenderView` ahead of the frames, which is where a `ForEach` content block's statements already go:
+rendering ahead of the frames, which is where a `ForEach` content block's statements already go:
 
 ```csharp
-protected override View Body                                   // fine
+protected override View Body
 {
     get
     {
@@ -68,91 +79,44 @@ protected override View Body                                   // fine
 }
 ```
 
-What is left over still earns BCF1004:
-
-```csharp
-protected override View Body                                   // BCF1004: a second return
-{
-    get
-    {
-        if (_name is null)
-            return Div[H1["Hello"]];
-
-        return Div[H1[$"Hello, {_name}"]];
-    }
-}
-
-protected override View Body { get; } = default;               // BCF1004: an auto property has no getter body
-```
-
-A second return and native control flow each need a sequence space of their own, and an auto property
-declares no getter body at all. BCF1004 blames the declaration, and that is what separates it from
-BCF1003. BCF1003 means the getter's shape was fine and something written inside it could not be
-sequenced. If the body genuinely cannot be written in this shape, override `RenderView` by hand — the
-design-time expression is then unused, and nothing is reported.
-
-A third diagnostic reads the same getter. BCF1002 is reported when the expression names something
-generated code cannot name: a local, a local function, a range variable, or a label whose declaration
-does not reach the generated file beside the reference. The usual way in is a declaration written in
-one part of the expression and read from another, because the generator does not emit an element's
-parts in the order you wrote them:
-
-```csharp
-protected override View Body =>
-    Div.Attr("data-found", _rows.TryGetValue(_key, out var row))
-       .Attr("title", row.Name);                               // BCF1002: 'row' cannot exist there
-```
-
-Two positions do carry a declaration across, because each becomes a header in the generated code that
-encloses whatever reads it: an `If` condition scopes over both branches, and a `ForEach` source over
-the content and the key. Anywhere else, declare the local in a statement ahead of the return, the way
-`greeting` is declared above. That is what separates BCF1002 from BCF1003: BCF1003 means the expression could not be
-sequenced, BCF1002 that it could, and named something the generated file cannot see.
-
-Statements are translated, not run: the design-time expression is still inert, so mutating state inside
-one is BCF3001 as it always was.
-
-A class can carry two of these faults at once — a missing `partial` and an untranslatable getter — and
-you are told about one at a time. The `partial` check runs first, so BCF1001 comes alone, and adding
-the modifier is what surfaces BCF1004.
+A second return and native control flow each need a sequence space of their own, so neither is
+accepted ([BCF1004](./diagnostics.md#bcf1004)). If the body genuinely cannot be written in this
+shape, override `RenderView` by hand: the design-time expression is then unused, and nothing is
+reported.
 
 ## Where the surface means something
 
-`Html.Div`, `.Class(...)`, `.OnClick(...)` and every other factory and decoration are inert. `View` is
-an empty struct, an element helper returns nothing, and a decoration returns its receiver unchanged.
-The generator reads the *syntax* you wrote, never the value, and it reads it in three places: a
-component's `Body`, a layout's `Chrome`, and the body of a `[ViewPart]` method.
+`Html.Div`, `.Class(...)`, `.OnClick(...)` and every other factory and decoration are inert. `View`
+is an empty struct, an element helper returns nothing, and a decoration returns its receiver
+unchanged. The generator reads the *syntax* you wrote, never the value, and it reads it in three
+places: a component's `Body`, a layout's `Chrome`, and the body of a `[ViewPart]` method.
 
-The same API is callable from anywhere, and elsewhere it means nothing. Written in an event handler, a
-service, or a helper method it still compiles, still looks like it built something, and does nothing
-at all — no output, and no handler wired up:
+The same API is callable from anywhere, and elsewhere it means nothing. Written in an event handler,
+a service, or a helper method it still compiles, still looks like it built something, and does
+nothing at all — no output, and no handler wired up. That is
+[BCF3029](./diagnostics.md#bcf3029), and [BCF3030](./diagnostics.md#bcf3030) is the same mistake
+seen from a call site.
 
-```csharp
-private void OnSomething()
-{
-    // BCF3029: renders nothing, and DoThing is never called
-    var card = Div.Class("card").OnClick(DoThing)[Span["hello"]];
-}
-```
+## When the build stops
 
-BCF3029 names that. What marks a reading position is the design-time type it returns, so none of the
-three is a special case. A lambda that returns a `View` — the content of an `If` or a `ForEach` — is
-read the same way. Caching a value into a field or property of a design-time type is left alone; only
-a local, a discard, or an argument is reported.
+The compiler reports what it cannot translate rather than emitting something that renders
+differently from what you wrote. Every diagnostic has an entry in the
+[reference](./diagnostics.md), and these are the ones you meet first:
 
-## Values copied into generated code
+| | |
+| --- | --- |
+| [BCF1001](./diagnostics.md#bcf1001) | the class is not `partial` |
+| [BCF1005](./diagnostics.md#bcf1005) | the class is nested |
+| [BCF1004](./diagnostics.md#bcf1004) | the getter does not reach one returned expression |
+| [BCF1002](./diagnostics.md#bcf1002) | the expression names a local the generated file cannot see |
+| [BCF1003](./diagnostics.md#bcf1003) | the expression uses a construct the generator does not read |
 
-BlazorCodeFirst copies design-time value expressions into a generated file that has no `using`
-directives. Resolved type names are rewritten as `global::`-qualified names. If a type is still
-unresolved and its spelling depends on the source file's lexical context, the generator reports
-BCF3015 at that type name.
-
-Fix the name, fully qualify it, move a source-generated type to a referenced project, or replace it
-with a hand-written C# type. A reference already rooted at `global::` is preserved and left to normal
-C# resolution. Generic type arguments are checked independently.
+A class can carry two faults at once — a missing `partial` and an untranslatable getter — and you
+are told about one at a time. The `partial` check runs first, so BCF1001 comes alone, and adding the
+modifier is what surfaces BCF1004.
 
 ## Next steps
 
 - Read the [counter sample](/counter) to see events, `If`, and keyed `ForEach`.
-- Jump to [Installation](#installation) or [A first component](#a-first-component).
-- Learn the [element vocabulary](./elements-and-decorations.md) and [control flow](./control-flow.md#if).
+- Learn the [element vocabulary](./elements-and-decorations.md) and
+  [control flow](./control-flow.md#if).

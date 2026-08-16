@@ -27,8 +27,26 @@ public partial class MainLayout : ChromeLayoutBase
 }
 ```
 
-`Main[Body]` here is exactly `<main>@Body</main>` in Razor, the routed page dropped in as
-element content.
+`Main[Body]` here is exactly `<main>@Body</main>` in Razor, the routed page dropped in as element
+content. The output below stands a placeholder where the page would land:
+
+<!-- bcf-figure: AppShell -->
+
+```csharp
+protected override View Chrome =>
+    Div.Class("shell")[
+        Header[H1["My App"]],
+        Main.Class("content")[Body],
+        Footer["© 2026"]];
+```
+
+```html
+<div class="shell">
+    <header><h1>My App</h1></header>
+    <main class="content">the routed page</main>
+    <footer>© 2026</footer>
+</div>
+```
 
 ## Why Chrome, not Body
 
@@ -65,8 +83,9 @@ descendant. Each level's `Body` holds the level below it. `SiteLayout`'s `Body` 
 compiles without dedicated syntax. `View` has an implicit conversion from `RenderFragment?`,
 so any fragment can appear wherever element content is expected. The conversion is from the
 non-generic `RenderFragment` only, and a `RenderFragment<T>` does not convert. Like `Fragment`
-and `Raw`, a `RenderFragment` opens no keyable frame, so it cannot be a `ForEach` content root and
-cannot carry decorations.
+and `Raw`, a `RenderFragment` opens no keyable frame, so it cannot be a `ForEach` content root
+([BCF3003](./diagnostics.md#bcf3003)) and cannot carry decorations
+([BCF3008](./diagnostics.md#bcf3008)).
 
 The same mechanism lets a BlazorCodeFirst component render children passed in from Razor. A component
 with `[Parameter] public RenderFragment? ChildContent` uses it exactly like `Body`:
@@ -93,8 +112,9 @@ uses `Component<T>()`. See
 
 Both `Chrome` and `Body` may read component state, since projecting state to UI is their whole
 purpose, but neither may mutate it. `Body` here means the `BodyComponentBase` one, not the layout's
-routed-content parameter. Mutating state inside either reports BCF3001, the same diagnostic that
-applies to a regular component's `Body`.
+routed-content parameter. Mutating state inside either reports
+[BCF3001](./diagnostics.md#bcf3001), the same diagnostic that applies to a regular component's
+`Body`.
 
 ## Next
 

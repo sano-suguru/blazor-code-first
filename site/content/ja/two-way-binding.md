@@ -1,7 +1,7 @@
 ---
 title: 双方向の束縛
 order: 60
-source-hash: 57cf0825
+source-hash: 48941587
 ---
 
 双方向の束縛は、値を DOM へ書き出し、利用者の編集を自分の状態へ読み戻す、1つの装飾です。`.Bind`
@@ -14,33 +14,36 @@ source-hash: 57cf0825
 
 ## 要素を束縛する
 
-値を運ぶ属性、変化を知らせるイベント、そして今の値を読むラムダを名指しします。
+値を運ぶ属性、変化を知らせるイベント、そして今の値を読むラムダを名指しします。この3つのうち、
+マークアップに跡を残すのは最初の1つだけです。
 
 ```csharp
-public partial class NameField : BodyComponentBase
-{
-    private string _name = "";
+protected override View Body =>
+    Div[
+        Input.Type("text").Bind("value", "oninput", () => _name),
+        P[$"Hello, {_name}"]];
+```
 
-    protected override View Body =>
-        Div[
-            Input.Type("text").Bind("value", "oninput", () => _name),
-            P[$"Hello, {_name}"]];
-}
+```html
+<div>
+    <input type="text" value="Ada">
+    <p>Hello, Ada</p>
+</div>
 ```
 
 このラムダは両方向に読まれます。本体は属性の値になり、ゲッターだけのこの形では、同じ本体が、
 ジェネレーターの書く代入の左辺にもなります。だから相手は代入できるものでなければなりません。
 フィールド、セッターを持つプロパティ、あるいはそのどちらかを通る経路（`_form.Name`、
-`Model.Items[0].Title`、`_dict["k"]`）です。`() => _name.ToUpper()` のような計算した式は BCF3018
-を報告します。それを書きたいときのための形が、下のセッターを明示する書き方です。
+`Model.Items[0].Title`、`_dict["k"]`）です。`() => _name.ToUpper()` のような計算した式は
+[BCF3018](./diagnostics.md#bcf3018) を報告します。それを書きたいときのための形が、下のセッターを明示する書き方です。
 
 打鍵のたびに束縛するなら `"oninput"`、要素からフォーカスが外れたときに束縛するなら `"onchange"`
 を使います。ふつうに欲しくなるのはこの2つですが、組み合わせを縛る一覧はありません。縛るのは
 次の3つの規則だけです。
 
-- どちらの名前も、空でないコンパイル時定数であること（BCF3011）
-- イベントの名前が `on` で始まること（BCF3019）
-- どちらも、同じ要素の別の装飾で既に束縛されていないこと（BCF3010）
+- どちらの名前も、空でないコンパイル時定数であること（[BCF3011](./diagnostics.md#bcf3011)）
+- イベントの名前が `on` で始まること（[BCF3019](./diagnostics.md#bcf3019)）
+- どちらも、同じ要素の別の装飾で既に束縛されていないこと（[BCF3010](./diagnostics.md#bcf3010)）
 
 名前を HTML と照合する検査はありません。
 
@@ -65,15 +68,18 @@ Razor は属性をマークアップから推論します。`.razor` のファ�
 
 ## チェックボックスは `checked` を束縛する
 
-チェックボックスは、`bool` を `checked` 属性へ、`onchange` で束縛します。
+チェックボックスは、`bool` を `checked` 属性へ、`onchange` で束縛します。同じ装飾で、最初の引数
+だけが違い、出力に出る属性も違います。
 
 ```csharp
-private bool _agreed;
-
 protected override View Body =>
     Label[
         Input.Type("checkbox").Bind("checked", "onchange", () => _agreed),
         " I agree"];
+```
+
+```html
+<label><input type="checkbox" checked> I agree</label>
 ```
 
 `bool` は HTML の真偽値属性の形で、[`.Attr` が取る](./elements-and-decorations.md#装飾)のと同じ
@@ -122,8 +128,8 @@ Input.Type("text").Bind("value", "oninput", () => _query, async v =>
 
 テキスト入力を空にしたとき、セッターが受け取るのは `""` で、`null` ではありません。だから引数の
 型は null 許容でない `string` です。セッターから自分の状態へ書き込むのは許されています。`Body`
-のほかの場所で状態へ書き込めば BCF3001 になるのに、です。セッターは `.OnClick` のラムダと同じ
-遅延したハンドラーで、ツリーを組み立てている最中には走らないからです。
+のほかの場所で状態へ書き込めば [BCF3001](./diagnostics.md#bcf3001) になるのに、です。セッターは
+`.OnClick` のラムダと同じ遅延したハンドラーで、ツリーを組み立てている最中には走らないからです。
 
 ## 数値、日付、enum
 
@@ -191,8 +197,8 @@ protected override View Body =>
 
 書式を受け取るのは `DateTime` / `DateTimeOffset` / `DateOnly` / `TimeOnly` とその null 許容形だけ
 で、ほかの型は受け取りません。フレームワークが書式付きの変換器を宣言しているのが、その8つだから
-です。`int` に書けば BCF3031 です。数値を書式化したい場合は、ゲッターで書式化し、セッターを明示
-して解析してください。
+です。`int` に書けば [BCF3031](./diagnostics.md#bcf3031) です。数値を書式化したい場合は、ゲッター
+で書式化し、セッターを明示して解析してください。
 
 ### トリムして配布する場合
 
@@ -237,8 +243,8 @@ protected override View Body =>
 
 この1回の呼び出しが、`Value`、`ValueChanged`、`ValueExpression` を渡します。導いた名前はどれも
 コンポーネントの型の上で探すので、`{Name}Changed` が無かったり綴りが違ったりすれば、何も束縛
-しないのではなく BCF3020 を報告します。これが、要素側との非対称を、ちぐはぐではなく規則にして
-います。
+しないのではなく [BCF3020](./diagnostics.md#bcf3020) を報告します。これが、要素側との非対称を、
+ちぐはぐではなく規則にしています。
 
 対象を参照渡しではなくゲッターのラムダとして書くのは、`{Name}Expression` のためです。`EditForm`
 の下にあるコンポーネントは、その式から `FieldIdentifier` を解決します。この識別子が、入力を
@@ -267,31 +273,22 @@ protected override View Body =>
 も解析もされないため、書き留めるべき選択がそもそも無いからです。
 
 `Component<T>()` が、同じプロジェクトで宣言した `.razor` のコンポーネントを名指しできないことは
-覚えておいてください（[BCF3012](./components-and-reuse.md#既存の-razor-コンポーネントやサードパーティのコンポーネントを呼ぶ)）。
+覚えておいてください（[BCF3012](./diagnostics.md#bcf3012)）。
 `InputText` のようなフレームワークのコンポーネントと、手書きの C# のコンポーネントは、いつでも
 解決します。
 
 ## 何が検査されるか
 
-- **BCF3017** — ゲッターが、式本体を持つその場のラムダではない。本体がブロックのラムダや、
-  メソッドグループがこれにあたります。本体は取り出せる必要があります。属性の値とバインダーの
-  両方に写されるからです。セッターにこの制限はありません。渡されるだけだからです。
-- **BCF3018** — ゲッターだけの形で、そのゲッターの本体が代入できない。呼び出しと演算子、
-  ゲッターだけのプロパティ、`readonly` のフィールド、ローカル変数や `ForEach` の反復変数それ自体
-  は拒否します。反復変数の *メンバー*（`o.Title`）はかまいません。そこへ書けば、元の要素が変わる
-  からです。セッターを明示して書いてください。
-- **BCF3019** — イベントの名前が `on` で始まらない。その名前はただの属性として足され、ハンドラー
-  は一度も呼ばれません。だからこれが、2つの名前を取り違えたときに捕まえる検査です。
-- **BCF3020** — コンポーネントの `{Name}Changed` パラメーターが無い、または
-  `EventCallback<TValue>` ではない。
-- **BCF3024** — 属性の名前が `class` で、同じ要素が `.Class` か `.Attr("class", …)` も持っている。
-  これらは1つの属性に畳み込まれますが、束縛はそこに合流しないので、要素は `class` を2つ持つ
-  ことになります。
-- **BCF3031** — フレームワークが書式付きの変換器を宣言していない型に、書式が書かれている。
-  受け取るのは `DateTime` / `DateTimeOffset` / `DateOnly` / `TimeOnly` とその null 許容形だけです。
+`.Bind` を読む診断は6つあり、どれも[リファレンス](./diagnostics.md)に項があります。ゲッターの形を
+見る [BCF3017](./diagnostics.md#bcf3017)、ゲッターだけの形で代入できない相手を見る
+[BCF3018](./diagnostics.md#bcf3018)、`on` の無いイベント名を見る
+[BCF3019](./diagnostics.md#bcf3019)、対応する変更コールバックの無いコンポーネントを見る
+[BCF3020](./diagnostics.md#bcf3020)、`.Class` と並んだ `class` の束縛を見る
+[BCF3024](./diagnostics.md#bcf3024)、そして値の型に変換器の無い書式を見る
+[BCF3031](./diagnostics.md#bcf3031) です。
 
 1つの要素が `.Bind` を複数持つことはできます。そのうち2つが属性の名前かイベントの名前を共有
-すれば BCF3010 で、どの装飾を2つ重ねても出るのと同じ重複です。DOM の再同期、つまり利用者が打った
+すれば [BCF3010](./diagnostics.md#bcf3010) で、どの装飾を2つ重ねても出るのと同じ重複です。DOM の再同期、つまり利用者が打った
 文字の上に正規化した値を置き直す修復は、`value` と `checked` にだけ効きます。ブラウザーがイベント
 と一緒に返してくるのが、その2つだけだからです。
 

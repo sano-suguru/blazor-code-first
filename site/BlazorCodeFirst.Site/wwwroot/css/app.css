@@ -843,6 +843,31 @@ kbd {
     tab-size: 4;
 }
 
+/* An output figure is a pair: an expression, then the markup it renders. Markdown gives two adjacent
+   fences no relationship at all, and measured on /docs/elements-and-decorations they read as two
+   unrelated blocks 13px apart -- the reader is left to infer that the second is the first's output,
+   which is the inference this whole page exists to remove.
+
+   Drawn as one stacked box instead, sharing a single rule where they meet. No label: a word here
+   would be English in a stylesheet both editions load, and CONTRIBUTING.md keeps reader-facing
+   strings out of everything but the content tree. The direction needs none -- C# above, HTML below,
+   in that order every time.
+
+   The selector is the language wrapper DocGen emits, so it applies to a pair and to nothing else: a
+   csharp fence followed by prose keeps its own box. */
+.prose .csharp:has(+ .html) pre {
+    margin-bottom: 0;
+    border-bottom: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.prose .csharp + .html pre {
+    margin-top: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
 /* Same reasoning as the headings above, reached by a different route. A run of inline code separated
    by ideographic commas ("`Html.Div`、`.Class(...)`、`.OnClick(...)`") gets no break opportunity from
    Chromium at the commas, so the three spans stay on one line: at 320 px the third ran 40 px past a

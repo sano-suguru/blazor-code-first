@@ -8,14 +8,21 @@ compile-time sequence numbers to every position in the template.
 
 ## If
 
-`If` takes a condition and a content thunk, with an optional else branch:
+`If` takes a condition and a content thunk, with an optional else branch. A render is one state, so
+the output below is the branch `_items.Length == 0` did not take:
+
+<!-- bcf-figure: Conditional -->
 
 ```csharp
 protected override View Body =>
     Div[
-        If(_items.Count == 0,
+        If(_items.Length == 0,
             () => P["Nothing here yet."],
-            () => Span[$"{_items.Count} items"])];
+            () => Span[$"{_items.Length} items"])];
+```
+
+```html
+<div><span>2 items</span></div>
 ```
 
 Mutually exclusive branches get disjoint sequence ranges, so switching branches never disturbs the
@@ -23,7 +30,10 @@ sibling positions around them.
 
 ## ForEach and its key
 
-`ForEach` takes a key that identifies the item, not its position:
+`ForEach` takes a key that identifies the item, not its position. The key leaves no trace in the
+markup: it is a diffing instruction, not an attribute.
+
+<!-- bcf-figure: KeyedList -->
 
 ```csharp
 protected override View Body =>
@@ -33,10 +43,18 @@ protected override View Body =>
             content: item => Li[item.Name])];
 ```
 
+```html
+<ul>
+    <li>Alpha</li>
+    <li>Beta</li>
+</ul>
+```
+
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
 key defeats the diff, because reordering the list makes Blazor reuse the wrong element state.
 
-A key that never mentions its item at all is caught. All three of these report BCF3002:
+A key that never mentions its item at all is caught. All three of these report
+[BCF3002](./diagnostics.md#bcf3002):
 
 - `key: _ => 0`
 - a key read from a counter outside the lambda
@@ -52,12 +70,10 @@ still renders correctly and only diffs badly. The check is also deliberately con
 whether the item was referenced, not whether the value identifies anything. A key derived from the
 item but still position-like passes it. Read BCF3002 as a floor rather than a guarantee.
 
-Both lambdas have to be inline expression lambdas. A block-bodied lambda or a method group cannot be
-sequenced statically and reports BCF3004, so wrap the call instead — `item => Row(item)` rather than
-`Row`.
-
-The content root must be a single element or component, so a `Fragment` or `Raw` root, or a
-`RenderFragment` placed as content, reports BCF3003.
+Both lambdas have to be inline expression lambdas, so wrap a call instead of naming it —
+`item => Row(item)` rather than `Row` ([BCF3004](./diagnostics.md#bcf3004)). The content root must
+be a single element or component ([BCF3003](./diagnostics.md#bcf3003)), and it may not key itself as
+well ([BCF3032](./diagnostics.md#bcf3032)).
 
 ## Declining the key
 
@@ -89,8 +105,9 @@ Ul[[Li["first"], .. _columns.Select(c => Li[c.Header]), Li["last"]]]
 ```
 
 Only `<source>.Select(<inline expression lambda>)` folds. Any other spread — a stored array of
-`View`, a method returning one — is not statically sequenceable children and reports BCF1003, the
-same answer a stored `View` written as a single child already gets.
+`View`, a method returning one — is not statically sequenceable children and reports
+[BCF1003](./diagnostics.md#bcf1003), the same answer a stored `View` written as a single child
+already gets.
 
 ## Fragment
 
@@ -100,8 +117,8 @@ same answer a stored `View` written as a single child already gets.
 Fragment(H2["Title"], P["Body"])
 ```
 
-Because it opens no element it cannot be decorated (BCF3008) and cannot be a `ForEach` content root
-(BCF3003).
+Because it opens no element it cannot be decorated ([BCF3008](./diagnostics.md#bcf3008)) and cannot
+be a `ForEach` content root ([BCF3003](./diagnostics.md#bcf3003)).
 
 ## Raw
 

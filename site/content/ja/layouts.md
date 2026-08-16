@@ -1,7 +1,7 @@
 ---
 title: レイアウト
 order: 50
-source-hash: 613d7fe8
+source-hash: b31bc6c0
 ---
 
 レイアウトは、ルーティングされたページを共通の外枠で包みます。ヘッダー、ナビゲーション、
@@ -30,7 +30,23 @@ public partial class MainLayout : ChromeLayoutBase
 ```
 
 ここの `Main[Body]` は、Razor の `<main>@Body</main>` そのものです。ルーティングされたページを、
-要素の内容として落とし込んでいます。
+要素の内容として落とし込んでいます。下の出力は、ページが入る位置に差し込み文字を置いたものです。
+
+```csharp
+protected override View Chrome =>
+    Div.Class("shell")[
+        Header[H1["My App"]],
+        Main.Class("content")[Body],
+        Footer["© 2026"]];
+```
+
+```html
+<div class="shell">
+    <header><h1>My App</h1></header>
+    <main class="content">the routed page</main>
+    <footer>© 2026</footer>
+</div>
+```
 
 ## Body ではなく Chrome である理由
 
@@ -68,7 +84,8 @@ public partial class DocsLayout : ChromeLayoutBase
 変換を持っているからです。おかげでフラグメントは、要素の内容が来る場所ならどこにでも書けます。
 変換元はジェネリックでない `RenderFragment` だけで、`RenderFragment<T>` は変換されません。
 `Fragment` や `Raw` と同じように、`RenderFragment` はキーを付けられるフレームを開きません。だから
-`ForEach` の中身の根にはできず、装飾も付けられません。
+`ForEach` の中身の根にはできず（[BCF3003](./diagnostics.md#bcf3003)）、装飾も付けられません
+（[BCF3008](./diagnostics.md#bcf3008)）。
 
 同じ仕組みで、BlazorCodeFirst のコンポーネントは Razor から渡された子を描けます。
 `[Parameter] public RenderFragment? ChildContent` を持つコンポーネントは、それを `Body` と
@@ -97,7 +114,8 @@ public partial class Card : BodyComponentBase
 `Chrome` と `Body` は、どちらもコンポーネントの状態を読めます。状態を UI へ映すことが、
 そもそもの役目だからです。ただし、どちらも状態を書き換えられません。ここでの `Body` は `BodyComponentBase` の
 ほうで、レイアウトのルーティングされた内容のパラメーターではありません。どちらの中で状態を
-書き換えても BCF3001 を報告します。ふつうのコンポーネントの `Body` に当てはまるのと同じ診断です。
+書き換えても [BCF3001](./diagnostics.md#bcf3001) を報告します。ふつうのコンポーネントの `Body` に
+当てはまるのと同じ診断です。
 
 ## 次に読むもの
 

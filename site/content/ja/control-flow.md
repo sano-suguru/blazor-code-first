@@ -1,7 +1,7 @@
 ---
 title: 制御構文
 order: 30
-source-hash: 4c53a4c6
+source-hash: 59cdc8a1
 ---
 
 条件分岐とリストには、専用の構文があります。テンプレートのどの位置にも、ジェネレーターがコン
@@ -9,14 +9,19 @@ source-hash: 4c53a4c6
 
 ## If
 
-`If` は、条件と中身のサンクを取ります。else の分岐は省けます。
+`If` は、条件と中身のサンクを取ります。else の分岐は省けます。1回の描画は1つの状態なので、下の
+出力は `_items.Length == 0` が選ばなかった側です。
 
 ```csharp
 protected override View Body =>
     Div[
-        If(_items.Count == 0,
+        If(_items.Length == 0,
             () => P["Nothing here yet."],
-            () => Span[$"{_items.Count} items"])];
+            () => Span[$"{_items.Length} items"])];
+```
+
+```html
+<div><span>2 items</span></div>
 ```
 
 互いに排他な分岐には、重ならないシーケンス番号の範囲を割り当てます。だから分岐が切り替わっても、
@@ -24,7 +29,8 @@ protected override View Body =>
 
 ## ForEach とそのキー
 
-`ForEach` は、位置ではなく要素そのものを見分けるキーを取ります。
+`ForEach` は、位置ではなく要素そのものを見分けるキーを取ります。キーはマークアップに跡を残しま
+せん。属性ではなく、差分計算への指示だからです。
 
 ```csharp
 protected override View Body =>
@@ -34,10 +40,18 @@ protected override View Body =>
             content: item => Li[item.Name])];
 ```
 
+```html
+<ul>
+    <li>Alpha</li>
+    <li>Beta</li>
+</ul>
+```
+
 シーケンス番号はテンプレートの位置を、キーはデータの実体を見分けます。インデックスをキーに渡す
 と、差分の計算が働きません。並び替えたときに、Blazor が別の要素の状態を使い回してしまうからです。
 
-自分の要素にまったく触れていないキーは、見つけて報告します。次の3つは、どれも BCF3002 です。
+自分の要素にまったく触れていないキーは、見つけて報告します。次の3つは、どれも
+[BCF3002](./diagnostics.md#bcf3002) です。
 
 - `key: _ => 0`
 - ラムダの外にあるカウンターから読んだキー
@@ -53,12 +67,10 @@ ForEach(_groups, key: g => g.Id, content: g =>
 したかという点です。その値に見分ける力があるかは、問いません。要素から作ってはいるものの位置に
 近い、というキーはこの検査を通ります。BCF3002 は、保証ではなく下限として読んでください。
 
-どちらのラムダも、その場に書いた式のラムダである必要があります。本体が文のラムダ、あるいは
-メソッドグループは静的に順序付けできず、BCF3004 を報告します。呼び出しで包んでください。`Row`
-ではなく `item => Row(item)` と書きます。
-
-中身の根は、単一の要素かコンポーネントである必要があります。だから根が `Fragment` や `Raw` の
-場合、中身に `RenderFragment` を置いた場合は、BCF3003 を報告します。
+どちらのラムダも、その場に書いた式のラムダである必要があります。だから呼び出しで包んでください。
+`Row` ではなく `item => Row(item)` と書きます（[BCF3004](./diagnostics.md#bcf3004)）。中身の根は
+単一の要素かコンポーネントである必要があり（[BCF3003](./diagnostics.md#bcf3003)）、その根が自分で
+キーを書くこともできません（[BCF3032](./diagnostics.md#bcf3032)）。
 
 ## キーを降りる
 
@@ -90,8 +102,9 @@ Ul[[Li["先頭"], .. _columns.Select(c => Li[c.Header]), Li["末尾"]]]
 ```
 
 畳めるのは `<source>.Select(<その場に書いた式のラムダ>)` だけです。それ以外のスプレッド、たとえば
-保存した `View` の配列や、それを返すメソッドは、静的に順序付けできる子ではないので BCF1003 を
-報告します。保存した `View` を子として1つ書いたときと同じ答えです。
+保存した `View` の配列や、それを返すメソッドは、静的に順序付けできる子ではないので
+[BCF1003](./diagnostics.md#bcf1003) を報告します。保存した `View` を子として1つ書いたときと同じ
+答えです。
 
 ## Fragment
 
@@ -101,7 +114,8 @@ Ul[[Li["先頭"], .. _columns.Select(c => Li[c.Header]), Li["末尾"]]]
 Fragment(H2["Title"], P["Body"])
 ```
 
-要素を開かないので、装飾は付けられず（BCF3008）、`ForEach` の中身の根にもできません（BCF3003）。
+要素を開かないので、装飾は付けられず（[BCF3008](./diagnostics.md#bcf3008)）、`ForEach` の中身の
+根にもできません（[BCF3003](./diagnostics.md#bcf3003)）。
 
 ## Raw
 
