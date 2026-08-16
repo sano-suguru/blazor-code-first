@@ -195,7 +195,11 @@ public sealed class ViewPartContentGeneratorTests
             .SourceText.ToString();
 
         Assert.Contains("__builder.OpenComponent<global::Card>(0);", generated);
-        Assert.Contains("__builder.AddComponentParameter(1, \"Title\", __bcf_arg_0_0)", generated);
+
+        // The value the part was called with, up to how #377 types it: that conversion is
+        // ComponentParameterValueTypeTests' subject, and naming it here would pin it twice.
+        Assert.Contains("__builder.AddComponentParameter(1, \"Title\", ", generated);
+        Assert.Contains("__bcf_arg_0_0", generated);
 
         // The caller's content reaches the component the way any bracketed content does, through the
         // ChildContent fragment the emitter writes.
