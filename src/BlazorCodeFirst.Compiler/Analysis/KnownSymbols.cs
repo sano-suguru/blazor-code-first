@@ -397,8 +397,11 @@ internal sealed class KnownSymbols
 
         for (var index = 1; index < tag.Length; index++)
         {
-            if (tag[index] is not (>= '0' and <= '9' or '-' or '_' or '.') && !IsAsciiLetter(tag[index]))
+            if (tag[index] is not ((>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9')
+                or '-' or '_' or '.'))
+            {
                 return false;
+            }
         }
 
         return true;

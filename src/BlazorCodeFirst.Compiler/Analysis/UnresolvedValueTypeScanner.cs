@@ -405,7 +405,7 @@ internal static class UnresolvedValueTypeScanner
                 // evidence of a rejected tag, and answering true on one would suppress the children's
                 // diagnostics on nothing.
                 return BindArguments(invocation, method, context)?.At(0)?.Expression is { } tag
-                    && !IsAcceptedTag(tag, context);
+                    && !ElementTag.TryResolve(tag, context, out _);
             }
 
             if (!IsElementDecoration(kind))
@@ -608,22 +608,10 @@ internal static class UnresolvedValueTypeScanner
                 && invocation.ArgumentList.Span.Contains(name.Span));
 
     /// <summary>
-    /// Whether <paramref name="expression"/> is a tag BCF3009 accepts, which is the gate on scanning the
-    /// children of an <c>Element</c> call.
+    /// The name half of BCF3011, which stops at non-empty. The tag half is
+    /// <see cref="ElementTag.TryResolve"/>, and the two are separate because the two diagnostics ask
+    /// different questions: a <c>.Attr</c> name is not held to a tag name's spelling.
     /// </summary>
-    /// <remarks>
-    /// Separate from <see cref="IsNonEmptyConstantString"/> because the two diagnostics ask different
-    /// questions of a name, and this one has already moved once: BCF3009 now also requires the constant
-    /// to be spelled like a tag name (#394), while BCF3011 still stops at non-empty. Both halves route
-    /// through <see cref="KnownSymbols.IsValidTagName"/> so the spelling rule has one copy; a paraphrase
-    /// here would let a child report on an element that never reaches generated code.
-    /// </remarks>
-    private static bool IsAcceptedTag(ExpressionSyntax? expression, ViewPartBodyContext context) =>
-        expression is not null
-        && context.SemanticModel.GetConstantValue(expression, context.CancellationToken) is
-        { HasValue: true, Value: string tag }
-        && KnownSymbols.IsValidTagName(tag);
-
     private static bool IsNonEmptyConstantString(ExpressionSyntax? expression, ViewPartBodyContext context) =>
         expression is not null
         && context.SemanticModel.GetConstantValue(expression, context.CancellationToken) is

@@ -24,21 +24,18 @@ public sealed class HtmlElementTagGeneratorTests
         }
         """;
 
-    private const string EmptyTagSource = """
+    /// <summary>
+    /// A body whose only variable is the <c>Element</c> tag argument, written as source text so a case
+    /// can supply a verbatim string. The child is non-constant, which keeps the static fold away from
+    /// the element and leaves the <c>OpenElement</c> call to assert on.
+    /// </summary>
+    private static string TagSource(string tagArgument) => $$"""
         using BlazorCodeFirst;
 
         public partial class C : BodyComponentBase
         {
-            protected override View Body => Html.Element("")[Html.Span["x"]];
-        }
-        """;
-
-    private const string WhitespaceTagSource = """
-        using BlazorCodeFirst;
-
-        public partial class C : BodyComponentBase
-        {
-            protected override View Body => Html.Element("   ")[Html.Span["x"]];
+            private string _x => "x";
+            protected override View Body => Html.Element({{tagArgument}})[Html.Span[_x]];
         }
         """;
 
@@ -61,30 +58,17 @@ public sealed class HtmlElementTagGeneratorTests
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
     }
 
-    [Fact]
-    public void Element_WithEmptyTag_ReportsBCF3009()
-    {
-        var result = CompilationTestHost.RunGenerator(EmptyTagSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
-    }
-
-    // Pins the guard's IsNullOrWhiteSpace choice: a whitespace-only tag (not caught by a
-    // narrower IsNullOrEmpty) must still be rejected, so it cannot lower to OpenElement(seq, "   ").
-    [Fact]
-    public void Element_WithWhitespaceTag_ReportsBCF3009()
-    {
-        var result = CompilationTestHost.RunGenerator(WhitespaceTagSource);
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
-    }
-
     /// <summary>
-    /// A tag no element can be named, written where a tag goes. Each spelling reaches the two render
-    /// paths differently and none of them reaches what was written: a space makes the prerendered markup
-    /// an element with a boolean attribute and the interactive path a torn-down circuit (#394), and a
-    /// quote or a backslash survives into a literal position in generated source (#388). The check is on
-    /// the characters, so all of them are one diagnostic.
+    /// A tag no element can be named, written where a tag goes. The empty and whitespace-only spellings
+    /// are the ones the check has always rejected; the rest reach the two render paths differently and
+    /// none of them reaches what was written. A space makes the prerendered markup an element with a
+    /// boolean attribute and the interactive path a torn-down circuit (#394), and a quote or a backslash
+    /// survives into a literal position in generated source (#388). The check is on the characters, so
+    /// all of them are one diagnostic.
     /// </summary>
     [Theory]
+    [InlineData("\"\"")]
+    [InlineData("\"   \"")]
     [InlineData("\"a b\"")]
     [InlineData("\"a\\\"b\"")]
     [InlineData("@\"foo\\bar\"")]
@@ -94,16 +78,7 @@ public sealed class HtmlElementTagGeneratorTests
     [InlineData("\"1up\"")]
     public void Element_WithATagNoNameCanCarry_ReportsBCF3009(string tagArgument)
     {
-        var source = $$"""
-            using BlazorCodeFirst;
-
-            public partial class C : BodyComponentBase
-            {
-                private string _x => "x";
-                protected override View Body => Html.Element({{tagArgument}})[Html.Span[_x]];
-            }
-            """;
-        var result = CompilationTestHost.RunGenerator(source);
+        var result = CompilationTestHost.RunGenerator(TagSource(tagArgument));
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3009");
     }
 
@@ -120,16 +95,7 @@ public sealed class HtmlElementTagGeneratorTests
     [InlineData("h1")]
     public void Element_WithATagAValidNameCanCarry_EmitsOpenElement(string tag)
     {
-        var source = $$"""
-            using BlazorCodeFirst;
-
-            public partial class C : BodyComponentBase
-            {
-                private string _x => "x";
-                protected override View Body => Html.Element("{{tag}}")[Html.Span[_x]];
-            }
-            """;
-        var result = CompilationTestHost.RunGenerator(source);
+        var result = CompilationTestHost.RunGenerator(TagSource($"\"{tag}\""));
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3009");

@@ -330,10 +330,9 @@ internal static class DiagnosticDescriptors
     /// string, or with one no element can be named. The constant half keeps the element declarative and
     /// predictable (design-time syntax the generator can lower to a literal <c>OpenElement</c>); this is
     /// not an AOT/sequencing constraint, and a non-constant tag is not a security (injection) concern.
-    /// The spelling half is a translation break rather than a validity question: a tag outside
-    /// <see cref="Analysis.KnownSymbols.IsValidTagName"/> makes the two render paths produce different
-    /// things and neither of them what was written (#394), so the check that catches it needs no content
-    /// model and stays inside <c>DESIGN.md</c> §4.1's boundary.
+    /// The spelling half is a translation break rather than a validity question, so it needs no content
+    /// model and stays inside <c>DESIGN.md</c> §4.1's boundary (#394). Which characters, and why those:
+    /// <see cref="Analysis.KnownSymbols.IsValidTagName"/>.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3009 = new(
         id: "BCF3009",

@@ -41,12 +41,4 @@ public sealed class RenderViewEmitterTagLiteralTests
 
         Assert.Contains("__builder.OpenElement(0, \"foo\\\\bar\");", generated);
     }
-
-    [Fact]
-    public void Emit_OrdinaryTag_IsWrittenPlainly()
-    {
-        var generated = EmitRoot(Element("nav"));
-
-        Assert.Contains("__builder.OpenElement(0, \"nav\");", generated);
-    }
 }
