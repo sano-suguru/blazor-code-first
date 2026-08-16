@@ -1271,19 +1271,37 @@ internal static class RenderExpressionAnalyzer
         FactoryArguments args,
         ViewPartBodyContext context)
     {
-        // Ahead of the empty-channel test, because a .Bind makes both answers below wrong rather than one:
-        // with an earlier .On the modifier would attach to it, and without one BCF3035 would send the
-        // author to an .On that is not what they wrote this after.
-        if (NearestEventProducerIsBinding(decoAccess.Expression, context))
-        {
-            context.RejectUnresolvedValueRecovery(decoAccess.Span);
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3037, decoAccess.Name.GetLocation(), [method.Name]));
-            return null;
-        }
-
         var events = element.Events.AsImmutableArray();
-        if (events.Length == 0)
+        var bindings = element.Bindings.AsImmutableArray();
+
+        // Not events[^1]: this project targets netstandard2.0 with no System.Index polyfill, the same
+        // constraint KnownSymbols' member switch records for list patterns.
+        //
+        // The channel the walk names decides which tail is read, and an empty tail falls back to BCF3035
+        // rather than being asserted away. The two answers cannot disagree today (every route that fills a
+        // channel is a decoration the walk sees, and every failure aborts the chain), and this is what keeps
+        // a route added later from resolving a target that is not there.
+        var channel = NearestEventProducer(decoAccess.Expression, context);
+        var preventDefault = kind == SurfaceMethodKind.PreventDefault;
+
+        // The branch reads the resolved target's name and its existing value; everything after it is one
+        // path for both channels, because a modifier is the same decoration wherever its event came from.
+        // Only the write back at the end has to know which channel it is returning to.
+        string eventName;
+        ExpressionTemplate? existing;
+        if (channel == EventProducer.Event && events.Length > 0)
+        {
+            var target = events[events.Length - 1];
+            eventName = target.Name;
+            existing = preventDefault ? target.PreventDefault : target.StopPropagation;
+        }
+        else if (channel == EventProducer.Binding && bindings.Length > 0)
+        {
+            var target = bindings[bindings.Length - 1];
+            eventName = target.EventName;
+            existing = preventDefault ? target.PreventDefault : target.StopPropagation;
+        }
+        else
         {
             context.RejectUnresolvedValueRecovery(decoAccess.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -1291,15 +1309,16 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        // Not events[^1]: this project targets netstandard2.0 with no System.Index polyfill, the same
-        // constraint KnownSymbols' member switch records for list patterns.
-        var target = events[events.Length - 1];
-        var existing = kind == SurfaceMethodKind.PreventDefault ? target.PreventDefault : target.StopPropagation;
         if (ReportDuplicateFrameDecoration(
-                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, target.Name))
+                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, eventName))
         {
             return null;
         }
+
+        // After the duplicate check, because a modifier written twice on an event that refuses it is one
+        // mistake to the author and the duplicate is what they delete first.
+        if (ReportRefusedEventModifier(decoAccess, method, kind, eventName, context))
+            return null;
 
         // Read through the attribute channel's own resolver rather than beside it. The implied true of the
         // valueless overload is then synthesized in the one place #178 put it, and the written value is
@@ -1311,16 +1330,72 @@ internal static class RenderExpressionAnalyzer
 
         var value = source.Normalize(context);
 
-        var updated = kind == SurfaceMethodKind.PreventDefault
-            ? target with { PreventDefault = value }
-            : target with { StopPropagation = value };
+        if (channel == EventProducer.Event)
+        {
+            var target = events[events.Length - 1];
+            return element with
+            {
+                Events = events.SetItem(
+                    events.Length - 1,
+                    preventDefault
+                        ? target with { PreventDefault = value }
+                        : target with { StopPropagation = value }),
+            };
+        }
 
-        return element with { Events = events.SetItem(events.Length - 1, updated) };
+        var binding = bindings[bindings.Length - 1];
+        return element with
+        {
+            Bindings = bindings.SetItem(
+                bindings.Length - 1,
+                preventDefault
+                    ? binding with { PreventDefault = value }
+                    : binding with { StopPropagation = value }),
+        };
     }
 
     /// <summary>
-    /// Whether the nearest decoration to the left of an event modifier that produces an event is a
-    /// <c>.Bind</c> rather than an <c>.On</c>.
+    /// BCF3038: the event's own <c>[EventHandler]</c> registration disables this modifier.
+    /// </summary>
+    /// <remarks>
+    /// A <c>Report…</c> predicate beside <see cref="ReportMistypedEventArgument"/>, which is the other
+    /// check reading the same registration table and reports on the same terms: an event the table does not
+    /// carry, or a compilation that cannot see the table at all, is passed in silence. Called from the
+    /// modifier's resolution point because the event it reached is known there and nowhere earlier, and
+    /// both channels arrive at it the same way.
+    /// </remarks>
+    private static bool ReportRefusedEventModifier(
+        MemberAccessExpressionSyntax decoAccess,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        string eventName,
+        ViewPartBodyContext context)
+    {
+        if (!context.KnownSymbols.RefusesEventModifier(eventName, kind))
+            return false;
+
+        context.RejectUnresolvedValueRecovery(decoAccess.Span);
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3038, decoAccess.Name.GetLocation(), [method.Name, eventName]));
+        return true;
+    }
+
+    /// <summary>Which channel the decoration nearest to a modifier's left wrote its event into.</summary>
+    private enum EventProducer
+    {
+        /// <summary>Nothing to the modifier's left produces an event; the modifier is BCF3035.</summary>
+        None,
+
+        /// <summary><c>.On</c> or a named event shortcut, which append to <c>Events</c>.</summary>
+        Event,
+
+        /// <summary><c>.Bind</c>, which appends to <c>Bindings</c>.</summary>
+        Binding,
+    }
+
+    /// <summary>
+    /// Which channel the nearest decoration to the left of an event modifier wrote its event into, or
+    /// <see cref="EventProducer.None"/> when nothing to the left produces one.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1331,12 +1406,13 @@ internal static class RenderExpressionAnalyzer
     /// modifier) until it reaches one that does.
     /// </para>
     /// <para>
-    /// A binding's own event is a real event, and Razor can modify it. This surface cannot yet, which is
-    /// why the answer here is a refusal (BCF3037) rather than an attachment. Supporting it means giving
-    /// <c>BindTemplate</c> the same two channels and emitting them after the binding's event frame.
+    /// The answer names a channel and not an index, and the caller reads that channel's tail. The two agree
+    /// because <c>ClassifyDecoration</c> analyses a decoration's receiver before appending to it, so the
+    /// entries on the node when a modifier is classified are exactly those written to its left, and the
+    /// nearest producer to the left is therefore the last one appended to whichever channel it writes.
     /// </para>
     /// </remarks>
-    private static bool NearestEventProducerIsBinding(
+    private static EventProducer NearestEventProducer(
         ExpressionSyntax receiver, ViewPartBodyContext context)
     {
         var current = receiver;
@@ -1349,17 +1425,17 @@ internal static class RenderExpressionAnalyzer
                 switch (context.KnownSymbols.ClassifySurfaceMethod(method))
                 {
                     case SurfaceMethodKind.Bind:
-                        return true;
+                        return EventProducer.Binding;
                     case SurfaceMethodKind.On:
                     case SurfaceMethodKind.EventShortcut:
-                        return false;
+                        return EventProducer.Event;
                 }
             }
 
             current = access.Expression;
         }
 
-        return false;
+        return EventProducer.None;
     }
 
     /// <summary>

@@ -1116,33 +1116,31 @@ internal static class DiagnosticDescriptors
                 + "resolved silently.");
 
     /// <summary>
-    /// BCF3037: An event modifier written after a <c>.Bind</c>, whose event it cannot reach.
+    /// BCF3038: An event modifier the event's own <c>[EventHandler]</c> registration disables.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A modifier attaches to the event written before it, and <c>.Bind</c> writes one. It writes it into
-    /// the binding channel rather than the event channel, though, so the modifier would attach to whatever
-    /// <c>.On</c> came earlier on the element, or to nothing at all. Both are wrong and neither is visible
-    /// at the call site, which is why the pair is refused rather than resolved.
+    /// Blazor gates each modifier per event through <c>EventHandlerAttribute</c>, and the renderer ignores
+    /// an attribute the registration disabled. Without this check the surface emits it anyway and nothing
+    /// downstream says so, which is one point where it would be worse than Razor — the argument BCF3028's
+    /// own entry makes for existing.
     /// </para>
     /// <para>
-    /// Reported separately from BCF3035 because the fix is different. BCF3035's message sends the author
-    /// to the <c>.On</c> the modifier belongs after; here there is an event and the surface simply cannot
-    /// modify it yet. Razor can (<c>@bind:event</c> beside <c>@oninput:preventDefault</c>), so this is a
-    /// gap rather than a rule, and the message says so instead of proposing a move that would not help.
+    /// Located at the modifier's decoration name, as BCF3035 is, because that is what the author deletes.
+    /// The event is correct code and stays.
     /// </para>
     /// </remarks>
-    public static readonly DiagnosticDescriptor BCF3037 = new(
-        id: "BCF3037",
-        title: "Event modifier cannot reach a binding's event",
-        messageFormat: "'.{0}' follows a .Bind, whose event it cannot modify; move it after an .On, or drop it",
+    public static readonly DiagnosticDescriptor BCF3038 = new(
+        id: "BCF3038",
+        title: "Event modifier disabled by the event's registration",
+        messageFormat: "'{1}' disables '.{0}' in its [EventHandler] registration; remove the modifier",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "An event modifier attaches to the event written before it. A .Bind writes its event into the "
-                + "binding channel, which the modifier cannot reach, so the modifier would silently attach "
-                + "to an earlier event or to none. Modifiers on a binding's event are not supported yet.");
+            "An event's [EventHandler] registration decides which modifiers it accepts. Emitting one the "
+                + "registration disables produces an attribute the renderer ignores, so it is reported at "
+                + "the call site instead, as Razor reports the same combination.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

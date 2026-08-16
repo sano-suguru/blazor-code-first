@@ -39,22 +39,57 @@ public sealed class BindResyncTests
         var builder = new RenderTreeBuilder();
         new TrimmingInputProbe().Build(builder);
 
+        // "oninput" and not "onchange". The browser test's second interaction never blurs the field, so
+        // an onchange binding would raise no event at all, and the test would report a resync failure
+        // that was really a missing round trip.
+        Assert.Equal(["oninput"], ResynchronizedFrameNames(builder));
+    }
+
+    /// <summary>
+    /// The resynchronized name lands on the binding's own event frame, not on the modifier's.
+    /// </summary>
+    /// <remarks>
+    /// <c>SetUpdatesAttributeName</c> writes into whatever attribute frame was last appended, and an event
+    /// modifier is an attribute frame. Emitting the modifier ahead of the call therefore moves the recorded
+    /// name onto it, and <c>RenderTreeUpdater</c> then writes the DOM's value into a frame holding a
+    /// <see langword="bool"/> while the binding's event frame carries no name at all. This is the frame
+    /// reading of what <c>bind-resync.spec.ts</c> measures in a browser and what
+    /// <c>HtmlDecorationGeneratorTests</c> reads off the emitted text; reversing the emission order fails
+    /// all three (#370).
+    /// </remarks>
+    [Fact]
+    public void ModifiedBindingProbe_records_the_resynchronized_name_on_the_bindings_own_event()
+    {
+        var builder = new RenderTreeBuilder();
+        new ModifiedBindingProbe().Build(builder);
+
+        Assert.Equal(["oninput"], ResynchronizedFrameNames(builder));
+    }
+
+    /// <summary>
+    /// The names of the attribute frames carrying a resynchronized attribute name — the frames
+    /// <c>SetUpdatesAttributeName</c> wrote into, not the names it wrote.
+    /// </summary>
+    /// <remarks>
+    /// The sibling of <see cref="ResynchronizedAttributes"/>, which answers the other half: that one
+    /// collects the recorded names, this one the frames holding them. Two probes ask this question, and
+    /// which frame holds the record is the whole of what a modifier on a binding can break.
+    /// </remarks>
+    private static List<string> ResynchronizedFrameNames(RenderTreeBuilder builder)
+    {
         var frames = builder.GetFrames();
-        var eventNames = new List<string>();
+        var names = new List<string>();
         for (int i = 0; i < frames.Count; i++)
         {
             ref readonly var frame = ref frames.Array[i];
             if (frame.FrameType == RenderTreeFrameType.Attribute
                 && frame.AttributeEventUpdatesAttributeName is not null)
             {
-                eventNames.Add(frame.AttributeName);
+                names.Add(frame.AttributeName);
             }
         }
 
-        // "oninput" and not "onchange". The browser test's second interaction never blurs the field, so
-        // an onchange binding would raise no event at all, and the test would report a resync failure
-        // that was really a missing round trip.
-        Assert.Equal(["oninput"], eventNames);
+        return names;
     }
 
     [Fact]

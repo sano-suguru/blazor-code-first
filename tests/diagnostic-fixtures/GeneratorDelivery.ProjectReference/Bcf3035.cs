@@ -8,9 +8,10 @@ namespace Fixtures.GeneratorDelivery;
 /// </summary>
 /// <remarks>
 /// The element carries a decoration but no event, which is the shape an author reaches by chaining the
-/// modifier onto the wrong link. Unlike BCF3028's mapping half, this consults no <c>[EventHandler]</c>
-/// table, so it fires in this project as it does anywhere: the fixture needs no reference to
-/// <c>Microsoft.AspNetCore.Components.Web</c>, which this project deliberately does not have.
+/// modifier onto the wrong link. Unlike its sibling BCF3038, this consults no <c>[EventHandler]</c> table,
+/// so it fires in any compilation that can spell the surface at all — including one that cannot resolve
+/// <c>Microsoft.AspNetCore.Components.Web</c>, which this project does reference but only for BCF3038's
+/// sake.
 /// </remarks>
 public partial class Bcf3035Host : BodyComponentBase
 {

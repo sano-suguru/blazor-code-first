@@ -228,6 +228,8 @@ internal static class ViewPartExpander
                             Setter = b.Setter?.Substitute(substitution),
                             Culture = b.Culture?.Substitute(substitution),
                             Format = b.Format?.Substitute(substitution),
+                            PreventDefault = b.PreventDefault?.Substitute(substitution),
+                            StopPropagation = b.StopPropagation?.Substitute(substitution),
                         });
                     }
 
