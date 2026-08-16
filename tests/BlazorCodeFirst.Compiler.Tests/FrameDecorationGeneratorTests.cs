@@ -118,7 +118,7 @@ public sealed class FrameDecorationGeneratorTests
         Assert.Contains("__builder.SetKey(_id)", generated);
 
         // The parameter keeps seq 1: SetKey took no number here either.
-        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", (global::System.String?)(\"x\"))", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -145,7 +145,7 @@ public sealed class FrameDecorationGeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains("__builder.SetKey(_id)", generated);
-        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", (global::System.String?)(\"x\"))", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
@@ -225,7 +225,7 @@ public sealed class FrameDecorationGeneratorTests
         Assert.True(slotAt >= 0 && renderModeAt > slotAt, "the render mode must follow the slot parameter");
 
         // The slot's content keeps numbering from the flat counter; the render mode took nothing.
-        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", (global::System.String?)(\"x\"))", generated);
         Assert.Contains(
             "__builder.AddComponentRenderMode(global::Microsoft.AspNetCore.Components.Web.RenderMode.InteractiveServer)",
             generated);
@@ -379,7 +379,7 @@ public sealed class FrameDecorationGeneratorTests
             """);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", \"x\")", generated);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Label\", (global::System.String?)(\"x\"))", generated);
         Assert.Contains(
             "__builder.AddComponentReferenceCapture(2, __value => "
                 + "((global::System.Action<global::Row>)(c => _row = c))((global::Row)__value));",

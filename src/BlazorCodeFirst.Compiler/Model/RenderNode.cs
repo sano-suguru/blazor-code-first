@@ -40,7 +40,17 @@ internal sealed record ForEachNode(
 /// <summary>A single statically-bound component parameter: its name and value expression template.</summary>
 /// <remarks>Shared by <see cref="ComponentTemplateNode"/> (holes intact) and <see cref="ComponentNode"/>
 /// (holes substituted). Symbol-free and value-equal.</remarks>
-internal sealed record ComponentParameter(string Name, ExpressionTemplate Value);
+/// <param name="ValueTypeName">
+/// The type <c>.Param</c> resolved its value to, fully qualified, or <see langword="null"/> where none can
+/// be written and for the parameters <c>.Bind</c> composes, which carry their own types already. The
+/// emitter casts the value to it. <c>AddComponentParameter</c> takes <c>object?</c>, so a value that had a
+/// target type at the call site arrives with none: an expression with no natural type does not bind at all,
+/// and one whose natural type is not the declared type binds and is the wrong type at render (#377).
+/// </param>
+internal sealed record ComponentParameter(
+    string Name,
+    ExpressionTemplate Value,
+    string? ValueTypeName = null);
 
 /// <summary>A RenderFragment-typed component parameter whose content is an expanded node subtree.</summary>
 /// <remarks>

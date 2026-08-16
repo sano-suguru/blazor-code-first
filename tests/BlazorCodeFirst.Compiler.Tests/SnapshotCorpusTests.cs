@@ -25,6 +25,13 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// make a baseline agree.
 /// </para>
 /// <para>
+/// They were re-recorded a second time, for #377: a scalar <c>.Param</c> value is now emitted cast to the
+/// type the call site resolved, because <c>AddComponentParameter</c> takes <c>object?</c> and the value
+/// otherwise arrives with no target type at all. The four baselines that carry a scalar parameter moved by
+/// one line each, and no other line in the corpus moved — which is itself what the re-record shows: the
+/// cast reaches the scalar parameter channel and nothing else.
+/// </para>
+/// <para>
 /// One of the 28, <c>component-generic-templates</c>, was added afterwards rather than captured on the pre-#87
 /// surface: the <c>.Template</c> channel did not exist then. It is a baseline of current behaviour, so it
 /// carries none of the migration evidence the others do; what it pins is the emitted shape of both overloads,

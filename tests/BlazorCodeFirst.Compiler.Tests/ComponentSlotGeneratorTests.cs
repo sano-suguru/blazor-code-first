@@ -78,7 +78,7 @@ public sealed class ComponentSlotGeneratorTests
 
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
         Assert.Contains("__builder.OpenComponent<global::T.Card>(0);", code);
-        Assert.Contains("__builder.AddComponentParameter(1, \"Title\", \"t\");", code);
+        Assert.Contains("__builder.AddComponentParameter(1, \"Title\", (global::System.String?)(\"t\"));", code);
         Assert.Contains(
             "__builder.AddComponentParameter(2, \"ChildContent\", "
                 + "(global::Microsoft.AspNetCore.Components.RenderFragment)((__builder) =>",
@@ -201,7 +201,10 @@ public sealed class ComponentSlotGeneratorTests
         var code = GeneratedHost(result);
 
         Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
-        Assert.Contains("__builder.AddComponentParameter(1, \"ChildContent\", Incoming);", code);
+        Assert.Contains(
+            "__builder.AddComponentParameter(1, \"ChildContent\", "
+                + "(global::Microsoft.AspNetCore.Components.RenderFragment?)(Incoming));",
+            code);
         Assert.DoesNotContain("RenderFragment)((__builder)", code);
     }
 

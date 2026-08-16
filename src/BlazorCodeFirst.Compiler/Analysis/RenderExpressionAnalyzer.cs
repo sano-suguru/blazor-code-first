@@ -64,6 +64,21 @@ internal static class RenderExpressionAnalyzer
             SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers);
 
     /// <summary>
+    /// The same, carrying the nullable reference annotation.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="FullyQualifiedTypeName"/> rather than added to it. That format also writes
+    /// the type argument of the <c>Action&lt;T&gt;</c> a binding's setter is cast to and the value type a
+    /// change callback is built around, and the binding channel writes its own suppression for the
+    /// nullability it knows it mismatches (#195). Widening the shared format would change what that channel
+    /// emits for a reason measured on this one.
+    /// </remarks>
+    private static readonly SymbolDisplayFormat AnnotatedFullyQualifiedTypeName =
+        FullyQualifiedTypeName.WithMiscellaneousOptions(
+            SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+                | SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
+    /// <summary>
     /// Classifies <paramref name="expression"/>, recording it on <paramref name="context"/> when it cannot
     /// be classified. Every recursive descent goes through here rather than through
     /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
@@ -936,12 +951,67 @@ internal static class RenderExpressionAnalyzer
         }
 
         var value = ExpressionTemplateFactory.Create(valueExpression, context);
-        var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
+        var appended = inner.Parameters.AsImmutableArray()
+            .Add(new ComponentParameter(property.Name, value, ResolvedParameterValueTypeName(method)));
         // A `with` and not a fresh construction: every channel this call does not touch has to survive it,
         // and a constructor call names the ones that existed when it was written. `.Key(k).Param(…)` lost
         // its key exactly that way (measured), and a channel added later would lose its value the same
         // way with nothing failing.
         return inner with { Parameters = appended };
+    }
+
+    /// <summary>
+    /// The type a scalar <c>.Param</c> resolved its value to, fully qualified for the emitter, or
+    /// <see langword="null"/> where none can be written.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Read off the resolved symbol rather than from the selected property, and the two differ only where
+    /// the author writes the type argument out. The resolved one is the type C# already converted the value
+    /// to at the call site, so the cast the emitter writes is an identity conversion by construction and
+    /// cannot fail to bind. The declared property type carries no such guarantee. A property whose type
+    /// converts to the value's implicitly and not back — a struct with an <c>implicit operator string</c>
+    /// is enough — binds <c>.Param&lt;string&gt;</c> at the call site and gets CS0030 from a cast to the
+    /// declared type (measured), inside a file the author cannot reach (付録A A.0). That is the failure
+    /// this is here to remove rather than move.
+    /// </para>
+    /// <para>
+    /// An unresolved type is declined rather than written out, for the reason
+    /// <see cref="ClassifyComponentFactory"/> gives about the component's own type argument: its display
+    /// string is the written name with no qualification, and the generated file has no using directives.
+    /// Declining leaves the value spelled as it is emitted today. A type parameter is not declined — the
+    /// generated method is a member of the component that wrote the call, so the caller's own type
+    /// parameters are in scope there, exactly as they are for <c>OpenComponent&lt;T&gt;</c>.
+    /// </para>
+    /// <para>
+    /// The type argument is read without an arity check, as <see cref="ClassifyComponentFactory"/> reads
+    /// the component's. Only <see cref="SurfaceMethodKind.ScalarParam"/> reaches here — every other kind
+    /// <see cref="ClassifyComponentParameter"/> admits has returned above — and
+    /// <c>KnownSymbols</c> classifies a call as that kind only at arity 1.
+    /// </para>
+    /// </remarks>
+    private static string? ResolvedParameterValueTypeName(IMethodSymbol method)
+    {
+        var type = method.TypeArguments[0];
+        if (TypeSymbolFacts.ContainsUnresolvedType(type))
+            return null;
+
+        var name = type.ToDisplayString(AnnotatedFullyQualifiedTypeName);
+
+        // A reference type is written nullable whatever the resolved type says, because the cast asserts
+        // nothing about null: it is there to name a type, and the value it wraps has already type-checked
+        // in the author's file. Without this the generated file — which is #nullable enable whatever the
+        // author's project is — warns CS8600 on a value written as `null`, and a warning inside generated
+        // code is a build failure for every consumer building warnings as errors and one they cannot fix
+        // (#235 is the precedent). Two shapes reach it: the author's own `#nullable disable`, where the
+        // resolved type is oblivious and carries no annotation to write, and inference that lands on the
+        // non-annotated type anyway. Value types are left alone — a null value reaches them as
+        // Nullable<T>, which the name already spells — and so is an unconstrained type parameter, where
+        // `T?` would mean something else. Measured: the annotated form of every shape the surface admits
+        // binds and warns about nothing, dynamic and arrays included.
+        return type.IsReferenceType && type.NullableAnnotation != NullableAnnotation.Annotated
+            ? name + "?"
+            : name;
     }
 
     /// <summary>
