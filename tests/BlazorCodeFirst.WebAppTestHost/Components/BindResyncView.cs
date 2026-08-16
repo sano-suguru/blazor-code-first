@@ -135,6 +135,48 @@ public partial class TwoBindingResyncView : BodyComponentBase
             If(RendererInfo.IsInteractive, () => Span.Attr("id", "two-binding-ready")["ready"]));
 }
 
+/// <summary>
+/// The same normalizing input carrying an event modifier on the binding's own event. The modifier is
+/// emitted as an attribute frame after <c>SetUpdatesAttributeName</c>, which records into the frame
+/// immediately before it; if that order were reversed the resynchronized name would land on the modifier's
+/// frame and this repair would disappear (#370).
+/// </summary>
+[Route("/bind-resync-modifier")]
+public partial class ModifiedBindingResyncView : BodyComponentBase
+{
+    protected override View Body =>
+        Fragment(
+            Component<ModifiedBindingProbe>(),
+            If(RendererInfo.IsInteractive, () => Span.Attr("id", "modified-binding-ready")["ready"]));
+}
+
+/// <summary>The modified binding, in its own component for the same reason <see cref="TrimmingInputProbe"/>
+/// is: <see cref="Build"/> needs no render handle.</summary>
+public partial class ModifiedBindingProbe : BodyComponentBase
+{
+    private string _name = "";
+
+    private int _writes;
+
+    protected override View Body =>
+        Div.Class("bind-resync")[
+            Input.Attr("id", "modified-bound-input").Type("text")
+                .Bind("value", "oninput", () => _name, Normalize)
+                .StopPropagation(),
+
+            Span.Attr("id", "modified-write-count")[$"{_writes}"],
+            Span.Attr("id", "modified-field-value")[_name]];
+
+    /// <summary>Exposes the generated render path to the premise gate in <c>BindResyncTests</c>.</summary>
+    public void Build(RenderTreeBuilder builder) => BuildRenderTree(builder);
+
+    private void Normalize(string value)
+    {
+        _writes++;
+        _name = value.Trim();
+    }
+}
+
 /// <summary>The two bindings, in their own component for the same reason <see cref="TrimmingInputProbe"/>
 /// is: <see cref="Build"/> needs no render handle.</summary>
 public partial class TwoBindingProbe : BodyComponentBase

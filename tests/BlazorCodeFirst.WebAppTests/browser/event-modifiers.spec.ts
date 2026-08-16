@@ -41,3 +41,32 @@ test('PreventDefault on an onwheel handler stops the page scrolling underneath i
   // And the handler fired, so the non-scroll is preventDefault rather than a lost event.
   await expect.poll(() => page.locator('#wheel-count').textContent()).not.toBe('0');
 });
+
+/**
+ * The same question asked of a binding's own event, which #370 could not answer from #368's measurement:
+ * that one was taken against an EventCallback the author wrote, and a binding's event frame carries a
+ * CreateBinder callback instead.
+ *
+ * stopPropagation and not preventDefault, because `input` is not cancelable — a preventDefault that arrived
+ * and was honoured would leave nothing to observe. `input` bubbles, so a parent handler is the observation,
+ * and the echo is what separates "the modifier stopped the bubble" from "the binding stopped working".
+ */
+test("StopPropagation on a binding's own event keeps the input from reaching a parent handler", async ({
+  page,
+}) => {
+  await page.goto('/event-modifiers');
+
+  await expect(page.locator('#plain-input')).toBeVisible();
+  await expect(page.locator('#blocked-input')).toBeVisible();
+
+  // The control: an identical binding with no modifier reaches the parent.
+  await page.locator('#plain-input').fill('abc');
+  await expect.poll(() => page.locator('#plain-echo').textContent()).toBe('abc');
+  await expect.poll(() => page.locator('#plain-parent-count').textContent()).not.toBe('0');
+
+  // The subject: the binding still writes its value, and the parent never counts.
+  await page.locator('#blocked-input').fill('xyz');
+  await expect.poll(() => page.locator('#blocked-echo').textContent()).toBe('xyz');
+  await page.waitForTimeout(250);
+  expect(await page.locator('#blocked-parent-count').textContent()).toBe('0');
+});

@@ -13,8 +13,10 @@ namespace Fixtures.GeneratorDelivery;
 /// class, so it carries CS0534, and <c>csc</c> stops after the declaration stage without binding method
 /// bodies. Measured on #155 before this diagnostic existed, the whole list was CS0534 and BCF1003. The other
 /// shape, a handler whose type merely disagrees with the event's <c>[EventHandler]</c> mapping, binds and is
-/// covered in-process; it also needs a reference to <c>Microsoft.AspNetCore.Components.Web</c>, which this
-/// fixture deliberately does not have, and the constraint half consults no mapping at all.
+/// covered in-process. That is a choice about which of the two shapes carries the one delivery slot the id
+/// gets, and no longer a statement about what this project can see: it has referenced
+/// <c>Microsoft.AspNetCore.Components.Web</c> since #369 put BCF3038 here, and the constraint half consults
+/// no mapping either way.
 /// </remarks>
 public partial class Bcf3028Host : BodyComponentBase
 {

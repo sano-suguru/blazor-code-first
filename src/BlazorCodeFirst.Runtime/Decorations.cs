@@ -516,9 +516,11 @@ public static class Decorations
     /// Design-time syntax making the preceding event call <c>preventDefault()</c> in the browser, which is
     /// Razor's <c>@onwheel:preventDefault</c>. It attaches to the event written before it on the same
     /// element, so <c>.On("onwheel", Zoom).PreventDefault()</c> modifies <c>onwheel</c>. A modifier with no
-    /// event before it is BCF3035, and a second one for the same event is BCF3036. The event has to come
-    /// from <c>.On</c> or a named event shortcut: <c>.Bind</c> writes its event into a channel this cannot
-    /// reach, so a modifier after one is BCF3037 rather than a modifier of the binding.
+    /// event before it is BCF3035, a second one for the same event is BCF3036, and one the event's own
+    /// <c>[EventHandler]</c> registration disables is BCF3038. Any decoration that writes an event counts,
+    /// <c>.Bind</c> included: a binding's own event is modified the same way, which is what Razor writes as
+    /// <c>@oninput:preventDefault</c> beside <c>@bind:event="oninput"</c>. Which of the two the modifier
+    /// reaches is decided by the chain, not by the channel each wrote into.
     /// </summary>
     /// <remarks>
     /// <para>

@@ -229,6 +229,12 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// The format expression, or <see langword="null"/>. Only ever non-null when <paramref name="Culture"/>
 /// is, and only for a type BCF3031 admits.
 /// </param>
+/// <param name="PreventDefault">
+/// The <c>preventDefault</c> modifier's value written on this binding's own event, or
+/// <see langword="null"/> when none was written. The same channel <see cref="EventTemplate.PreventDefault"/>
+/// holds, and null means the same thing there (#370).
+/// </param>
+/// <param name="StopPropagation">The <c>stopPropagation</c> half; see PreventDefault.</param>
 internal sealed record BindTemplate(
     string AttributeName,
     string EventName,
@@ -237,7 +243,9 @@ internal sealed record BindTemplate(
     ExpressionTemplate? Setter,
     bool SetterIsAsynchronous,
     ExpressionTemplate? Culture = null,
-    ExpressionTemplate? Format = null);
+    ExpressionTemplate? Format = null,
+    ExpressionTemplate? PreventDefault = null,
+    ExpressionTemplate? StopPropagation = null);
 
 internal sealed record ElementTemplateNode(
     string Tag,
