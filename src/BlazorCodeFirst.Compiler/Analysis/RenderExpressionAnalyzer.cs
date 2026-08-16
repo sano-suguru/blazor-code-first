@@ -365,7 +365,7 @@ internal static class RenderExpressionAnalyzer
         var tagArg = tagArgument.Expression;
         var constant = context.SemanticModel.GetConstantValue(tagArg, context.CancellationToken);
         if (constant is not { HasValue: true, Value: string tagValue }
-            || string.IsNullOrWhiteSpace(tagValue))
+            || !KnownSymbols.IsValidTagName(tagValue))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3009, tagArg.GetLocation(), []));

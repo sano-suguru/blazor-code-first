@@ -518,7 +518,13 @@ internal static class RenderViewEmitter
 
     private static int EmitElement(IndentedWriter writer, ElementNode node, int seq, string? key = null)
     {
-        writer.AppendLine($"__builder.OpenElement({seq}, \"{node.Tag}\");");
+        // Escaped like the attribute, event and modifier names below it, and for the same reason: a
+        // constant string is not a C# literal, and the two part company exactly where the author wrote
+        // an escape. BCF3009 rejects every tag whose spelling this would rescue, so nothing reaches here
+        // needing it today; it stays because the invariant is the emitter's own, and a caller filtered
+        // by an analyzer in another file is not the same thing as a tag that cannot be misread (#388).
+        var tag = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(node.Tag, quote: true);
+        writer.AppendLine($"__builder.OpenElement({seq}, {tag});");
         EmitKey(writer, node.Key, key);
         int next = seq + 1;
         next = EmitClassAttribute(writer, node.Classes, next);

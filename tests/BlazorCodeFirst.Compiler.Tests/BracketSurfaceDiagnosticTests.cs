@@ -200,6 +200,20 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
+    public void MisspelledElementTag_WithAnUnresolvedValueInAChild_ReportsBCF3009Only()
+    {
+        // The same gate as the sibling above, reached by the other half of BCF3009. This tag is a non-empty
+        // constant and is rejected all the same (#394), so the scanner's gate has to ask BCF3009's question
+        // rather than a paraphrase of it: a second copy that still read "non-empty constant" would let the
+        // child report on an element that never reaches generated code.
+        var diagnostics = Run(
+            """Element("a b")[Span.Class(MissingMethod() + typeof(Probe).Name)["x"]]""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3009");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void ScalarParam_ElementViewValue_ReportsBCF3014()
     {
         // ElementView is as inert as View: the generic Param emits its value verbatim, so without this

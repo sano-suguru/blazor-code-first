@@ -54,12 +54,18 @@ call as readable as a helper. The rule is about declarativeness rather than safe
 neither an injection risk nor a sequencing problem — it just stops the element from naming itself
 where you wrote it.
 
+The constant also has to be spelled like a tag name: an ASCII letter, then ASCII letters, digits,
+`-`, `_` or `.`. A tag no element can be named renders as two different things, neither of them what
+you wrote. Prerendering writes it into markup and the HTML parser reinterprets it, while interactive
+rendering hands it to `createElement`, which rejects it and takes the circuit down with it.
+
 ```csharp
 private const string Widget = "my-widget";
 
 Element(Widget)                  // fine
 Element(_kind + "-widget")       // BCF3009
 Element("")                      // BCF3009, the tag must be non-empty
+Element("my widget")             // BCF3009, the tag must be spelled like a tag name
 ```
 
 ## Children

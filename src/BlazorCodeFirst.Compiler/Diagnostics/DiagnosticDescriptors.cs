@@ -326,23 +326,30 @@ internal static class DiagnosticDescriptors
             "[ViewPart]/Component result has no element to attach to. Decorate a concrete element instead.");
 
     /// <summary>
-    /// BCF3009: <c>Html.Element</c> was called with a tag argument that is not a non-empty compile-time
-    /// constant string. A non-empty constant tag keeps the element declarative and predictable
-    /// (design-time syntax the generator can lower to a literal <c>OpenElement</c>); this is not an
-    /// AOT/sequencing constraint, and non-constant or empty tags are not a security (injection) concern.
+    /// BCF3009: <c>Html.Element</c> was called with a tag argument that is not a compile-time constant
+    /// string, or with one no element can be named. The constant half keeps the element declarative and
+    /// predictable (design-time syntax the generator can lower to a literal <c>OpenElement</c>); this is
+    /// not an AOT/sequencing constraint, and a non-constant tag is not a security (injection) concern.
+    /// The spelling half is a translation break rather than a validity question: a tag outside
+    /// <see cref="Analysis.KnownSymbols.IsValidTagName"/> makes the two render paths produce different
+    /// things and neither of them what was written (#394), so the check that catches it needs no content
+    /// model and stays inside <c>DESIGN.md</c> §4.1's boundary.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3009 = new(
         id: "BCF3009",
-        title: "Element tag must be a compile-time constant string",
-        messageFormat: "Html.Element tag must be a non-empty compile-time constant string; use a non-empty " +
-            "string literal or a const",
+        title: "Element tag must be a compile-time constant string spelled like a tag name",
+        messageFormat: "Html.Element tag must be a compile-time constant string spelled like a tag name: an " +
+            "ASCII letter, then ASCII letters, digits, '-', '_' or '.'",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "Html.Element(tag, ...) lowers the tag to a literal OpenElement call, so the tag must be a " +
-            "non-empty compile-time constant string. This keeps the vocabulary declarative and " +
-            "predictable, consistent with the design-time nature of the surface.");
+            "compile-time constant string. This keeps the vocabulary declarative and predictable, " +
+            "consistent with the design-time nature of the surface. The constant must also be spelled " +
+            "like a tag name, because a tag no element can be named renders as two different things: " +
+            "prerendering writes it into markup, where the HTML parser reinterprets it, while the " +
+            "interactive path passes it to createElement, which rejects it and tears down the circuit.");
 
     /// <summary>
     /// BCF3010: An attribute or event is bound more than once on the same element. Neither outcome is what
