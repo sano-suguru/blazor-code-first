@@ -703,20 +703,20 @@ internal static class RenderExpressionAnalyzer
                     TemplateLocation.From(contentExpression.GetLocation()));
 
             case NonSurfaceCallKind.Opaque:
-                // The group written back as the call it stands for, on ExpressionTemplateFactory's terms
-                // for a name on the value path: the requirement that the expansion site be able to reach
-                // the callee is recorded, and only a static callee is qualified through its containing
-                // type. A qualification is what a using-less generated file needs to name a static method
-                // (FullyQualifiedFormat spells the method symbol itself as a bare name, hence the
-                // containing type); an instance callee was written with an implicit `this` that the
-                // generated RenderView has too, so there the bare name is the spelling that works (#390).
+                // The group written back as the call it stands for, on the terms the value path sets for
+                // a name: what the expansion site has to be able to reach is recorded, and only a static
+                // callee is qualified through its containing type. That qualification is what a using-less
+                // generated file needs to name a static method (FullyQualifiedFormat spells the method
+                // symbol itself as a bare name, hence the containing type). An instance callee was written
+                // with an implicit `this` the generated RenderView has too, so there the bare name is the
+                // spelling that works (#390).
                 ExpressionTemplateFactory.RecordAccessRequirement(callee, context);
-                var receiver = callee.IsStatic
+                var qualification = callee.IsStatic
                     ? callee.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "."
                     : string.Empty;
                 return new OpaqueViewTemplateNode(ExpressionTemplate.Create(
                     [
-                        new LiteralExpressionSegment($"{receiver}{callee.Name}("),
+                        new LiteralExpressionSegment($"{qualification}{callee.Name}("),
                         itemHole,
                         new LiteralExpressionSegment(")"),
                     ]));
