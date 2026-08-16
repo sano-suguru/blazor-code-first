@@ -41,21 +41,26 @@ public sealed partial class Home : BodyComponentBase
         Fragment(
             Component<PageTitle>()["BlazorCodeFirst"],
             Div.Class("shell")[
+                // One cell, not three. The three blocks below carry their own margins, and .hero is
+                // a grid: as direct children they would each take a row and the grid gap would add
+                // itself on top of every margin, which measured 88px and 104px where the design
+                // asks for 24px and 40px.
                 Section.Class("hero")[
-                    H1.Class("hero-title")["Write Blazor UI as plain C#"],
-                    P.Class("hero-lede")[
-                        "An ordinary Blazor component, written in the language the rest of the app is "
-                            + "written in."],
-                    Div.Class("hero-actions")[
-                        Div.Class("install")[
-                            Code[InstallCommand],
-                            Button
-                                .Class("install-copy")
-                                .Attr("type", "button")
-                                .Attr("aria-label", "Copy the install command")
-                                .OnClick(() => CopyInstallCommandAsync())[
-                                    _copied ? "Copied" : "Copy"]],
-                        A.Href("/docs/getting-started").Class("chip chip--primary")["Get started"]]],
+                    Div[
+                        H1.Class("hero-title")["Write Blazor UI as plain C#"],
+                        P.Class("hero-lede")[
+                            "An ordinary Blazor component, written in the language the rest of the app "
+                                + "is written in."],
+                        Div.Class("hero-actions")[
+                            Div.Class("install")[
+                                Code[InstallCommand],
+                                Button
+                                    .Class("install-copy")
+                                    .Attr("type", "button")
+                                    .Attr("aria-label", "Copy the install command")
+                                    .OnClick(() => CopyInstallCommandAsync())[
+                                        _copied ? "Copied" : "Copy"]],
+                            A.Href("/docs/getting-started").Class("chip chip--primary")["Get started"]]]],
 
                 // The correspondence a reader needs first, before any claim about what the build
                 // does with it. Full width: two code columns need the measure.
@@ -73,6 +78,21 @@ public sealed partial class Home : BodyComponentBase
                             Figcaption["What it renders", Em["HTML"]],
                             CodeSamples.SurfaceOutput()]]],
 
+                // Between the two pairs, not after them. Reversed as well, so three consecutive
+                // sections do not repeat one shape: a pair, a single figure on the other side, a
+                // pair. Two pair sections in a row read as a template even when their contents
+                // differ. It also follows the section above by argument -- the HTML correspondence
+                // holds, and this is the HTML the build declines to let you write.
+                Section.Class("split split--flip")[
+                    Div[
+                        H2.Class("split-title")["Some HTML that parses is still wrong"],
+                        P.Class("split-body")[
+                            "A void element with children prerenders one DOM tree and hydrates another, so "
+                                + "the build refuses it by name."]],
+                    Figure.Class("figure")[
+                        Figcaption["dotnet build", Em["error"]],
+                        CodeSamples.Diagnostic()]],
+
                 // What the compiler does with it. Full width: two code columns need the measure.
                 Section.Class("split split--wide")[
                     Div[
@@ -89,17 +109,6 @@ public sealed partial class Home : BodyComponentBase
                         Figure.Class("figure")[
                             Figcaption["What it compiles to", Em["generated"]],
                             CodeSamples.Generated()]]],
-
-                // Reversed: the failure is the evidence, so it takes the left half at wide widths.
-                Section.Class("split split--flip")[
-                    Div[
-                        H2.Class("split-title")["Some HTML that parses is still wrong"],
-                        P.Class("split-body")[
-                            "A void element with children prerenders one DOM tree and hydrates another, so "
-                                + "the build refuses it by name."]],
-                    Figure.Class("figure")[
-                        Figcaption["dotnet build", Em["error"]],
-                        CodeSamples.Diagnostic()]],
 
                 Section.Class("split split--wide split--close")[
                     Div[

@@ -1,9 +1,15 @@
-/* Hallmark · macrostructure: Split Studio · H2 hero knobs: ratio=6/6, right=code figure, divider=negative space
+/* Hallmark · macrostructure: Split Studio · H2 hero knobs: ratio=full, figure=none, divider=negative space
  * theme: custom · vibe: "compile-time, cool, precise, .NET" · paper: oklch(99% 0.006 277) · accent: oklch(47% 0.21 277)
  * display: Geist · body: Geist · mono: JetBrains Mono · axes: light / geometric-sans / cool
  * nav: N9 edge-aligned minimal · footer: Ft2 inline single line · enrichment: none · studied: no
  * contrast: pass (40-41) · slop: pass (42-45) · honest: pass (46) · chrome: pass (47)
  * tokens: pass (48) · responsive: pass (49) · mobile: pass (34, 49, 50-57)
+ *
+ * The hero used to be the 6/6 split this macrostructure is named for, with a code figure on the
+ * right. It gave up the figure so the page could open on the pair the figure was half of: the
+ * expression beside the HTML it renders. The splits below still carry the macrostructure -- four of
+ * the five sections are one -- and the run of them now alternates pair / single / pair rather than
+ * placing two pair sections together, which reads as a template whatever is inside them.
  */
 
 /* The design system, extracted so it is portable and so app.css never carries a raw value.
