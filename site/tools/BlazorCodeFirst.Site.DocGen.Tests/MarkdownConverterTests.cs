@@ -85,6 +85,79 @@ public class MarkdownConverterTests
     }
 
     [Fact]
+    public void ToHtml_SoftBreakBetweenJapaneseCharacters_JoinsWithoutASpace()
+    {
+        string html = MarkdownConverter.ToHtml("双方向バインディングは、1つの装飾\nです。\n");
+
+        Assert.Contains("双方向バインディングは、1つの装飾です。", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreakInsideAListItem_JoinsWithoutASpace()
+    {
+        string html = MarkdownConverter.ToHtml("- 数えます\n  （BCF3007）\n");
+
+        // Fullwidth punctuation counts as CJK: the class cannot be kana and kanji alone.
+        Assert.Contains("数えます（BCF3007）", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreakBetweenJapaneseAndLatin_KeepsTheSpace()
+    {
+        string html = MarkdownConverter.ToHtml("その中身はふつうの\nBlazor です。\n");
+
+        Assert.Contains("その中身はふつうの\nBlazor です。", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreakBesideACodeSpan_KeepsTheSpace()
+    {
+        string html = MarkdownConverter.ToHtml("これらは\n`装飾` です。\n");
+
+        // The Japanese edition sets a space around an inline <code> on purpose, so a code span is
+        // not a CJK neighbour even when the run beside it is Japanese. The span holds Japanese here
+        // precisely so the assertion turns on that rule: with a Latin identifier inside, the boundary
+        // character would be Latin and the space would survive whether or not the rule existed.
+        Assert.Contains("これらは\n<code>装飾</code>", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreakBetweenLatinWords_KeepsTheSpace()
+    {
+        string html = MarkdownConverter.ToHtml("a decoration that writes\nthe value out.\n");
+
+        Assert.Contains("writes\nthe value", html);
+    }
+
+    [Fact]
+    public void ToHtml_HardBreakBetweenJapaneseCharacters_StaysABr()
+    {
+        string html = MarkdownConverter.ToHtml("1つの装飾  \nです。\n");
+
+        Assert.Contains("<br />", html);
+        Assert.DoesNotContain("1つの装飾です。", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreakBeforeALinkWithJapaneseText_JoinsWithoutASpace()
+    {
+        string html = MarkdownConverter.ToHtml("ジェネレーターが読むものは\n[要素と装飾](https://example.test) です。\n");
+
+        // The boundary character is the one the reader sees, so the pass reads through a link or an
+        // emphasis into the literal inside it.
+        Assert.Contains("読むものは<a", html);
+        Assert.Contains(">要素と装飾</a>", html);
+    }
+
+    [Fact]
+    public void ToHtml_SoftBreakBeforeAnEmphasisWithJapaneseText_JoinsWithoutASpace()
+    {
+        string html = MarkdownConverter.ToHtml("出力を見られません。だから\n*同じプロジェクト* で宣言します。\n");
+
+        Assert.Contains("だから<em>同じプロジェクト</em>", html);
+    }
+
+    [Fact]
     public void ToHtml_WithKnownSlugs_EnforcesTheNoH1Rule()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => MarkdownConverter.ToHtml(

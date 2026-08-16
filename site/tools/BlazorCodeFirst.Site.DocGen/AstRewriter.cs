@@ -1,3 +1,4 @@
+using System.Text.Unicode; // UnicodeRange / UnicodeRanges, the named blocks IsCjk is built from
 using Markdig.Renderers.Html; // GetAttributes / AddClass / AddProperty extension methods
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -176,4 +177,97 @@ public static class AstRewriter
             heading.Inline.AppendChild(anchor);
         }
     }
+
+    /// <summary>
+    /// Drops a soft line break that sits between two CJK characters, so a wrapped Japanese paragraph
+    /// reaches the reader as the sentence it was written as.
+    /// </summary>
+    /// <remarks>
+    /// A soft break renders as "\n" and a browser renders that as a space. Between two Latin words
+    /// the space was wanted anyway; between two Japanese characters it is a gap where the glyphs
+    /// should touch. Removing the node rather than rendering it away keeps the decision in the
+    /// document, where <see cref="MarkdownConverter"/>'s tests can read it off the HTML.
+    /// <para>
+    /// The join is deliberately narrow. A hard break is a &lt;br&gt; the author asked for and is left
+    /// alone. A neighbour that is not text the reader sees as CJK — a code span, raw HTML, an image —
+    /// keeps its space, because the Japanese edition sets a space around an inline <c>&lt;code&gt;</c>
+    /// on purpose. A character outside the Basic Multilingual Plane arrives as a surrogate half,
+    /// matches no range, and so also keeps its space.
+    /// </para>
+    /// </remarks>
+    public static void JoinCjkSoftLineBreaks(MarkdownDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        // Materialize before mutating. Removing a node mid-walk happens to be safe in Markdig 0.41.3
+        // — Descendants pushes a container's whole child list onto its own stack before yielding any
+        // of it, so unlinking one child cannot strand the rest — but that is an implementation
+        // detail rather than a documented guarantee. A walk that instead followed NextSibling from
+        // the live tree would stop at the first join in a paragraph and silently leave the rest.
+        foreach (var lineBreak in document.Descendants<LineBreakInline>().ToList())
+        {
+            if (lineBreak.IsHard)
+            {
+                continue;
+            }
+
+            if (LastCharacterOf(lineBreak.PreviousSibling) is { } before &&
+                FirstCharacterOf(lineBreak.NextSibling) is { } after &&
+                IsCjk(before) && IsCjk(after))
+            {
+                lineBreak.Remove();
+            }
+        }
+    }
+
+    /// <summary>The last character a reader sees in <paramref name="inline"/>, or null when the node
+    /// renders as something other than text.</summary>
+    /// <remarks>
+    /// The boundary the join tests is the rendered one, so any container is descended into: a
+    /// Japanese sentence that wraps onto a link whose own text is Japanese breaks between two
+    /// Japanese characters, even though a link node sits between them. Matching
+    /// <see cref="ContainerInline"/> rather than naming the two subtypes this pipeline produces
+    /// today means an extension that adds a third needs no edit here. An image is the one container
+    /// left out: it renders as an <c>&lt;img&gt;</c>, so its children are alt text rather than text
+    /// beside the break. A code span is a leaf and is not descended into by rule.
+    /// </remarks>
+    private static char? LastCharacterOf(Inline? inline) => inline switch
+    {
+        LiteralInline literal =>
+            literal.Content.IsEmpty ? null : literal.Content[literal.Content.End],
+        LinkInline { IsImage: true } => null,
+        ContainerInline container => LastCharacterOf(container.LastChild),
+        _ => null,
+    };
+
+    /// <summary>The first character a reader sees in <paramref name="inline"/>, or null when the node
+    /// renders as something other than text. Mirrors <see cref="LastCharacterOf"/>.</summary>
+    private static char? FirstCharacterOf(Inline? inline) => inline switch
+    {
+        LiteralInline literal =>
+            literal.Content.IsEmpty ? null : literal.Content[literal.Content.Start],
+        LinkInline { IsImage: true } => null,
+        ContainerInline container => FirstCharacterOf(container.FirstChild),
+        _ => null,
+    };
+
+    /// <summary>Recognizes a character that Japanese sets without a word space beside it.</summary>
+    /// <remarks>
+    /// Named blocks rather than hex bounds, so no boundary here is a transcription anyone has to
+    /// check. The one written out is the one carrying a decision: the fullwidth range stops at
+    /// U+FF9F, the end of the halfwidth katakana block, where <c>HalfwidthandFullwidthForms</c> runs
+    /// on to U+FFEF. U+FFA0 onward is halfwidth hangul filler and halfwidth symbols, which nothing
+    /// in this edition sets and which have no claim to being joined.
+    /// </remarks>
+    private static bool IsCjk(char c) =>
+        Within(c, UnicodeRanges.CjkSymbolsandPunctuation)
+        || Within(c, UnicodeRanges.Hiragana)
+        || Within(c, UnicodeRanges.Katakana)
+        || Within(c, UnicodeRanges.CjkUnifiedIdeographsExtensionA)
+        || Within(c, UnicodeRanges.CjkUnifiedIdeographs)
+        || Within(c, UnicodeRanges.CjkCompatibilityIdeographs)
+        || c is >= '\uFF01' and <= '\uFF9F';
+
+    private static bool Within(char c, UnicodeRange range) =>
+        c >= range.FirstCodePoint && c < range.FirstCodePoint + range.Length;
 }

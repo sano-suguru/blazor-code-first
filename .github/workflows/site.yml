@@ -295,12 +295,19 @@ jobs:
           # site/content/ja/ a carved-out exception rather than the first place anyone noticed the
           # rule was unenforced.
           #
-          # Two paths are excluded, for different reasons:
+          # Three paths are excluded, for different reasons:
           #   * site/content/ja/ is the exception itself, named in CONTRIBUTING.
           #   * Docs.g.cs is generated FROM that directory. It is not a second exception; it is the
           #     same content after conversion, and scanning it would fail the build for the file
           #     doing its job. Nothing else generated carries prose, so the exclusion is by name
           #     rather than by a pattern that might quietly widen.
+          #   * MarkdownConverterTests.cs asserts what the converter does to a Japanese paragraph,
+          #     so its Japanese is the input under test rather than prose. Spelling those literals
+          #     as \uXXXX would satisfy this scan and leave a reader unable to see what is asserted,
+          #     which is the opposite of what a test is for. Unlike the two above it, this file is
+          #     not exempt as a whole: what is exempt is its string literals, and the second scan
+          #     below holds the rest of it. Naming the file keeps the exemption from widening
+          #     quietly, for the same reason as Docs.g.cs above.
           #
           # grep exits 1 for "no match" and 2 for an error (for example a grep built without
           # PCRE, which rejects -P). An `if grep ...; then` guard treats both exit codes as
@@ -319,6 +326,7 @@ jobs:
           # rc=1 -- indistinguishable from a clean scan. That is the silent-pass defect this check
           # has already been fixed for once.
           CJK_RANGE='[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]'
+          CJK_FIXTURE_FILE='site/tools/BlazorCodeFirst.Site.DocGen.Tests/MarkdownConverterTests.cs'
 
           set +e
           cjk_raw=$(grep -rnP --include='*.cs' --include='*.razor' --exclude-dir=bin --exclude-dir=obj \
@@ -342,7 +350,9 @@ jobs:
             exit 1
           fi
 
-          cjk_hits=$(printf '%s' "$cjk_raw" | grep -v '^site/BlazorCodeFirst\.Site/Content/Docs\.g\.cs:' || true)
+          cjk_hits=$(printf '%s' "$cjk_raw" \
+            | grep -v '^site/BlazorCodeFirst\.Site/Content/Docs\.g\.cs:' \
+            | grep -Fv "$CJK_FIXTURE_FILE:" || true)
           if [ "$cjk_rc" -gt 1 ]; then
             echo "::error::the CJK source check could not run (grep exited $cjk_rc)" >&2
             exit 1
@@ -350,6 +360,22 @@ jobs:
           if [ -n "$cjk_hits" ]; then
             echo "::error::Non-English (CJK) characters found at the file(s)/line(s) below. Source comments and documentation must be written in English." >&2
             printf '%s\n' "$cjk_hits" >&2
+            exit 1
+          fi
+
+          # The line above exempts the fixture file's Japanese; this scan holds the rest of it.
+          # Removing every double-quoted literal first leaves the comments and the code, so a
+          # Japanese comment in that file -- whole-line or trailing -- still fails, and the claim
+          # CONTRIBUTING makes about the file is checked rather than asserted. perl for the reason
+          # eng/verify-site-prerender.sh gives: it decodes UTF-8 into codepoints, which the CI
+          # image's awk does not. No `set +e` dance here -- errexit is back on, so perl dying (a
+          # renamed file, say) aborts the step rather than reading as a clean scan.
+          cjk_outside_fixtures=$(perl -CSDA -ne \
+            's/"(?:\\.|[^"\\])*"//g; print "$ARGV:$.:$_" if /[\x{3040}-\x{30FF}\x{4E00}-\x{9FFF}\x{FF00}-\x{FFEF}]/' \
+            "$CJK_FIXTURE_FILE")
+          if [ -n "$cjk_outside_fixtures" ]; then
+            echo "::error::Non-English (CJK) characters outside a string literal in $CJK_FIXTURE_FILE. Its Japanese is the input under test; its comments must be English." >&2
+            printf '%s\n' "$cjk_outside_fixtures" >&2
             exit 1
           fi
 

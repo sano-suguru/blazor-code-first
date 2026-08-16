@@ -728,10 +728,17 @@ time on code that was already written and already green:
   still passed. The mutation found it; the review of the test had not.
 
 Documentation and source comments are written in English. `site/content/ja/` is
-the one exception: it holds the Japanese edition of the documentation site,
-which is content rather than source. Its generated form in
+the exception: it holds the Japanese edition of the documentation site, which is
+content rather than source. Its generated form in
 `site/BlazorCodeFirst.Site/Content/Docs.g.cs` is exempt for the same reason, not
 as a second exception.
+
+One test file's string literals are exempt on a different ground:
+`MarkdownConverterTests` asserts what the converter does to a Japanese
+paragraph, so the Japanese in it is the input under test rather than prose. Its
+comments are English like every other file's, and `site.yml` checks that by
+scanning it again with the literals removed rather than taking the file's word
+for it.
 
 The rule covers the English documents too, not only `*.cs` and `*.razor`. No
 reader-facing string belongs in a page component in any language: each language
