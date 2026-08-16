@@ -1,10 +1,10 @@
 .htmlServerSideScript{color:#FFFF00;}
-.htmlComment{color:light-dark(#008000,#57A64A);}
-.htmlTagDelimiter{color:light-dark(#0000FF,#569CD6);}
-.htmlElementName{color:#A31515;}
-.htmlAttributeName{color:#FF0000;}
-.htmlAttributeValue{color:light-dark(#0000FF,#569CD6);}
-.htmlOperator{color:light-dark(#0000FF,#569CD6);}
+.htmlComment{color:light-dark(#676871,#8F919F);}
+.htmlTagDelimiter{color:light-dark(#161822,#E6E7ED);}
+.htmlElementName{color:light-dark(#161822,#E6E7ED);}
+.htmlAttributeName{color:light-dark(#161822,#E6E7ED);}
+.htmlAttributeValue{color:light-dark(#006647,#69D6AA);}
+.htmlOperator{color:light-dark(#161822,#E6E7ED);}
 .comment{color:light-dark(#676871,#8F919F);}
 .xmlDocTag{color:light-dark(#676871,#8F919F);}
 .xmlDocComment{color:light-dark(#676871,#8F919F);}
@@ -12,7 +12,7 @@
 .stringCSharpVerbatim{color:light-dark(#006647,#69D6AA);}
 .keyword{color:light-dark(#463ECC,#C5A2FF);}
 .preprocessorKeyword{color:light-dark(#463ECC,#C5A2FF);}
-.htmlEntity{color:#FF0000;}
+.htmlEntity{color:light-dark(#006647,#69D6AA);}
 .jsonKey{color:#FF8700;}
 .jsonString{color:#008B8B;}
 .jsonNumber{color:#00d700;}
