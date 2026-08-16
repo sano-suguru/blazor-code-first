@@ -20,9 +20,8 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// The baselines were re-recorded once, for #140: the emitter now folds a run of consecutive fully static
 /// siblings into a single <c>AddMarkupContent</c> frame, so the emitted shape changed by design for every
 /// case whose content is statically written. This is the re-record the paragraph above asks for a reason
-/// for, and the diff of that commit is the primary review surface for the fold. What the baselines still
-/// guard is unchanged: a case's input may be re-spelled, but a case must never be renamed or dropped to
-/// make a baseline agree.
+/// for, and the diff of that commit is the primary review surface for the fold. The rule about case names
+/// above is unchanged by it.
 /// </para>
 /// <para>
 /// They were re-recorded a second time, for #377: a scalar <c>.Param</c> value is now emitted cast to the

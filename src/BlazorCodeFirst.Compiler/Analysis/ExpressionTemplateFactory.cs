@@ -196,9 +196,9 @@ internal static class ExpressionTemplateFactory
             // mints the name (#336). The statement around it stays literal text: its written type travels
             // with it, so nothing here has to reproduce the local's type. `var` is a type reference like
             // any other and is resolved below, with the one exception recorded there. Handled in this pass
-            // rather than a
-            // walk of its own, because a declaration and a reference are the same rewrite over the same
-            // traversal, and the spans cannot overlap: a declaring identifier is a token, never a name.
+            // rather than a walk of its own, because a declaration and a reference are the same rewrite
+            // over the same traversal, and the spans cannot overlap: a declaring identifier is a token,
+            // never a name.
             if (mintsTransplantedLocals && TryGetDeclaredLocalIdentifier(node, out var declaredIdentifier))
             {
                 if (!IsNestedInReplaced(declaredIdentifier.Span, replacedSpans)

@@ -758,10 +758,8 @@ internal sealed class KnownSymbols
         // once per component, so a lookup hoisted here would be paid by every one of them — including
         // the great majority that never write a format — for a table only a format reads.
         // GetTypeByMetadataName is not free: it parses the name and consults every referenced assembly
-        // to detect ambiguity. Nothing is retained by moving it in, because the sibling lambda below
-        // already closes over `compilation` and all three share one display class.
-        // Beside the lookup below and lazy for the same reason; the two lambdas close over `compilation`
-        // and share one display class, so this retains nothing the other did not already retain.
+        // to detect ambiguity. Nothing is retained by moving it in, because the sibling lambdas below
+        // already close over `compilation` and all three share one display class.
         _renderModeAttributeType = new System.Lazy<INamedTypeSymbol?>(() =>
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.RenderModeAttribute"));
 

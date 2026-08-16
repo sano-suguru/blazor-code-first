@@ -252,8 +252,8 @@ public sealed class IncrementalGeneratorTests
             CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
             path: "MyComponent.cs");
 
-        // Build compilation WITHOUT the real BlazorCodeFirst.Runtime assembly reference-
-        // use our in-source definitions instead.
+        // Build compilation WITHOUT the real BlazorCodeFirst.Runtime assembly reference: use our
+        // in-source definitions instead.
         var compilation1 = CreateCompilationWithoutRuntime(runtimeTreeV1, componentTree);
 
         var driverOptions = new GeneratorDriverOptions(

@@ -53,10 +53,10 @@ internal static partial class SequenceArguments
     /// Density is a property of this allocator, not a Blazor requirement: Blazor requires only that a
     /// sequence number be stable for a source position. Every node kind writes into the emitted text every
     /// number it reserves, so a hole or a repeat means the emitter's cursor and its reservation disagree.
-    /// That is the defect class this replaced the removed <c>SequenceAllocator.Width</c> to catch (#69),
-    /// and it is strictly
-    /// stronger than comparing a total against an independently computed width: a compensating pair of
-    /// errors, and an overlap between an <c>If</c>'s two branch ranges, both survive a total and fail here.
+    /// That is the defect class this replaced the removed <c>SequenceAllocator.Width</c> to catch (#69), and
+    /// it is strictly stronger than comparing a total against an independently computed width: a
+    /// compensating pair of errors, and an overlap between an <c>If</c>'s two branch ranges, both survive a
+    /// total and fail here.
     /// </para>
     /// <para>
     /// It is a property of the emitted <em>text</em>, so a frame emitted inside a generated <c>if</c>

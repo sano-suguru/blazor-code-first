@@ -64,16 +64,6 @@ test.describe('a normalizing setter resynchronizes the DOM', () => {
 });
 
 /**
- * The same measurement with a second binding on the same element. BCF3021 was shipped on the claim that
- * SetUpdatesAttributeName is stored per element, which would make this second binding overwrite the
- * first and delete the repair the block above measures. The storage is per frame (#162), so the repair
- * survives — and that is what this asserts.
- *
- * The second binding's own resynchronization is not measured here and cannot be: EventFieldInfo carries
- * only the element's own value or checked, so "data-committed" is never sent back. The emitter records
- * no resynchronized name for it, which BindResyncTests pins on the .NET side.
- */
-/**
  * The same measurement with an event modifier on the binding's own event. SetUpdatesAttributeName records
  * into the attribute frame immediately before it, so the modifier has to be emitted after the call and not
  * between it and the binding's event frame; emitted first, it would take the resynchronized name onto its
@@ -103,6 +93,16 @@ test.describe('an event modifier on a binding does not cost it its resynchroniza
   });
 });
 
+/**
+ * The same measurement with a second binding on the same element. BCF3021 was shipped on the claim that
+ * SetUpdatesAttributeName is stored per element, which would make this second binding overwrite the
+ * first and delete the repair the first block measures. The storage is per frame (#162), so the repair
+ * survives — and that is what this asserts.
+ *
+ * The second binding's own resynchronization is not measured here and cannot be: EventFieldInfo carries
+ * only the element's own value or checked, so "data-committed" is never sent back. The emitter records
+ * no resynchronized name for it, which BindResyncTests pins on the .NET side.
+ */
 test.describe('a second binding does not cost the first its resynchronization', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/bind-resync-two');

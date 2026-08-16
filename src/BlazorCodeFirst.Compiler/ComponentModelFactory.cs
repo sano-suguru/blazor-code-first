@@ -197,9 +197,7 @@ internal static class ComponentModelFactory
         diagnostics.AddRange(analysis.BodyDiagnostics.AsImmutableArray());
 
         // An unrecognized/unsupported design-time expression shape yields no template; the abstract
-        // RenderView then triggers CS0534 in the user's compilation. Add a BlazorCodeFirst-specific BCF1003
-        // unless the design-time expression already produced an actionable diagnostic (dedup), so the
-        // failure is explained rather than opaque.
+        // RenderView then triggers CS0534 in the user's compilation, which explains nothing on its own.
         if (analysis.Template is null)
         {
             // Emit BCF1003 unless an actionable ERROR was already recorded (e.g. BCF3004/BCF1002). A
