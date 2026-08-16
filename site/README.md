@@ -203,6 +203,10 @@ number, or a code span: a wrapped Japanese sentence reaches the reader as it was
 spaces this edition sets around an inline `<code>` survive. A hard break (two trailing spaces) is
 still a `<br>`. `MarkdownConverterTests` holds each of those boundaries.
 
+Three terms in the Japanese edition are settled, because the English word has more than one
+plausible rendering and the literal one reads as a dictionary gloss: `bind` is バインド rather than
+束縛, the *surface* is この API rather than 表層, and a `[ViewPart]` is a パーツ rather than a 部品.
+
 ### Shell text
 
 Every language that has documents declares a `shell.yml` beside them, the English edition included

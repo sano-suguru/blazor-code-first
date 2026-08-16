@@ -78,7 +78,7 @@ Blazor の `RenderFragment` は、ほかの子と同じように子の並びへ�
 protected override View Body => Div["before", ChildContent];
 ```
 
-ジェネレーターは、子のひとつひとつを独立した式として見られないと、シーケンス番号を振れません。
+ジェネレーターは、子のひとつひとつを独立した式として読めなければ、シーケンス番号を振れません。
 子をコレクション式で入れ子に書くのは受け付けます。C# がそれを同じ呼び出しへ展開するからです。
 
 ```csharp
@@ -140,13 +140,13 @@ protected override View Body =>
 使える装飾は `.Class`、`.Id`、`.Href`、`.Src`、`.Alt`、`.Type`、`.Title`、`.Role`、`.OnClick`。
 それに、汎用の逃げ道として `.Attr(name, value)` と `.On(eventName, handler)` があります。
 
-`.On` には `on` を含んだ属性名をそのまま渡します（`.On("onmouseenter", …)`）。こちらで前に何かを
-付けたりはせず、`on` の無い名前は [BCF3019](./diagnostics.md#bcf3019) です。`.Attr` や `.On` に
+`.On` には `on` を含んだ属性名をそのまま渡します（`.On("onmouseenter", …)`）。接頭辞をこちらで
+補うことはなく、`on` の無い名前は [BCF3019](./diagnostics.md#bcf3019) です。`.Attr` や `.On` に
 渡す名前は、空でないコンパイル時定数である必要があります（[BCF3011](./diagnostics.md#bcf3011)）。
 
 `.Attr` は `string?` か `bool` を取ります。`bool` は Blazor の条件付き属性です。`true` なら値の
-空な属性として出力します。HTML が `disabled`、`checked`、`hidden` を立っていると読むのは、この形
-です。`false` なら属性ごと出しません。いつも付く属性は、HTML と同じように値なしで書いてください。
+空な属性として出力します。HTML が `disabled`、`checked`、`hidden` を有効と読むのは、この形です。
+`false` なら属性ごと出しません。いつも付く属性は、HTML と同じように値なしで書いてください。
 `bool` は、付いたり付かなかったりする場合のためにあります。
 
 ```csharp
@@ -161,9 +161,9 @@ Button.Attr("disabled", _submitting)["Save"]              // 条件付き
 Span.Attr("title", _hasTip ? _tip : null)["Hover me"]
 ```
 
-`null` と `""` は、どの段階でも別の値です。フレームでも、プリレンダリングされた HTML でも、再
-レンダリングでも。`""` は `title=""` になり、`null` では `title` そのものが出ません。再レンダリ
-ングで値が null になったとき、Blazor は要素を差し替えるのではなく、すでに DOM にある要素から属性
+`null` と `""` は別の値です。フレームでも、プリレンダリングされた HTML でも、再レンダリングでも
+変わりません。`""` は `title=""` になり、`null` では `title` そのものが出ません。再レンダリング
+で値が null になったとき、Blazor は要素を差し替えるのではなく、すでに DOM にある要素から属性
 を取り除きます。値を1つ取る装飾は、どれもこの意味で `null` を受け付けます。
 
 `object` のオーバーロードは、あえて用意していません。ほかの型の値は、レンダリングの時点で、書式
@@ -187,8 +187,8 @@ Input.Type("text").Attr("value", _name)
 
 Razor と違って、引数の型はイベント名から推論されません。オーバーロードを選ぶのは、引数に書いた型
 です。`ChangeEventArgs` は `Microsoft.AspNetCore.Components` にあります。`MouseEventArgs`、
-`KeyboardEventArgs`、`FocusEventArgs` は `Microsoft.AspNetCore.Components.Web` にあります。
-こちらも、Blazor のアプリがすでに参照している名前空間です。
+`KeyboardEventArgs`、`FocusEventArgs` は `Microsoft.AspNetCore.Components.Web` です。
+`.Web` のほうも、Blazor のアプリがすでに参照している名前空間です。
 
 型は推論されませんが、検査はされます。そのイベントが渡さない型を書くと
 [BCF3028](./diagnostics.md#bcf3028) を報告します。判断のもとは、Razor が使うのと同じ
@@ -215,21 +215,21 @@ public static class AppEventHandlers;
 
 ### class のチャネル
 
-この合流は値を文字列として繋ぐので、`class` は文字列しか取らない唯一の名前です。
-`.Attr("class", flag)` は [BCF3023](./diagnostics.md#bcf3023) を報告します。`.Attr("class")` も
-同じです。値を書かない形は属性が立っていることを表すだけで、繋ぐ文字列を持ちません。条件付きの
-クラスは文字列で書き、消したい項には `null` を渡してください。
+class のチャネルは、値をテキストとして繋ぎます。だから `class` は、文字列しか取らない唯一の
+名前です。`.Attr("class", flag)` は [BCF3023](./diagnostics.md#bcf3023) を報告します。
+`.Attr("class")` も同じです。値を書かない形は、属性があることを表すだけで、繋ぐ文字列を持ち
+ません。条件付きのクラスは文字列で書き、消したい項には `null` を渡してください。
 
 ```csharp
 Div.Class("card").Class(_selected ? "is-selected" : "")
 ```
 
-`null` の項は合流から落ちます。だから class の装飾を1つだけ持つ要素は、その項が null のとき属性
-ごと消えます。繋ぐ相手がもう1つあるときは、区切りだけが残ります。`_selected` が false のあいだ、
-`Div.Class("card").Class(_selected ? "is-selected" : null)` は `class="card "` と出力されます。
-ブラウザーはこれを `card` 1つのクラスとして読みます。
+`null` の項は連結から外れます。だから class の装飾を1つだけ持つ要素は、その項が null のとき属性
+ごと消えます。繋ぐ相手がもう1つあるときは、区切りだけが残ります。
+`Div.Class("card").Class(_selected ? "is-selected" : null)` を例にします。`_selected` が false
+のあいだ、出力は `class="card "` です。ブラウザーはこれを `card` 1つのクラスとして読みます。
 
-ほかの属性とイベントはすべて単一の束縛で、同じ要素に2度束縛すると
+ほかの属性とイベントは、どれも1回しかバインドできません。同じ要素に2度書くと
 [BCF3010](./diagnostics.md#bcf3010) を報告します。`style` もそのひとつで、`.Attr("style", …)` と
 書きます。`.Bind("class", …)` は、この名前を書く3つ目の方法で、畳み込まれない唯一の方法です。
 だから `.Class` と併せて書いた要素は [BCF3024](./diagnostics.md#bcf3024) を報告します。
