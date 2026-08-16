@@ -150,6 +150,11 @@ order: 40
   these to SPA routes and fails the build if the target does not exist. The target must exist in the
   linking document's own language, so a translation cannot link a reader out of its edition. Raw
   HTML `<a>` tags bypass that rewrite, so use Markdown link syntax.
+- A fragment is checked too, against the headings the target document publishes — including a link
+  to a section of the document you are writing (`#section`). Both halves resolve in the linking
+  document's own language, so a translation's fragment names its own edition's heading and not the
+  English one. A heading's id is derived from its text, so rewriting a heading breaks every link
+  into it; that is what shipped unnoticed before the check existed (#405).
 - Headings h2 through h6 automatically get a permalink anchor.
 - A `|`-delimited table is a supported construct. See §Tables below for why, and for what the
   stylesheet does with one.

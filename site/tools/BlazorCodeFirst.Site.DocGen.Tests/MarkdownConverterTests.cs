@@ -46,11 +46,17 @@ public class MarkdownConverterTests
     }
 
     [Fact]
-    public void ToHtml_WithKnownSlugs_RewritesRelativeLinksAndKeepsHighlighting()
+    public void ToHtml_OfAParsedBody_RewritesRelativeLinksAndKeepsHighlighting()
     {
+        var document = MarkdownConverter.ParseBody(
+            "## Section\n\n[next](./control-flow.md)\n\n```csharp\nvar x = 1;\n```\n", "sample.md");
+
         string html = MarkdownConverter.ToHtml(
-            "## Section\n\n[next](./control-flow.md)\n\n```csharp\nvar x = 1;\n```\n",
-            new HashSet<string>(["control-flow"], StringComparer.Ordinal),
+            document,
+            new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal)
+            {
+                ["control-flow"] = new HashSet<string>(StringComparer.Ordinal),
+            },
             "sample.md",
             "/docs");
 
@@ -158,10 +164,49 @@ public class MarkdownConverterTests
     }
 
     [Fact]
-    public void ToHtml_WithKnownSlugs_EnforcesTheNoH1Rule()
+    public void ToHtml_NonAsciiSectionAnchor_ResolvesAgainstTheHeadingItNames()
     {
+        // The Japanese edition's anchors are non-ASCII, and reading those by hand is what nobody
+        // does -- which is why the one link that shipped broken (#405) was in that edition. The
+        // fragment is compared to the heading id as authored, so this is the same Ordinal match the
+        // ASCII cases in AstRewriterTests make.
+        var document = MarkdownConverter.ParseBody("## 装飾\n\n[x](#装飾)\n", "sample.md");
+
+        string html = MarkdownConverter.ToHtml(
+            document,
+            new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal) { ["sample"] = new HashSet<string>(StringComparer.Ordinal) },
+            "sample.md",
+            "/docs");
+
+        // The renderer percent-encodes the href and writes the heading's id literally. A browser
+        // resolves that asymmetry by decoding before it matches; asserting both halves here means a
+        // Markdig release that encoded the id too, or stopped encoding the href, is read as the
+        // change to every anchor in this edition that it would be.
+        Assert.Contains("id=\"装飾\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"#%E8%A3%85%E9%A3%BE\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ToHtml_NonAsciiSectionAnchorThatNamesNoHeading_Throws()
+    {
+        var document = MarkdownConverter.ParseBody("## 装飾\n\n[x](#要素)\n", "sample.md");
+
         var ex = Assert.Throws<InvalidOperationException>(() => MarkdownConverter.ToHtml(
-            "# Title\n", new HashSet<string>(StringComparer.Ordinal), "sample.md", "/docs"));
+            document,
+            new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal) { ["sample"] = new HashSet<string>(StringComparer.Ordinal) },
+            "sample.md",
+            "/docs"));
+
+        Assert.Contains("sample.md", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseBody_EnforcesTheNoH1Rule()
+    {
+        // On the parse rather than on the render: the rule reads one document and needs nothing from
+        // any other, so it answers before the whole set has been read.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => MarkdownConverter.ParseBody("# Title\n", "sample.md"));
 
         Assert.Contains("sample.md", ex.Message);
     }

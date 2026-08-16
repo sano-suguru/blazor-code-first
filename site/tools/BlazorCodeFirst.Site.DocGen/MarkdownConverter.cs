@@ -1,5 +1,6 @@
 using Markdig;
 using Markdig.Extensions.AutoIdentifiers; // AutoIdentifierOptions enum lives here (UseAutoIdentifiers is in Markdig)
+using Markdig.Syntax;
 using Markdown.ColorCode;
 
 namespace BlazorCodeFirst.Site.DocGen;
@@ -29,45 +30,68 @@ public static class MarkdownConverter
         .Build();
 
     /// <summary>Converts a Markdown fragment with no body rules and no link rewriting.</summary>
-    public static string ToHtml(string markdown) =>
-        Render(markdown, knownSlugs: null, fileName: null, routePrefix: null);
+    public static string ToHtml(string markdown)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        return Render(Parse(markdown));
+    }
 
-    /// <summary>Converts a document body: enforces the body authoring rules, rewrites
-    /// sibling-document links into SPA routes under <paramref name="routePrefix"/>, and adds heading
-    /// anchors.</summary>
+    /// <summary>
+    /// Parses a document body and applies everything that needs no knowledge of another document:
+    /// the CJK line-break join and the body authoring rules.
+    /// </summary>
+    /// <remarks>
+    /// Conversion is split here because a link's fragment names a heading in the document it points
+    /// at, and a document's headings are known only once it has been parsed. The caller parses every
+    /// document in a language, collects each one's <see cref="HeadingAnchors"/>, and only then calls
+    /// <see cref="ToHtml(MarkdownDocument, IReadOnlyDictionary{string, IReadOnlySet{string}}, string,
+    /// string)"/> on each — which is the ordering #405 records as missing.
+    /// </remarks>
+    public static MarkdownDocument ParseBody(string markdown, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(markdown);
+        ArgumentNullException.ThrowIfNull(fileName);
+
+        var document = Parse(markdown);
+        MarkdownBodyRules.EnsureNoTopLevelHeading(document, fileName);
+        return document;
+    }
+
+    /// <summary>Finishes a parsed document body: rewrites sibling-document links into SPA routes
+    /// under <paramref name="routePrefix"/>, adds heading anchors, and renders.</summary>
+    /// <remarks>
+    /// Call once per parsed document. <see cref="AstRewriter.AddHeadingLinks"/> appends rather than
+    /// replaces, so a second call would give every heading a second permalink.
+    /// </remarks>
     public static string ToHtml(
-        string markdown,
-        IReadOnlySet<string> knownSlugs,
+        MarkdownDocument document,
+        IReadOnlyDictionary<string, IReadOnlySet<string>> anchorsBySlug,
         string fileName,
         string routePrefix)
     {
-        ArgumentNullException.ThrowIfNull(knownSlugs);
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(anchorsBySlug);
         ArgumentNullException.ThrowIfNull(fileName);
         ArgumentNullException.ThrowIfNull(routePrefix);
-        return Render(markdown, knownSlugs, fileName, routePrefix);
+
+        AstRewriter.RewriteRelativeLinks(document, anchorsBySlug, fileName, routePrefix);
+        AstRewriter.AddHeadingLinks(document);
+        return Render(document);
     }
 
-    private static string Render(
-        string markdown,
-        IReadOnlySet<string>? knownSlugs,
-        string? fileName,
-        string? routePrefix)
+    private static MarkdownDocument Parse(string markdown)
     {
-        ArgumentNullException.ThrowIfNull(markdown);
-
         var document = Markdig.Markdown.Parse(markdown, Pipeline);
 
-        // Runs for both overloads, unguarded: how a wrapped line reaches the reader is a property of
-        // the text, not one of the body rules, and a fragment is read by the same eyes as a document.
+        // Runs for a fragment as well as for a body, unguarded: how a wrapped line reaches the reader
+        // is a property of the text, not one of the body rules, and a fragment is read by the same
+        // eyes as a document.
         AstRewriter.JoinCjkSoftLineBreaks(document);
+        return document;
+    }
 
-        if (knownSlugs is not null && fileName is not null && routePrefix is not null)
-        {
-            MarkdownBodyRules.EnsureNoTopLevelHeading(document, fileName);
-            AstRewriter.RewriteRelativeLinks(document, knownSlugs, fileName, routePrefix);
-            AstRewriter.AddHeadingLinks(document);
-        }
-
+    private static string Render(MarkdownDocument document)
+    {
         using var writer = new StringWriter();
         // Use the ToHtml extension rather than constructing an HtmlRenderer: it rents a renderer the
         // pipeline has already Setup(), so the ColorCode renderer registration cannot be missed.

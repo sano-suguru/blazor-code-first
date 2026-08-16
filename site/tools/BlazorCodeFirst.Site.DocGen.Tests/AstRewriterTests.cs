@@ -6,12 +6,25 @@ namespace BlazorCodeFirst.Site.DocGen.Tests;
 
 public class AstRewriterTests
 {
-    private static readonly HashSet<string> Known =
-        new(["getting-started", "control-flow"], StringComparer.Ordinal);
+    /// <summary>Each document a link may resolve to, with the ids it publishes.</summary>
+    /// <remarks>
+    /// Two of the ids are shapes no heading text would produce. "step:1" and "a/b" are here because
+    /// the rows below are about how a URL is split into path and fragment, and the split has to hold
+    /// for a fragment that reads like a scheme or like a path.
+    /// </remarks>
+    private static readonly Dictionary<string, IReadOnlySet<string>> Known = new(StringComparer.Ordinal)
+    {
+        ["getting-started"] = new HashSet<string>(["installation"], StringComparer.Ordinal),
+        ["control-flow"] = new HashSet<string>(["loops", "step:1", "a/b"], StringComparer.Ordinal),
+    };
 
     private static string Rewrite(string markdown)
     {
-        var pipeline = new MarkdownPipelineBuilder().Build();
+        // Auto identifiers, because a link to a section of this same document is checked against the
+        // ids this document publishes, and those are assigned at parse time.
+        var pipeline = new MarkdownPipelineBuilder()
+            .UseAutoIdentifiers(Markdig.Extensions.AutoIdentifiers.AutoIdentifierOptions.GitHub)
+            .Build();
         var document = Markdig.Markdown.Parse(markdown, pipeline);
         AstRewriter.RewriteRelativeLinks(document, Known, "sample.md", "/docs");
 
@@ -31,8 +44,7 @@ public class AstRewriterTests
         Assert.Contains(expected, Rewrite(markdown));
 
     [Theory]
-    [InlineData("[x](#installation)", "href=\"#installation\"")]
-    [InlineData("[x](#step:1)", "href=\"#step:1\"")]
+    [InlineData("## Installation\n\n[x](#installation)", "href=\"#installation\"")]
     [InlineData("[x](/counter)", "href=\"/counter\"")]
     [InlineData("[x](https://example.com/a.md)", "href=\"https://example.com/a.md\"")]
     [InlineData("[x](mailto:a@example.com)", "href=\"mailto:a@example.com\"")]
@@ -84,6 +96,33 @@ public class AstRewriterTests
         var ex = Assert.Throws<InvalidOperationException>(() => Rewrite("[x](CONTROL-FLOW.MD)"));
         Assert.Contains("lowercase", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void RewriteRelativeLinks_SiblingDocumentWithNoSuchSection_Throws()
+    {
+        // The defect #405 records: the document resolves, so the link was accepted and the reader
+        // landed at the top of a page with no such section -- which looks the same as landing where
+        // the link meant to.
+        var ex = Assert.Throws<InvalidOperationException>(() => Rewrite("[x](./control-flow.md#gone)"));
+
+        Assert.Contains("sample.md", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("control-flow.md", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("gone", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RewriteRelativeLinks_SectionOfThisDocumentThatDoesNotExist_Throws()
+    {
+        // A link with no path is checked against this document's own headings. It is the same broken
+        // link as one across documents, and the anchors are already in hand.
+        var ex = Assert.Throws<InvalidOperationException>(() => Rewrite("## Installation\n\n[x](#instalation)"));
+
+        Assert.Contains("sample.md", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("instalation", ex.Message, StringComparison.Ordinal);
+    }
+
+    // The non-ASCII half of the same check lives in MarkdownConverterTests, whose Japanese literals
+    // site.yml already exempts from its English-only scan.
 
     private static string AddHeadingLinks(string markdown)
     {
