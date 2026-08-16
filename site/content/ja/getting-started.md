@@ -4,7 +4,7 @@ order: 10
 source-hash: 96eed0c4
 ---
 
-BlazorCodeFirst を使うと、Blazor の UI をそのままの C# で書けます。このページ自体も Markdown
+BlazorCodeFirst を使うと、Blazor の UI をふつうの C# として書けます。このページ自体も Markdown
 から作られていて、ビルド時に HTML へ変換したものを `Html.Raw` で流し込んでいます。
 
 ## 導入
@@ -65,8 +65,8 @@ protected override View Body { get { return Div[H1["Hello"]]; } }    // これ�
 ```
 
 その `return` の手前には、ローカル変数の宣言と式文を置けます。書いた文は、生成された描画の
-フレーム発行の手前へ移植されます。`ForEach` のコンテンツブロックに書いた文が落ちる場所と同じ
-です。
+フレーム発行の手前へ移植されます。`ForEach` のコンテンツブロックに書いた文も、同じ場所へ移り
+ます。
 
 ```csharp
 protected override View Body
@@ -85,8 +85,8 @@ protected override View Body
 
 ## この API が意味を持つ場所
 
-`Html.Div`、`.Class(...)`、`.OnClick(...)` をはじめ、要素のファクトリと装飾は、すべて中身が
-ありません。`View` は空の構造体で、要素ヘルパーは何も返さず、装飾はレシーバーをそのまま返す
+`Html.Div`、`.Class(...)`、`.OnClick(...)` をはじめ、要素のファクトリと装飾は、それ自体では
+何もしません。`View` は空の構造体で、要素ヘルパーは何も返さず、装飾はレシーバーをそのまま返す
 だけです。ジェネレーターが読むのは書かれた *構文* であって、値ではありません。読む場所も3つ
 しかありません。コンポーネントの `Body`、レイアウトの `Chrome`、そして `[ViewPart]` メソッドの
 本体です。
