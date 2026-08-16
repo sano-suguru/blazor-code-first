@@ -165,9 +165,9 @@ public sealed class EventArgumentTypeDiagnosticTests
     }
 
     /// <summary>
-    /// The same defect on an event this compilation has no mapping for. The constraint half of the rule
-    /// does not consult the mapping at all, which is why the fixture can pin its delivery without
-    /// referencing <c>Components.Web</c>.
+    /// The same defect on an event no registration answers for. The constraint half of the rule does not
+    /// consult a registration at all, which is why the fixture pinning its delivery asks nothing of what
+    /// tables that project can see.
     /// </summary>
     [Fact]
     public void ArgumentTypeThatIsNotAnEventArgs_OnAnUnmappedEvent_ReportsBCF3028()
@@ -398,13 +398,17 @@ public sealed class EventArgumentTypeDiagnosticTests
     }
 
     /// <summary>
-    /// A compilation that does not reference <c>Components.Web</c> has no mapping, and the check is
-    /// skipped in silence rather than reported.
+    /// A compilation that does not reference <c>Components.Web</c> cannot see the framework's
+    /// registrations, so an event only that table names has no mapping and the check is skipped in
+    /// silence rather than reported.
     /// </summary>
     /// <remarks>
     /// Paired with <see cref="MismatchedHandler_WithComponentsWeb_IsReported"/>, which runs the same body
     /// against the same compilation plus that one reference. Without the pair "no diagnostic" would hold
-    /// just as well if the body had never been analyzed.
+    /// just as well if the body had never been analyzed. What the silence is about is the framework table
+    /// alone: <see cref="MismatchedHandler_AgainstASourceRegistration_WithoutComponentsWeb_IsReported"/>
+    /// runs the same compilation against a registration the compilation declares itself, and that one is
+    /// read (#396).
     /// </remarks>
     [Fact]
     public void MismatchedHandler_WithoutComponentsWeb_IsSkippedInSilence()
@@ -421,6 +425,42 @@ public sealed class EventArgumentTypeDiagnosticTests
     {
         var result = CompilationTestHost.RunGenerator(
             CompilationTestHost.CreateCompilation(MismatchWithoutWebTypes));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3028");
+    }
+
+    /// <summary>
+    /// A registration the compilation declares itself is read whether or not <c>Components.Web</c> is
+    /// referenced: <c>[EventHandler]</c> is declared in <c>Microsoft.AspNetCore.Components</c>, which any
+    /// compilation able to spell this surface can see (#396).
+    /// </summary>
+    /// <remarks>
+    /// The registration is what the diagnostic disagrees with here, so this is the whole check running,
+    /// not a second arm of it. Its counterpart above is the same compilation asking about an event only
+    /// the framework registers.
+    /// </remarks>
+    [Fact]
+    public void MismatchedHandler_AgainstASourceRegistration_WithoutComponentsWeb_IsReported()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            CompilationTestHost.CreateCompilationWithoutComponentsWeb(
+                ("Host.cs", """
+                    using BlazorCodeFirst;
+                    using Microsoft.AspNetCore.Components;
+                    using static BlazorCodeFirst.Html;
+
+                    namespace T;
+
+                    public sealed class SwipeEventArgs : System.EventArgs;
+
+                    [EventHandler("onswipe", typeof(SwipeEventArgs))]
+                    public static class SwipeHandlers;
+
+                    public partial class Host : BodyComponentBase
+                    {
+                        protected override View Body => Div.On("onswipe", (ChangeEventArgs e) => { });
+                    }
+                    """)));
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3028");
     }

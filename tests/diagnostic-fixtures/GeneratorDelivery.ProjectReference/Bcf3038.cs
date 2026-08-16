@@ -8,10 +8,10 @@ namespace Fixtures.GeneratorDelivery;
 /// </summary>
 /// <remarks>
 /// <c>oncancel</c> is one of the two framework registrations that disable <c>stopPropagation</c>, measured
-/// on <c>Microsoft.AspNetCore.Components.Web</c> 10.0.10. Every arm of this diagnostic reads that
-/// assembly's registrations, so unlike BCF3035 there is no arm that could be delivered from a project
-/// without it — which is why this project references it (see the csproj) and why the shape here is the
-/// table-consulting one rather than a second, table-free one.
+/// on <c>Microsoft.AspNetCore.Components.Web</c> 10.0.10. Every arm of this diagnostic reads a
+/// registration, so unlike BCF3035 there is no table-free shape to deliver instead; this one asks about
+/// the framework's, which is why the project references that assembly (see the csproj). A registration the
+/// compilation declares itself would need no reference since #396, and is pinned in-process.
 /// </remarks>
 public partial class Bcf3038Host : BodyComponentBase
 {

@@ -334,10 +334,12 @@ public static class CompilationTestHost
 
     /// <summary>
     /// Creates a compilation from raw <c>(Path, Source)</c> tuples that does <em>not</em> reference
-    /// <c>Microsoft.AspNetCore.Components.Web</c>, the assembly carrying the <c>[EventHandler]</c> table
-    /// BCF3028 reads. Nothing else about the surface changes: <c>ChangeEventArgs</c> and the rest of the
-    /// argument types this reaches for are declared in <c>Microsoft.AspNetCore.Components</c>, which stays
-    /// referenced, so a body that names one still compiles and only the mapping is gone.
+    /// <c>Microsoft.AspNetCore.Components.Web</c>, the assembly carrying the framework's own
+    /// <c>[EventHandler]</c> registrations. Nothing else about the surface changes: <c>ChangeEventArgs</c>
+    /// and the rest of the argument types this reaches for are declared in
+    /// <c>Microsoft.AspNetCore.Components</c>, which stays referenced, so a body that names one still
+    /// compiles and only the framework's registrations are gone. A registration the compilation declares
+    /// itself is read here as it is anywhere, which is what #396 separated.
     /// </summary>
     internal static CSharpCompilation CreateCompilationWithoutComponentsWeb(
         params (string Path, string Source)[] sources)
@@ -363,8 +365,9 @@ public static class CompilationTestHost
     /// is <see langword="true"/> (the default) the <c>BlazorCodeFirst.Runtime</c> assembly is also referenced;
     /// pass <see langword="false"/> when the test defines the <c>BlazorCodeFirst</c> types in-source and must
     /// not pull in the compiled runtime. Pass <paramref name="includeComponentsWeb"/> as
-    /// <see langword="false"/> to build the compilation an author gets without the <c>[EventHandler]</c>
-    /// table, which is what BCF3028 skips in silence. Each flag combination is built on first request;
+    /// <see langword="false"/> to build the compilation an author gets without the framework's
+    /// <c>[EventHandler]</c> registrations, which is what BCF3028 skips in silence for the events they
+    /// name. Each flag combination is built on first request;
     /// every later call for it gets the same references back.
     /// </summary>
     /// <remarks>

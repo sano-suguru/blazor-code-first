@@ -1432,8 +1432,9 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// A <c>Report…</c> predicate beside <see cref="ReportMistypedEventArgument"/>, which is the other
-    /// check reading the same registration table and reports on the same terms: an event the table does not
-    /// carry, or a compilation that cannot see the table at all, is passed in silence. Called from the
+    /// check reading the same registrations and reports on the same terms: an event no registration
+    /// answers for is passed in silence, including one only the framework registers in a compilation that
+    /// cannot see <c>Components.Web</c>. Called from the
     /// modifier's resolution point because the event it reached is known there and nowhere earlier, and
     /// both channels arrive at it the same way.
     /// </remarks>

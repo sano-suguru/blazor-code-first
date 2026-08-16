@@ -625,9 +625,17 @@ internal sealed class KnownSymbols
     /// than by every typed handler.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Not gated on <c>Microsoft.AspNetCore.Components.Web</c>, which
+    /// <see cref="_frameworkEventRegistrations"/> is; the constructor's gate says why. So the walk runs in
+    /// a compilation without that assembly, where it never used to, and the framework table cannot answer
+    /// ahead of it there — every name asked about reaches it (#396).
+    /// </para>
+    /// <para>
     /// Referenced assemblies are deliberately not swept: #155 could not bound what that costs, so a
     /// registration living in one goes unread and is recorded as residue (<c>ARCHITECTURE.md</c> 付録A
     /// BCF3028).
+    /// </para>
     /// </remarks>
     private readonly System.Lazy<Dictionary<string, EventRegistration>> _sourceEventRegistrations;
 
@@ -680,31 +688,30 @@ internal sealed class KnownSymbols
         FuncType = compilation.GetTypeByMetadataName("System.Func`1");
         EventArgsType = compilation.GetTypeByMetadataName("System.EventArgs");
 
-        // Two sources for one table, and both are gated on the framework's own. EventHandlerAttribute is
-        // declared in Microsoft.AspNetCore.Components, which this compiler's own runtime references, but the
-        // registrations that give an event name a meaning ship in Microsoft.AspNetCore.Components.Web. A
-        // compilation without that assembly has no mapping to disagree with, so the check is skipped in
-        // silence rather than reported (#155) -- and the walk below is then never paid either.
+        // Two sources for one table, and each is gated on what it actually reads. EventHandlerAttribute is
+        // declared in Microsoft.AspNetCore.Components, which this compiler's own runtime references; the
+        // framework's own 96 registrations hang off a class in Microsoft.AspNetCore.Components.Web. So the
+        // framework table needs both types and the source table needs only the attribute, and a compilation
+        // without Components.Web has no framework mapping to disagree with while still reading an
+        // author's own registration.
         //
-        // Splitting the gate, so that the source-declared table needs only EventHandlerAttribute, was
-        // considered in #369 and rejected. It would let a compilation without Components.Web read an
-        // author's own registration, which is a change to what the shipped compiler reports and therefore
-        // #155's decision to revisit rather than a modifier diagnostic's. The fixture that needed the
-        // registrations references the assembly instead.
+        // #155 gated both on the framework's, and #396 separated them: what an author declares here is the
+        // only thing that gives a custom event name a meaning at all, and skipping it left the diagnostics
+        // that consult this table silent in a way indistinguishable from having run. The silence for an
+        // event only the framework registers is unchanged.
         var eventHandlerAttributeType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventHandlerAttribute");
         var eventHandlersType =
             compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.Web.EventHandlers");
-        var mappingAvailable = eventHandlerAttributeType is not null && eventHandlersType is not null;
 
         _frameworkEventRegistrations = new System.Lazy<Dictionary<string, EventRegistration>>(() =>
-            mappingAvailable
-                ? CollectEventRegistrations(eventHandlersType!, eventHandlerAttributeType!)
+            eventHandlerAttributeType is not null && eventHandlersType is not null
+                ? CollectEventRegistrations(eventHandlersType, eventHandlerAttributeType)
                 : []);
 
         _sourceEventRegistrations = new System.Lazy<Dictionary<string, EventRegistration>>(() =>
-            mappingAvailable
-                ? CollectEventRegistrations(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType!)
+            eventHandlerAttributeType is not null
+                ? CollectEventRegistrations(compilation.Assembly.GlobalNamespace, eventHandlerAttributeType)
                 : []);
 
         // The lookup is inside the lambda, not beside it. This constructor runs once per [ViewPart] and
@@ -1445,10 +1452,11 @@ internal sealed class KnownSymbols
     /// </summary>
     /// <remarks>
     /// <see langword="false"/> where no registration answers, on the same terms BCF3028 states for its own
-    /// arm: this surface's event names are strings, and a name the table does not carry has nothing to
-    /// disagree with. A compilation that cannot see the table gets the same answer for every name, so the
-    /// check is skipped in silence rather than reporting everything. Which flag each modifier reads is
-    /// decided where the attribute is read, in <see cref="Collect"/>.
+    /// arm: this surface's event names are strings, and a name neither table carries has nothing to
+    /// disagree with. A compilation without <c>Components.Web</c> gets that answer for every name the
+    /// framework registers, so the check is skipped in silence there rather than reporting everything; a
+    /// name the compilation registers itself is still answered. Which flag each modifier reads is decided
+    /// where the attribute is read, in <see cref="Collect"/>.
     /// </remarks>
     public bool RefusesEventModifier(string eventName, SurfaceMethodKind kind) =>
         RegistrationFor(eventName) is { } registration

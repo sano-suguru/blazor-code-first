@@ -12,8 +12,8 @@ namespace Fixtures.GeneratorDelivery;
 /// <see cref="RenderModeAttribute"/> — it is abstract, and Razor's <c>@rendermode</c> directive generates
 /// a subclass per component, which a <c>.cs</c> file has no counterpart for. The named modes
 /// (<c>RenderMode.InteractiveServer</c> and its siblings) live in
-/// <c>Microsoft.AspNetCore.Components.Web</c>, which this fixture project does not reference; the rule
-/// asks nothing of the mode's identity, only of the attribute on the component type.
+/// <c>Microsoft.AspNetCore.Components.Web</c>, and none of them is reached for here; the rule asks nothing
+/// of the mode's identity, only of the attribute on the component type.
 /// </remarks>
 public sealed class Bcf3034Mode : IComponentRenderMode
 {
