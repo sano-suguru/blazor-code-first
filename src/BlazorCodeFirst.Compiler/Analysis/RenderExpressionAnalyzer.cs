@@ -703,15 +703,20 @@ internal static class RenderExpressionAnalyzer
                     TemplateLocation.From(contentExpression.GetLocation()));
 
             case NonSurfaceCallKind.Opaque:
-                // The group written back as the call it stands for. Qualified through the containing type
-                // rather than through the method symbol, which FullyQualifiedFormat spells as a bare name:
-                // the generated file carries no using directives. Same construction as
-                // ExpressionTemplateFactory's static-call rewrite.
-                var qualified = callee.ContainingType.ToDisplayString(
-                    SymbolDisplayFormat.FullyQualifiedFormat);
+                // The group written back as the call it stands for, on ExpressionTemplateFactory's terms
+                // for a name on the value path: the requirement that the expansion site be able to reach
+                // the callee is recorded, and only a static callee is qualified through its containing
+                // type. A qualification is what a using-less generated file needs to name a static method
+                // (FullyQualifiedFormat spells the method symbol itself as a bare name, hence the
+                // containing type); an instance callee was written with an implicit `this` that the
+                // generated RenderView has too, so there the bare name is the spelling that works (#390).
+                ExpressionTemplateFactory.RecordAccessRequirement(callee, context);
+                var receiver = callee.IsStatic
+                    ? callee.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "."
+                    : string.Empty;
                 return new OpaqueViewTemplateNode(ExpressionTemplate.Create(
                     [
-                        new LiteralExpressionSegment($"{qualified}.{callee.Name}("),
+                        new LiteralExpressionSegment($"{receiver}{callee.Name}("),
                         itemHole,
                         new LiteralExpressionSegment(")"),
                     ]));
