@@ -79,8 +79,16 @@ authoring time, emitting `BlazorCodeFirst.Site/Content/Snippets.g.cs`. A page pl
 The conversion is the documents' own pipeline: the source is wrapped in a Markdown fence, whose
 language comes from the file's extension, and handed to the same `MarkdownConverter`. Figures and
 prose code blocks therefore carry the same ColorCode classes, and `HighlightCssEmitterTests` holds
-both to `css/highlight.css`. An extension the map does not name is a build error, because a figure
-that silently lost its highlighting reads as a theme regression rather than a manifest mistake.
+both to `css/highlight.css`. The map names `.cs` and `.html`; an extension it does not name is a
+build error, because a figure that silently lost its highlighting reads as a theme regression rather
+than a manifest mistake.
+
+`.html` is there for the output half of a pair. Its seven scopes are repainted onto the same four
+roles the C# half uses, so `<div>` carries the colour `Div` does and an attribute value the colour
+its string literal does — the pair reads as one correspondence rather than as two languages.
+`ColorCodeTheme` says which and why. Inheriting them was not an option and the parity check would
+not have said so: ColorCode's own dictionaries already carry every HTML scope, so the rules exist
+and only their colour is wrong. `HighlightCssEmitterTests` names the seven.
 
 A declared path may leave `site/snippets/`, which is how `/counter`'s figure reads
 `BlazorCodeFirst.Site/Pages/CounterPage.cs` — the file the page is compiled from. The freshness gate
@@ -98,6 +106,21 @@ and `site/snippets/generated.cs` claims to be the frames the generator emits for
 `LandingPageFigureTests` holds both against the compiler. It lives in
 `tests/BlazorCodeFirst.Compiler.Tests` because nothing under `site/` can reference the compiler, so
 editing either figure is checked by `dotnet test BlazorCodeFirst.slnx` and not by `site.yml`.
+
+A third pair claims something the site can check for itself. `site/snippets/hero.cs` and
+`site/snippets/hero.html` say that one expression produces that markup, and `FigureTests` in
+`site/tests` holds both to `BlazorCodeFirst.Site/Content/Examples/Hero.cs`: the C# half against the
+source, the HTML half against what rendering it produces. That is a claim about the runtime rather
+than about the generator, so it is answerable from this side of the `slnx` boundary and `site.yml`
+covers it.
+
+An example under `Content/Examples/` declares what the figure shows by wrapping it in `// <figure>`
+and `// </figure>`, and `FigureTests` compares the figure to that region dedented. The markers are
+needed because a component carries `using` directives and a class declaration that the figure does
+not show, and they are read rather than assumed: a source with no region throws by name instead of
+producing a diff against the whole file. These types are `internal` and reached through the
+`InternalsVisibleTo` in the app's project file. Nothing on the site renders one — the landing page
+places the figure's text, not the component — so CA1515 is right that they should not be public.
 
 ### Authoring a document
 

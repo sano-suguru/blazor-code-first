@@ -77,9 +77,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- DocsNav.Counterparts takes a manifest so a test can construct a case site/content cannot
+    <!-- Two things the test project reaches, both internal because the site's own assembly is not
+         their caller.
+
+         DocsNav.Counterparts takes a manifest so a test can construct a case site/content cannot
          hold (#279; DocsNavTests says which). That overload is the app's own business rather than
-         the rail's API, so it is internal, and this is what lets the test project reach it. -->
+         the rail's API.
+
+         Content/Examples holds the components an output figure claims to describe. The landing page
+         places each figure's text, never the component, so nothing on the site renders one and
+         CA1515 is right that they should not be public. FigureTests is the caller. -->
     <InternalsVisibleTo Include="BlazorCodeFirst.Site.Tests" />
   </ItemGroup>
 

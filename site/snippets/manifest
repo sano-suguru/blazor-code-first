@@ -3,4 +3,5 @@ counter: ../BlazorCodeFirst.Site/Pages/CounterPage.cs
 design-time: design-time.cs
 generated: generated.cs
 hero: hero.cs
+hero-output: hero.html
 ---
