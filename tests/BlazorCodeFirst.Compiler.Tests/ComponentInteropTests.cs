@@ -73,7 +73,7 @@ public sealed class ComponentInteropTests
         CompilationTestHost.AssertOutputCompiles(result);
         var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
         Assert.Contains("OpenComponent<global::T.Child>", generated);
-        Assert.Contains("AddComponentParameter(1, \"Label\", \"hi\")", generated);
+        Assert.Contains("AddComponentParameter(1, \"Label\", (global::System.String?)(\"hi\"))", generated);
         Assert.Contains("CloseComponent();", generated);
     }
 
@@ -126,9 +126,9 @@ public sealed class ComponentInteropTests
         var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
 
         int firstIdx = generated.IndexOf(
-            "AddComponentParameter(1, \"Label\", \"hi\")", System.StringComparison.Ordinal);
+            "AddComponentParameter(1, \"Label\", (global::System.String?)(\"hi\"))", System.StringComparison.Ordinal);
         int secondIdx = generated.IndexOf(
-            "AddComponentParameter(2, \"Title\", \"there\")", System.StringComparison.Ordinal);
+            "AddComponentParameter(2, \"Title\", (global::System.String?)(\"there\"))", System.StringComparison.Ordinal);
         Assert.True(firstIdx >= 0, "first parameter should be emitted");
         Assert.True(secondIdx > firstIdx, "AddComponentParameter calls must appear in source order");
     }
@@ -203,7 +203,7 @@ public sealed class ComponentInteropTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3006");
         CompilationTestHost.AssertOutputCompiles(result);
         var generated = result.GeneratedSources.Single(s => s.HintName.Contains("Host")).SourceText.ToString();
-        Assert.Contains("AddComponentParameter(1, \"Value\", \"hi\")", generated);
+        Assert.Contains("AddComponentParameter(1, \"Value\", (global::System.String?)(\"hi\"))", generated);
     }
 
     [Fact]

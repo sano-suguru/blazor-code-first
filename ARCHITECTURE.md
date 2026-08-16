@@ -410,6 +410,14 @@ __b.CloseElement();
 
 **畳み込みは出力を変えずにコード経路を変えます。** 畳み込まれたマークアップと、要素経路が `HtmlEncoder` を通して書き出す出力は `&` `<` `>` `"` について同一です(それがDOM等価性の要件そのものなので当然そうなります)。したがって**出力に対するアサーションだけでは、畳み込み経路を通ったことを示せません**。畳み込みが静かに止まっても、そのテストは通り続けます。畳み込みを検査するテストが出力と併せて何を固定しなければならないかは、`CONTRIBUTING.md` §Conventions the code must uphold にあります。
 
+**コンポーネントのスカラーパラメータは値を型付きで渡します。** `.Param` の値は `AddComponentParameter` の
+`object?` 引数へ移植されるため、呼び出しサイトで持っていた目標型を失います。そこで発行側は、C#がその呼び出しで
+解決した型引数へのキャストで値を包みます。型は解決済みの型引数から採り、選択されたプロパティの宣言型からは
+採りません。値はその型引数へ既に変換済みであることをC#が保証しており、キャストが生成コードの中で束縛に失敗
+し得ないためです。参照型は常にnullable として書き出します。キャストはnullについて何も主張せず、生成ファイルは
+`#nullable enable` であるため、注釈を落とすと `null` と書かれた値でCS8600が出ます(#377、`Param_WithNullLiteralValue…`
+が固定)。型が解決できない場合は書かず、今日と同じ綴りのまま発行します(`Component<T>()` の型引数と同じ規則)。
+
 **コンポーネントの fragment スロット**: `RenderFragment` 型のパラメータは、スカラー値を持たずノードツリーを
 持ちます。そのため `ComponentParameter`(スカラー)とは別チャンネル(`ComponentSlot` / `ComponentSlotNode`)へ
 格納します。発行されるフレーム幅は `1 + Parameters.Length + Σ(1 + 内容のフレーム幅)` で、スロット1つが
@@ -442,7 +450,7 @@ Component<Card>()
 // 出力(生成コード): スカラーが先、スロットはソース順、seqは平坦に継続する
 // (キャストの型名は表示の都合で短縮。実際は §2.2 のとおり global:: 修飾で書き出されます)
 __b.OpenComponent<global::T.Card>(0);
-__b.AddComponentParameter(1, "Title", "t");
+__b.AddComponentParameter(1, "Title", (string?)("t"));
 __b.AddComponentParameter(2, "HeaderTemplate", (RenderFragment<int>)((_) => (__builder) =>
 {
     __builder.AddMarkupContent(3, "<span>heading</span>");
@@ -502,7 +510,7 @@ __b.OpenElement(k+3, "span"); __b.AddContent(k+4, tab.Label); __b.CloseElement()
 __b.CloseElement();
 
 __b.OpenComponent<Editor>(m);
-__b.AddComponentParameter(m+1, "Text", _text);
+__b.AddComponentParameter(m+1, "Text", (string?)(_text));
 __b.AddComponentRenderMode(_mode);                         // パラメータの後、シーケンスを消費しない
 __b.AddComponentReferenceCapture(m+2, __value =>           // レンダーモードの後。1つ消費する
     ((System.Action<Editor>)(c => _editor = c))((Editor)__value));

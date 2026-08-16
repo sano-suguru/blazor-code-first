@@ -10,7 +10,7 @@ partial class Host
     protected override void RenderView(global::Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder)
     {
         __builder.OpenComponent<global::T.Card>(0);
-        __builder.AddComponentParameter(1, "Title", "t");
+        __builder.AddComponentParameter(1, "Title", (global::System.String?)("t"));
         __builder.CloseComponent();
     }
 }

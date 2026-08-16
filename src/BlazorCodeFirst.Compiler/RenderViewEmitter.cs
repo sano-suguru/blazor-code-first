@@ -378,8 +378,23 @@ internal static class RenderViewEmitter
         int next = seq + 1;
         foreach (var parameter in node.Parameters)
         {
+            // Cast to the type the call site resolved. AddComponentParameter takes object?, so the value
+            // loses the target type it was written against: a lambda with no natural type does not bind
+            // here at all, and one whose natural type is not the declared type binds as that type and
+            // fails when the renderer assigns the property (#377).
+            //
+            // Razor writes two spellings in this position, the cast for a delegate-typed parameter and
+            // RuntimeHelpers.TypeCheck<T> for the rest, and that split is not forced by C#: both bind every
+            // shape this surface admits (measured). One spelling is written here rather than two, because a
+            // second would need a rule saying which value gets which, and nothing measured supplies one.
+            // The cast is that spelling. It is what this file already writes wherever a transplanted
+            // expression has to be given its type — the bind setter's Action<T>, a slot's RenderFragment,
+            // the .Ref capture — and it names the type without reaching for a framework helper.
+            var value = parameter.ValueTypeName is { } typeName
+                ? $"({typeName})({parameter.Value.ToCode()})"
+                : parameter.Value.ToCode();
             writer.AppendLine(
-                $"__builder.AddComponentParameter({next}, \"{parameter.Name}\", {parameter.Value.ToCode()});");
+                $"__builder.AddComponentParameter({next}, \"{parameter.Name}\", {value});");
             next++;
         }
 

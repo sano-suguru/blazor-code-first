@@ -334,6 +334,39 @@ public sealed class RenderingTests : BunitContext
         Assert.Equal("beta", items[1].TextContent);
     }
 
+    /// <summary>
+    /// Holds the render-time half of #377, which no assertion over generated text can reach: the value
+    /// binds, the generated file compiles, and the failure arrives when the renderer assigns the property.
+    /// Verified by mutation: dropping the cast the emitter writes fails this test with
+    /// "Unable to cast object of type 'System.Func`2[System.Int32,System.Boolean]' to type
+    /// 'System.Predicate`1[System.Int32]'".
+    /// </summary>
+    [Fact]
+    public void DelegateParameters_WhoseDeclaredTypeIsNotTheirNaturalType_ArriveAtTheDeclaredType()
+    {
+        var cut = Render<DelegateParameterHost>();
+
+        var results = cut.FindAll(".result");
+        Assert.Equal(2, results.Count);
+        Assert.Equal("no formatter/True", results[0].TextContent);
+        Assert.Equal("no formatter/False", results[1].TextContent);
+    }
+
+    /// <summary>
+    /// The other half: a value with no natural type at all. Nothing here can fail at run time, because
+    /// without the cast the generated file does not compile — which is what this holds, by existing.
+    /// </summary>
+    [Fact]
+    public void DelegateParameters_WithNoNaturalType_ReachTheComponentAtTheDeclaredType()
+    {
+        var cut = Render<UntypedDelegateParameterHost>();
+
+        var results = cut.FindAll(".result");
+        Assert.Equal(2, results.Count);
+        Assert.Equal("[7]/no match", results[0].TextContent);
+        Assert.Equal("<-1>/False", results[1].TextContent);
+    }
+
     [Fact]
     public void GenericComponent_CallingAnotherWithItsOwnTypeParameter_ClosesTheTypeArgument()
     {

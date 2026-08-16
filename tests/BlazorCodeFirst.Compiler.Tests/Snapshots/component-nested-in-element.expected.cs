@@ -12,7 +12,7 @@ partial class Host
         __builder.OpenElement(0, "div");
         __builder.AddAttribute(1, "class", "shell");
         __builder.OpenComponent<global::T.Card>(2);
-        __builder.AddComponentParameter(3, "Title", "t");
+        __builder.AddComponentParameter(3, "Title", (global::System.String?)("t"));
         __builder.CloseComponent();
         __builder.CloseElement();
     }
