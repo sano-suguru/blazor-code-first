@@ -703,15 +703,20 @@ internal static class RenderExpressionAnalyzer
                     TemplateLocation.From(contentExpression.GetLocation()));
 
             case NonSurfaceCallKind.Opaque:
-                // The group written back as the call it stands for. Qualified through the containing type
-                // rather than through the method symbol, which FullyQualifiedFormat spells as a bare name:
-                // the generated file carries no using directives. Same construction as
-                // ExpressionTemplateFactory's static-call rewrite.
-                var qualified = callee.ContainingType.ToDisplayString(
-                    SymbolDisplayFormat.FullyQualifiedFormat);
+                // The group written back as the call it stands for, on the terms the value path sets for
+                // a name: what the expansion site has to be able to reach is recorded, and only a static
+                // callee is qualified through its containing type. That qualification is what a using-less
+                // generated file needs to name a static method (FullyQualifiedFormat spells the method
+                // symbol itself as a bare name, hence the containing type). An instance callee was written
+                // with an implicit `this` the generated RenderView has too, so there the bare name is the
+                // spelling that works (#390).
+                ExpressionTemplateFactory.RecordAccessRequirement(callee, context);
+                var qualification = callee.IsStatic
+                    ? callee.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "."
+                    : string.Empty;
                 return new OpaqueViewTemplateNode(ExpressionTemplate.Create(
                     [
-                        new LiteralExpressionSegment($"{qualified}.{callee.Name}("),
+                        new LiteralExpressionSegment($"{qualification}{callee.Name}("),
                         itemHole,
                         new LiteralExpressionSegment(")"),
                     ]));
