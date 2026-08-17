@@ -2,7 +2,7 @@
 title: 要素と装飾
 order: 40
 group: write
-source-hash: 069c7bf7
+source-hash: 1b34b81d
 ---
 
 BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素の名前が、そのまま出力される要素
@@ -39,13 +39,13 @@ Components で、そのタグ名にヘルパーはありません。もうひと
 - 生テキスト要素。`script`、`style`、`noscript`
 - レンダーツリーが意味を与えられない要素。`template`、`slot`
 - `object`。C# のキーワードと名前が重なります
-- 別の語彙である `svg` と `math`。その配下すべて
+- 外来要素の `svg` と `math`。その配下すべて
 
 ```csharp
 private const string Widget = "my-widget";
 
 Element(Widget).Attr("value", "42")        // カスタム要素
-Element("svg")[Element("circle")]          // 別の語彙
+Element("svg")[Element("circle")]          // 外来要素
 Element(_kind + "-widget")                 // BCF3009: 定数ではない
 Element("my widget")                       // BCF3009: タグ名の綴りではない
 ```

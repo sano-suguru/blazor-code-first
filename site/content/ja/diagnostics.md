@@ -744,4 +744,4 @@ Input.Bind("value", "oninput", () => _count, format: "N0")   // BCF3031
 ## 次に読むもの
 
 [はじめに](./getting-started.md)へ戻る、あるいは[要素と装飾](./elements-and-decorations.md)で
-要素の語彙を読む。
+書ける要素の一覧を読む。

@@ -122,4 +122,4 @@ public partial class Card : BodyComponentBase
 ## 次に読むもの
 
 - コンポーネントから別のコンポーネントを呼ぶ方法は[コンポーネントと再利用](./components-and-reuse.md)へ。
-- 上で使った要素の語彙は[要素と装飾](./elements-and-decorations.md)へ。
+- 上で使った要素については[要素と装飾](./elements-and-decorations.md)へ。

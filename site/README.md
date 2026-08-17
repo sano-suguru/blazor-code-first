@@ -253,9 +253,16 @@ number, or a code span: a wrapped Japanese sentence reaches the reader as it was
 spaces this edition sets around an inline `<code>` survive. A hard break (two trailing spaces) is
 still a `<br>`. `MarkdownConverterTests` holds each of those boundaries.
 
-Three terms in the Japanese edition are settled, because the English word has more than one
+Four terms in the Japanese edition are settled, because the English word has more than one
 plausible rendering and the literal one reads as a dictionary gloss: `bind` is バインド rather than
 束縛, the *surface* is この API rather than 表層, and a `[ViewPart]` is a パーツ rather than a 部品.
+
+The fourth is *vocabulary*, which has no single rendering: 語彙 is what a person has, not what an
+API offers, so a Japanese reader takes it for a claim about their own reading. Each use is
+translated for what it means there. "The element vocabulary" is 書ける要素の一覧, the list you can
+look up. "A second vocabulary" is HTML とは別の名前, the thing you would have to learn twice. The
+spec's *foreign vocabularies* are 外来要素, which is the term the HTML Standard's Japanese
+translation uses.
 
 ### Shell text
 
