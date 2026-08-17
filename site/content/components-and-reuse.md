@@ -1,6 +1,7 @@
 ---
 title: Components and Reuse
-order: 40
+order: 60
+group: write
 ---
 
 A component is the unit of reuse. One BlazorCodeFirst component calls another with

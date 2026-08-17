@@ -4,6 +4,10 @@ index-title: ドキュメント
 index-lead: ガイドの全文書を、読む順に並べています。
 rail-heading: ガイド
 language-label: 言語
+anchor-filter-label: 診断へ飛ぶ
+group-start: はじめる
+group-write: 書き方
+group-reference: 引く
 stale-notice: この日本語版は、英語版の古い版をもとにしています。
 stale-link: 英語版を読む
 ---

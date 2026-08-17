@@ -1,6 +1,7 @@
 ---
 title: Two-Way Binding
-order: 60
+order: 80
+group: write
 ---
 
 A two-way binding is one decoration that writes a value out to the DOM and reads the user's edit back
@@ -159,9 +160,9 @@ same reason it does not infer the attribute name. So the choice moves to where y
 user's locale. Binding either under `CultureInfo.CurrentCulture` produces a value the element rejects
 as soon as the current locale writes decimals with a comma.
 
-**This is not diagnosed.** The check would need to read `type`, and `type` is an expression here; a
-rule that fired only when you happened to write a literal would catch the same mistake in one spelling
-and miss it in another. Write `CultureInfo.InvariantCulture` for those two, and use the current
+**This is not diagnosed.** The check would need to read `type`, and `type` is an expression here. A
+rule that fired only on a literal would catch the mistake in one spelling and miss it in another.
+Write `CultureInfo.InvariantCulture` for those two, and use the current
 culture for text the user reads as prose.
 
 ### A value that will not parse is put back
@@ -282,13 +283,16 @@ components, always resolve.
 
 ## What is checked
 
-Six diagnostics read a `.Bind`, and each has an entry in the
-[reference](./diagnostics.md): [BCF3017](./diagnostics.md#bcf3017) on the getter's shape,
-[BCF3018](./diagnostics.md#bcf3018) on a getter-only target that cannot be assigned,
-[BCF3019](./diagnostics.md#bcf3019) on an event name missing its `on`,
-[BCF3020](./diagnostics.md#bcf3020) on a component with no matching change callback,
-[BCF3024](./diagnostics.md#bcf3024) on a bound `class` beside a `.Class`, and
-[BCF3031](./diagnostics.md#bcf3031) on a format the value's type has no converter for.
+Six diagnostics read a `.Bind`, and each has an entry in the [reference](./diagnostics.md):
+
+| | |
+| --- | --- |
+| [BCF3017](./diagnostics.md#bcf3017) | the getter's shape |
+| [BCF3018](./diagnostics.md#bcf3018) | a getter-only target that cannot be assigned |
+| [BCF3019](./diagnostics.md#bcf3019) | an event name missing its `on` |
+| [BCF3020](./diagnostics.md#bcf3020) | a component with no matching change callback |
+| [BCF3024](./diagnostics.md#bcf3024) | a bound `class` beside a `.Class` |
+| [BCF3031](./diagnostics.md#bcf3031) | a format the value's type has no converter for |
 
 An element may carry more than one `.Bind`. If two of them share an attribute name or an event name,
 that is [BCF3010](./diagnostics.md#bcf3010), the same duplicate any two decorations would report. DOM

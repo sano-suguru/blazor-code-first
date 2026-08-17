@@ -51,17 +51,35 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
 
     public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 
+    /// <summary>The id tying a group's heading to the list it names.</summary>
+    /// <remarks>
+    /// The heading is a paragraph rather than an h3, because the rail is navigation and not part of
+    /// the document's outline. That leaves the list with no accessible name of its own, which is
+    /// what this repairs: without it a screen reader reads three unnamed nested lists, and the
+    /// grouping exists only for people who can see it.
+    /// </remarks>
+    private static string GroupHeadingId(string group) => "rail-group-" + group;
+
+    // The rail once carried a "Guide" label above the list. Three named groups replaced the one
+    // thing it said, and an uppercase micro-label above three more labels is a stack of headings
+    // where the reader needs one. It survives as the nav's accessible name, which is the job it was
+    // actually doing.
     protected override View Body =>
         Nav.Class("docs-rail").Attr("aria-label", Docs.Shell(Lang).RailHeading)[
             LanguageSwitch(Lang, Slug),
-            P.Class("rail-heading")[Docs.Shell(Lang).RailHeading],
-            Ul.Class("rail-list")[
+            Ul.Class("rail-groups")[
                 ForEach(
-                    Docs.ForLang(Lang),
-                    key: d => d.Slug,
-                    content: d => Li[
-                        A.Href(Docs.Href(Lang, d.Slug))
-                            .Class(LinkClass(Docs.Href(Lang, d.Slug)))[d.Title]])]];
+                    Docs.GroupsFor(Lang),
+                    key: g => g,
+                    content: g => Li.Class("rail-group")[
+                        P.Class("rail-group-heading").Id(GroupHeadingId(g))[Docs.GroupLabel(Lang, g)],
+                        Ul.Class("rail-list").Attr("aria-labelledby", GroupHeadingId(g))[
+                            ForEach(
+                                Docs.ForGroup(Lang, g),
+                                key: d => d.Slug,
+                                content: d => Li[
+                                    A.Href(Docs.Href(Lang, d.Slug))
+                                        .Class(LinkClass(Docs.Href(Lang, d.Slug)))[d.Title]])]])]];
 
     /// <summary>
     /// A link to each other edition that has the page the reader is on, and nothing when none does.

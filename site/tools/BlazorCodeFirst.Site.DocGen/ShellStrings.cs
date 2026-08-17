@@ -6,6 +6,12 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// one, so it is written in the language it names rather than translated per edition: someone
 /// looking for the Japanese edition of an English page is looking for the Japanese word.
 /// </param>
+/// <param name="Groups">
+/// What this language calls each navigation group, keyed by the group name a document declares. Every
+/// group in <see cref="DocGroup.All"/> has an entry, whether or not this language has a document in
+/// it: a group with no label would put an English word in a translated rail the first time a document
+/// moved into it.
+/// </param>
 /// <param name="StaleNotice">
 /// The sentence a translation carries when it has fallen behind, or null on the canonical language,
 /// which has nothing to fall behind.
@@ -16,6 +22,8 @@ public sealed record ShellStrings(
     string IndexLead,
     string RailHeading,
     string LanguageLabel,
+    string AnchorFilterLabel,
+    IReadOnlyDictionary<string, string> Groups,
     string? StaleNotice,
     string? StaleLink);
 
@@ -103,15 +111,24 @@ public static class ShellFile
             declared["index-lead"],
             declared["rail-heading"],
             declared["language-label"],
+            declared["anchor-filter-label"],
+            DocGroup.All.ToDictionary(g => g, g => declared[GroupKey(g)], StringComparer.Ordinal),
             declared.GetValueOrDefault(StaleNoticeKey),
             declared.GetValueOrDefault(StaleLinkKey));
     }
+
+    /// <summary>The shell key carrying one navigation group's heading.</summary>
+    public static string GroupKey(string group) => "group-" + group;
 
     private const string StaleNoticeKey = "stale-notice";
     private const string StaleLinkKey = "stale-link";
 
     private static readonly string[] Keys =
-        ["name", "index-title", "index-lead", "rail-heading", "language-label", StaleNoticeKey, StaleLinkKey];
+    [
+        "name", "index-title", "index-lead", "rail-heading", "language-label", "anchor-filter-label",
+        .. DocGroup.All.Select(GroupKey),
+        StaleNoticeKey, StaleLinkKey,
+    ];
 
     /// <summary>What the error calls a file this parser reads.</summary>
     private const string Kind = "shell file";

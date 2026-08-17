@@ -1,6 +1,7 @@
 ---
 title: レイアウト
-order: 50
+order: 70
+group: write
 source-hash: b31bc6c0
 ---
 

@@ -1,6 +1,7 @@
 ---
 title: Control Flow
-order: 30
+order: 50
+group: write
 ---
 
 Conditionals and lists are expressed with dedicated constructs so the generator can assign

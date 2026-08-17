@@ -1,6 +1,7 @@
 ---
 title: Diagnostics
-order: 70
+order: 100
+group: reference
 ---
 
 Every diagnostic this compiler reports, what it means, and what to write instead. The guide links
@@ -191,6 +192,11 @@ protected override View Body
 }
 ```
 
+```csharp
+private void OnShown() => _renderCount++;                      // what to write instead
+protected override View Body => Div[Span[$"{_renderCount}"]];
+```
+
 The getter is a projection of state to UI, and it is translated rather than run. Move the mutation
 to an event handler.
 
@@ -248,10 +254,12 @@ The thirteen void elements are `area`, `base`, `br`, `col`, `embed`, `hr`, `img`
 `meta`, `source`, `track`, `wbr`.
 
 The children do not survive a round trip through HTML. Prerendering serializes a closing tag the
-parser does not accept, so the parser pushes the children out of the element and they appear as its
-siblings; a stray `</br>` is even re-read as a start tag, so `Br["x"]` prerenders as two `<br>`
-elements. Interactive rendering has no parser in the way and puts the same children inside. One
-expression, two different DOM trees, and the page changes shape as hydration takes over.
+parser does not accept, so the parser pushes the children out and they land as the element's
+siblings. A stray `</br>` is even re-read as a start tag, so `Br["x"]` prerenders as two `<br>`
+elements.
+
+Interactive rendering has no parser in the way and puts the same children inside. One expression,
+two different DOM trees, and the page changes shape as hydration takes over.
 
 Configure a void element with decorations and put content beside it.
 
@@ -321,6 +329,7 @@ Error. An attribute or event is bound more than once on one element.
 
 ```csharp
 Input.Type("text").Attr("value", _a).Attr("value", _b)   // BCF3010
+Input.Type("text").Attr("value", _b)                     // what to write instead
 Div.Class("card").Class("is-open")                       // fine: class folds
 ```
 
@@ -385,12 +394,19 @@ Error. The same non-attribute decoration is written twice on one node.
 
 ```csharp
 Div.Key(row.Id).Key(row.Slug)["x"]   // BCF3033
+Div.Key(row.Id)["x"]                 // what to write instead
 ```
 
 `.Key` and its siblings each occupy a channel that holds one value. All of them break differently
-and none of them breaks visibly: `SetKey` writes into the open frame, so the second call overwrites
-the first; `AddComponentRenderMode` appends and the renderer reads the first frame it finds, so
-there the second is the one that dies; a reference capture appends too, and both actions run.
+and none of them breaks visibly: Each breaks its own way:
+
+- `SetKey` writes into the open frame, so the second call overwrites the first.
+- `AddComponentRenderMode` appends, and the renderer reads the first frame it finds, so there the
+  second one dies.
+- A reference capture appends too, and both actions run.
+
+Write the decoration once, with the value the node should carry. Two candidate keys means the
+identity is not decided yet, and deciding it in the source is the only place the answer is visible.
 
 ### BCF3034
 
@@ -404,6 +420,10 @@ The framework refuses the pair outright: `ComponentFactory` throws when a type c
 `RenderModeAttribute` also receives a caller-specified mode. The call-site form exists for a
 component that declares no mode of its own, which is the case where it is needed: the same component
 rendered interactively from one page and statically from another.
+
+Drop the `.RenderMode` at the call site and let the component's own attribute stand. If the mode
+genuinely has to vary by caller, remove the attribute from the component instead, and then every
+call site must name a mode.
 
 ## Events
 
@@ -463,10 +483,14 @@ Error. The same event modifier is written twice for one event.
 
 ```csharp
 Form.On("onsubmit", () => Save()).PreventDefault().PreventDefault()   // BCF3036
+Form.On("onsubmit", () => Save()).PreventDefault()                    // what to write instead
 ```
 
 One of the two is dead whichever way the model takes it, and which one is not visible at the call
 site.
+
+Write the modifier once. It is a flag rather than a value, so a second one asks for nothing the
+first did not already do.
 
 ### BCF3038
 
@@ -550,8 +574,18 @@ null-conditional access, or a member of a captured variable has no name to read.
 
 Error. The selected property is not a settable `[Parameter]`.
 
+```csharp
+public string Label { get; set; }              // BCF3006: no [Parameter]
+[Parameter] public string Label { get; }       // BCF3006: no setter
+
+[Parameter] public string Label { get; set; }  // what to write instead
+```
+
 Only a property marked `[Parameter]` with an accessible setter can be bound. Setting anything else
 would throw when Blazor applies the parameters.
+
+Mark the property `[Parameter]` and give it an accessible setter. A value the component should not
+receive from its caller belongs in a field rather than in a parameter.
 
 ### BCF3007
 
@@ -559,10 +593,14 @@ Error. The chain binds the same parameter more than once.
 
 ```csharp
 Component<Card>().Param(c => c.Label, "a").Param(c => c.Label, "b")   // BCF3007
+Component<Card>().Param(c => c.Label, "b")                            // what to write instead
 ```
 
 Every channel counts: `.Param`, `.Template`, `.Bind`, and child content written in brackets. Blazor
 applies the last write, so the earlier value is dead.
+
+Bind the parameter once, with the value the component should end up with. A value that depends on
+state belongs in the expression you pass, not in a second `.Param`.
 
 ### BCF3012
 

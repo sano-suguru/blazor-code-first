@@ -1,7 +1,8 @@
 ---
 title: 要素と装飾
-order: 20
-source-hash: 2eb7120f
+order: 40
+group: write
+source-hash: 303621a5
 ---
 
 BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素の名前が、そのまま出力される要素

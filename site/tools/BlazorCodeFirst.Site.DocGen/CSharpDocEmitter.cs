@@ -57,12 +57,25 @@ public static class CSharpDocEmitter
         sb.Append("using System.Collections.Immutable;\n\n");
         sb.Append("namespace BlazorCodeFirst.Site.Content;\n\n");
         sb.Append("/// <summary>One document's navigation metadata and its build-time converted HTML.</summary>\n");
+        sb.Append("/// <param name=\"Group\">The navigation group this document sits in.</param>\n");
         sb.Append("/// <param name=\"Lang\">The language tag this document is written in.</param>\n");
         sb.Append("/// <param name=\"Stale\">True when a translation was written against an older revision\n");
         sb.Append("/// of its canonical document. Always false on a canonical document.</param>\n");
-        sb.Append("public sealed record DocEntry(string Slug, string Title, int Order, string Lang, bool Stale, string Html);\n\n");
+        sb.Append("/// <param name=\"Anchors\">The ids this document publishes, in reading order.</param>\n");
+        sb.Append("public sealed record DocEntry(\n");
+        sb.Append("    string Slug,\n");
+        sb.Append("    string Title,\n");
+        sb.Append("    int Order,\n");
+        sb.Append("    string Group,\n");
+        sb.Append("    string Lang,\n");
+        sb.Append("    bool Stale,\n");
+        sb.Append("    ImmutableArray<string> Anchors,\n");
+        sb.Append("    string Html);\n\n");
+        sb.Append("/// <summary>What one language calls one navigation group.</summary>\n");
+        sb.Append("public sealed record GroupHeading(string Group, string Label);\n\n");
         sb.Append("/// <summary>The text the documentation shell shows a reader of one language.</summary>\n");
         sb.Append("/// <param name=\"Name\">What this language calls itself, shown to a reader of another one.</param>\n");
+        sb.Append("/// <param name=\"Groups\">This language's heading for every navigation group.</param>\n");
         sb.Append("/// <param name=\"StaleNotice\">The sentence a translation carries when it has fallen\n");
         sb.Append("/// behind, or null on the canonical language, which has nothing to fall behind.</param>\n");
         sb.Append("public sealed record ShellText(\n");
@@ -71,6 +84,8 @@ public static class CSharpDocEmitter
         sb.Append("    string IndexLead,\n");
         sb.Append("    string RailHeading,\n");
         sb.Append("    string LanguageLabel,\n");
+        sb.Append("    string AnchorFilterLabel,\n");
+        sb.Append("    ImmutableArray<GroupHeading> Groups,\n");
         sb.Append("    string? StaleNotice,\n");
         sb.Append("    string? StaleLink);\n\n");
         sb.Append("/// <summary>The generated documentation manifest, grouped by language and ordered by\n");
@@ -101,6 +116,10 @@ public static class CSharpDocEmitter
 
         sb.Append("        _ => \"").Append(CSharpLiteral.Escape(DocLang.RoutePrefix(DocLang.Canonical))).Append("\",\n");
         sb.Append("    };\n\n");
+        sb.Append("    /// <summary>Every navigation group, in the order the rail shows them.</summary>\n");
+        sb.Append("    public static readonly ImmutableArray<string> GroupOrder =\n        [");
+        sb.Append(string.Join(", ", DocGroup.All.Select(g => $"\"{CSharpLiteral.Escape(g)}\"")));
+        sb.Append("];\n\n");
         sb.Append("    /// <summary>The route one document is served from.</summary>\n");
         sb.Append("    public static string Href(string lang, string slug) => RoutePrefix(lang) + \"/\" + slug;\n\n");
 
@@ -127,8 +146,12 @@ public static class CSharpDocEmitter
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Slug)).Append("\",\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Title)).Append("\",\n");
             sb.Append("            ").Append(meta.Order.ToString(CultureInfo.InvariantCulture)).Append(",\n");
+            sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Group)).Append("\",\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Lang)).Append("\",\n");
             sb.Append("            ").Append(meta.Stale ? "true" : "false").Append(",\n");
+            sb.Append("            [");
+            sb.Append(string.Join(", ", meta.Anchors.Select(a => $"\"{CSharpLiteral.Escape(a)}\"")));
+            sb.Append("],\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(html)).Append("\"),\n");
         }
 
@@ -145,6 +168,34 @@ public static class CSharpDocEmitter
         sb.Append("            if (string.Equals(entry.Lang, lang, StringComparison.Ordinal))\n");
         sb.Append("            {\n                builder.Add(entry);\n            }\n");
         sb.Append("        }\n\n        return builder.ToImmutable();\n    }\n\n");
+        sb.Append("    /// <summary>One language's documents in one navigation group, in reading order.</summary>\n");
+        sb.Append("    public static ImmutableArray<DocEntry> ForGroup(string lang, string group) =>\n");
+        sb.Append("        ForGroup(All, lang, group);\n\n");
+        sb.Append("    /// <summary>The same, over a manifest given directly rather than this build's.</summary>\n");
+        sb.Append("    public static ImmutableArray<DocEntry> ForGroup(\n");
+        sb.Append("        ImmutableArray<DocEntry> docs, string lang, string group)\n    {\n");
+        sb.Append("        var builder = ImmutableArray.CreateBuilder<DocEntry>();\n");
+        sb.Append("        foreach (var entry in ForLang(docs, lang))\n        {\n");
+        sb.Append("            if (string.Equals(entry.Group, group, StringComparison.Ordinal))\n");
+        sb.Append("            {\n                builder.Add(entry);\n            }\n");
+        sb.Append("        }\n\n        return builder.ToImmutable();\n    }\n\n");
+        sb.Append("    /// <summary>The groups one language actually has documents in, in navigation order.</summary>\n");
+        sb.Append("    /// <remarks>A group with no document in this language is left out, so a translation\n");
+        sb.Append("    /// that has not reached a group yet shows no empty heading.</remarks>\n");
+        sb.Append("    public static ImmutableArray<string> GroupsFor(string lang) => GroupsFor(All, lang);\n\n");
+        sb.Append("    /// <summary>The same, over a manifest given directly rather than this build's.</summary>\n");
+        sb.Append("    public static ImmutableArray<string> GroupsFor(ImmutableArray<DocEntry> docs, string lang)\n    {\n");
+        sb.Append("        var builder = ImmutableArray.CreateBuilder<string>();\n");
+        sb.Append("        foreach (string group in GroupOrder)\n        {\n");
+        sb.Append("            if (ForGroup(docs, lang, group).Length > 0)\n");
+        sb.Append("            {\n                builder.Add(group);\n            }\n");
+        sb.Append("        }\n\n        return builder.ToImmutable();\n    }\n\n");
+        sb.Append("    /// <summary>What one language calls one navigation group.</summary>\n");
+        sb.Append("    public static string GroupLabel(string lang, string group)\n    {\n");
+        sb.Append("        foreach (var heading in Shell(lang).Groups)\n        {\n");
+        sb.Append("            if (string.Equals(heading.Group, group, StringComparison.Ordinal))\n");
+        sb.Append("            {\n                return heading.Label;\n            }\n");
+        sb.Append("        }\n\n        return group;\n    }\n\n");
         sb.Append("    /// <summary>Finds a document by language and slug. Blazor route matching is\n");
         sb.Append("    /// case-insensitive, so the slug lookup must be too; the language comes from the route\n");
         sb.Append("    /// template rather than from the reader, so it is matched exactly.</summary>\n");
@@ -169,6 +220,13 @@ public static class CSharpDocEmitter
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.IndexLead)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.RailHeading)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.LanguageLabel)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.AnchorFilterLabel)).Append("\",\n");
+        sb.Append("            [");
+        sb.Append(string.Join(
+            ", ",
+            DocGroup.All.Select(g =>
+                $"new GroupHeading(\"{CSharpLiteral.Escape(g)}\", \"{CSharpLiteral.Escape(shell.Groups[g])}\")")));
+        sb.Append("],\n");
         AppendOptional(sb, shell.StaleNotice);
         sb.Append(",\n");
         AppendOptional(sb, shell.StaleLink);

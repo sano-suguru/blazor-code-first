@@ -8,7 +8,7 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// document. Whether it is required is the caller's rule, because only the caller knows which
 /// language the file came from.
 /// </param>
-public sealed record FrontMatterFields(string Title, int Order, string? SourceHash);
+public sealed record FrontMatterFields(string Title, int Order, string Group, string? SourceHash);
 
 /// <summary>
 /// Splits a document's leading <c>---</c> front matter block from its Markdown body and validates
@@ -29,7 +29,7 @@ public sealed record FrontMatterFields(string Title, int Order, string? SourceHa
 /// a clear message instead of a silently ignored line.
 ///
 /// Scanning the block itself is <see cref="KeyValueBlock"/>'s job, shared with the shell file. Only
-/// the reading of these three keys lives here.
+/// the reading of these four keys lives here.
 /// </remarks>
 public static class FrontMatter
 {
@@ -39,10 +39,11 @@ public static class FrontMatter
             raw,
             fileName,
             Kind,
-            "the file must start with a '---' front matter block declaring 'title' and 'order'.");
+            "the file must start with a '---' front matter block declaring 'title', 'order' and 'group'.");
 
         string? title = null;
         int? order = null;
+        string? group = null;
         string? sourceHash = null;
         foreach (var (key, value) in lines)
         {
@@ -76,6 +77,15 @@ public static class FrontMatter
                     order = parsed;
                     break;
 
+                case "group":
+                    if (group is not null)
+                    {
+                        throw Invalid(fileName, "front matter key 'group' is declared more than once.");
+                    }
+
+                    group = DocGroup.Validate(value, fileName);
+                    break;
+
                 case "source-hash":
                     if (sourceHash is not null)
                     {
@@ -99,7 +109,8 @@ public static class FrontMatter
                 default:
                     throw Invalid(
                         fileName,
-                        $"front matter key '{key}' is not recognized; only 'title', 'order' and 'source-hash' are allowed.");
+                        $"front matter key '{key}' is not recognized; only 'title', 'order', 'group' and " +
+                        "'source-hash' are allowed.");
             }
         }
 
@@ -113,7 +124,12 @@ public static class FrontMatter
             throw Invalid(fileName, "front matter is missing the required 'order' key.");
         }
 
-        return (new FrontMatterFields(title, order.Value, sourceHash), body);
+        if (group is null)
+        {
+            throw Invalid(fileName, "front matter is missing the required 'group' key.");
+        }
+
+        return (new FrontMatterFields(title, order.Value, group, sourceHash), body);
     }
 
     /// <summary>How many hex digits a <c>source-hash</c> carries.</summary>

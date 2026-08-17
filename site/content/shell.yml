@@ -4,4 +4,8 @@ index-title: Documentation
 index-lead: Every document in the guide, in reading order.
 rail-heading: Guide
 language-label: Language
+anchor-filter-label: Jump to a diagnostic
+group-start: Start here
+group-write: Writing views
+group-reference: Reference
 ---

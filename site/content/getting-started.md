@@ -1,6 +1,7 @@
 ---
 title: Getting Started
 order: 10
+group: start
 ---
 
 BlazorCodeFirst lets you write Blazor UI as plain C#. This page is itself rendered from Markdown,
@@ -12,8 +13,11 @@ Add the runtime and the source generator to your project, then derive your compo
 `BodyComponentBase`.
 
 ```
-dotnet add package BlazorCodeFirst
+dotnet add package BlazorCodeFirst --prerelease
 ```
+
+The published version carries a prerelease suffix. Without `--prerelease` the command looks for the
+latest stable version, of which there is none, and resolves nothing.
 
 ## A first component
 

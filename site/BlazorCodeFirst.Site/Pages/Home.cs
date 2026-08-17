@@ -30,7 +30,11 @@ namespace BlazorCodeFirst.Site.Pages;
 [Route("/")]
 public sealed partial class Home : BodyComponentBase
 {
-    private const string InstallCommand = "dotnet add package BlazorCodeFirst";
+    // --prerelease is not decoration. The published version carries a prerelease suffix, so without
+    // the flag the command looks for a stable version that does not exist and resolves nothing. This
+    // is the first command a reader runs, and it was wrong here while both READMEs had it right;
+    // InstallCommandTests now reads it out of README.md rather than trusting this literal.
+    private const string InstallCommand = "dotnet add package BlazorCodeFirst --prerelease";
 
     [Inject]
     private IJSRuntime Js { get; set; } = default!;

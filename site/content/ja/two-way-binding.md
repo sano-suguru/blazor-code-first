@@ -1,7 +1,8 @@
 ---
 title: 双方向バインディング
-order: 60
-source-hash: 48941587
+order: 80
+group: write
+source-hash: 055ff49e
 ---
 
 双方向バインディングは、値を DOM へ書き出し、利用者の編集を自分の状態へ読み戻す、1つの装飾

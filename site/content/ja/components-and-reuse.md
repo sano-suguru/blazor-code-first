@@ -1,6 +1,7 @@
 ---
 title: コンポーネントと再利用
-order: 40
+order: 60
+group: write
 source-hash: 9758086c
 ---
 

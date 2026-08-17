@@ -648,6 +648,12 @@ kbd {
     color: var(--color-accent);
 }
 
+/* The index carries the same three groups the rail does, so a reader who scans one and then the
+   other meets one shape twice rather than two organizations of the same eleven documents. */
+.index-group + .index-group {
+    margin-top: var(--space-xl);
+}
+
 /* --- Ft2 footer ----------------------------------------------------------- */
 
 /* No margin-top: every section and the documentation shell already carry their own bottom padding,
@@ -707,19 +713,7 @@ kbd {
     border-top: var(--rule-hairline) solid var(--color-rule);
 }
 
-/* Body face, not the mono. The mono has one job on this site -- machine text: code, file paths,
-   route paths, the wordmark (a namespace), and figures. "Guide" is a section label, and letting it
-   borrow the mono would start turning an outlier into a third body font. */
-.rail-heading {
-    margin: 0 0 var(--space-sm);
-    color: var(--color-muted);
-    font-size: var(--text-xs);
-    font-weight: 500;
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-}
-
-/* The language switch sits above the rail heading, before the list of documents: a reader who wants
+/* The language switch sits at the top of the rail, before the groups: a reader who wants
    another edition of this page wants it before reading, and someone who does not want it should
    meet it once and never again. It renders only where a counterpart exists, so its absence is
    information too. */
@@ -745,6 +739,31 @@ kbd {
 
 .lang-link:hover {
     color: var(--color-accent);
+}
+
+/* The rail is three groups rather than one list, because a reader arrives with one of three
+   questions: how do I start, how do I write this, what is the exact rule. A flat list answers none
+   of them -- it asks the reader to guess which of eleven documents takes them from nothing to a
+   rendered page.
+
+   The group heading is body face at full ink rather than an uppercase micro-label. Three labels in
+   that voice would read as three eyebrows, which is the tic the label treatment earns only when
+   there is one of it. */
+.rail-groups {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.rail-group + .rail-group {
+    margin-top: var(--space-lg);
+}
+
+.rail-group-heading {
+    margin: 0 0 var(--space-xs);
+    color: var(--color-ink);
+    font-size: var(--text-sm);
+    font-weight: 600;
 }
 
 .rail-list {
@@ -780,6 +799,79 @@ kbd {
     border-left-color: var(--color-accent);
     color: var(--color-accent);
     font-weight: 500;
+}
+
+/* --- Anchor filter --------------------------------------------------------
+   Above the diagnostics reference: 42 sections on one page, previously reachable only by the
+   browser's own find. The chips are ordinary links to ids on the page, so with WebAssembly not yet
+   started -- or blocked -- the block is a table of contents rather than a dead control. */
+
+.anchor-filter {
+    margin-block: var(--space-lg) var(--space-xl);
+    padding: var(--space-md);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+}
+
+.anchor-filter-label {
+    display: block;
+    margin-bottom: var(--space-xs);
+    color: var(--color-muted);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+}
+
+/* The only text input on the site, so it declares its own face rather than inheriting the UA's.
+   `font: inherit` alone would leave the size to the browser's form defaults, which on Safari is two
+   steps below the surrounding prose. */
+.anchor-filter-input {
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+}
+
+/* The ring stays. The rule at the top of this file puts a 2px --color-focus outline on every
+   focusable element and says why; replacing it here with a 1px border-colour swap would leave the
+   site's only text input with its weakest focus indicator. The accent border is additive. */
+.anchor-filter-input:focus-visible {
+    border-color: var(--color-accent);
+}
+
+.anchor-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin: var(--space-md) 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Mono, because a diagnostic id is machine text: it is what the build printed and what the reader
+   is matching character for character. */
+.anchor-chip {
+    display: inline-block;
+    padding: var(--space-2xs) var(--space-sm);
+    border: var(--rule-hairline) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink-2);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-decoration: none;
+    transition:
+        border-color var(--dur-micro) var(--ease-out),
+        color var(--dur-micro) var(--ease-out);
+}
+
+.anchor-chip:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
 }
 
 /* --- Prose (rendered Markdown) -------------------------------------------- */

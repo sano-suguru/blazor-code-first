@@ -10,7 +10,11 @@ public class ShellFileTests
         "index-title: Documentation\n" +
         "index-lead: Every document, in reading order.\n" +
         "rail-heading: Guide\n" +
-        "language-label: Language\n";
+        "language-label: Language\n" +
+        "anchor-filter-label: Jump to a diagnostic\n" +
+        "group-start: Start here\n" +
+        "group-write: Writing views\n" +
+        "group-reference: Reference\n";
 
     private const string Stale =
         "stale-notice: This translation is behind.\n" +
@@ -34,6 +38,36 @@ public class ShellFileTests
         Assert.Equal("Language", shell.LanguageLabel);
         Assert.Equal("This translation is behind.", shell.StaleNotice);
         Assert.Equal("Read the English page", shell.StaleLink);
+    }
+
+    [Fact]
+    public void Parse_ReadsAGroupHeadingForEveryGroup()
+    {
+        var shell = ParseCanonical(Common);
+
+        Assert.Equal(DocGroup.All.Length, shell.Groups.Count);
+        Assert.Equal("Start here", shell.Groups[DocGroup.Start]);
+        Assert.Equal("Writing views", shell.Groups[DocGroup.Write]);
+        Assert.Equal("Reference", shell.Groups[DocGroup.Reference]);
+    }
+
+    [Theory]
+    [InlineData(DocGroup.Start)]
+    [InlineData(DocGroup.Write)]
+    [InlineData(DocGroup.Reference)]
+    public void Parse_MissingOneGroupHeading_Throws(string group)
+    {
+        // Every group carries a heading whether or not this language has a document in it. A missing
+        // one would put an English word into a translated rail the first time a document moved.
+        string key = ShellFile.GroupKey(group);
+        string withoutIt = string.Concat(
+            Common.Split('\n').Where(l => !l.StartsWith(key + ":", StringComparison.Ordinal))
+                .Select(l => l.Length == 0 ? l : l + "\n"));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(withoutIt));
+
+        Assert.Contains(key, ex.Message, StringComparison.Ordinal);
+        Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

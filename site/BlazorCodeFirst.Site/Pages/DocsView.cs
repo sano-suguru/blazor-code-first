@@ -43,6 +43,12 @@ internal static class DocsView
                     Component<PageTitle>()[entry.Title],
                     StaleNotice(entry),
                     H1[entry.Title],
+                    // Above the document, because it is how a reader reaches a section rather than
+                    // part of what the section says. It renders on the documents that publish
+                    // diagnostic ids and on no others; AnchorFilter says why nothing here names
+                    // which document that is.
+                    If(AnchorFilter.Applies(entry),
+                        () => Component<AnchorFilter>().Param(f => f.Entry, entry)),
                     Raw(entry.Html)],
                 Component<DocsNav>()
                     .Param(n => n.Lang, entry.Lang)
@@ -63,14 +69,19 @@ internal static class DocsView
                     Component<PageTitle>()[Docs.Shell(lang).IndexTitle],
                     H1[Docs.Shell(lang).IndexTitle],
                     P[Docs.Shell(lang).IndexLead],
-                    Ul.Class("index-list")[
-                        ForEach(
-                            Docs.ForLang(lang),
-                            key: d => d.Slug,
-                            content: d => Li[
-                                A.Href(Docs.Href(lang, d.Slug)).Class("index-link")[
-                                    d.Title,
-                                    Span[Docs.Href(lang, d.Slug)]]])]],
+                    ForEach(
+                        Docs.GroupsFor(lang),
+                        key: g => g,
+                        content: g => Section.Class("index-group")[
+                            H2[Docs.GroupLabel(lang, g)],
+                            Ul.Class("index-list")[
+                                ForEach(
+                                    Docs.ForGroup(lang, g),
+                                    key: d => d.Slug,
+                                    content: d => Li[
+                                        A.Href(Docs.Href(lang, d.Slug)).Class("index-link")[
+                                            d.Title,
+                                            Span[Docs.Href(lang, d.Slug)]]])]])],
                 Component<DocsNav>()
                     .Param(n => n.Lang, lang)
                     .Param(n => n.Slug, null)]];

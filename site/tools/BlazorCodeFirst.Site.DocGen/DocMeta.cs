@@ -4,12 +4,67 @@ using Markdig.Syntax;
 namespace BlazorCodeFirst.Site.DocGen;
 
 /// <summary>One document's routing and navigation metadata.</summary>
+/// <param name="Group">The navigation group from <see cref="DocGroup"/>, declared in front matter.</param>
 /// <param name="Lang">The language tag from <see cref="DocLang"/>, taken from the directory.</param>
 /// <param name="Stale">
 /// True when a translation's <c>source-hash</c> does not match its English counterpart. Always false
 /// for a canonical document, which has nothing to fall behind.
 /// </param>
-public sealed record DocMeta(string Slug, string Title, int Order, string Lang, bool Stale);
+/// <param name="Anchors">
+/// The ids this document publishes, in document order. Known only after parsing, so pass 1 builds
+/// the record without them and pass 2 fills them in.
+/// </param>
+public sealed record DocMeta(
+    string Slug,
+    string Title,
+    int Order,
+    string Group,
+    string Lang,
+    bool Stale,
+    IReadOnlyList<string> Anchors);
+
+/// <summary>The navigation groups a document may declare, in the order the rail shows them.</summary>
+/// <remarks>
+/// Three, because a reader arrives with one of three questions: how do I start, how do I write this,
+/// and what is the exact rule. A flat list answers none of them — it asks the reader to guess which
+/// of eleven documents is the one that takes them from nothing to a rendered page.
+///
+/// The vocabulary is closed. An open one would let each document invent its own heading, which is
+/// how a navigation ends up with as many groups as it has entries.
+/// </remarks>
+public static class DocGroup
+{
+    /// <summary>Getting from nothing to a component that renders.</summary>
+    public const string Start = "start";
+
+    /// <summary>The surface, feature by feature.</summary>
+    public const string Write = "write";
+
+    /// <summary>What is looked up rather than read: the vocabulary, the diagnostics, the FAQ.</summary>
+    public const string Reference = "reference";
+
+    /// <summary>Every group, in the order the navigation shows them.</summary>
+    public static readonly string[] All = [Start, Write, Reference];
+
+    /// <summary>Where a group sorts in the navigation.</summary>
+    public static int Rank(string group) => Array.IndexOf(All, group);
+
+    public static string Validate(string value, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(fileName);
+
+        if (Rank(value) < 0)
+        {
+            throw KeyValueBlock.Invalid(
+                fileName,
+                "document",
+                $"front matter 'group' must be one of [{string.Join(", ", All)}] but was '{value}'.");
+        }
+
+        return value;
+    }
+}
 
 /// <summary>The languages the content directory may hold, and where each one's documents route to.</summary>
 /// <remarks>
