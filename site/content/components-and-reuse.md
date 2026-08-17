@@ -26,9 +26,9 @@ The generator turns each `.Param` into a static parameter setter, emitted as
 `AddComponentParameter` calls. Nothing is reflected over and no expression tree is compiled at
 runtime, which is what keeps the path trimming- and AOT-safe.
 
-That is also why the shape is fenced in by diagnostics. Every channel that names a parameter with a
-selector lambda answers to them — `.Param`, `.Template`, and the component `.Bind` alike, not
-`.Param` alone:
+That is also why diagnostics constrain the shape. Every channel that names a parameter with a
+selector lambda is checked — `.Param`, `.Template`, and the component `.Bind` alike, not `.Param`
+alone:
 
 - The selector must be a plain property selection ([BCF3005](./diagnostics.md#bcf3005)).
 - The target must be a settable `[Parameter]` property ([BCF3006](./diagnostics.md#bcf3006)).
@@ -93,7 +93,7 @@ For unresolved type names inside parameter values, see
 ## Generic fragment parameters
 
 A `RenderFragment<TContext>` parameter takes a *template*: the component invokes it once per context
-value it wants rendered. `EditForm.ChildContent` is the one most authors meet first — it is a
+value it wants rendered. `EditForm.ChildContent` is the most common example: it is a
 `RenderFragment<EditContext>`.
 
 `.Template` names such a parameter. It has two spellings, and which one you want depends only on
@@ -170,9 +170,9 @@ private readonly RenderFragment<EditContext> _fields;
 
 `.Template` content that reads state captures it, so the lambda becomes a new delegate on every
 render. The receiving component sees a changed parameter and re-renders the template. A cached
-delegate passed through `.Param` does not change, so it does not. Reach for the cached form only when
-you want that stability; `.Template` is otherwise the shorter and safer spelling, because it cannot
-be forgotten the way caching can.
+delegate passed through `.Param` does not change, so it does not. Use the cached form only when you
+want that stability; `.Template` is otherwise the shorter and safer spelling, because it cannot be
+forgotten the way caching can.
 
 ## Calling an existing Razor or third-party component
 
@@ -188,7 +188,7 @@ protected override View Body =>
             .Param(g => g.Dense, true)];
 ```
 
-One restriction applies, and it is the first wall most authors hit. The type argument falls into
+One restriction applies, and it is the one most authors hit first. The type argument falls into
 the generated code as a literal `OpenComponent<T>`, so it has to resolve while the generator runs.
 The Razor compiler is itself a source generator, and source generators cannot observe each other's
 output. A `.razor` component declared in the *same project* therefore does not exist yet when
@@ -272,7 +272,7 @@ plain `.cs` file in the same project.
 
 ## Splitting without a component: `[ViewPart]`
 
-Not every part of a `Body` expression deserves a component. A `[ViewPart]` method is a piece of
+Not every part of a `Body` expression needs a component. A `[ViewPart]` method is a piece of
 UI that the generator expands *into the caller* rather than rendering through a component
 boundary:
 
@@ -317,9 +317,9 @@ public partial class Dashboard : BodyComponentBase
 }
 ```
 
-Named and optional arguments work, because the call site is an ordinary C# call. The expansion is
-still an expansion: the caller's generated `RenderView` opens `StatusBadge` directly at each call, so
-the rendered tree is the one writing `Component<StatusBadge>()` twice would have produced. The
+Named and optional arguments work, because the call site is an ordinary C# call. The caller's
+generated `RenderView` opens `StatusBadge` directly at each call, so the rendered tree is the one
+writing `Component<StatusBadge>()` twice would have produced. The
 `.Param` rules are checked where the selector is written, so BCF3006 and BCF3007 are reported once at
 the part's declaration, however many call sites it has.
 
@@ -349,8 +349,8 @@ private static SlotView Card(string title) =>
 ```
 
 That is the point of the spelling: a part you factored out reads the same way a built-in element
-reads. `Card("Profile")[…]` sits beside `Section.Class("body")[…]` without announcing that one of
-them is yours.
+does. `Card("Profile")[…]` and `Section.Class("body")[…]` read alike, and nothing marks one of them
+as yours.
 
 The brackets are not optional, and nothing enforces that but C#. `SlotView` has no conversion to
 `View`, so `Div[Card("Profile")]` — the brackets forgotten — is a compile error rather than a card
@@ -372,7 +372,7 @@ private static SlotView Panel(View header) =>
         Div.Class("panel-body")[Slot]];
 ```
 
-Named channels first, the main content in brackets — the shape `Div.Class("card")[…]` and
+Named channels first, the main content in brackets: the shape `Div.Class("card")[…]` and
 `Component<T>().Template(…)[…]` already have on this surface.
 
 A slot sits in a component's brackets as readily as in an element's, which is how a named component
@@ -387,7 +387,7 @@ private static SlotView Framed(string title) =>
 The caller's content reaches `Card.ChildContent`, by the rule
 [Passing child content](#passing-child-content) states.
 
-Two rules are worth knowing. A `SlotView` part must name `Slot` **exactly once**: naming it twice
+Two rules apply. A `SlotView` part must name `Slot` **exactly once**: naming it twice
 would emit the caller's content twice from one bracket, and never naming it would discard content the
 caller was required to supply. Either reports [BCF3025](./diagnostics.md#bcf3025), as does a `Slot` written anywhere that
 receives no caller content — a component's own `Body`, or a part returning `View`.
@@ -401,7 +401,7 @@ Both kinds are content, though, and content has no value: it becomes frames, not
 slot can only be *placed* as a child. Reading one where a value is expected — as a `ForEach` key, or
 inside an attribute value — reports [BCF1002](./diagnostics.md#bcf1002).
 
-That is the whole trade-off, dimension by dimension:
+The trade-off in full:
 
 | | `[ViewPart]` | A component |
 | --- | --- | --- |

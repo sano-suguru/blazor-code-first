@@ -4,8 +4,8 @@ order: 30
 group: start
 ---
 
-You already know what a Blazor component is. This page is the translation table, plus the four
-places where the shape of a component differs rather than its spelling.
+This page is the translation table from Razor syntax to this surface, plus the four places where the
+shape of a component differs rather than its spelling.
 
 ## What is the same
 
@@ -38,7 +38,7 @@ one of these can call a `.razor` component
 | `@layout MainLayout` | `[Layout(typeof(MainLayout))]`, unchanged |
 | `@Body` in a layout | `Body`, inside an overridden `Chrome` ([layouts](./layouts.md)) |
 
-## Four differences that are not spelling
+## Four differences beyond spelling
 
 ### Attributes come before children
 
@@ -56,7 +56,7 @@ own, which is why neither is accepted ([BCF1004](./diagnostics.md#bcf1004)).
 That is also why `If` and `ForEach` exist as constructs rather than as C# keywords. Read
 [control flow](./control-flow.md) before rewriting a template with branches in it.
 
-### A key is required, or declined in writing
+### A key is required, or explicitly declined
 
 `@key` is optional in Razor and easy to leave off. `ForEach` has no default for `key`, so a list
 either identifies its items or says `key: null` and accepts the cost. That is
@@ -65,8 +65,8 @@ either identifies its items or says `key: null` and accepts the cost. That is
 ### There is no second vocabulary
 
 Every element is the HTML element of the same name, and CSS does the layout. There is no `VStack`,
-no `.Padding()`, and no `Text()` — a bare string is a text node. What you know about HTML is the
-whole of what there is to know about the element surface.
+no `.Padding()`, and no `Text()` — a bare string is a text node. What you know about HTML is what
+there is to know about the element surface.
 
 ## Rewriting one component
 

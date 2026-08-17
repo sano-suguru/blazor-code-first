@@ -4,9 +4,8 @@ order: 90
 group: reference
 ---
 
-Everything this surface declares, in one place to look up rather than to read. What each construct
-means is in [elements and decorations](./elements-and-decorations.md) and
-[control flow](./control-flow.md).
+Everything this surface declares, in one place. What each construct means is in
+[elements and decorations](./elements-and-decorations.md) and [control flow](./control-flow.md).
 
 ## Elements
 
