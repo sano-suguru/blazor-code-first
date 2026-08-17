@@ -1068,6 +1068,14 @@ internal static class ExpressionTemplateFactory
     /// equal a generated contextual-fragment parameter at an expansion site. Only rewritten strings flow
     /// into <see cref="ExpressionTemplate"/>; symbols and spans remain confined to this analysis call.
     /// </summary>
+    /// <remarks>
+    /// What reaches it is narrower than what it can rename. Every position that transplants under the
+    /// author's names refuses a reserved name outright rather than renaming it
+    /// (<c>RenderExpressionAnalyzer.DeclaresReservedName</c>), and that scan covers the declarations at
+    /// such a position's own level. What is left to rename here is what the scan does not reach: a
+    /// declaration inside a nested lambda, and a lambda's own parameter, which no scan sees because the
+    /// generator does not transplant a parameter's declaration.
+    /// </remarks>
     private sealed class AuthoredContextNameHygiene
     {
         private const string GeneratedContextPrefix = "__bcf_context_";

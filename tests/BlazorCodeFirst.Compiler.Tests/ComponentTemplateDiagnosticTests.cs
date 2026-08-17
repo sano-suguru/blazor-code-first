@@ -77,6 +77,46 @@ public sealed class ComponentTemplateDiagnosticTests
     }
 
     [Theory]
+    // The builder the fragment's frames are written against. The generated lambda takes one of its own,
+    // so a body declaring that name shadows it.
+    [InlineData("the builder's name", """x => Span[x is int __builder ? "a" : "b"]""")]
+    // The other form an expression body binds a local through. Scanning patterns alone let `out var`
+    // reach the generated scope once already (#348).
+    [InlineData("the builder's name through an out designation", """x => Span[int.TryParse("1", out var __builder) ? "a" : "b"]""")]
+    // A generated name the context rename does not carry: hygiene rewrites __bcf_context_<digits> and
+    // nothing else, so the iteration variable of an enclosing ForEach collides as written.
+    [InlineData("a generator-reserved name", """x => Span[x is int __bcf_item_0 ? "a" : "b"]""")]
+    // The name hygiene does carry. Refused all the same, because one scan answers for every position that
+    // transplants under the author's names and a second, narrower one would fork it (#389).
+    [InlineData("the generated context name", """x => Span[x is int __bcf_context_1 ? "a" : "b"]""")]
+    public void ContextualTemplate_WhenItDeclaresAReservedName_ReportsBCF3022(string shape, string content)
+    {
+        // The body is transplanted into the generated fragment under the author's own names, and the
+        // getter's scan stops at this lambda, which left the collision to reach a generated file the
+        // author cannot edit (#413).
+        var result = Run($"Component<TemplateTarget>().Template(c => c.RowTemplate, {content})");
+
+        Assert.True(
+            result.Diagnostics.Any(static d => d.Id == "BCF3022"),
+            $"{shape}: expected BCF3022, got [{string.Join(", ", result.Diagnostics.Select(static d => d.Id))}].");
+    }
+
+    [Fact]
+    public void ContextualTemplate_WhenItDeclaresAReservedName_ReportsBCF3022OnTheWholeArgument()
+    {
+        // The same position the non-inline shapes are reported at: what the author rewrites is the
+        // argument, and naming the declaration alone would point at a name that is legal elsewhere.
+        const string content = """x => Span[x is int __builder ? "a" : "b"]""";
+        var body = $"Component<TemplateTarget>().Template(c => c.RowTemplate, {content})";
+        var result = Run(body);
+
+        var reported = Assert.Single(result.Diagnostics.Where(static d => d.Id == "BCF3022"));
+        Assert.Equal(
+            content,
+            SourceText.From(HostSource(body)).ToString(reported.Location.SourceSpan));
+    }
+
+    [Theory]
     [InlineData("() => Span[\"x\"]")]
     [InlineData("(int x, int y) => Span[x.ToString()]")]
     public void ContextualTemplate_WrongArity_IsLeftToCSharp(string content)

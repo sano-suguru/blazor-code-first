@@ -454,9 +454,9 @@ internal static class RenderExpressionAnalyzer
             return true;
         }
 
-        if (!TryExtractSingleParameterLambda(key, out var parameter, out var body)
-            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
-                is not { } parameterSymbol)
+        // The body is transplanted into SetKey, which is called in RenderView's own scope, so it is read
+        // through the shared reader every transplanting position reads a lambda through.
+        if (!TryBindTransplantedLambda(key, context, out var parameterSymbol, out var body))
         {
             shape = default;
             return false;
@@ -579,9 +579,10 @@ internal static class RenderExpressionAnalyzer
             || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is not IMethodSymbol method
             || !context.KnownSymbols.IsEnumerableSelect(method)
-            || !TryExtractSingleParameterLambda(selector, out var parameter, out var body)
-            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
-                is not { } parameterSymbol)
+            // The projection is transplanted into the folded loop exactly as a ForEach content lambda is,
+            // so it is read through the same shared reader. BCF1003 is where every other refused spread
+            // shape lands, so a body it refuses is refused under that number too.
+            || !TryBindTransplantedLambda(selector, context, out var parameterSymbol, out var body))
         {
             context.RecordUntranslatable(expression);
             return null;
@@ -911,14 +912,18 @@ internal static class RenderExpressionAnalyzer
                 return null;
 
             // The content has to be an inline expression lambda twice over: the body is what gets
-            // sequenced, and the parameter symbol is what the generated context variable is
-            // substituted for. A method group, an anonymous method, and a block-bodied lambda supply
-            // neither. Arity is not checked here: a lambda with no parameter or with two does not
-            // convert to Func<TContext, View>, so C# has already rejected the call.
-            if (!TryExtractSingleParameterLambda(
-                    valueExpression, out var contextParameter, out var contextBody)
-                || context.SemanticModel.GetDeclaredSymbol(
-                    contextParameter, context.CancellationToken) is not { } contextParameterSymbol)
+            // sequenced, and the parameter symbol is what the generated context variable is substituted
+            // for. A method group, an anonymous method, and a block-bodied lambda supply neither. Arity is
+            // not checked here: a lambda with no parameter or with two does not convert to
+            // Func<TContext, View>, so C# has already rejected the call.
+            //
+            // The body is transplanted into the generated fragment, so it is read through the shared
+            // reader, which refuses a reserved name. AuthoredContextNameHygiene renames one name of that
+            // set, the generated context parameter's, and the reader refuses that one along with the rest
+            // rather than carving out an exception: what the wider set alone catches was measured, an
+            // authored __bcf_item_0 colliding with the iteration variable of an enclosing ForEach (#413).
+            if (!TryBindTransplantedLambda(
+                    valueExpression, context, out var contextParameterSymbol, out var contextBody))
             {
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -2957,8 +2962,8 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// <para>
     /// A local whose name starts with the generator's own prefix, or is the builder's, is refused rather
-    /// than renamed; <see cref="DeclaresReservedName"/> is the scan, and the four positions that transplant
-    /// an author's names each ask it.
+    /// than renamed; <see cref="DeclaresReservedName"/> is the scan, and every position that transplants an
+    /// author's names asks it. <c>LambdaUnwrapPositionTests</c> holds that list.
     /// </para>
     /// </remarks>
     public static bool TryReadTransplantableBlock(
@@ -3024,10 +3029,12 @@ internal static class RenderExpressionAnalyzer
     /// Asked by every position that transplants under the author's names: the design-time expression getter
     /// in all three of its spellings (<see cref="ComponentModelFactory"/>,
     /// <see cref="TryReadTransplantableBlock"/>), a <c>ForEach</c> content lambda in both of its
-    /// (<see cref="TryBindForEachContent"/>), and each branch of an <c>If</c>
+    /// (<see cref="TryBindForEachContent"/>), the three positions that read a transplanted lambda through
+    /// <see cref="TryBindTransplantedLambda"/>, and each branch of an <c>If</c>
     /// (<see cref="ClassifyIf"/>). One scan for all of them, so a spelling cannot be admitted on terms the
     /// others refuse: every position but the multi-statement block used to skip it and emit the collision
-    /// into a generated file the author cannot edit (#389).
+    /// into a generated file the author cannot edit (#389). The list is prose here and enumerated in
+    /// <c>LambdaUnwrapPositionTests</c>, because prose alone left three positions not asking (#413).
     /// </para>
     /// <para>
     /// Both shapes a body binds a local through, read from the enumeration the registration reads
@@ -3039,9 +3046,12 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// <para>
     /// The walk stops at a lambda rather than descending through it, because a lambda's body is not this
-    /// position's to transplant: the position that accepts it either renames what it declares (a
-    /// contextual fragment, through <c>AuthoredContextNameHygiene</c>) or asks this scan itself. Descending
-    /// would refuse a name one of those positions renames today. Written the same way as
+    /// position's to transplant: the position that accepts it asks this scan itself. Descending would
+    /// refuse what a lambda no position unwraps keeps — an event handler survives into the generated code
+    /// as a lambda and keeps its own scope, so a <c>__builder</c> declared inside it compiles and renders
+    /// (measured, #413) — and it would refuse the declarations
+    /// <c>ExpressionTemplateFactory.AuthoredContextNameHygiene</c> renames, which are the ones a nested
+    /// lambda holds and the lambda parameters no scan sees. Written the same way as
     /// <see cref="CollectDeclaredLocals(SyntaxNode, ImmutableArray{ISymbol}.Builder, ViewPartBodyContext)"/>,
     /// which partitions the declarations of a transplanted body by the same boundary and for the same
     /// reason; the two walks answer about one set and are kept in the same shape so a change to that
@@ -3116,6 +3126,46 @@ internal static class RenderExpressionAnalyzer
 
         body = null!;
         return false;
+    }
+
+    /// <summary>
+    /// The parameter symbol and expression body of a one-parameter lambda whose body this position
+    /// transplants under the author's own names, or <see langword="false"/> where there is no such body to
+    /// take.
+    /// </summary>
+    /// <remarks>
+    /// One reader for the three positions that unwrap a lambda and transplant what is inside it: a
+    /// <c>ForEach</c> key (<see cref="TryBindForEachKey"/>), a spliced projection
+    /// (<see cref="AnalyzeSplice"/>), and a contextual template's content
+    /// (<see cref="ClassifyComponentParameter"/>). Each reports a different diagnostic on
+    /// <see langword="false"/> — BCF3004, BCF1003, BCF3022 — which is why this returns a bool and names
+    /// none of them, exactly as <see cref="TryReadTransplantableBlock"/> serves three positions and three
+    /// diagnostics for the block shape. One reader is what keeps the three from drifting: the rule that a
+    /// position accepting a lambda has to ask <see cref="DeclaresReservedName"/> itself lived only in
+    /// prose, and prose left all three of them not asking (#413). <c>LambdaUnwrapPositionTests</c>
+    /// enumerates the positions that read a lambda through this or through the extraction helpers above it.
+    /// </remarks>
+    private static bool TryBindTransplantedLambda(
+        ExpressionSyntax expression,
+        ViewPartBodyContext context,
+        [MaybeNullWhen(false)] out ISymbol parameterSymbol,
+        [MaybeNullWhen(false)] out ExpressionSyntax body)
+    {
+        parameterSymbol = null!;
+        body = null!;
+
+        // Cheapest first: a type-pattern match, then the syntax walk, then the semantic query.
+        if (!TryExtractSingleParameterLambda(expression, out var parameter, out var lambdaBody)
+            || DeclaresReservedName(lambdaBody)
+            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                is not { } declared)
+        {
+            return false;
+        }
+
+        parameterSymbol = declared;
+        body = lambdaBody;
+        return true;
     }
 
     private static bool KeyReferencesItemOrdinal(ExpressionTemplate key, int itemOrdinal)

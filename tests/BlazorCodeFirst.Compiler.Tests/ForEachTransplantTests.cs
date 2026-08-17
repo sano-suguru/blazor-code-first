@@ -25,8 +25,24 @@ public sealed class ForEachTransplantTests
 
     private const string ExpressionContent = "x => Html.Span[x.ToUpperInvariant()]";
 
+    /// <summary>A component whose <c>ForEach</c> key is <c>$KEY$</c>.</summary>
+    private const string KeyHost = """
+        using BlazorCodeFirst;
+        using System.Collections.Generic;
+
+        public partial class C : BodyComponentBase
+        {
+            private readonly List<string> _items = new() { "a", "b" };
+
+            protected override View Body => Html.ForEach(_items, $KEY$, x => Html.Span[x]);
+        }
+        """;
+
     private static GeneratorRunResult Run(string content) =>
         CompilationTestHost.RunGenerator(Host.Replace("$CONTENT$", content));
+
+    private static GeneratorRunResult RunKey(string key) =>
+        CompilationTestHost.RunGenerator(KeyHost.Replace("$KEY$", key));
 
     [Fact]
     public void ForEachContent_WhenBlockBodiedWithOneTrailingReturn_TransplantsTheStatements()
@@ -128,6 +144,27 @@ public sealed class ForEachTransplantTests
         string shape, string content)
     {
         var result = Run(content);
+
+        Assert.True(
+            result.Diagnostics.Any(d => d.Id == "BCF3004"),
+            $"{shape}: expected BCF3004, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
+    }
+
+    [Theory]
+    // The builder the key call is written against: `__builder.SetKey(…)` sits in RenderView's own scope,
+    // so a key body declaring that name shadows the builder it is passed to.
+    [InlineData("the builder's name", """x => x is string __builder ? __builder : "k" """)]
+    // The other form an expression body binds a local through. Scanning patterns alone let `out var`
+    // reach the generated scope once already (#348).
+    [InlineData("the builder's name through an out designation", """x => int.TryParse(x, out var __builder) ? "a" : "b" """)]
+    // The generated iteration variable, which the key body is transplanted beside.
+    [InlineData("a generator-reserved name", """x => x is string __bcf_item_0 ? __bcf_item_0 : "k" """)]
+    public void ForEachKey_WhenItDeclaresAReservedName_ReportsBCF3004(string shape, string key)
+    {
+        // The key's body is transplanted into SetKey under the author's own names, so it holds the
+        // reserved set every such position holds. The getter's scan stops at this lambda, which left the
+        // collision to reach a generated file the author cannot edit (#413).
+        var result = RunKey(key);
 
         Assert.True(
             result.Diagnostics.Any(d => d.Id == "BCF3004"),

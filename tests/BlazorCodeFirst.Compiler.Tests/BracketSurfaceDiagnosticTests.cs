@@ -289,6 +289,25 @@ public sealed class BracketSurfaceDiagnosticTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    [Theory]
+    // The builder every frame in the folded loop is written against.
+    [InlineData("the builder's name", """Ul[[.. _items.Select(i => Li[i is string __builder ? __builder : "k"])]]""")]
+    // The generated iteration variable the projection is transplanted beside.
+    [InlineData("a generator-reserved name", """Ul[[.. _items.Select(i => Li[i is string __bcf_item_0 ? __bcf_item_0 : "k"])]]""")]
+    public void SpreadOfAProjection_WhenItDeclaresAReservedName_ReportsBCF1003(string shape, string body)
+    {
+        // The projection's body is transplanted into the folded loop under the author's own names, so it
+        // holds the reserved set every such position holds. The getter's scan stops at this lambda, which
+        // left the collision to reach a generated file the author cannot edit (#413). BCF1003 is where
+        // every other refused spread shape lands, so the splice refuses this one under its own number.
+        var result = RunResult(body, """private readonly List<string> _items = [];""");
+
+        Assert.True(
+            result.Diagnostics.Any(static d => d.Id == "BCF1003"),
+            $"{shape}: expected BCF1003, got [{string.Join(", ", result.Diagnostics.Select(static d => d.Id))}].");
+        AssertOnlyRenderViewIsMissing(result);
+    }
+
     [Fact]
     public void SpreadOfAnIndexedProjection_ReportsBCF1003()
     {
