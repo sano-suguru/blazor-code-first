@@ -133,9 +133,11 @@
        It carries one meaning -- this can produce a security defect in a reader's own page -- and
        ':::warning' is the only construct that reaches it (site/README.md §Warnings).
 
-       A second hue is what buys the rank. The design is monochrome at hue 277, so a violet block
-       reads as another aside: --color-accent-soft already grounds one, and the stale notice is
-       exactly that shape. Red at hue 28 is the one colour a reader does not have to be taught.
+       The hue is what buys the rank, and it has to be the hue rather than the drawing. The block is
+       shaped exactly like a code figure, so a reader who cannot separate red from violet still reads
+       it as a block rather than as a louder aside. The design is monochrome at 277, so violet would
+       have made it the stale notice in another weight. Red at 28 is the one colour a reader does not
+       have to be taught.
 
        Three tokens rather than two, because the chip under an inline `code` span cannot stay on
        --color-paper-3. That grey is tinted toward 277 and goes muddy on a warm ground. The chip

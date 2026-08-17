@@ -1002,16 +1002,19 @@ kbd {
    reader skimming headings and code passes over it. That reader is the one the warning is for --
    the one copying a `Raw` call into their own page.
 
-   It is the notice archetype .stale-note already sets (left rule, tinted ground, no radius) in the
-   warning hue. The rule is 2px there and 3px here: the two blocks differ by hue at a glance, and by
-   weight to a reader who cannot separate the hues.
+   Drawn as `.prose pre` is -- hairline all round, --radius-sm, tinted ground -- because that is
+   already this page's shape for "a block, not a paragraph". Only the hue differs, and the hue is
+   what the block is for. A thick coloured left stripe was the first draft and is the wrong shape
+   twice over: it is a named tell, and it would have made this block a heavier .stale-note rather
+   than a different kind of thing.
 
    The first and last margins collapse so the block's own padding sets its inset, whatever the author
    opened it with. */
 .prose .warning {
     margin: var(--space-lg) 0;
     padding: var(--space-md);
-    border-left: 3px solid var(--color-warn);
+    border: var(--rule-hairline) solid var(--color-warn);
+    border-radius: var(--radius-sm);
     background: var(--color-warn-soft);
     color: var(--color-ink);
 }

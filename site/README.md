@@ -181,9 +181,10 @@ A document opens a warning with a custom container, and closes it with the same 
 :::
 ````
 
-It renders as `<div class="warning">`, which `.prose .warning` in `css/app.css` paints as a tinted
-block with a left rule in the warning hue. `StylesheetTests` holds the class name against the one
-DocGen accepts, so renaming either half fails the build rather than shipping an unpainted div.
+It renders as `<div class="warning">`, which `.prose .warning` in `css/app.css` draws the way it
+draws a code figure — hairline, small radius, tinted ground — in the warning hue. `StylesheetTests`
+holds the class name against the one DocGen accepts, so renaming either half fails the build rather
+than shipping an unpainted div.
 
 `warning` is the only info string a document may open, and `MarkdownBodyRules.EnsureOnlyWarningContainers`
 rejects every other one. The extension itself takes any word, so `:::note` would parse and render a
