@@ -709,6 +709,13 @@ The getter-only form derives its setter by placing the getter's body on the left
 so that body has to be a field, a settable property, or an element access whose indexer has a
 setter.
 
+A setter existing is not the same as the derived assignment being able to call it. The derived
+setter is a lambda, so an `init` accessor is out of reach: C# admits one only in an object
+initializer, a constructor, or another `init` accessor. A setter declared narrower than the property
+that carries it is out of reach too, this time depending on where the assignment lands.
+`{ get; private set; }` on the component itself is accepted, because the generated `RenderView` is
+emitted into a partial of that same class; the same property on another type is not.
+
 A local, a parameter, and a `ForEach` iteration variable are rejected even though C# would assign to
 them: the design-time expression is a property getter, so those go out of scope with each render and
 the write-back would not survive to the next one. A member of an iteration variable is accepted,

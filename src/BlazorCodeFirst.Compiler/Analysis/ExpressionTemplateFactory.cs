@@ -676,9 +676,9 @@ internal static class ExpressionTemplateFactory
     /// <summary>
     /// Records what the expansion site has to be able to reach for <paramref name="symbol"/> to be
     /// nameable there, so a body naming a non-public member is refused with BCF1002 rather than emitted
-    /// into a type that cannot see it. Internal because <see cref="RenderExpressionAnalyzer"/> writes a
-    /// <c>ForEach</c> method group back as the call it stands for, and so names a member without going
-    /// through the walk above (#390).
+    /// into a type that cannot see it. Internal for the one caller outside this file:
+    /// <see cref="BindTargetResolver"/> registers the setter a getter-only <c>.Bind</c> derives, which the
+    /// walk above cannot reach it through because the author's syntax does not contain it (#391).
     /// </summary>
     internal static void RecordAccessRequirement(ISymbol symbol, ViewPartBodyContext context)
     {

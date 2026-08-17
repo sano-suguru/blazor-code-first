@@ -223,4 +223,17 @@ public sealed class ComponentBindGeneratorTests
                 Html.Component<Probe>().Bind(c => c.Value, () => _name.Trim());
             """, "BCF3018");
     }
+
+    [Fact]
+    public void Bind_InitOnlyGetter_ReportsBcf3018()
+    {
+        // Both surfaces reach BindTargetResolver, so the shapes whose setter exists but cannot be called
+        // are rejected here too. Asserted on one of the two, since a second copy of every case would only
+        // restate that the resolver is shared (#391).
+        AssertDiagnosticWith(Probe, """
+            public string Name { get; init; } = "";
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => c.Value, () => Name);
+            """, "BCF3018");
+    }
 }
