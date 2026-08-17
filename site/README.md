@@ -191,7 +191,9 @@ rejects every other one. The extension itself takes any word, so `:::note` would
 around it. Rejecting it keeps the block a reader learns to stop at meaning one thing.
 
 That one thing is narrow: content that can produce a security defect in a reader's own page. Today
-`Raw` is the whole set, in `control-flow.md` and in the `faq.md` entry that answers for it. A warning
+`Raw` is the whole set, and it carries one block, in `control-flow.md` where the construct is
+introduced. The `faq.md` entry that answers for it links there rather than repeating the block: a
+warning that appears twice is a house style, and a reader stops reading a house style. A warning
 is not for a caveat, a gotcha, or a paragraph an author wants noticed — those are prose, and a page
 whose emphasis is spread across four blocks has none. Widening the set is a design change, not an
 authoring choice: a second kind needs its own class painted in both palettes, and needs an answer to

@@ -122,15 +122,19 @@ be a `ForEach` content root ([BCF3003](./diagnostics.md#bcf3003)).
 
 ## Raw
 
-`Raw` injects a trusted HTML string verbatim, the `MarkupString` equivalent. This page itself is
-rendered that way: its Markdown is converted to HTML at build time and passed to `Raw`.
+`Raw` injects an HTML string verbatim, the `MarkupString` equivalent.
+
+:::warning
+`Raw` writes to the DOM without escaping. Pass it only content you produced yourself. A string that
+came from a user, or back from another service, reaches the page as script.
+:::
+
+This page is rendered through it. Its Markdown is converted to HTML at build time, by a tool in this
+repository, and the result is passed to `Raw`.
 
 ```csharp
 Article.Class("prose")[Raw(entry.Html)]
 ```
-
-`Raw` writes to the DOM without escaping, so it accepts trusted content only. Never flow user input
-or an external response through it.
 
 ## Next
 
