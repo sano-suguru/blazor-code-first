@@ -1,6 +1,6 @@
 ---
 title: 要素リファレンス
-description: この記法が宣言する要素ヘルパー、装飾、制御構文の一覧。空要素には印を付けている。
+description: この API が宣言する要素ヘルパー、装飾、制御構文の一覧。空要素には印を付けている。
 order: 90
 group: reference
 source-hash: b6cf57b5
@@ -15,8 +15,8 @@ source-hash: b6cf57b5
 `Figcaption` です。アスタリスクは空要素の印で、子を取りません
 （[BCF3016](./diagnostics.md#bcf3016)）。
 
-100個あります。HTML Living Standard が準拠要素として挙げ、かつレンダーツリーが意味を与えられる
-ものすべてです。
+100個あります。HTML Living Standard が準拠要素として挙げ、かつレンダーツリーで意味を持つ要素の
+すべてです。
 
 ### セクション
 
@@ -60,7 +60,7 @@ source-hash: b6cf57b5
 
 `Element("my-widget")` は、ヘルパーの無い要素を書くための構文です。カスタム要素と Web Components、
 そして意図して外した標準要素がこれに該当します。文書と `<head>` の要素、生テキスト要素、`template`
-と `slot`、`object`、SVG と MathML の要素です。タグはタグ名として綴られたコンパイル時定数で
+と `slot`、`object`、SVG と MathML の要素です。タグはタグ名の形をしたコンパイル時定数で
 なければなりません（[BCF3009](./diagnostics.md#bcf3009)）。何が該当し、なぜ該当するのかは
 [要素と装飾](./elements-and-decorations.md#要素)にあります。
 
@@ -81,7 +81,7 @@ source-hash: b6cf57b5
 | `.OnClick(handler)` | `onclick` |
 | `.PreventDefault()` | 直前のイベントの `preventDefault` |
 | `.StopPropagation()` | 直前のイベントの `stopPropagation` |
-| `.Bind(…)` | 双方向バインド（[双方向バインド](./two-way-binding.md)） |
+| `.Bind(…)` | 双方向バインド（[双方向バインディング](./two-way-binding.md)） |
 | `.Key(value)` | 差分用のキー。マークアップには残らない（[制御構文](./control-flow.md#foreach-とそのキー)） |
 | `.Ref(capture)` | 要素参照。マークアップには残らない |
 
@@ -106,9 +106,9 @@ source-hash: b6cf57b5
 | --- | --- |
 | `.Param(selector, value)` | `[Parameter]` を1つ |
 | `.Template(selector, template)` | `RenderFragment<T>` のパラメーター |
-| `.Bind(selector, …)` | パラメーターの双方向バインド（[双方向バインド](./two-way-binding.md#コンポーネントのパラメーターをバインドする)） |
+| `.Bind(selector, …)` | パラメーターの双方向バインド（[双方向バインディング](./two-way-binding.md#コンポーネントのパラメーターをバインドする)） |
 | `.Key(value)` | 差分用のキー |
-| `.RenderMode(mode)` | 呼び出しサイトのレンダーモード（[導入とホスティング](./installation-and-hosting.md#レンダーモードを指定する)） |
+| `.RenderMode(mode)` | 呼び出し側のレンダーモード（[導入とホスティング](./installation-and-hosting.md#レンダーモードを指定する)） |
 | `.Ref(capture)` | コンポーネント参照 |
 
 角括弧に書いた子の内容は `ChildContent` を設定し、そのパラメーターのバインドとして数えます
