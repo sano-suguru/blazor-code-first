@@ -114,11 +114,9 @@ public class DocGenRunnerTests
     /// A run whose output is byte-identical must leave both artifacts' timestamps alone.
     /// </summary>
     /// <remarks>
-    /// The site build runs this tool before it compiles, and MSBuild decides what to rebuild from
-    /// write times. Rewriting an unchanged artifact would move its timestamp on every build, which
-    /// would recompile the site app and re-run every target downstream of it for no change at all.
-    /// The timestamp is set into the past rather than compared against a second reading, so the
-    /// assertion does not depend on the filesystem's timestamp resolution.
+    /// GeneratedFile's own remarks say what the site build reads that timestamp for. The assertion
+    /// sets it into the past rather than comparing two readings, so it does not depend on the
+    /// filesystem's timestamp resolution.
     /// </remarks>
     [Fact]
     public void Run_ArtifactsUnchanged_DoesNotRewriteThem()

@@ -229,9 +229,9 @@ jobs:
       #
       # The site app's build regenerates all three itself, which is why this step is written as a
       # diff rather than as the place regeneration happens: what it holds is that the committed
-      # copies match, for the three kinds of change the build's own input list does not watch --
-      # a deleted document, a manifest entry outside those inputs, and a Markdig or ColorCode
-      # version bump. site/README.md, "Docs content pipeline", says why they stay committed.
+      # copies match, for the changes that build's own input list does not watch. The
+      # GenerateSiteContent target in BlazorCodeFirst.Site.csproj names them, and site/README.md,
+      # "Docs content pipeline", says why the three artifacts stay committed at all.
       - name: Regenerate docs and snippets, and verify freshness
         run: |
           dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \

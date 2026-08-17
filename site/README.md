@@ -101,9 +101,8 @@ the build after that to ship. A committed file is present when the glob runs, an
 changes its contents.
 
 CI regenerates and fails on drift (`git diff --exit-code`). That check stays because the build's
-input list is a subset of what the output depends on: a deleted document, a `site/snippets/manifest`
-entry naming a file outside those inputs, and a Markdig or ColorCode version bump each leave a stale
-artifact that builds cleanly.
+input list is a subset of what the output depends on; `GenerateSiteContent`'s comment names the three
+changes it does not watch.
 
 ## Snippets
 

@@ -130,10 +130,9 @@
        is in the build that follows it. Regeneration used to be a command to remember, and forgetting
        it produced a build that carried the previous text with nothing on screen to say so.
 
-       The generated files stay committed, and this target rewrites them in place. That is not
-       redundancy: highlight.css is a static web asset, and the SDK globs wwwroot at evaluation time,
-       so a file this target created during the build would be missing from the asset manifest of that
-       same build. A committed file is present when the glob runs, and this only changes its contents.
+       The generated files stay committed and this target rewrites them in place, rather than being
+       written under obj/ and left out of the tree; site/README.md, "Docs content pipeline", says what
+       makes that the only working arrangement.
 
        Inputs cover the documents, the shell files, the snippet sources, this project's pages (which
        site/snippets/manifest reads /counter's figure out of), and the tool's own source. Three kinds
