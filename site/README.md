@@ -67,8 +67,8 @@ vary by route.
 
 ## Docs content pipeline
 
-Markdown under `site/content/*.md` is converted to HTML at authoring time by the
-`DocGen` tool and committed as generated artifacts:
+Markdown under `site/content/*.md` is converted to HTML by the `DocGen` tool, which the site app's
+build runs before it compiles, and the result is committed as generated artifacts:
 
 - `site/BlazorCodeFirst.Site/Content/Docs.g.cs`: a `DocEntry` record per doc plus a `Docs` manifest.
   `Docs.All` is an `ImmutableArray<DocEntry>` ordered by front matter `order` with ties broken by
@@ -79,7 +79,10 @@ Markdown under `site/content/*.md` is converted to HTML at authoring time by the
   choice of scheme and not only the operating system. That file is the one place a colour is
   written outside `tokens.css`, and it says why.
 
-After editing any `.md` or any snippet source, regenerate and commit the artifacts:
+`GenerateSiteContent` in `BlazorCodeFirst.Site.csproj` is what runs the tool, so an edit under
+`site/content` or `site/snippets` reaches the next build of the app rather than the next commit
+someone remembers to regenerate for. Commit the regenerated artifacts with the edit; `git status`
+after a build lists them. To regenerate without building the app:
 
 ```bash
 dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \
@@ -90,8 +93,16 @@ dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.
   site/BlazorCodeFirst.Site/Content/Snippets.g.cs
 ```
 
-CI regenerates and fails on drift (`git diff --exit-code`). The app build does not
-run the tool; `Docs.g.cs` is compiled as ordinary committed source.
+The artifacts are committed rather than written under `obj/`, because `highlight.css` is a static web
+asset and the SDK globs `wwwroot` while it evaluates the project. A file the build creates is
+therefore absent from that build's asset manifest: deleting `highlight.css` and building leaves it
+regenerated on disk and unmentioned in `obj/Release/net10.0/staticwebassets.build.json`, and it takes
+the build after that to ship. A committed file is present when the glob runs, and the build only
+changes its contents.
+
+CI regenerates and fails on drift (`git diff --exit-code`). That check stays because the build's
+input list is a subset of what the output depends on; `GenerateSiteContent`'s comment names the three
+changes it does not watch.
 
 ## Snippets
 

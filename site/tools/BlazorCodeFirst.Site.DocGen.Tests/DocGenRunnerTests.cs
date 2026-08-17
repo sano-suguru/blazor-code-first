@@ -110,6 +110,50 @@ public class DocGenRunnerTests
         });
     }
 
+    /// <summary>
+    /// A run whose output is byte-identical must leave both artifacts' timestamps alone.
+    /// </summary>
+    /// <remarks>
+    /// GeneratedFile's own remarks say what the site build reads that timestamp for. The assertion
+    /// sets it into the past rather than comparing two readings, so it does not depend on the
+    /// filesystem's timestamp resolution.
+    /// </remarks>
+    [Fact]
+    public void Run_ArtifactsUnchanged_DoesNotRewriteThem()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            var before = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(docsOut, before);
+            File.SetLastWriteTimeUtc(cssOut, before);
+
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            Assert.Equal(before, File.GetLastWriteTimeUtc(docsOut));
+            Assert.Equal(before, File.GetLastWriteTimeUtc(cssOut));
+        });
+    }
+
+    /// <summary>The other half of the pair above: skipping an identical write must not turn into
+    /// skipping a write. A stale artifact left on disk is what the build would then compile.</summary>
+    [Fact]
+    public void Run_ContentChanged_RewritesTheArtifact()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
+            DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
+
+            Assert.Contains("\"control-flow\"", File.ReadAllText(docsOut), StringComparison.Ordinal);
+        });
+    }
+
     [Fact]
     public void Run_FrontMatterNeverLeaksIntoHtml()
     {

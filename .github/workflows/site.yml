@@ -206,11 +206,11 @@ jobs:
 
   # Everything that can fail on the source TREE, and nothing that reads the publish output. Its
   # sibling `site-publish` is the other half; the two run at once because neither reads what the
-  # other writes -- the publish compiles the committed Docs.g.cs and Snippets.g.cs, which is the
-  # state the freshness gate here re-derives and diffs. Between them they are what the #250 split
-  # means by "the source and the publish output, and nothing that talks to Cloudflare": a Cloudflare
-  # outage or an expired token cannot block a merge, because `site-verified` reports on these and
-  # not on the deploy.
+  # other writes -- the publish regenerates Docs.g.cs and Snippets.g.cs in its own checkout, from
+  # the same site/content the freshness gate here re-derives them from. Between them they are what
+  # the #250 split means by "the source and the publish output, and nothing that talks to
+  # Cloudflare": a Cloudflare outage or an expired token cannot block a merge, because
+  # `site-verified` reports on these and not on the deploy.
   site-source:
     needs: plan
     if: needs.plan.outputs.site == 'true'
@@ -226,6 +226,12 @@ jobs:
       # Snippets.g.cs is gated the same way as the two document artifacts, and for one more reason.
       # A snippet may read a file that is also compiled -- /counter's figure is Pages/CounterPage.cs
       # -- so this diff is what stops a figure from falling behind the source it claims to show.
+      #
+      # The site app's build regenerates all three itself, which is why this step is written as a
+      # diff rather than as the place regeneration happens: what it holds is that the committed
+      # copies match, for the changes that build's own input list does not watch. The
+      # GenerateSiteContent target in BlazorCodeFirst.Site.csproj names them, and site/README.md,
+      # "Docs content pipeline", says why the three artifacts stay committed at all.
       - name: Regenerate docs and snippets, and verify freshness
         run: |
           dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \

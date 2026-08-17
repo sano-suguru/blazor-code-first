@@ -90,12 +90,81 @@
     <InternalsVisibleTo Include="BlazorCodeFirst.Site.Tests" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <DocGenCliProject>$(MSBuildProjectDirectory)\..\tools\BlazorCodeFirst.Site.DocGen.Cli\BlazorCodeFirst.Site.DocGen.Cli.csproj</DocGenCliProject>
+    <!-- The muxer that is running this build, so the tool runs on the same .NET as everything else.
+         MSBuild sets it whenever the build came through the dotnet CLI, which is every command in
+         CONTRIBUTING.md; the fallback is for a build driven by MSBuild.exe or an IDE that does not. -->
+    <DotNetHost Condition=" '$(DOTNET_HOST_PATH)' != '' ">$(DOTNET_HOST_PATH)</DotNetHost>
+    <DotNetHost Condition=" '$(DotNetHost)' == '' ">dotnet</DotNetHost>
+    <!-- Under obj/ rather than obj/<Configuration>/<TFM>/, and deliberately shared by both: the
+         conversion reads site/content and writes committed source, so its result does not depend on
+         the configuration being built. $(IntermediateOutputPath) is not usable here anyway, because
+         the SDK computes it in the targets imported after this file. -->
+    <SiteContentStamp>$(BaseIntermediateOutputPath)docgen.stamp</SiteContentStamp>
+    <!-- A WebAssembly app counts as self-contained, and the SDK refuses a reference from one to a
+         non-self-contained executable (NETSDK1150) because the referenced program would not run
+         against the referencing app's runtime. The DocGen CLI is referenced for restore and build
+         order and is never shipped or loaded here, so there is no runtime for it to disagree with.
+         This property turns off that one check, which the SDK documents for exactly this case. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Runtime\BlazorCodeFirst.Runtime.csproj" />
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false" />
+    <!-- Restore and build order, and nothing else. GenerateSiteContent below runs this tool before
+         the compile, so it has to be built by then, and a standalone `dotnet publish` of this project
+         restores only what its ProjectReferences reach — which is how the publish job gets the tool
+         without a separate restore step. ExcludeAssets keeps the tool's own dependencies (Markdig,
+         ColorCode) out of this app: they convert Markdown at authoring time, and a WebAssembly
+         payload is the last place they belong. -->
+    <ProjectReference Include="$(DocGenCliProject)"
+                      ReferenceOutputAssembly="false"
+                      ExcludeAssets="all" />
   </ItemGroup>
+
+  <!-- Convert site/content and site/snippets before this project compiles, so an edit to a document
+       is in the build that follows it. Regeneration used to be a command to remember, and forgetting
+       it produced a build that carried the previous text with nothing on screen to say so.
+
+       The generated files stay committed and this target rewrites them in place, rather than being
+       written under obj/ and left out of the tree; site/README.md, "Docs content pipeline", says what
+       makes that the only working arrangement.
+
+       Inputs cover the documents, the shell files, the snippet sources, this project's pages (which
+       site/snippets/manifest reads /counter's figure out of), and the tool's own source. Three kinds
+       of change are outside them: a deleted document, a manifest entry naming a file none of these
+       globs match, and a Markdig or ColorCode version bump that changes the converted HTML. Each
+       leaves a stale artifact that builds cleanly, and site.yml's regenerate-and-diff step is what
+       refuses it — which is the reason that step stays even though the build now regenerates. -->
+  <ItemGroup>
+    <SiteContentInput Include="$(MSBuildProjectDirectory)\..\content\**\*.md;$(MSBuildProjectDirectory)\..\content\**\*.yml" />
+    <SiteContentInput Include="$(MSBuildProjectDirectory)\..\snippets\**\*" />
+    <SiteContentInput Include="$(MSBuildProjectDirectory)\..\tools\BlazorCodeFirst.Site.DocGen\*.cs" />
+    <SiteContentInput Include="$(MSBuildProjectDirectory)\Pages\*.cs" />
+  </ItemGroup>
+
+  <Target Name="GenerateSiteContent" BeforeTargets="BeforeCompile"
+          Inputs="@(SiteContentInput)" Outputs="$(SiteContentStamp)">
+    <!-- GetTargetPath asks the tool project where its assembly is without building it a second time;
+         the ProjectReference above is what has already built it. -->
+    <MSBuild Projects="$(DocGenCliProject)" Targets="GetTargetPath">
+      <Output TaskParameter="TargetOutputs" PropertyName="DocGenCliAssembly" />
+    </MSBuild>
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)"
+          Command="&quot;$(DotNetHost)&quot; exec &quot;$(DocGenCliAssembly)&quot; ../content Content/Docs.g.cs wwwroot/css/highlight.css ../snippets Content/Snippets.g.cs" />
+    <!-- The three artifacts cannot double as this target's Outputs. The tool leaves an unchanged one
+         untouched on purpose (GeneratedFile says why), so an edit that converts to the same HTML would
+         leave the artifacts older than the document forever and re-run the tool on every build after
+         it. The stamp records that the conversion ran; the artifacts record what it produced. -->
+    <Touch Files="$(SiteContentStamp)" AlwaysCreate="true" />
+    <ItemGroup>
+      <FileWrites Include="$(SiteContentStamp)" />
+    </ItemGroup>
+  </Target>
 
   <!-- Derive the prerendered route list from the same source of truth as the docs manifest
        (site/content/*.md), so adding a document cannot silently skip prerendering.

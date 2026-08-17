@@ -443,8 +443,10 @@ dotnet format site/Site.slnx                                    # auto-fix
 ```
 
 A change under `site/content`, under `site/snippets`, or to a file a snippet
-reads needs DocGen re-run before the publish, or the publish still carries the
-old manifest and the change has no effect:
+reads is converted by the site app's own build, which runs DocGen before it
+compiles. Commit the regenerated artifacts with the change: `site.yml`
+regenerates them and refuses a branch whose committed copies differ. To
+regenerate without building the app:
 
 ```bash
 dotnet run --project site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj -- \
