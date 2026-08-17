@@ -52,7 +52,7 @@ internal static class DocsView
                         .Param(m => m.Description, entry.Description)
                         .Param(m => m.Path, DocsNav.PathOf(entry.Lang, entry.Slug))
                         .Param(m => m.Lang, entry.Lang)
-                        .Param(m => m.Alternates, Editions(entry.Lang, entry.Slug)),
+                        .Param(m => m.Alternates, DocsNav.Editions(entry.Lang, entry.Slug)),
                     StaleNotice(entry),
                     H1[entry.Title],
                     // Above the document, because it is how a reader reaches a section rather than
@@ -74,19 +74,24 @@ internal static class DocsView
     /// nothing.
     /// </remarks>
     [ViewPart]
-    public static View Index(string lang) =>
-        Div.Class("shell")[
+    public static View Index(string lang)
+    {
+        // Read once. Docs.Shell is a generated switch that allocates a fresh ShellText and its group
+        // array on every call, measured at 240 bytes, and this part asks it for five strings.
+        var shell = Docs.Shell(lang);
+
+        return Div.Class("shell")[
             Div.Class("docs-shell")[
                 Section.Class("prose docs-content").Attr("lang", lang)[
-                    Component<PageTitle>()[Docs.Shell(lang).IndexTitle],
+                    Component<PageTitle>()[shell.IndexTitle],
                     Component<SiteMeta>()
-                        .Param(m => m.Title, Docs.Shell(lang).IndexTitle)
-                        .Param(m => m.Description, Docs.Shell(lang).IndexDescription)
+                        .Param(m => m.Title, shell.IndexTitle)
+                        .Param(m => m.Description, shell.IndexDescription)
                         .Param(m => m.Path, DocsNav.PathOf(lang, null))
                         .Param(m => m.Lang, lang)
-                        .Param(m => m.Alternates, Editions(lang, null)),
-                    H1[Docs.Shell(lang).IndexTitle],
-                    P[Docs.Shell(lang).IndexLead],
+                        .Param(m => m.Alternates, DocsNav.Editions(lang, null)),
+                    H1[shell.IndexTitle],
+                    P[shell.IndexLead],
                     ForEach(
                         Docs.GroupsFor(lang),
                         key: g => g,
@@ -103,6 +108,7 @@ internal static class DocsView
                 Component<DocsNav>()
                     .Param(n => n.Lang, lang)
                     .Param(n => n.Slug, null)]];
+    }
 
     /// <summary>
     /// The note a translation carries when the document it follows has moved on without it.
@@ -125,17 +131,4 @@ internal static class DocsView
                 Span[Docs.Shell(entry.Lang).StaleNotice ?? ""],
                 A.Href(Docs.Href(Docs.Canonical, entry.Slug))[
                     Docs.Shell(entry.Lang).StaleLink ?? ""]]);
-
-    /// <summary>The editions of one route, over the manifest this build produced.</summary>
-    /// <remarks>
-    /// The manifest is passed rather than read inside <see cref="DocsNav.Editions"/> for the reason
-    /// that method's own remark gives: a test has to be able to ask about documents site/content
-    /// cannot hold (#279).
-    /// </remarks>
-    /// <para>
-    /// Internal, not private: a [ViewPart] expands into its caller's generated RenderView, so
-    /// everything the part names has to be reachable from there. A private member fails with BCF1002.
-    /// </para>
-    internal static IReadOnlyList<DocAlternate> Editions(string lang, string? slug) =>
-        DocsNav.Editions(Docs.All, lang, slug);
 }

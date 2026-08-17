@@ -37,15 +37,25 @@ public sealed partial class Home : BodyComponentBase
     // InstallCommandTests now reads it out of README.md rather than trusting this literal.
     private const string InstallCommand = "dotnet add package BlazorCodeFirst --prerelease";
 
+    /// <summary>The sentence this page leads with, and the lede under it.</summary>
+    /// <remarks>
+    /// Literals here rather than strings in the content tree, unlike every sentence a document carries.
+    /// The home page is not a document: it has no front matter to declare them in, and no translation
+    /// to keep them in step with. ShellStrings makes the argument that puts reader-facing text in the
+    /// content tree, and it is about strings that exist once per language.
+    /// </remarks>
+    private const string Headline = "Write Blazor UI as plain C#";
+
+    /// <inheritdoc cref="Headline"/>
+    private const string Lede =
+        "An ordinary Blazor component, written in the language the rest of the app is written in.";
+
     /// <summary>What a search result shows under this page's title.</summary>
     /// <remarks>
-    /// A literal here rather than a string in the content tree, unlike every sentence a document
-    /// carries. The home page is not a document: it has no front matter to declare this in, and no
-    /// translation to keep it in step with.
+    /// Composed from the two above rather than written a third time. A paraphrase of the page is what
+    /// this was, and it had already lost a word.
     /// </remarks>
-    private const string Summary =
-        "Write Blazor UI as plain C#. An ordinary Blazor component, in the language the rest of the " +
-        "app is written in.";
+    private const string Summary = Headline + ". " + Lede;
 
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
@@ -54,10 +64,10 @@ public sealed partial class Home : BodyComponentBase
 
     protected override View Body =>
         Fragment(
-            Component<PageTitle>()["BlazorCodeFirst"],
-            // No Alternates: this page has one edition, and an hreflang set has to be reciprocal.
+            Component<PageTitle>()[SiteMetadata.Name],
+            // No Alternates: this page has one edition. SiteMeta.Tags says why that means none.
             Component<SiteMeta>()
-                .Param(m => m.Title, "BlazorCodeFirst")
+                .Param(m => m.Title, SiteMetadata.Name)
                 .Param(m => m.Description, Summary)
                 .Param(m => m.Path, "/")
                 .Param(m => m.Lang, Docs.Canonical),
@@ -68,10 +78,8 @@ public sealed partial class Home : BodyComponentBase
                 // asks for 24px and 40px.
                 Section.Class("hero")[
                     Div[
-                        H1.Class("hero-title")["Write Blazor UI as plain C#"],
-                        P.Class("hero-lede")[
-                            "An ordinary Blazor component, written in the language the rest of the app "
-                                + "is written in."],
+                        H1.Class("hero-title")[Headline],
+                        P.Class("hero-lede")[Lede],
                         Div.Class("hero-actions")[
                             Div.Class("install")[
                                 Code[InstallCommand],

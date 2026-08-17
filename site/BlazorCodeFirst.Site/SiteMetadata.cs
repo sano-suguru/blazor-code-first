@@ -16,7 +16,12 @@ internal static class SiteMetadata
     /// <summary>The origin the published site is served from, with no trailing slash.</summary>
     public const string Origin = "https://blazor-code-first-site.snsgr.workers.dev";
 
-    /// <summary>What a social card calls this site.</summary>
+    /// <summary>What this site calls itself: the wordmark, the home page's title, the social card.</summary>
+    /// <remarks>
+    /// It is a C# namespace, which is why css/app.css sets the wordmark in the machine face. The one
+    /// place it cannot be read from is tools/og-card.html, which is a stylesheet-and-markup file with
+    /// no way to import a constant.
+    /// </remarks>
     public const string Name = "BlazorCodeFirst";
 
     /// <summary>The card image a social preview shows, as a path under <see cref="Origin"/>.</summary>

@@ -42,6 +42,12 @@ public sealed class SiteMeta : ComponentBase
     public string Description { get; set; } = default!;
 
     /// <summary>This route's path, in the form sitemap.xml declares: "/" or a trailing slash.</summary>
+    /// <remarks>
+    /// The trailing slash is the whole of the convention, and it is load-bearing: Workers redirects the
+    /// bare form to it, so a canonical link without it would name a URL that answers 307 rather than
+    /// the page. This is the one place that reason is written; eng/verify-site-prerender.sh holds every
+    /// route to it by comparing against the same form its route table carries.
+    /// </remarks>
     [Parameter]
     public string Path { get; set; } = default!;
 
@@ -50,6 +56,17 @@ public sealed class SiteMeta : ComponentBase
     public string Lang { get; set; } = default!;
 
     /// <summary>Every edition of this page, this one included. Empty when the page has only one.</summary>
+    /// <remarks>
+    /// A collection parameter, which opts this component out of Blazor's change suppression: only
+    /// primitives, string, DateTime, Type and decimal are treated as definitely-equal, so a docs route
+    /// rebuilds all fifteen tags on a parent re-render where Home and CounterPage, handed strings only,
+    /// rebuild nothing. Measured at 3.3 KB against 136 B.
+    ///
+    /// Accepted rather than closed by handing this component a slug and letting it compute the
+    /// editions itself. A docs page re-renders only when the router re-supplies its parameters, so the
+    /// cost today is one hydration render per visit; buying it back would put the documentation
+    /// routing rules inside the component that writes the head.
+    /// </remarks>
     [Parameter]
     public IReadOnlyList<DocAlternate> Alternates { get; set; } = [];
 
@@ -68,25 +85,36 @@ public sealed class SiteMeta : ComponentBase
         ArgumentNullException.ThrowIfNull(alternates);
 
         string url = SiteMetadata.Origin + path;
-        var tags = ImmutableArray.CreateBuilder<HeadTag>();
+
+        // x-default goes to the canonical edition, which is the answer for a reader whose language
+        // this site has no edition for. Picked rather than looped over, so that exactly one is emitted
+        // however many entries the caller's list holds. Resolved before the builder, because it
+        // decides the builder's size.
+        var canonicalEdition = alternates.FirstOrDefault(
+            a => string.Equals(a.Lang, Docs.Canonical, StringComparison.Ordinal));
+
+        // Sized rather than grown: without a capacity the builder reallocates 4, 8, 16 and then
+        // ToImmutable copies again, which measured 480 of the 2,520 bytes one docs route costs. The
+        // twelve is the count of unconditional tags below; get it wrong and this costs one copy, which
+        // is what it costs today anyway.
+        var tags = ImmutableArray.CreateBuilder<HeadTag>(
+            12 + alternates.Count + (canonicalEdition is null ? 0 : 1));
 
         tags.Add(Meta("name", "description", description));
-        tags.Add(new HeadTag("link", [Pair("rel", "canonical"), Pair("href", url)]));
+        tags.Add(new HeadTag("link", [new("rel", "canonical"), new("href", url)]));
 
-        // Reciprocal: a page that names an alternate has to be named by it in turn, so the set
-        // includes the edition being rendered. x-default goes to the canonical edition, which is the
-        // answer for a reader whose language this site has no edition for.
+        // An hreflang set has to be reciprocal: a page that names an alternate must be named by it in
+        // turn, so the set includes the edition being rendered, and a page nothing else points at
+        // names none at all. This is the one place that argument is written; the callers say what they
+        // pass, and eng/verify-site-prerender.sh counts what arrives.
         foreach (var alternate in alternates)
         {
             tags.Add(Alternate(alternate.Lang, alternate.Path));
         }
 
-        foreach (var alternate in alternates)
+        if (canonicalEdition is not null)
         {
-            if (string.Equals(alternate.Lang, Docs.Canonical, StringComparison.Ordinal))
-            {
-                tags.Add(Alternate("x-default", alternate.Path));
-            }
+            tags.Add(Alternate("x-default", canonicalEdition.Path));
         }
 
         tags.Add(Meta("property", "og:type", "website"));
@@ -142,13 +170,11 @@ public sealed class SiteMeta : ComponentBase
         new(
             "link",
             [
-                Pair("rel", "alternate"),
-                Pair("hreflang", hreflang),
-                Pair("href", SiteMetadata.Origin + path),
+                new("rel", "alternate"),
+                new("hreflang", hreflang),
+                new("href", SiteMetadata.Origin + path),
             ]);
 
     private static HeadTag Meta(string key, string name, string content) =>
-        new("meta", [Pair(key, name), Pair("content", content)]);
-
-    private static KeyValuePair<string, string> Pair(string key, string value) => new(key, value);
+        new("meta", [new(key, name), new("content", content)]);
 }

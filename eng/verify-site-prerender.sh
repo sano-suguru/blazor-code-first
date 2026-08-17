@@ -181,22 +181,21 @@ if [ -z "$origin" ]; then
   fail "the published robots.txt declares no Sitemap directive, so the origin the pages name themselves by could not be read"
 fi
 
+# The card URL is the same on every route, so it is quoted once rather than 26 times.
+card_pattern=$(ere_quote "$origin/og.png")
+
 # How many editions of one route site/content backs.
 #
+# Counted off expected_table rather than by walking the content tree again. That table already has one
+# row per route per edition, so "how many editions have this document" is how many of its rows there
+# are -- and the answer follows slugs_in, which is the one place document discovery is decided. Asked
+# any other way, a change to that discovery would move the table and leave this count behind, with the
+# gate above still green.
+#
 # Derived rather than fixed at two: every document is translated today, and a document with no
-# counterpart names only its own edition. "-" is the slug an index row carries, and an index exists in
-# every language that has any document at all.
+# counterpart names only its own edition.
 editions_of() {
-  local slug=$1 dir count=0
-  for dir in "$content_root" "$content_root"/*/; do
-    [ -d "$dir" ] || continue
-    if [ "$slug" = "-" ]; then
-      [ -n "$(slugs_in "$dir")" ] && count=$((count + 1))
-    else
-      [ -f "$dir/$slug.md" ] && count=$((count + 1))
-    fi
-  done
-  printf '%s' "$count"
+  expected_table | awk -v kind="$1" -v slug="$2" '$1 == kind && $4 == slug' | wc -l
 }
 
 # THE GATE. Everything below may enumerate the publish output, because this proved the set it would
@@ -304,20 +303,30 @@ while read -r kind route langdir slug; do
   assert_grep "<meta property=\"og:url\" content=\"$(ere_quote "$origin$route")\"" "$P/$f" "this route's og:url does not name the route itself"
   assert_count '<meta name="description"' "$P/$f" 1 "a prerendered route must declare exactly one description"
   assert_count '<meta property="og:image"' "$P/$f" 1 "a prerendered route must declare exactly one card image"
-  assert_grep "<meta property=\"og:image\" content=\"$(ere_quote "$origin/og.png")\"" "$P/$f" "this route's card image is not the one this origin serves"
+  assert_grep "<meta property=\"og:image\" content=\"$card_pattern\"" "$P/$f" "this route's card image is not the one this origin serves"
 
-  # A documentation route is one edition of a page that has others, so it names all of them plus an
-  # x-default. The home page and the counter demo have one edition and name none: an hreflang set has
-  # to be reciprocal, and a page nothing else points at cannot be part of one.
-  case "$route" in
-    /docs/*)
-      assert_count 'rel="alternate" hreflang=' "$P/$f" "$(( $(editions_of "$slug") + 1 ))" "this documentation route does not name one alternate per edition plus an x-default"
-      assert_count 'hreflang="x-default"' "$P/$f" 1 "this documentation route declares no x-default alternate, so a reader whose language has no edition is offered nothing"
-      ;;
-    *)
-      assert_count 'rel="alternate" hreflang=' "$P/$f" 0 "this route has one edition, so it must name no alternates"
-      ;;
-  esac
+  # One alternate per edition plus an x-default, or none at all. SiteMeta.Tags carries the reason a
+  # set is all-or-nothing; this counts what arrived.
+  #
+  # Asked of "$kind" rather than of the route's shape. The table already sorts the routes into fixed,
+  # index and doc, so matching "/docs/*" a second time would be a second answer to a question already
+  # answered -- and the two would disagree the day a fixed route is served from under /docs.
+  #
+  # The x-default count is not subsumed by the total: dropping the x-default while duplicating an
+  # edition's link satisfies the total and leaves a reader whose language has no edition offered
+  # nothing.
+  #
+  # The zero-alternates branch is a fact about the two routes expected_table hardcodes, not a rule
+  # about non-documentation routes: "/" and "/counter/" have one edition each. A translated route
+  # outside /docs would pass it while carrying no hreflang set at all, which is the defect the other
+  # branch exists to catch -- so adding one means giving expected_table an expected count per route
+  # and reading it here, rather than extending this branch.
+  if [ "$kind" = "fixed" ]; then
+    assert_count 'rel="alternate" hreflang=' "$P/$f" 0 "the home page and the counter demo have one edition each, so neither may name an alternate"
+  else
+    assert_count 'rel="alternate" hreflang=' "$P/$f" "$(( $(editions_of "$kind" "$slug") + 1 ))" "this documentation route does not name one alternate per edition plus an x-default"
+    assert_count 'hreflang="x-default"' "$P/$f" 1 "this documentation route declares no x-default alternate, so a reader whose language has no edition is offered nothing"
+  fi
 
   # The per-route active check is the real guard: if path normalization is wrong, every route
   # renders the same active link.
@@ -365,6 +374,7 @@ while read -r kind route langdir slug; do
       fail "site/content/$langdir/shell.yml declares no 'index-description', so this index's description could not be checked"
     fi
     assert_grep "<meta name=\"description\" content=\"$(ere_quote "$(html_encode "$lead")")\"" "$P/$f" "this documentation index's description does not match the 'index-description' in its shell.yml"
+    assert_grep "<meta property=\"og:description\" content=\"$(ere_quote "$(html_encode "$lead")")\"" "$P/$f" "this documentation index's card description does not match the 'index-description' in its shell.yml"
 
     # The index must enumerate EVERY document in its own edition. Count 2 per slug, not 1: the
     # documentation rail contributes one href per document on this route, so a "contains this href"

@@ -25,29 +25,20 @@ public class SiteMetaTests
     /// The href or content of the one tag matching an element and an identifying attribute, or null.
     /// </summary>
     /// <remarks>
-    /// Asserts uniqueness rather than taking the first match, because every claim below is about a
-    /// tag a page declares once. A second copy would otherwise pass silently and leave the crawler
-    /// to pick.
+    /// SingleOrDefault rather than First, so a second copy throws here instead of being read past.
+    /// Tags_EveryTagIsDeclaredExactlyOnce owns that claim over the whole set; this only declines to
+    /// hide a violation of it.
     /// </remarks>
-    private static string? Value(ImmutableArray<HeadTag> tags, string element, string key, string name)
-    {
-        var matches = tags
-            .Where(tag => string.Equals(tag.Element, element, StringComparison.Ordinal))
-            .Where(tag => tag.Attributes.Any(a =>
-                string.Equals(a.Key, key, StringComparison.Ordinal) &&
-                string.Equals(a.Value, name, StringComparison.Ordinal)))
-            .ToList();
-
-        if (matches.Count == 0)
-        {
-            return null;
-        }
-
-        Assert.Single(matches);
-        return matches[0].Attributes
+    private static string? Value(ImmutableArray<HeadTag> tags, string element, string key, string name) =>
+        tags
+            .SingleOrDefault(tag =>
+                string.Equals(tag.Element, element, StringComparison.Ordinal) &&
+                tag.Attributes.Any(a =>
+                    string.Equals(a.Key, key, StringComparison.Ordinal) &&
+                    string.Equals(a.Value, name, StringComparison.Ordinal)))
+            ?.Attributes
             .First(a => a.Key is "href" or "content")
             .Value;
-    }
 
     private static DocAlternate[] BothEditions() =>
     [
@@ -125,8 +116,10 @@ public class SiteMetaTests
                 "link", "hreflang", "x-default"));
 
     [Fact]
-    public void Tags_UntranslatedDocument_NamesItselfAndNoXDefaultElsewhere()
+    public void Tags_UntranslatedDocument_IsItsOwnXDefault()
     {
+        // The uncovered half: a document only the canonical edition has still names an x-default, and
+        // it is the document itself. Nothing else here renders a one-element set.
         var tags = Tags(
             path: "/docs/getting-started/",
             lang: "en",
@@ -135,6 +128,9 @@ public class SiteMetaTests
         Assert.Equal(
             SiteMetadata.Origin + "/docs/getting-started/",
             Value(tags, "link", "hreflang", "en"));
+        Assert.Equal(
+            SiteMetadata.Origin + "/docs/getting-started/",
+            Value(tags, "link", "hreflang", "x-default"));
         Assert.Null(Value(tags, "link", "hreflang", "ja"));
     }
 

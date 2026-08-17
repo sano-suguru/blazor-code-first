@@ -530,6 +530,17 @@ jobs:
             site/BlazorCodeFirst.Site/SiteMetadata.cs \
             "SiteMetadata.Origin does not match the origin this workflow deploys to, so every canonical link and og:url in the published HTML names the wrong site"
 
+          # The root of that chain, which the chain itself cannot reach. ORIGIN is built from WORKER,
+          # and the step that sets WORKER says it must equal the "name" in site/wrangler.jsonc without
+          # checking it. Rename the Worker there and robots.txt, SiteMetadata.Origin and ORIGIN stay in
+          # perfect agreement with each other while naming a hostname nothing serves -- every
+          # assertion above included. That costs more now than it did before this change, because the
+          # origin reaches every page's head rather than only the sitemap.
+          worker=${ORIGIN#https://}
+          assert_grep "\"name\": \"$(printf '%s' "${worker%%.*}" | sed 's/[.[\*^$]/\\&/g')\"" \
+            site/wrangler.jsonc \
+            "site/wrangler.jsonc names a different Worker than this workflow derived its origin from, so the deployment would answer on a hostname no published page names"
+
           # The card every social preview shows. An ordinary wwwroot file, and SiteMetadata.CardPath
           # names it in an absolute URL, so losing it leaves every share falling back to no image with
           # nothing else here noticing.
