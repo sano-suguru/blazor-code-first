@@ -204,17 +204,17 @@ jobs:
           fi
           echo "Deploying as $environment with: wrangler $command"
 
-  # Everything that can fail on the source and the publish output, and nothing that talks to
-  # Cloudflare. That division is the point of the split (#250): this job is what `site-verified`
-  # reports on, so a Cloudflare outage or an expired token can no longer block a merge.
-  verify:
+  # Everything that can fail on the source TREE, and nothing that reads the publish output. Its
+  # sibling `site-publish` is the other half; the two run at once because neither reads what the
+  # other writes -- the publish compiles the committed Docs.g.cs and Snippets.g.cs, which is the
+  # state the freshness gate here re-derives and diffs. Between them they are what the #250 split
+  # means by "the source and the publish output, and nothing that talks to Cloudflare": a Cloudflare
+  # outage or an expired token cannot block a merge, because `site-verified` reports on these and
+  # not on the deploy.
+  site-source:
     needs: plan
     if: needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
-    outputs:
-      # Read back by the deploy job to prove the artifact round trip dropped nothing. See the
-      # assertion there for what that is guarding against.
-      published_files: ${{ steps.publish.outputs.files }}
     steps:
       - uses: actions/checkout@v7
 
@@ -239,36 +239,37 @@ jobs:
             site/BlazorCodeFirst.Site/wwwroot/css/highlight.css \
             site/BlazorCodeFirst.Site/Content/Snippets.g.cs
 
-      - name: DocGen unit tests
-        run: dotnet test site/tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj
+      # The three steps below take site/Site.slnx, the solution that exists so the five projects
+      # under site/ are named once rather than per command. site/ stays outside
+      # BlazorCodeFirst.slnx -- site/README.md says why -- and this is a second solution over the
+      # same directory, not a move into the first.
+      #
+      # This build is also what the format check needs. `dotnet format` loads each project as a
+      # Roslyn workspace and compiles it, and the app's RenderView comes from the BlazorCodeFirst
+      # source generator referenced as an analyzer ProjectReference. On a cold checkout that
+      # generator assembly does not exist yet, so the workspace load reports CS0534 ("does not
+      # implement inherited abstract member RenderView") for every compose component and the step
+      # fails. Building first produces the generator; the site test project references the app, so
+      # it gets the same generator from this build.
+      - name: Build the site solution
+        run: dotnet build site/Site.slnx
 
-      # The site app's own unit tests: the decisions its components make on input site/content
-      # cannot hold, so no publish output can show them. DocsNavTests says why (#279).
-      - name: Site unit tests
-        run: dotnet test site/tests/BlazorCodeFirst.Site.Tests/BlazorCodeFirst.Site.Tests.csproj
+      # DocGen's own unit tests, and the site app's: the decisions its components make on input
+      # site/content cannot hold, so no publish output can show them. DocsNavTests says why (#279).
+      - name: Site and DocGen unit tests
+        run: dotnet test site/Site.slnx --no-build
 
       # site/ sits outside BlazorCodeFirst.slnx, so it is outside the repository's main
       # `dotnet format` gate (see CONTRIBUTING.md, "Code style"). This step closes that gap for
       # the site projects.
-      # `dotnet format` requires a restored project; restore is left implicit here (no
-      # --no-restore) rather than adding a separate restore step, since each `dotnet format`
-      # invocation below already restores its own project on demand.
+      #
+      # One invocation over the solution rather than five over the projects. `dotnet format` pays
+      # for a workspace load per invocation and analyses the projects it is handed in parallel, so
+      # five invocations serialise the expensive part and repeat its fixed cost: measured on an
+      # 8-core machine, 24.5s for the five against 10.4s for the solution. --no-restore is safe
+      # because the build above restored the whole solution.
       - name: Format check (site/)
-        run: |
-          # Build the site app before formatting it. `dotnet format` loads each project as a Roslyn
-          # workspace and compiles it, and the app's RenderView comes from the BlazorCodeFirst source
-          # generator referenced as an analyzer ProjectReference. On a cold checkout that generator
-          # assembly does not exist yet, so the workspace load reports CS0534 ("does not implement
-          # inherited abstract member RenderView") for every compose component and the step fails.
-          # Building first produces the generator; the DocGen projects need no such step. The site
-          # test project references the app, so it needs the same generator and gets it from this
-          # build.
-          dotnet build site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj
-          dotnet format site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj --verify-no-changes
-          dotnet format site/tests/BlazorCodeFirst.Site.Tests/BlazorCodeFirst.Site.Tests.csproj --verify-no-changes
-          dotnet format site/tools/BlazorCodeFirst.Site.DocGen/BlazorCodeFirst.Site.DocGen.csproj --verify-no-changes
-          dotnet format site/tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj --verify-no-changes
-          dotnet format site/tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj --verify-no-changes
+        run: dotnet format site/Site.slnx --verify-no-changes --no-restore
 
       - name: Verify site source hygiene
         run: |
@@ -407,6 +408,35 @@ jobs:
             exit 1
           fi
 
+      # The whole-tree backstop for the drift gate at the top of this job. That gate runs
+      # `git diff --exit-code` over three named generated files, so a step that writes ANY other
+      # tracked path goes unreported. This check is what makes "the job wrote nothing" an assertion
+      # rather than an assumption. The publish and deploy jobs run it too, for different writers.
+      - name: Verify the job left the working tree clean
+        run: bash eng/verify-tree-clean.sh
+
+  # Everything that can fail on the publish OUTPUT, and nothing that reads the source tree beyond
+  # compiling it. Its sibling `site-source` is the other half and runs at the same time; see the
+  # comment there for why neither waits on the other.
+  #
+  # The browser suite is not here. It needs this output and nothing else, so it is a third job that
+  # takes the artifact this one uploads and shards it -- see `site-browser`.
+  site-publish:
+    needs: plan
+    if: needs.plan.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      # Read back by the deploy job to prove the artifact round trip dropped nothing. See the
+      # assertion there for what that is guarding against.
+      published_files: ${{ steps.publish.outputs.files }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
       - name: Publish (static, trimmed)
         run: dotnet publish site/BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj -c Release
 
@@ -539,15 +569,80 @@ jobs:
           # 'X-Robots-Tag' counts the comment mentions too and can never equal 1.
           assert_count '^[[:space:]]*X-Robots-Tag:' "$P/_headers" 1 "the committed _headers must declare exactly one X-Robots-Tag rule (the /404 one); a second rule would deindex production"
 
-      # Everything above this point asserts the publish output as text, which can prove the shell
-      # rendered and the stylesheet links survived and cannot see anything the browser computes.
-      # The suite below is that half: overflow, whether a clickable label fits, WCAG contrast, and
-      # where the documentation rail lands (#251). It runs in this job rather than the deploy one so
-      # a failure stops the bad deployment rather than describing it afterwards.
+      # The whole-tree backstop for this job: `dotnet publish` and the sitemap step write into the
+      # gitignored publish directory and nothing else, and this is what makes that an assertion
+      # rather than an assumption. The source and deploy jobs run it too, for different writers.
+      - name: Verify the job left the working tree clean
+        run: bash eng/verify-tree-clean.sh
+
+      # Last, so a failure above is reported by the step that found it rather than by a missing
+      # artifact in a later job. The publish output is 5.8MB in 69 files, so the round trip costs
+      # seconds against the two minutes a second publish in each consumer would take.
       #
-      # Against the local publish output, not a deployment. Hydration behaviour and Cloudflare's
-      # edge routing genuinely need one and are #47's subject, which is blocked on #66; none of
-      # these four checks needs anything but the files and a static server.
+      # PRE-injection, deliberately: the preview noindex rule is appended to _headers in the deploy
+      # job, so the artifact holds the file exactly as the assertions above saw it.
+      - name: Count the publish output
+        id: publish
+        run: |
+          set -euo pipefail
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+          echo "files=$(find "$P" -type f | wc -l | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the publish output
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-publish
+          path: site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+          # No include-hidden-files. There is no hidden file in the publish output since
+          # wwwroot/.assetsignore was deleted with the sidecars (#347), and upload-artifact drops
+          # hidden files with a warning rather than an error -- so a future one would go missing
+          # quietly. The file count the deploy job compares is what would catch that.
+          if-no-files-found: error
+
+  # `site-publish` asserts the publish output as text, which can prove the shell rendered and the
+  # stylesheet links survived and cannot see anything the browser computes. This job is that half:
+  # overflow, whether a clickable label fits, WCAG contrast, and where the documentation rail lands
+  # (#251). It runs before the deploy rather than after it, so a failure stops the bad deployment
+  # rather than describing it afterwards.
+  #
+  # Against the publish output `site-publish` built, not a deployment. Hydration behaviour and
+  # Cloudflare's edge routing genuinely need one and are #47's subject, which is blocked on #66;
+  # none of these checks needs anything but the files and a static server.
+  #
+  # Sharded, because this is the longest thing in the workflow by a wide margin: 302 tests, each
+  # opening a page and waiting out the WebAssembly boot. Over the last 19 green runs of the job it
+  # used to sit in, it averaged 133s of that job's 267s and reached 187s of 331s at the worst, on
+  # one four-core runner. Playwright splits by test rather than by file, and the suite already
+  # declares fullyParallel, so a shard is an ordinary subset and no spec needs to know it is being
+  # split. Three of them: the per-shard cost that does not divide, meaning runner startup, the
+  # checkout, node, and the browser download, is about 30s, so a fourth shard would buy less than it
+  # spends.
+  #
+  # Not joined to the browser job in ci.yml, which measures Blazor's JS renderer against a live host
+  # and shares no input with this one, and not named `browser` either: that name is a required check
+  # there, and two checks answering to one name is how a ruleset stops meaning what it says.
+  site-browser:
+    needs: [plan, site-publish]
+    if: needs.plan.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      # For the specs, and for site/content: the suite reads the document tree to decide which
+      # routes are documents and which are translation indexes. site-pages.ts says why that side
+      # cannot come from the publish output.
+      - uses: actions/checkout@v7
+
+      # Restored to the path site-pages.ts resolves `publishRoot` against, which serve.mjs is then
+      # pointed at. The suite starts its own static server over these files; nothing here rebuilds
+      # them.
+      - uses: actions/download-artifact@v8
+        with:
+          name: site-publish
+          path: site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -560,7 +655,9 @@ jobs:
       # Playwright's loader transpiles the specs and throws their types away, so a type error here
       # runs green and shows up only as noise in a contributor's editor (#254). This is the only
       # thing in the repository that reads them. It runs before the browser download because it
-      # takes seconds and needs nothing but node_modules.
+      # takes seconds and needs nothing but node_modules. Every shard runs it: it costs about a
+      # second, and making one shard special would leave the check gone whenever that shard is the
+      # one that fails early.
       - run: npx tsc --noEmit
         working-directory: site/tests/browser
 
@@ -574,56 +671,28 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: site/tests/browser
 
+      # The shard count is `strategy.job-total`, not a literal repeated from the matrix above:
+      # a `--shard=n/3` written by hand goes wrong silently when the matrix grows, running three
+      # shards' worth of tests across four jobs and skipping the last third entirely.
       - name: Verify the published site in a browser
         id: browser
-        run: npx playwright test
+        run: npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
         working-directory: site/tests/browser
 
       # Conditioned on this step rather than on the job, so an earlier failure does not reach for a
-      # directory that was never written.
+      # directory that was never written. The name carries the shard because upload-artifact rejects
+      # a second upload under a name already taken, which two failing shards would otherwise do.
       - if: failure() && steps.browser.conclusion == 'failure'
         uses: actions/upload-artifact@v7
         with:
-          name: site-playwright-traces
+          name: site-playwright-traces-${{ matrix.shard }}
           path: site/tests/browser/test-results
-
-      # The whole-tree backstop for the drift gate near the top of this job. That gate runs
-      # `git diff --exit-code` over three named generated files, so a step that writes ANY other
-      # tracked path goes unreported: the publish output is gitignored, and no other check reads the
-      # tree at all. This check is what makes "the job wrote nothing" an assertion rather than an
-      # assumption. The deploy job runs it too, for a different writer.
-      - name: Verify the job left the working tree clean
-        run: bash eng/verify-tree-clean.sh
-
-      # Last, so a failure above is reported by the step that found it rather than by a missing
-      # artifact in the deploy job. The publish output is 5.8MB in 69 files, so the round trip costs
-      # seconds against the two minutes a second publish in the deploy job would take.
-      #
-      # PRE-injection, deliberately: the preview noindex rule is appended to _headers in the deploy
-      # job, so the artifact holds the file exactly as the assertions above saw it.
-      - name: Count the publish output
-        id: publish
-        run: |
-          set -euo pipefail
-          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
-          echo "files=$(find "$P" -type f | wc -l | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
-
-      - name: Upload the publish output for the deploy
-        uses: actions/upload-artifact@v7
-        with:
-          name: site-publish
-          path: site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
-          # No include-hidden-files. There is no hidden file in the publish output since
-          # wwwroot/.assetsignore was deleted with the sidecars (#347), and upload-artifact drops
-          # hidden files with a warning rather than an error -- so a future one would go missing
-          # quietly. The file count the deploy job compares is what would catch that.
-          if-no-files-found: error
 
   # Cloudflare, and nothing that could fail on the source. Split from the verification (#250) so the
   # required check does not depend on a third party being up, and so a deploy that fails leaves the
   # merge decision alone.
   deploy:
-    needs: [plan, verify]
+    needs: [plan, site-source, site-publish, site-browser]
     # A pull_request from a fork gets no secrets, so the deploy would FAIL rather than skip. Test the
     # head repository explicitly instead of probing for an empty secret.
     #
@@ -634,7 +703,9 @@ jobs:
     # for a preview URL; the verification above still runs.
     #
     # This condition names no status function, so the implicit requirement that `needs` succeeded
-    # still applies: a failed or skipped verify skips this job.
+    # still applies: any of the three verification jobs failing or skipping skips this one. All
+    # three are listed rather than just the one that produces the artifact, so a layout regression
+    # or a formatting drift stops the deployment instead of being described after it.
     if: >-
       github.actor != 'dependabot[bot]'
       && (github.event_name != 'pull_request'
@@ -647,7 +718,7 @@ jobs:
       pull-requests: write
     steps:
       # For site/wrangler.jsonc and eng/ci-assert.sh. The publish output is not rebuilt here; it
-      # arrives from the verify job below.
+      # arrives as the artifact site-publish uploaded.
       - uses: actions/checkout@v7
 
       # Restored to the path site/wrangler.jsonc resolves its assets directory against, which is
@@ -659,7 +730,7 @@ jobs:
 
       - name: Verify the restored publish output
         env:
-          EXPECTED: ${{ needs.verify.outputs.published_files }}
+          EXPECTED: ${{ needs['site-publish'].outputs.published_files }}
         run: |
           set -euo pipefail
           . eng/ci-assert.sh
@@ -794,14 +865,14 @@ jobs:
   # Its whole contract is that its name is what the repository ruleset asks for and that it reports
   # what the verification did. That is worth a job because the alternative shapes are worse: a
   # `paths:` filter leaves the check pending forever on an unrelated pull request, and dropping the
-  # filter to run the verification unconditionally spends four minutes re-verifying a publish output
-  # that is byte-identical to main's whenever the site's inputs did not change.
+  # filter to run the verification unconditionally spends minutes re-verifying a publish output that
+  # is byte-identical to main's whenever the site's inputs did not change.
   #
   # `!cancelled()` rather than `always()`: a run superseded by the concurrency group has nothing to
   # report, and reporting it red would be noise on top of a cancellation. Every other outcome,
-  # including a skipped verify, reaches the script below.
+  # including a skipped verification, reaches the script below.
   site-verified:
-    needs: [plan, verify]
+    needs: [plan, site-source, site-publish, site-browser]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -809,7 +880,13 @@ jobs:
         env:
           PLAN: ${{ needs.plan.result }}
           SITE: ${{ needs.plan.outputs.site }}
-          VERIFY: ${{ needs.verify.result }}
+          # One variable per verification job, and each is tested by name below rather than folded
+          # into a single "did everything pass". A required check that says only "the verification
+          # did not succeed" makes the reader open three job logs to find out which; naming the job
+          # costs three lines here and answers it from the check itself.
+          SOURCE: ${{ needs['site-source'].result }}
+          PUBLISH: ${{ needs['site-publish'].result }}
+          BROWSER: ${{ needs['site-browser'].result }}
         run: |
           set -euo pipefail
 
@@ -827,8 +904,24 @@ jobs:
             exit 0
           fi
 
-          if [ "$VERIFY" != success ]; then
-            echo "::error::the site verification did not succeed ($VERIFY)" >&2
+          failed=0
+          if [ "$SOURCE" != success ]; then
+            echo "::error::the source-tree checks did not succeed ($SOURCE)" >&2
+            failed=1
+          fi
+          if [ "$PUBLISH" != success ]; then
+            echo "::error::the publish-output checks did not succeed ($PUBLISH)" >&2
+            failed=1
+          fi
+          # A matrix job's result is the worst of its shards, so one failing shard reports here.
+          if [ "$BROWSER" != success ]; then
+            echo "::error::the browser suite did not succeed ($BROWSER)" >&2
+            failed=1
+          fi
+          # Every job is reported before the exit, rather than the first one found: three jobs run
+          # at once and more than one can fail in the same run, and stopping at the first would send
+          # the reader back for a second round trip to learn about the others.
+          if [ "$failed" -eq 1 ]; then
             exit 1
           fi
 

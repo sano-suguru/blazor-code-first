@@ -370,7 +370,8 @@ instead:
 - DocGen's own unit tests
 - the site app's unit tests, over the decisions its components make on input
   `site/content` cannot hold (#279)
-- `dotnet format` over each of the five projects under `site/`
+- `dotnet format` over `site/Site.slnx`, the solution that names the five
+  projects under `site/`
 - an English-only and trailing-newline scan of the tree
 - `eng/verify-site-prerender.sh` over the `dotnet publish` output: first that
   the published route set equals the set `site/content` backs, and then, for
@@ -417,8 +418,21 @@ bash eng/verify-site-prerender.sh site/BlazorCodeFirst.Site/bin/Release/net10.0/
 cd site/tests/browser && npm ci && npx playwright install chromium && npx playwright test
 
 # As above: the specs run transpiled, never typechecked, so nothing else reads
-# their types. The `verify` job runs it as well.
+# their types. The `site-browser` job runs it as well.
 npx tsc --noEmit
+```
+
+The dotnet half of those checks takes `site/Site.slnx`, which exists so the five
+projects are named once rather than per command. Build before formatting: the
+app's `RenderView` comes from the source generator referenced as an analyzer
+`ProjectReference`, and on a cold tree `dotnet format` reports CS0534 for every
+compose component instead:
+
+```bash
+dotnet build site/Site.slnx
+dotnet test site/Site.slnx --no-build
+dotnet format site/Site.slnx --verify-no-changes --no-restore   # check
+dotnet format site/Site.slnx                                    # auto-fix
 ```
 
 A change under `site/content`, under `site/snippets`, or to a file a snippet
@@ -458,15 +472,24 @@ edge routing, the `_headers` rules as the edge applies them, and behaviour that
 appears only after WebAssembly starts. `playwright-cli` is the tool for an
 ad-hoc look at a deployed URL; #47 tracks making that a post-deploy step.
 
-`site.yml` runs in four jobs, and the division is what lets one of them be a
+`site.yml` runs in six jobs, and the division is what lets one of them be a
 required check on `main` (#250). `plan` decides whether the site's inputs
-changed and where a deploy would go; `verify` runs everything above; `deploy`
-talks to Cloudflare and nothing else, so an outage there cannot block a merge;
-and `site-verified` is the required check, reporting green without work when the
-site's inputs did not change. No trigger carries a `paths:` filter, because a
+changed and where a deploy would go. Three jobs then run everything above, at
+once: `site-source` checks the tree, `site-publish` builds and checks the
+publish output, and `site-browser` shards the Playwright suite over the artifact
+`site-publish` uploads. `deploy` talks to Cloudflare and nothing else, so an
+outage there cannot block a merge; and `site-verified` is the required check,
+naming whichever of the three did not pass and reporting green without work when
+the site's inputs did not change. No trigger carries a `paths:` filter, because a
 required check that never starts is reported as pending rather than skipped. The
 path list that filter held now lives in `plan`, where nothing validates it: a new
 input to the site build has to be added there by hand.
+
+The three verification jobs are split for wall-clock time and nothing else. The
+browser suite is 302 tests, each waiting out a WebAssembly boot, and over the
+last 19 green runs of the single job it averaged 133s of that job's 267s.
+Sharding it needs it in a job of its own, and `site-source` reads no publish
+output, so it starts at the same time rather than after.
 
 ## Issue tracker
 

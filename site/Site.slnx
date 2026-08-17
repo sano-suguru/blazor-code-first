@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="BlazorCodeFirst.Site/BlazorCodeFirst.Site.csproj" />
+  <Project Path="tests/BlazorCodeFirst.Site.Tests/BlazorCodeFirst.Site.Tests.csproj" />
+  <Project Path="tools/BlazorCodeFirst.Site.DocGen/BlazorCodeFirst.Site.DocGen.csproj" />
+  <Project Path="tools/BlazorCodeFirst.Site.DocGen.Cli/BlazorCodeFirst.Site.DocGen.Cli.csproj" />
+  <Project Path="tools/BlazorCodeFirst.Site.DocGen.Tests/BlazorCodeFirst.Site.DocGen.Tests.csproj" />
+</Solution>

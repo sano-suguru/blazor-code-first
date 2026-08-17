@@ -5,7 +5,10 @@ hosted statically on Cloudflare Workers. Outstanding work on the site is tracked
 under the `area: site` label in Issues.
 
 This directory is intentionally outside `BlazorCodeFirst.slnx` and manages
-its own package versions (`ManagePackageVersionsCentrally=false`).
+its own package versions (`ManagePackageVersionsCentrally=false`). It has a
+solution of its own, `site/Site.slnx`, over the five projects here; it is what
+`site.yml` builds, tests, and formats, and it does not put any of them into
+`BlazorCodeFirst.slnx`.
 
 ## Run locally (dev)
 

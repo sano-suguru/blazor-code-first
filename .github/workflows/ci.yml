@@ -24,8 +24,31 @@ jobs:
         include:
           - os: ubuntu-latest
             rid: linux-x64
+            format: false
           - os: macos-latest
             rid: osx-arm64
+            # `dotnet format` reads the same files and reaches the same verdict on either runner, so
+            # it runs on one leg rather than both. This leg, because it is the shorter one. Over the
+            # last 11 green runs of main with the check on both, the Linux leg averaged 149s and this
+            # one 130s, and the check itself was 25-44s of the Linux leg; two runs since the move put
+            # that leg at 124s and 114s. Runner-to-runner spread is wide enough (the Linux leg ranged
+            # 121-171s) that a single pair of runs cannot show this, which is why the figures here are
+            # means over a sample rather than one measurement.
+            #
+            # A job of its own would be faster still and would not be a required check, which is the
+            # trade this declines: the repository ruleset requires both legs by name, so the
+            # formatting gate stays inside one of them.
+            format: true
+
+    # Written out rather than left to the default, which is the job id followed by every matrix value
+    # in order. The repository ruleset requires "build-test (ubuntu-latest, linux-x64)" and
+    # "build-test (macos-latest, osx-arm64)" by name, and under the default the `format` key above
+    # renamed both of them: GitHub reports a required check that never STARTED as pending rather than
+    # skipped, so every pull request became unmergeable with nothing to re-run. Measured, not
+    # assumed -- that is what the first push of this change did. Naming the legs here pins those two
+    # strings to the two axes a reader would expect them to name, so a matrix key added later cannot
+    # break the ruleset again.
+    name: build-test (${{ matrix.os }}, ${{ matrix.rid }})
 
     runs-on: ${{ matrix.os }}
 
@@ -43,7 +66,9 @@ jobs:
       # Enforce whitespace formatting, IDE code style, AND naming rules.
       # `dotnet build`/EnforceCodeStyleInBuild runs most IDE* analyzers but NOT naming (IDE1006)
       # or whitespace formatting, so the full `dotnet format` verification is their enforcement point.
-      - run: dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore
+      # One leg only; the matrix entry that turns it on says which and why.
+      - if: matrix.format
+        run: dotnet format BlazorCodeFirst.slnx --verify-no-changes --no-restore
 
       - run: dotnet test BlazorCodeFirst.slnx --no-build
 
