@@ -2,10 +2,10 @@
 title: 要素リファレンス
 order: 90
 group: reference
-source-hash: 324606a5
+source-hash: b7620988
 ---
 
-この API が宣言するものの一覧です。読むためではなく引くためのページです。それぞれの意味は
+この API が宣言するものの一覧です。それぞれの意味は
 [要素と装飾](./elements-and-decorations.md)と[制御構文](./control-flow.md)にあります。
 
 ## 要素
@@ -57,10 +57,10 @@ source-hash: 324606a5
 
 ### それ以外: `Element(tag)`
 
-`Element("my-widget")` は、ヘルパーの無い要素を名指します。カスタム要素と Web Components、
-そして意図して外した標準要素がここに来ます。文書と `<head>` の要素、生テキスト要素、`template`
+`Element("my-widget")` は、ヘルパーの無い要素を書くための構文です。カスタム要素と Web Components、
+そして意図して外した標準要素がこれに該当します。文書と `<head>` の要素、生テキスト要素、`template`
 と `slot`、`object`、SVG と MathML の語彙です。タグはタグ名として綴られたコンパイル時定数で
-なければなりません（[BCF3009](./diagnostics.md#bcf3009)）。何がここに来て、なぜ来るのかは
+なければなりません（[BCF3009](./diagnostics.md#bcf3009)）。何が該当し、なぜ該当するのかは
 [要素と装飾](./elements-and-decorations.md#要素)にあります。
 
 ## 要素に付ける装飾

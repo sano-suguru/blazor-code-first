@@ -12,7 +12,7 @@ an enum reaches one reflective lookup inside the framework's own converter.
 ## Binding an element
 
 Name the attribute that carries the value, the event that reports a change, and a lambda that reads
-the current value. Only the first of those three leaves a mark in the markup:
+the current value. Only the first of those three appears in the markup:
 
 <!-- bcf-figure: TextBinding -->
 
@@ -38,7 +38,7 @@ either (`_form.Name`, `Model.Items[0].Title`, `_dict["k"]`). A computed expressi
 explicit setter below.
 
 Use `"oninput"` to bind on every keystroke and `"onchange"` to bind when the element loses focus.
-Those are the two you will usually want, but no list restricts the pair. Three rules do: both names
+Those are the two you will usually want, and no list restricts the pair. Three rules do: both names
 have to be non-empty compile-time constants ([BCF3011](./diagnostics.md#bcf3011)), the event name has
 to start with `on` ([BCF3019](./diagnostics.md#bcf3019)), and neither may already be bound on the same
 element by another decoration ([BCF3010](./diagnostics.md#bcf3010)).
@@ -74,14 +74,14 @@ file and binds `checked` instead of `value`. This surface has no literal to read
 and `type` is an expression — `Input.Type(kind)` is an ordinary C# call whose value may not be known
 until it runs — so there is nothing an inference could be checked against.
 
-Defaulting to `value` would then produce the one failure worth going out of the way to avoid: a
-checkbox bound to the wrong attribute, silently, with no diagnostic to tell you. So the rule across
-the whole surface is **infer only what you can verify**. The element side cannot verify, so it does
-not infer, and you write two short strings instead.
+Defaulting to `value` would produce the failure most worth avoiding: a checkbox bound to the wrong
+attribute, silently, with no diagnostic. So the rule across the whole surface is **infer only what
+you can verify**. The element side cannot verify, so it does not infer, and you write two short
+strings instead.
 
 The half of the mistake that *is* checkable is caught: an event name that does not start with `on`
 reports [BCF3019](./diagnostics.md#bcf3019), so swapping the two arguments stops at compile time
-rather than adding a dead attribute.
+rather than adding an attribute that does nothing.
 
 The component side of `.Bind` does infer names, because the same rule allows it there — see
 [binding a component parameter](#binding-a-component-parameter).
@@ -120,10 +120,10 @@ the binder.
 A normalizing setter creates a divergence: the element shows what was typed, while your field holds
 the trimmed value. Ordinary diffing writes nothing, because the render tree has not changed since the
 last render. On a `value` or `checked` binding, `.Bind` registers that attribute for DOM
-resynchronization to close the gap, so the element is corrected to show the normalized value. You get
-this without asking for it.
+resynchronization to close the gap, so the element is corrected to show the normalized value. This
+needs no configuration.
 
-Those two names are the whole of it. Blazor's client sends back a form element's own `value` — or
+That registration covers two names only. Blazor's client sends back a form element's own `value` — or
 `checked` for a checkbox — and nothing else, so those are the only two names the generator registers.
 A binding to any other attribute registers nothing; `.Bind("hue", "onhuechange", () => _hue, Normalize)`
 on a custom element is the usual shape. The setter still runs and the new value still reaches the DOM
@@ -150,9 +150,9 @@ The culture formats the value on the way out and parses it on the way back, thro
 `BindConverter`. Numbers, dates, times, `Guid`, enums, and every nullable form of those all work,
 because the conversion is the framework's rather than this library's.
 
-It is an argument rather than a default because the alternative is a culture chosen out of your sight.
-Razor picks one from the element's literal `type` — the literal this surface does not read, for the
-same reason it does not infer the attribute name. So the choice moves to where you can see it.
+It is an argument rather than a default because a default would be a culture chosen without your
+seeing it. Razor picks one from the element's literal `type` — the literal this surface does not
+read, for the same reason it does not infer the attribute name. The choice moves to the call site.
 
 ### Write the invariant culture for `number` and `date`
 
@@ -171,12 +171,12 @@ If the converter cannot read what was typed, your setter is never called and bot
 element return to the previous value. That is Blazor's behaviour, and `.Bind` reaches it through the
 same DOM resynchronization described above.
 
-It has a consequence worth choosing deliberately. On `"oninput"` the reversion runs on every
-keystroke, so a decimal point typed into an `int` binding never survives: `4.` is rejected and the
-`.` is taken straight back out. For numeric input that is usually not what you want:
+This has a consequence worth choosing deliberately. On `"oninput"` the reversion runs on every
+keystroke, so a decimal point typed into an `int` binding does not survive: `4.` is rejected and the
+`.` is removed. For numeric input that is usually not what you want:
 
 ```csharp
-// Reverts on blur, so a half-typed number survives being typed.
+// Reverts on blur, so a half-typed number survives.
 Input.Type("number").Bind("value", "onchange", () => _amount, CultureInfo.InvariantCulture);
 ```
 

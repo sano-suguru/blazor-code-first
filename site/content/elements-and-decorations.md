@@ -5,7 +5,8 @@ group: write
 ---
 
 BlazorCodeFirst mirrors HTML directly: every element you write in a `Body` expression names the
-element it produces. There is no intermediate widget vocabulary to learn and no runtime UI tree.
+element it produces. There is no second set of widget names to learn on top of HTML, and no runtime
+UI tree.
 
 ## Elements
 
@@ -31,7 +32,7 @@ protected override View Body =>
 
 A dedicated helper exists for every element the HTML Living Standard lists as conforming.
 
-`Element` is what is left over. Two things reach it. The first is custom elements and Web
+`Element` covers everything else. Two things use it. The first is custom elements and Web
 Components, whose tag names are never a known helper. The second is the handful of standard elements
 no helper covers:
 
@@ -88,7 +89,7 @@ children as a nested collection literal is accepted, because C# expands it to th
 Div[["a", "b"]]     // same as Div["a", "b"], which is the form to prefer
 ```
 
-Handing over a child list the generator cannot see through reports
+A child list the generator cannot read through reports
 [BCF1003](./diagnostics.md#bcf1003). Use [`ForEach`](./control-flow.md#foreach-and-its-key) for
 repetition instead.
 
@@ -106,7 +107,7 @@ Img.Src("/logo.png").Alt("Logo") // what to write instead
 Configure a void element with decorations and put content beside it. This is the limit of what the
 surface checks about HTML, and the limit is deliberate: `Table[Div["x"]]` also renders differently
 after hydration, and it is accepted, along with attributes an element does not define
-(`Div.Href("/x")`). See `DESIGN.md` §4.1 for the whole position.
+(`Div.Href("/x")`). See `DESIGN.md` §4.1 for the full rationale.
 
 ## When a name collides
 
@@ -176,7 +177,7 @@ Every decoration that takes one value accepts `null` this way.
 
 There is deliberately no `object` overload. A value of any other type is formatted at render time
 under the formatting thread's culture rather than the one your component ran under, so write it out
-yourself, where the culture is a choice you can see:
+yourself, where the culture is explicit:
 
 ```csharp
 Div.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))
@@ -216,7 +217,7 @@ registration in your own project is read:
 public static class AppEventHandlers;
 ```
 
-That pair — an attribute out, an event back — is what [`.Bind`](./two-way-binding.md) writes as one
+An attribute out and an event back is the pair [`.Bind`](./two-way-binding.md) writes as one
 decoration.
 
 ### The class channel

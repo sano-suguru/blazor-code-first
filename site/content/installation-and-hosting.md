@@ -4,8 +4,8 @@ order: 20
 group: start
 ---
 
-One package, one target framework, and no choice about how you host. This page is what to install
-and what the library leaves to Blazor.
+One package, one target framework, and no configuration per hosting model. This page covers what to
+install, and which decisions the library leaves to Blazor.
 
 ## Install
 
@@ -54,11 +54,11 @@ declaration fixes the mode rejects the call-site form
 ## Publishing trimmed
 
 There is no runtime UI tree, no reflection, and no expression compilation, so nothing here needs a
-trimming root or an AOT hint. The design-time API you wrote the component with does not survive the
-build at all: the generator reads its syntax, and the IL trimmer removes it.
+trimming root or an AOT hint. The design-time API you wrote the component with is not in the
+published output: the generator reads its syntax, and the IL trimmer removes it.
 
-Binding is the one measured cost, and it is a one-off rather than per binding. See
-[two-way binding](./two-way-binding.md#if-you-publish-trimmed).
+Binding is the one measured cost, and what it costs is published size: about 10 KB, once, rather
+than per binding. See [two-way binding](./two-way-binding.md#if-you-publish-trimmed).
 
 ## Next
 

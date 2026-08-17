@@ -4,8 +4,7 @@ order: 100
 group: reference
 ---
 
-Every diagnostic this compiler reports, what it means, and what to write instead. The guide links
-here rather than explaining a diagnostic wherever it happens to come up.
+Every diagnostic this compiler reports, what it means, and what to write instead.
 
 The build prints the ID. Search this page for it.
 
@@ -13,8 +12,8 @@ The build prints the ID. Search this page for it.
 
 ### BCF1001
 
-Error. The class declaring `Body` or `Chrome` is not `partial`, so the generated `RenderView` has
-nowhere to go.
+Error. The class declaring `Body` or `Chrome` is not `partial`, so there is nowhere to emit the
+generated `RenderView`.
 
 ```csharp
 public class Home : BodyComponentBase          // BCF1001
@@ -81,8 +80,8 @@ protected override View Body { get { return Div[H1["Hello"]]; } }   // fine
 protected override View Body { get; } = default;               // BCF1004
 ```
 
-Locals and expression statements may precede that return. They are transplanted into the generated
-`RenderView` ahead of the frames:
+Locals and expression statements may precede that return. They are copied into the generated
+`RenderView` ahead of the calls that emit render-tree frames:
 
 ```csharp
 protected override View Body
@@ -99,9 +98,9 @@ A second return and native control flow each need a sequence space of their own,
 property declares no getter body at all. If the body genuinely cannot be written in this shape,
 override `RenderView` by hand: the design-time expression is then unused, and nothing is reported.
 
-BCF1004 blames the declaration, which is what separates it from BCF1003. A class can carry a missing
-`partial` and an untranslatable getter at once, and you are told about one at a time: BCF1001 runs
-first, and adding the modifier is what surfaces BCF1004.
+BCF1004 reports the declaration, which is what separates it from BCF1003. A class can carry a
+missing `partial` and an untranslatable getter at once, and only one is reported at a time: BCF1001
+runs first, and adding the modifier is what surfaces BCF1004.
 
 ### BCF1005
 
@@ -116,12 +115,12 @@ public partial class Page
 }
 ```
 
-Move the component to a top-level type. Generated code cannot reproduce a chain of enclosing type
-declarations, including any enclosing type's type parameters, so a nested component is rejected
+Move the component to a top-level type. Reopening a nested class from the generated file would mean
+re-declaring every enclosing type, its type parameters included, so a nested component is rejected
 rather than half emitted. Without the diagnostic it would surface as CS0534, which names the missing
 member and never the nesting.
 
-## What the surface means, and where
+## Where the surface is read
 
 ### BCF2001
 
@@ -154,8 +153,9 @@ is an empty struct, an element helper returns nothing, and a decoration returns 
 unchanged. The generator reads the *syntax* you wrote, never the value, and it reads it in three
 places: a component's `Body`, a layout's `Chrome`, and the body of a `[ViewPart]` method.
 
-The same API is callable from anywhere, and elsewhere it means nothing: it compiles, it looks like
-it built something, and it does nothing at all.
+The same API is callable from anywhere, and nothing reads it outside those three places. It
+compiles, but it emits no render-tree frames, so nothing is rendered and no event handler is
+registered.
 
 Caching a value into a field or property of a design-time type is left alone. Only a local, a
 discard, or an argument is reported.
@@ -234,11 +234,11 @@ Element("my widget")             // BCF3009: not spelled like a tag name
 A tag name is an ASCII letter, then ASCII letters, digits, `-`, `_` or `.`.
 
 The constant half keeps the element declarative: a computed tag is neither an injection risk nor a
-sequencing problem, it just stops the element from naming itself where you wrote it.
+sequencing problem, but the element no longer names its tag where you wrote it.
 
 The spelling half is a translation break. A tag no element can be named renders as two different
 things: prerendering writes it into markup where the HTML parser reinterprets it, while interactive
-rendering hands it to `createElement`, which rejects it and takes the circuit down.
+rendering hands it to `createElement`, which rejects it and ends the circuit.
 
 ### BCF3016
 
@@ -254,12 +254,12 @@ The thirteen void elements are `area`, `base`, `br`, `col`, `embed`, `hr`, `img`
 `meta`, `source`, `track`, `wbr`.
 
 The children do not survive a round trip through HTML. Prerendering serializes a closing tag the
-parser does not accept, so the parser pushes the children out and they land as the element's
-siblings. A stray `</br>` is even re-read as a start tag, so `Br["x"]` prerenders as two `<br>`
+parser does not accept, so the parser moves the children out and they become the element's
+siblings. A stray `</br>` is re-read as a start tag, so `Br["x"]` prerenders as two `<br>`
 elements.
 
-Interactive rendering has no parser in the way and puts the same children inside. One expression,
-two different DOM trees, and the page changes shape as hydration takes over.
+Interactive rendering has no parser in between and puts the same children inside. One expression
+produces two different DOM trees, and the page changes shape at hydration.
 
 Configure a void element with decorations and put content beside it.
 
@@ -291,7 +291,7 @@ of your own wins simple-name lookup over an imported one. Blazor parameters name
 `Summary` or `Source` are ordinary, so this happens.
 
 C# has an error for every one of these — CS1503 on the index argument, CS0119, CS0118, CS0021 — and
-you never see any of them. As long as the body does not translate, the component has no generated
+none of them is reported. As long as the body does not translate, the component has no generated
 `RenderView`, so the compiler stops before it binds method bodies, which is where all four are
 found.
 
@@ -320,8 +320,8 @@ Div.Class("card")    // what to write instead
 ```
 
 A misspelling reaches this, and so does an extension method of your own that takes an element and
-gives one back. C# has an error for the misspelling, and the same declaration-stage stop keeps it
-from you.
+gives one back. C# has an error for the misspelling, and the same declaration-stage stop prevents it
+being reported.
 
 ### BCF3010
 
@@ -333,7 +333,7 @@ Input.Type("text").Attr("value", _b)                     // what to write instea
 Div.Class("card").Class("is-open")                       // fine: class folds
 ```
 
-Two bindings in the attribute channel leave the earlier one dead, because the last write wins. One
+Two bindings in the attribute channel discard the earlier one, because the last write wins. One
 name bound through the attribute channel and once through the event channel keeps both, so an inline
 handler and a C# handler each fire on every event. Neither is what you wrote.
 
@@ -382,8 +382,9 @@ Div.Class("card").Bind("class", "onchange", () => _classes)   // BCF3024
 `.Class` and `.Attr("class", …)` fold into a single attribute. A `.Bind` on the same name does not
 join that fold; it emits its own frame, so the element is emitted with `class` twice.
 
-Which one survives is not one answer: prerendered markup is resolved by the HTML parser, which keeps
-the first, while an interactive render applies them through the DOM, where the last write stands.
+Which one survives has no single answer: prerendered markup is resolved by the HTML parser, which
+keeps the first, while an interactive render applies them through the DOM, where the last write
+stands.
 
 Supply the whole class value from one place. Bind it alone and let the getter carry everything, or
 drop the binding and use the decorations.
@@ -397,16 +398,16 @@ Div.Key(row.Id).Key(row.Slug)["x"]   // BCF3033
 Div.Key(row.Id)["x"]                 // what to write instead
 ```
 
-`.Key` and its siblings each occupy a channel that holds one value. All of them break differently
-and none of them breaks visibly: Each breaks its own way:
+`.Key` and its siblings each occupy a channel that holds one value. All three break differently, and
+none of them breaks visibly:
 
 - `SetKey` writes into the open frame, so the second call overwrites the first.
 - `AddComponentRenderMode` appends, and the renderer reads the first frame it finds, so there the
-  second one dies.
+  second one is ignored.
 - A reference capture appends too, and both actions run.
 
-Write the decoration once, with the value the node should carry. Two candidate keys means the
-identity is not decided yet, and deciding it in the source is the only place the answer is visible.
+Write the decoration once, with the value the node should carry. Two candidate keys mean the
+identity is not decided, and the source is the only place where deciding it is visible.
 
 ### BCF3034
 
@@ -416,12 +417,12 @@ Error. The component's own declaration fixes its render mode, so the call site c
 Component<Counter>().RenderMode(RenderMode.InteractiveWebAssembly)   // BCF3034 if Counter declares one
 ```
 
-The framework refuses the pair outright: `ComponentFactory` throws when a type carrying a
+The framework rejects the pair: `ComponentFactory` throws when a type carrying a
 `RenderModeAttribute` also receives a caller-specified mode. The call-site form exists for a
 component that declares no mode of its own, which is the case where it is needed: the same component
 rendered interactively from one page and statically from another.
 
-Drop the `.RenderMode` at the call site and let the component's own attribute stand. If the mode
+Drop the `.RenderMode` at the call site and let the component's own attribute apply. If the mode
 genuinely has to vary by caller, remove the attribute from the component instead, and then every
 call site must name a mode.
 
@@ -486,10 +487,10 @@ Form.On("onsubmit", () => Save()).PreventDefault().PreventDefault()   // BCF3036
 Form.On("onsubmit", () => Save()).PreventDefault()                    // what to write instead
 ```
 
-One of the two is dead whichever way the model takes it, and which one is not visible at the call
-site.
+One of the two has no effect whichever way the model takes it, and which one is not visible at the
+call site.
 
-Write the modifier once. It is a flag rather than a value, so a second one asks for nothing the
+Write the modifier once. It is a flag rather than a value, so a second one requests nothing the
 first did not already do.
 
 ### BCF3038
@@ -537,8 +538,8 @@ Wrap the content in a container element. A `ForEach` that declines its key with 
 
 Error. The `ForEach` key or content has a shape the generator cannot sequence.
 
-The key body is transplanted into `SetKey`, so it has to be an expression. The content is given one
-static sequence space that every iteration reuses, which a second return or a native control
+The key body is copied into the `SetKey` call, so it has to be an expression. The content is given
+one static sequence space that every iteration reuses, which a second return or a native control
 statement would each need their own copy of.
 
 Content accepts an expression lambda, a block with one trailing `return`, and a single-parameter
@@ -597,7 +598,7 @@ Component<Card>().Param(c => c.Label, "b")                            // what to
 ```
 
 Every channel counts: `.Param`, `.Template`, `.Bind`, and child content written in brackets. Blazor
-applies the last write, so the earlier value is dead.
+applies the last write, so the earlier value is discarded.
 
 Bind the parameter once, with the value the component should end up with. A value that depends on
 state belongs in the expression you pass, not in a second `.Param`.
@@ -688,7 +689,7 @@ Input.Bind("value", "oninput", GetName)          // BCF3017
 Input.Bind("value", "oninput", () => _name)      // what to write instead
 ```
 
-The getter's body is transplanted twice, once as the bound attribute's value and once as the
+The getter's body is copied into two places, once as the bound attribute's value and once as the
 binder's current value, so it has to be available as an expression. A block-bodied lambda and a
 method group both hide it behind a call.
 
@@ -709,9 +710,9 @@ so that body has to be a field, a settable property, or an element access whose 
 setter.
 
 A local, a parameter, and a `ForEach` iteration variable are rejected even though C# would assign to
-them: the design-time expression is a property getter, so those die with each render and the
-write-back would not survive to the next one. A member of an iteration variable is accepted, because
-it writes through to the element in the source list.
+them: the design-time expression is a property getter, so those go out of scope with each render and
+the write-back would not survive to the next one. A member of an iteration variable is accepted,
+because it writes through to the element in the source list.
 
 ### BCF3020
 
@@ -742,7 +743,7 @@ Input.Bind("value", "oninput", () => _count, format: "N0")   // BCF3031
 `BindConverter.FormatValue` and `CreateBinder` declare their format-taking overloads for `DateTime`,
 `DateTimeOffset`, `DateOnly`, `TimeOnly` and their nullable forms only. A format on anything else
 would leave the generated file with a call that does not bind, and that C# error is raised inside
-generated code, which you do not read.
+generated code rather than in the source you wrote.
 
 Drop the format, or format the value in the getter and parse it in an explicit setter. The set is
 read from the framework's own metadata rather than enumerated by this compiler, and the culture is

@@ -28,8 +28,8 @@ public partial class MainLayout : ChromeLayoutBase
 }
 ```
 
-`Main[Body]` here is exactly `<main>@Body</main>` in Razor, the routed page dropped in as element
-content. The output below stands a placeholder where the page would land:
+`Main[Body]` here is exactly `<main>@Body</main>` in Razor, the routed page placed as element
+content. The output below shows a placeholder where the routed page appears:
 
 <!-- bcf-figure: AppShell -->
 
@@ -111,8 +111,8 @@ uses `Component<T>()`. See
 
 ## Reads are allowed, mutation is not
 
-Both `Chrome` and `Body` may read component state, since projecting state to UI is their whole
-purpose, but neither may mutate it. `Body` here means the `BodyComponentBase` one, not the layout's
+Both `Chrome` and `Body` may read component state, since projecting state to UI is their purpose,
+but neither may mutate it. `Body` here means the `BodyComponentBase` one, not the layout's
 routed-content parameter. Mutating state inside either reports
 [BCF3001](./diagnostics.md#bcf3001), the same diagnostic that applies to a regular component's
 `Body`.

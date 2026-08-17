@@ -2,7 +2,7 @@
 title: レイアウト
 order: 70
 group: write
-source-hash: b31bc6c0
+source-hash: 1da59476
 ---
 
 レイアウトは、ルーティングされたページを共通の外枠で包みます。ヘッダー、ナビゲーション、
@@ -12,7 +12,7 @@ source-hash: b31bc6c0
 
 ## Chrome と Body
 
-`ChromeLayoutBase` は Blazor の `LayoutComponentBase` から派生しています。だから、ルーティング
+`ChromeLayoutBase` は Blazor の `LayoutComponentBase` から派生しています。そのため、ルーティング
 されたページを受け取る `Body` パラメーターを既に備えています。レイアウト自身が描く外枠は、
 `Chrome` という別のプロパティをオーバーライドして書きます。
 
@@ -31,8 +31,7 @@ public partial class MainLayout : ChromeLayoutBase
 ```
 
 ここの `Main[Body]` は、Razor の `<main>@Body</main>` そのものです。ルーティングされたページを、
-要素の内容として落とし込んでいます。下の出力は、ページが入る位置にプレースホルダーを置いた
-ものです。
+要素の内容として置いています。下の出力は、ページが入る位置にプレースホルダーを置いたものです。
 
 ```csharp
 protected override View Chrome =>
@@ -52,7 +51,7 @@ protected override View Chrome =>
 
 ## Body ではなく Chrome である理由
 
-Blazor は、レイアウトが包む中身を `Body` という名前のパラメーターで公開するよう求めます。名前は
+Blazor は、レイアウトが包む内容を `Body` という名前のパラメーターで公開するよう求めます。名前は
 `Body` ちょうどでなければなりません。一方 C# は、1つの型に同じ名前のメンバーを2つ宣言できま
 せん。そこで `Body` は Razor での意味、つまり包まれる側のページのまま残し、レイアウト自身の
 設計時の式には `Chrome` という別の名前を付けました。
@@ -75,7 +74,7 @@ public partial class DocsLayout : ChromeLayoutBase
 ```
 
 入れ子を解決するのは Blazor で、BlazorCodeFirst ではありません。`LayoutView` がレイアウトの型
-から属性を読み、それを自分のレイアウトで包みます。BlazorCodeFirst のレイアウトは、ふつうの
+から属性を読み、それを自分のレイアウトで包みます。BlazorCodeFirst のレイアウトは、通常の
 `LayoutComponentBase` の子孫です。どの段の `Body` も、その1つ下の段を受け取ります。`SiteLayout`
 の `Body` は描かれた `DocsLayout` で、その `DocsLayout` の `Body` がルーティングされたページです。
 
@@ -83,10 +82,11 @@ public partial class DocsLayout : ChromeLayoutBase
 
 `Body` は BlazorCodeFirst の型ではなく、ただの Blazor の `RenderFragment?` です。それでも上の
 `Main[Body]` は、専用の構文なしにコンパイルできます。`View` が `RenderFragment?` からの暗黙の
-変換を持っているからです。おかげでフラグメントは、要素の内容が来る場所ならどこにでも書けます。
+変換を持っているからです。そのためフラグメントは、要素の内容が来る場所ならどこにでも書けます。
 変換元はジェネリックでない `RenderFragment` だけで、`RenderFragment<T>` は変換されません。
-`Fragment` や `Raw` と同じように、`RenderFragment` はキーを付けられるフレームを開きません。だから
-`ForEach` の中身の根にはできず（[BCF3003](./diagnostics.md#bcf3003)）、装飾も付けられません
+`Fragment` や `Raw` と同じように、`RenderFragment` はキーを付けられるフレームを開きません。よって
+`ForEach` の内容のルートにはできず（[BCF3003](./diagnostics.md#bcf3003)）、装飾も付けられ
+ません
 （[BCF3008](./diagnostics.md#bcf3008)）。
 
 同じ仕組みで、BlazorCodeFirst のコンポーネントは Razor から渡された子を描けます。
@@ -117,7 +117,7 @@ public partial class Card : BodyComponentBase
 そもそもの役目だからです。ただし、どちらも状態を書き換えられません。ここでの `Body` は
 `BodyComponentBase` のもので、レイアウトがルーティングされたページを受け取るパラメーターでは
 ありません。どちらの中で状態を書き換えても [BCF3001](./diagnostics.md#bcf3001) を報告します。
-ふつうのコンポーネントの `Body` に当てはまるのと同じ診断です。
+通常のコンポーネントの `Body` に当てはまるのと同じ診断です。
 
 ## 次に読むもの
 

@@ -2,11 +2,11 @@
 title: 要素と装飾
 order: 40
 group: write
-source-hash: 303621a5
+source-hash: 069c7bf7
 ---
 
 BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素の名前が、そのまま出力される要素
-の名前です。あいだに挟まるウィジェットの語彙を覚える必要はなく、実行時の UI ツリーもありません。
+の名前です。HTML の要素名とは別に独自の部品名を覚える必要はなく、実行時の UI ツリーもありません。
 
 ## 要素
 
@@ -30,7 +30,7 @@ protected override View Body =>
 
 HTML Living Standard が適合と認める要素には、すべて専用のヘルパーがあります。
 
-`Element` は、そこから漏れたものを受け持ちます。届くのは2種類です。ひとつはカスタム要素と Web
+`Element` は、ヘルパーの無い要素を受け持ちます。対象は2種類です。ひとつはカスタム要素と Web
 Components で、そのタグ名にヘルパーはありません。もうひとつは、ヘルパーが用意されていない数少
 ない標準要素です。
 
@@ -38,7 +38,7 @@ Components で、そのタグ名にヘルパーはありません。もうひと
   `html`、`head`、`body`、`title`、`base`、`meta`、`link`
 - 生テキスト要素。`script`、`style`、`noscript`
 - レンダーツリーが意味を与えられない要素。`template`、`slot`
-- `object`。C# のキーワードと綴りがぶつかります
+- `object`。C# のキーワードと名前が重なります
 - 別の語彙である `svg` と `math`。その配下すべて
 
 ```csharp
@@ -50,13 +50,13 @@ Element(_kind + "-widget")                 // BCF3009: 定数ではない
 Element("my widget")                       // BCF3009: タグ名の綴りではない
 ```
 
-タグは、タグ名として綴られたコンパイル時定数である必要があります。でなければ
+タグは、タグ名として綴られたコンパイル時定数である必要があります。そうでなければ
 [BCF3009](./diagnostics.md#bcf3009) を報告します。
 
 ## 子に置けるもの
 
-文字列をそのまま書くと、テキストノードになります。だから `Text()` のような構文は別に用意して
-いません。子の無い要素は角括弧ごと省きます。
+文字列をそのまま書くと、テキストノードになります。そのため `Text()` のような構文は用意して
+いません。子ノードの無い要素は角括弧ごと省きます。
 
 ```csharp
 protected override View Body =>
@@ -86,12 +86,12 @@ protected override View Body => Div["before", ChildContent];
 Div[["a", "b"]]     // Div["a", "b"] と同じ。書くならこちら
 ```
 
-ジェネレーターが中を見通せない子の並びを渡すと、[BCF1003](./diagnostics.md#bcf1003) を報告します。
+ジェネレーターが読み取れない子の並びを渡すと、[BCF1003](./diagnostics.md#bcf1003) を報告します。
 繰り返しには [`ForEach`](./control-flow.md#foreach-とそのキー) を使ってください。
 
 ## 空要素は子を取らない
 
-HTML 標準の空要素は13個あり、どれも閉じタグを持ちません。だから子を書くと
+HTML 標準の空要素は13個あり、どれも閉じタグを持ちません。そのため子を書くと
 [BCF3016](./diagnostics.md#bcf3016) を報告します。
 
 ```csharp
@@ -100,12 +100,12 @@ Element("img")["Logo"]           // BCF3016。同じ規則
 Img.Src("/logo.png").Alt("Logo") // こう書く
 ```
 
-空要素は装飾で設定して、中身はその隣に置いてください。この API が HTML について検査するのは、
+空要素は装飾で設定して、内容はその隣に置いてください。この API が HTML について検査するのは、
 ここまでです。この線引きは意図したものです。`Table[Div["x"]]` もハイドレーションの後で表示が
-変わりますが受け付けますし、要素が定義していない属性（`Div.Href("/x")`）も同じです。立場の全体は
+変わりますが受け付けますし、要素が定義していない属性（`Div.Href("/x")`）も同じです。方針の全体は
 `DESIGN.md` §4.1 にあります。
 
-## 名前がぶつかったとき
+## 名前が衝突する場合
 
 `using static BlazorCodeFirst.Html;` は、適合する HTML 要素の名前をすべて取り込みます。そして
 単純名の解決では、自分で宣言した名前が取り込まれた名前に勝ちます。Blazor のパラメーターを
@@ -117,13 +117,13 @@ Div[Data["Heading"]]                          // BCF3027
 Div[Html.Data["Heading"]]                     // こう書く
 ```
 
-自分の型、名前空間、メソッドも同じように名前を奪います。どれも
-[BCF3027](./diagnostics.md#bcf3027) で、見つけたものを名指しします。
+自分の型、名前空間、メソッドも同じように名前を取ります。どれも
+[BCF3027](./diagnostics.md#bcf3027) で、見つけたものを示します。
 
 ## 装飾
 
 装飾は、それが属する要素に、子より前に繋げて書きます。HTML が属性をタグの中に書くのと同じ並び
-です。装飾はラッパーのノードを作らず、持ち主の要素の属性へ畳み込まれます。`class` は畳み込まれ
+です。装飾はラッパーのノードを作らず、所有する要素の属性へ畳み込まれます。`class` は畳み込まれ
 るので、`.Class` を2回以上繋げると値は1つの属性にまとまります。
 
 ```csharp
@@ -138,8 +138,8 @@ protected override View Body =>
 <button class="btn btn-primary" title="Save the current document">Save</button>
 ```
 
-使える装飾は `.Class`、`.Id`、`.Href`、`.Src`、`.Alt`、`.Type`、`.Title`、`.Role`、`.OnClick`。
-それに、汎用の逃げ道として `.Attr(name, value)` と `.On(eventName, handler)` があります。
+使える装飾は `.Class`、`.Id`、`.Href`、`.Src`、`.Alt`、`.Type`、`.Title`、`.Role`、`.OnClick` です。
+汎用の手段として `.Attr(name, value)` と `.On(eventName, handler)` もあります。
 
 `.On` には `on` を含んだ属性名をそのまま渡します（`.On("onmouseenter", …)`）。接頭辞をこちらで
 補うことはなく、`on` の無い名前は [BCF3019](./diagnostics.md#bcf3019) です。`.Attr` や `.On` に
@@ -155,8 +155,8 @@ Input.Type("checkbox").Attr("checked")                    // <input type="checkb
 Button.Attr("disabled", _submitting)["Save"]              // 条件付き
 ```
 
-文字列の `null` も属性を出しません。だから、値が付くこともあれば付かないこともある属性のために、
-要素を分岐で囲む必要はありません。
+文字列の `null` も属性を出しません。そのため、値が付くこともあれば付かないこともある属性の
+ために、要素を分岐で囲む必要はありません。
 
 ```csharp
 Span.Attr("title", _hasTip ? _tip : null)["Hover me"]
@@ -169,8 +169,8 @@ Span.Attr("title", _hasTip ? _tip : null)["Hover me"]
 
 `object` のオーバーロードは、あえて用意していません。ほかの型の値は、レンダリングの時点で、書式
 化を行うスレッドのカルチャーによって文字列になります。コンポーネントが動いたときのカルチャーで
-はありません。だから自分で書き出してください。そうすれば、どのカルチャーを選んだのかが目に
-見えます。
+はありません。自分で書き出してください。そうすれば、どのカルチャーを選んだかがコードに現れ
+ます。
 
 ```csharp
 Div.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))
@@ -202,8 +202,8 @@ Button.On("onclick", (EventArgs e) => Save())["Save"]                           
 Button.On("onclick", (KeyboardEventArgs e) => Save())["Save"]                    // BCF3028
 ```
 
-`[EventHandler]` の登録が無いイベントには、照合する対応表がありません。だから登録していない
-カスタムイベントには何も言いません。登録は Blazor のふつうの仕組みで、自分のプロジェクトでの
+`[EventHandler]` の登録が無いイベントには、照合する対応表がありません。そのため登録していない
+カスタムイベントは検査しません。登録は Blazor の標準の仕組みで、自分のプロジェクトでの
 登録も読みます。
 
 ```csharp
@@ -211,13 +211,13 @@ Button.On("onclick", (KeyboardEventArgs e) => Save())["Save"]                   
 public static class AppEventHandlers;
 ```
 
-属性を出して、イベントを受け取る。この対をひとつの装飾で書くのが
+属性を出してイベントを受け取る、この対をひとつの装飾で書くのが
 [`.Bind`](./two-way-binding.md)です。
 
 ### class のチャネル
 
-class のチャネルは、値をテキストとして繋ぎます。だから `class` は、文字列しか取らない唯一の
-名前です。`.Attr("class", flag)` は [BCF3023](./diagnostics.md#bcf3023) を報告します。
+class のチャネルは値をテキストとして繋ぐので、`class` は文字列しか取らない唯一の名前です。
+`.Attr("class", flag)` は [BCF3023](./diagnostics.md#bcf3023) を報告します。
 `.Attr("class")` も同じです。値を書かない形は、属性があることを表すだけで、繋ぐ文字列を持ち
 ません。条件付きのクラスは文字列で書き、消したい項には `null` を渡してください。
 
@@ -225,19 +225,19 @@ class のチャネルは、値をテキストとして繋ぎます。だから `
 Div.Class("card").Class(_selected ? "is-selected" : "")
 ```
 
-`null` の項は連結から外れます。だから class の装飾を1つだけ持つ要素は、その項が null のとき属性
-ごと消えます。繋ぐ相手がもう1つあるときは、区切りだけが残ります。
-`Div.Class("card").Class(_selected ? "is-selected" : null)` を例にします。`_selected` が false
-のあいだ、出力は `class="card "` です。ブラウザーはこれを `card` 1つのクラスとして読みます。
+`null` の項は連結から外れるので、class の装飾を1つだけ持つ要素は、その項が null のとき属性ごと
+消えます。連結する項がもう1つあるときは、区切りだけが残ります。たとえば
+`Div.Class("card").Class(_selected ? "is-selected" : null)` を考えます。`_selected` が false の
+あいだ、出力は `class="card "` です。ブラウザーはこれを `card` 1つのクラスとして読みます。
 
 ほかの属性とイベントは、どれも1回しかバインドできません。同じ要素に2度書くと
 [BCF3010](./diagnostics.md#bcf3010) を報告します。`style` もそのひとつで、`.Attr("style", …)` と
 書きます。`.Bind("class", …)` は、この名前を書く3つ目の方法で、畳み込まれない唯一の方法です。
-だから `.Class` と併せて書いた要素は [BCF3024](./diagnostics.md#bcf3024) を報告します。
+そのため `.Class` と併せて書いた要素は [BCF3024](./diagnostics.md#bcf3024) を報告します。
 
 ### 装飾を書ける場所
 
-装飾は、単一の要素を相手にしなければなりません。`If`、`ForEach`、`Fragment`、`Raw`、コンポーネント
+装飾は、単一の要素を対象にしなければなりません。`If`、`ForEach`、`Fragment`、`Raw`、コンポーネント
 の結果に付けると [BCF3008](./diagnostics.md#bcf3008) を報告します。子の後ろに繋げて書いた場合
 （`Div["text"].Class("card")`）も同じです。角括弧は、もう `View` を作り終えています。
 

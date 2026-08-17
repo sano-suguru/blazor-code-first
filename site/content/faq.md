@@ -37,13 +37,13 @@ Nothing beyond what a `.razor` component costs. The generator emits a `RenderTre
 with statically assigned sequence numbers, which is what the Razor compiler emits too.
 
 There is no runtime UI tree, no reflection, and no expression compilation. The design-time API you
-wrote the component with does not even ship: the IL trimmer removes it.
+wrote the component with does not ship: the IL trimmer removes it.
 
 ## Why must the class be `partial` and top-level?
 
 `partial` because the generator writes the rendering into your class
-([BCF1001](./diagnostics.md#bcf1001)). Top-level because generated code cannot reproduce a chain of
-enclosing type declarations, including their type parameters
+([BCF1001](./diagnostics.md#bcf1001)). Top-level because reopening a nested class from the generated
+file would mean re-declaring every enclosing type, its type parameters included
 ([BCF1005](./diagnostics.md#bcf1005)).
 
 ## Why can't I write a normal `if` or `foreach` in `Body`?
@@ -60,7 +60,7 @@ cannot be written that way, override `RenderView` by hand.
 
 Because a list that diffs by position reuses the wrong element state the moment it reorders, and
 that is invisible until a user notices their input moved. The parameter has no default, so a list
-either identifies its items or writes `key: null` and takes the cost knowingly
+either identifies its items or writes `key: null` and accepts the cost explicitly
 ([declining the key](./control-flow.md#declining-the-key)).
 
 ## Is `Raw` safe?

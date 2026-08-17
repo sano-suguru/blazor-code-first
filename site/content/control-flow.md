@@ -31,7 +31,7 @@ sibling positions around them.
 
 ## ForEach and its key
 
-`ForEach` takes a key that identifies the item, not its position. The key leaves no trace in the
+`ForEach` takes a key that identifies the item, not its position. The key is not written to the
 markup: it is a diffing instruction, not an attribute.
 
 <!-- bcf-figure: KeyedList -->
@@ -52,9 +52,9 @@ protected override View Body =>
 ```
 
 Sequence numbers identify template positions; keys identify data instances. Passing an index as the
-key defeats the diff, because reordering the list makes Blazor reuse the wrong element state.
+key makes the diff useless, because reordering the list makes Blazor reuse the wrong element state.
 
-A key that never mentions its item at all is caught. All three of these report
+A key that never references its item is reported. All three of these report
 [BCF3002](./diagnostics.md#bcf3002):
 
 - `key: _ => 0`
@@ -69,7 +69,7 @@ ForEach(_groups, key: g => g.Id, content: g =>
 It is a warning rather than an error and does not stop the component being emitted, because the list
 still renders correctly and only diffs badly. The check is also deliberately conservative: it asks
 whether the item was referenced, not whether the value identifies anything. A key derived from the
-item but still position-like passes it. Read BCF3002 as a floor rather than a guarantee.
+item but still position-like passes it. BCF3002 is a lower bound, not a guarantee.
 
 Both lambdas have to be inline expression lambdas, so wrap a call instead of naming it —
 `item => Row(item)` rather than `Row` ([BCF3004](./diagnostics.md#bcf3004)). The content root must
@@ -85,9 +85,9 @@ Ul[ForEach(_columns, key: null, content: c => Li[c.Header])]
 ```
 
 That is the right spelling for a static menu, a fixed set of columns, or any projection that never
-reorders. What it costs is what BCF3002 warns about: the list diffs as an index-derived key does, so
+reorders. The cost is the one BCF3002 warns about: the list diffs as an index-derived key does, so
 an insertion at the front rewrites every row and each row loses its local state. Because no `SetKey`
-is emitted, BCF3002 has nothing to ask about and BCF3003 no longer applies — a `Fragment`, a `Raw`,
+is emitted, BCF3002 has nothing to check and BCF3003 no longer applies — a `Fragment`, a `Raw`,
 or a bare `If` may root the content.
 
 ## Splicing a projection
@@ -107,8 +107,7 @@ Ul[[Li["first"], .. _columns.Select(c => Li[c.Header]), Li["last"]]]
 
 Only `<source>.Select(<inline expression lambda>)` folds. Any other spread — a stored array of
 `View`, a method returning one — is not statically sequenceable children and reports
-[BCF1003](./diagnostics.md#bcf1003), the same answer a stored `View` written as a single child
-already gets.
+[BCF1003](./diagnostics.md#bcf1003), as a stored `View` written as a single child already does.
 
 ## Fragment
 
