@@ -50,6 +50,8 @@ over the content and the key.
 This is what separates BCF1002 from BCF1003. BCF1003 means the expression could not be sequenced;
 BCF1002 means it could, and named something the generated file cannot see.
 
+A `[ViewPart]` body follows the same reserved-name rule [BCF1004](#bcf1004) states for its getter.
+
 ### BCF1003
 
 Error. The expression reached the model stage and could not be translated, because it uses a
@@ -68,6 +70,10 @@ method marked `[ViewPart]`.
 
 Marking a `View`-returning method of your own `[ViewPart]` keeps the factoring rather than inlining
 its markup back into the caller.
+
+An `If` branch and a spliced projection (`.. source.Select(item => …)`) carry their body across
+under the author's own names, the same way BCF1004's getter does, so [BCF1004](#bcf1004)'s
+reserved-name rule reaches them too.
 
 ### BCF1004
 
@@ -96,8 +102,10 @@ protected override View Body
 ```
 
 A second return and native control flow each need a sequence space of their own, and an auto
-property declares no getter body at all. If the body genuinely cannot be written in this shape,
-override `RenderView` by hand: the design-time expression is then unused, and nothing is reported.
+property declares no getter body at all. A local declared `__builder` or prefixed `__bcf_` cannot
+be declared here either: the generator reserves both spellings everywhere a transplanted local can
+land. Rename the local. If the body genuinely cannot be written in this shape, override
+`RenderView` by hand: the design-time expression is then unused, and nothing is reported.
 
 BCF1004 reports the declaration, which is what separates it from BCF1003. A class can carry a
 missing `partial` and an untranslatable getter at once, and only one is reported at a time: BCF1001
@@ -546,6 +554,9 @@ statement would each need their own copy of.
 Content accepts an expression lambda, a block with one trailing `return`, and a single-parameter
 `View`-returning method group.
 
+The key body and the content body follow the same reserved-name rule [BCF1004](#bcf1004) states
+for its getter.
+
 ### BCF3032
 
 Error. The `ForEach` content root writes its own `.Key` while the loop also applies one.
@@ -657,6 +668,8 @@ Component<Grid<Row>>().Template(c => c.RowTemplate, row => Td[row.Name]) // what
 A method group, an anonymous method, and a block-bodied lambda all hide the content behind a call,
 leaving no expression to sequence and no parameter symbol to substitute the generated context
 variable for.
+
+The content follows the same reserved-name rule [BCF1004](#bcf1004) states for its getter.
 
 ### BCF3025
 
