@@ -17,8 +17,8 @@ BlazorCodeFirst を使うと、Blazor の UI を通常の C# として書けま�
 dotnet add package BlazorCodeFirst --prerelease
 ```
 
-公開しているバージョンには prerelease の接尾辞が付いています。`--prerelease` を外すと最新の安定版
-を探しに行き、それは存在しないので何も解決しません。
+公開しているバージョンには prerelease の接尾辞が付いています。`--prerelease` を外すと、コマンドは
+最新の安定版を探します。安定版はまだないので、パッケージは復元されません。
 
 ## 最初のコンポーネント
 
@@ -59,7 +59,7 @@ protected override View Body =>
 </div>
 ```
 
-## ゲッターは1つの式へ到達する
+## ゲッターが返すのは1つの式
 
 書き方は3通りあり、どれも同じものへ翻訳されます。
 
@@ -84,7 +84,7 @@ protected override View Body
 }
 ```
 
-2つ目の `return` とネイティブの制御構文は、それぞれ専用のシーケンス空間を要するため、どちらも
+2つ目の `return` と C# 本来の制御構文は、それぞれ専用のシーケンス空間を必要とするため、どちらも
 受け付けません（[BCF1004](./diagnostics.md#bcf1004)）。本体がどうしてもこの形にならないなら、
 `RenderView` を手で書いてください。そのとき設計時の式は使われなくなり、何も報告されません。
 
@@ -112,7 +112,7 @@ protected override View Body
 | --- | --- |
 | [BCF1001](./diagnostics.md#bcf1001) | クラスが `partial` でない |
 | [BCF1005](./diagnostics.md#bcf1005) | クラスが入れ子になっている |
-| [BCF1004](./diagnostics.md#bcf1004) | ゲッターが1つの式へ到達しない |
+| [BCF1004](./diagnostics.md#bcf1004) | ゲッターが1つの返り値の式に収まらない |
 | [BCF1002](./diagnostics.md#bcf1002) | 生成ファイルから見えないローカル変数を式が参照している |
 | [BCF1003](./diagnostics.md#bcf1003) | ジェネレーターが読まない構文を式が使っている |
 

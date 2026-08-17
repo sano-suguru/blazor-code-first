@@ -86,8 +86,7 @@ public partial class DocsLayout : ChromeLayoutBase
 変換を持っているからです。そのためフラグメントは、要素の内容が来る場所ならどこにでも書けます。
 変換元はジェネリックでない `RenderFragment` だけで、`RenderFragment<T>` は変換されません。
 `Fragment` や `Raw` と同じように、`RenderFragment` はキーを付けられるフレームを開きません。よって
-`ForEach` の内容のルートにはできず（[BCF3003](./diagnostics.md#bcf3003)）、装飾も付けられ
-ません
+`ForEach` の内容のルートにはできず（[BCF3003](./diagnostics.md#bcf3003)）、装飾も付けられません
 （[BCF3008](./diagnostics.md#bcf3008)）。
 
 同じ仕組みで、BlazorCodeFirst のコンポーネントは Razor から渡された子を描けます。

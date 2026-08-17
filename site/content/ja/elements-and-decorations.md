@@ -11,7 +11,7 @@ BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素
 
 ## 要素
 
-HTML の要素にはヘルパーがあります。名前はタグの先頭1文字だけを大文字にした綴りで、`FigCaption`
+HTML の要素にはヘルパーがあります。名前はタグ名の先頭1文字だけを大文字にしたもので、`FigCaption`
 ではなく `Figcaption`、同じく `Colgroup` と `Textarea` です。属性は要素に繋げ、子は角括弧に入れ
 ます。
 
@@ -38,7 +38,7 @@ Components で、そのタグ名にヘルパーはありません。もうひと
 - 文書そのものと `<head>` の中だけに現れる要素。
   `html`、`head`、`body`、`title`、`base`、`meta`、`link`
 - 生テキスト要素。`script`、`style`、`noscript`
-- レンダーツリーが意味を与えられない要素。`template`、`slot`
+- レンダーツリーでは意味を持たない要素。`template`、`slot`
 - `object`。C# のキーワードと名前が重なります
 - 外来要素の `svg` と `math`。その配下すべて
 
@@ -48,10 +48,10 @@ private const string Widget = "my-widget";
 Element(Widget).Attr("value", "42")        // カスタム要素
 Element("svg")[Element("circle")]          // 外来要素
 Element(_kind + "-widget")                 // BCF3009: 定数ではない
-Element("my widget")                       // BCF3009: タグ名の綴りではない
+Element("my widget")                       // BCF3009: タグ名の形ではない
 ```
 
-タグは、タグ名として綴られたコンパイル時定数である必要があります。そうでなければ
+タグは、タグ名の形をしたコンパイル時定数である必要があります。そうでなければ
 [BCF3009](./diagnostics.md#bcf3009) を報告します。
 
 ## 子に置けるもの
@@ -108,9 +108,9 @@ Img.Src("/logo.png").Alt("Logo") // こう書く
 
 ## 名前が衝突する場合
 
-`using static BlazorCodeFirst.Html;` は、適合する HTML 要素の名前をすべて取り込みます。そして
-単純名の解決では、自分で宣言した名前が取り込まれた名前に勝ちます。Blazor のパラメーターを
-`Label`、`Data`、`Summary`、`Source` と名付けるのはありふれているので、これは起こります。
+`using static BlazorCodeFirst.Html;` は、適合する HTML 要素の名前をすべて取り込みます。単純名の
+解決では、自分で宣言した名前が取り込まれた名前に勝ちます。`Label`、`Data`、`Summary`、`Source`
+という Blazor のパラメーター名はありふれているので、この衝突は実際に起きます。
 
 ```csharp
 [Parameter] public string Data { get; set; }
@@ -118,8 +118,8 @@ Div[Data["Heading"]]                          // BCF3027
 Div[Html.Data["Heading"]]                     // こう書く
 ```
 
-自分の型、名前空間、メソッドも同じように名前を取ります。どれも
-[BCF3027](./diagnostics.md#bcf3027) で、見つけたものを示します。
+自分の型、名前空間、メソッドも、同じように要素ヘルパーの名前を奪います。どれも
+[BCF3027](./diagnostics.md#bcf3027) で、奪ったものが何かを示します。
 
 ## 装飾
 
@@ -168,10 +168,10 @@ Span.Attr("title", _hasTip ? _tip : null)["Hover me"]
 で値が null になったとき、Blazor は要素を差し替えるのではなく、すでに DOM にある要素から属性
 を取り除きます。値を1つ取る装飾は、どれもこの意味で `null` を受け付けます。
 
-`object` のオーバーロードは、あえて用意していません。ほかの型の値は、レンダリングの時点で、書式
-化を行うスレッドのカルチャーによって文字列になります。コンポーネントが動いたときのカルチャーで
-はありません。自分で書き出してください。そうすれば、どのカルチャーを選んだかがコードに現れ
-ます。
+`object` のオーバーロードは、あえて用意していません。ほかの型の値は、レンダリングの時点で文字列に
+なります。そのとき使われるのは書式化を実行するスレッドのカルチャーで、コンポーネントが動いたとき
+のカルチャーではありません。どのカルチャーを選んだかがコードに現れるよう、自分で文字列にして
+ください。
 
 ```csharp
 Div.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))
