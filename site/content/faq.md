@@ -1,5 +1,6 @@
 ---
 title: FAQ
+description: Questions this surface's shape raises, such as why there is no VStack or typed padding, and where each answer is settled.
 order: 110
 group: reference
 ---

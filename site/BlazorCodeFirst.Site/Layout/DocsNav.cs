@@ -141,6 +141,43 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
         return others;
     }
 
+    /// <summary>The same, over the manifest this build produced.</summary>
+    /// <remarks>
+    /// Internal rather than private, because <see cref="Pages.DocsView"/> names it from a
+    /// <c>[ViewPart]</c>, which expands into its caller's generated RenderView: a private member is
+    /// unreachable from there and fails with BCF1002. It sits beside the decision rather than in
+    /// DocsView, so the manifest-supplying wrapper is at the same address as the decision it wraps.
+    /// </remarks>
+    internal static List<DocAlternate> Editions(string lang, string? slug) =>
+        Editions(Docs.All, lang, slug);
+
+    /// <summary>Every edition that can show what the reader is looking at, this one included.</summary>
+    /// <remarks>
+    /// The language switch asks for the OTHER editions, because it offers somewhere else to go; an
+    /// hreflang set asks for all of them, for the reason <see cref="SiteMeta.Tags"/> gives. One
+    /// decision, two readings, so
+    /// <see cref="Counterparts(ImmutableArray{DocEntry}, string, string?)"/> stays the one place that
+    /// decides which editions have this document.
+    /// </remarks>
+    internal static List<DocAlternate> Editions(ImmutableArray<DocEntry> docs, string lang, string? slug)
+    {
+        var editions = new List<DocAlternate> { new(lang, PathOf(lang, slug)) };
+        foreach (string other in Counterparts(docs, lang, slug))
+        {
+            editions.Add(new DocAlternate(other, PathOf(other, slug)));
+        }
+
+        return editions;
+    }
+
+    /// <summary>The route one edition is served from, in the form sitemap.xml declares.</summary>
+    /// <remarks>
+    /// With a trailing slash, which the hrefs in the rail do not carry. <see cref="SiteMeta.Path"/>
+    /// says why that form and no other.
+    /// </remarks>
+    internal static string PathOf(string lang, string? slug) =>
+        slug is null ? Docs.RoutePrefix(lang) + "/" : Docs.Href(lang, slug) + "/";
+
     /// <summary>The current route as a normalized absolute path.</summary>
     /// <remarks>
     /// Derived from ToBaseRelativePath for the same reason <see cref="SiteNav"/> does: the

@@ -1,6 +1,7 @@
 ---
 name: English
 index-title: Documentation
+index-description: The BlazorCodeFirst guide, from installing the package to the diagnostic reference.
 index-lead: Every document in the guide, in reading order.
 rail-heading: Guide
 language-label: Language

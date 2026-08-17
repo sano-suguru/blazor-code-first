@@ -1,5 +1,6 @@
 ---
 title: 診断
+description: このコンパイラーが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。
 order: 100
 group: reference
 source-hash: 74c1df14

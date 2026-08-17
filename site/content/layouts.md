@@ -1,5 +1,6 @@
 ---
 title: Layouts
+description: Wrapping the routed page in shared chrome by deriving a layout from ChromeLayoutBase.
 order: 70
 group: write
 ---

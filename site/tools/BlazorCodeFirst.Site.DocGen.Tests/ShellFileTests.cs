@@ -8,6 +8,7 @@ public class ShellFileTests
     private const string Common =
         "name: English\n" +
         "index-title: Documentation\n" +
+        "index-description: The guide, in reading order.\n" +
         "index-lead: Every document, in reading order.\n" +
         "rail-heading: Guide\n" +
         "language-label: Language\n" +
@@ -21,10 +22,10 @@ public class ShellFileTests
         "stale-link: Read the English page\n";
 
     private static ShellStrings ParseCanonical(string keys) =>
-        ShellFile.Parse($"---\n{keys}---\n", "shell.yml", isCanonical: true);
+        ShellFile.Parse($"---\n{keys}---\n", "shell.yml", DocLang.Canonical);
 
     private static ShellStrings ParseTranslation(string keys) =>
-        ShellFile.Parse($"---\n{keys}---\n", "ja/shell.yml", isCanonical: false);
+        ShellFile.Parse($"---\n{keys}---\n", "ja/shell.yml", "ja");
 
     [Fact]
     public void Parse_ReadsEveryKey()
@@ -33,6 +34,7 @@ public class ShellFileTests
 
         Assert.Equal("English", shell.Name);
         Assert.Equal("Documentation", shell.IndexTitle);
+        Assert.Equal("The guide, in reading order.", shell.IndexDescription);
         Assert.Equal("Every document, in reading order.", shell.IndexLead);
         Assert.Equal("Guide", shell.RailHeading);
         Assert.Equal("Language", shell.LanguageLabel);
@@ -92,6 +94,58 @@ public class ShellFileTests
     }
 
     [Fact]
+    public void Parse_MissingIndexDescription_Throws()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(WithoutIndexDescription()));
+
+        Assert.Contains("index-description", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_TranslationMissingIndexDescription_Throws()
+    {
+        // Required of a translation as well, unlike the two stale keys. An index whose description
+        // fell back to English would be the one page in the edition describing itself in the wrong
+        // language to a search result.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParseTranslation(WithoutIndexDescription() + Stale));
+
+        Assert.Contains("index-description", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_IndexDescriptionOverTheCanonicalLimit_Throws()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParseCanonical(WithIndexDescription(new string('x', 161))));
+
+        Assert.Contains("index-description", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("161", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("160", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_IndexDescriptionOverTheTranslationLimit_Throws()
+    {
+        // The same length the canonical edition accepts, rejected here: a translation's limit is the
+        // narrower one, because a full-width character takes about twice the width in a result.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParseTranslation(WithIndexDescription(new string('x', 91)) + Stale));
+
+        Assert.Contains("91", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("90", ex.Message, StringComparison.Ordinal);
+    }
+
+    private const string IndexDescriptionLine = "index-description: The guide, in reading order.\n";
+
+    private static string WithoutIndexDescription() =>
+        Common.Replace(IndexDescriptionLine, "", StringComparison.Ordinal);
+
+    private static string WithIndexDescription(string value) =>
+        Common.Replace(IndexDescriptionLine, $"index-description: {value}\n", StringComparison.Ordinal);
+
+    [Fact]
     public void Parse_TranslationMissingStaleText_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => ParseTranslation(Common));
@@ -139,7 +193,7 @@ public class ShellFileTests
     public void Parse_TextAfterTheBlock_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(
-            () => ShellFile.Parse($"---\n{Common}---\n\n## Not a document\n", "shell.yml", isCanonical: true));
+            () => ShellFile.Parse($"---\n{Common}---\n\n## Not a document\n", "shell.yml", DocLang.Canonical));
 
         // This file is the block and nothing else. Prose here would render nowhere, so accepting it
         // would let an author write a paragraph no reader ever sees.
@@ -150,7 +204,7 @@ public class ShellFileTests
     public void Parse_NoOpeningFence_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(
-            () => ShellFile.Parse(Common, "shell.yml", isCanonical: true));
+            () => ShellFile.Parse(Common, "shell.yml", DocLang.Canonical));
 
         Assert.Contains("shell.yml", ex.Message, StringComparison.Ordinal);
     }

@@ -52,4 +52,14 @@ public class InstallCommandTests
             Expected(),
             File.ReadAllText(RepositoryPath.From("site/content/getting-started.md")),
             StringComparison.Ordinal);
+
+    [Fact]
+    public void TheSocialCardShowsTheSameCommand() =>
+        // The fourth copy, and the one furthest from anything that would notice. og.png is a
+        // hand-regenerated screenshot, so the card's source cannot read a constant and the flagless
+        // command would reach every shared link rather than one page.
+        Assert.Contains(
+            Expected(),
+            File.ReadAllText(RepositoryPath.From("site/tools/og-card.html")),
+            StringComparison.Ordinal);
 }

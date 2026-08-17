@@ -37,6 +37,48 @@ public class DocMetaTests
     }
 
     [Theory]
+    [InlineData("en", 160)]
+    [InlineData("ja", 90)]
+    public void LimitFor_KnownLanguage_ReturnsItsLimit(string lang, int expected) =>
+        Assert.Equal(expected, DocDescription.LimitFor(lang));
+
+    [Fact]
+    public void Validate_WithinLimit_ReturnsValue() =>
+        Assert.Equal("A summary.", DocDescription.Validate("A summary.", "en", "a.md"));
+
+    [Fact]
+    public void Validate_OverTheCanonicalLimit_Throws()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => DocDescription.Validate(new string('x', 161), "en", "a.md"));
+
+        Assert.Contains("161", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("160", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("a.md", ex.Message, StringComparison.Ordinal);
+    }
+
+    // ASCII, although what it stands in for is Japanese: site.yml scans every *.cs under site/ for
+    // CJK, and the limit counts characters rather than measuring them, so the threshold is reachable
+    // without one.
+    [Fact]
+    public void Validate_OverTheTranslationLimit_Throws()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => DocDescription.Validate(new string('x', 91), "ja", "ja/a.md"));
+
+        Assert.Contains("91", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("90", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("ja/a.md", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_AtTheLimit_IsAccepted()
+    {
+        Assert.Equal(160, DocDescription.Validate(new string('x', 160), "en", "a.md").Length);
+        Assert.Equal(90, DocDescription.Validate(new string('x', 90), "ja", "ja/a.md").Length);
+    }
+
+    [Theory]
     [InlineData("# Title\n")]              // ATX h1
     [InlineData("Title\n=====\n")]         // setext h1
     [InlineData("#\tTitle\n")]             // tab-separated ATX h1

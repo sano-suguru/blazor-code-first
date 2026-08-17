@@ -1,5 +1,6 @@
 ---
 title: Components and Reuse
+description: Calling one component from another, interoperating with Razor components in both directions, and what a ViewPart is for.
 order: 60
 group: write
 ---

@@ -3,12 +3,22 @@ using System.Globalization;
 namespace BlazorCodeFirst.Site.DocGen;
 
 /// <summary>The metadata a document declares in its front matter block.</summary>
+/// <param name="Description">
+/// The one sentence a search result shows under the title. How long it may run is the caller's rule,
+/// for the same reason <paramref name="SourceHash"/>'s requiredness is: the limit is per language and
+/// only the caller knows which language the file came from. <see cref="DocDescription"/> holds it.
+/// </param>
 /// <param name="SourceHash">
 /// A translation's record of the English document it was written against, or null on a canonical
 /// document. Whether it is required is the caller's rule, because only the caller knows which
 /// language the file came from.
 /// </param>
-public sealed record FrontMatterFields(string Title, int Order, string Group, string? SourceHash);
+public sealed record FrontMatterFields(
+    string Title,
+    string Description,
+    int Order,
+    string Group,
+    string? SourceHash);
 
 /// <summary>
 /// Splits a document's leading <c>---</c> front matter block from its Markdown body and validates
@@ -29,7 +39,7 @@ public sealed record FrontMatterFields(string Title, int Order, string Group, st
 /// a clear message instead of a silently ignored line.
 ///
 /// Scanning the block itself is <see cref="KeyValueBlock"/>'s job, shared with the shell file. Only
-/// the reading of these four keys lives here.
+/// the reading of these five keys lives here.
 /// </remarks>
 public static class FrontMatter
 {
@@ -39,9 +49,11 @@ public static class FrontMatter
             raw,
             fileName,
             Kind,
-            "the file must start with a '---' front matter block declaring 'title', 'order' and 'group'.");
+            "the file must start with a '---' front matter block declaring 'title', 'description', " +
+                "'order' and 'group'.");
 
         string? title = null;
+        string? description = null;
         int? order = null;
         string? group = null;
         string? sourceHash = null;
@@ -50,17 +62,11 @@ public static class FrontMatter
             switch (key)
             {
                 case "title":
-                    if (title is not null)
-                    {
-                        throw Invalid(fileName, "front matter key 'title' is declared more than once.");
-                    }
+                    title = ReadText(title, "title", value, fileName);
+                    break;
 
-                    if (value.Length == 0)
-                    {
-                        throw Invalid(fileName, "front matter 'title' must not be empty.");
-                    }
-
-                    title = value;
+                case "description":
+                    description = ReadText(description, "description", value, fileName);
                     break;
 
                 case "order":
@@ -109,14 +115,19 @@ public static class FrontMatter
                 default:
                     throw Invalid(
                         fileName,
-                        $"front matter key '{key}' is not recognized; only 'title', 'order', 'group' and " +
-                        "'source-hash' are allowed.");
+                        $"front matter key '{key}' is not recognized; only 'title', 'description', " +
+                        "'order', 'group' and 'source-hash' are allowed.");
             }
         }
 
         if (title is null)
         {
             throw Invalid(fileName, "front matter is missing the required 'title' key.");
+        }
+
+        if (description is null)
+        {
+            throw Invalid(fileName, "front matter is missing the required 'description' key.");
         }
 
         if (order is null)
@@ -129,7 +140,28 @@ public static class FrontMatter
             throw Invalid(fileName, "front matter is missing the required 'group' key.");
         }
 
-        return (new FrontMatterFields(title, order.Value, group, sourceHash), body);
+        return (new FrontMatterFields(title, description, order.Value, group, sourceHash), body);
+    }
+
+    /// <summary>Reads a key that must be declared once and carry a non-empty value.</summary>
+    /// <remarks>
+    /// Shared by 'title' and 'description', which are the same rule twice. Per-key reading stays in
+    /// the switch above for the reason this file's remark gives; only the check the two keys have in
+    /// common lives here, so the rule has one implementation rather than one per key.
+    /// </remarks>
+    private static string ReadText(string? declared, string key, string value, string fileName)
+    {
+        if (declared is not null)
+        {
+            throw Invalid(fileName, $"front matter key '{key}' is declared more than once.");
+        }
+
+        if (value.Length == 0)
+        {
+            throw Invalid(fileName, $"front matter '{key}' must not be empty.");
+        }
+
+        return value;
     }
 
     /// <summary>How many hex digits a <c>source-hash</c> carries.</summary>

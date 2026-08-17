@@ -1,5 +1,6 @@
 ---
 title: 要素と装飾
+description: 書いた要素がそのまま出力される要素になる。ヘルパーへの属性の連結と、角括弧に置く子要素の書き方。
 order: 40
 group: write
 source-hash: 1b34b81d

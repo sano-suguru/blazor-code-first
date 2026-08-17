@@ -520,6 +520,32 @@ jobs:
           # legitimate per-path Disallow later is not forbidden, only made to cost one edit here.
           assert_not_grep '^[[:space:]]*[Dd][Ii][Ss][Aa][Ll][Ll][Oo][Ww]:' "$P/robots.txt" "robots.txt carries a Disallow rule, and this site is meant to be fully crawlable: preview deployments are deindexed with an X-Robots-Tag header instead, which a Disallow would prevent the crawler from ever reading"
 
+          # The third copy of the origin, and the one that reaches a reader. Every canonical link and
+          # og:url in the published HTML is built from SiteMetadata.Origin, and
+          # eng/verify-site-prerender.sh reads the origin it compares against back out of robots.txt
+          # rather than out of this constant -- so the two drifting apart would leave that script
+          # comparing the site against itself and passing on every route. This is the assertion that
+          # cannot be made from the publish output, which is why it sits here beside the one above.
+          assert_grep "public const string Origin = \"$ORIGIN_ERE\";" \
+            site/BlazorCodeFirst.Site/SiteMetadata.cs \
+            "SiteMetadata.Origin does not match the origin this workflow deploys to, so every canonical link and og:url in the published HTML names the wrong site"
+
+          # The root of that chain, which the chain itself cannot reach. ORIGIN is built from WORKER,
+          # and the step that sets WORKER says it must equal the "name" in site/wrangler.jsonc without
+          # checking it. Rename the Worker there and robots.txt, SiteMetadata.Origin and ORIGIN stay in
+          # perfect agreement with each other while naming a hostname nothing serves -- every
+          # assertion above included. That costs more now than it did before this change, because the
+          # origin reaches every page's head rather than only the sitemap.
+          worker=${ORIGIN#https://}
+          assert_grep "\"name\": \"$(printf '%s' "${worker%%.*}" | sed 's/[.[\*^$]/\\&/g')\"" \
+            site/wrangler.jsonc \
+            "site/wrangler.jsonc names a different Worker than this workflow derived its origin from, so the deployment would answer on a hostname no published page names"
+
+          # The card every social preview shows. An ordinary wwwroot file, and SiteMetadata.CardPath
+          # names it in an absolute URL, so losing it leaves every share falling back to no image with
+          # nothing else here noticing.
+          assert_file "$P/og.png" "the publish output has no og.png, so every social card falls back to no image"
+
       - name: Verify the published _headers and the absence of compression sidecars
         run: |
           set -euo pipefail

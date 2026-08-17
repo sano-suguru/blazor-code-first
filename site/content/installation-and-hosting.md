@@ -1,5 +1,6 @@
 ---
 title: Installation and Hosting
+description: What to install, which target framework it needs, and which hosting decisions the library leaves to Blazor.
 order: 20
 group: start
 ---

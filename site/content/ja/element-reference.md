@@ -1,5 +1,6 @@
 ---
 title: 要素リファレンス
+description: この記法が宣言する要素ヘルパー、装飾、制御構文の一覧。空要素には印を付けている。
 order: 90
 group: reference
 source-hash: b6cf57b5

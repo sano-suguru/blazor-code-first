@@ -34,6 +34,12 @@ internal static class DocsView
     /// baked into index.html and costs nothing; on a translation it is what makes the claim true,
     /// which is WCAG 3.1.2 (Language of Parts). The shell around it stays English either way, so
     /// marking the part rather than the page is also the accurate description.
+    ///
+    /// A search engine reads none of that. It takes the language from the visible text, and Google
+    /// documents that it ignores a lang attribute outright; the hreflang set <see cref="SiteMeta"/>
+    /// declares is what tells it these two routes are editions of one page. So the &lt;html lang&gt;
+    /// on a translation stays English on purpose, and rewriting the published HTML per route would
+    /// buy nothing a reader or a crawler can use.
     /// </remarks>
     [ViewPart]
     public static View Document(DocEntry entry) =>
@@ -41,6 +47,12 @@ internal static class DocsView
             Div.Class("docs-shell")[
                 Article.Class("prose docs-content").Attr("lang", entry.Lang)[
                     Component<PageTitle>()[entry.Title],
+                    Component<SiteMeta>()
+                        .Param(m => m.Title, entry.Title)
+                        .Param(m => m.Description, entry.Description)
+                        .Param(m => m.Path, DocsNav.PathOf(entry.Lang, entry.Slug))
+                        .Param(m => m.Lang, entry.Lang)
+                        .Param(m => m.Alternates, DocsNav.Editions(entry.Lang, entry.Slug)),
                     StaleNotice(entry),
                     H1[entry.Title],
                     // Above the document, because it is how a reader reaches a section rather than
@@ -62,13 +74,24 @@ internal static class DocsView
     /// nothing.
     /// </remarks>
     [ViewPart]
-    public static View Index(string lang) =>
-        Div.Class("shell")[
+    public static View Index(string lang)
+    {
+        // Read once. Docs.Shell is a generated switch that allocates a fresh ShellText and its group
+        // array on every call, measured at 240 bytes, and this part asks it for five strings.
+        var shell = Docs.Shell(lang);
+
+        return Div.Class("shell")[
             Div.Class("docs-shell")[
                 Section.Class("prose docs-content").Attr("lang", lang)[
-                    Component<PageTitle>()[Docs.Shell(lang).IndexTitle],
-                    H1[Docs.Shell(lang).IndexTitle],
-                    P[Docs.Shell(lang).IndexLead],
+                    Component<PageTitle>()[shell.IndexTitle],
+                    Component<SiteMeta>()
+                        .Param(m => m.Title, shell.IndexTitle)
+                        .Param(m => m.Description, shell.IndexDescription)
+                        .Param(m => m.Path, DocsNav.PathOf(lang, null))
+                        .Param(m => m.Lang, lang)
+                        .Param(m => m.Alternates, DocsNav.Editions(lang, null)),
+                    H1[shell.IndexTitle],
+                    P[shell.IndexLead],
                     ForEach(
                         Docs.GroupsFor(lang),
                         key: g => g,
@@ -85,6 +108,7 @@ internal static class DocsView
                 Component<DocsNav>()
                     .Param(n => n.Lang, lang)
                     .Param(n => n.Slug, null)]];
+    }
 
     /// <summary>
     /// The note a translation carries when the document it follows has moved on without it.

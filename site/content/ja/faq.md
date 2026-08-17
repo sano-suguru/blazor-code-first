@@ -1,5 +1,6 @@
 ---
 title: FAQ
+description: VStack や型付きパディングがないのはなぜかなど、この記法の形が生む疑問と、その答えがどこで決まっているか。
 order: 110
 group: reference
 source-hash: 7c94ebd2

@@ -135,11 +135,20 @@ ere_quote() {
 # this script is run to watch a mutation fail -- is the one-true-awk, which has no multibyte support.
 # perl ships with both that machine and the CI image.
 #
-# The ASCII specials "<", ">", "&", '"' and "'" are encoded too by that same encoder, and this does
-# NOT reproduce that. No heading or title in site/content contains one. If that stops being true,
-# extend this rather than the callers.
+# The ASCII specials are encoded by that same encoder, and this reproduces it, because a description
+# is prose and an apostrophe in prose is ordinary: faq.md carries one. Measured against the published
+# HTML rather than assumed -- the encoder writes "&#x27;" for an apostrophe and "&quot;" for a double
+# quote, which are two different spellings of the same idea and could not be guessed from each other.
+# The instruction this replaces asked for exactly this extension when a heading or title first needed
+# it; a description got there first.
 html_encode() {
-  printf '%s' "$1" | perl -CSDA -pe 's/([^\x20-\x7E])/sprintf("&#x%X;", ord($1))/ge'
+  printf '%s' "$1" | perl -CSDA -pe '
+    s/&/&amp;/g;
+    s/</&lt;/g;
+    s/>/&gt;/g;
+    s/"/&quot;/g;
+    s/'"'"'/&#x27;/g;
+    s/([^\x20-\x7E])/sprintf("&#x%X;", ord($1))/ge'
 }
 
 # One key out of a document's or a shell file's front matter.
@@ -155,6 +164,42 @@ front_matter() {
     inside && $0 == "---" { exit }
     inside && index($0, key ": ") == 1 { print substr($0, length(key) + 3); exit }
   ' "$1"
+}
+
+# The origin the published pages name themselves by.
+#
+# Read out of the published robots.txt rather than taken as an argument: that file already carries it
+# in its Sitemap directive, and site.yml already holds that directive to the workflow's own ORIGIN.
+# Reading it back here makes canonical, robots.txt and sitemap.xml one chain rather than three
+# literals, and it keeps this script runnable against a local publish with nothing to remember.
+#
+# The one drift this cannot catch is robots.txt and SiteMetadata.Origin disagreeing, which would leave
+# every comparison below true against the wrong origin. site.yml asserts that pair against ORIGIN,
+# beside its assertion on robots.txt itself.
+origin=$(sed -n 's|^Sitemap: \(.*\)/sitemap\.xml$|\1|p' "$P/robots.txt")
+if [ -z "$origin" ]; then
+  fail "the published robots.txt declares no Sitemap directive, so the origin the pages name themselves by could not be read"
+fi
+
+# The card URL is the same on every route, so it is quoted once rather than 26 times.
+card_pattern=$(ere_quote "$origin/og.png")
+
+# How many editions of one route site/content backs.
+#
+# Counted off the route table rather than by walking the content tree again. That table already has one
+# row per route per edition, so "how many editions have this document" is how many of its rows there
+# are -- and the answer follows slugs_in, which is the one place document discovery is decided. Asked
+# any other way, a change to that discovery would move the table and leave this count behind, with the
+# gate below still green.
+#
+# Counted once into $edition_counts rather than per route. expected_table forks a basename per document
+# per language, so calling it for each of the 24 routes measured 1.6s and about 1,340 processes against
+# 0.07s for one pass -- an eighteen-fold regression on the walk it was written to remove.
+#
+# Derived rather than fixed at two: every document is translated today, and a document with no
+# counterpart names only its own edition.
+editions_of() {
+  printf '%s\n' "$edition_counts" | awk -v kind="$1" -v slug="$2" '$2 == kind && $3 == slug { print $1 }'
 }
 
 # THE GATE. Everything below may enumerate the publish output, because this proved the set it would
@@ -181,7 +226,18 @@ front_matter() {
 # Written here rather than as a helper in eng/ci-assert.sh: every helper there takes one file and one
 # ERE, and set equality is neither. The "Verify site source hygiene" step declines to source the
 # library for the same reason, and says so.
-expected_routes=$(expected_table | awk '{ print $2 }' | LC_ALL=C sort)
+# The table, built once. Everything below reads this variable rather than calling the function again:
+# it forks a basename per document per language, and there are four readers plus a per-route count.
+route_table=$(expected_table)
+
+# The edition count of every non-fixed route, as "<count> <kind> <slug>" lines, in one pass. The two
+# fixed rows are left out because their branch asserts zero rather than a count.
+edition_counts=$(printf '%s\n' "$route_table" \
+  | awk '$1 != "fixed" { print $1 " " $4 }' \
+  | LC_ALL=C sort \
+  | uniq -c)
+
+expected_routes=$(printf '%s\n' "$route_table" | awk '{ print $2 }' | LC_ALL=C sort)
 published_routes=$(published_table)
 
 unbacked=$(LC_ALL=C comm -13 <(printf '%s\n' "$expected_routes") <(printf '%s\n' "$published_routes"))
@@ -207,7 +263,7 @@ fi
 # equally.
 pages_with_shell() {
   # route_file prints without a trailing newline, because its other caller assigns it to a variable.
-  expected_table | while read -r _ route _ _; do printf '%s\n' "$(route_file "$route")"; done
+  printf '%s\n' "$route_table" | while read -r _ route _ _; do printf '%s\n' "$(route_file "$route")"; done
   echo '404.html'
 }
 
@@ -252,6 +308,41 @@ while read -r kind route langdir slug; do
   assert_count 'nav-link active' "$P/$f" 1 "exactly one nav link must be active on a prerendered route"
   assert_count '<title>' "$P/$f" 1 "a prerendered route must render exactly one title element"
 
+  # What the route says about itself to a search engine and to a social card. SiteMeta emits all of
+  # it, so the count guards catch a page that lost the component and the value guards catch one that
+  # was handed the wrong route. The route table already carries the trailing-slash form sitemap.xml
+  # declares, so it is compared verbatim: Workers redirects the bare form, and a canonical without
+  # the slash would name a URL that answers 307 rather than the page.
+  assert_count '<link rel="canonical"' "$P/$f" 1 "a prerendered route must declare exactly one canonical link"
+  assert_grep "<link rel=\"canonical\" href=\"$(ere_quote "$origin$route")\"" "$P/$f" "this route's canonical link does not name the route itself"
+  assert_grep "<meta property=\"og:url\" content=\"$(ere_quote "$origin$route")\"" "$P/$f" "this route's og:url does not name the route itself"
+  assert_count '<meta name="description"' "$P/$f" 1 "a prerendered route must declare exactly one description"
+  assert_count '<meta property="og:image"' "$P/$f" 1 "a prerendered route must declare exactly one card image"
+  assert_grep "<meta property=\"og:image\" content=\"$card_pattern\"" "$P/$f" "this route's card image is not the one this origin serves"
+
+  # One alternate per edition plus an x-default, or none at all. SiteMeta.Tags carries the reason a
+  # set is all-or-nothing; this counts what arrived.
+  #
+  # Asked of "$kind" rather than of the route's shape. The table already sorts the routes into fixed,
+  # index and doc, so matching "/docs/*" a second time would be a second answer to a question already
+  # answered -- and the two would disagree the day a fixed route is served from under /docs.
+  #
+  # The x-default count is not subsumed by the total: dropping the x-default while duplicating an
+  # edition's link satisfies the total and leaves a reader whose language has no edition offered
+  # nothing.
+  #
+  # The zero-alternates branch is a fact about the two routes expected_table hardcodes, not a rule
+  # about non-documentation routes: "/" and "/counter/" have one edition each. A translated route
+  # outside /docs would pass it while carrying no hreflang set at all, which is the defect the other
+  # branch exists to catch -- so adding one means giving expected_table an expected count per route
+  # and reading it here, rather than extending this branch.
+  if [ "$kind" = "fixed" ]; then
+    assert_count 'rel="alternate" hreflang=' "$P/$f" 0 "the home page and the counter demo have one edition each, so neither may name an alternate"
+  else
+    assert_count 'rel="alternate" hreflang=' "$P/$f" "$(( $(editions_of "$kind" "$slug") + 1 ))" "this documentation route does not name one alternate per edition plus an x-default"
+    assert_count 'hreflang="x-default"' "$P/$f" 1 "this documentation route declares no x-default alternate, so a reader whose language has no edition is offered nothing"
+  fi
+
   # The per-route active check is the real guard: if path normalization is wrong, every route
   # renders the same active link.
   assert_active_link "$P/$f" "$(active_href "$kind" "$route")"
@@ -268,6 +359,16 @@ while read -r kind route langdir slug; do
       fail "site/content/$langdir/$slug.md declares no 'title' in its front matter, so this route's title could not be checked"
     fi
     assert_grep "<title>$(ere_quote "$(html_encode "$title")")</title>" "$P/$f" "this document's title element does not match the 'title' in its front matter"
+
+    # The count guard above catches a MISSING description. This catches a WRONG one, on the same
+    # terms the title is caught on: read out of front matter, encoded as the published HTML spells it,
+    # matched whole. Without it, every document could ship the same sentence.
+    description=$(front_matter "$content_root/$langdir/$slug.md" description)
+    if [ -z "$description" ]; then
+      fail "site/content/$langdir/$slug.md declares no 'description' in its front matter, so this route's description could not be checked"
+    fi
+    assert_grep "<meta name=\"description\" content=\"$(ere_quote "$(html_encode "$description")")\"" "$P/$f" "this document's description does not match the 'description' in its front matter"
+    assert_grep "<meta property=\"og:description\" content=\"$(ere_quote "$(html_encode "$description")")\"" "$P/$f" "this document's card description does not match the 'description' in its front matter"
   fi
 
   if [ "$kind" = "index" ]; then
@@ -281,6 +382,14 @@ while read -r kind route langdir slug; do
     # workflow that scans itself for it.
     assert_grep "<h1>$(ere_quote "$(html_encode "$heading")")</h1>" "$P/$f" "this documentation index did not render the heading its shell.yml declares"
     assert_grep "<title>$(ere_quote "$(html_encode "$heading")")</title>" "$P/$f" "this documentation index has the wrong page title"
+
+    # The index has no document to take a description from, so its shell file declares one.
+    lead=$(front_matter "$content_root/$langdir/shell.yml" index-description)
+    if [ -z "$lead" ]; then
+      fail "site/content/$langdir/shell.yml declares no 'index-description', so this index's description could not be checked"
+    fi
+    assert_grep "<meta name=\"description\" content=\"$(ere_quote "$(html_encode "$lead")")\"" "$P/$f" "this documentation index's description does not match the 'index-description' in its shell.yml"
+    assert_grep "<meta property=\"og:description\" content=\"$(ere_quote "$(html_encode "$lead")")\"" "$P/$f" "this documentation index's card description does not match the 'index-description' in its shell.yml"
 
     # The index must enumerate EVERY document in its own edition. Count 2 per slug, not 1: the
     # documentation rail contributes one href per document on this route, so a "contains this href"
@@ -297,7 +406,7 @@ while read -r kind route langdir slug; do
       assert_count "href=\"$(route_prefix "$langdir")$indexed\"" "$P/$f" 2 "this index does not list one of its edition's documents (expected the rail link plus one index entry)"
     done
   fi
-done <<< "$(expected_table)"
+done <<< "$route_table"
 
 # A top-level 404.html is the page an unmatched request is answered with: site/wrangler.jsonc sets
 # not_found_handling to 404-page, which serves the nearest 404.html and nothing else. Losing the
@@ -319,6 +428,13 @@ assert_count '<title>' "$P/404.html" 1 "404.html must render exactly one title e
 assert_grep '<h1>Page not found</h1>' "$P/404.html" "404.html does not render the shared not-found body"
 # No nav link corresponds to /404, so nothing may be marked active there.
 assert_count 'nav-link active' "$P/404.html" 0 "no nav link may be active on 404.html"
+# The one route that says nothing about itself. _headers answers it with X-Robots-Tag: noindex, so a
+# canonical would name a URL for a page that must not be indexed, and a card would offer a share
+# preview for an error. SiteMeta is deliberately absent from NotFoundContent; this holds it absent.
+assert_count '<link rel="canonical"' "$P/404.html" 0 "404.html declares a canonical link, but the not-found page must not be indexed"
+assert_count '<meta name="description"' "$P/404.html" 0 "404.html declares a description, but the not-found page must not be indexed"
+assert_count '<meta property="og:' "$P/404.html" 0 "404.html declares Open Graph tags, but an error page must not offer a share preview"
+assert_count 'rel="alternate" hreflang=' "$P/404.html" 0 "404.html names hreflang alternates, but it is not one edition of a page that has others"
 # The prerendered route lands in 404/index.html and is copied out; the directory must be
 # gone, or /404/ would serve a second copy of the page.
 assert_no_file "$P/404" "the prerendered 404/ directory was not removed after being copied to 404.html"

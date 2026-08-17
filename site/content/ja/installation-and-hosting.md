@@ -1,5 +1,6 @@
 ---
 title: 導入とホスティング
+description: 導入するパッケージ、必要なターゲットフレームワーク、そしてホスティングの判断のうち Blazor に委ねている部分。
 order: 20
 group: start
 source-hash: aeb21a24

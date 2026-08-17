@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 namespace BlazorCodeFirst.Site.Content;
 
 /// <summary>One document's navigation metadata and its build-time converted HTML.</summary>
+/// <param name="Description">The sentence a search result shows under the title.</param>
 /// <param name="Group">The navigation group this document sits in.</param>
 /// <param name="Lang">The language tag this document is written in.</param>
 /// <param name="Stale">True when a translation was written against an older revision
@@ -13,6 +14,7 @@ namespace BlazorCodeFirst.Site.Content;
 public sealed record DocEntry(
     string Slug,
     string Title,
+    string Description,
     int Order,
     string Group,
     string Lang,
@@ -31,6 +33,7 @@ public sealed record GroupHeading(string Group, string Label);
 public sealed record ShellText(
     string Name,
     string IndexTitle,
+    string IndexDescription,
     string IndexLead,
     string RailHeading,
     string LanguageLabel,
@@ -70,6 +73,7 @@ public static class Docs
         "ja" => new ShellText(
             "日本語",
             "ドキュメント",
+            "BlazorCodeFirst のガイド。パッケージの導入から診断リファレンスまでの全文書。",
             "ガイドの全文書を、読む順に並べています。",
             "ガイド",
             "言語",
@@ -80,6 +84,7 @@ public static class Docs
         _ => new ShellText(
             "English",
             "Documentation",
+            "The BlazorCodeFirst guide, from installing the package to the diagnostic reference.",
             "Every document in the guide, in reading order.",
             "Guide",
             "Language",
@@ -94,6 +99,7 @@ public static class Docs
         new DocEntry(
             "getting-started",
             "Getting Started",
+            "Install the runtime and the source generator, derive a component from BodyComponentBase, and render your first Blazor UI written as plain C#.",
             10,
             "start",
             "en",
@@ -103,6 +109,7 @@ public static class Docs
         new DocEntry(
             "installation-and-hosting",
             "Installation and Hosting",
+            "What to install, which target framework it needs, and which hosting decisions the library leaves to Blazor.",
             20,
             "start",
             "en",
@@ -112,6 +119,7 @@ public static class Docs
         new DocEntry(
             "from-razor",
             "From Razor",
+            "The translation table from Razor syntax to this surface, and the four places where the shape of a component differs rather than its spelling.",
             30,
             "start",
             "en",
@@ -121,6 +129,7 @@ public static class Docs
         new DocEntry(
             "elements-and-decorations",
             "Elements and Decorations",
+            "Every element you write names the element it produces. How attributes chain onto a helper, and how children go in brackets.",
             40,
             "write",
             "en",
@@ -130,6 +139,7 @@ public static class Docs
         new DocEntry(
             "control-flow",
             "Control Flow",
+            "If and ForEach, the constructs that let the generator assign a compile-time sequence number to every position in a template.",
             50,
             "write",
             "en",
@@ -139,6 +149,7 @@ public static class Docs
         new DocEntry(
             "components-and-reuse",
             "Components and Reuse",
+            "Calling one component from another, interoperating with Razor components in both directions, and what a ViewPart is for.",
             60,
             "write",
             "en",
@@ -148,6 +159,7 @@ public static class Docs
         new DocEntry(
             "layouts",
             "Layouts",
+            "Wrapping the routed page in shared chrome by deriving a layout from ChromeLayoutBase.",
             70,
             "write",
             "en",
@@ -157,6 +169,7 @@ public static class Docs
         new DocEntry(
             "two-way-binding",
             "Two-Way Binding",
+            ".Bind is the Razor bind directive with every argument visible: the attribute, the event, and a lambda reading the current value.",
             80,
             "write",
             "en",
@@ -166,6 +179,7 @@ public static class Docs
         new DocEntry(
             "element-reference",
             "Element Reference",
+            "Every element helper, decoration and control-flow construct this surface declares, in one list, with void elements marked.",
             90,
             "reference",
             "en",
@@ -175,6 +189,7 @@ public static class Docs
         new DocEntry(
             "diagnostics",
             "Diagnostics",
+            "Every diagnostic this compiler reports, what each one means, and what to write instead. Search the page for the ID the build printed.",
             100,
             "reference",
             "en",
@@ -184,6 +199,7 @@ public static class Docs
         new DocEntry(
             "faq",
             "FAQ",
+            "Questions this surface's shape raises, such as why there is no VStack or typed padding, and where each answer is settled.",
             110,
             "reference",
             "en",
@@ -193,6 +209,7 @@ public static class Docs
         new DocEntry(
             "getting-started",
             "はじめに",
+            "ランタイムとソースジェネレーターを導入し、BodyComponentBase から派生したコンポーネントを描画するまで。",
             10,
             "start",
             "ja",
@@ -202,6 +219,7 @@ public static class Docs
         new DocEntry(
             "installation-and-hosting",
             "導入とホスティング",
+            "導入するパッケージ、必要なターゲットフレームワーク、そしてホスティングの判断のうち Blazor に委ねている部分。",
             20,
             "start",
             "ja",
@@ -211,6 +229,7 @@ public static class Docs
         new DocEntry(
             "from-razor",
             "Razor からの移行",
+            "Razor 構文からこの記法への対応表と、綴りではなくコンポーネントの形そのものが変わる4箇所。",
             30,
             "start",
             "ja",
@@ -220,6 +239,7 @@ public static class Docs
         new DocEntry(
             "elements-and-decorations",
             "要素と装飾",
+            "書いた要素がそのまま出力される要素になる。ヘルパーへの属性の連結と、角括弧に置く子要素の書き方。",
             40,
             "write",
             "ja",
@@ -229,6 +249,7 @@ public static class Docs
         new DocEntry(
             "control-flow",
             "制御構文",
+            "If と ForEach。テンプレートの各位置にコンパイル時のシーケンス番号を割り当てるための構文。",
             50,
             "write",
             "ja",
@@ -238,6 +259,7 @@ public static class Docs
         new DocEntry(
             "components-and-reuse",
             "コンポーネントと再利用",
+            "コンポーネントから別のコンポーネントを呼ぶ方法、Razor コンポーネントとの双方向の相互運用、ViewPart の用途。",
             60,
             "write",
             "ja",
@@ -247,6 +269,7 @@ public static class Docs
         new DocEntry(
             "layouts",
             "レイアウト",
+            "ChromeLayoutBase から派生したレイアウトで、ルーティングされたページを共通の外枠で包む。",
             70,
             "write",
             "ja",
@@ -256,6 +279,7 @@ public static class Docs
         new DocEntry(
             "two-way-binding",
             "双方向バインディング",
+            ".Bind は Razor の bind ディレクティブを、属性・イベント・現在値を読むラムダとして明示的に書いたもの。",
             80,
             "write",
             "ja",
@@ -265,6 +289,7 @@ public static class Docs
         new DocEntry(
             "element-reference",
             "要素リファレンス",
+            "この記法が宣言する要素ヘルパー、装飾、制御構文の一覧。空要素には印を付けている。",
             90,
             "reference",
             "ja",
@@ -274,6 +299,7 @@ public static class Docs
         new DocEntry(
             "diagnostics",
             "診断",
+            "このコンパイラーが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。",
             100,
             "reference",
             "ja",
@@ -283,6 +309,7 @@ public static class Docs
         new DocEntry(
             "faq",
             "FAQ",
+            "VStack や型付きパディングがないのはなぜかなど、この記法の形が生む疑問と、その答えがどこで決まっているか。",
             110,
             "reference",
             "ja",

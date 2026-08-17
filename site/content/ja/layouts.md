@@ -1,5 +1,6 @@
 ---
 title: レイアウト
+description: ChromeLayoutBase から派生したレイアウトで、ルーティングされたページを共通の外枠で包む。
 order: 70
 group: write
 source-hash: 1da59476

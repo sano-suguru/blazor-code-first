@@ -1,5 +1,6 @@
 ---
 title: はじめに
+description: ランタイムとソースジェネレーターを導入し、BodyComponentBase から派生したコンポーネントを描画するまで。
 order: 10
 group: start
 source-hash: 06cbf180

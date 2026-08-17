@@ -136,7 +136,7 @@ public static class DocGenRunner
                 "sees lives in the content tree, including the ones that are not part of a document.");
         }
 
-        return ShellFile.Parse(File.ReadAllText(path), fileName, lang == DocLang.Canonical);
+        return ShellFile.Parse(File.ReadAllText(path), fileName, lang);
     }
 
     /// <summary>Pass 1 for one language: read every document, validate its file name and front matter,
@@ -205,7 +205,15 @@ public static class DocGenRunner
             sources.Add(new DocSource(
                 // Anchors are empty here and filled in by pass 2, which is the first point at which
                 // the document has been parsed and its headings are known.
-                new DocMeta(slug, fields.Title, fields.Order, fields.Group, lang, Stale: false, Anchors: []),
+                new DocMeta(
+                    slug,
+                    fields.Title,
+                    DocDescription.Validate(fields.Description, lang, fileName),
+                    fields.Order,
+                    fields.Group,
+                    lang,
+                    Stale: false,
+                    Anchors: []),
                 fileName,
                 body,
                 fields.SourceHash));

@@ -5,6 +5,10 @@ using Markdig.Syntax;
 namespace BlazorCodeFirst.Site.DocGen;
 
 /// <summary>One document's routing and navigation metadata.</summary>
+/// <param name="Description">
+/// The sentence a search result shows under the title, declared in front matter and bounded by
+/// <see cref="DocDescription"/>.
+/// </param>
 /// <param name="Group">The navigation group from <see cref="DocGroup"/>, declared in front matter.</param>
 /// <param name="Lang">The language tag from <see cref="DocLang"/>, taken from the directory.</param>
 /// <param name="Stale">
@@ -18,6 +22,7 @@ namespace BlazorCodeFirst.Site.DocGen;
 public sealed record DocMeta(
     string Slug,
     string Title,
+    string Description,
     int Order,
     string Group,
     string Lang,
@@ -61,6 +66,66 @@ public static class DocGroup
                 fileName,
                 "document",
                 $"front matter 'group' must be one of [{string.Join(", ", All)}] but was '{value}'.");
+        }
+
+        return value;
+    }
+}
+
+/// <summary>Bounds how long a document's front matter <c>description</c> may run.</summary>
+/// <remarks>
+/// The description is what a search result shows under the title, and the result truncates it by
+/// pixel width rather than by character count. A full-width character occupies about twice the width
+/// of a Latin one, so one number applied to both editions would either cut the English short or let
+/// the Japanese run past the edge. <see cref="SentenceLength"/> declines to measure Japanese at all
+/// for a related reason; here the measurement is meaningful in both, and only the bound differs.
+///
+/// The limits sit above where the editions already are, so satisfying them costs no rewrite. What
+/// they catch is a paragraph pasted into a field that holds a sentence.
+/// </remarks>
+public static class DocDescription
+{
+    /// <summary>How many characters a description may run to in the canonical edition.</summary>
+    public const int CanonicalLimit = 160;
+
+    /// <summary>How many characters a description may run to in a translation.</summary>
+    public const int TranslationLimit = 90;
+
+    /// <summary>The limit that applies to one language.</summary>
+    /// <remarks>
+    /// Takes the language rather than "is this the canonical edition", although those are the same
+    /// question while there is one translation. The day a second one wants its own width budget, the
+    /// answer changes here and at no call site.
+    /// </remarks>
+    public static int LimitFor(string lang) =>
+        lang == DocLang.Canonical ? CanonicalLimit : TranslationLimit;
+
+    /// <summary>Bounds a document's own description.</summary>
+    public static string Validate(string value, string lang, string fileName) =>
+        Validate(value, lang, fileName, "description", "document");
+
+    /// <summary>Bounds any of the descriptions, whichever file and key carries it.</summary>
+    public static string Validate(
+        string value,
+        string lang,
+        string fileName,
+        string key,
+        string kind)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(lang);
+        ArgumentNullException.ThrowIfNull(fileName);
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(kind);
+
+        int limit = LimitFor(lang);
+        if (value.Length > limit)
+        {
+            throw KeyValueBlock.Invalid(
+                fileName,
+                kind,
+                $"'{key}' runs to {value.Length} characters, and the limit is {limit}. " +
+                "It is one sentence, not a paragraph.");
         }
 
         return value;

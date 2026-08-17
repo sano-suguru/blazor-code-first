@@ -1,5 +1,6 @@
 ---
 title: 制御構文
+description: If と ForEach。テンプレートの各位置にコンパイル時のシーケンス番号を割り当てるための構文。
 order: 50
 group: write
 source-hash: 3bc6405f

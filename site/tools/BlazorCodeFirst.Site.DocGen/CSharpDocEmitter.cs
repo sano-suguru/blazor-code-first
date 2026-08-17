@@ -57,6 +57,7 @@ public static class CSharpDocEmitter
         sb.Append("using System.Collections.Immutable;\n\n");
         sb.Append("namespace BlazorCodeFirst.Site.Content;\n\n");
         sb.Append("/// <summary>One document's navigation metadata and its build-time converted HTML.</summary>\n");
+        sb.Append("/// <param name=\"Description\">The sentence a search result shows under the title.</param>\n");
         sb.Append("/// <param name=\"Group\">The navigation group this document sits in.</param>\n");
         sb.Append("/// <param name=\"Lang\">The language tag this document is written in.</param>\n");
         sb.Append("/// <param name=\"Stale\">True when a translation was written against an older revision\n");
@@ -65,6 +66,7 @@ public static class CSharpDocEmitter
         sb.Append("public sealed record DocEntry(\n");
         sb.Append("    string Slug,\n");
         sb.Append("    string Title,\n");
+        sb.Append("    string Description,\n");
         sb.Append("    int Order,\n");
         sb.Append("    string Group,\n");
         sb.Append("    string Lang,\n");
@@ -81,6 +83,7 @@ public static class CSharpDocEmitter
         sb.Append("public sealed record ShellText(\n");
         sb.Append("    string Name,\n");
         sb.Append("    string IndexTitle,\n");
+        sb.Append("    string IndexDescription,\n");
         sb.Append("    string IndexLead,\n");
         sb.Append("    string RailHeading,\n");
         sb.Append("    string LanguageLabel,\n");
@@ -145,6 +148,7 @@ public static class CSharpDocEmitter
             sb.Append("        new DocEntry(\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Slug)).Append("\",\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Title)).Append("\",\n");
+            sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Description)).Append("\",\n");
             sb.Append("            ").Append(meta.Order.ToString(CultureInfo.InvariantCulture)).Append(",\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Group)).Append("\",\n");
             sb.Append("            \"").Append(CSharpLiteral.Escape(meta.Lang)).Append("\",\n");
@@ -217,6 +221,7 @@ public static class CSharpDocEmitter
         sb.Append("new ShellText(\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.Name)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.IndexTitle)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.IndexDescription)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.IndexLead)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.RailHeading)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.LanguageLabel)).Append("\",\n");

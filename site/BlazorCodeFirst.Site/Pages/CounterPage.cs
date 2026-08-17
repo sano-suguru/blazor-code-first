@@ -1,5 +1,6 @@
 using BlazorCodeFirst;
 using BlazorCodeFirst.Site.Content;
+using BlazorCodeFirst.Site.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using static BlazorCodeFirst.Html;
@@ -25,13 +26,27 @@ public sealed partial class CounterPage : BodyComponentBase
     // Stable identity keys (not indices) so the generator can diff the list safely.
     private static readonly List<IncrementStep> Steps = [new(1, 1), new(2, 5), new(3, 10)];
 
+    // The one word this page is called, in the tab, on the card, and as the heading. DocsView passes
+    // one expression to all three on a document; this is the same shape for a page with no document.
+    private const string Title = "Counter";
+
+    // What a search result shows under that title. A literal, because a demo is not a document: it has
+    // no front matter to declare one in and no translation to keep it in step with.
+    private const string Summary =
+        "A running BlazorCodeFirst component, with the C# that produced it beside the rendered result.";
+
     private int _count;
 
     protected override View Body =>
         Div.Class("shell")[
             Section.Class("demo")[
-                Component<PageTitle>()["Counter"],
-                H1["Counter"],
+                Component<PageTitle>()[Title],
+                Component<SiteMeta>()
+                    .Param(m => m.Title, Title)
+                    .Param(m => m.Description, Summary)
+                    .Param(m => m.Path, "/counter/")
+                    .Param(m => m.Lang, Docs.Canonical),
+                H1[Title],
                 P["A component with state, an event handler, a conditional, and a keyed list."],
                 Div.Class("demo-readout")[
                     Span.Class("demo-count")[$"{_count}"],

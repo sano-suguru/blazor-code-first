@@ -1,5 +1,6 @@
 ---
 title: Elements and Decorations
+description: Every element you write names the element it produces. How attributes chain onto a helper, and how children go in brackets.
 order: 40
 group: write
 ---

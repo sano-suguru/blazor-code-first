@@ -1,5 +1,6 @@
 ---
 title: Getting Started
+description: Install the runtime and the source generator, derive a component from BodyComponentBase, and render your first Blazor UI written as plain C#.
 order: 10
 group: start
 ---

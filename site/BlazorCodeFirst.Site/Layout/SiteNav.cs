@@ -49,7 +49,7 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
     protected override View Body =>
         Nav.Class("site-nav")[
             Div.Class("brand")[
-                A.Href("/").Class(LinkClass("/"))["BlazorCodeFirst"]],
+                A.Href("/").Class(LinkClass("/"))[SiteMetadata.Name]],
             Div.Class("nav-utilities")[
                 A.Href("/docs").Class(DocsLinkClass())["Docs"],
                 A.Href("/counter").Class(LinkClass("/counter"))["Demo"],
