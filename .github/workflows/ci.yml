@@ -72,6 +72,13 @@ jobs:
 
       - run: dotnet test BlazorCodeFirst.slnx --no-build
 
+      # DragonCurveGenerator.cs (samples/HeighwayDragon) has no UI or JS dependency, so its tests
+      # run here directly against the .csproj rather than through samples/Samples.slnx, which
+      # would also restore/build the sample app project -- excluded from CI (issue #295).
+      - run: dotnet restore samples/HeighwayDragon.Tests/BlazorCodeFirst.Samples.HeighwayDragon.Tests.csproj
+
+      - run: dotnet test samples/HeighwayDragon.Tests/BlazorCodeFirst.Samples.HeighwayDragon.Tests.csproj
+
       # The version is declared once, in eng/Versions.props, and read here rather than repeated
       # (#228). A literal copy in this file used to fail as "Package not found" from
       # verify-package.sh, which names the symptom and not the cause.

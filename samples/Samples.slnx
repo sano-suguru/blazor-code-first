@@ -2,4 +2,7 @@
   <Folder Name="/HeighwayDragon/">
     <Project Path="HeighwayDragon/BlazorCodeFirst.Samples.HeighwayDragon.csproj" />
   </Folder>
+  <Folder Name="/HeighwayDragon.Tests/">
+    <Project Path="HeighwayDragon.Tests/BlazorCodeFirst.Samples.HeighwayDragon.Tests.csproj" />
+  </Folder>
 </Solution>
