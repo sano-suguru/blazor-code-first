@@ -41,4 +41,16 @@ public class StylesheetTests
 
         Assert.Contains($".{language} > pre", selectors, StringComparison.Ordinal);
     }
+
+    // The container class is the whole mechanism: DocGen accepts one info string and renders it as a
+    // class, and nothing else makes the block look like a warning. Painted under `.prose`, because
+    // that is where a document's HTML lands; a rule written without it would style nothing.
+    [Fact]
+    public void AppCss_PaintsTheContainerClassDocGenAccepts()
+    {
+        string css = File.ReadAllText(
+            RepositoryPath.From(Path.Combine("site", "BlazorCodeFirst.Site", "wwwroot", "css", "app.css")));
+
+        Assert.Contains($".prose .{MarkdownBodyRules.WarningContainer} {{", css, StringComparison.Ordinal);
+    }
 }

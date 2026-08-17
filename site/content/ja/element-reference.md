@@ -2,7 +2,7 @@
 title: 要素リファレンス
 order: 90
 group: reference
-source-hash: b7620988
+source-hash: b6cf57b5
 ---
 
 この API が宣言するものの一覧です。それぞれの意味は
@@ -59,7 +59,7 @@ source-hash: b7620988
 
 `Element("my-widget")` は、ヘルパーの無い要素を書くための構文です。カスタム要素と Web Components、
 そして意図して外した標準要素がこれに該当します。文書と `<head>` の要素、生テキスト要素、`template`
-と `slot`、`object`、SVG と MathML の語彙です。タグはタグ名として綴られたコンパイル時定数で
+と `slot`、`object`、SVG と MathML の要素です。タグはタグ名として綴られたコンパイル時定数で
 なければなりません（[BCF3009](./diagnostics.md#bcf3009)）。何が該当し、なぜ該当するのかは
 [要素と装飾](./elements-and-decorations.md#要素)にあります。
 
@@ -96,7 +96,7 @@ source-hash: b7620988
 | `ForEach(source, key, content)` | キー付きのリスト |
 | `Fragment(children…)` | 包む要素を出さずに子をまとめる |
 | `Raw(html)` | 信頼できる HTML をそのまま差し込む |
-| `Slot` | 内容を取る `[ViewPart]` が、呼び出し側の子を置く場所 |
+| `Slot` | `SlotView` を返す `[ViewPart]` が、呼び出し側の子を置く場所 |
 | `Component<T>()` | Blazor コンポーネントを呼ぶ |
 
 ## コンポーネントの呼び出しに付ける装飾
@@ -120,4 +120,4 @@ source-hash: b7620988
 | `BodyComponentBase` | コンポーネント。`Body` をオーバーライドする |
 | `ChromeLayoutBase` | レイアウト。`Chrome` をオーバーライドする（[レイアウト](./layouts.md)） |
 | `[ViewPart]` | マークアップを呼び出し側へ展開するメソッド |
-| `SlotView` | 内容を取るパーツの戻り値の型 |
+| `SlotView` | 呼び出し側の子を受け取るパーツの戻り値の型 |

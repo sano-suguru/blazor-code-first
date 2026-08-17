@@ -168,6 +168,42 @@ order: 40
 - Headings h2 through h6 automatically get a permalink anchor.
 - A `|`-delimited table is a supported construct. See §Tables below for why, and for what the
   stylesheet does with one.
+- `:::warning` opens the one container this site has. See §Warnings below for what it is for and why
+  there is no second one.
+
+### Warnings
+
+A document opens a warning with a custom container, and closes it with the same fence:
+
+````markdown
+:::warning
+`Raw` writes to the DOM without escaping.
+:::
+````
+
+It renders as `<div class="warning">`, which `.prose .warning` in `css/app.css` draws the way it
+draws a code figure — hairline, small radius, tinted ground — in the warning hue. `StylesheetTests`
+holds the class name against the one DocGen accepts, so renaming either half fails the build rather
+than shipping an unpainted div.
+
+`warning` is the only info string a document may open, and `MarkdownBodyRules.EnsureOnlyWarningContainers`
+rejects every other one. The extension itself takes any word, so `:::note` would parse and render a
+`<div class="note">` that no rule paints — prose in a wrapper, indistinguishable from the paragraphs
+around it. Rejecting it keeps the block a reader learns to stop at meaning one thing.
+
+That one thing is narrow: content that can produce a security defect in a reader's own page. Today
+`Raw` is the whole set, and it carries one block, in `control-flow.md` where the construct is
+introduced. The `faq.md` entry that answers for it links there rather than repeating the block: a
+warning that appears twice is a house style, and a reader stops reading a house style. A warning
+is not for a caveat, a gotcha, or a paragraph an author wants noticed — those are prose, and a page
+whose emphasis is spread across four blocks has none. Widening the set is a design change, not an
+authoring choice: a second kind needs its own class painted in both palettes, and needs an answer to
+what a reader is supposed to do differently on seeing it.
+
+Bold text was the alternative, and it is what the `Raw` paragraph used to be. Bold is inline emphasis
+inside an ordinary paragraph: it carries no rank in the document's structure, and the reader who
+skims headings and code blocks — the one lifting `Raw(entry.Html)` into their own page — never reads
+it.
 
 ### Tables
 
@@ -218,9 +254,16 @@ number, or a code span: a wrapped Japanese sentence reaches the reader as it was
 spaces this edition sets around an inline `<code>` survive. A hard break (two trailing spaces) is
 still a `<br>`. `MarkdownConverterTests` holds each of those boundaries.
 
-Three terms in the Japanese edition are settled, because the English word has more than one
+Four terms in the Japanese edition are settled, because the English word has more than one
 plausible rendering and the literal one reads as a dictionary gloss: `bind` is バインド rather than
 束縛, the *surface* is この API rather than 表層, and a `[ViewPart]` is a パーツ rather than a 部品.
+
+The fourth is *vocabulary*, which has no single rendering: 語彙 is what a person has, not what an
+API offers, so a Japanese reader takes it for a claim about their own reading. Each use is
+translated for what it means there. "The element vocabulary" is 書ける要素の一覧, the list you can
+look up. "A second vocabulary" is HTML とは別の名前, the thing you would have to learn twice. The
+spec's *foreign vocabularies* are 外来要素, which is the term the HTML Standard's Japanese
+translation uses.
 
 ### Shell text
 

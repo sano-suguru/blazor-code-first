@@ -58,4 +58,27 @@ public class DocMetaTests
     [InlineData("| a | b |\n|---|---|\n| 1 | 2 |\n")]        // table delimiter row
     [InlineData("text\n\n---\n\nmore\n")]                    // thematic break
     public void EnsureNoTopLevelHeading_NonH1Content_IsAllowed(string markdown) => CheckBody(markdown);
+
+    [Fact]
+    public void EnsureOnlyWarningContainers_AWarning_IsAllowed() =>
+        CheckContainers(":::warning\nDo not do that.\n:::\n");
+
+    [Theory]
+    [InlineData(":::note\ntext\n:::\n")]
+    [InlineData(":::tip\ntext\n:::\n")]
+    [InlineData(":::WARNING\ntext\n:::\n")]  // the class css/app.css paints is lowercase
+    [InlineData(":::\ntext\n:::\n")]         // no info string, so no class at all
+    public void EnsureOnlyWarningContainers_AnyOtherContainer_Throws(string markdown)
+    {
+        // The site has one kind of warning and nothing else. Without this, ':::note' renders as an
+        // unpainted <div class="note"> that reads as ordinary prose, and the block a reader learns
+        // to stop at stops meaning one thing.
+        var ex = Assert.Throws<InvalidOperationException>(() => CheckContainers(markdown));
+        Assert.Contains("sample.md", ex.Message, StringComparison.Ordinal);
+        Assert.Contains(":::warning", ex.Message, StringComparison.Ordinal);
+    }
+
+    private static void CheckContainers(string markdown) =>
+        MarkdownBodyRules.EnsureOnlyWarningContainers(
+            MarkdownConverter.ParseBody(markdown, "sample.md"), "sample.md");
 }

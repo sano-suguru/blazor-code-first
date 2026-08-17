@@ -80,6 +80,27 @@ public class MarkdownConverterTests
     }
 
     [Fact]
+    public void ToHtml_WarningContainer_BecomesAWarningDiv()
+    {
+        string html = MarkdownConverter.ToHtml(":::warning\nDo not do that.\n:::\n");
+
+        // css/app.css styles `.prose .warning` as the one block that outranks the prose around it.
+        // Bold text inside a paragraph carries no such rank: it is the same block as its neighbours,
+        // and a reader skimming headings and code passes over it.
+        Assert.Contains("<div class=\"warning\">", html);
+        Assert.Contains("Do not do that.", html);
+    }
+
+    [Fact]
+    public void ToHtml_ColonsInsideAFence_StayCode()
+    {
+        string html = MarkdownConverter.ToHtml("```csharp\nvar x = a ? b : c;\n```");
+
+        Assert.DoesNotContain("class=\"warning\"", html);
+        Assert.Contains("class=\"csharp\"", html);
+    }
+
+    [Fact]
     public void ToHtml_PipesInsideAFence_StayCode()
     {
         string html = MarkdownConverter.ToHtml("```csharp\nif (a || b) { }\n```");

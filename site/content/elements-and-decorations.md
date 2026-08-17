@@ -40,13 +40,13 @@ no helper covers:
 - raw-text elements: `script`, `style`, `noscript`
 - elements the render tree cannot give meaning to: `template`, `slot`
 - `object`, whose name is ambiguous with the C# keyword
-- the foreign vocabularies `svg` and `math`, in full
+- the foreign elements `svg` and `math`, in full
 
 ```csharp
 private const string Widget = "my-widget";
 
 Element(Widget).Attr("value", "42")        // custom element
-Element("svg")[Element("circle")]          // foreign vocabulary
+Element("svg")[Element("circle")]          // foreign element
 Element(_kind + "-widget")                 // BCF3009: not a constant
 Element("my widget")                       // BCF3009: not spelled like a tag name
 ```

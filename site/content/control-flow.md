@@ -90,16 +90,16 @@ an insertion at the front rewrites every row and each row loses its local state.
 is emitted, BCF3002 has nothing to check and BCF3003 no longer applies — a `Fragment`, a `Raw`,
 or a bare `If` may root the content.
 
-## Splicing a projection
+## Spreading a `Select` into children
 
-A child list can also take an ordinary projection, spread into it:
+A child list can also take an ordinary projection — a `Select` — spread into it:
 
 ```csharp
 Ul[[.. _columns.Select(c => Li[c.Header])]]
 ```
 
-This is sugar for the declined-key `ForEach` above and compiles to the same `foreach`. Unlike a whole
-child list, it mixes with siblings written around it:
+That is a second spelling of the declined-key `ForEach` above, and it compiles to the same `foreach`.
+The items land in the order they are spread, among any children written by hand:
 
 ```csharp
 Ul[[Li["first"], .. _columns.Select(c => Li[c.Header]), Li["last"]]]
@@ -111,7 +111,7 @@ Only `<source>.Select(<inline expression lambda>)` folds. Any other spread — a
 
 ## Fragment
 
-`Fragment` groups children without emitting a wrapper element, the equivalent of `<>...</>`:
+`Fragment` groups several children into one `View` without emitting a wrapper element:
 
 ```csharp
 Fragment(H2["Title"], P["Body"])
@@ -122,15 +122,19 @@ be a `ForEach` content root ([BCF3003](./diagnostics.md#bcf3003)).
 
 ## Raw
 
-`Raw` injects a trusted HTML string verbatim, the `MarkupString` equivalent. This page itself is
-rendered that way: its Markdown is converted to HTML at build time and passed to `Raw`.
+`Raw` injects an HTML string verbatim, the `MarkupString` equivalent.
+
+:::warning
+`Raw` writes to the DOM without escaping. Pass it only content you produced yourself. A string that
+came from a user, or back from another service, is parsed as HTML, and any script in it runs.
+:::
+
+This page is rendered through it. Its Markdown is converted to HTML at build time, by a tool in this
+repository, and the result is passed to `Raw`.
 
 ```csharp
 Article.Class("prose")[Raw(entry.Html)]
 ```
-
-`Raw` writes to the DOM without escaping, so it accepts trusted content only. Never flow user input
-or an external response through it.
 
 ## Next
 

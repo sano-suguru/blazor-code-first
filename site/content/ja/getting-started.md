@@ -122,5 +122,5 @@ BCF1004 が出ます。
 ## 次に読むもの
 
 - [カウンターの実例](/counter)で、イベント、`If`、キー付き `ForEach` の動きを見る。
-- [要素と装飾](./elements-and-decorations.md)で要素の語彙を、[制御構文](./control-flow.md#if)で
+- [要素と装飾](./elements-and-decorations.md)で書ける要素の一覧を、[制御構文](./control-flow.md#if)で
   条件分岐とリストを学ぶ。

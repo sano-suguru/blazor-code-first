@@ -24,6 +24,11 @@ public static class MarkdownConverter
         // construct and a fenced block is claimed by the fence parser first, so a '|' inside a code
         // sample stays code; MarkdownConverterTests holds both halves of that.
         .UsePipeTables()
+        // ':::warning' opens the one block that outranks the prose around it, which css/app.css
+        // paints. The site has exactly one kind of warning and no other container: see
+        // site/README.md §Warnings for why the set is closed. Registered here for the same reason
+        // pipe tables are, and MarkdownConverterTests holds a ':' inside a fence to code.
+        .UseCustomContainers()
         // HtmlFormatterType.Css => class-based spans (not inline styles); the shared
         // StyleDictionary makes the emitted classes match HighlightCssEmitter's CSS.
         .UseColorCode(HtmlFormatterType.Css, ColorCodeTheme.Styles)
@@ -54,6 +59,7 @@ public static class MarkdownConverter
 
         var document = Parse(markdown);
         MarkdownBodyRules.EnsureNoTopLevelHeading(document, fileName);
+        MarkdownBodyRules.EnsureOnlyWarningContainers(document, fileName);
         return document;
     }
 

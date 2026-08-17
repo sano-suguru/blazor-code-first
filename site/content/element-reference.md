@@ -58,7 +58,7 @@ the render tree can give meaning to.
 
 `Element("my-widget")` names an element no helper covers. That is custom elements and Web
 Components, plus the standard elements deliberately left out: the document and `<head>` elements,
-raw-text elements, `template` and `slot`, `object`, and the SVG and MathML vocabularies. The tag has
+raw-text elements, `template` and `slot`, `object`, and the SVG and MathML elements. The tag has
 to be a compile-time constant spelled like a tag name
 ([BCF3009](./diagnostics.md#bcf3009)). See
 [elements and decorations](./elements-and-decorations.md#elements) for the full list of what reaches
@@ -97,7 +97,7 @@ the same frame, and both count as the same channel
 | `ForEach(source, key, content)` | a keyed list |
 | `Fragment(children…)` | groups children with no wrapper element |
 | `Raw(html)` | injects trusted HTML verbatim |
-| `Slot` | where a content-taking `[ViewPart]` places its caller's children |
+| `Slot` | where a `SlotView` `[ViewPart]` places its caller's children |
 | `Component<T>()` | calls a Blazor component |
 
 ## Decorations on a component call
@@ -121,4 +121,4 @@ Child content written in brackets sets `ChildContent`, and it counts as a bindin
 | `BodyComponentBase` | a component, overriding `Body` |
 | `ChromeLayoutBase` | a layout, overriding `Chrome` ([layouts](./layouts.md)) |
 | `[ViewPart]` | a method whose markup expands into its caller |
-| `SlotView` | the return type of a `[ViewPart]` that takes content |
+| `SlotView` | the return type of a `[ViewPart]` that receives its caller's children |

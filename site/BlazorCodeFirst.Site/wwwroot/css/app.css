@@ -997,6 +997,40 @@ kbd {
     color: var(--color-muted);
 }
 
+/* ':::warning' from a document. The one block that outranks the prose around it, and the reason it
+   exists rather than a bold sentence: bold is inline emphasis inside an ordinary paragraph, so a
+   reader skimming headings and code passes over it. That reader is the one the warning is for --
+   the one copying a `Raw` call into their own page.
+
+   Drawn as `.prose pre` is -- hairline all round, --radius-sm, tinted ground -- because that is
+   already this page's shape for "a block, not a paragraph". Only the hue differs, and the hue is
+   what the block is for. A thick coloured left stripe was the first draft and is the wrong shape
+   twice over: it is a named tell, and it would have made this block a heavier .stale-note rather
+   than a different kind of thing.
+
+   The first and last margins collapse so the block's own padding sets its inset, whatever the author
+   opened it with. */
+.prose .warning {
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    border: var(--rule-hairline) solid var(--color-warn);
+    border-radius: var(--radius-sm);
+    background: var(--color-warn-soft);
+    color: var(--color-ink);
+}
+
+.prose .warning > :first-child {
+    margin-top: 0;
+}
+
+.prose .warning > :last-child {
+    margin-bottom: 0;
+}
+
+.prose .warning :not(pre) > code {
+    background: var(--color-warn-chip);
+}
+
 /* The "#" is real link text so assistive technology can announce it; it is only visually
    de-emphasised until the heading is hovered or the link itself is focused. */
 .headlink {
