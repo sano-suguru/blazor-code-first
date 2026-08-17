@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>og-card</title>
+    <!--
+        The source of wwwroot/og.png, the one card every social preview shows.
+
+        It reads the site's own tokens.css, so the card cannot drift from the palette and the faces
+        the pages draw in: every colour, leading and tracking below comes from there by name. The
+        @font-face urls in that file are relative to it, so the woff2 files resolve from wwwroot/fonts
+        with nothing copied here.
+
+        color-scheme: dark is what makes the committed PNG reproducible. Every colour in tokens.css is
+        a light-dark() pair, which resolves to whatever scheme rendered the screenshot -- so without
+        this the file would depend on the machine that took it. Declaring the scheme resolves every
+        pair to its dark half, on any machine, and lets the card name tokens rather than copy the
+        halves out by hand.
+
+        The only lengths written here are the card's own, because a card read at thumbnail size has a
+        different scale from a page read at arm's length. They are named for the same reason the
+        tokens are.
+
+        site/README.md carries the command that turns this into the PNG.
+    -->
+    <link rel="stylesheet" href="../BlazorCodeFirst.Site/wwwroot/css/tokens.css" />
+    <style>
+        :root {
+            color-scheme: dark;
+
+            /* The card's own scale. 1200x630 is a fixed canvas, so these are absolute. */
+            --card-width: 1200px;
+            --card-height: 630px;
+            --card-inset: 104px;
+            --card-wordmark: 34px;
+            /* Set so the sentence's own trailing space is at least the inset: at 76px it came within
+               66px of the right edge, which read as the line running out of card rather than being
+               set to a measure. */
+            --card-line: 72px;
+            --card-command: 26px;
+            --card-gap: 28px;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            /* So a screenshot framed at anything but exactly the card's size shows more card rather
+               than a white margin. */
+            background: var(--color-slab);
+        }
+
+        /* The exact frame the screenshot takes. Open Graph consumers crop to 1.91:1, and 1200x630 is
+           the size every one of them accepts without resampling.
+           Two children, not three: the mark at the top and the statement at the bottom. Spread as
+           three, the sentence floated in the middle with dead air above and below it and the card
+           read as a list of unrelated lines rather than a composition. */
+        .card {
+            box-sizing: border-box;
+            width: var(--card-width);
+            height: var(--card-height);
+            padding: var(--card-inset);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: var(--color-slab);
+        }
+
+        /* What the card actually says, anchored to the bottom-left as one block. */
+        .statement {
+            display: flex;
+            flex-direction: column;
+            gap: var(--card-gap);
+        }
+
+        /* A C# namespace, so the machine face, as the site header sets it. It carries the accent
+           because it is the brand mark; the card has no other ornament, and a coloured rule along one
+           edge would be the side-stripe tell rather than a decision. */
+        .wordmark {
+            margin: 0;
+            color: var(--color-accent);
+            font-family: var(--font-mono);
+            font-size: var(--card-wordmark);
+            font-weight: 600;
+        }
+
+        /* The sentence the home page leads with, in the display face at the size a thumbnail can
+           still read. Not the description of whichever page was shared: one card serves every route,
+           so it says what the project is. */
+        .line {
+            margin: 0;
+            color: var(--color-slab-ink);
+            font-family: var(--font-display);
+            font-size: var(--card-line);
+            font-weight: 700;
+            line-height: var(--leading-display);
+            letter-spacing: var(--tracking-display);
+        }
+
+        /* What a developer does next, which is the one thing an Open Graph consumer does not already
+           print for itself. The domain goes underneath the card in every one of them, so printing it
+           here would spend the slot on chrome the platform supplies. */
+        .command {
+            margin: 0;
+            color: var(--color-slab-muted);
+            font-family: var(--font-mono);
+            font-size: var(--card-command);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <p class="wordmark">BlazorCodeFirst</p>
+        <div class="statement">
+            <h1 class="line">Write Blazor UI as plain C#</h1>
+            <p class="command">dotnet add package BlazorCodeFirst</p>
+        </div>
+    </div>
+</body>
+
+</html>

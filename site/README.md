@@ -44,6 +44,27 @@ losing one leaves every other assertion in `site.yml` green while the deployment
   colour or font stack there is a defect, not a shortcut.
 - `wwwroot/css/highlight.css` — generated, see below.
 
+## The social card
+
+`wwwroot/og.png` is the one image every social preview shows, for every route. It is committed, and
+`tools/og-card.html` is what it is a screenshot of:
+
+```bash
+cd site/tests/browser && npm ci && npx playwright install chromium
+npx playwright screenshot --viewport-size=1200,630 \
+  "file://$(cd ../.. && pwd)/tools/og-card.html" \
+  ../../BlazorCodeFirst.Site/wwwroot/og.png
+```
+
+Re-run it when the palette or either face changes: the card reads `tokens.css`, so its source follows
+the design automatically and the PNG does not. `site.yml` asserts the file is in the publish output,
+because `SiteMetadata.CardPath` names it in an absolute URL and losing it leaves every share falling
+back to no image.
+
+One card rather than one per page. A per-route image would have to be generated at request time by a
+Worker this deployment does not have, and the card's job is to say what the project is, which does not
+vary by route.
+
 ## Docs content pipeline
 
 Markdown under `site/content/*.md` is converted to HTML at authoring time by the
