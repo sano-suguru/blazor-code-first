@@ -476,7 +476,14 @@ Component<EditForm>()
 
 加えて、フレーム数が同じでフレーム種別だけが異なる場合があります。吸収するフレームが1つしかない run を畳まない規則(§2.7(D))により、畳み込めない要素の下にある単一の静的テキストはテキストフレームのまま残ります。`Div.Class(_cls)["x"]` は `AddContent(2, "x")` を、Razorの `<div class="@cls">x</div>` は同じ位置に `AddMarkupContent` を発行します。シーケンス番号もフレーム数も一致するため、上記の等価性検査はフレーム種別まで比較して初めてこの差を捉えます。
 
-動的コンテンツ経路(§5.3)の追加コストが `RenderFragment` の手書きと同等であるという点は未実測(予測値)です。当該経路(Opaque経路)は未実装であり、測定対象が存在しません。
+動的コンテンツ経路(§5.3、Opaque経路)の追加コストは、`RenderFragment` の手書きと同一です。比較対象は、SSCで組んだ要素に、`[ViewPart]` の付かないメソッドが返す `View`(内部は手書きの `RenderFragment`)を子として1つ加えたコンポーネントと、同じ `RenderFragment` を直接埋め込んだRazorコンポーネントです。上表と同じ2つの境界で一致しました。
+
+| 境界 | BlazorCodeFirst(Opaque経路) | 手書き `RenderFragment` |
+| --- | --- | --- |
+| `BuildRenderTree` 単体 | 104 B | 104 B |
+| Diffを含む1レンダリングサイクル | 176 B | 176 B |
+
+生成コードは `AddContent(seq, ViewRuntime.FragmentOf(呼び出し式))` を発行し(`ARCHITECTURE.md` §3.2)、比較対象のRazor側は同じ `RenderFragment` を `@メソッド呼び出し()` で直接埋め込みます。いずれも最終的にBlazorの `RenderTreeBuilder.AddContent(int, RenderFragment?)` へ落ち、この呼び出しがフラグメント用のリージョンを内部で開くため、生成コード側が自らリージョンを書かなくても実行時のフレーム列は一致します。`BuildRenderTree` 単体の104 Bは補間文字列とフラグメントを束ねるデリゲート1個の割り当てであり両者で同一です。`View`/`ViewRuntime.FragmentOf` の間接参照自体はバイト数を増やしません。
 
 ### 7.2 差分検知性能
 

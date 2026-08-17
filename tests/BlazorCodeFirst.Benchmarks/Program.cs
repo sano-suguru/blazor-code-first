@@ -19,17 +19,24 @@ internal static class Program
         new BenchmarkView { Count = 7 }.Build(generated);
         new BenchmarkViewRazor { Count = 7 }.Build(razor);
 
-        var differences = FrameEquivalence.Compare(generated, razor);
-        if (differences.Count > 0)
+        if (FramesDiffer(generated, razor,
+            "BenchmarkView and BenchmarkViewRazor do not render equivalent frames, so an " +
+            "allocation comparison between them would not measure what DESIGN.md §7.1 claims:"))
         {
-            Console.Error.WriteLine(
-                "BenchmarkView and BenchmarkViewRazor do not render equivalent frames, so an " +
-                "allocation comparison between them would not measure what DESIGN.md §7.1 claims:");
-            foreach (string difference in differences)
-            {
-                Console.Error.WriteLine($"  {difference}");
-            }
+            return 1;
+        }
 
+        // The §7.1 dynamic-content-path pair: the generated Opaque emission against a directly
+        // hand-written RenderFragment call. Same reasoning as the gate above.
+        var opaqueGenerated = new RenderTreeBuilder();
+        var opaqueRazor = new RenderTreeBuilder();
+        new OpaqueContentView { Count = 7 }.Build(opaqueGenerated);
+        new OpaqueContentViewRazor { Count = 7 }.Build(opaqueRazor);
+
+        if (FramesDiffer(opaqueGenerated, opaqueRazor,
+            "OpaqueContentView and OpaqueContentViewRazor do not render equivalent frames, so an " +
+            "allocation comparison between them would not measure what DESIGN.md §7.1 claims:"))
+        {
             return 1;
         }
 
@@ -44,17 +51,10 @@ internal static class Program
         new StaticParityView().Build(staticGenerated);
         new StaticParityViewRazor().Build(staticRazor);
 
-        var staticDifferences = FrameEquivalence.Compare(staticGenerated, staticRazor);
-        if (staticDifferences.Count > 0)
+        if (FramesDiffer(staticGenerated, staticRazor,
+            "StaticParityView and StaticParityViewRazor do not render equivalent frames, so " +
+            "DESIGN.md §7.1's claim that the static fold reaches Razor's frame shape no longer holds:"))
         {
-            Console.Error.WriteLine(
-                "StaticParityView and StaticParityViewRazor do not render equivalent frames, so " +
-                "DESIGN.md §7.1's claim that the static fold reaches Razor's frame shape no longer holds:");
-            foreach (string difference in staticDifferences)
-            {
-                Console.Error.WriteLine($"  {difference}");
-            }
-
             return 1;
         }
 
@@ -142,6 +142,26 @@ internal static class Program
             var builder = new RenderTreeBuilder();
             build(builder);
             return builder.GetFrames().Count;
+        }
+
+        // Shared tail for the three §7.1 frame-equivalence gates above: each compares a different pair
+        // against a different DESIGN.md claim, named by its own message, so the gates stay individually
+        // attributable while the compare-report-fail mechanics live in one place.
+        static bool FramesDiffer(RenderTreeBuilder expected, RenderTreeBuilder actual, string message)
+        {
+            var differences = FrameEquivalence.Compare(expected, actual);
+            if (differences.Count == 0)
+            {
+                return false;
+            }
+
+            Console.Error.WriteLine(message);
+            foreach (string difference in differences)
+            {
+                Console.Error.WriteLine($"  {difference}");
+            }
+
+            return true;
         }
     }
 

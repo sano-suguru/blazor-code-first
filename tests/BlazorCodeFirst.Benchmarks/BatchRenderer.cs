@@ -27,6 +27,18 @@ internal sealed class BatchRenderer : Renderer
 
     public Task RenderAsync(int componentId) => RenderRootComponentAsync(componentId);
 
+    /// <summary>Attaches a root component and performs its one initial render, synchronously.</summary>
+    /// <remarks>
+    /// For <c>[GlobalSetup]</c> use: a root component id may be rendered through
+    /// <see cref="RenderAsync"/> only once, so the cycle benchmarks drive re-renders through
+    /// <c>Invalidate</c> instead.
+    /// </remarks>
+    public void RenderOnce(IComponent component)
+    {
+        int id = Attach(component);
+        Dispatcher.InvokeAsync(() => RenderAsync(id)).GetAwaiter().GetResult();
+    }
+
     protected override void HandleException(Exception exception) =>
         throw new InvalidOperationException("A component threw while rendering.", exception);
 
