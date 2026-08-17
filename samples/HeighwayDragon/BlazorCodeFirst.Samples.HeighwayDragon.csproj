@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <WasmEnableThreads>true</WasmEnableThreads>
+    <!-- Isolated for the same reason tests/BlazorCodeFirst.WasmPackageApp isolates its own restore:
+         BlazorCodeFirst is not published to nuget.org yet (#295), so this restores the locally
+         packed build via NuGet.config's local-blazorcodefirst source instead. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../artifacts/samples/packages</RestorePackagesPath>
+    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BlazorCodeFirst" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <!-- Purges the isolated dev-version cache before each restore, so a rebuilt package is never
+       shadowed by a stale one. Mirrors tests/BlazorCodeFirst.WasmPackageApp's target exactly. -->
+  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+  </Target>
+
+</Project>

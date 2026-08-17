@@ -113,6 +113,33 @@ dotnet_diagnostic.CA1062.severity = none
 # Microsoft.AspNetCore.Components pin in Directory.Packages.props is what keeps this stable; BL0006
 # is Microsoft reserving the right to change these shapes, so a Components bump can break these
 # files and that is the expected failure mode, not a surprise.
+# Sample apps under samples/: the same CA1515/CA2007 tension tests/BlazorCodeFirst.WasmPackageApp's
+# Root.cs documents. The root component must be public because RootComponents.Add<T> is not a
+# construction site the CA1812 (uninstantiated internal type) analyzer recognizes, and Program.cs's
+# top-level await has no meaningful synchronization context to preserve with ConfigureAwait.
+# The pattern is `**.cs`, not `**/*.cs`, for the reason the Benchmarks section below states: the
+# latter does not match files sitting directly in the project directory, which is where
+# Program.cs/DragonCurveView.cs live.
+[samples/HeighwayDragon/**.cs]
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA2007.severity = none
+
+# Sample test projects: the same leniency as [tests/**/*.cs], for the same reasons -- these live
+# under samples/ rather than tests/ because they compile the sample's own source file directly
+# (see the .csproj comment) rather than referencing a library project.
+[samples/HeighwayDragon.Tests/**.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1307.severity = none
+dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA1849.severity = none
+dotnet_diagnostic.CA1062.severity = none
+
 [tests/BlazorCodeFirst.IntegrationTests/DiffCost/*.cs]
 dotnet_diagnostic.BL0006.severity = none
 
