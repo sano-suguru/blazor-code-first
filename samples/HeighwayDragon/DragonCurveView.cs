@@ -31,21 +31,21 @@ public sealed partial class DragonCurveView : BodyComponentBase
     private double _lastPointerY;
 
     protected override View Body => Div[
-        Canvas.Id("gl-canvas")
+        Canvas.Id("gl-canvas").Class("gl-canvas")
             .Ref(r => _canvas = r)
             .On<PointerEventArgs>("onpointerdown", OnPointerDown)
             .On<PointerEventArgs>("onpointermove", OnPointerMove)
             .On<PointerEventArgs>("onpointerup", OnPointerUp)
             .On<WheelEventArgs>("onwheel", OnWheel).PreventDefault(),
 
-        Div.Id("panel")[
-            Div.Id("panel-title")["HEIGHWAY DRAGON"],
+        Div.Id("panel").Class("panel")[
+            Div.Id("panel-title").Class("panel-title")["HEIGHWAY DRAGON"],
 
-            Div.Id("order-row")[
-                Div.Id("order-label")["ORDER"],
-                Div.Id("order-value")[_order.ToString(CultureInfo.InvariantCulture)]
+            Div.Id("order-row").Class("panel-row")[
+                Div.Id("order-label").Class("panel-label")["ORDER"],
+                Div.Id("order-value").Class("panel-value")[_order.ToString(CultureInfo.InvariantCulture)]
             ],
-            Input.Type("range").Id("order-slider")
+            Input.Type("range").Id("order-slider").Class("order-slider")
                 .Attr("min", MinOrder.ToString(CultureInfo.InvariantCulture))
                 .Attr("max", MaxOrder.ToString(CultureInfo.InvariantCulture))
                 .Attr("disabled", _generating)
@@ -53,20 +53,21 @@ public sealed partial class DragonCurveView : BodyComponentBase
                     () => _order.ToString(CultureInfo.InvariantCulture),
                     OnOrderInputAsync),
 
-            Div.Id("vertices-row")[
-                Div.Id("vertices-label")["VERTICES"],
-                Div.Id("vertices-value")[_vertexCount.ToString("N0", CultureInfo.InvariantCulture)]
+            Div.Id("vertices-row").Class("panel-row")[
+                Div.Id("vertices-label").Class("panel-label")["VERTICES"],
+                Div.Id("vertices-value").Class("panel-value panel-value--mono")[
+                    _vertexCount.ToString("N0", CultureInfo.InvariantCulture)]
             ],
-            Div.Id("worker-row")[
-                Div.Id("worker-label")["WORKER"],
-                Div.Id("worker-value")[$"{_workerMs:F1} ms"]
+            Div.Id("worker-row").Class("panel-row")[
+                Div.Id("worker-label").Class("panel-label")["WORKER"],
+                Div.Id("worker-value").Class("panel-value panel-value--mono")[$"{_workerMs:F1} ms"]
             ],
-            Div.Id("upload-row")[
-                Div.Id("upload-label")["UPLOAD"],
-                Div.Id("upload-value")[$"{_uploadMs:F1} ms"]
+            Div.Id("upload-row").Class("panel-row")[
+                Div.Id("upload-label").Class("panel-label")["UPLOAD"],
+                Div.Id("upload-value").Class("panel-value panel-value--mono")[$"{_uploadMs:F1} ms"]
             ],
 
-            Div.Id("status")[StatusText]
+            Div.Id("status").Class(StatusClass)[StatusText]
         ]
     ];
 
@@ -75,6 +76,12 @@ public sealed partial class DragonCurveView : BodyComponentBase
         _generating ? "GENERATING…" :
         _justSucceeded ? "OK" :
         "READY";
+
+    private string StatusClass =>
+        _webglUnavailable ? "status status--error" :
+        _generating ? "status status--loading" :
+        _justSucceeded ? "status status--success" :
+        "status";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
