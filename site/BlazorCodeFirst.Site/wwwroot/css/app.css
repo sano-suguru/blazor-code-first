@@ -997,6 +997,37 @@ kbd {
     color: var(--color-muted);
 }
 
+/* ':::warning' from a document. The one block that outranks the prose around it, and the reason it
+   exists rather than a bold sentence: bold is inline emphasis inside an ordinary paragraph, so a
+   reader skimming headings and code passes over it. That reader is the one the warning is for --
+   the one copying a `Raw` call into their own page.
+
+   It is the notice archetype .stale-note already sets (left rule, tinted ground, no radius) in the
+   warning hue. The rule is 2px there and 3px here: the two blocks differ by hue at a glance, and by
+   weight to a reader who cannot separate the hues.
+
+   The first and last margins collapse so the block's own padding sets its inset, whatever the author
+   opened it with. */
+.prose .warning {
+    margin: var(--space-lg) 0;
+    padding: var(--space-md);
+    border-left: 3px solid var(--color-warn);
+    background: var(--color-warn-soft);
+    color: var(--color-ink);
+}
+
+.prose .warning > :first-child {
+    margin-top: 0;
+}
+
+.prose .warning > :last-child {
+    margin-bottom: 0;
+}
+
+.prose .warning :not(pre) > code {
+    background: var(--color-warn-chip);
+}
+
 /* The "#" is real link text so assistive technology can announce it; it is only visually
    de-emphasised until the heading is hovered or the link itself is focused. */
 .headlink {

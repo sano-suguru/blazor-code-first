@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Markdig.Extensions.CustomContainers;
 using Markdig.Syntax;
 
 namespace BlazorCodeFirst.Site.DocGen;
@@ -143,6 +144,40 @@ public static class MarkdownBodyRules
                     $"Invalid document '{fileName}': the body must not contain a top-level (h1) heading. " +
                     "The front matter 'title' is the single source of truth for the page title and is " +
                     "rendered as the h1 by the page itself; start the body at h2 ('## ').");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Rejects every custom container except <c>:::warning</c>. The site has one kind of warning and
+    /// no other container.
+    /// </summary>
+    /// <remarks>
+    /// The container extension takes any info string, so <c>:::note</c> parses and renders a
+    /// <c>&lt;div class="note"&gt;</c> that no stylesheet paints — prose in a wrapper, indistinguishable
+    /// from the paragraphs around it. The rule keeps the block a reader learns to stop at meaning one
+    /// thing. Widening the set is a design change: <c>site/README.md</c> §Warnings carries the reason
+    /// the set is closed, and the class has to be painted in both palettes before a second one exists.
+    /// </remarks>
+    /// <summary>The one container info string a document may open, and the class it renders as.
+    /// <c>css/app.css</c> paints <c>.prose .warning</c>, which <c>StylesheetTests</c> holds.</summary>
+    public const string WarningContainer = "warning";
+
+    public static void EnsureOnlyWarningContainers(MarkdownDocument document, string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(fileName);
+
+        foreach (var container in document.Descendants<CustomContainer>())
+        {
+            // Ordinal, so ':::WARNING' is rejected rather than silently emitting a class that differs
+            // in case from the one css/app.css paints.
+            if (!string.Equals(container.Info, WarningContainer, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Invalid document '{fileName}': ':::{container.Info}' is not a container this site " +
+                    "has. ':::warning' is the only one, and it is for content that can produce a " +
+                    "security defect in a reader's own page. Write anything else as prose.");
             }
         }
     }

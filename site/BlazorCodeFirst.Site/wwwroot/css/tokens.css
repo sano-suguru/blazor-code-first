@@ -129,6 +129,22 @@
     --color-accent-ink: light-dark(oklch(99% 0.006 277), oklch(15% 0.020 277));
     --color-focus: light-dark(oklch(52% 0.22 277), oklch(78% 0.16 277));
 
+    /* The warning block, and the only hue on this site that is not the accent or the diagnostic id.
+       It carries one meaning -- this can produce a security defect in a reader's own page -- and
+       ':::warning' is the only construct that reaches it (site/README.md §Warnings).
+
+       A second hue is what buys the rank. The design is monochrome at hue 277, so a violet block
+       reads as another aside: --color-accent-soft already grounds one, and the stale notice is
+       exactly that shape. Red at hue 28 is the one colour a reader does not have to be taught.
+
+       Three tokens rather than two, because the chip under an inline `code` span cannot stay on
+       --color-paper-3. That grey is tinted toward 277 and goes muddy on a warm ground. The chip
+       moves away from its ground in both schemes, which is what paper-3 does against paper:
+       darker on paper, lighter on the dark page. */
+    --color-warn: light-dark(oklch(51% 0.18 28), oklch(74% 0.15 28));
+    --color-warn-soft: light-dark(oklch(96.5% 0.022 28), oklch(24% 0.040 28));
+    --color-warn-chip: light-dark(oklch(92.5% 0.030 28), oklch(30% 0.048 28));
+
     /* The dark slab that carries code. Elevation on a dark surface is lightness, never shadow. */
     --color-slab: oklch(21% 0.024 277);
     --color-slab-2: oklch(26% 0.022 277);

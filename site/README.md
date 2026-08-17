@@ -168,6 +168,39 @@ order: 40
 - Headings h2 through h6 automatically get a permalink anchor.
 - A `|`-delimited table is a supported construct. See §Tables below for why, and for what the
   stylesheet does with one.
+- `:::warning` opens the one container this site has. See §Warnings below for what it is for and why
+  there is no second one.
+
+### Warnings
+
+A document opens a warning with a custom container, and closes it with the same fence:
+
+````markdown
+:::warning
+`Raw` writes to the DOM without escaping.
+:::
+````
+
+It renders as `<div class="warning">`, which `.prose .warning` in `css/app.css` paints as a tinted
+block with a left rule in the warning hue. `StylesheetTests` holds the class name against the one
+DocGen accepts, so renaming either half fails the build rather than shipping an unpainted div.
+
+`warning` is the only info string a document may open, and `MarkdownBodyRules.EnsureOnlyWarningContainers`
+rejects every other one. The extension itself takes any word, so `:::note` would parse and render a
+`<div class="note">` that no rule paints — prose in a wrapper, indistinguishable from the paragraphs
+around it. Rejecting it keeps the block a reader learns to stop at meaning one thing.
+
+That one thing is narrow: content that can produce a security defect in a reader's own page. Today
+`Raw` is the whole set, in `control-flow.md` and in the `faq.md` entry that answers for it. A warning
+is not for a caveat, a gotcha, or a paragraph an author wants noticed — those are prose, and a page
+whose emphasis is spread across four blocks has none. Widening the set is a design change, not an
+authoring choice: a second kind needs its own class painted in both palettes, and needs an answer to
+what a reader is supposed to do differently on seeing it.
+
+Bold text was the alternative, and it is what the `Raw` paragraph used to be. Bold is inline emphasis
+inside an ordinary paragraph: it carries no rank in the document's structure, and the reader who
+skims headings and code blocks — the one lifting `Raw(entry.Html)` into their own page — never reads
+it.
 
 ### Tables
 
