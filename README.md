@@ -1,5 +1,8 @@
 # BlazorCodeFirst
 
+[![CI](https://github.com/sano-suguru/blazor-code-first/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sano-suguru/blazor-code-first/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Blazor components written in C#, not `.razor`. HTML's own vocabulary becomes ordinary C#
 expressions, compiled to `RenderTreeBuilder` calls at build time.
 
