@@ -67,7 +67,7 @@ public class DragonCurveGeneratorTests
         const int order = 10;
         var points = new Point[DragonCurveGenerator.VertexCount(order)];
         var bounds = DragonCurveGenerator.FillPoints(points, order);
-        Assert.Equal(DragonCurveGenerator.Bounds(points), bounds);
+        Assert.Equal(Bounds(points), bounds);
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public class DragonCurveGeneratorTests
     {
         Point[] points = [new(1, -3), new(-2, 4), new(0, 0)];
 
-        var (minX, maxX, minY, maxY) = DragonCurveGenerator.Bounds(points);
+        var (minX, maxX, minY, maxY) = Bounds(points);
 
         Assert.Equal(-2, minX);
         Assert.Equal(1, maxX);
@@ -107,5 +107,28 @@ public class DragonCurveGeneratorTests
         var points = new[] { new Point(1f, 2f), new Point(3f, 4f) };
         var floats = MemoryMarshal.Cast<Point, float>(points);
         Assert.Equal<float>([1f, 2f, 3f, 4f], floats.ToArray());
+    }
+
+    /// <summary>
+    /// An independently-written bounds sweep, kept only in the test project, so
+    /// <c>FillPoints_ReturnedBoundsMatchSeparateBoundsComputation</c> checks the production
+    /// method's inline bounds tracking against a second implementation rather than itself.
+    /// </summary>
+    private static (double minX, double maxX, double minY, double maxY) Bounds(ReadOnlySpan<Point> points)
+    {
+        var minX = double.MaxValue;
+        var maxX = double.MinValue;
+        var minY = double.MaxValue;
+        var maxY = double.MinValue;
+
+        foreach (var point in points)
+        {
+            if (point.X < minX) minX = point.X;
+            if (point.X > maxX) maxX = point.X;
+            if (point.Y < minY) minY = point.Y;
+            if (point.Y > maxY) maxY = point.Y;
+        }
+
+        return (minX, maxX, minY, maxY);
     }
 }

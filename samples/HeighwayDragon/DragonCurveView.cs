@@ -70,23 +70,16 @@ public sealed partial class DragonCurveView : BodyComponentBase
                 Div.Id("upload-value").Class("panel-value panel-value--mono")[$"{_uploadMs:F1} ms"]
             ],
 
-            Div.Id("status").Class(StatusClass)[StatusText]
+            Div.Id("status").Class(Status.Class)[Status.Text]
         ]
     ];
 
-    private string StatusText =>
-        _webglUnavailable ? "WEBGL2 UNAVAILABLE" :
-        _generating ? "GENERATING…" :
-        _generationFailed ? "GENERATION FAILED" :
-        _justSucceeded ? "OK" :
-        "READY";
-
-    private string StatusClass =>
-        _webglUnavailable ? "status status--error" :
-        _generating ? "status status--loading" :
-        _generationFailed ? "status status--error" :
-        _justSucceeded ? "status status--success" :
-        "status";
+    private (string Text, string Class) Status =>
+        _webglUnavailable ? ("WEBGL2 UNAVAILABLE", "status status--error") :
+        _generating ? ("GENERATING…", "status status--loading") :
+        _generationFailed ? ("GENERATION FAILED", "status status--error") :
+        _justSucceeded ? ("OK", "status status--success") :
+        ("READY", "status");
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -95,8 +88,10 @@ public sealed partial class DragonCurveView : BodyComponentBase
             return;
         }
 
-        await DragonGlInterop.ReadyAsync();
-        _glReady = await DragonGlInterop.InitAsync(JS, _canvas);
+        var readyTask = DragonGlInterop.ReadyAsync();
+        var initTask = DragonGlInterop.InitAsync(JS, _canvas);
+        await Task.WhenAll(readyTask, initTask);
+        _glReady = await initTask;
         if (!_glReady)
         {
             _webglUnavailable = true;

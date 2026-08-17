@@ -28,15 +28,7 @@ public static class DragonCurveGenerator
 
             if (k < total)
             {
-                var isLeft = (k & ((k & -k) << 1)) != 0;
-                if (isLeft)
-                {
-                    (dx, dy) = (-dy, dx);
-                }
-                else
-                {
-                    (dx, dy) = (dy, -dx);
-                }
+                (dx, dy) = Turn(k, dx, dy);
             }
         }
     }
@@ -84,36 +76,13 @@ public static class DragonCurveGenerator
 
             if (k < total)
             {
-                var isLeft = (k & ((k & -k) << 1)) != 0;
-                if (isLeft)
-                {
-                    (dx, dy) = (-dy, dx);
-                }
-                else
-                {
-                    (dx, dy) = (dy, -dx);
-                }
+                (dx, dy) = Turn(k, dx, dy);
             }
         }
 
         return (minX, maxX, minY, maxY);
     }
 
-    public static (double minX, double maxX, double minY, double maxY) Bounds(ReadOnlySpan<Point> points)
-    {
-        var minX = double.MaxValue;
-        var maxX = double.MinValue;
-        var minY = double.MaxValue;
-        var maxY = double.MinValue;
-
-        foreach (var point in points)
-        {
-            if (point.X < minX) minX = point.X;
-            if (point.X > maxX) maxX = point.X;
-            if (point.Y < minY) minY = point.Y;
-            if (point.Y > maxY) maxY = point.Y;
-        }
-
-        return (minX, maxX, minY, maxY);
-    }
+    private static (float dx, float dy) Turn(int k, float dx, float dy) =>
+        (k & ((k & -k) << 1)) != 0 ? (-dy, dx) : (dy, -dx);
 }
