@@ -34,6 +34,12 @@ internal static class DocsView
     /// baked into index.html and costs nothing; on a translation it is what makes the claim true,
     /// which is WCAG 3.1.2 (Language of Parts). The shell around it stays English either way, so
     /// marking the part rather than the page is also the accurate description.
+    ///
+    /// A search engine reads none of that. It takes the language from the visible text, and Google
+    /// documents that it ignores a lang attribute outright; the hreflang set <see cref="SiteMeta"/>
+    /// declares is what tells it these two routes are editions of one page. So the &lt;html lang&gt;
+    /// on a translation stays English on purpose, and rewriting the published HTML per route would
+    /// buy nothing a reader or a crawler can use.
     /// </remarks>
     [ViewPart]
     public static View Document(DocEntry entry) =>
