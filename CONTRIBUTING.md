@@ -380,6 +380,13 @@ instead:
   links, and the absence of the prerendering wrappers, a meta robots tag, and
   any external font host; then, over the output as a whole, that the four
   self-hosted `wwwroot/fonts` woff2 files are in it
+- from the same script, what each route says about itself: one canonical link and
+  one `og:url` naming the route itself, one description matching the
+  `description` in the document's front matter (or the `index-description` in its
+  `shell.yml`), one card image on this origin, and one hreflang alternate per
+  edition plus an `x-default` on a documentation route and none anywhere else.
+  The origin every comparison uses is read out of the published `robots.txt`, and
+  `404.html` is asserted to carry none of it
 - assertions over `404.html`, `robots.txt`, the generated sitemap, and
   `_headers`, and that no `.br` or `.gz` compression sidecar is in the output,
   which is the only thing enforcing `CompressionEnabled=false`
