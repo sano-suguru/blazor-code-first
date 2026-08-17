@@ -38,6 +38,26 @@ public class SnippetGenRunnerTests
         });
     }
 
+    /// <summary>As in <c>DocGenRunnerTests</c>: the site build regenerates before it compiles, so an
+    /// identical run must not move this artifact's timestamp and make the build recompile.</summary>
+    [Fact]
+    public void Run_ArtifactUnchanged_DoesNotRewriteIt()
+    {
+        WithSnippets((snippets, outPath) =>
+        {
+            File.WriteAllText(Path.Combine(snippets, "manifest"), "---\nhero: hero.cs\n---\n");
+            File.WriteAllText(Path.Combine(snippets, "hero.cs"), "var x = 1;\n");
+            SnippetGenRunner.Run(snippets, outPath);
+
+            var before = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            File.SetLastWriteTimeUtc(outPath, before);
+
+            SnippetGenRunner.Run(snippets, outPath);
+
+            Assert.Equal(before, File.GetLastWriteTimeUtc(outPath));
+        });
+    }
+
     [Fact]
     public void Run_PathLeavingTheSnippetsDirectory_ReadsThatFile()
     {
