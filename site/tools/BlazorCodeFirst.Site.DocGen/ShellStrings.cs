@@ -52,8 +52,16 @@ public static class ShellFile
     /// <summary>The file each language directory declares its shell text in.</summary>
     public const string FileName = "shell.yml";
 
-    public static ShellStrings Parse(string raw, string fileName, bool isCanonical)
+    /// <param name="lang">
+    /// Which language's file this is. Two rules read it: the stale keys, which only need to know
+    /// whether this is the canonical edition, and <c>index-description</c>, whose length limit is per
+    /// language. Taking the tag rather than a bool is what lets the second one stay per language.
+    /// </param>
+    public static ShellStrings Parse(string raw, string fileName, string lang)
     {
+        ArgumentNullException.ThrowIfNull(lang);
+        bool isCanonical = lang == DocLang.Canonical;
+
         var (lines, remainder) = KeyValueBlock.Parse(
             raw,
             fileName,
@@ -118,7 +126,7 @@ public static class ShellFile
             // result can show, and a limit that stopped at the documents would leave the one page
             // whose text is not a document's unbounded for no stated reason.
             DocDescription.Validate(
-                declared["index-description"], isCanonical, fileName, "index-description", Kind),
+                declared["index-description"], lang, fileName, "index-description", Kind),
             declared["index-lead"],
             declared["rail-heading"],
             declared["language-label"],

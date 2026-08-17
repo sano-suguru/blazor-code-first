@@ -62,31 +62,11 @@ public static class FrontMatter
             switch (key)
             {
                 case "title":
-                    if (title is not null)
-                    {
-                        throw Invalid(fileName, "front matter key 'title' is declared more than once.");
-                    }
-
-                    if (value.Length == 0)
-                    {
-                        throw Invalid(fileName, "front matter 'title' must not be empty.");
-                    }
-
-                    title = value;
+                    title = ReadText(title, "title", value, fileName);
                     break;
 
                 case "description":
-                    if (description is not null)
-                    {
-                        throw Invalid(fileName, "front matter key 'description' is declared more than once.");
-                    }
-
-                    if (value.Length == 0)
-                    {
-                        throw Invalid(fileName, "front matter 'description' must not be empty.");
-                    }
-
-                    description = value;
+                    description = ReadText(description, "description", value, fileName);
                     break;
 
                 case "order":
@@ -161,6 +141,27 @@ public static class FrontMatter
         }
 
         return (new FrontMatterFields(title, description, order.Value, group, sourceHash), body);
+    }
+
+    /// <summary>Reads a key that must be declared once and carry a non-empty value.</summary>
+    /// <remarks>
+    /// Shared by 'title' and 'description', which are the same rule twice. Per-key reading stays in
+    /// the switch above for the reason this file's remark gives; only the check the two keys have in
+    /// common lives here, so the rule has one implementation rather than one per key.
+    /// </remarks>
+    private static string ReadText(string? declared, string key, string value, string fileName)
+    {
+        if (declared is not null)
+        {
+            throw Invalid(fileName, $"front matter key '{key}' is declared more than once.");
+        }
+
+        if (value.Length == 0)
+        {
+            throw Invalid(fileName, $"front matter '{key}' must not be empty.");
+        }
+
+        return value;
     }
 
     /// <summary>How many hex digits a <c>source-hash</c> carries.</summary>

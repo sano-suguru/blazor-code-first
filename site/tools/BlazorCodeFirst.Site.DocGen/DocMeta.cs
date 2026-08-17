@@ -92,39 +92,33 @@ public static class DocDescription
     public const int TranslationLimit = 90;
 
     /// <summary>The limit that applies to one language.</summary>
-    public static int LimitFor(string lang) => LimitFor(lang == DocLang.Canonical);
-
-    /// <summary>The same, for a caller that knows only which side of the canonical line it is on.</summary>
     /// <remarks>
-    /// <see cref="ShellFile"/> reads a shell file's <c>index-description</c> and is handed
-    /// isCanonical rather than a language tag, because the two stale keys were the only thing it
-    /// needed the distinction for. The limit is per language only in the sense that it is one number
-    /// for the canonical edition and another for every translation, so that is enough to decide it.
+    /// Takes the language rather than "is this the canonical edition", although those are the same
+    /// question while there is one translation. The day a second one wants its own width budget, the
+    /// answer changes here and at no call site.
     /// </remarks>
-    public static int LimitFor(bool isCanonical) => isCanonical ? CanonicalLimit : TranslationLimit;
+    public static int LimitFor(string lang) =>
+        lang == DocLang.Canonical ? CanonicalLimit : TranslationLimit;
 
     /// <summary>Bounds a document's own description.</summary>
-    public static string Validate(string value, string lang, string fileName)
-    {
-        ArgumentNullException.ThrowIfNull(lang);
-
-        return Validate(value, lang == DocLang.Canonical, fileName, "description", "document");
-    }
+    public static string Validate(string value, string lang, string fileName) =>
+        Validate(value, lang, fileName, "description", "document");
 
     /// <summary>Bounds any of the descriptions, whichever file and key carries it.</summary>
     public static string Validate(
         string value,
-        bool isCanonical,
+        string lang,
         string fileName,
         string key,
         string kind)
     {
         ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(lang);
         ArgumentNullException.ThrowIfNull(fileName);
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(kind);
 
-        int limit = LimitFor(isCanonical);
+        int limit = LimitFor(lang);
         if (value.Length > limit)
         {
             throw KeyValueBlock.Invalid(

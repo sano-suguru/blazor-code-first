@@ -22,10 +22,10 @@ public class ShellFileTests
         "stale-link: Read the English page\n";
 
     private static ShellStrings ParseCanonical(string keys) =>
-        ShellFile.Parse($"---\n{keys}---\n", "shell.yml", isCanonical: true);
+        ShellFile.Parse($"---\n{keys}---\n", "shell.yml", DocLang.Canonical);
 
     private static ShellStrings ParseTranslation(string keys) =>
-        ShellFile.Parse($"---\n{keys}---\n", "ja/shell.yml", isCanonical: false);
+        ShellFile.Parse($"---\n{keys}---\n", "ja/shell.yml", "ja");
 
     [Fact]
     public void Parse_ReadsEveryKey()
@@ -193,7 +193,7 @@ public class ShellFileTests
     public void Parse_TextAfterTheBlock_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(
-            () => ShellFile.Parse($"---\n{Common}---\n\n## Not a document\n", "shell.yml", isCanonical: true));
+            () => ShellFile.Parse($"---\n{Common}---\n\n## Not a document\n", "shell.yml", DocLang.Canonical));
 
         // This file is the block and nothing else. Prose here would render nowhere, so accepting it
         // would let an author write a paragraph no reader ever sees.
@@ -204,7 +204,7 @@ public class ShellFileTests
     public void Parse_NoOpeningFence_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(
-            () => ShellFile.Parse(Common, "shell.yml", isCanonical: true));
+            () => ShellFile.Parse(Common, "shell.yml", DocLang.Canonical));
 
         Assert.Contains("shell.yml", ex.Message, StringComparison.Ordinal);
     }

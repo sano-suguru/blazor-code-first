@@ -136,7 +136,7 @@ public static class DocGenRunner
                 "sees lives in the content tree, including the ones that are not part of a document.");
         }
 
-        return ShellFile.Parse(File.ReadAllText(path), fileName, lang == DocLang.Canonical);
+        return ShellFile.Parse(File.ReadAllText(path), fileName, lang);
     }
 
     /// <summary>Pass 1 for one language: read every document, validate its file name and front matter,
