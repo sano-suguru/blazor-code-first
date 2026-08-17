@@ -79,6 +79,74 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
+    public void Bind_InitOnlyPropertyGetter_ReportsBcf3018()
+    {
+        // A setter exists and the derived one still cannot call it: C# admits an init accessor only in an
+        // object initializer, a constructor, or another init accessor, and the derived setter is the
+        // lambda `__value => Name = __value`. Unchecked, this reached the author as a CS8852 inside
+        // C.g.cs naming a property they did write (#391).
+        const string body = """
+            public string Name { get; init; } = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => Name);
+            """;
+
+        AssertDiagnostic(body, "BCF3018");
+    }
+
+    [Fact]
+    public void Bind_SetterInaccessibleFromTheComponent_ReportsBcf3018()
+    {
+        // The setter is private to Model and RenderView is emitted into C, so the derived assignment is
+        // CS0272. Enclosing a type grants no access to its private members, which is what makes this
+        // differ from the private setter declared on the component itself.
+        const string body = """
+            private sealed class Model { public string Name { get; private set; } = ""; }
+            private readonly Model _model = new();
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _model.Name);
+            """;
+
+        AssertDiagnostic(body, "BCF3018");
+    }
+
+    [Fact]
+    public void Bind_IndexerSetterInaccessibleFromTheComponent_ReportsBcf3018()
+    {
+        // The element-access arm asks the same question of an indexer's setter, so it rejects what the
+        // member arm rejects and keeps accepting _dict["k"], whose setter is public.
+        const string body = """
+            private sealed class Bag { public string this[int i] { get => ""; private set { } } }
+            private readonly Bag _bag = new();
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _bag[0]);
+            """;
+
+        AssertDiagnostic(body, "BCF3018");
+    }
+
+    [Fact]
+    public void Bind_ViewPartDerivingAnInaccessibleSetter_ReportsBcf1002()
+    {
+        // A view part body is written into call sites the analysis has not seen, so the setter's
+        // accessibility is recorded as a requirement on the site rather than decided at the binding, and
+        // expansion refuses a site that cannot reach it. The same route every non-public member a view
+        // part names outright already takes; this one is not named anywhere in the authored syntax.
+        const string body = """
+            private sealed class Model { public string Name { get; private set; } = ""; }
+            private readonly Model _model = new();
+
+            [ViewPart]
+            private static View Field(Model model) =>
+                Html.Input.Bind("value", "oninput", () => model.Name);
+
+            protected override View Body => Html.Div[Field(_model)];
+            """;
+
+        AssertDiagnostic(body, "BCF1002");
+    }
+
+    [Fact]
     public void Bind_IterationVariableItself_ReportsBcf3018()
     {
         const string body = """

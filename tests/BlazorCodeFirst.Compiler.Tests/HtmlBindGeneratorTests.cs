@@ -45,6 +45,25 @@ public sealed class HtmlBindGeneratorTests
     }
 
     [Fact]
+    public void Bind_PrivateSetterOnTheComponentItself_InvertsGetterIntoSetter()
+    {
+        // The half of BCF3018's accessibility check that must not fire. RenderView is emitted into a
+        // partial of this same class, so a setter private to it is reachable and the binding stands —
+        // which is why the check asks the compilation about the component type rather than asking whether
+        // the setter is public (#391). GenerateBody compiles the output, so a wrong answer here is a
+        // CS0272 and not a silently accepted string.
+        const string body = """
+            public string Name { get; private set; } = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => Name);
+            """;
+
+        var generated = GenerateBody(body);
+
+        Assert.Contains("__value => Name = __value, Name)", generated);
+    }
+
+    [Fact]
     public void Bind_BoolGetterOnly_InvertsGetterIntoSetter()
     {
         const string body = """

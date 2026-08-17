@@ -2147,8 +2147,7 @@ internal static class RenderExpressionAnalyzer
         // Only the inverted form needs an assignable target. With an explicit setter the getter is read
         // and never written, so a call or a get-only property is a legitimate thing to show.
         if (setter is null
-            && BindTargetResolver.CheckAssignable(getterBody!, context.SemanticModel, context.CancellationToken)
-                != BindTargetFailure.None)
+            && BindTargetResolver.CheckAssignable(getterBody!, context) != BindTargetFailure.None)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -2304,8 +2303,7 @@ internal static class RenderExpressionAnalyzer
         // Only the inverted form needs an assignable target, exactly as on the element surface: with an
         // explicit setter the getter is read and never written.
         if (setter is null
-            && BindTargetResolver.CheckAssignable(getterBody!, context.SemanticModel, context.CancellationToken)
-                != BindTargetFailure.None)
+            && BindTargetResolver.CheckAssignable(getterBody!, context) != BindTargetFailure.None)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
