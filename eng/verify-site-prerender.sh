@@ -186,16 +186,20 @@ card_pattern=$(ere_quote "$origin/og.png")
 
 # How many editions of one route site/content backs.
 #
-# Counted off expected_table rather than by walking the content tree again. That table already has one
+# Counted off the route table rather than by walking the content tree again. That table already has one
 # row per route per edition, so "how many editions have this document" is how many of its rows there
 # are -- and the answer follows slugs_in, which is the one place document discovery is decided. Asked
 # any other way, a change to that discovery would move the table and leave this count behind, with the
-# gate above still green.
+# gate below still green.
+#
+# Counted once into $edition_counts rather than per route. expected_table forks a basename per document
+# per language, so calling it for each of the 24 routes measured 1.6s and about 1,340 processes against
+# 0.07s for one pass -- an eighteen-fold regression on the walk it was written to remove.
 #
 # Derived rather than fixed at two: every document is translated today, and a document with no
 # counterpart names only its own edition.
 editions_of() {
-  expected_table | awk -v kind="$1" -v slug="$2" '$1 == kind && $4 == slug' | wc -l
+  printf '%s\n' "$edition_counts" | awk -v kind="$1" -v slug="$2" '$2 == kind && $3 == slug { print $1 }'
 }
 
 # THE GATE. Everything below may enumerate the publish output, because this proved the set it would
@@ -222,7 +226,18 @@ editions_of() {
 # Written here rather than as a helper in eng/ci-assert.sh: every helper there takes one file and one
 # ERE, and set equality is neither. The "Verify site source hygiene" step declines to source the
 # library for the same reason, and says so.
-expected_routes=$(expected_table | awk '{ print $2 }' | LC_ALL=C sort)
+# The table, built once. Everything below reads this variable rather than calling the function again:
+# it forks a basename per document per language, and there are four readers plus a per-route count.
+route_table=$(expected_table)
+
+# The edition count of every non-fixed route, as "<count> <kind> <slug>" lines, in one pass. The two
+# fixed rows are left out because their branch asserts zero rather than a count.
+edition_counts=$(printf '%s\n' "$route_table" \
+  | awk '$1 != "fixed" { print $1 " " $4 }' \
+  | LC_ALL=C sort \
+  | uniq -c)
+
+expected_routes=$(printf '%s\n' "$route_table" | awk '{ print $2 }' | LC_ALL=C sort)
 published_routes=$(published_table)
 
 unbacked=$(LC_ALL=C comm -13 <(printf '%s\n' "$expected_routes") <(printf '%s\n' "$published_routes"))
@@ -248,7 +263,7 @@ fi
 # equally.
 pages_with_shell() {
   # route_file prints without a trailing newline, because its other caller assigns it to a variable.
-  expected_table | while read -r _ route _ _; do printf '%s\n' "$(route_file "$route")"; done
+  printf '%s\n' "$route_table" | while read -r _ route _ _; do printf '%s\n' "$(route_file "$route")"; done
   echo '404.html'
 }
 
@@ -391,7 +406,7 @@ while read -r kind route langdir slug; do
       assert_count "href=\"$(route_prefix "$langdir")$indexed\"" "$P/$f" 2 "this index does not list one of its edition's documents (expected the rail link plus one index entry)"
     done
   fi
-done <<< "$(expected_table)"
+done <<< "$route_table"
 
 # A top-level 404.html is the page an unmatched request is answered with: site/wrangler.jsonc sets
 # not_found_handling to 404-page, which serves the nearest 404.html and nothing else. Losing the
