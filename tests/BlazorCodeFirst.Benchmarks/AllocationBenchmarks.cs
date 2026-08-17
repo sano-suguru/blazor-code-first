@@ -42,15 +42,8 @@ public class AllocationBenchmarks
         _generatedRoot = new BenchmarkView();
         _razorRoot = new BenchmarkViewRazor();
 
-        int generatedId = _generatedRenderer.Attach(_generatedRoot);
-        int razorId = _razorRenderer.Attach(_razorRoot);
-
-        _generatedRenderer.Dispatcher
-            .InvokeAsync(() => _generatedRenderer.RenderAsync(generatedId))
-            .GetAwaiter().GetResult();
-        _razorRenderer.Dispatcher
-            .InvokeAsync(() => _razorRenderer.RenderAsync(razorId))
-            .GetAwaiter().GetResult();
+        _generatedRenderer.RenderOnce(_generatedRoot);
+        _razorRenderer.RenderOnce(_razorRoot);
     }
 
     [GlobalCleanup]

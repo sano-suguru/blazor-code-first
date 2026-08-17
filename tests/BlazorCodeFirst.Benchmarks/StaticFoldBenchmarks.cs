@@ -1,7 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BlazorCodeFirst.IntegrationTests.Components;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
 
 namespace BlazorCodeFirst.Benchmarks;
@@ -89,10 +88,10 @@ public class StaticFoldBenchmarks
         _mixedElementRoot = new MixedElementView();
         _mixedMarkupRoot = new MixedMarkupView();
 
-        RenderOnce(_staticHeavyElementRenderer, _staticHeavyElementRoot);
-        RenderOnce(_staticHeavyMarkupRenderer, _staticHeavyMarkupRoot);
-        RenderOnce(_mixedElementRenderer, _mixedElementRoot);
-        RenderOnce(_mixedMarkupRenderer, _mixedMarkupRoot);
+        _staticHeavyElementRenderer.RenderOnce(_staticHeavyElementRoot);
+        _staticHeavyMarkupRenderer.RenderOnce(_staticHeavyMarkupRoot);
+        _mixedElementRenderer.RenderOnce(_mixedElementRoot);
+        _mixedMarkupRenderer.RenderOnce(_mixedMarkupRoot);
     }
 
     [GlobalCleanup]
@@ -156,10 +155,4 @@ public class StaticFoldBenchmarks
     [BenchmarkCategory("LowStatic/Cycle")]
     public Task Mixed_Cycle_Markup() =>
         _mixedMarkupRenderer.Dispatcher.InvokeAsync(_mixedMarkupRoot.Invalidate);
-
-    private static void RenderOnce(BatchRenderer renderer, IComponent root)
-    {
-        int id = renderer.Attach(root);
-        renderer.Dispatcher.InvokeAsync(() => renderer.RenderAsync(id)).GetAwaiter().GetResult();
-    }
 }
