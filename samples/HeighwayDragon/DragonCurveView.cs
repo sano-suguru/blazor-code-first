@@ -23,6 +23,7 @@ public sealed partial class DragonCurveView : BodyComponentBase
     private bool _webglUnavailable;
     private bool _generating;
     private bool _justSucceeded;
+    private bool _generationFailed;
     private long _vertexCount;
     private double _workerMs;
     private double _uploadMs;
@@ -36,6 +37,7 @@ public sealed partial class DragonCurveView : BodyComponentBase
             .On<PointerEventArgs>("onpointerdown", OnPointerDown)
             .On<PointerEventArgs>("onpointermove", OnPointerMove)
             .On<PointerEventArgs>("onpointerup", OnPointerUp)
+            .On<PointerEventArgs>("onpointercancel", OnPointerUp)
             .On<WheelEventArgs>("onwheel", OnWheel).PreventDefault(),
 
         Div.Id("panel").Class("panel")[
@@ -74,12 +76,14 @@ public sealed partial class DragonCurveView : BodyComponentBase
     private string StatusText =>
         _webglUnavailable ? "WEBGL2 UNAVAILABLE" :
         _generating ? "GENERATING…" :
+        _generationFailed ? "GENERATION FAILED" :
         _justSucceeded ? "OK" :
         "READY";
 
     private string StatusClass =>
         _webglUnavailable ? "status status--error" :
         _generating ? "status status--loading" :
+        _generationFailed ? "status status--error" :
         _justSucceeded ? "status status--success" :
         "status";
 
@@ -114,51 +118,56 @@ public sealed partial class DragonCurveView : BodyComponentBase
         await RegenerateAsync(_order);
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Generation/upload can fail in ways specific to this sample's scale (OOM at " +
+            "high order, a JS interop JSException, a WebGL error) that aren't worth enumerating. Any " +
+            "escaping exception here would otherwise leave _generating stuck true and the UI wedged on " +
+            "\"GENERATING…\" with no recovery short of a page reload, so it is surfaced via status " +
+            "instead of swallowed or left to escape.")]
     private async Task RegenerateAsync(int order)
     {
         _generating = true;
         _justSucceeded = false;
+        _generationFailed = false;
         StateHasChanged();
 
-        var stopwatch = Stopwatch.StartNew();
-        var vertexCount = DragonCurveGenerator.VertexCount(order);
-        var points = new Point[vertexCount];
-        await Task.Run(() => DragonCurveGenerator.FillPoints(points, order));
-        _workerMs = stopwatch.Elapsed.TotalMilliseconds;
-
-        stopwatch.Restart();
-        var (minX, maxX, minY, maxY) = Bounds(points);
-        var pointBytes = MemoryMarshal.AsBytes<Point>(points.AsSpan());
-        DragonGlInterop.UploadPoints(pointBytes, vertexCount, minX, maxX, minY, maxY);
-        _uploadMs = stopwatch.Elapsed.TotalMilliseconds;
-
-        _vertexCount = vertexCount;
-
-        _generating = false;
-        _justSucceeded = true;
-        StateHasChanged();
-    }
-
-    private static (double minX, double maxX, double minY, double maxY) Bounds(Point[] points)
-    {
-        var minX = double.MaxValue;
-        var maxX = double.MinValue;
-        var minY = double.MaxValue;
-        var maxY = double.MinValue;
-
-        foreach (var point in points)
+        try
         {
-            if (point.X < minX) minX = point.X;
-            if (point.X > maxX) maxX = point.X;
-            if (point.Y < minY) minY = point.Y;
-            if (point.Y > maxY) maxY = point.Y;
-        }
+            var stopwatch = Stopwatch.StartNew();
+            var vertexCount = DragonCurveGenerator.VertexCount(order);
+            var points = new Point[vertexCount];
+            var bounds = await Task.Run(() => DragonCurveGenerator.FillPoints(points, order));
+            _workerMs = stopwatch.Elapsed.TotalMilliseconds;
 
-        return (minX, maxX, minY, maxY);
+            stopwatch.Restart();
+            var (minX, maxX, minY, maxY) = bounds;
+            var pointBytes = MemoryMarshal.AsBytes<Point>(points.AsSpan());
+            DragonGlInterop.UploadPoints(pointBytes, vertexCount, minX, maxX, minY, maxY);
+            _uploadMs = stopwatch.Elapsed.TotalMilliseconds;
+
+            _vertexCount = vertexCount;
+            _justSucceeded = true;
+        }
+        catch (Exception)
+        {
+            _generationFailed = true;
+        }
+        finally
+        {
+            _generating = false;
+            StateHasChanged();
+        }
     }
 
     private void OnPointerDown(PointerEventArgs e)
     {
+        if (!_glReady)
+        {
+            return;
+        }
+
         _dragging = true;
         _lastPointerX = e.ClientX;
         _lastPointerY = e.ClientY;
@@ -187,6 +196,11 @@ public sealed partial class DragonCurveView : BodyComponentBase
 
     private void OnWheel(WheelEventArgs e)
     {
+        if (!_glReady)
+        {
+            return;
+        }
+
         DragonGlInterop.ZoomBy(e.DeltaY < 0 ? 1.15 : 1.0 / 1.15);
     }
 }

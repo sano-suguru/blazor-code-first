@@ -97,13 +97,16 @@ export function uploadPoints(pointBytesView, vertexCount, minX, maxX, minY, maxY
 
 export function pan(dxPixels, dyPixels) {
     const { scaleX, scaleY } = currentScale();
-    panX -= (dxPixels / canvas.width * 2) / (scaleX * zoom);
-    panY += (dyPixels / canvas.height * 2) / (scaleY * zoom);
+    panX += (dxPixels / canvas.width * 2) / (scaleX * zoom);
+    panY -= (dyPixels / canvas.height * 2) / (scaleY * zoom);
     requestRender();
 }
 
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 200;
+
 export function zoomBy(factor) {
-    zoom *= factor;
+    zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
     requestRender();
 }
 
@@ -140,9 +143,13 @@ function requestRender() {
 function render() {
     renderRequested = false;
 
-    canvas.width = window.innerWidth * window.devicePixelRatio;
-    canvas.height = window.innerHeight * window.devicePixelRatio;
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    const desiredWidth = window.innerWidth * window.devicePixelRatio;
+    const desiredHeight = window.innerHeight * window.devicePixelRatio;
+    if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
+        canvas.width = desiredWidth;
+        canvas.height = desiredHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
 
     const { scaleX: baseScaleX, scaleY: baseScaleY } = currentScale();
     const scaleX = baseScaleX * zoom;

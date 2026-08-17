@@ -62,6 +62,15 @@ public class DragonCurveGeneratorTests
     }
 
     [Fact]
+    public void FillPoints_ReturnedBoundsMatchSeparateBoundsComputation()
+    {
+        const int order = 10;
+        var points = new Point[DragonCurveGenerator.VertexCount(order)];
+        var bounds = DragonCurveGenerator.FillPoints(points, order);
+        Assert.Equal(DragonCurveGenerator.Bounds(points), bounds);
+    }
+
+    [Fact]
     public void FillPoints_RejectsWrongLengthDestination()
     {
         var destination = new Point[1];
@@ -72,10 +81,24 @@ public class DragonCurveGeneratorTests
     public void FillPoints_Order24_ProducesExpectedVertexCount()
     {
         const int order = 24;
+        var expected = DragonCurveGenerator.GeneratePoints(order).ToArray();
         var points = new Point[DragonCurveGenerator.VertexCount(order)];
         DragonCurveGenerator.FillPoints(points, order);
         Assert.Equal(16_777_217, points.Length);
-        Assert.Equal(new Point(0, 0), points[0]);
+        Assert.Equal(expected, points);
+    }
+
+    [Fact]
+    public void Bounds_ReturnsMinAndMaxOfEachAxis()
+    {
+        Point[] points = [new(1, -3), new(-2, 4), new(0, 0)];
+
+        var (minX, maxX, minY, maxY) = DragonCurveGenerator.Bounds(points);
+
+        Assert.Equal(-2, minX);
+        Assert.Equal(1, maxX);
+        Assert.Equal(-3, minY);
+        Assert.Equal(4, maxY);
     }
 
     [Fact]
