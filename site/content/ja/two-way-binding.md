@@ -1,5 +1,6 @@
 ---
 title: 双方向バインディング
+description: .Bind は Razor の bind ディレクティブを、属性・イベント・現在値を読むラムダとして明示的に書いたもの。
 order: 80
 group: write
 source-hash: 269abcef

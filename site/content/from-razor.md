@@ -1,5 +1,6 @@
 ---
 title: From Razor
+description: The translation table from Razor syntax to this surface, and the four places where the shape of a component differs rather than its spelling.
 order: 30
 group: start
 ---

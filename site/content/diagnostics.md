@@ -1,5 +1,6 @@
 ---
 title: Diagnostics
+description: Every diagnostic this compiler reports, what each one means, and what to write instead. Search the page for the ID the build printed.
 order: 100
 group: reference
 ---

@@ -19,6 +19,7 @@ public class CSharpDocEmitterTests
             shells[meta.Lang] = new ShellStrings(
                 meta.Lang,
                 "Documentation",
+                "The guide, in reading order.",
                 "Every document, in reading order.",
                 "Guide",
                 "Language",
@@ -35,7 +36,9 @@ public class CSharpDocEmitterTests
         CSharpDocEmitter.Emit(docs, ShellsFor(docs.Select(d => d.Meta)));
 
     private static string EmitOne(string slug, string title, int order, string html) =>
-        Emit((new DocMeta(slug, title, order, DocGroup.Write, DocLang.Canonical, false, []), html));
+        Emit((
+            new DocMeta(slug, title, "A summary.", order, DocGroup.Write, DocLang.Canonical, false, []),
+            html));
 
     [Fact]
     public void Emit_ProducesManifestShape()
@@ -62,11 +65,33 @@ public class CSharpDocEmitterTests
     }
 
     [Fact]
+    public void Emit_WritesTheDescriptionIntoTheEntry()
+    {
+        string source = Emit((
+            new DocMeta(
+                "intro", "Intro", "What this page answers.", 10, DocGroup.Start,
+                DocLang.Canonical, false, []),
+            "<p>1</p>"));
+
+        Assert.Contains("    string Description,\n", source, StringComparison.Ordinal);
+        Assert.Contains("\"What this page answers.\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Emit_WritesTheIndexDescriptionIntoTheShellText()
+    {
+        string source = EmitOne("intro", "Intro", 10, "<p>1</p>");
+
+        Assert.Contains("    string IndexDescription,\n", source, StringComparison.Ordinal);
+        Assert.Contains("\"The guide, in reading order.\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Emit_CarriesTheGroupOntoEachEntryAndIntoTheLookups()
     {
         string source = Emit(
-            (new DocMeta("first", "First", 10, DocGroup.Start, DocLang.Canonical, false, []), "<p>1</p>"),
-            (new DocMeta("last", "Last", 20, DocGroup.Reference, DocLang.Canonical, false, []), "<p>2</p>"));
+            (new DocMeta("first", "First", "A summary.", 10, DocGroup.Start, DocLang.Canonical, false, []), "<p>1</p>"),
+            (new DocMeta("last", "Last", "A summary.", 20, DocGroup.Reference, DocLang.Canonical, false, []), "<p>2</p>"));
 
         Assert.Contains("\"start\"", source, StringComparison.Ordinal);
         Assert.Contains("\"reference\"", source, StringComparison.Ordinal);
@@ -117,9 +142,9 @@ public class CSharpDocEmitterTests
     public void Emit_OrdersByFrontMatterOrder()
     {
         string source = Emit(
-            (new DocMeta("zeta", "Zeta", 30, DocGroup.Write, DocLang.Canonical, false, []), "<p>z</p>"),
-            (new DocMeta("beta", "Beta", 20, DocGroup.Write, DocLang.Canonical, false, []), "<p>b</p>"),
-            (new DocMeta("alpha", "Alpha", 10, DocGroup.Write, DocLang.Canonical, false, []), "<p>a</p>"));
+            (new DocMeta("zeta", "Zeta", "A summary.", 30, DocGroup.Write, DocLang.Canonical, false, []), "<p>z</p>"),
+            (new DocMeta("beta", "Beta", "A summary.", 20, DocGroup.Write, DocLang.Canonical, false, []), "<p>b</p>"),
+            (new DocMeta("alpha", "Alpha", "A summary.", 10, DocGroup.Write, DocLang.Canonical, false, []), "<p>a</p>"));
 
         int alpha = source.IndexOf("\"alpha\"", StringComparison.Ordinal);
         int beta = source.IndexOf("\"beta\"", StringComparison.Ordinal);
@@ -180,8 +205,8 @@ public class CSharpDocEmitterTests
     public void Emit_DuplicateSlug_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => Emit(
-            (new DocMeta("dup", "One", 1, DocGroup.Write, DocLang.Canonical, false, []), "<p>1</p>"),
-            (new DocMeta("dup", "Two", 2, DocGroup.Write, DocLang.Canonical, false, []), "<p>2</p>")));
+            (new DocMeta("dup", "One", "A summary.", 1, DocGroup.Write, DocLang.Canonical, false, []), "<p>1</p>"),
+            (new DocMeta("dup", "Two", "A summary.", 2, DocGroup.Write, DocLang.Canonical, false, []), "<p>2</p>")));
 
         Assert.Contains("dup", ex.Message);
     }
@@ -190,8 +215,8 @@ public class CSharpDocEmitterTests
     public void Emit_DuplicateOrder_Throws()
     {
         var ex = Assert.Throws<InvalidOperationException>(() => Emit(
-            (new DocMeta("a", "A", 10, DocGroup.Write, DocLang.Canonical, false, []), "<p>a</p>"),
-            (new DocMeta("b", "B", 10, DocGroup.Write, DocLang.Canonical, false, []), "<p>b</p>")));
+            (new DocMeta("a", "A", "A summary.", 10, DocGroup.Write, DocLang.Canonical, false, []), "<p>a</p>"),
+            (new DocMeta("b", "B", "A summary.", 10, DocGroup.Write, DocLang.Canonical, false, []), "<p>b</p>")));
 
         Assert.Contains("order", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("10", ex.Message);

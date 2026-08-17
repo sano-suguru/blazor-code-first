@@ -1,5 +1,6 @@
 ---
 title: Two-Way Binding
+description: .Bind is the Razor bind directive with every argument visible: the attribute, the event, and a lambda reading the current value.
 order: 80
 group: write
 ---

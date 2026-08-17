@@ -1,5 +1,6 @@
 ---
 title: コンポーネントと再利用
+description: コンポーネントから別のコンポーネントを呼ぶ方法、Razor コンポーネントとの双方向の相互運用、ViewPart の用途。
 order: 60
 group: write
 source-hash: 023a662d

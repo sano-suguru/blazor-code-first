@@ -17,7 +17,7 @@ namespace BlazorCodeFirst.Site.Tests;
 public class DocsGroupingTests
 {
     private static DocEntry Doc(string lang, string slug, int order, string group) =>
-        new(slug, slug, order, group, lang, false, [], "<p/>");
+        new(slug, slug, "A summary.", order, group, lang, false, [], "<p/>");
 
     /// <summary>English across all three groups; Japanese has translated only the first.</summary>
     private static readonly ImmutableArray<DocEntry> Manifest =

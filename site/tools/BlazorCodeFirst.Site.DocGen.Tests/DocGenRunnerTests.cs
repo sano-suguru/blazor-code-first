@@ -6,9 +6,9 @@ namespace BlazorCodeFirst.Site.DocGen.Tests;
 public class DocGenRunnerTests
 {
     private const string Intro =
-        "---\ntitle: Getting Started\norder: 10\ngroup: write\n---\n\n## Installation\n\n```csharp\nvar x = 1;\n```\n";
+        "---\ntitle: Getting Started\ndescription: D\norder: 10\ngroup: write\n---\n\n## Installation\n\n```csharp\nvar x = 1;\n```\n";
 
-    private const string Second = "---\ntitle: Control Flow\norder: 20\ngroup: write\n---\n\n## Loops\n";
+    private const string Second = "---\ntitle: Control Flow\ndescription: D\norder: 20\ngroup: write\n---\n\n## Loops\n";
 
     /// <summary>A shell file with every key a language of the given kind must declare.</summary>
     private static string Shell(string name, bool isCanonical)
@@ -20,6 +20,7 @@ public class DocGenRunnerTests
         return "---\n" +
             $"name: {name}\n" +
             "index-title: Documentation\n" +
+            "index-description: The guide, in reading order.\n" +
             "index-lead: Every document, in reading order.\n" +
             "rail-heading: Guide\n" +
             "language-label: Language\n" +
@@ -160,7 +161,7 @@ public class DocGenRunnerTests
     {
         WithContent((content, docsOut, cssOut) =>
         {
-            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 1\ngroup: write\n---\n\n# Nope\n");
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\ndescription: D\norder: 1\ngroup: write\n---\n\n# Nope\n");
 
             var ex = Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
             Assert.Contains("a.md", ex.Message);
@@ -172,8 +173,8 @@ public class DocGenRunnerTests
     {
         WithContent((content, docsOut, cssOut) =>
         {
-            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\ngroup: write\n---\n\n## A\n");
-            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 10\ngroup: write\n---\n\n## B\n");
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\ndescription: D\norder: 10\ngroup: write\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\ndescription: D\norder: 10\ngroup: write\n---\n\n## B\n");
 
             var ex = Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
 
@@ -190,10 +191,10 @@ public class DocGenRunnerTests
     {
         WithContent((content, docsOut, cssOut) =>
         {
-            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\ngroup: start\n---\n\n## A\n");
-            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 20\ngroup: write\n---\n\n## B\n");
-            File.WriteAllText(Path.Combine(content, "c.md"), "---\ntitle: C\norder: 30\ngroup: write\n---\n\n## C\n");
-            File.WriteAllText(Path.Combine(content, "d.md"), "---\ntitle: D\norder: 40\ngroup: reference\n---\n\n## D\n");
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\ndescription: D\norder: 10\ngroup: start\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\ndescription: D\norder: 20\ngroup: write\n---\n\n## B\n");
+            File.WriteAllText(Path.Combine(content, "c.md"), "---\ntitle: C\ndescription: D\norder: 30\ngroup: write\n---\n\n## C\n");
+            File.WriteAllText(Path.Combine(content, "d.md"), "---\ntitle: D\ndescription: D\norder: 40\ngroup: reference\n---\n\n## D\n");
 
             DocGenRunner.Run(content, docsOut, cssOut);
 
@@ -210,9 +211,9 @@ public class DocGenRunnerTests
         {
             // 'write' at 20, then 'start' again at 30. The rail reads a heading off a run of
             // documents, so an interleaved group would show one heading twice.
-            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\ngroup: start\n---\n\n## A\n");
-            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 20\ngroup: write\n---\n\n## B\n");
-            File.WriteAllText(Path.Combine(content, "c.md"), "---\ntitle: C\norder: 30\ngroup: start\n---\n\n## C\n");
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\ndescription: D\norder: 10\ngroup: start\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\ndescription: D\norder: 20\ngroup: write\n---\n\n## B\n");
+            File.WriteAllText(Path.Combine(content, "c.md"), "---\ntitle: C\ndescription: D\norder: 30\ngroup: start\n---\n\n## C\n");
 
             var ex = Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
 
@@ -227,14 +228,14 @@ public class DocGenRunnerTests
     {
         WithContent((content, docsOut, cssOut) =>
         {
-            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\ngroup: start\n---\n\n## A\n");
-            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 20\ngroup: write\n---\n\n## B\n");
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\ndescription: D\norder: 10\ngroup: start\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\ndescription: D\norder: 20\ngroup: write\n---\n\n## B\n");
 
             // The translation carries its own order numbers, so it can interleave on its own. The
             // hashes are placeholders: the group check runs in pass 1, before staleness is resolved,
             // so a stale one cannot reach this assertion first.
-            WriteJa(content, "a.md", "---\ntitle: A\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## A\n");
-            WriteJa(content, "b.md", "---\ntitle: B\norder: 20\ngroup: start\nsource-hash: 00000000\n---\n\n## B\n");
+            WriteJa(content, "a.md", "---\ntitle: A\ndescription: D\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## A\n");
+            WriteJa(content, "b.md", "---\ntitle: B\ndescription: D\norder: 20\ngroup: start\nsource-hash: 00000000\n---\n\n## B\n");
 
             var ex = Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
 
@@ -247,14 +248,75 @@ public class DocGenRunnerTests
     {
         WithContent((content, docsOut, cssOut) =>
         {
-            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\norder: 10\ngroup: write\n---\n\n## A\n");
-            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\norder: 10\ngroup: write\n---\n\n## B\n");
+            File.WriteAllText(Path.Combine(content, "a.md"), "---\ntitle: A\ndescription: D\norder: 10\ngroup: write\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(content, "b.md"), "---\ntitle: B\ndescription: D\norder: 10\ngroup: write\n---\n\n## B\n");
 
             Assert.Throws<InvalidOperationException>(() => DocGenRunner.Run(content, docsOut, cssOut));
 
             // Validation precedes conversion and emission: a rejected content set leaves no artifact.
             Assert.False(File.Exists(docsOut));
             Assert.False(File.Exists(cssOut));
+        });
+    }
+
+    [Fact]
+    public void Run_DescriptionOverTheCanonicalLimit_Throws()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(
+                Path.Combine(content, "intro.md"),
+                "---\ntitle: Intro\ndescription: " + new string('x', 161) +
+                    "\norder: 10\ngroup: write\n---\n\n## Body\n");
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => DocGenRunner.Run(content, docsOut, cssOut));
+
+            Assert.Contains("description", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("161", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("intro.md", ex.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Run_TranslationDescriptionOverItsOwnLimit_Throws()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            // A length the canonical edition would accept, rejected in a translation. The limit is
+            // decided by the directory the file sits in, which is the same thing that decides its
+            // language.
+            File.WriteAllText(Path.Combine(content, "intro.md"), Intro);
+            WriteJa(
+                content,
+                "intro.md",
+                "---\ntitle: Intro (ja)\ndescription: " + new string('x', 91) +
+                    "\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## Body\n");
+
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
+
+            Assert.Contains("91", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("90", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("ja/intro.md", ex.Message, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void Run_CarriesEachDocumentsDescriptionIntoTheManifest()
+    {
+        WithContent((content, docsOut, cssOut) =>
+        {
+            File.WriteAllText(
+                Path.Combine(content, "intro.md"),
+                "---\ntitle: Intro\ndescription: What this page answers.\norder: 10\ngroup: write\n---\n\n## Body\n");
+
+            DocGenRunner.Run(content, docsOut, cssOut);
+
+            Assert.Contains(
+                "\"What this page answers.\"",
+                File.ReadAllText(docsOut),
+                StringComparison.Ordinal);
         });
     }
 
@@ -283,7 +345,7 @@ public class DocGenRunnerTests
             Directory.CreateDirectory(dir);
             File.WriteAllText(
                 Path.Combine(dir, "getting-started.md"),
-                "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+                "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -314,7 +376,7 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
 
             DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
 
@@ -333,7 +395,7 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## Installation\n");
 
             DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
 
@@ -353,7 +415,7 @@ public class DocGenRunnerTests
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
             string drafts = Path.Combine(content, "drafts");
             Directory.CreateDirectory(drafts);
-            File.WriteAllText(Path.Combine(drafts, "a.md"), "---\ntitle: A\norder: 99\ngroup: write\n---\n\n## A\n");
+            File.WriteAllText(Path.Combine(drafts, "a.md"), "---\ntitle: A\ndescription: D\norder: 99\ngroup: write\n---\n\n## A\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -370,7 +432,7 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "orphan.md", "---\ntitle: Orphan\norder: 90\ngroup: write\nsource-hash: 00000000\n---\n\n## Orphan\n");
+            WriteJa(content, "orphan.md", "---\ntitle: Orphan\ndescription: D\norder: 90\ngroup: write\nsource-hash: 00000000\n---\n\n## Orphan\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -386,7 +448,7 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\n---\n\n## Installation\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -405,7 +467,7 @@ public class DocGenRunnerTests
         {
             File.WriteAllText(
                 Path.Combine(content, "getting-started.md"),
-                "---\ntitle: Getting Started\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## Installation\n");
+                "---\ntitle: Getting Started\ndescription: D\norder: 10\ngroup: write\nsource-hash: 00000000\n---\n\n## Installation\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -421,7 +483,7 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
 
             var report = new StringWriter();
             DocGenRunner.Run(content, docsOut, cssOut, report);
@@ -441,14 +503,14 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
 
             var report = new StringWriter();
             DocGenRunner.Run(content, docsOut, cssOut, report);
             string expected = ExpectedHashFrom(report.ToString());
 
             // The author's actual workflow: revise the translation, then paste the hash the tool named.
-            WriteJa(content, "getting-started.md", $"---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: {expected}\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", $"---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: {expected}\n---\n\n## Installation\n");
             var second = new StringWriter();
             DocGenRunner.Run(content, docsOut, cssOut, second);
 
@@ -463,17 +525,17 @@ public class DocGenRunnerTests
         WithContent((content, docsOut, cssOut) =>
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
 
             var first = new StringWriter();
             DocGenRunner.Run(content, docsOut, cssOut, first);
             string expected = ExpectedHashFrom(first.ToString());
-            WriteJa(content, "getting-started.md", $"---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: {expected}\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", $"---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: {expected}\n---\n\n## Installation\n");
 
             // Renumbering the navigation changes no word a reader sees, so it must not send every
             // translator back to a document that reads exactly as it did.
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro.Replace("order: 10", "order: 15", StringComparison.Ordinal));
-            WriteJa(content, "getting-started.md", $"---\ntitle: Getting Started (ja)\norder: 15\ngroup: write\nsource-hash: {expected}\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", $"---\ntitle: Getting Started (ja)\ndescription: D\norder: 15\ngroup: write\nsource-hash: {expected}\n---\n\n## Installation\n");
 
             var second = new StringWriter();
             DocGenRunner.Run(content, docsOut, cssOut, second);
@@ -491,7 +553,7 @@ public class DocGenRunnerTests
 
             // A translation sits at the same position in its own navigation as the document it
             // translates, so sharing order 10 across languages is the intended arrangement.
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
 
             DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
 
@@ -506,8 +568,8 @@ public class DocGenRunnerTests
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
             File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
-            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Loops\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n");
+            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Loops\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -524,8 +586,8 @@ public class DocGenRunnerTests
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
             File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md)\n");
-            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\norder: 20\ngroup: write\nsource-hash: deadbeef\n---\n\n## Loops\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md)\n");
+            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\ndescription: D\norder: 20\ngroup: write\nsource-hash: deadbeef\n---\n\n## Loops\n");
 
             DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
 
@@ -548,7 +610,7 @@ public class DocGenRunnerTests
 
             // control-flow has no Japanese counterpart, so /docs/ja/control-flow is a route that was
             // never generated and never prerendered.
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md)\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md)\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -565,7 +627,7 @@ public class DocGenRunnerTests
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
             File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md#loops)\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md#loops)\n");
 
             // The English document publishes "loops"; its translation publishes "repetition", the way
             // a real translation publishes a translated heading. A fragment resolves in the linking
@@ -573,7 +635,7 @@ public class DocGenRunnerTests
             // copied the English link is told rather than shipping a link that lands at the top of
             // the page. (The heading here is English because site.yml scans this file for Japanese;
             // MarkdownConverterTests holds the non-ASCII half.)
-            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\norder: 20\ngroup: write\nsource-hash: deadbeef\n---\n\n## Repetition\n");
+            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\ndescription: D\norder: 20\ngroup: write\nsource-hash: deadbeef\n---\n\n## Repetition\n");
 
             var ex = Assert.Throws<InvalidOperationException>(
                 () => DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null));
@@ -590,8 +652,8 @@ public class DocGenRunnerTests
         {
             File.WriteAllText(Path.Combine(content, "getting-started.md"), Intro);
             File.WriteAllText(Path.Combine(content, "control-flow.md"), Second);
-            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md#repetition)\n");
-            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\norder: 20\ngroup: write\nsource-hash: deadbeef\n---\n\n## Repetition\n");
+            WriteJa(content, "getting-started.md", "---\ntitle: Getting Started (ja)\ndescription: D\norder: 10\ngroup: write\nsource-hash: deadbeef\n---\n\n## Installation\n\n[Next](./control-flow.md#repetition)\n");
+            WriteJa(content, "control-flow.md", "---\ntitle: Control Flow (ja)\ndescription: D\norder: 20\ngroup: write\nsource-hash: deadbeef\n---\n\n## Repetition\n");
 
             DocGenRunner.Run(content, docsOut, cssOut, TextWriter.Null);
 

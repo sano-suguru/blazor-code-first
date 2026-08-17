@@ -139,7 +139,9 @@ Add `site/content/<slug>.md` with front matter, then regenerate the committed ar
 ````markdown
 ---
 title: My Page
+description: What this page answers, in one sentence.
 order: 40
+group: write
 ---
 
 ## First section
@@ -150,9 +152,15 @@ order: 40
 - A subdirectory of `site/content/` names the language of the documents in it. `ja` is the only one
   recognized; any other directory is a build error. The top-level files are the canonical English
   edition.
-- `title` and `order` are both required, and `order` must be unique within a language. A translation
-  shares the order of the document it translates, so the two sit at the same position in their own
-  navigations.
+- `title`, `description`, `order` and `group` are all required, and `order` must be unique within a
+  language. A translation shares the order of the document it translates, so the two sit at the same
+  position in their own navigations.
+- `description` is the sentence a search result shows under the title, and it is the only front
+  matter field no page renders. Write what the document answers rather than a summary of it, and keep
+  each one distinct: two pages sharing a description read as duplicates to a search engine.
+- A description runs to 160 characters in the English edition and 90 in a translation, and DocGen
+  fails the build above either. The limits differ because a search result truncates by pixel width
+  and a full-width character takes about twice the width of a Latin one.
 - `order` decides the position of the document in the navigation and in the `/docs` index. It no
   longer changes what any URL renders: `/docs` is its own index page.
 - Do not write an h1. The page renders the front matter `title` as the h1.
@@ -275,6 +283,7 @@ contains a sentence in any language:
 ---
 name: English
 index-title: Documentation
+index-description: What this edition of the guide covers, in one sentence.
 index-lead: Every document in the guide, in reading order.
 rail-heading: Guide
 language-label: Language
@@ -285,3 +294,7 @@ language-label: Language
 edition. A translation additionally declares `stale-notice` and `stale-link`, which the canonical
 language must not declare. Every key is required; there is no fallback to English, because one
 English word among translated ones is exactly what nobody would notice.
+
+`index-description` is to the `/docs` index route what a document's own `description` is to that
+document, and the same per-language limits bound it. The index is a page a search result can show,
+and it is the only such page whose text is not a document's.

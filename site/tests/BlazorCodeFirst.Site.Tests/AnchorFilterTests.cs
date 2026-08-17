@@ -15,7 +15,7 @@ namespace BlazorCodeFirst.Site.Tests;
 public class AnchorFilterTests
 {
     private static DocEntry Doc(params string[] anchors) =>
-        new("d", "D", 10, "reference", "en", false, [.. anchors], "<p/>");
+        new("d", "D", "A summary.", 10, "reference", "en", false, [.. anchors], "<p/>");
 
     [Fact]
     public void ADocumentWithNoIdShapedAnchor_OffersNothing() =>

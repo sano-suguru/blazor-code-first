@@ -1,5 +1,6 @@
 ---
 title: Razor からの移行
+description: Razor 構文からこの記法への対応表と、綴りではなくコンポーネントの形そのものが変わる4箇所。
 order: 30
 group: start
 source-hash: 1579a416

@@ -12,6 +12,11 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// it: a group with no label would put an English word in a translated rail the first time a document
 /// moved into it.
 /// </param>
+/// <param name="IndexDescription">
+/// The sentence a search result shows under this edition's documentation index. It is content in the
+/// same sense every other string here is, so it is authored per language in the content tree rather
+/// than assembled in source out of the documents the index lists.
+/// </param>
 /// <param name="StaleNotice">
 /// The sentence a translation carries when it has fallen behind, or null on the canonical language,
 /// which has nothing to fall behind.
@@ -19,6 +24,7 @@ namespace BlazorCodeFirst.Site.DocGen;
 public sealed record ShellStrings(
     string Name,
     string IndexTitle,
+    string IndexDescription,
     string IndexLead,
     string RailHeading,
     string LanguageLabel,
@@ -108,6 +114,11 @@ public static class ShellFile
         return new ShellStrings(
             declared["name"],
             declared["index-title"],
+            // Bounded the same way a document's own description is. The index is one page a search
+            // result can show, and a limit that stopped at the documents would leave the one page
+            // whose text is not a document's unbounded for no stated reason.
+            DocDescription.Validate(
+                declared["index-description"], isCanonical, fileName, "index-description", Kind),
             declared["index-lead"],
             declared["rail-heading"],
             declared["language-label"],
@@ -125,7 +136,8 @@ public static class ShellFile
 
     private static readonly string[] Keys =
     [
-        "name", "index-title", "index-lead", "rail-heading", "language-label", "anchor-filter-label",
+        "name", "index-title", "index-description", "index-lead", "rail-heading", "language-label",
+        "anchor-filter-label",
         .. DocGroup.All.Select(GroupKey),
         StaleNoticeKey, StaleLinkKey,
     ];

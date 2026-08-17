@@ -1,5 +1,6 @@
 ---
 title: Control Flow
+description: If and ForEach, the constructs that let the generator assign a compile-time sequence number to every position in a template.
 order: 50
 group: write
 ---

@@ -8,6 +8,7 @@ public class ShellFileTests
     private const string Common =
         "name: English\n" +
         "index-title: Documentation\n" +
+        "index-description: The guide, in reading order.\n" +
         "index-lead: Every document, in reading order.\n" +
         "rail-heading: Guide\n" +
         "language-label: Language\n" +
@@ -33,6 +34,7 @@ public class ShellFileTests
 
         Assert.Equal("English", shell.Name);
         Assert.Equal("Documentation", shell.IndexTitle);
+        Assert.Equal("The guide, in reading order.", shell.IndexDescription);
         Assert.Equal("Every document, in reading order.", shell.IndexLead);
         Assert.Equal("Guide", shell.RailHeading);
         Assert.Equal("Language", shell.LanguageLabel);
@@ -90,6 +92,58 @@ public class ShellFileTests
         // shows one English word among Japanese ones is the failure this file exists to prevent.
         Assert.Contains("rail-heading", ex.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Parse_MissingIndexDescription_Throws()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(WithoutIndexDescription()));
+
+        Assert.Contains("index-description", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Parse_TranslationMissingIndexDescription_Throws()
+    {
+        // Required of a translation as well, unlike the two stale keys. An index whose description
+        // fell back to English would be the one page in the edition describing itself in the wrong
+        // language to a search result.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParseTranslation(WithoutIndexDescription() + Stale));
+
+        Assert.Contains("index-description", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_IndexDescriptionOverTheCanonicalLimit_Throws()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParseCanonical(WithIndexDescription(new string('x', 161))));
+
+        Assert.Contains("index-description", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("161", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("160", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_IndexDescriptionOverTheTranslationLimit_Throws()
+    {
+        // The same length the canonical edition accepts, rejected here: a translation's limit is the
+        // narrower one, because a full-width character takes about twice the width in a result.
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParseTranslation(WithIndexDescription(new string('x', 91)) + Stale));
+
+        Assert.Contains("91", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("90", ex.Message, StringComparison.Ordinal);
+    }
+
+    private const string IndexDescriptionLine = "index-description: The guide, in reading order.\n";
+
+    private static string WithoutIndexDescription() =>
+        Common.Replace(IndexDescriptionLine, "", StringComparison.Ordinal);
+
+    private static string WithIndexDescription(string value) =>
+        Common.Replace(IndexDescriptionLine, $"index-description: {value}\n", StringComparison.Ordinal);
 
     [Fact]
     public void Parse_TranslationMissingStaleText_Throws()

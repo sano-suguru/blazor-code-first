@@ -1,6 +1,7 @@
 ---
 name: 日本語
 index-title: ドキュメント
+index-description: BlazorCodeFirst のガイド。パッケージの導入から診断リファレンスまでの全文書。
 index-lead: ガイドの全文書を、読む順に並べています。
 rail-heading: ガイド
 language-label: 言語
