@@ -1,6 +1,7 @@
 ---
 title: Layouts
-order: 50
+order: 70
+group: write
 ---
 
 A layout wraps the routed page with shared chrome: headers, navigation, footers. BlazorCodeFirst

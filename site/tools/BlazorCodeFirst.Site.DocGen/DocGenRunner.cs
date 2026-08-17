@@ -57,6 +57,15 @@ public static class DocGenRunner
             .Select(s => (Source: s, Document: MarkdownConverter.ParseBody(s.Body, s.FileName)))
             .ToList();
 
+        // Canonical only. SentenceLength says why a word count cannot be asked of every language.
+        foreach (var (source, document) in parsed)
+        {
+            if (source.Meta.Lang == DocLang.Canonical)
+            {
+                SentenceLength.EnsureNoOverlongSentence(document, source.FileName);
+            }
+        }
+
         // Per language, so a link to a document that has no counterpart in the linking document's
         // language fails the build rather than resolving to a route that was never prerendered.
         var anchorsByLang = parsed
@@ -73,7 +82,7 @@ public static class DocGenRunner
         foreach (var (source, document) in parsed)
         {
             docs.Add((
-                source.Meta,
+                source.Meta with { Anchors = HeadingAnchors.InOrder(document) },
                 MarkdownConverter.ToHtml(
                     document,
                     anchorsByLang[source.Meta.Lang],
@@ -194,13 +203,46 @@ public static class DocGenRunner
 
             orderOwners.Add(fields.Order, fileName);
             sources.Add(new DocSource(
-                new DocMeta(slug, fields.Title, fields.Order, lang, Stale: false),
+                // Anchors are empty here and filled in by pass 2, which is the first point at which
+                // the document has been parsed and its headings are known.
+                new DocMeta(slug, fields.Title, fields.Order, fields.Group, lang, Stale: false, Anchors: []),
                 fileName,
                 body,
                 fields.SourceHash));
         }
 
+        EnsureGroupsAreContiguous(sources);
         return sources;
+    }
+
+    /// <summary>
+    /// Requires one language's groups to run in <see cref="DocGroup.All"/> order once each, with no
+    /// group interrupted by another.
+    /// </summary>
+    /// <remarks>
+    /// Order stays the single ordering key: the rail reads a group heading off a run of documents
+    /// rather than sorting by group and then by order. That keeps one number in front matter deciding
+    /// one position, and it makes an interleaved group a build error instead of a rail that shows the
+    /// same heading twice with different documents under each.
+    /// </remarks>
+    private static void EnsureGroupsAreContiguous(List<DocSource> sources)
+    {
+        var byOrder = sources.OrderBy(s => s.Meta.Order).ToList();
+        for (int i = 1; i < byOrder.Count; i++)
+        {
+            var previous = byOrder[i - 1].Meta;
+            var current = byOrder[i].Meta;
+            if (DocGroup.Rank(current.Group) >= DocGroup.Rank(previous.Group))
+            {
+                continue;
+            }
+
+            throw Invalid(
+                byOrder[i].FileName,
+                $"group '{current.Group}' follows group '{previous.Group}' at order {current.Order}, " +
+                $"but the navigation shows the groups in the order [{string.Join(", ", DocGroup.All)}]. " +
+                "Renumber 'order' so each group's documents form one run.");
+        }
     }
 
     /// <summary>

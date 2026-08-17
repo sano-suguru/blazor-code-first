@@ -1,6 +1,7 @@
 ---
 title: 制御構文
-order: 30
+order: 50
+group: write
 source-hash: 59cdc8a1
 ---
 

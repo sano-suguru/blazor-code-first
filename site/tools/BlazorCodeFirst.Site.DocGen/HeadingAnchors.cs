@@ -18,11 +18,20 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// </remarks>
 public static class HeadingAnchors
 {
-    public static IReadOnlySet<string> Of(MarkdownDocument document)
+    public static IReadOnlySet<string> Of(MarkdownDocument document) =>
+        new HashSet<string>(InOrder(document), StringComparer.Ordinal);
+
+    /// <summary>The same ids in document order, which is the order a reader meets them.</summary>
+    /// <remarks>
+    /// Carried into the manifest so a page can offer its own document's sections without a second,
+    /// hand-written list of them. The diagnostics index is what needs it: 42 ids that must stay the
+    /// 42 headings the document actually publishes.
+    /// </remarks>
+    public static IReadOnlyList<string> InOrder(MarkdownDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var anchors = new HashSet<string>(StringComparer.Ordinal);
+        var anchors = new List<string>();
         foreach (var heading in document.Descendants<HeadingBlock>())
         {
             string? id = heading.GetAttributes().Id;

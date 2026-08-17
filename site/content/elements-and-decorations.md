@@ -1,6 +1,7 @@
 ---
 title: Elements and Decorations
-order: 20
+order: 40
+group: write
 ---
 
 BlazorCodeFirst mirrors HTML directly: every element you write in a `Body` expression names the
@@ -241,9 +242,10 @@ carrying both it and a `.Class` reports [BCF3024](./diagnostics.md#bcf3024).
 
 ### Where a decoration may go
 
-A decoration must target a single element, so applying one to `If`, `ForEach`, `Fragment`, `Raw`, or a
-component result reports [BCF3008](./diagnostics.md#bcf3008) — as does writing the chain after the
-children (`Div["text"].Class("card")`), the brackets having already produced a `View`.
+A decoration must target a single element. Applying one to `If`, `ForEach`, `Fragment`, `Raw`, or a
+component result reports [BCF3008](./diagnostics.md#bcf3008), because none of those opens an
+element. Writing the chain after the children (`Div["text"].Class("card")`) reports the same thing:
+the brackets have already produced a `View`.
 
 A decoration also has to be one this library declares. A misspelled name (`Div.Clas("card")`), or an
 extension method of your own that takes an element and gives one back, reports

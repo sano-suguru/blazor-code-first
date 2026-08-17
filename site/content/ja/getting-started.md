@@ -1,7 +1,8 @@
 ---
 title: はじめに
 order: 10
-source-hash: 96eed0c4
+group: start
+source-hash: 9a19d567
 ---
 
 BlazorCodeFirst を使うと、Blazor の UI をふつうの C# として書けます。このページ自体も Markdown
@@ -13,8 +14,11 @@ BlazorCodeFirst を使うと、Blazor の UI をふつうの C# として書け�
 から派生させます。
 
 ```
-dotnet add package BlazorCodeFirst
+dotnet add package BlazorCodeFirst --prerelease
 ```
+
+公開しているバージョンには prerelease の接尾辞が付いています。`--prerelease` を外すと最新の安定版
+を探しに行き、それは存在しないので何も解決しません。
 
 ## 最初のコンポーネント
 

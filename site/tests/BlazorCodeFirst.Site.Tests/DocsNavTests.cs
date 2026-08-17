@@ -21,8 +21,8 @@ public class DocsNavTests
 {
     /// <summary>A manifest entry. Only the language and the slug are read by the decision under
     /// test, so the rest carries whatever keeps the record one DocGen could have emitted.</summary>
-    private static DocEntry Doc(string lang, string slug, int order = 10) =>
-        new(slug, slug, order, lang, false, "<p/>");
+    private static DocEntry Doc(string lang, string slug, int order = 10, string group = "write") =>
+        new(slug, slug, order, group, lang, false, [], "<p/>");
 
     /// <summary>Two English documents, one of which the Japanese edition has translated.</summary>
     private static readonly ImmutableArray<DocEntry> OneTranslatedOneNot =
