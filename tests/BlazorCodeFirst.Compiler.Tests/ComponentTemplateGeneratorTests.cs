@@ -490,6 +490,11 @@ public sealed class ComponentTemplateGeneratorTests
     [Fact]
     public void ContextualTemplate_NestedLocalAndPatternDeclarationsCannotCaptureGeneratedContextName()
     {
+        // Both declarations sit inside a nested lambda, which is what leaves them to the rename. The same
+        // two forms written at the template body's own level are refused instead, because that level is
+        // this position's to transplant: see
+        // ComponentTemplateDiagnosticTests.ContextualTemplate_WhenItDeclaresAReservedName_ReportsBCF3022
+        // (#413).
         const string host = """
             using System;
             using BlazorCodeFirst;
@@ -505,9 +510,9 @@ public sealed class ComponentTemplateGeneratorTests
                                 var __bcf_context_1 = 1;
                                 return context + __bcf_context_1;
                             }))()}"],
-                            Span[$"{(0 is int __bcf_context_1
+                            Span[$"{((Func<int>)(() => 0 is int __bcf_context_1
                                 ? context + __bcf_context_1
-                                : context)}"]]);
+                                : context))()}"]]);
             }
             """;
 
