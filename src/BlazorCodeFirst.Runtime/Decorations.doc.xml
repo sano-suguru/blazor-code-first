@@ -1,0 +1,8 @@
+<doc>
+  <fragment id="element">
+    <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+  </fragment>
+  <fragment id="bindElement">
+    <param name="element">The element being decorated (<c>Input</c>, <c>Textarea</c>, …).</param>
+  </fragment>
+</doc>

@@ -65,6 +65,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Decorations.cs splices this in via <include>, which the compiler reads straight off disk
+         (#416). CoreCompile's incremental check only watches @(Compile) and its declared inputs, so
+         without this, editing the fragment file alone leaves the emitted XML doc stale. -->
+    <CustomAdditionalCompileInputs Include="Decorations.doc.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../BlazorCodeFirst.Compiler/BlazorCodeFirst.Compiler.csproj"
                       BuildReference="false"
                       ReferenceOutputAssembly="false"
