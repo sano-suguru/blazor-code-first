@@ -11,6 +11,7 @@ let panX = 0;
 let panY = 0;
 let zoom = 1;
 let renderRequested = false;
+let scratchBytes = new Uint8Array(0);
 
 const VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec2 a_position;
@@ -80,7 +81,11 @@ export function uploadPoints(pointBytesView, vertexCount, minX, maxX, minY, maxY
     // (MemoryMarshal.AsBytes) -- the JSImport marshaller only supports MemoryView over byte
     // spans, not float spans directly. Reinterpret the bytes back into a Float32Array view over
     // the same buffer, so this costs no extra copy beyond the one MemoryView already requires.
-    const bytes = new Uint8Array(vertexCount * 2 * 4);
+    const byteLength = vertexCount * 2 * 4;
+    if (scratchBytes.length < byteLength) {
+        scratchBytes = new Uint8Array(byteLength);
+    }
+    const bytes = scratchBytes.subarray(0, byteLength);
     pointBytesView.copyTo(bytes);
     const floats = new Float32Array(bytes.buffer, bytes.byteOffset, vertexCount * 2);
 

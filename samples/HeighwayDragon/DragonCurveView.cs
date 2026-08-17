@@ -30,6 +30,7 @@ public sealed partial class DragonCurveView : BodyComponentBase
     private bool _dragging;
     private double _lastPointerX;
     private double _lastPointerY;
+    private Point[]? _pointBuffer;
 
     protected override View Body => Div[
         Canvas.Id("gl-canvas").Class("gl-canvas")
@@ -135,15 +136,23 @@ public sealed partial class DragonCurveView : BodyComponentBase
 
         try
         {
-            var stopwatch = Stopwatch.StartNew();
             var vertexCount = DragonCurveGenerator.VertexCount(order);
-            var points = new Point[vertexCount];
-            var bounds = await Task.Run(() => DragonCurveGenerator.FillPoints(points, order));
+            var stopwatch = Stopwatch.StartNew();
+            var bounds = await Task.Run(() =>
+            {
+                if (_pointBuffer is null || _pointBuffer.Length < vertexCount)
+                {
+                    _pointBuffer = null;
+                    _pointBuffer = GC.AllocateUninitializedArray<Point>(vertexCount);
+                }
+
+                return DragonCurveGenerator.FillPoints(_pointBuffer.AsSpan(0, vertexCount), order);
+            });
             _workerMs = stopwatch.Elapsed.TotalMilliseconds;
 
             stopwatch.Restart();
             var (minX, maxX, minY, maxY) = bounds;
-            var pointBytes = MemoryMarshal.AsBytes<Point>(points.AsSpan());
+            var pointBytes = MemoryMarshal.AsBytes<Point>(_pointBuffer.AsSpan(0, vertexCount));
             DragonGlInterop.UploadPoints(pointBytes, vertexCount, minX, maxX, minY, maxY);
             _uploadMs = stopwatch.Elapsed.TotalMilliseconds;
 
