@@ -17,55 +17,55 @@ namespace BlazorCodeFirst;
 public static class Decorations
 {
     /// <summary>Design-time syntax adding a CSS class to the owning element's <c>class</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The CSS class value; any string expression. Chain calls to add more.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Class(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax adding an <c>onclick</c> handler to the owning element.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="handler">The handler invoked on click; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView OnClick(this ElementView element, System.Action handler) => element;
 
     /// <summary>Design-time syntax setting the <c>href</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Href(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>src</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Src(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>alt</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Alt(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>id</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Id(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>type</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Type(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>title</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Title(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>role</c> attribute.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Role(this ElementView element, string? value) => element;
@@ -81,7 +81,7 @@ public static class Decorations
     /// cannot see it. Bind each attribute individually with this overload or a named shortcut. The
     /// reasons are in <c>ARCHITECTURE.md</c> 付録B.14.
     /// </summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
@@ -115,7 +115,7 @@ public static class Decorations
     /// expression, <c>.Class(active ? "on" : null)</c>.
     /// </para>
     /// </remarks>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="value">The attribute's presence; any <see langword="bool"/> expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
@@ -146,7 +146,7 @@ public static class Decorations
     /// attribute rather than a compile error.
     /// </para>
     /// </remarks>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Attr(this ElementView element, string name) => element;
@@ -158,14 +158,14 @@ public static class Decorations
     /// Blazor would add such a name as a plain attribute whose handler never fires. Must be a non-empty
     /// compile-time constant.
     /// </summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView On(this ElementView element, string eventName, System.Action handler) => element;
 
     /// <summary>Design-time syntax adding an async event handler; see the synchronous overload.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The async handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
@@ -196,7 +196,7 @@ public static class Decorations
     /// </para>
     /// </remarks>
     /// <typeparam name="TArgs">The event argument type the handler receives.</typeparam>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
@@ -209,7 +209,7 @@ public static class Decorations
     /// synchronous overload.
     /// </summary>
     /// <typeparam name="TArgs">The event argument type the handler receives.</typeparam>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="eventName">The full HTML event attribute name; must be a non-empty compile-time constant.</param>
     /// <param name="handler">The async handler invoked on the event; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
@@ -219,7 +219,7 @@ public static class Decorations
         where TArgs : System.EventArgs => element;
 
     /// <summary>Design-time syntax adding an async <c>onclick</c> handler.</summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="handler">The async handler invoked on click; lowered to an EventCallback.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView OnClick(
@@ -269,7 +269,7 @@ public static class Decorations
     /// binding (#188).
     /// </para>
     /// </remarks>
-    /// <param name="element">The element being decorated (<c>Input</c>, <c>Textarea</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
@@ -279,7 +279,7 @@ public static class Decorations
         System.Func<string> get) => element;
 
     /// <summary>Design-time syntax binding with an explicit setter; see the getter-only overload.</summary>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -290,7 +290,7 @@ public static class Decorations
         System.Func<string> get, System.Action<string> set) => element;
 
     /// <summary>Design-time syntax binding with an explicit async setter; see the getter-only overload.</summary>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -306,7 +306,7 @@ public static class Decorations
     /// <see cref="Attr(ElementView, string, bool)"/>); see the <see langword="string"/> overload for
     /// the rest.
     /// </summary>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
@@ -316,7 +316,7 @@ public static class Decorations
         System.Func<bool> get) => element;
 
     /// <summary>Design-time syntax binding a <see langword="bool"/> with an explicit setter.</summary>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -327,7 +327,7 @@ public static class Decorations
         System.Func<bool> get, System.Action<bool> set) => element;
 
     /// <summary>Design-time syntax binding a <see langword="bool"/> with an explicit async setter.</summary>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -358,7 +358,7 @@ public static class Decorations
     /// </para>
     /// </remarks>
     /// <typeparam name="TValue">The bound value's type.</typeparam>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
@@ -370,7 +370,7 @@ public static class Decorations
 
     /// <summary>Design-time syntax binding a value of any type with an explicit setter; see the getter-only overload.</summary>
     /// <typeparam name="TValue">The bound value's type.</typeparam>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -384,7 +384,7 @@ public static class Decorations
 
     /// <summary>Design-time syntax binding a value of any type with an explicit async setter; see the getter-only overload.</summary>
     /// <typeparam name="TValue">The bound value's type.</typeparam>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -408,7 +408,7 @@ public static class Decorations
     /// <c>yyyy-MM-dd</c> and this surface cannot read the element's <c>type</c>.
     /// </remarks>
     /// <typeparam name="TValue">The bound value's type.</typeparam>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda over an assignable expression.</param>
@@ -422,7 +422,7 @@ public static class Decorations
 
     /// <summary>Design-time syntax binding a value of any type with a format and an explicit setter; see the format overload.</summary>
     /// <typeparam name="TValue">The bound value's type.</typeparam>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -437,7 +437,7 @@ public static class Decorations
 
     /// <summary>Design-time syntax binding a value of any type with a format and an explicit async setter; see the format overload.</summary>
     /// <typeparam name="TValue">The bound value's type.</typeparam>
-    /// <param name="element">The element being decorated.</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='bindElement']/param"/>
     /// <param name="attributeName">The attribute carrying the value; a non-empty compile-time constant.</param>
     /// <param name="eventName">The full HTML event attribute name; a non-empty compile-time constant beginning with <c>on</c>.</param>
     /// <param name="get">Reads the current value; an inline lambda.</param>
@@ -474,7 +474,7 @@ public static class Decorations
     /// own key to that frame, and the two would be one <c>SetKey</c> overwriting the other.
     /// </para>
     /// </remarks>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The key; any expression. A literal <see langword="null"/> declines the key.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Key(this ElementView element, object? value) => element;
@@ -536,7 +536,7 @@ public static class Decorations
     /// (<c>ARCHITECTURE.md</c> §2.7).
     /// </para>
     /// </remarks>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView PreventDefault(this ElementView element) => element;
 
@@ -550,7 +550,7 @@ public static class Decorations
     /// appends no frame — the same trade <see cref="Attr(ElementView, string, bool)"/> makes. Writing
     /// nothing at all is what emits nothing.
     /// </remarks>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">Whether the event prevents its default; any bool expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView PreventDefault(this ElementView element, bool value) => element;
@@ -560,7 +560,7 @@ public static class Decorations
     /// Razor's <c>@onwheel:stopPropagation</c>. Attaches and reports exactly as
     /// <see cref="PreventDefault(ElementView)"/> does.
     /// </summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView StopPropagation(this ElementView element) => element;
 
@@ -568,7 +568,7 @@ public static class Decorations
     /// Design-time syntax deciding at runtime whether the preceding event stops propagating; see
     /// <see cref="PreventDefault(ElementView, bool)"/> for what a <see langword="false"/> costs.
     /// </summary>
-    /// <param name="element">The element being decorated (<c>Div</c>, <c>Span</c>, <c>Element("…")</c>, …).</param>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">Whether the event stops propagating; any bool expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView StopPropagation(this ElementView element, bool value) => element;
