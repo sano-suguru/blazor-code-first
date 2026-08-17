@@ -3,6 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <WasmEnableThreads>true</WasmEnableThreads>
+    <!-- [JSImport]/[JSExport] (DragonGlInterop.cs) require this; SYSLIB1074 otherwise. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Isolated for the same reason tests/BlazorCodeFirst.WasmPackageApp isolates its own restore:
          BlazorCodeFirst is not published to nuget.org yet (#295), so this restores the locally
          packed build via NuGet.config's local-blazorcodefirst source instead. -->
