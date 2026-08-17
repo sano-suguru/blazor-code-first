@@ -12,11 +12,13 @@
         @font-face urls in that file are relative to it, so the woff2 files resolve from wwwroot/fonts
         with nothing copied here.
 
-        color-scheme: dark is what makes the committed PNG reproducible. Every colour in tokens.css is
-        a light-dark() pair, which resolves to whatever scheme rendered the screenshot -- so without
-        this the file would depend on the machine that took it. Declaring the scheme resolves every
-        pair to its dark half, on any machine, and lets the card name tokens rather than copy the
-        halves out by hand.
+        color-scheme: dark is what makes the committed PNG reproducible, for one token. The slab
+        colours the card draws on are fixed values in tokens.css, which is the whole point of the slab
+        palette and why a code figure looks the same in both schemes. --color-accent is not: it is a
+        light-dark() pair, and it would otherwise resolve to whatever scheme rendered the screenshot,
+        so the committed file would depend on the machine that took it. Declaring the scheme settles
+        that pair on any machine and lets the wordmark name the token rather than copy a half of it out
+        by hand.
 
         The only lengths written here are the card's own, because a card read at thumbnail size has a
         different scale from a page read at arm's length. They are named for the same reason the
@@ -64,7 +66,6 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            background: var(--color-slab);
         }
 
         /* What the card actually says, anchored to the bottom-left as one block. */
@@ -100,7 +101,11 @@
 
         /* What a developer does next, which is the one thing an Open Graph consumer does not already
            print for itself. The domain goes underneath the card in every one of them, so printing it
-           here would spend the slot on chrome the platform supplies. */
+           here would spend the slot on chrome the platform supplies.
+
+           --prerelease is not decoration, and InstallCommandTests holds this line to the command
+           README.md publishes. The site shipped the flagless version once; the card cannot import a
+           C# constant, so the test is the reuse available here. */
         .command {
             margin: 0;
             color: var(--color-slab-muted);
@@ -115,7 +120,7 @@
         <p class="wordmark">BlazorCodeFirst</p>
         <div class="statement">
             <h1 class="line">Write Blazor UI as plain C#</h1>
-            <p class="command">dotnet add package BlazorCodeFirst</p>
+            <p class="command">dotnet add package BlazorCodeFirst --prerelease</p>
         </div>
     </div>
 </body>
