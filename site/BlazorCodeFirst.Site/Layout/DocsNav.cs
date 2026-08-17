@@ -141,6 +141,34 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
         return others;
     }
 
+    /// <summary>Every edition that can show what the reader is looking at, this one included.</summary>
+    /// <remarks>
+    /// The language switch asks for the OTHER editions, because it offers somewhere else to go. An
+    /// hreflang set asks for all of them, because the set has to be reciprocal: a page that names an
+    /// alternate must be named by it in turn, and a set that leaves itself out is not. One decision,
+    /// two readings, so <see cref="Counterparts(ImmutableArray{DocEntry}, string, string?)"/> stays
+    /// the one place that decides which editions have this document.
+    /// </remarks>
+    internal static List<DocAlternate> Editions(ImmutableArray<DocEntry> docs, string lang, string? slug)
+    {
+        var editions = new List<DocAlternate> { new(lang, PathOf(lang, slug)) };
+        foreach (string other in Counterparts(docs, lang, slug))
+        {
+            editions.Add(new DocAlternate(other, PathOf(other, slug)));
+        }
+
+        return editions;
+    }
+
+    /// <summary>The route one edition is served from, in the form sitemap.xml declares.</summary>
+    /// <remarks>
+    /// With a trailing slash, which the hrefs in the rail do not carry. Workers redirects the bare
+    /// form to this one, so a canonical link without it would name a URL that answers 307 rather than
+    /// the page itself.
+    /// </remarks>
+    internal static string PathOf(string lang, string? slug) =>
+        slug is null ? Docs.RoutePrefix(lang) + "/" : Docs.Href(lang, slug) + "/";
+
     /// <summary>The current route as a normalized absolute path.</summary>
     /// <remarks>
     /// Derived from ToBaseRelativePath for the same reason <see cref="SiteNav"/> does: the

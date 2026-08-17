@@ -1,5 +1,6 @@
 using BlazorCodeFirst;
 using BlazorCodeFirst.Site.Content;
+using BlazorCodeFirst.Site.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -36,6 +37,16 @@ public sealed partial class Home : BodyComponentBase
     // InstallCommandTests now reads it out of README.md rather than trusting this literal.
     private const string InstallCommand = "dotnet add package BlazorCodeFirst --prerelease";
 
+    /// <summary>What a search result shows under this page's title.</summary>
+    /// <remarks>
+    /// A literal here rather than a string in the content tree, unlike every sentence a document
+    /// carries. The home page is not a document: it has no front matter to declare this in, and no
+    /// translation to keep it in step with.
+    /// </remarks>
+    private const string Summary =
+        "Write Blazor UI as plain C#. An ordinary Blazor component, in the language the rest of the " +
+        "app is written in.";
+
     [Inject]
     private IJSRuntime Js { get; set; } = default!;
 
@@ -44,6 +55,12 @@ public sealed partial class Home : BodyComponentBase
     protected override View Body =>
         Fragment(
             Component<PageTitle>()["BlazorCodeFirst"],
+            // No Alternates: this page has one edition, and an hreflang set has to be reciprocal.
+            Component<SiteMeta>()
+                .Param(m => m.Title, "BlazorCodeFirst")
+                .Param(m => m.Description, Summary)
+                .Param(m => m.Path, "/")
+                .Param(m => m.Lang, Docs.Canonical),
             Div.Class("shell")[
                 // One cell, not three. The three blocks below carry their own margins, and .hero is
                 // a grid: as direct children they would each take a row and the grid gap would add

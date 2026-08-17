@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using BlazorCodeFirst.Site.Content;
 using BlazorCodeFirst.Site.Layout;
 using Xunit;
 
@@ -158,6 +159,45 @@ public class SiteMetaTests
             .ToList();
 
         Assert.Equal(identities.Count, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>Two editions of one document, which is what site/content holds today.</summary>
+    private static readonly ImmutableArray<DocEntry> Translated =
+    [
+        new DocEntry("intro", "Intro", "A.", 10, "start", "en", false, [], "<p/>"),
+        new DocEntry("intro", "Intro (ja)", "B.", 10, "start", "ja", false, [], "<p/>"),
+    ];
+
+    [Fact]
+    public void Editions_IncludeTheCurrentOne()
+    {
+        // The language switch asks for the other editions, because it offers somewhere else to go.
+        // An hreflang set asks for all of them, because it has to be reciprocal.
+        var editions = DocsNav.Editions(Translated, "ja", "intro");
+
+        Assert.Equal(["en", "ja"], editions.Select(e => e.Lang).Order(StringComparer.Ordinal));
+        Assert.Equal("/docs/intro/", editions.Single(e => e.Lang == "en").Path);
+        Assert.Equal("/docs/ja/intro/", editions.Single(e => e.Lang == "ja").Path);
+    }
+
+    [Fact]
+    public void Editions_Index_IsTheRoutePrefixWithASlash()
+    {
+        // The trailing slash the rail's own hrefs do not carry. Workers redirects the bare form to
+        // this one, so a canonical without it would name a URL that answers 307.
+        var editions = DocsNav.Editions(Translated, "en", null);
+
+        Assert.Equal("/docs/", editions.Single(e => e.Lang == "en").Path);
+        Assert.Equal("/docs/ja/", editions.Single(e => e.Lang == "ja").Path);
+    }
+
+    [Fact]
+    public void Editions_UntranslatedDocument_IsItsOwnOnlyEdition()
+    {
+        var docs = ImmutableArray.Create(
+            new DocEntry("extras", "Extras", "A.", 20, "write", "en", false, [], "<p/>"));
+
+        Assert.Equal(["en"], DocsNav.Editions(docs, "en", "extras").Select(e => e.Lang));
     }
 
     [Fact]
