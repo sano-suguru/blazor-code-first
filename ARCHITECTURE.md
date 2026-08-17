@@ -537,7 +537,7 @@ SSC経路のアロケーション特性は、これにより等価なRazorコン
 
 ### 3.2 Opaque経路: フラグメント内包 `View`
 
-Opaque経路でのみ、`View` は実体を持ちます。この場合の `View` は `RenderFragment` への参照を内包する軽量ハンドルであり、ヒープ割り当ては内包フラグメントの構築分に限られます。コストとしては `RenderFragment` を手書きで合成した場合と同等です。
+Opaque経路でのみ、`View` は実体を持ちます。この場合の `View` は `RenderFragment` への参照を内包する軽量ハンドルであり、ヒープ割り当ては内包フラグメントの構築分に限られます。コストとしては `RenderFragment` を手書きで合成した場合と同等です(`DESIGN.md` §7.1の実測値であって、予測ではありません)。
 
 ```csharp
 public readonly struct View

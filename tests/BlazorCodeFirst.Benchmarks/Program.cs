@@ -33,6 +33,28 @@ internal static class Program
             return 1;
         }
 
+        // The §7.1 dynamic-content-path pair: the generated Opaque emission against a directly
+        // hand-written RenderFragment call. Same reasoning as the gate above, for the comparison §7.1
+        // was still missing.
+        var opaqueGenerated = new RenderTreeBuilder();
+        var opaqueRazor = new RenderTreeBuilder();
+        new OpaqueContentView { Count = 7 }.Build(opaqueGenerated);
+        new OpaqueContentViewRazor { Count = 7 }.Build(opaqueRazor);
+
+        var opaqueDifferences = FrameEquivalence.Compare(opaqueGenerated, opaqueRazor);
+        if (opaqueDifferences.Count > 0)
+        {
+            Console.Error.WriteLine(
+                "OpaqueContentView and OpaqueContentViewRazor do not render equivalent frames, so an " +
+                "allocation comparison between them would not measure what DESIGN.md §7.1 claims:");
+            foreach (string difference in opaqueDifferences)
+            {
+                Console.Error.WriteLine($"  {difference}");
+            }
+
+            return 1;
+        }
+
         // The same comparison in the static spelling. This one guards a claim rather than a figure: it
         // carries no benchmark, because §7.1's published allocations were measured against the
         // property-driven pair above and re-spelling those would invalidate published numbers. What it

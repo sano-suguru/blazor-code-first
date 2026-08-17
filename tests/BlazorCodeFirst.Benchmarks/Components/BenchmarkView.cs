@@ -9,8 +9,8 @@ namespace BlazorCodeFirst.Benchmarks.Components;
 /// <remarks>
 /// Kept to constructs entirely inside the statically analysable subset, because that is what §7.1
 /// claims: "SSC内側のレンダリングコスト・アロケーション特性は等価なRazorコンポーネントと同等". The
-/// dynamic-content path that sentence goes on to mention is not measured here, and cannot be: it is
-/// unimplemented (see #57 and #17), so that clause keeps its 予測値.
+/// dynamic-content (Opaque) path that sentence goes on to mention is a separate comparison, measured by
+/// <see cref="OpaqueContentView"/> against <see cref="OpaqueContentViewRazor"/>.
 /// <para>
 /// Every text node comes from a property rather than a literal, because the Razor compiler folds a
 /// fully static element subtree into one <c>AddMarkupContent</c> frame while this generator, before
