@@ -766,6 +766,51 @@ public sealed class UnresolvedEmittedTypeTests
     /// getter and setter both clean, correct code reports only <c>BCF1003</c>, and the mutant additionally
     /// reports <c>BCF3015</c> on the name's own <c>Probe</c>.
     /// </remarks>
+    /// <summary>
+    /// A single non-literal <c>params</c> child, bound through <c>BoundArguments.TryBindFallback</c>'s
+    /// syntactic route rather than <c>FactoryArguments</c>: the inner <c>.Class(...)</c> call's own broken
+    /// argument (the usual <c>MissingMethod()</c> sibling) poisons the outer indexer's
+    /// <c>FactoryArguments.Bind</c> too, so the fallback binder is what adds this child as a plain,
+    /// non-spread child expression and lets <c>ScanChildren</c> route it through
+    /// <c>ScanRenderExpression</c>. Kills both the statement-removal mutant on that
+    /// <c>paramsElements.Add(...)</c> call (the child is never added, so it is never scanned) and the
+    /// boolean mutant flipping its <c>IsSpread</c> argument to <see langword="true"/> (the child would be
+    /// routed to <c>ScanSplice</c> instead, which finds no <c>.Select</c> projection here and reports
+    /// nothing).
+    /// </summary>
+    /// <summary>
+    /// Two non-literal <c>params</c> children (not the single collection-expression-literal shape
+    /// <c>FactoryArguments</c> handles), bound through <c>BoundArguments.TryBindFallback</c>'s syntactic
+    /// route: a second broken child beside the reportable one is what makes <c>FactoryArguments.Bind</c>
+    /// fail for the outer indexer too — a single such child on its own still lets <c>FactoryArguments</c>
+    /// succeed, since the child invocation's own converted type (<c>ElementView</c>) resolves regardless
+    /// of its broken argument (measured). Kills both the statement-removal mutant on the fallback binder's
+    /// <c>paramsElements.Add(...)</c> call (the child is never added, so it is never scanned) and the
+    /// boolean mutant flipping its <c>IsSpread</c> argument to <see langword="true"/> (the child would be
+    /// routed to a splice scan instead, which finds no <c>.Select</c> projection here and reports nothing).
+    /// </summary>
+    [Fact]
+    public void ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div[Div.Class(MissingMethod() + typeof(Probe).Name), MissingMethod()];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     [Fact]
     public void BindNameSiblingOfUnselectedInvocation_UnresolvedType_DoesNotReportBCF3015()
     {
