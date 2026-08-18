@@ -1,0 +1,11 @@
+{
+  "name": "blazor-code-first-heighway-dragon",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "assets": {
+    // Resolved against THIS file's directory, mirroring site/wrangler.jsonc.
+    "directory": "./bin/Release/net10.0/publish/wwwroot"
+  }
+  // No "main" and no "assets.binding": both are only valid alongside a Worker script, and this
+  // deployment has none.
+}
