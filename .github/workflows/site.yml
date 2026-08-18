@@ -47,6 +47,7 @@ jobs:
       command: ${{ steps.target.outputs.command }}
       origin: ${{ steps.target.outputs.origin }}
       preview_url: ${{ steps.target.outputs.preview_url }}
+      deployed_url: ${{ steps.target.outputs.deployed_url }}
     steps:
       - name: Decide whether this run has anything to verify
         id: changes
@@ -195,13 +196,27 @@ jobs:
             command="versions upload --preview-alias $alias"
           fi
 
+          origin="https://$WORKER.$SUBDOMAIN"
+
           echo "environment=$environment" >> "$GITHUB_OUTPUT"
           echo "alias=$alias" >> "$GITHUB_OUTPUT"
           echo "command=$command" >> "$GITHUB_OUTPUT"
-          echo "origin=https://$WORKER.$SUBDOMAIN" >> "$GITHUB_OUTPUT"
+          echo "origin=$origin" >> "$GITHUB_OUTPUT"
           if [ -n "$alias" ]; then
-            echo "preview_url=https://$alias-$WORKER.$SUBDOMAIN" >> "$GITHUB_OUTPUT"
+            preview_url="https://$alias-$WORKER.$SUBDOMAIN"
+            echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
           fi
+
+          # The one URL a browser should actually point at once `deploy` has run: production's own
+          # origin, or the alias a preview was uploaded under. Resolved once here, next to the
+          # environment/preview split that decides it, rather than left for `site-smoke` to re-derive
+          # the same `environment == production` branch downstream.
+          if [ "$environment" = production ]; then
+            echo "deployed_url=$origin" >> "$GITHUB_OUTPUT"
+          else
+            echo "deployed_url=$preview_url" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "Deploying as $environment with: wrangler $command"
 
   # Everything that can fail on the source TREE, and nothing that reads the publish output. Its
@@ -915,22 +930,6 @@ jobs:
       # suite's specs read the publish output -- see smoke/deployed.ts.
       - uses: actions/checkout@v7
 
-      - name: Resolve the deployed URL to smoke-test
-        id: url
-        env:
-          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
-          ORIGIN: ${{ needs.plan.outputs.origin }}
-          PREVIEW_URL: ${{ needs.plan.outputs.preview_url }}
-        run: |
-          set -euo pipefail
-          if [ "$ENVIRONMENT" = production ]; then
-            url="$ORIGIN"
-          else
-            url="$PREVIEW_URL"
-          fi
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Smoke-testing $url"
-
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -953,7 +952,7 @@ jobs:
       - name: Smoke-test the deployment
         id: smoke
         env:
-          BCF_SITE_BASE_URL: ${{ steps.url.outputs.url }}
+          BCF_SITE_BASE_URL: ${{ needs.plan.outputs.deployed_url }}
         run: npx playwright test --config=smoke/playwright.smoke.config.ts
         working-directory: site/tests/browser
 

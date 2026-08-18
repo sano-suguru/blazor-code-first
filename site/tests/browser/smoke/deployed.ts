@@ -1,6 +1,6 @@
 import { canonicalSlugs, translatedSlugs } from '../site-pages';
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, APIResponse, Page } from '@playwright/test';
 
 /**
  * Every route this suite expects to be live, derived from the content tree rather than written down
@@ -21,6 +21,9 @@ export function deployedRoutes(): string[] {
   return routes.sort();
 }
 
+/** The one piece of state `installLayoutShiftCollector` and `totalLayoutShift` share with the page. */
+type ShiftWindow = typeof window & { __bcfShift: number };
+
 /**
  * Registered before every navigation, so shifts from the very first paint are captured rather than
  * missed by a buffer that only starts once this code runs. The Layout Instability API records a
@@ -31,7 +34,7 @@ export function deployedRoutes(): string[] {
  */
 export async function installLayoutShiftCollector(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    (window as unknown as { __bcfShift: number }).__bcfShift = 0;
+    (window as ShiftWindow).__bcfShift = 0;
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries() as (PerformanceEntry & {
         value: number;
@@ -40,7 +43,7 @@ export async function installLayoutShiftCollector(page: Page): Promise<void> {
         // A shift the reader caused (e.g. scrolling) is not a regression in this render; the API
         // marks those so they can be excluded rather than counted against the page.
         if (!entry.hadRecentInput) {
-          (window as unknown as { __bcfShift: number }).__bcfShift += entry.value;
+          (window as ShiftWindow).__bcfShift += entry.value;
         }
       }
     }).observe({ type: 'layout-shift', buffered: true });
@@ -49,7 +52,7 @@ export async function installLayoutShiftCollector(page: Page): Promise<void> {
 
 /** The Cumulative Layout Shift the collector installed above has recorded so far. */
 export function totalLayoutShift(page: Page): Promise<number> {
-  return page.evaluate(() => (window as unknown as { __bcfShift: number }).__bcfShift);
+  return page.evaluate(() => (window as ShiftWindow).__bcfShift);
 }
 
 /**
@@ -93,6 +96,27 @@ export function collectPageErrors(page: Page): { errors: () => string[] } {
  */
 export async function activeNavLinkCount(page: Page): Promise<number> {
   return page.locator('.nav-link.active').count();
+}
+
+/**
+ * A GET, retried once after a pause if it did not land on `done`.
+ *
+ * A reading taken immediately after a deploy can catch the edge mid-propagation and report a stale
+ * answer for some paths but not others -- this issue's own words. One retry after a pause is what it
+ * asks for, not a poll-until-stable loop, which would hide a genuine, lasting regression behind
+ * retries instead of failing on it.
+ */
+export async function readTwice(
+  request: APIRequestContext,
+  route: string,
+  done: (response: APIResponse) => boolean,
+): Promise<APIResponse> {
+  const first = await request.get(route, { maxRedirects: 0 });
+  if (done(first)) {
+    return first;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  return request.get(route, { maxRedirects: 0 });
 }
 
 export { expect, test };

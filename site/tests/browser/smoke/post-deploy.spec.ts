@@ -4,6 +4,7 @@ import {
   deployedRoutes,
   expect,
   installLayoutShiftCollector,
+  readTwice,
   settled,
   test,
   totalLayoutShift,
@@ -11,11 +12,12 @@ import {
 
 const ROUTES = deployedRoutes();
 
-test('there is a route to check', () => {
-  expect(ROUTES.length, 'no route was derived from the content tree, so the checks below prove nothing').toBeGreaterThan(
-    0,
-  );
-});
+// A guard on the derivation, not on the deployment, so it belongs here rather than as its own
+// reported test case: it fails the whole run at collection time instead of leaving 0 route tests to
+// be individually not run.
+if (ROUTES.length === 0) {
+  throw new Error('no route was derived from the content tree, so this suite would prove nothing');
+}
 
 for (const route of ROUTES) {
   test(`${route} hydrates into its own document without an error or a layout shift`, async ({ page }) => {
@@ -117,27 +119,19 @@ test.describe('status codes at the edge', () => {
 
   for (const route of REPRESENTATIVE) {
     test(`${route} answers 200, read twice`, async ({ request }) => {
-      // A reading taken immediately after a deploy can catch the edge mid-propagation and report a
-      // stale answer for some paths but not others. One retry after a pause is what this issue asks
-      // for -- not a full poll-until-stable loop, which would hide a genuine, lasting regression
-      // behind retries instead of failing on it.
-      let status = (await request.get(route, { maxRedirects: 0 })).status();
-      if (status !== 200) {
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-        status = (await request.get(route, { maxRedirects: 0 })).status();
-      }
-      expect(status, `${route} did not answer 200 on either read`).toBe(200);
+      const response = await readTwice(request, route, (r) => r.status() === 200);
+      expect(response.status(), `${route} did not answer 200 on either read`).toBe(200);
     });
   }
 
   test('a bare path redirects to its trailing-slash form', async ({ request }) => {
     const bare = '/counter';
-    let response = await request.get(bare, { maxRedirects: 0 });
-    if (response.status() < 300 || response.status() >= 400) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      response = await request.get(bare, { maxRedirects: 0 });
-    }
-    expect(response.status(), `${bare} did not redirect with a 3xx`).toBeGreaterThanOrEqual(300);
+    const response = await readTwice(
+      request,
+      bare,
+      (r) => r.status() >= 300 && r.status() < 400,
+    );
+    expect(response.status(), `${bare} did not redirect with a 3xx on either read`).toBeGreaterThanOrEqual(300);
     expect(response.status()).toBeLessThan(400);
     expect(response.headers()['location'], `${bare} redirected without pointing at its trailing-slash form`).toBe(
       `${bare}/`,
