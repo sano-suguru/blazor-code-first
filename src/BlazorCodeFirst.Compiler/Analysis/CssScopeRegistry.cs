@@ -9,7 +9,17 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// One <c>.cs.css</c> file's stamped scope: its full path exactly as <c>AdditionalText.Path</c>
 /// reports it, and the <c>bcf-xxxxxxxx</c> value <c>BlazorCodeFirst.Build</c> computed for it.
 /// </summary>
-internal readonly record struct CssScopeEntry(string CssFilePath, string Scope);
+internal readonly record struct CssScopeEntry(string CssFilePath, string Scope)
+{
+    /// <summary>
+    /// The matching <c>.cs</c> file's path: <see cref="CssFilePath"/> with the trailing <c>.css</c>
+    /// removed. The one place this convention is computed — <see cref="CssScopeRegistry"/>'s lookup
+    /// and <c>OrphanScopedCssResolver</c>'s orphan check both read it from here rather than each
+    /// re-deriving their own direction of the same string arithmetic. A computed property, not a
+    /// stored field, so it takes no part in this record struct's generated equality.
+    /// </summary>
+    public string ComponentFilePath => CssFilePath.Substring(0, CssFilePath.Length - ".css".Length);
+}
 
 /// <summary>
 /// The value-equal collection of every <c>.cs.css</c> file's scope in a compilation, read from
@@ -20,14 +30,14 @@ internal sealed class CssScopeRegistry : IEquatable<CssScopeRegistry>
 {
     public static readonly CssScopeRegistry Empty = new([]);
 
-    private readonly Dictionary<string, string> _scopeByCssFilePath;
+    private readonly Dictionary<string, string> _scopeByComponentFilePath;
 
     private CssScopeRegistry(ImmutableArray<CssScopeEntry> entries)
     {
         Entries = entries;
-        _scopeByCssFilePath = new Dictionary<string, string>(entries.Length, StringComparer.OrdinalIgnoreCase);
+        _scopeByComponentFilePath = new Dictionary<string, string>(entries.Length, StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
-            _scopeByCssFilePath[entry.CssFilePath] = entry.Scope;
+            _scopeByComponentFilePath[entry.ComponentFilePath] = entry.Scope;
     }
 
     public EquatableArray<CssScopeEntry> Entries { get; }
@@ -52,11 +62,18 @@ internal sealed class CssScopeRegistry : IEquatable<CssScopeRegistry>
     }
 
     /// <summary>
-    /// Resolves the scope stamped on <paramref name="componentFilePath"/>'s sibling <c>.cs.css</c> file
-    /// (<c>componentFilePath + ".css"</c>), or <see langword="false"/> when there is none.
+    /// Resolves the scope stamped on <paramref name="componentFilePath"/>'s sibling <c>.cs.css</c> file,
+    /// or <see langword="false"/> when there is none.
     /// </summary>
     public bool TryGetScopeForComponentFile(string componentFilePath, [MaybeNullWhen(false)] out string scope) =>
-        _scopeByCssFilePath.TryGetValue(componentFilePath + ".css", out scope);
+        _scopeByComponentFilePath.TryGetValue(componentFilePath, out scope);
+
+    /// <summary>
+    /// <see cref="TryGetScopeForComponentFile"/> as an expression rather than a <c>bool</c>/<c>out</c>
+    /// pair, for the common case of a caller that just wants the scope or <see langword="null"/>.
+    /// </summary>
+    public string? GetScopeOrDefault(string componentFilePath) =>
+        TryGetScopeForComponentFile(componentFilePath, out var scope) ? scope : null;
 
     public bool Equals(CssScopeRegistry? other) =>
         other is not null && Entries.Equals(other.Entries);

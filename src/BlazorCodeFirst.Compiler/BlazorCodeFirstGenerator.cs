@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler.Analysis;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
@@ -110,20 +111,30 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
 
         // Every declared component's own file, and every declared [ViewPart]'s own file (valid or
         // not — an invalid declaration still means the file is not orphaned, only that its own
-        // declaration has a separate, already-reported problem).
+        // declaration has a separate, already-reported problem). Both wrapped as EquatableArray
+        // immediately: Collect() (and registry.Entries, read fresh here) hand back a plain
+        // ImmutableArray, which compares by backing-array reference in the incremental cache and so
+        // would mark orphanCssDiagnostics changed on every edit to any component or [ViewPart] file,
+        // even when the actual path set is unchanged.
         var componentFilePaths = analyses
             .Select(static (a, _) => a!.FilePath)
-            .Collect();
-        var viewPartFilePaths = discoveryResults
-            .Select(static (r, _) => r.Entry.FilePath)
-            .Collect();
+            .Collect()
+            .Select(static (paths, _) => (EquatableArray<string>)paths);
+
+        // Derived from registry rather than a second discoveryResults.Collect(): registry already
+        // carries FilePath on every entry it collects from the same source.
+        var viewPartFilePaths = registry
+            .Select(static (r, _) => (EquatableArray<string>)ImmutableArray.CreateRange(
+                r.Entries.AsImmutableArray(), static (ViewPartDefinitionEntry e) => e.FilePath));
 
         var orphanCssDiagnostics = cssScopeRegistry
             .Combine(componentFilePaths)
             .Combine(viewPartFilePaths)
             .Select(static (input, _) =>
                 (EquatableArray<DiagnosticInfo>)OrphanScopedCssResolver.CollectOrphanDiagnostics(
-                    input.Left.Left, input.Left.Right, input.Right))
+                    input.Left.Left,
+                    input.Left.Right.AsImmutableArray(),
+                    input.Right.AsImmutableArray()))
             .WithTrackingName("OrphanScopedCssDiagnostics");
 
         context.RegisterSourceOutput(

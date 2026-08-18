@@ -222,9 +222,7 @@ internal static class ComponentModelFactory
 
         KeyabilityResolver.CollectForEachContentDiagnostics(analysis.Template, registry, diagnostics);
 
-        var hostCssScope = cssScopes.TryGetScopeForComponentFile(analysis.FilePath, out var scope)
-            ? scope
-            : null;
+        var hostCssScope = cssScopes.GetScopeOrDefault(analysis.FilePath);
 
         var expansion = ViewPartExpander.Expand(
             analysis.Template,

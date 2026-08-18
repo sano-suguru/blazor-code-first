@@ -31,14 +31,13 @@ internal static class OrphanScopedCssResolver
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         foreach (var entry in cssScopes.Entries)
         {
-            var componentFilePath = entry.CssFilePath.Substring(0, entry.CssFilePath.Length - ".css".Length);
-            if (known.Contains(componentFilePath))
+            if (known.Contains(entry.ComponentFilePath))
                 continue;
 
             diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3041,
                 Location.Create(entry.CssFilePath, default, default),
-                [System.IO.Path.GetFileName(entry.CssFilePath), System.IO.Path.GetFileName(componentFilePath)]));
+                [System.IO.Path.GetFileName(entry.CssFilePath), System.IO.Path.GetFileName(entry.ComponentFilePath)]));
         }
 
         return diagnostics.ToImmutable();
