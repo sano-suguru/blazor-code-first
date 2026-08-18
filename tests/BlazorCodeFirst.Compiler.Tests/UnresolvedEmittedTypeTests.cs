@@ -1608,6 +1608,36 @@ public sealed class UnresolvedEmittedTypeTests
         AssertSingleBCF3015(result, source);
     }
 
+    /// <summary>
+    /// A named argument spelling that matches no parameter of any <c>.Attr</c> overload.
+    /// <c>FindParameter</c>'s search loop stops at <c>parameters.Length</c> without finding one and
+    /// returns -1; widening that bound to <c>parameters.Length</c> inclusive walks one ordinal past the
+    /// array and throws, taking the whole generator down (<c>CS8785</c>) instead of degrading this one
+    /// body to <c>BCF1003</c>.
+    /// </summary>
+    [Fact]
+    public void MisnamedArgument_DoesNotCrashTheGenerator()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr(bogus: "x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "CS8785");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
