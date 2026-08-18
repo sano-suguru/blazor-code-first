@@ -1609,6 +1609,42 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// Two leading positional arguments, filling their declared slots without ever naming them, followed
+    /// by a named argument for the next slot. <c>HasValidArgumentOrder</c>'s unconditional
+    /// <c>nextPositional++</c> for an ordinary (non-<see langword="params"/>) positional argument keeps
+    /// this bookkeeping in step for the positional case, the same way the named-match increment does for
+    /// the named case above; dropping or reversing it leaves the later named argument compared against a
+    /// stale position and misclassified as out of order.
+    /// </summary>
+    [Fact]
+    public void PositionalArgumentsThenNamedArgument_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _value = "";
+
+                protected override View Body =>
+                    Div.Bind(
+                        MissingMethod() + "x",
+                        "onchange",
+                        get: () => _value,
+                        v => { _value = v; System.Console.WriteLine(typeof(Probe)); });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
     /// A named argument spelling that matches no parameter of any <c>.Attr</c> overload.
     /// <c>FindParameter</c>'s search loop stops at <c>parameters.Length</c> without finding one and
     /// returns -1; widening that bound to <c>parameters.Length</c> inclusive walks one ordinal past the
