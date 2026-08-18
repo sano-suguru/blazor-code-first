@@ -187,15 +187,12 @@ internal static class ViewPartExpander
 
             case ElementTemplateNode element:
                 {
-                    var children = ImmutableArray.CreateBuilder<RenderNode>(element.Children.Length);
-                    foreach (var child in element.Children.AsImmutableArray())
+                    if (ExpandChildren(
+                            element.Children, substitution, ref nextLogicalPreorderOrdinal,
+                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics)
+                        is not { } children)
                     {
-                        var expanded = ExpandNode(
-                            child, substitution, ref nextLogicalPreorderOrdinal,
-                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
-                        if (expanded is null)
-                            return null;
-                        children.Add(expanded);
+                        return null;
                     }
 
                     var attributes = ImmutableArray.CreateBuilder<AttributeTemplate>(element.Attributes.Length);
@@ -241,7 +238,7 @@ internal static class ViewPartExpander
                         SubstituteClasses(element.Classes, substitution),
                         attributes.ToImmutable(),
                         events.ToImmutable(),
-                        children.ToImmutable())
+                        children)
                     {
                         Bindings = bindings.ToImmutable(),
                         Key = element.Key?.Substitute(substitution),
@@ -294,17 +291,14 @@ internal static class ViewPartExpander
 
             case FragmentTemplateNode fragment:
                 {
-                    var children = ImmutableArray.CreateBuilder<RenderNode>(fragment.Children.Length);
-                    foreach (var child in fragment.Children.AsImmutableArray())
+                    if (ExpandChildren(
+                            fragment.Children, substitution, ref nextLogicalPreorderOrdinal,
+                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics)
+                        is not { } children)
                     {
-                        var expanded = ExpandNode(
-                            child, substitution, ref nextLogicalPreorderOrdinal,
-                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
-                        if (expanded is null)
-                            return null;
-                        children.Add(expanded);
+                        return null;
                     }
-                    return new FragmentNode(children.ToImmutable());
+                    return new FragmentNode(children);
                 }
 
             case ViewPartCallTemplateNode call:
@@ -355,6 +349,31 @@ internal static class ViewPartExpander
                 throw new NotSupportedException(
                     $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
         }
+    }
+
+    /// <summary>Expands each of a node's children in order, or null if any one fails. Shared by
+    /// <see cref="ElementTemplateNode"/> and <see cref="FragmentTemplateNode"/>, the two shapes that
+    /// carry a bare children list.</summary>
+    private static ImmutableArray<RenderNode>? ExpandChildren(
+        EquatableArray<RenderTemplateNode> children,
+        ImmutableArray<SubstitutedArgument> substitution,
+        ref int nextLogicalPreorderOrdinal,
+        ImmutableArray<string> activeMethodStack,
+        ViewPartRegistry registry,
+        ImmutableArray<string> generatedTypeInheritanceKeys,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        var expanded = ImmutableArray.CreateBuilder<RenderNode>(children.Length);
+        foreach (var child in children.AsImmutableArray())
+        {
+            var expandedChild = ExpandNode(
+                child, substitution, ref nextLogicalPreorderOrdinal,
+                activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
+            if (expandedChild is null)
+                return null;
+            expanded.Add(expandedChild);
+        }
+        return expanded.ToImmutable();
     }
 
     private static ExpansionNode? ExpandCall(

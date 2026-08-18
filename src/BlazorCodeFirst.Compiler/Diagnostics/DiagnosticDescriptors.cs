@@ -111,7 +111,7 @@ internal static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor BCF3003 = new(
         id: "BCF3003",
         title: "ForEach content must be a single element or component",
-        messageFormat: "ForEach content must be a single element or component so its key can be applied; wrap it in a container such as Html.Div[...]",
+        messageFormat: "ForEach content must be a single element or component so its key can be applied",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,

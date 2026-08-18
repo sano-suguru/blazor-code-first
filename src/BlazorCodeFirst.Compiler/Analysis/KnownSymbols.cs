@@ -879,6 +879,13 @@ internal sealed class KnownSymbols
                     case "PreventDefault": kind = SurfaceMethodKind.PreventDefault; break;
                     case "StopPropagation": kind = SurfaceMethodKind.StopPropagation; break;
                     default:
+                        // Every shortcut is (receiver, one value), the same shape Class is constrained to
+                        // above. A name match alone would register a future overload of a shortcut name
+                        // with a different signature too, and the decoration arm would then read firstArg
+                        // as the value regardless of what that signature means.
+                        if (method.Parameters.Length != 2)
+                            continue;
+
                         // Every overload of a shortcut lands on the same row: .OnClick(Action) and
                         // .OnClick(Func<Task>) both stand for "onclick", and the decoration arm of
                         // RenderExpressionAnalyzer reads the name out of EventShortcuts after dispatching

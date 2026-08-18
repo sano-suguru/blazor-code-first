@@ -211,6 +211,24 @@ public sealed class HtmlAttributeGeneratorTests
     }
 
     /// <summary>
+    /// Pins <c>TryGetConstantName</c>'s <c>IsNullOrWhiteSpace</c> guard on the attribute and event name
+    /// channels, the same choice <c>Element_WithATagNoNameCanCarry_ReportsBCF3009</c> pins for tag names.
+    /// BCF3009 and BCF3011 share that guard; only BCF3009 pinned a whitespace-only name before this.
+    /// </summary>
+    [Fact]
+    public void WhitespaceAttrName_ReportsBCF3011()
+    {
+        Assert.Contains(Diags("""Html.Div.Attr("   ", "v")"""), d => d.Id == "BCF3011");
+    }
+
+    /// <summary>Event-channel counterpart of <see cref="WhitespaceAttrName_ReportsBCF3011"/>.</summary>
+    [Fact]
+    public void WhitespaceOnEventName_ReportsBCF3011()
+    {
+        Assert.Contains(Diags("""Html.Div.On("   ", () => { })"""), d => d.Id == "BCF3011");
+    }
+
+    /// <summary>
     /// A conditional attribute value, which is what the nullable widening exists for (#171). Measured in
     /// Chromium: <c>AddAttribute</c> appends no frame for a null string, static SSR and prerender write no
     /// attribute, and a re-render that turns the value null emits <c>RemoveAttribute</c>. The empty string
