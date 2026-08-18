@@ -60,6 +60,16 @@ public class AnchorFilterTests
         Assert.Equal([.. AnchorFilter.Ids(english)], [.. AnchorFilter.Ids(japanese)]);
     }
 
+    [Theory]
+    [InlineData("{shown} of {total}", 12, 42, "12 of 42")]
+    // A translation may put the total first, the way the real Japanese shell.yml does; FormatCount
+    // only substitutes by name, so it does not care which placeholder was written first. Source here
+    // stays English by rule, so the reordering is exercised with an ASCII stand-in.
+    [InlineData("{total} total, {shown} shown", 12, 42, "42 total, 12 shown")]
+    public void FormatCount_SubstitutesShownAndTotalByName(
+        string template, int shown, int total, string expected) =>
+        Assert.Equal(expected, AnchorFilter.FormatCount(template, shown, total));
+
     [Fact]
     public void NoOtherDocumentOffersOne() =>
         // The filter is a property of the content, not of a route. If a second document starts

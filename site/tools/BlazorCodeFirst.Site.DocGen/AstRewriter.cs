@@ -1,4 +1,5 @@
 using System.Text.Unicode; // UnicodeRange / UnicodeRanges, the named blocks IsCjk is built from
+using Markdig.Extensions.CustomContainers;
 using Markdig.Renderers.Html; // GetAttributes / AddClass / AddProperty extension methods
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
@@ -233,6 +234,29 @@ public static class AstRewriter
             anchor.GetAttributes().AddProperty("aria-label", "Permalink to this section");
             anchor.AppendChild(new LiteralInline("#"));
             heading.Inline.AppendChild(anchor);
+        }
+    }
+
+    /// <summary>
+    /// Marks every warning container <c>role="note"</c>: parenthetic content to a screen reader,
+    /// carrying no landmark. Must run after <see cref="MarkdownBodyRules.EnsureOnlyWarningContainers"/>
+    /// has rejected every other container info string, so every <see cref="CustomContainer"/> left in
+    /// the document is one of these.
+    /// </summary>
+    /// <remarks>
+    /// The div's rank is otherwise visual only: <c>.prose .warning</c> in <c>css/app.css</c> paints it
+    /// for a sighted reader, and nothing before this carried that rank into the accessibility tree, so
+    /// a screen reader announced the block as one more paragraph among its neighbours. `note` needs no
+    /// accessible name to do that; see <c>site/README.md</c> §Warnings for why a landmark role would
+    /// be too much for a block this narrow in scope.
+    /// </remarks>
+    public static void AddWarningRole(MarkdownDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        foreach (var container in document.Descendants<CustomContainer>())
+        {
+            container.GetAttributes().AddProperty("role", "note");
         }
     }
 

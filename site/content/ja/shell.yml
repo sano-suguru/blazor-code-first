@@ -6,6 +6,7 @@ index-lead: ガイドの全文書を、読む順に並べています。
 rail-heading: ガイド
 language-label: 言語
 anchor-filter-label: 診断へ飛ぶ
+anchor-filter-count: {total}件中{shown}件
 group-start: はじめる
 group-write: 書き方
 group-reference: リファレンス

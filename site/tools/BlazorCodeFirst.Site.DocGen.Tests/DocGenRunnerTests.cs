@@ -25,6 +25,7 @@ public class DocGenRunnerTests
             "rail-heading: Guide\n" +
             "language-label: Language\n" +
             "anchor-filter-label: Jump to a diagnostic\n" +
+            "anchor-filter-count: {shown} of {total}\n" +
             "group-start: Start here\n" +
             "group-write: Writing views\n" +
             "group-reference: Reference\n" +

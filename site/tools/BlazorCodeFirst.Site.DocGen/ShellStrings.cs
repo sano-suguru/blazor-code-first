@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace BlazorCodeFirst.Site.DocGen;
 
 /// <summary>The text the documentation shell shows a reader of one language.</summary>
@@ -21,6 +23,11 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// The sentence a translation carries when it has fallen behind, or null on the canonical language,
 /// which has nothing to fall behind.
 /// </param>
+/// <param name="AnchorFilterCount">
+/// The sentence the diagnostics filter's live region announces after each keystroke, carrying two
+/// named placeholders, <c>{shown}</c> and <c>{total}</c>. Which one comes first is a per-language
+/// choice; <see cref="ShellFile.Parse"/> checks that both are present, not their order.
+/// </param>
 public sealed record ShellStrings(
     string Name,
     string IndexTitle,
@@ -29,6 +36,7 @@ public sealed record ShellStrings(
     string RailHeading,
     string LanguageLabel,
     string AnchorFilterLabel,
+    string AnchorFilterCount,
     IReadOnlyDictionary<string, string> Groups,
     string? StaleNotice,
     string? StaleLink);
@@ -47,7 +55,7 @@ public sealed record ShellStrings(
 /// not out of a default baked into this tool, is what makes a missing key in a translation a visible
 /// omission rather than a silent fallback to English.
 /// </remarks>
-public static class ShellFile
+public static partial class ShellFile
 {
     /// <summary>The file each language directory declares its shell text in.</summary>
     public const string FileName = "shell.yml";
@@ -95,6 +103,8 @@ public static class ShellFile
             {
                 throw Invalid(fileName, $"key '{key}' must not be empty.");
             }
+
+            ValidatePlaceholders(key, value, fileName);
         }
 
         // The stale keys are required of a translation and forbidden on the canonical language, rather
@@ -131,6 +141,7 @@ public static class ShellFile
             declared["rail-heading"],
             declared["language-label"],
             declared["anchor-filter-label"],
+            declared["anchor-filter-count"],
             DocGroup.All.ToDictionary(g => g, g => declared[GroupKey(g)], StringComparer.Ordinal),
             declared.GetValueOrDefault(StaleNoticeKey),
             declared.GetValueOrDefault(StaleLinkKey));
@@ -145,10 +156,44 @@ public static class ShellFile
     private static readonly string[] Keys =
     [
         "name", "index-title", "index-description", "index-lead", "rail-heading", "language-label",
-        "anchor-filter-label",
+        "anchor-filter-label", "anchor-filter-count",
         .. DocGroup.All.Select(GroupKey),
         StaleNoticeKey, StaleLinkKey,
     ];
+
+    /// <summary>The named placeholders a key's value must carry, keyed by that key. A key absent from
+    /// here must carry none: <see cref="ValidatePlaceholders"/> is what a <c>{word}</c> placeholder
+    /// pasted into an ordinary sentence fails against, rather than reaching the reader as literal
+    /// braces. An unpaired brace with no matching close is not a placeholder shape this matches, so
+    /// it passes through unchecked, same as any other punctuation.</summary>
+    private static readonly IReadOnlyDictionary<string, string[]> PlaceholdersByKey =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            // The count a screen reader hears after the diagnostics filter narrows. Which placeholder
+            // comes first is a per-language choice (a translation may put the total before the shown
+            // count), so this is a set to satisfy, not an order.
+            ["anchor-filter-count"] = ["shown", "total"],
+        };
+
+    private static readonly string[] NoPlaceholders = [];
+
+    [GeneratedRegex(@"\{(\w+)\}")]
+    private static partial Regex PlaceholderPattern();
+
+    private static void ValidatePlaceholders(string key, string value, string fileName)
+    {
+        string[] expected = PlaceholdersByKey.GetValueOrDefault(key, NoPlaceholders);
+        var found = new HashSet<string>(
+            PlaceholderPattern().Matches(value).Select(m => m.Groups[1].Value), StringComparer.Ordinal);
+
+        if (!found.SetEquals(expected))
+        {
+            string wanted = expected.Length == 0
+                ? "no placeholders"
+                : "exactly the placeholders " + string.Join(" and ", expected.Select(p => "{" + p + "}"));
+            throw Invalid(fileName, $"key '{key}' must use {wanted}, but the value is '{value}'.");
+        }
+    }
 
     /// <summary>What the error calls a file this parser reads.</summary>
     private const string Kind = "shell file";

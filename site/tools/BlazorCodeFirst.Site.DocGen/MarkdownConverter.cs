@@ -60,6 +60,7 @@ public static class MarkdownConverter
         var document = Parse(markdown);
         MarkdownBodyRules.EnsureNoTopLevelHeading(document, fileName);
         MarkdownBodyRules.EnsureOnlyWarningContainers(document, fileName);
+        AstRewriter.AddWarningRole(document);
         return document;
     }
 
