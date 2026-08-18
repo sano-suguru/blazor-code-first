@@ -466,103 +466,103 @@ __b.CloseComponent();
 逆向きの衝突も2つ塞いであります。作者が `__bcf_context_*` という名前を自分で宣言していれば
 `__bcf_authored_context_*` へ改名し、生成引数が作者の非静的メンバーを覆い隠す位置では `this.` を補います。
 
-**(E) 非属性のフレーム装飾。入力: `.Key` / `.Ref` / `.RenderMode` / 出力: 属性フレーム群の後ろに置かれる、属性ではないフレーム**
+**(E) Non-attribute frame decorations. Input: `.Key` / `.Ref` / `.RenderMode` / Output: a non-attribute frame placed after the attribute frames**
 
-`.Key`(Razorの `@key`)、`.Ref`(`@ref`)、`.RenderMode`(`@rendermode`)は、所有ノードの属性へは合成されません。(A)の畳み込みにも(D)の静的畳み込みにも参加せず、`RenderTreeBuilder` の専用の呼び出しへ落ちます。装飾は3つ、落ちる先の呼び出しは4つです(`.Ref` が受け手ごとに割れるため)。4つは互いに性質が違い、その違いがそのまま発行規則を決めます。
+`.Key` (Razor's `@key`), `.Ref` (`@ref`), and `.RenderMode` (`@rendermode`) are never composed into the owning node's attributes. They take part in neither (A)'s folding nor (D)'s static folding, and each falls to its own dedicated `RenderTreeBuilder` call. There are three decorations but four calls they fall to (`.Ref` splits by receiver). The four differ from each other in kind, and that difference directly decides the emission rules.
 
-| 綴り | 呼び出し | シーケンス | フレーム | 付け先 | `null` |
+| Spelling | Call | Sequence | Frame | Attaches to | `null` |
 | --- | --- | --- | --- | --- | --- |
-| `.Key` | `SetKey(object?)` | 消費しない | 積まない(開いているフレームのキーフィールドを書く) | 要素/コンポーネント | 早期return |
-| `.Ref`(要素) | `AddElementReferenceCapture(int, Action<ElementReference>)` | **1つ消費** | 積む | 要素のみ | — |
-| `.Ref`(コンポーネント) | `AddComponentReferenceCapture(int, Action<object>)` | **1つ消費** | 積む | コンポーネントのみ | — |
-| `.RenderMode` | `AddComponentRenderMode(IComponentRenderMode?)` | 消費しない | 積む | コンポーネントのみ | 早期return |
+| `.Key` | `SetKey(object?)` | consumes none | does not stack (writes the open frame's key field) | element/component | early return |
+| `.Ref` (element) | `AddElementReferenceCapture(int, Action<ElementReference>)` | **consumes 1** | stacks | element only | — |
+| `.Ref` (component) | `AddComponentReferenceCapture(int, Action<object>)` | **consumes 1** | stacks | component only | — |
+| `.RenderMode` | `AddComponentRenderMode(IComponentRenderMode?)` | consumes none | stacks | component only | early return |
 
-フレームを積む3つは、**その所有ノードの属性・イベント・バインド・スロットをすべて発行し終えた後、子より前**に置かなければなりません。`RenderTreeBuilder` の `AssertCanAddAttribute` と `AssertCanAddComponentParameter` は直前の非属性フレームの種別を見ており、参照キャプチャやレンダーモードのフレームを積んだ後に属性を足すと `InvalidOperationException` になります。コンポーネントではスロットも `AddComponentParameter` として積まれるため、「パラメータの後」はスカラーとスロットの両方の後を意味します。`SetKey` だけはフレームを積まず親フレームを書き換えるだけなので、この規則の外にあり、`ForEach` のキーと同じく `OpenElement` / `OpenComponent` の直後に出します((B))。
+The three that stack a frame must be placed **after every attribute, event, binding, and slot of their owning node has been emitted, and before the children**. `RenderTreeBuilder`'s `AssertCanAddAttribute` and `AssertCanAddComponentParameter` look at the kind of the immediately preceding non-attribute frame, and adding an attribute after a reference-capture or render-mode frame has been stacked throws `InvalidOperationException`. Because a component's slot is also stacked as `AddComponentParameter`, "after the parameters" means after both scalars and slots. `SetKey` alone stacks no frame and only rewrites the parent frame, so it sits outside this rule, and — like a `ForEach` key — is emitted immediately after `OpenElement` / `OpenComponent` ((B)).
 
-要素側にはもう1つ、子より前でなければならない理由があります。Blazorの差分は要素の参照キャプチャフレームを属性の範囲の一部として読むため、子の後ろに置いたキャプチャはその範囲から外れます。コンポーネント側の2つの順序は、レンダーモードが先、参照キャプチャが後です。こちらはビルダーがどちらの順序も受けるため強制ではなく選択で、レンダラが呼び出しサイトのモードを探すとき最初の `ComponentRenderMode` フレームを返す走査の前に別種のフレームを置く理由が無い、というだけの根拠によります。
+On the element side there is one more reason it must come before the children: Blazor's diff reads an element's reference-capture frame as part of the attribute range, so a capture placed after the children falls outside that range. On the component side, the order between the two is render mode first, reference capture second — this is a choice, not a requirement, since the builder accepts either order; the only basis is that there is no reason to place a different-kind frame ahead of the walk that returns the first `ComponentRenderMode` frame when the renderer looks for the call site's mode.
 
 ```csharp
-// 入力(設計時のC#式)
+// Input (a design-time C# expression)
 Div.Class("tab").Key(tab.Id).Ref(r => _tab = r)[Span[tab.Label]]
 Component<Editor>().Param(c => c.Text, _text).RenderMode(_mode).Ref(c => _editor = c)
 ```
 
 ```csharp
-// 出力(生成コード)
+// Output (generated code)
 __b.OpenElement(k,   "div");
-__b.SetKey(tab.Id);                                       // シーケンスを消費しない
+__b.SetKey(tab.Id);                                       // consumes no sequence
 __b.AddAttribute(k+1, "class", "tab");
-__b.AddElementReferenceCapture(k+2, r => _tab = r);        // 属性の後、子より前。1つ消費する
+__b.AddElementReferenceCapture(k+2, r => _tab = r);        // after the attribute, before the children; consumes 1
 __b.OpenElement(k+3, "span"); __b.AddContent(k+4, tab.Label); __b.CloseElement();
 __b.CloseElement();
 
 __b.OpenComponent<Editor>(m);
 __b.AddComponentParameter(m+1, "Text", (string?)(_text));
-__b.AddComponentRenderMode(_mode);                         // パラメータの後、シーケンスを消費しない
-__b.AddComponentReferenceCapture(m+2, __value =>           // レンダーモードの後。1つ消費する
+__b.AddComponentRenderMode(_mode);                         // after the parameters, consumes no sequence
+__b.AddComponentReferenceCapture(m+2, __value =>           // after the render mode; consumes 1
     ((System.Action<Editor>)(c => _editor = c))((Editor)__value));
 __b.CloseComponent();
 ```
 
-コンポーネント側のキャプチャにキャストが要るのは、フレームワークが `Action<object>` を取るのに対し表層が `Action<TComponent>` を取るためです。型を知っているのは `ComponentView<TComponent>` の側なので、作者にキャストを書かせずに生成側が書きます。デリゲートへのキャストは、引数位置に書かれたラムダをその場で呼び出すために要るもので、同期setterの束縛が同じ理由で持つのと同型です。
+A cast is needed on the component-side capture because the framework takes `Action<object>` while the surface takes `Action<TComponent>`. It is the `ComponentView<TComponent>` side that knows the type, so the generated side writes the cast rather than making the author write it. The cast to a delegate is needed to invoke, in place, the lambda written in the argument position — the same shape a synchronous setter binding carries for the same reason.
 
-`FrameWidth` を増やすのは `.Ref` だけです。ただし `.Key` も要素のフレーム数を動かし得ます。`SetKey` はマークアップで表現できないため、`.Key` を持つ要素は畳み込み不可となり、定数だけで書かれていても(D)の1フレームに畳まれず自前のフレーム列を出します。同じことが `.Ref` にも当てはまります。コンポーネントは元から畳み込みの対象外なので、`.RenderMode` はどちらにも効きません。幅を定めるのは発行そのものであるという(D)末尾の規則はここでも変わらず、これら3つのために独立した幅計算を足してはいけません。
+`.Ref` is the only one that increases `FrameWidth`. `.Key` can still move an element's frame count, though: because `SetKey` cannot be expressed in markup, an element carrying `.Key` becomes unfoldable, and even one written entirely in constants is not folded into (D)'s single frame — it emits its own frame sequence instead. The same holds for `.Ref`. A component is already outside folding's scope, so `.RenderMode` moves neither. The rule at the end of (D) — that it is emission itself which determines width — still holds here, and no independent width calculation should be added for these three.
 
-同じノードに同じフレーム装飾を2つ書くことは、3つとも「書いたとおりにならない」形で壊れます。`SetKey` は親フレームのキーフィールドを上書きするため後に出したほうだけが残り、`AddComponentRenderMode` は逆に `Renderer.FindCallerSpecifiedRenderMode` が最初の `ComponentRenderMode` フレームを返すため先に出したほうだけが効き、参照キャプチャは2つのフレームが積まれて両方のActionが発火します。どれも作者の書いた優先順位ではないため、BCF3033 で拒否します。`ForEach` のキーと content 根の `.Key` が衝突する形は、報告の層が違うため BCF3032 が別に見ます。
+Writing the same frame decoration twice on the same node breaks all three in a way that fails to match what was written. `SetKey` overwrites the parent frame's key field, so only the one emitted later survives; `AddComponentRenderMode` goes the other way — `Renderer.FindCallerSpecifiedRenderMode` returns the first `ComponentRenderMode` frame, so only the one emitted first takes effect; and a reference capture stacks two frames, firing both Actions. None of these follows a priority the author wrote, so BCF3033 rejects it. The shape where a `ForEach`'s key collides with the content root's own `.Key` is a different reporting layer, and BCF3032 handles that separately.
 
 ---
 
-## 3. メモリレイアウト
+## 3. Memory layout
 
-### 3.1 SSC経路: 中間表現ゼロ
+### 3.1 The SSC path: zero intermediate representation
 
-SSC(および Transplantable)経路の実行時像は、静的シーケンス定数を伴う `RenderTreeBuilder` 命令の直列実行です。生成物の形式はRazorコンパイラの出力と同じであり、UI記述に由来する中間オブジェクト(要素ツリー、ビルダー、`params` 配列)はヒープに生成されません。マーカー型 `View` は空の `readonly struct` であり、実行時に到達不能です。
+The SSC (and Transplantable) path's runtime shape is a straight-line sequence of `RenderTreeBuilder` instructions carrying static sequence constants. The generated form is the same as the Razor compiler's output: no intermediate object born of the UI description (an element tree, a builder, a `params` array) is ever created on the heap. The marker type `View` is an empty `readonly struct`, unreachable at run time.
 
-SSC経路のアロケーション特性は、これにより等価なRazorコンポーネントと同等になります。`DESIGN.md` §7.1 の実測値であって、予測ではありません。残存するアロケーション源はBlazor自体に由来するものに限られます。イベントハンドラのデリゲート/クロージャ、`RenderTreeBuilder` 内部のフレーム配列(再利用される)、補間による一時文字列(`ISpanFormattable` 経路で部分的に緩和)です。
+This makes the SSC path's allocation profile equivalent to the equivalent Razor component's — a measured figure in `DESIGN.md` §7.1, not a prediction. What allocation remains comes only from Blazor itself: event-handler delegates/closures, `RenderTreeBuilder`'s internal frame array (reused), and temporary strings from interpolation (partially mitigated via the `ISpanFormattable` path).
 
-### 3.2 Opaque経路: フラグメント内包 `View`
+### 3.2 The Opaque path: a `View` that wraps a fragment
 
-Opaque経路でのみ、`View` は実体を持ちます。この場合の `View` は `RenderFragment` への参照を内包する軽量ハンドルであり、ヒープ割り当ては内包フラグメントの構築分に限られます。コストとしては `RenderFragment` を手書きで合成した場合と同等です(`DESIGN.md` §7.1の実測値であって、予測ではありません)。
+Only on the Opaque path does `View` carry any substance. There, `View` is a lightweight handle that wraps a reference to a `RenderFragment`, and the heap allocation is confined to building that wrapped fragment — the same cost as hand-composing a `RenderFragment` (a measured figure in `DESIGN.md` §7.1, not a prediction).
 
 ```csharp
 public readonly struct View
 {
-    internal readonly RenderFragment? Fragment;   // SSC経路では常に null(到達不能)
+    internal readonly RenderFragment? Fragment;   // always null on the SSC path (unreachable)
     internal View(RenderFragment fragment) => Fragment = fragment;
 }
 ```
 
-`implicit operator View(RenderFragment?)` がこのフィールドを構築します。`View` が実体を持つ唯一の綴りがこれであり、設計時表層(`Html` / `ElementView` / `Decorations`)のメンバーはすべて既定値を返すため、表層から組まれた `View` はフラグメントを持ちません。この非対称がBCF3030 の根拠です(付録A、付録B.11)。
+`implicit operator View(RenderFragment?)` constructs this field. This is the only spelling under which `View` carries substance, and because every member of the design-time surface (`Html` / `ElementView` / `Decorations`) returns a default value, a `View` built from the surface never carries a fragment. This asymmetry is BCF3030's basis (Appendix A, 付録B.11).
 
-生成コードは利用者のアセンブリに置かれるため `internal` フィールドを読めません。読む経路は `BlazorCodeFirst.CompilerServices.ViewRuntime.FragmentOf` の1つだけで、Razor の生成コードが `Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers` を呼ぶのと同じ位置づけです。発行は `AddContent(seq, RenderFragment?)` 1フレームで、`OpenRegion` は書きません。この呼び出しに対してBlazor 自身がフラグメント用のリージョンを開くためで、`RenderFragmentContentNode` が依拠しているのと同じ挙動です。
+Because the generated code sits in the user's own assembly, it cannot read the `internal` field. There is exactly one path that reads it, `BlazorCodeFirst.CompilerServices.ViewRuntime.FragmentOf`, positioned the same way Razor's generated code calls `Microsoft.AspNetCore.Components.CompilerServices.RuntimeHelpers`. Emission is a single `AddContent(seq, RenderFragment?)` frame; no `OpenRegion` is written, since Blazor itself opens a region for the fragment in response to this call — the same behavior `RenderFragmentContentNode` relies on.
 
-### 3.3 静的サブツリーの畳み込み
+### 3.3 Folding a static subtree
 
-状態に依存しないサブツリー(固定ヘッダー、利用規約等)について、Source Generatorは値がコンパイル時定数であるノードを検出し、連続する範囲を1つのマークアップ文字列へ直列化します。実行時に残るのは `AddMarkupContent` 1回の呼び出しであり、要素・属性・テキストのフレームは発行されません。値の再計算・再フォーマットが起きないだけでなく、フレーム自体が減ります。畳み込みの単位と条件は §2.7(D) に定めます。
+For a subtree that does not depend on state (a fixed header, terms of service, and so on), the Source Generator detects nodes whose values are compile-time constants and serializes a contiguous range into one markup string. What remains at run time is a single `AddMarkupContent` call — no element, attribute, or text frame is emitted. Not only does value recomputation and reformatting never happen, the frame count itself goes down. §2.7(D) defines the unit and the conditions of folding.
 
-畳み込まれなかった部分については、フレーム発行自体はBlazorの差分検知が要求するため毎回行われます。コンポーネント全体のフレーム数は、静的な部分については定数個(run ごとに1)へ、動的な部分については従来どおりノード構造に比例した数へ分かれます。
+For a part that was not folded, frame emission still happens every time, since Blazor's diff detection requires it. Across the whole component, the frame count splits: a constant number (one per run) for the static parts, and — as before — a number proportional to the node structure for the dynamic parts.
 
 ---
 
-## 4. イベント・プロパゲーションと並行モデル
+## 4. Event propagation and the concurrency model
 
-### 4.1 実行順序と単一方向データフロー
+### 4.1 Execution order and single-direction data flow
 
-ユーザーアクションからDOM更新までは、次の順序で一方向に進む:
+From a user action to the DOM update, execution proceeds in one direction, in this order:
 
-1. **イベント発火**(ブラウザ)
-2. **ディスパッチ**: Blazor `SynchronizationContext` へのディスパッチ完了
-3. **状態遷移**: `s_t` から `s_{t+1}` への更新
-4. **フレーム列生成**: `RenderView` の実行による `r_{t+1}` の生成
-5. **差分適用**: `Δ(r_t, r_{t+1})` のDOM同期
+1. **Event fires** (the browser)
+2. **Dispatch**: dispatch to Blazor's `SynchronizationContext` completes
+3. **State transition**: the update from `s_t` to `s_{t+1}`
+4. **Frame-sequence generation**: `RenderView` runs, generating `r_{t+1}`
+5. **Diff application**: `Δ(r_t, r_{t+1})` synchronizes the DOM
 
-この順序の要点は、状態遷移がフレーム列生成に先行しなければならない(状態遷移 → 生成)という一点にあります。これは単一方向データフローの強制であり、`RenderView` の実行中に状態遷移を発生させてはならないことを意味します。現行のソースレベル実装では「設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)内での状態変更禁止」に対応し、違反は診断BCF3001となります。`Button` のonClickラムダのような遅延ハンドラ引数はレンダリング中に走らず、イベント後に実行されるため除外されます。任意のメソッド呼び出し経由の副作用の完全な検出は保証しません(§1.1 BCF3001注記参照)。`[ViewPart]` 本体への同等の検証は将来拡張候補であり、この初期契約には含めません。
+The point of this order comes down to one thing: state transition must precede frame-sequence generation (state transition → generation). This enforces single-direction data flow, meaning a state transition must never occur while `RenderView` is running. At the current source-level implementation, this corresponds to "no state mutation inside a design-time expression (`BodyComponentBase.Body` or `ChromeLayoutBase.Chrome`)", and a violation is diagnostic BCF3001. A deferred handler argument, such as a `Button`'s onClick lambda, is excluded, since it does not run during rendering and executes only after the event. Complete detection of a side effect reached through an arbitrary method call is not guaranteed (see §1.1's BCF3001 note). Equivalent verification for a `[ViewPart]` body is a candidate for future extension, and is not part of this initial contract.
 
-### 4.2 Blazor標準ディスパッチとの役割分担
+### 4.2 Division of labor with Blazor's standard dispatch
 
-Blazorは既に `SynchronizationContext`(および `ComponentBase.InvokeAsync`)により、レンダリングスレッドへの直列化ディスパッチを提供しています。BlazorCodeFirstはこれを置換しません。本ライブラリが並行モデルに追加するのは次の2点に限定されます。
+Blazor already provides serialized dispatch onto the rendering thread via `SynchronizationContext` (and `ComponentBase.InvokeAsync`). BlazorCodeFirst does not replace this. What this library adds to the concurrency model is limited to the following two points.
 
-第一に、§4.1の順序のうち「状態遷移 → フレーム列生成」のアナライザーによる静的検証(Blazor標準は規約のみで強制機構を持たない)。第二に、外部スレッドからの複数の状態変更通知を単一の再レンダリングへ合流させる、`Interlocked` ベースのロックフリー通知合流:
+First, static verification by the analyzer of §4.1's "state transition → frame-sequence generation" order (the Blazor standard has only a convention, with no enforcement mechanism). Second, `Interlocked`-based lock-free notification coalescing that merges multiple state-change notifications from an external thread into a single re-render:
 
 ```csharp
 private int _renderPending; // 0 or 1
@@ -580,31 +580,31 @@ public void NotifyStateChanged()
 }
 ```
 
-Wasm環境(現状実質シングルスレッド)ではCASが常に無競合で成功するため、オーバーヘッドは分岐1回に縮退します。
+In a Wasm environment (effectively single-threaded today), the CAS always succeeds uncontended, so the overhead reduces to a single branch.
 
-### 4.3 Runtime Async(net11.0 条件付き)
+### 4.3 Runtime Async (net11.0, conditional)
 
-net11.0ターゲットでは、Runtime Async(ランタイムネイティブ非同期)により非同期イベントハンドラのステートマシンオーバーヘッドが低減され、スタックトレースが平坦化されます。BlazorCodeFirst側のコード変更は不要であり、TFM切替のみで恩恵を受けます。
-
----
-
-## 5. WebAssemblyとAOTコンパイル適合性
-
-BlazorCodeFirstは実行時メタデータ分析・動的ディスパッチを排除します。全パラメータバインディング(`Component<T>().Param(...)` を含む)は、Source Generatorが生成する静的セッター経由で行われます。`Param` の式引数はSGが構文解析してセッター生成にのみ利用し、式木(`System.Linq.Expressions`)のランタイムコンパイルは行いません。**生成コードが `System.Reflection` / `System.Linq.Expressions` を呼ぶ箇所は0です。** 生成コードが呼び出すフレームワークの側にはリフレクションを通る経路が2つあり、いずれも本節後段の切り分け(契約は自身が生成するコードまで)の内側にあります。`Component<T>().Param` の `ComponentProperties.SetProperties` と、enum を束縛したときの `BindConverter.ParserDelegateCache`(`MakeGenericMethod` で `ConvertToEnum` を取り出す、#307)です。後者はトリムを生き延びることを実測しました(`TrimmedOutputTests`、費用は付録E.2)。
-
-さらに、設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)と設計時APIは、いずれも実行時に到達不能であるため、ILトリマーがこれらを丸ごと除去できます。ここでいう設計時APIとは、`Html`・`Decorations` の全メンバーと、設計時慣性型 `View` / `ComponentView<T>` / `ElementView`(付録A、BCF3014)の全メンバーです。UI記述のソースコードはバイナリサイズに寄与しません。実行時に評価するコードファースト方式では得られない性質です。除去は `TrimMode=full`・`ILLinkTreatWarningsAsErrors=true` を有効にした状態で、`System.Reflection.Metadata` のMethodDef走査により確認できる設計です。トリムテストはコンポーネントとレイアウトの双方(派生型の `Body`/`Chrome` と基底の抽象ゲッター)についてこれを検査します。
-
-リフレクションベースのバインディングを持つ同等構成との比較で、AOTコンパイル後のWasmペイロードサイズを約20〜30%削減(予測値)と見込みます。この予測値は、(a) BlazorCodeFirst構成、(b) リフレクションバインディング構成、(c) 素のRazor構成の3系統のベンチマークにより確定値へ置き換えられます。素のRazor構成との比較ではほぼ同等となる見込みです。
-
-BlazorCodeFirstのトリミング/AOT適合契約が対象とするのは、自身が生成するコード(リフレクション不使用の`RenderView`、実行時に到達不能な設計時API、`ComponentView`ビルダー)がトリミングで除去されることまでです。`Component<T>().Param(...)` によるコンポーネント埋め込みでは、パラメータが実行時に適用される段で、フレームワーク側のリフレクションベース `[Parameter]` バインダー(`ComponentProperties.SetProperties`)が到達可能になります。これはBlazor SDKのトリミングプロファイルが担う範囲であり、BlazorCodeFirst自体の責務ではありません。トリムテストハーネス(`tests/BlazorCodeFirst.TrimTestApp`)は、Blazor SDKのプロファイルを持たない素のコンソールアプリです。その性質上この1点のフレームワーク側 `IL2072` が表面化するため、`ComponentProperties.SetProperties` のみに限定した抑制(`ILLink.LinkAttributes.xml`)を適用しています。
-
-`Component<T>()` の型引数は生成コード中の `OpenComponent<T>` へリテラルとして落ちるため、BlazorCodeFirstのジェネレータが走る時点で解決している必要があります。ソースジェネレータは互いの出力が見えないため、**同一プロジェクト内**の `.razor` コンポーネントはこの条件を満たさず、BCF3012として報告されます。参照先プロジェクトやNuGetパッケージに含まれる `.razor` コンポーネントは通常どおり解決するため、この制約は同一コンパイル内に限られます。手書きのC#コンポーネントは常に利用できます。
+On the net11.0 target, Runtime Async (runtime-native async) reduces async event handlers' state-machine overhead and flattens stack traces. No code change is needed on BlazorCodeFirst's side; the benefit comes from switching the TFM alone.
 
 ---
 
-## 6. .NET 11 条件付き形式定義: 閉世界 `ViewNode`(参考仕様)
+## 5. WebAssembly and AOT compilation compatibility
 
-net11.0ターゲットでは、C# 15のUnion型と `closed` 修飾子を用いて、Source Generatorの内部表現であるUIノード集合を閉じた判別共用体として定義します:
+BlazorCodeFirst eliminates runtime metadata analysis and dynamic dispatch. Every parameter binding (including `Component<T>().Param(...)`) goes through a static setter the Source Generator generates. `Param`'s expression argument is parsed by the SG purely to generate that setter; no expression tree (`System.Linq.Expressions`) is ever compiled at run time. **There are zero places where the generated code calls `System.Reflection` / `System.Linq.Expressions`.** On the framework side the generated code calls into, there are two paths that pass through reflection, and both sit inside the boundary this section draws further down (the contract runs only as far as the code this design itself generates): `ComponentProperties.SetProperties` for `Component<T>().Param`, and, when binding an enum, `BindConverter.ParserDelegateCache` (which pulls out `ConvertToEnum` via `MakeGenericMethod`, #307). The latter was measured to survive trimming (`TrimmedOutputTests`, cost in Appendix E.2).
+
+Furthermore, because both the design-time expression (`BodyComponentBase.Body` or `ChromeLayoutBase.Chrome`) and the design-time API are unreachable at run time, the IL trimmer can remove them wholesale. The design-time API here means every member of `Html` and `Decorations`, and every member of the design-time inert types `View` / `ComponentView<T>` / `ElementView` (Appendix A, BCF3014). The UI description's source code contributes nothing to binary size — a property a code-first approach that evaluates at run time cannot get. The design is verifiable, with `TrimMode=full` and `ILLinkTreatWarningsAsErrors=true` enabled, by scanning for MethodDef via `System.Reflection.Metadata`. The trim tests check this for both a component and a layout (a derived type's `Body`/`Chrome`, and the base's abstract getter).
+
+Compared with an equivalent configuration that uses reflection-based binding, this is projected (predicted) to cut the AOT-compiled Wasm payload size by roughly 20-30%. This prediction is to be replaced with confirmed figures from benchmarks across three configurations: (a) BlazorCodeFirst, (b) reflection-binding, and (c) plain Razor. Against plain Razor, the expectation is near parity.
+
+What BlazorCodeFirst's trimming/AOT-compatibility contract covers extends as far as the code it generates itself (a reflection-free `RenderView`, the design-time API that is unreachable at run time, and the `ComponentView` builder) being removed by trimming. For component embedding via `Component<T>().Param(...)`, at the stage where parameters are applied at run time, the framework's reflection-based `[Parameter]` binder (`ComponentProperties.SetProperties`) becomes reachable. This falls under the Blazor SDK's own trimming profile, and is not BlazorCodeFirst's responsibility. The trim-test harness (`tests/BlazorCodeFirst.TrimTestApp`) is a plain console app carrying no Blazor SDK profile, so this one framework-side `IL2072` surfaces on its own — a suppression scoped to `ComponentProperties.SetProperties` alone (`ILLink.LinkAttributes.xml`) is applied for exactly that reason.
+
+`Component<T>()`'s type argument falls, as a literal, into the generated code's `OpenComponent<T>`, so it must already be resolved by the time BlazorCodeFirst's generator runs. Because source generators cannot see each other's output, a `.razor` component **in the same project** never satisfies this condition, and is reported as BCF3012. A `.razor` component in a referenced project or a NuGet package resolves normally, so this constraint is confined to within the same compilation; a hand-written C# component is always available.
+
+---
+
+## 6. .NET 11 conditional formal definition: the closed-world `ViewNode` (reference specification)
+
+On the net11.0 target, C# 15's union types and the `closed` modifier are used to define the Source Generator's internal representation — the set of UI nodes — as a closed discriminated union:
 
 ```csharp
 #if NET11_0_OR_GREATER
@@ -619,26 +619,26 @@ public closed union ViewNode
 #endif
 ```
 
-閉世界化により、コンパイラ内部のビジター(フレーム発行、依存解析、診断)の網羅性がコンパイル時に検証され(ケース漏れはコンパイルエラー)、`FrameWidth`(§2.2)の全域性が型システムで保証されます。
+Closing the world lets the exhaustiveness of the compiler's internal visitors (frame emission, dependency analysis, diagnostics) be verified at compile time — a missed case becomes a compile error — and lets the type system guarantee `FrameWidth`'s (§2.2) totality.
 
-> 注記: Union型は.NET 11プレビュー時点で一部機能(member provider等)が未実装であり、本章はGA後に正式化される参考仕様です。net10.0ターゲットでは同等の構造を `sealed` クラス階層+網羅性アナライザーで近似します。
+> Note: as of the .NET 11 preview, union types leave some features (member providers, and so on) unimplemented, and this chapter is a reference specification to be formalized after GA. On the net10.0 target, the equivalent structure is approximated with a `sealed` class hierarchy plus an exhaustiveness analyzer.
 
 ---
 
-## 7. 技術適合仕様サマリー
+## 7. Technical-fit specification summary
 
-| 評価項目                   | Blazor(通常Razor)                 | BlazorCodeFirst(本システム)                                    | 備考                                      |
+| Evaluation criterion       | Blazor (plain Razor)              | BlazorCodeFirst (this system)                                 | Notes                                      |
 | -------------------------- | --------------------------------- | ------------------------------------------------------------ | ----------------------------------------- |
-| 記述パラダイム             | マークアップファースト(HTML + C#) | コードファースト(純粋C#)                                     | SwiftUI/Compose と同系統の記述体験          |
-| 型安全性(Style/Layout)     | 低(文字列CSS/クラス名依存)        | 完全型安全(コンパイル時検証)                                 | IDEインテリセンスが駆動               |
-| コンパイル方式             | Razorコンパイラ(マークアップ→C#)  | Source Generator(C#式→C#)                                    | 生成物は同形式                            |
-| シーケンス番号管理         | コンパイラによる静的割当          | SGによる静的割当(SSC)+ リージョン分離(Transplantable/Opaque) | 作者はシーケンス制御を意識不要          |
-| 実行時の中間表現           | なし                              | なし(SSC経路)/ フラグメント内包 `View`(Opaque経路のみ)       | UI記述由来のヒープ割当ゼロ                |
-| GCアロケーション           | 基準                              | 同等(実測値)                                                 | `DESIGN.md` §7.1 の実測。静的サブツリーの畳み込み(§2.7(D))によりフレーム列も一致する |
-| レンダリング時間           | 基準                              | 同等(未掲載)                                                 | 測定済みだが分散が機械依存のため `DESIGN.md` §7.1 は数値を掲載しない            |
-| AOT / Wasm互換性           | 適合                              | 完全適合(リフレクション依存0、UI記述コードはトリム除去)      | 対リフレクション構成で20〜30%削減(予測値) |
-| Hot Reload                 | ツーリングに統合済み              | EnC標準経路(メソッド本体差替+`MetadataUpdateHandler`)        | 編集後の意味論はRazorと同一(§2.6)         |
-| 対応TFM                    | —                                 | net10.0(ベースライン)/ net11.0(Union型内部表現等)            | LTS優先のマルチターゲット                 |
+| Authoring paradigm         | Markup-first (HTML + C#)          | Code-first (pure C#)                                          | The same family of authoring experience as SwiftUI/Compose |
+| Type safety (Style/Layout) | Low (depends on string CSS/class names) | Fully type-safe (compile-time verified)                 | Driven by IDE IntelliSense                |
+| Compilation approach       | Razor compiler (markup → C#)      | Source Generator (C# expression → C#)                         | Same output shape                          |
+| Sequence-number management | Static assignment by the compiler | Static assignment by the SG (SSC) + region isolation (Transplantable/Opaque) | The author need not think about sequence control at all |
+| Runtime intermediate representation | None                      | None (SSC path) / a fragment-wrapping `View` (Opaque path only) | Zero heap allocation born of the UI description |
+| GC allocation               | Baseline                          | Equivalent (measured)                                          | Measured in `DESIGN.md` §7.1. Static-subtree folding (§2.7(D)) makes the frame sequences match too |
+| Render time                 | Baseline                          | Equivalent (not published)                                     | Measured, but `DESIGN.md` §7.1 does not publish a figure because the variance is machine-dependent |
+| AOT / Wasm compatibility    | Compatible                        | Fully compatible (zero reflection dependency, UI-description code is trimmed away) | 20-30% reduction versus a reflection-based configuration (predicted) |
+| Hot Reload                  | Already integrated into tooling   | The EnC standard path (method-body swap + `MetadataUpdateHandler`) | Post-edit semantics are identical to Razor's (§2.6) |
+| Supported TFMs              | —                                  | net10.0 (baseline) / net11.0 (union-type internal representation, etc.) | Multi-targeting that prioritizes LTS |
 
 ---
 
