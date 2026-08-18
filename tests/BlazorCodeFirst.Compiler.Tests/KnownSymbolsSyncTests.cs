@@ -297,6 +297,21 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
+    /// Every registered shortcut is (receiver, one value). The values check above asserts over
+    /// <c>AttributeShortcuts.Values</c>/<c>EventShortcuts.Values</c> alone, so an extra overload mapping
+    /// to an already-present name would not move it; this checks the key side, an
+    /// <see cref="IMethodSymbol"/> per registration, so a future overload of a shortcut name with a
+    /// different arity would fail here instead of being silently registered.
+    /// </summary>
+    [Fact]
+    public void DecorationShortcuts_AreAllTwoParameterOverloads()
+    {
+        var (symbols, _) = ResolveHtml();
+        foreach (var method in symbols.AttributeShortcuts.Keys.Concat(symbols.EventShortcuts.Keys))
+            Assert.Equal(2, Assert.IsAssignableFrom<IMethodSymbol>(method).Parameters.Length);
+    }
+
+    /// <summary>
     /// The methods <c>KnownSymbols</c> classified as <paramref name="kind"/>, which is the only place the
     /// compiler now records what a surface method is.
     /// </summary>
