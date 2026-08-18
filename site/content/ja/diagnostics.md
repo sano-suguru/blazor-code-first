@@ -430,6 +430,32 @@ Component<Counter>().RenderMode(RenderMode.InteractiveWebAssembly)   // Counter 
 モードを変える必要が本当にあるなら、コンポーネントから属性を外します。その場合は、すべての
 呼び出し側がモードを書くことになります。
 
+### BCF3039
+
+Error. `.FormName` の引数がリテラルの空文字列または `null` です。
+
+```csharp
+Form.FormName("")["submit"]      // BCF3039
+Form.FormName("save")["submit"]  // 代わりにこう書く
+```
+
+`.FormName` は `AddNamedEvent("onsubmit", name)` へ下がり、フレームワークはどちらの形も実行時に
+例外を投げます。空文字列なら `ArgumentException`、`null` なら `ArgumentNullException` です。実行
+時の式はコンパイル時定数である必要はありません。ここで拒むのは、常に例外を投げるとあらかじめ
+分かるリテラルだけです。
+
+### BCF3040
+
+Error. `.FormName` がタグ `form` ではない要素に書かれています。
+
+```csharp
+Div.FormName("save")["submit"]    // BCF3040
+Form.FormName("save")["submit"]   // 代わりにこう書く
+```
+
+`.FormName` は `AddNamedEvent("onsubmit", …)` へ下がり、`onsubmit` はブラウザネイティブの
+イベントで `<form>` 要素でしか発火しません。他のタグへの登録は届きません。
+
 ## イベント
 
 ### BCF3019
