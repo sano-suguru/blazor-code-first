@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Makes CssScope metadata on AdditionalFiles items visible to the Roslyn generator through
+       AnalyzerConfigOptionsProvider, the same mechanism the Razor SDK uses for its own CssScope
+       (Microsoft.NET.Sdk.Razor.SourceGenerators.targets: CompilerVisibleItemMetadata on
+       AdditionalFiles/CssScope). -->
+  <ItemGroup>
+    <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CssScope" />
+  </ItemGroup>
+
+</Project>

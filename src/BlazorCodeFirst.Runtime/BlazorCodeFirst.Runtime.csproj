@@ -37,9 +37,18 @@
          of the .nupkg entirely, which is why eng/verify-package.sh's exact payload match still holds. -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCompilerAnalyzer</TargetsForTfmSpecificContentInPackage>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCompilerAnalyzer;PackScopedCssBuildTask</TargetsForTfmSpecificContentInPackage>
     <CompilerPackStagingDirectory>$(MSBuildThisFileDirectory)obj/compiler-pack/analyzers/dotnet/cs</CompilerPackStagingDirectory>
     <CompilerPackAssemblyPath>$(CompilerPackStagingDirectory)/BlazorCodeFirst.Compiler.dll</CompilerPackAssemblyPath>
+    <ScopedCssBuildTaskProject>$(MSBuildThisFileDirectory)../BlazorCodeFirst.Build/BlazorCodeFirst.Build.csproj</ScopedCssBuildTaskProject>
+    <!-- NU5100 flags any assembly outside lib/ as "won't be referenced when installed", which is
+         true and intentional here: BlazorCodeFirst.Build.dll is a build-time-only MSBuild task,
+         never meant to be referenced by a consumer's compilation. It ships under tasks/{tfm}/, a
+         sibling of build/,
+         matching the relative path BlazorCodeFirst.targets's own UsingTask entries already resolve
+         (established and tested in Task 4/5's local dev-time staging under
+         src/BlazorCodeFirst.Build/tasks/{tfm}/). -->
+    <NoWarn>$(NoWarn);NU5100</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -88,6 +97,62 @@
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(CompilerPackAssemblyPath)">
         <PackagePath>analyzers/dotnet/cs</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PackScopedCssBuildTask">
+    <!-- Explicit Restore first: unlike BlazorCodeFirst.Compiler.csproj above, BlazorCodeFirst.Build
+         reaches this project only through $(ScopedCssBuildTaskProject) inside these MSBuild task
+         calls, not through a ProjectReference, so it never rides along in dotnet pack's own implicit
+         restore of BlazorCodeFirst.Runtime.csproj (a ProjectReference is what pulls
+         BlazorCodeFirst.Compiler.csproj into that restore graph; this project has no such edge).
+         On a clean checkout with no prior restore of BlazorCodeFirst.Build, the Rebuild calls below
+         failed with NETSDK1004 ("Assets file ... not found") for exactly this reason (confirmed by
+         reproducing it: deleting src/BlazorCodeFirst.Build/obj and re-running dotnet pack).
+
+         RemoveProperties="TargetFramework": an MSBuild task call with no Properties attribute
+         otherwise inherits this project's own global properties as-is, and dotnet pack's invocation
+         of this (non-multi-targeted) project carries a TargetFramework=net10.0 global property that
+         would otherwise narrow the restore to only net10.0, leaving BlazorCodeFirst.Build's net472
+         target framework out of the resulting assets file entirely (also confirmed by reproducing
+         it: restore ran, but the Rebuild call for net472 then failed with NETSDK1005, "doesn't have
+         a target for 'net472'"). Restore itself is TFM-agnostic (one assets.json covers every
+         TargetFramework), so it runs once, ahead of the two per-TFM Rebuild calls below.
+
+         NoBuild=false on the Rebuild calls, matching PackCompilerAnalyzer above: a global
+         NoBuild=true from an outer "dotnet pack" run with its no-build flag would otherwise
+         propagate into this nested Rebuild and fail with NETSDK1085 ("NoBuild was true but the
+         Build target was invoked"). -->
+    <MSBuild Projects="$(ScopedCssBuildTaskProject)"
+             Targets="Restore"
+             RemoveProperties="TargetFramework" />
+    <MSBuild Projects="$(ScopedCssBuildTaskProject)"
+             Targets="Rebuild"
+             Properties="Configuration=$(Configuration);TargetFramework=net472;NoBuild=false" />
+    <MSBuild Projects="$(ScopedCssBuildTaskProject)"
+             Targets="Rebuild"
+             Properties="Configuration=$(Configuration);TargetFramework=net10.0;NoBuild=false" />
+
+    <ItemGroup>
+      <_ScopedCssBuildTaskNet472File Include="../BlazorCodeFirst.Build/bin/$(Configuration)/net472/BlazorCodeFirst.Build.dll" />
+      <_ScopedCssBuildTaskNet10File Include="../BlazorCodeFirst.Build/bin/$(Configuration)/net10.0/BlazorCodeFirst.Build.dll" />
+      <_ScopedCssBuildPropsFile Include="../BlazorCodeFirst.Build/build/BlazorCodeFirst.props" />
+      <_ScopedCssBuildTargetsFile Include="../BlazorCodeFirst.Build/build/BlazorCodeFirst.targets" />
+
+      <!-- Sibling of build/, not nested under it: BlazorCodeFirst.targets resolves its UsingTask
+           entries as "$(MSBuildThisFileDirectory)../tasks/{tfm}/...", i.e. one level up from build/. -->
+      <TfmSpecificPackageFile Include="@(_ScopedCssBuildTaskNet472File)">
+        <PackagePath>tasks/net472/BlazorCodeFirst.Build.dll</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_ScopedCssBuildTaskNet10File)">
+        <PackagePath>tasks/net10.0/BlazorCodeFirst.Build.dll</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_ScopedCssBuildPropsFile)">
+        <PackagePath>build/BlazorCodeFirst.props</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_ScopedCssBuildTargetsFile)">
+        <PackagePath>build/BlazorCodeFirst.targets</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>

@@ -136,7 +136,8 @@ public sealed class DiagnosticFixtures
 [CollectionDefinition(Name)]
 public sealed class RealBuildDiagnostics :
     ICollectionFixture<DiagnosticFixtures>,
-    ICollectionFixture<RazorInteropFixtures>
+    ICollectionFixture<RazorInteropFixtures>,
+    ICollectionFixture<ScopedCssFixtures>
 {
     public const string Name = "real-build diagnostics";
 }

@@ -4,6 +4,9 @@
 docs/superpowers/
 bin/
 obj/
+# Staged by BlazorCodeFirst.Build.Tests to mirror the packaged NuGet layout (build/../tasks/{tfm}/)
+# before Task 6 (packaging) exists; not a source artifact.
+/src/BlazorCodeFirst.Build/tasks/
 
 # Local agent/tooling instructions (kept on disk, not published)
 AGENTS.md

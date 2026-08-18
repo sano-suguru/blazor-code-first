@@ -1,0 +1,157 @@
+<Project>
+
+  <!-- No shared "$(IntermediateOutputPath)bcf-scopedcss\" property is precomputed at the top of
+       this file: it is imported from the project body, before the SDK's own implicit Sdk.targets
+       import, which is what gives $(IntermediateOutputPath) its final, TFM-suffixed value. A
+       PropertyGroup here would evaluate too early and capture an empty or stale
+       $(IntermediateOutputPath). $(IntermediateOutputPath) is expanded directly wherever it is
+       needed below instead, which is safe: Inputs/Outputs and target-body evaluation both happen at
+       build-execution time, after the whole project (including Sdk.targets) has already been
+       evaluated. -->
+
+  <Target Name="BcfFindScopedCssInputs">
+    <ItemGroup>
+      <_BcfScopedCssInput Include="**/*.cs.css" Exclude="$(BaseIntermediateOutputPath)**;$(BaseOutputPath)**" />
+    </ItemGroup>
+  </Target>
+
+  <!-- No target-level Condition here (or on the two targets below): a Condition on a Target gates
+       its DependsOnTargets too, not just its own body, so MSBuild does not run a target's
+       dependencies at all when the target's own Condition is false. Since BcfFindScopedCssInputs is
+       the thing that would populate the item this target's Condition would test, gating on it here
+       would skip the very target that produces it. The task itself already no-ops correctly on an
+       empty ScopedCssInputs, so no Condition is needed at all. -->
+  <Target Name="BcfComputeScopedCssScope"
+          DependsOnTargets="BcfFindScopedCssInputs">
+    <ComputeScopedCssScopeTask
+        ScopedCssInputs="@(_BcfScopedCssInput)"
+        ProjectDirectory="$(MSBuildProjectDirectory)"
+        AssemblyName="$(AssemblyName)">
+      <Output TaskParameter="ScopedCssWithScope" ItemName="_BcfScopedCssWithScope" />
+    </ComputeScopedCssScopeTask>
+  </Target>
+
+  <Target Name="BcfStampCssScopeOnAdditionalFiles"
+          DependsOnTargets="BcfComputeScopedCssScope"
+          BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <AdditionalFiles Include="@(_BcfScopedCssWithScope)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="BcfRewriteScopedCss"
+          DependsOnTargets="BcfComputeScopedCssScope"
+          Inputs="@(_BcfScopedCssWithScope)"
+          Outputs="@(_BcfScopedCssWithScope -> '$(IntermediateOutputPath)bcf-scopedcss\%(FileName)%(Extension).rz.scp.css')">
+    <ItemGroup>
+      <_BcfScopedCssToRewrite Include="@(_BcfScopedCssWithScope)">
+        <OutputFile>$(IntermediateOutputPath)bcf-scopedcss\%(FileName)%(Extension).rz.scp.css</OutputFile>
+      </_BcfScopedCssToRewrite>
+    </ItemGroup>
+
+    <RewriteScopedCssTask FilesToRewrite="@(_BcfScopedCssToRewrite)" />
+
+    <ItemGroup>
+      <_BcfScopedCssRewritten Include="@(_BcfScopedCssToRewrite -> '%(OutputFile)')">
+        <OriginalItemSpec>%(_BcfScopedCssToRewrite.Identity)</OriginalItemSpec>
+        <CssScope>%(_BcfScopedCssToRewrite.CssScope)</CssScope>
+      </_BcfScopedCssRewritten>
+    </ItemGroup>
+    <ItemGroup>
+      <FileWrites Include="@(_BcfScopedCssRewritten)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- No target-level Condition here, for the same reason Task 4's targets have none: it would gate
+       DependsOnTargets too and skip BcfRewriteScopedCss, which is what populates the item this
+       target would otherwise test.
+
+       ResolveStaticWebAssetsConfiguration is listed explicitly (matching the SDK's own analogous
+       _ComputeScopedCssStaticWebAssets target) rather than left to BeforeTargets="_CollectAllScopedCssAssets"
+       to pull in transitively: BeforeTargets only injects this target into a build that is already
+       going to reach _CollectAllScopedCssAssets by some other path, it does not itself pull in
+       _CollectAllScopedCssAssets's own prerequisites. A build that reaches this target through
+       BcfDiscoverScopedCss alone (as -t:BcfDiscoverScopedCss does) would otherwise call
+       DefineStaticWebAssets before $(StaticWebAssetBasePath) has ever been computed. -->
+  <Target Name="BcfRegisterScopedCssStaticWebAssets"
+          DependsOnTargets="BcfRewriteScopedCss;ResolveStaticWebAssetsConfiguration"
+          BeforeTargets="_CollectAllScopedCssAssets">
+    <ItemGroup>
+      <_BcfScopedCssStaticWebAssetCandidate Include="@(_BcfScopedCssRewritten)">
+        <RelativePath>%(FileName)%(Extension)</RelativePath>
+        <OriginalItemSpec>%(OriginalItemSpec)</OriginalItemSpec>
+      </_BcfScopedCssStaticWebAssetCandidate>
+    </ItemGroup>
+
+    <DefineStaticWebAssets
+        CandidateAssets="@(_BcfScopedCssStaticWebAssetCandidate)"
+        SourceType="Computed"
+        SourceId="$(PackageId)"
+        ContentRoot="$(IntermediateOutputPath)bcf-scopedcss\"
+        BasePath="$(StaticWebAssetBasePath)"
+        AssetKind="All"
+        AssetMode="All"
+        AssetRole="Primary"
+        AssetMergeSource="$(StaticWebAssetMergeTarget)"
+        AssetTraitName="ScopedCss"
+        AssetTraitValue="ScopedCssFile"
+        CopyToOutputDirectory="Never"
+        CopyToPublishDirectory="PreserveNewest">
+      <Output TaskParameter="Assets" ItemName="_ScopedCssStaticWebAsset" />
+    </DefineStaticWebAssets>
+  </Target>
+
+  <Target Name="BcfDiscoverScopedCss"
+          DependsOnTargets="BcfStampCssScopeOnAdditionalFiles;BcfRegisterScopedCssStaticWebAssets" />
+
+  <!-- The SDK's own BundleScopedCssFiles only writes "$(PackageId).styles.css" when the project has
+       at least one Razor-native scoped css file (@(_ScopedCss), from ComputeCssScope on
+       @(RazorComponent)) or an incoming project bundle (@(_ScopedCssProjectBundles)). Neither item
+       carries our .cs.css contribution: BCF injects straight into @(_ScopedCssStaticWebAsset), which
+       only ever reaches @(_DiscoveredScopedCssFiles), read here as
+       @(_CurrentProjectDiscoveredScopedCssFiles), already populated by BundleScopedCssFiles by the
+       time this target runs. A project built entirely of .cs components therefore has both those
+       gating items empty and BundleScopedCssFiles's ConcatenateCssFiles call skips writing the
+       bundle file outright, while ResolveBundledCssAssets (which runs after this target, gated on
+       the broader @(_AllScopedCss) that DOES include our contribution) still tries to register a
+       StaticWebAsset pointing at that now-missing file and throws. This target fills that specific
+       gap: same task, same output path and base path the SDK's own call would have used, run only
+       when the SDK's own call was going to skip it. $(_BcfShouldSelfBundle) is computed once, in a
+       PropertyGroup at the top of this target's own body, rather than hoisted onto the Target's
+       Condition attribute, for the same DependsOnTargets-skip reason as BcfComputeScopedCssScope above.
+       AfterTargets doesn't have that failure mode the way a target Condition does, but the pattern is
+       kept consistent; a target-body PropertyGroup runs in execution order, after the items it reads
+       are already populated by BundleScopedCssFiles, so it is safe here. -->
+  <Target Name="BcfBundleScopedCss"
+          AfterTargets="BundleScopedCssFiles">
+    <PropertyGroup>
+      <_BcfShouldSelfBundle>false</_BcfShouldSelfBundle>
+      <_BcfShouldSelfBundle Condition="'@(_ScopedCssProjectBundles)' == '' and '@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfBundle>
+    </PropertyGroup>
+    <ConcatenateCssFiles
+        Condition="'$(_BcfShouldSelfBundle)' == 'true'"
+        ScopedCssFiles="@(_CurrentProjectDiscoveredScopedCssFiles)"
+        ProjectBundles=""
+        ScopedCssBundleBasePath="$(_ScopedCssBundleBasePath)"
+        OutputFile="$(_ScopedCssOutputPath)" />
+    <ItemGroup Condition="'$(_BcfShouldSelfBundle)' == 'true'">
+      <FileWrites Include="$(_ScopedCssOutputPath)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- TFM-branched task assembly directory: VS's own MSBuild is net472, `dotnet build`'s MSBuild is
+       net-core. Computed once here rather than repeated per UsingTask, so adding a third task later
+       needs one new UsingTask line, not two. -->
+  <PropertyGroup>
+    <_BcfTaskTfmDirectory>net10.0</_BcfTaskTfmDirectory>
+    <_BcfTaskTfmDirectory Condition="'$(MSBuildRuntimeType)' == 'Full'">net472</_BcfTaskTfmDirectory>
+    <_BcfTaskAssembly>$(MSBuildThisFileDirectory)../tasks/$(_BcfTaskTfmDirectory)/BlazorCodeFirst.Build.dll</_BcfTaskAssembly>
+  </PropertyGroup>
+  <UsingTask
+      TaskName="BlazorCodeFirst.Build.ComputeScopedCssScopeTask"
+      AssemblyFile="$(_BcfTaskAssembly)" />
+  <UsingTask
+      TaskName="BlazorCodeFirst.Build.RewriteScopedCssTask"
+      AssemblyFile="$(_BcfTaskAssembly)" />
+
+</Project>
