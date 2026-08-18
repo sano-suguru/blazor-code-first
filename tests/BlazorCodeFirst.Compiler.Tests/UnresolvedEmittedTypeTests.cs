@@ -1706,6 +1706,44 @@ public sealed class UnresolvedEmittedTypeTests
         AssertSingleBCF3015(result, source);
     }
 
+    /// <summary>
+    /// One written argument against two same-named <c>[ViewPart]</c> overloads, the one-parameter shape
+    /// and a two-parameter shape whose second parameter is required. Resolution failure hands both back
+    /// as candidates regardless of arity, so <c>FillsEveryParameter</c> is what excludes the two-parameter
+    /// overload (its second parameter is unfilled) before <c>TrySelectCandidate</c> ever has to compare
+    /// the two candidates' shapes — a decoration overload group can't isolate this the same way, because
+    /// their shorter member (see <c>Div.Attr(string)</c>) always fills on the shared prefix and the group
+    /// refuses on arity either way. Disabling this check (loop skipped, either boolean negated, or the
+    /// rejection return flipped to accept) lets the two-parameter overload wrongly pass, and
+    /// <c>AreInterchangeableOverloads</c>' own arity mismatch then refuses the whole group.
+    /// </summary>
+    [Fact]
+    public void ViewPartOverloadMissingRequiredParameter_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value) => Span[value];
+
+                [ViewPart]
+                private static View Label(string value, string extra) => Span[value];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)

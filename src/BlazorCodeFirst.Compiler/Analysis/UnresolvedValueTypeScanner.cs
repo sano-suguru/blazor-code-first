@@ -756,11 +756,12 @@ internal static class UnresolvedValueTypeScanner
                 // condition then short-circuits away from on the next iteration, the same guard that keeps
                 // the array index below in bounds either way. Checked against three shapes that each
                 // exercise a different neighbour of this line — the params indexer with two children
-                // (ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015 below), the zero-parameter
+                // (ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015), the zero-parameter
                 // PreventDefault overload overfilled with two arguments
-                // (OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator below), and the
-                // positional-then-named .Bind call above — and the full BlazorCodeFirst.Compiler.Tests
-                // suite passed unchanged with the continue removed.
+                // (OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator), and the positional-then-named
+                // .Bind call (PositionalArgumentsThenNamedArgument_UnresolvedType_ReportsBCF3015), all in
+                // UnresolvedEmittedTypeTests.cs — and the full BlazorCodeFirst.Compiler.Tests suite passed
+                // unchanged with the continue removed.
                 continue;
             }
 
@@ -995,6 +996,13 @@ internal static class UnresolvedValueTypeScanner
     private static bool FillsEveryParameter(BoundArguments args, IMethodSymbol method)
     {
         var offset = KnownSymbols.ReceiverOffset(method);
+        // The two stryker survivors that swap - for + on offset here and at the array index below (one on
+        // each of the two arithmetic mutants) are measured equivalent, not assumed: a throwaway probe
+        // logging offset and ReducedFrom for every method TrySelectCandidate's loop hands this function
+        // found offset == 0 for every candidate reached in the multi-candidate path — an extension method
+        // candidate always arrives already reduced there (ReceiverOffset's own contract answers 0 for a
+        // reduced method), so + and - agree everywhere this runs. Confirmed by hand-applying both mutants
+        // together and running the full BlazorCodeFirst.Compiler.Tests suite unchanged.
 
         for (var index = 0; index < method.Parameters.Length - offset; index++)
         {
