@@ -655,6 +655,232 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1003" or "BCF3015");
     }
 
+    [Fact]
+    public void AttrConstantNameValueSiblingOfUnselectedInvocation_UnresolvedType_ReportsBCF3015()
+    {
+        // AttributeValue_UnresolvedType_ReportsBCF3015 above already covers a plain typeof(Probe) value on
+        // .Attr, and that shape is read by RenderExpressionAnalyzer's own decoration walk regardless of
+        // this failure path, the same way ParamTypeValue's plain value is. The sibling shape used by
+        // ValueSiblingOfUnselectedInvocation forces FactoryArguments.Bind to fail for the .Attr invocation
+        // itself instead: Attr(string, string?) is not generic, so unlike ScalarParam's Param<TValue> no
+        // explicit type argument is needed for recovery to name a single overload.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("data-type", MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void AttrNonConstantNameSelectedInvocationSibling_UnresolvedType_ReportsBCF3015()
+    {
+        // The non-constant-name arm (ReportSelectedInvocationValues) needs a shape neither of the other
+        // sibling-shape tests supply: a SELECTED invocation whose own argument carries the unresolved
+        // name, sitting beside — not nested inside — the unselected one that breaks FactoryArguments.Bind.
+        // Nesting it inside instead (Consume(typeof(Probe)) as MissingMethod's own argument, measured)
+        // does not work: ReportValue's IsInsideUnselectedInvocation walks every ancestor of the name, not
+        // just the nearest one, so it still finds the outer unselected MissingMethod() and suppresses the
+        // report even though ReportSelectedInvocationValues correctly recognized the inner call as
+        // selected. Writing Consume(typeof(Probe)) as MissingMethod's sibling keeps it off that ancestor
+        // chain: its own ancestors run straight up through the binary expression to the .Attr invocation,
+        // which resolves to a real candidate, so nothing along the way reads as unselected.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr(GetName(), MissingMethod() + Consume(typeof(Probe)));
+
+                private static string GetName() => "data-x";
+                private static string Consume(Type t) => t.Name;
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void ElementBindSetter_UnresolvedType_ReportsBCF3015()
+    {
+        // Unlike the getter (which the normal walk must validate as an assignable expression and reports
+        // through on its own), the setter of an element .Bind never gets that treatment from
+        // RenderExpressionAnalyzer.ClassifyBind — measured, a plain unresolved type here needs none of the
+        // sibling-invocation gymnastics the getter or a scalar .Param value would need. Only the
+        // failure-path's ReportBindArguments, which walks the getter and everything written after it,
+        // ever reaches the setter's own contents.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _value = "";
+
+                protected override View Body =>
+                    Div.Bind("value", "onchange", () => _value, v => Consume(typeof(Probe)));
+
+                private static void Consume(Type t) { }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void OnNonConstantNameHandlerLocalDeclaration_UnresolvedType_DoesNotReportBCF3015()
+    {
+        // The negate mutant on line 285 (dropping the `!`) would route this exact call to ReportValue's
+        // raw name walk instead of ReportSelectedInvocationValues's narrower one. The two agree whenever
+        // the handler's unresolved name sits inside a genuinely selected invocation's own arguments (the
+        // test above), which is why that shape alone cannot tell the branches apart. A name that sits
+        // outside any invocation at all — here, a local declaration's initializer — is where they diverge:
+        // ReportSelectedInvocationValues never matches anything for it and reports nothing, while
+        // ReportValue's raw walk would find and report it regardless.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.On(MissingMethod() + "onclick", () => { var x = typeof(Probe); });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void OnClickShortcutHandlerLocalDeclaration_UnresolvedType_ReportsBCF3015()
+    {
+        // The logical mutant on line 284 (`&&` to `||`) is invisible to every existing shortcut-handler
+        // test, because a shortcut's CarriesEventName is false and EventNameIndex is the negative sentinel
+        // (#48 in EventParameters), so args.At(EventNameIndex) is always null and
+        // IsNonEmptyConstantString(null, ...) is always false: with `||`, `false || !false` is still true,
+        // routing every shortcut call to ReportSelectedInvocationValues instead of the correct ReportValue.
+        // That only becomes observable when the handler's unresolved name sits outside any selected
+        // invocation's own arguments, the same local-declaration shape the sibling test above uses for the
+        // negate mutant on line 285.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.OnClick(() => { var x = typeof(Probe); });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void OnNonConstantNameSelectedInvocationHandler_UnresolvedType_ReportsBCF3015()
+    {
+        // The event-name mirror of AttrNonConstantNameSelectedInvocationSibling above: TryResolveDecorationName
+        // is shared between .Attr and .On, so a non-constant event name is BCF3011's to report on the normal
+        // walk too, and the same FactoryArguments.Bind failure (from the unselected MissingMethod() sibling
+        // in the name) is what keeps the normal walk from ever reaching that check. recoverOwnValue stays
+        // true, IsNonEmptyConstantString correctly reads the name as non-constant, and the handler's own
+        // selected invocation (Consume(typeof(Probe))) is what ReportSelectedInvocationValues finds.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.On(MissingMethod() + "onclick", () => Consume(typeof(Probe)));
+
+                private static void Consume(Type t) { }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void ScalarParamValueSiblingOfUnselectedInvocation_UnresolvedType_ReportsBCF3015()
+    {
+        // The sibling shape ValueSiblingOfUnselectedInvocation uses for a decoration value, adapted for a
+        // ScalarParam's own value with one addition the decoration shape does not need: the explicit
+        // <string?> type argument. Without it, TValue inference over an argument this broken (MissingMethod
+        // has no symbol at all) fails outright — measured, GetSymbolInfo answers a synthesized conversion
+        // operator with an empty candidate list, not the .Param overload group, so RenderExpressionAnalyzer
+        // and the failure-path scanner both walk away with nothing recognized and the body reports bare
+        // BCF1003. Naming <string?> narrows candidates to the one .Param<TValue> overload before inference
+        // ever runs, which is what lets recovery name it: GetSymbolInfo resolves that single candidate,
+        // RenderExpressionAnalyzer's Analyze filters it out at its own conversion-operator guard before
+        // ClassifyComponentParameter runs (so RejectUnresolvedValueRecovery is never called and
+        // recoverOwnValue stays true), and ClassifyComponentParameter's FactoryArguments.Bind fails on the
+        // same broken operation, so only the failure path's syntactic fallback binder ever reaches the
+        // value to report it.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public sealed class Real : ComponentBase
+            {
+                [Parameter]
+                public string? Kind { get; set; }
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<Real>().Param<string?>(r => r.Kind, MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     /// <summary>
     /// A component carrying the parameters the <c>.Bind</c> theory below selects against: the bound name,
     /// the <c>{name}Changed</c> the surface derives from it, and a slot to hang the failing sibling on.
