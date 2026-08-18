@@ -331,14 +331,20 @@ edition. A translation additionally declares `stale-notice` and `stale-link`, wh
 language must not declare. Every key is required; there is no fallback to English, because one
 English word among translated ones is exactly what nobody would notice.
 
-`anchor-filter-count` is the one key that carries a placeholder: the sentence the diagnostics
-filter's live region announces after each keystroke, with `{shown}` and `{total}` standing in for the
-two counts (`{shown} of {total}` reads "12 of 42"). `ShellFile.Parse` checks that a key declaring
-placeholders carries exactly those names, and that every other key carries none — a `{word}`
-placeholder pasted into an ordinary sentence fails the build rather than reaching a reader as literal
-braces. The check is by name, not by position, because a translation may need the total first
-(`{total}件中{shown}件`); that word-order freedom is why the placeholders are named rather than
-numbered.
+Two keys carry a placeholder. `anchor-filter-count` is the sentence the diagnostics filter's live
+region announces after each keystroke, with `{shown}` and `{total}` standing in for the two counts
+(`{shown} of {total}` reads "12 of 42"). `ShellFile.Parse` checks that a key declaring placeholders
+carries exactly those names, and that every other key carries none — a `{word}` placeholder pasted
+into an ordinary sentence fails the build rather than reaching a reader as literal braces. The check
+is by name, not by position, because a translation may need the total first (`{total}件中{shown}件`);
+that word-order freedom is why the placeholders are named rather than numbered.
+
+`theme-toggle-name` is the colour-scheme control's accessible name, with `{state}` standing in for
+whichever of `theme-system`, `theme-light`, or `theme-dark` is current. The control has no per-state
+rendering — every state's markup is always present, and CSS alone decides which one shows — so this
+placeholder is never substituted; `SiteNav` strips it at render time and uses the text before it as
+the hidden span that gives the control its name, which is why `theme-toggle-name` must end with
+`{state}` rather than carry it anywhere else in the sentence.
 
 `index-description` is to the `/docs` index route what a document's own `description` is to that
 document, and the same per-language limits bound it. The index is a page a search result can show,

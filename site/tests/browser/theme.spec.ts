@@ -60,6 +60,26 @@ test('the visible word names the state', async ({ page }) => {
   expect(await visibleState(page)).toBe('Dark');
 });
 
+test('the control speaks the reader\'s edition, not always English', async ({ page }) => {
+  // #440: the control used to carry its five words as C# string literals, bypassing shell.yml
+  // entirely, so a Japanese reader saw "System" / "Light" / "Dark" on their own edition's pages.
+  await gotoSettled(page, '/docs/ja/getting-started/');
+
+  expect(await visibleState(page)).toBe('システム');
+
+  await page.click(TOGGLE);
+  expect(await visibleState(page)).toBe('ライト');
+
+  await page.click(TOGGLE);
+  expect(await visibleState(page)).toBe('ダーク');
+});
+
+test('a route with no language of its own still reads in the canonical edition', async ({ page }) => {
+  await gotoSettled(page, '/counter');
+
+  expect(await visibleState(page)).toBe('System');
+});
+
 test('the choice survives a reload', async ({ page }) => {
   await gotoSettled(page, '/');
   await page.click(TOGGLE);

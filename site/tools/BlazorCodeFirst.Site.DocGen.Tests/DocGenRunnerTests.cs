@@ -26,6 +26,11 @@ public class DocGenRunnerTests
             "language-label: Language\n" +
             "anchor-filter-label: Jump to a diagnostic\n" +
             "anchor-filter-count: {shown} of {total}\n" +
+            "theme-toggle-name: Color theme: {state}\n" +
+            "theme-toggle-label: Theme\n" +
+            "theme-system: System\n" +
+            "theme-light: Light\n" +
+            "theme-dark: Dark\n" +
             "group-start: Start here\n" +
             "group-write: Writing views\n" +
             "group-reference: Reference\n" +

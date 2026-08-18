@@ -25,6 +25,11 @@ public class CSharpDocEmitterTests
                 "Language",
                 "Jump to a diagnostic",
                 "{shown} of {total}",
+                "Color theme: {state}",
+                "Theme",
+                "System",
+                "Light",
+                "Dark",
                 DocGroup.All.ToDictionary(g => g, g => g + " heading", StringComparer.Ordinal),
                 meta.Lang == DocLang.Canonical ? null : "This translation is behind.",
                 meta.Lang == DocLang.Canonical ? null : "Read the English page");

@@ -7,6 +7,11 @@ rail-heading: ガイド
 language-label: 言語
 anchor-filter-label: 診断へ飛ぶ
 anchor-filter-count: {total}件中{shown}件
+theme-toggle-name: 配色テーマ：{state}
+theme-toggle-label: テーマ
+theme-system: システム
+theme-light: ライト
+theme-dark: ダーク
 group-start: はじめる
 group-write: 書き方
 group-reference: リファレンス

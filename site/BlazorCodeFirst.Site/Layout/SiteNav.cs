@@ -56,7 +56,7 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
                 A.Href("https://github.com/sano-suguru/blazor-code-first")
                     .Class("chip")
                     .Attr("rel", "noopener")["Source"],
-                ThemeToggle()]];
+                ThemeToggle(Docs.Shell(CurrentLang()))]];
 
     /// <summary>The colour-scheme control: system, light, dark, in that cycle.</summary>
     /// <remarks>
@@ -68,11 +68,13 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
     /// here would not answer until WebAssembly had started; the note beside that script has the
     /// reasoning.
     ///
-    /// The visible "Theme" is decorative and hidden from assistive technology, and drops out
-    /// visually on a narrow viewport. The accessible name comes from the span before it, hidden at
-    /// every width, so the button reads as "Color theme: Dark" throughout. The two words that are
-    /// not current are visibility:hidden, which excludes them from that name while keeping their
-    /// width.
+    /// The visible label is decorative and hidden from assistive technology, and drops out visually
+    /// on a narrow viewport. The accessible name comes from the span before it, hidden at every
+    /// width: <see cref="ShellText.ThemeToggleName"/> ends in a "{state}" placeholder that is never
+    /// substituted (site/README.md's Shell text section has the full contract), stripped here to
+    /// yield the prefix ("Color theme: " in English), so the button reads as "Color theme: Dark"
+    /// throughout. The two words that are not current are visibility:hidden, which excludes them
+    /// from that name while keeping their width.
     ///
     /// [ViewPart] is what makes this a method at all rather than more markup inline in Body. It is
     /// expanded into the caller's frame sequence, so the split costs nothing at runtime; without the
@@ -80,14 +82,46 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
     /// than the BCF2001 the finished design intends (ARCHITECTURE.md appendix A).
     /// </remarks>
     [ViewPart]
-    private static View ThemeToggle() =>
+    private static View ThemeToggle(ShellText shell) =>
         Button.Class("theme-toggle").Attr("type", "button").Attr("data-theme-toggle", "")[
-            Span.Class("visually-hidden")["Color theme: "],
-            Span.Class("theme-toggle__label").Attr("aria-hidden", "true")["Theme"],
+            Span.Class("visually-hidden")[
+                shell.ThemeToggleName.Replace("{state}", "", StringComparison.Ordinal)],
+            Span.Class("theme-toggle__label").Attr("aria-hidden", "true")[shell.ThemeToggleLabel],
             Span.Class("theme-toggle__states")[
-                Span.Class("is-system")["System"],
-                Span.Class("is-light")["Light"],
-                Span.Class("is-dark")["Dark"]]];
+                Span.Class("is-system")[shell.ThemeSystem],
+                Span.Class("is-light")[shell.ThemeLight],
+                Span.Class("is-dark")[shell.ThemeDark]]];
+
+    /// <summary>The current route's documentation language, or <see cref="Docs.Canonical"/> for a
+    /// route outside the documentation tree.</summary>
+    /// <remarks>
+    /// The canonical language is skipped in the loop rather than compared like the others: its own
+    /// prefix ("/docs") is a prefix of every other language's ("/docs/ja"), so comparing it in
+    /// declaration order would match it first on every translated document route. Skipping it and
+    /// falling through to it below is equivalent, since a document route matches its own language's
+    /// prefix or none at all. "/" and "/counter" match no language's prefix and fall through, the
+    /// same default the rest of the manifest uses for a route with no language of its own.
+    /// </remarks>
+    private string CurrentLang()
+    {
+        string current = CurrentPath();
+        foreach (string lang in Docs.Languages)
+        {
+            if (lang == Docs.Canonical)
+            {
+                continue;
+            }
+
+            string prefix = Docs.RoutePrefix(lang);
+            if (string.Equals(current, prefix, StringComparison.OrdinalIgnoreCase) ||
+                current.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return lang;
+            }
+        }
+
+        return Docs.Canonical;
+    }
 
     /// <summary>The current route as a normalized absolute path ("/", "/counter", "/docs/x").</summary>
     /// <remarks>
@@ -121,24 +155,16 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
     /// <summary>The Docs entry, which is active on every language's documentation index.</summary>
     /// <remarks>
     /// This link names the documentation index, and each language has one, so "/docs/ja" lights it up
-    /// as "/docs" does. Without this, "/docs/ja" would be the only prerendered route with no active
-    /// nav link at all: the rail lists documents, so nothing there matches an index either.
+    /// as "/docs" does: <see cref="CurrentLang"/> resolves "ja" for that route, and its own prefix is
+    /// "/docs/ja". Without this, "/docs/ja" would be the only prerendered route with no active nav
+    /// link at all: the rail lists documents, so nothing there matches an index either.
     ///
     /// Still an exact match per index rather than a prefix match on "/docs". A prefix would claim the
     /// active mark on every document route as well, where it belongs to the rail, and the CI guard
     /// asserting exactly one active link per route is what keeps the two from both taking it.
     /// </remarks>
-    private string DocsLinkClass()
-    {
-        string current = CurrentPath();
-        foreach (string lang in Docs.Languages)
-        {
-            if (string.Equals(current, Docs.RoutePrefix(lang), StringComparison.OrdinalIgnoreCase))
-            {
-                return "nav-link active";
-            }
-        }
-
-        return "nav-link";
-    }
+    private string DocsLinkClass() =>
+        string.Equals(CurrentPath(), Docs.RoutePrefix(CurrentLang()), StringComparison.OrdinalIgnoreCase)
+            ? "nav-link active"
+            : "nav-link";
 }
