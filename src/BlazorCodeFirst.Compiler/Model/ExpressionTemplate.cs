@@ -66,9 +66,11 @@ internal sealed record RuntimeFormattedConstant : ConstantInfo;
 /// and consumes fresh preorder ordinals, so the generated local and loop-variable names cannot collide.
 /// </para>
 /// <para>
-/// All three fields come from the <em>caller</em>, because the argument is an expression written there.
+/// All four fields come from the <em>caller</em>, because the argument is an expression written there.
 /// <see cref="ActiveMethodStack"/> is the load-bearing one: expanding under the callee's stack instead
-/// reports <c>A(A(P["z"]))</c> as a recursion cycle, which it is not.
+/// reports <c>A(A(P["z"]))</c> as a recursion cycle, which it is not. <see cref="CssScope"/> is the same
+/// idea applied to scoped CSS: the content is markup the caller wrote, so it must expand under the
+/// caller's own file scope, not the callee's (design doc §ViewPart展開でのスコープ伝播).
 /// </para>
 /// <para>
 /// Transient expansion state, never part of the cached incremental model, so the
@@ -78,7 +80,8 @@ internal sealed record RuntimeFormattedConstant : ConstantInfo;
 internal sealed record ContentArgument(
     RenderTemplateNode Template,
     ImmutableArray<SubstitutedArgument> Substitution,
-    ImmutableArray<string> ActiveMethodStack);
+    ImmutableArray<string> ActiveMethodStack,
+    string? CssScope);
 
 /// <summary>
 /// One value substituted for a parameter hole: the code text that replaces the hole, and that value's

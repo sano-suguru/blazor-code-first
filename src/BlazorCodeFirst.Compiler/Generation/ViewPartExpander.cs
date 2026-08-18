@@ -28,7 +28,9 @@ internal static class ViewPartExpander
     internal static ExpansionResult Expand(
         RenderTemplateNode root,
         ViewPartRegistry registry,
-        ImmutableArray<string> generatedTypeInheritanceKeys)
+        ImmutableArray<string> generatedTypeInheritanceKeys,
+        CssScopeRegistry cssScopes,
+        string? hostCssScope)
     {
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         var nextLogicalPreorderOrdinal = 0;
@@ -40,6 +42,8 @@ internal static class ViewPartExpander
             [],
             registry,
             generatedTypeInheritanceKeys,
+            cssScopes,
+            hostCssScope,
             diagnostics);
 
         return new ExpansionResult(node, diagnostics.ToImmutable());
@@ -60,6 +64,8 @@ internal static class ViewPartExpander
         ImmutableArray<string> activeMethodStack,
         ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys,
+        CssScopeRegistry cssScopes,
+        string? currentScope,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         // Every node consumes one logical preorder ordinal, assigned before its subtree is visited.
@@ -76,6 +82,8 @@ internal static class ViewPartExpander
                         activeMethodStack,
                         registry,
                         generatedTypeInheritanceKeys,
+                        cssScopes,
+                        currentScope,
                         diagnostics);
                     if (thenNode is null)
                         return null;
@@ -90,6 +98,8 @@ internal static class ViewPartExpander
                             activeMethodStack,
                             registry,
                             generatedTypeInheritanceKeys,
+                            cssScopes,
+                            currentScope,
                             diagnostics);
                         if (otherwiseNode is null)
                             return null;
@@ -115,6 +125,8 @@ internal static class ViewPartExpander
                         activeMethodStack,
                         registry,
                         generatedTypeInheritanceKeys,
+                        cssScopes,
+                        currentScope,
                         diagnostics);
                     if (content is null)
                         return null;
@@ -161,6 +173,8 @@ internal static class ViewPartExpander
                             activeMethodStack,
                             registry,
                             generatedTypeInheritanceKeys,
+                            cssScopes,
+                            currentScope,
                             diagnostics);
                         if (content is null)
                             return null;
@@ -189,7 +203,8 @@ internal static class ViewPartExpander
                 {
                     if (ExpandChildren(
                             element.Children, substitution, ref nextLogicalPreorderOrdinal,
-                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics)
+                            activeMethodStack, registry, generatedTypeInheritanceKeys,
+                            cssScopes, currentScope, diagnostics)
                         is not { } children)
                     {
                         return null;
@@ -244,6 +259,7 @@ internal static class ViewPartExpander
                         Key = element.Key?.Substitute(substitution),
                         Ref = element.Ref?.Substitute(substitution),
                         FormName = element.FormName?.Substitute(substitution),
+                        CssScope = currentScope,
                     };
                 }
 
@@ -276,6 +292,8 @@ internal static class ViewPartExpander
                         activeMethodStack,
                         registry,
                         generatedTypeInheritanceKeys,
+                        cssScopes,
+                        currentScope,
                         diagnostics);
                     if (content is null)
                         return null;
@@ -294,7 +312,8 @@ internal static class ViewPartExpander
                 {
                     if (ExpandChildren(
                             fragment.Children, substitution, ref nextLogicalPreorderOrdinal,
-                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics)
+                            activeMethodStack, registry, generatedTypeInheritanceKeys,
+                            cssScopes, currentScope, diagnostics)
                         is not { } children)
                     {
                         return null;
@@ -311,6 +330,8 @@ internal static class ViewPartExpander
                     activeMethodStack,
                     registry,
                     generatedTypeInheritanceKeys,
+                    cssScopes,
+                    currentScope,
                     diagnostics);
 
             case ContentHoleTemplateNode hole:
@@ -343,6 +364,8 @@ internal static class ViewPartExpander
                         content.ActiveMethodStack,
                         registry,
                         generatedTypeInheritanceKeys,
+                        cssScopes,
+                        content.CssScope,
                         diagnostics);
                 }
 
@@ -362,6 +385,8 @@ internal static class ViewPartExpander
         ImmutableArray<string> activeMethodStack,
         ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys,
+        CssScopeRegistry cssScopes,
+        string? currentScope,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var expanded = ImmutableArray.CreateBuilder<RenderNode>(children.Length);
@@ -369,7 +394,7 @@ internal static class ViewPartExpander
         {
             var expandedChild = ExpandNode(
                 child, substitution, ref nextLogicalPreorderOrdinal,
-                activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
+                activeMethodStack, registry, generatedTypeInheritanceKeys, cssScopes, currentScope, diagnostics);
             if (expandedChild is null)
                 return null;
             expanded.Add(expandedChild);
@@ -385,6 +410,8 @@ internal static class ViewPartExpander
         ImmutableArray<string> activeMethodStack,
         ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys,
+        CssScopeRegistry cssScopes,
+        string? currentScope,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var methodKey = call.MethodKey;
@@ -463,7 +490,7 @@ internal static class ViewPartExpander
                 return null;
 
             innerArguments[contentArgument.ParameterOrdinal] = SubstitutedArgument.ForContent(
-                new ContentArgument(contentArgument.Content, substitution, activeMethodStack));
+                new ContentArgument(contentArgument.Content, substitution, activeMethodStack, currentScope));
         }
 
         // Emit the locals in source evaluation order (supplied arguments by source position, then implicit
@@ -502,6 +529,10 @@ internal static class ViewPartExpander
 
         var innerSubstitution = ImmutableArray.Create(innerArguments);
 
+        var calleeScope = cssScopes.TryGetScopeForComponentFile(entry.FilePath, out var scope)
+            ? scope
+            : null;
+
         var body = ExpandNode(
             definition.Body,
             innerSubstitution,
@@ -509,6 +540,8 @@ internal static class ViewPartExpander
             activeMethodStack.Add(methodKey),
             registry,
             generatedTypeInheritanceKeys,
+            cssScopes,
+            calleeScope,
             diagnostics);
         if (body is null)
             return null;

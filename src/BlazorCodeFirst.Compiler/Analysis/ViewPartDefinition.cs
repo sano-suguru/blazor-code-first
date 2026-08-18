@@ -77,8 +77,15 @@ internal sealed record ViewPartDefinition(
 /// set to <see langword="true"/> so expansion can distinguish an already-diagnosed source declaration
 /// from a metadata-only method that must report BCF1002 at the call site.
 /// </summary>
+/// <param name="FilePath">
+/// The declaring method's syntax tree file path, symbol-free. Present regardless of validity (even
+/// when <see cref="Definition"/> is <see langword="null"/>): a file that attempts a <c>[ViewPart]</c>
+/// declaration is not an orphaned <c>.cs.css</c> file just because the declaration itself is invalid,
+/// and expansion (<c>ViewPartExpander.ExpandCall</c>) reads this to resolve the callee's own scope.
+/// </param>
 internal sealed record ViewPartDefinitionEntry(
     string MethodKey,
     string DisplayName,
+    string FilePath,
     ViewPartDefinition? Definition,
     bool DeclarationDiagnosticReported);
