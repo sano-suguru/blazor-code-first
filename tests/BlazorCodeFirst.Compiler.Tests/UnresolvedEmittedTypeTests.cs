@@ -751,34 +751,6 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
-    /// The statement-removal mutant on <c>ScanDecoration</c>'s <c>Bind</c> <c>return;</c>: without it,
-    /// the tail <c>ReportValue(args.At(0))</c> reads the attribute name argument. <c>ReportBindArguments</c>
-    /// only ever reads from the getter onward, so correct code never reports on either name argument.
-    /// </summary>
-    /// <remarks>
-    /// The class remarks reason that a non-constant name is always <c>BCF3011</c>'s to report and clears
-    /// <c>recoverOwnValue</c> first — true when the normal walk's own <c>FactoryArguments.Bind</c>
-    /// succeeds and reaches that name check. It does not hold when the name argument is itself what
-    /// breaks <c>FactoryArguments.Bind</c>: an unselected-invocation sibling in the name (the same shape
-    /// used throughout this file) poisons the whole call's binding before the normal walk's constant check
-    /// ever runs, so <c>ShouldRecoverUnresolvedValue</c> stays true and <c>ScanDecoration</c> reaches this
-    /// branch with a non-constant, unresolved-carrying name — measured with a throwaway probe: with the
-    /// getter and setter both clean, correct code reports only <c>BCF1003</c>, and the mutant additionally
-    /// reports <c>BCF3015</c> on the name's own <c>Probe</c>.
-    /// </remarks>
-    /// <summary>
-    /// A single non-literal <c>params</c> child, bound through <c>BoundArguments.TryBindFallback</c>'s
-    /// syntactic route rather than <c>FactoryArguments</c>: the inner <c>.Class(...)</c> call's own broken
-    /// argument (the usual <c>MissingMethod()</c> sibling) poisons the outer indexer's
-    /// <c>FactoryArguments.Bind</c> too, so the fallback binder is what adds this child as a plain,
-    /// non-spread child expression and lets <c>ScanChildren</c> route it through
-    /// <c>ScanRenderExpression</c>. Kills both the statement-removal mutant on that
-    /// <c>paramsElements.Add(...)</c> call (the child is never added, so it is never scanned) and the
-    /// boolean mutant flipping its <c>IsSpread</c> argument to <see langword="true"/> (the child would be
-    /// routed to <c>ScanSplice</c> instead, which finds no <c>.Select</c> projection here and reports
-    /// nothing).
-    /// </summary>
-    /// <summary>
     /// Two non-literal <c>params</c> children (not the single collection-expression-literal shape
     /// <c>FactoryArguments</c> handles), bound through <c>BoundArguments.TryBindFallback</c>'s syntactic
     /// route: a second broken child beside the reportable one is what makes <c>FactoryArguments.Bind</c>
@@ -811,6 +783,22 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// The statement-removal mutant on <c>ScanDecoration</c>'s <c>Bind</c> <c>return;</c>: without it,
+    /// the tail <c>ReportValue(args.At(0))</c> reads the attribute name argument. <c>ReportBindArguments</c>
+    /// only ever reads from the getter onward, so correct code never reports on either name argument.
+    /// </summary>
+    /// <remarks>
+    /// The class remarks reason that a non-constant name is always <c>BCF3011</c>'s to report and clears
+    /// <c>recoverOwnValue</c> first — true when the normal walk's own <c>FactoryArguments.Bind</c>
+    /// succeeds and reaches that name check. It does not hold when the name argument is itself what
+    /// breaks <c>FactoryArguments.Bind</c>: an unselected-invocation sibling in the name (the same shape
+    /// used throughout this file) poisons the whole call's binding before the normal walk's constant check
+    /// ever runs, so <c>ShouldRecoverUnresolvedValue</c> stays true and <c>ScanDecoration</c> reaches this
+    /// branch with a non-constant, unresolved-carrying name — measured with a throwaway probe: with the
+    /// getter and setter both clean, correct code reports only <c>BCF1003</c>, and the mutant additionally
+    /// reports <c>BCF3015</c> on the name's own <c>Probe</c>.
+    /// </remarks>
     [Fact]
     public void BindNameSiblingOfUnselectedInvocation_UnresolvedType_DoesNotReportBCF3015()
     {
