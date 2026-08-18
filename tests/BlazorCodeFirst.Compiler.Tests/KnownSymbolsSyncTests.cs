@@ -409,7 +409,7 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>The number of distinct decoration names <c>BlazorCodeFirst.Decorations</c> declares.</summary>
-    private const int DecorationNameCount = 16;
+    private const int DecorationNameCount = 17;
 
     /// <summary>
     /// The distinct names of the public static extension methods <c>BlazorCodeFirst.Decorations</c> declares,

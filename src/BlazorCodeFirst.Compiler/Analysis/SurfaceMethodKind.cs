@@ -122,6 +122,14 @@ internal enum SurfaceMethodKind
     ComponentRef,
 
     /// <summary>
+    /// <c>Decorations.FormName(this ElementView, string)</c>. A non-attribute frame decoration that,
+    /// like <see cref="ComponentRenderMode"/>, consumes no sequence number but does stack a frame
+    /// (<c>ARCHITECTURE.md</c> §2.7(E)). The only one with no component counterpart in the other
+    /// direction: <c>AddNamedEvent</c> requires the current parent frame to be an element.
+    /// </summary>
+    FormName,
+
+    /// <summary>
     /// <c>Decorations.PreventDefault</c>, either overload. Unlike the three above it is an ordinary
     /// attribute frame: it lowers to an <c>AddAttribute</c> whose name carries the event it attaches to,
     /// so it lives inside the attribute range rather than after it (<c>ARCHITECTURE.md</c> §2.7).

@@ -339,6 +339,7 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.Bind
                 or SurfaceMethodKind.Key
                 or SurfaceMethodKind.Ref
+                or SurfaceMethodKind.FormName
                 or SurfaceMethodKind.PreventDefault
                 or SurfaceMethodKind.StopPropagation =>
                 ClassifyDecoration(invocation, method, kind, context),
@@ -1091,6 +1092,16 @@ internal static class RenderExpressionAnalyzer
             return ReportDuplicateFrameDecoration(decoAccess, element.Ref, context)
                 ? null
                 : element with { Ref = ExpressionTemplateFactory.Create(firstArg.Expression, context) };
+        }
+
+        if (kind == SurfaceMethodKind.FormName)
+        {
+            return ReportDuplicateFrameDecoration(decoAccess, element.FormName, context)
+                ? null
+                : element with
+                {
+                    FormName = ExpressionTemplateFactory.Create(firstArg.Expression, context),
+                };
         }
 
         // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an
