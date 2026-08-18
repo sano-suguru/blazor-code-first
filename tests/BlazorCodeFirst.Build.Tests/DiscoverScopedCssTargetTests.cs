@@ -51,8 +51,14 @@ public sealed class DiscoverScopedCssTargetTests : IDisposable
         var propsPath = Path.Combine(repoRoot, "src", "BlazorCodeFirst.Build", "build", "BlazorCodeFirst.props");
         var targetsPath = Path.Combine(repoRoot, "src", "BlazorCodeFirst.Build", "build", "BlazorCodeFirst.targets");
 
+        // Microsoft.NET.Sdk.Razor, not the plain SDK: BcfDiscoverScopedCss now also runs
+        // BcfRegisterScopedCssStaticWebAssets (Task 5), which calls the StaticWebAssets SDK's own
+        // DefineStaticWebAssets task. That task is only registered under an SDK that imports
+        // Microsoft.NET.Sdk.StaticWebAssets -- true of every real BCF consumer (Blazor projects all
+        // pull it in transitively), so this fixture now matches that baseline instead of the plain
+        // SDK it started with.
         var projectXml = $"""
-            <Project Sdk="Microsoft.NET.Sdk">
+            <Project Sdk="Microsoft.NET.Sdk.Razor">
               <PropertyGroup>
                 <TargetFramework>net10.0</TargetFramework>
                 <AssemblyName>App</AssemblyName>
