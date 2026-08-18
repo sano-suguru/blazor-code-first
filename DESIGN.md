@@ -218,12 +218,12 @@ public partial class TaskListPage : BodyComponentBase
 
 ### 4.3 Splitting and reusing components
 
-UIの部分は `[ViewPart]` 属性を付与した静的メソッドに抽出できます。Source Generatorはこれらも解析し、実行時に呼び出す代わりに、呼び出しサイトへ静的に展開します。
+A piece of UI can be extracted into a static method carrying the `[ViewPart]` attribute. The Source Generator parses these too, and instead of calling them at run time, statically expands them at the call site.
 
 ```csharp
 protected override View Body =>
     Div[
-        AppHeader("My Application"),   // [ViewPart] メソッド。静的展開の対象
+        AppHeader("My Application"),   // a [ViewPart] method, subject to static expansion
         BodyContent()];
 
 [ViewPart]
@@ -232,48 +232,48 @@ private static View AppHeader(string title) =>
         Span[title]];
 ```
 
-コンテンツを包む部品は、戻り値を `SlotView` と宣言し、本体で `Slot` を書きます。呼び出し側はコンテンツを角括弧で与えます(2026-08-10決定、#176)。
+A part that wraps content declares its return type as `SlotView`, and writes `Slot` in its body; the caller gives content through brackets (decided 2026-08-10, #176).
 
 ```csharp
 protected override View Body =>
     Div[
-        Card("Profile")[P["本文"]],        // 自作。組み込み要素と同じ顔をしている
+        Card("Profile")[P["Body text"]],   // hand-written, wearing the same face as a built-in element
         Section.Class("body")[P["…"]]];
 
 [ViewPart]
 private static SlotView Card(string title) =>
     Div.Class("card")[
         H2[title],
-        Slot];                             // 呼び出し側のコンテンツがここに入る
+        Slot];                             // the caller's content lands here
 ```
 
-角括弧を選んだ理由は綴りの好みではありません。読んだHTML DSL 5つ(Giraffe.ViewEngine / Falco.Markup / Feliz.ViewEngine / Oxpecker.ViewEngine / Razor)は、いずれも同一の規則を適用しています。自作部品は、組み込み要素が子を取る形と同じ形で子を取る。Falcoはこれを明文化しており、componentは標準要素と同じ関数の *shape*、すなわち `XmlAttribute list -> XmlNode list -> XmlNode` を保つべきだと述べます。前3者が位置引数なのは位置引数が正しいからではなく、それらの組み込み要素が位置引数の関数だからです。子の構文が独自の構成物である唯一の系譜がOxpeckerです。そのCEメンバーは具体型ではなく `HtmlContainer` インターフェースの型拡張として定義されるため、`{ }` はユーザー関数の戻り値にも付きます。同じ規則をこの表層に適用すると、組み込み要素の子が `[…]` である以上、部品の子も `[…]` になります。
+The reason brackets were chosen is not a spelling preference. All five surveyed HTML DSLs (Giraffe.ViewEngine / Falco.Markup / Feliz.ViewEngine / Oxpecker.ViewEngine / Razor) apply the same rule: a hand-written part takes children in the same shape a built-in element does. Falco states this explicitly, saying a component should preserve the same function *shape* as a standard element — `XmlAttribute list -> XmlNode list -> XmlNode`. The first three take positional arguments not because positional is correct, but because their built-in elements are positional-argument functions. Oxpecker is the one lineage whose child syntax is its own construct: its CE members are defined not on a concrete type but as a type extension of the `HtmlContainer` interface, so `{ }` attaches to a user function's return value too. Applying the same rule to this surface: since a built-in element's children go in `[…]`, a part's children go in `[…]` too.
 
-追加のスロットは通常の `View` パラメータです。`Panel(H2["題"])[P["本文"]]` のように、名前付きチャネルが前、主たるコンテンツが角括弧です。この形は、`Div.Class("card")[children]` と `Component<T>().Template(…)[…]` でこの表層が既に持っているものをそのまま使います。Blazor本家も同じ非対称を持ち(暗黙の `ChildContent` は素のマークアップ、追加テンプレートはパラメータ名と同名の子要素)、Oxpeckerも同じです。1スロットと複数スロットで呼び出しサイトの見た目が変わることは、この領域が実際に収束した形であって一貫性の破れではありません。
+An additional slot is an ordinary `View` parameter. As in `Panel(H2["Title"])[P["Body text"]]`, the named channel comes first and the primary content goes in brackets. This shape reuses exactly what this surface already carries in `Div.Class("card")[children]` and `Component<T>().Template(…)[…]`. Blazor's own framework carries the same asymmetry (the implicit `ChildContent` is plain markup, while an additional template is a child element named after its parameter), and so does Oxpecker. That the call site looks different for a single slot versus multiple slots is a shape this area has actually converged on, not an inconsistency.
 
-マーカー型に名前付きチャネルを置く形(`Panel().Slot("header", H2["題"])[P["本文"]]`)は採りませんでした。`Component<T>` が型付きセレクタを使っているところへ、スロット名を文字列として持ち込むことになります。さらに未知名・重複名・欠落という3つの診断が必要になり、位置引数ならC#のオーバーロード解決が無償で与えるものを作り直すことになります。再検討には、位置引数では担えない事例が要ります。
+Placing a named channel on the marker type (`Panel().Slot("header", H2["Title"])[P["Body text"]]`) was not adopted: it would introduce slot names as strings into a place where `Component<T>` uses typed selectors, and would additionally need three diagnostics — unknown name, duplicate name, missing — rebuilding, for a positional argument, what C#'s overload resolution already gives for free. Reconsidering it needs a case a positional argument cannot carry.
 
-`SlotView` が `View` への変換を持たないことが、この表層の規則を診断ではなく型で閉じている点です。角括弧の書き忘れ(`Div[Card("x")]`)、装飾(`Card("t").Class("x")`)、#176が退けた位置引数の綴り(`Card("t", P["本文"])`)はいずれもC#が先に拒否します。新設が必要な診断はBCF3025だけです。これが担うのは型システムに見えないもの、すなわち受け取るコンテンツが無い場所に書かれた `Slot` と、`SlotView` を返す部品が `Slot` を1回以外書いている場合です。角括弧を `View` 自身に持たせて戻り値型を1つに統一する案は、この配分を診断の側へ寄せ替えることになるため採っていません(`ARCHITECTURE.md` 付録B.9)。`View` パラメータは通常のパラメータであるため参照回数は自由ですが、捕獲も共有もせず参照ごとに呼び出し側の部分木を展開するため、副作用のある引数は参照回数だけ実行されます(`RenderFragment` を2回書いた場合と同じ挙動)。
+That `SlotView` has no conversion to `View` is what closes this surface's rule by type rather than by diagnostic. A forgotten bracket (`Div[Card("x")]`), a decoration (`Card("t").Class("x")`), and the positional-argument spelling #176 rejected (`Card("t", P["Body text"])`) are all rejected by C# first. The only diagnostic that needed to be newly introduced is BCF3025, which handles what the type system cannot see: a `Slot` written somewhere with no content to receive, and a part returning `SlotView` that writes `Slot` a number of times other than once. Giving `View` itself a bracket and unifying to one return type was not adopted, since it would shift this division of labor over to diagnostics instead (`ARCHITECTURE.md`'s 付録B.9). A `View` parameter is an ordinary parameter, so it may be referenced any number of times; it neither captures nor shares, expanding the caller's subtree fresh at each reference, so an argument with a side effect runs once per reference (the same behavior as writing a `RenderFragment` twice).
 
-`[ViewPart]` の付かないメソッドが `View` を返す場合、Source Generatorはその内部を解析できません。そのメソッドは実行時に評価される動的コンテンツとして扱われます(戻り値の `View` に `RenderFragment` を内包させる形式。§5.3)。
+When a method with no `[ViewPart]` returns `View`, the Source Generator cannot analyze its inside, and the method is treated as dynamic content evaluated at run time (the form where the returned `View` wraps a `RenderFragment`; §5.3).
 
-属性を要さず、`View` を返す静的メソッドを自動的に展開対象とする案は採っていません(2026-08-11決定、`ARCHITECTURE.md` 付録B.11)。属性は呼び出しサイトごとではなく宣言ごとに1つであり、それが表明しているのは「この宣言は展開されるつもりだ」ということです。表明があるから、展開の契約を満たさない宣言に対してBCF1002が宣言の位置で報告できます。自動適用はこの表明を消し、代わりに2つのうちどちらかを選ぶことになります。契約を満たさない宣言を黙って動的経路へ落とすか、§5.3が意図して残している解析不能な経路の綴りごと拒否するかです。属性の付け忘れ自体は実在の事故であり、それには呼び出しサイトのBCF3030が答えます(#260)。付け忘れた宣言から作られる `View` は実行時に空であり、落ちるのは性能ではなく出力そのものだからです。
+Automatically treating any attribute-less static method that returns `View` as subject to expansion was not adopted (decided 2026-08-11, `ARCHITECTURE.md`'s 付録B.11). The attribute is paid once per declaration, not per call site, and it declares "this declaration is meant to expand." Because that declaration exists, BCF1002 can report at the declaration site when a declaration fails to meet the expansion contract. Automating it would remove that declaration and force a choice between two options instead: silently dropping a non-conforming declaration to the dynamic path, or rejecting the unanalyzable-path spelling §5.3 deliberately preserves, spelling and all. The forgotten-attribute accident itself is real, and the answer is BCF3030 at the call site (#260): a `View` built from a forgotten declaration is empty at run time, and what drops is not performance but the output itself.
 
-`[ViewPart]` は拡張メンバーとして宣言できません(2026-08-09決定、#203)。古典的な `this` パラメータ(`static View Label(this string value)`)と C# 14 の `extension` ブロック内のメンバーの双方がBCF1002です。本節が与える呼び出しの綴りは `AppHeader("My Application")` という素の呼び出しだけであり、後置の `.Foo(...)` チェーンは §4.1 のとおり要素への装飾に予約されています。退けた理由の全体は `ARCHITECTURE.md` 付録B.17 にあります。
+`[ViewPart]` cannot be declared as an extension member (decided 2026-08-09, #203). Both a classic `this` parameter (`static View Label(this string value)`) and a member inside a C# 14 `extension` block are BCF1002. The only call spelling this section gives is the plain call, `AppHeader("My Application")` — a trailing `.Foo(...)` chain is, per §4.1, reserved for decorating an element. The full reasoning behind this rejection is in `ARCHITECTURE.md`'s 付録B.17.
 
-静的展開は宣言のソース構文を必要とするため、呼び出しサイトが宣言と同一のコンパイル内にある場合にのみ成立します。定義は現コンパイルの構文から収集され、ILは本体構文を持たないため、参照先プロジェクトやNuGetパッケージの `[ViewPart]` は呼び出しサイトでBCF1002となります(`ARCHITECTURE.md` 付録A)。アセンブリを越えて再利用する部品はコンポーネントにし、`Component<T>()`(§6.2)または `.razor` からのタグ(§6.1)で使います。
+Static expansion needs the declaration's source syntax, so it only works when the call site is in the same compilation as the declaration. A definition is collected from the current compilation's own syntax, and since IL carries no body syntax, a `[ViewPart]` in a referenced project or NuGet package becomes BCF1002 at the call site (`ARCHITECTURE.md`'s Appendix A). A part meant for reuse across an assembly boundary should be a component instead, used via `Component<T>()` (§6.2) or as a tag from `.razor` (§6.1).
 
-本方式の要となる変換は4つあります。装飾チェーンの畳み込み、`ForEach` のキー整合、`[ViewPart]` の静的インライン展開、静的サブツリーの畳み込みです。それぞれについて「どの入力を、どの生成コードに変えるか」を `ARCHITECTURE.md` §2.7 が入出力例として定義しています。
+Four transforms are central to this design: folding a decoration chain, `ForEach`'s key matching, `[ViewPart]`'s static inline expansion, and folding a static subtree. `ARCHITECTURE.md` §2.7 defines, for each, exactly which input turns into which generated code, as input/output examples.
 
 ---
 
-## 5. アーキテクチャと内部実装
+## 5. Architecture and internal implementation
 
-### 5.1 コンパイルモデル: Bodyからレンダリングメソッドへ
+### 5.1 The compilation model: from Body to a rendering method
 
-Source Generatorは各コンポーネントの `Body`(および到達可能な `[ViewPart]` メソッド)の式ツリーを解析し、静的シーケンス番号を定数として埋め込んだレンダリングメソッドを同一partialクラスへ生成します。
+The Source Generator parses each component's `Body` (and any reachable `[ViewPart]` method) expression tree, and generates, into the same partial class, a rendering method with static sequence numbers embedded as constants.
 
-§4.1の `CounterPage` から生成されるコードの概念形:
+Conceptual shape of the code generated from §4.1's `CounterPage`:
 
 ```csharp
 // <auto-generated/> CounterPage.g.cs
@@ -284,11 +284,11 @@ public partial class CounterPage
         __b.OpenElement(0, "div");                                    // Div + .Class
         __b.AddAttribute(1, "class", "counter");
         __b.OpenElement(2, "span");                                   // Span (mixed content)
-        __b.AddContent(3, $"Count: {_count}");                        // 状態参照は構文ごと移植
+        __b.AddContent(3, $"Count: {_count}");                        // a state reference, transplanted whole as syntax
         __b.CloseElement();
         __b.OpenElement(4, "button");                                 // Button + .OnClick
         __b.AddAttribute(5, "onclick",
-            EventCallback.Factory.Create(this, () => _count++));      // ラムダも移植
+            EventCallback.Factory.Create(this, () => _count++));      // a lambda, transplanted too
         __b.AddContent(6, "Increment");
         __b.CloseElement();
         __b.OpenElement(7, "button");
@@ -301,60 +301,60 @@ public partial class CounterPage
 }
 ```
 
-基底クラスとの接続は次の形をとります。
+The connection to the base class takes the following shape.
 
 ```csharp
 public abstract class BodyComponentBase : ComponentBase
 {
-    protected abstract View Body { get; }          // 設計時のソース・オブ・トゥルース
-    protected abstract void RenderView(RenderTreeBuilder builder);   // SGが実装を生成
+    protected abstract View Body { get; }          // the design-time source of truth
+    protected abstract void RenderView(RenderTreeBuilder builder);   // the SG generates the implementation
 
     protected sealed override void BuildRenderTree(RenderTreeBuilder builder)
         => RenderView(builder);
 }
 ```
 
-`Body` は実行時に一度も呼び出されません。レイアウトの `ChromeLayoutBase.Chrome` も同じ形の設計時ゲッターであり、同じ扱いを受けます。設計時APIの実体は、いずれも既定値を返す慣性(inert)実装です。ここでいう設計時APIとは、`Html` と `Decorations` の全メンバー、および設計時慣性型 `View` / `ComponentView<T>` / `ElementView` の全メンバーです。万一評価されても副作用はなく、AOTビルドではILトリマーにより除去されます。除去は `System.Reflection.Metadata` によるMethodDef不在をもって確認できる設計であり、その確認手段はトリムテストが担います。
+`Body` is never called at run time, not even once. A layout's `ChromeLayoutBase.Chrome` is a design-time getter of the same shape, and receives the same treatment. Every instance of the design-time API is an inert implementation that returns a default value — the design-time API here means every member of `Html` and `Decorations`, and every member of the design-time inert types `View` / `ComponentView<T>` / `ElementView`. Even if one were somehow evaluated, it would have no side effect, and the IL trimmer removes it in an AOT build. The design is verifiable by confirming, via `System.Reflection.Metadata`, that no MethodDef remains; the trim tests carry out that verification.
 
-### 5.2 シーケンス番号の静的確定
+### 5.2 Statically settling the sequence number
 
-Blazorの差分検知は、シーケンス番号がコンパイル時に静的確定していることを前提とします。ランタイムでの動的インクリメントは、要素の挿入・削除時にDiffingアルゴリズムを誤認させ、サブツリーの不要な破棄・再生成とコンポーネント状態の消失を引き起こします。
+Blazor's diff detection assumes a sequence number is settled statically at compile time. A runtime dynamic increment misleads the diffing algorithm on an element insertion or deletion, causing an unnecessary discard-and-regenerate of the subtree and losing component state.
 
-本方式では、Source Generatorが式ツリーを深さ優先で走査し、各ノードに一意のシーケンス区間を割り当てて生成コードへ定数として埋め込むため、この前提は構造的に満たされます。Razorコンパイラがマークアップに対して行っていることを、C#式に対して行うだけです。割当アルゴリズムの形式定義は `ARCHITECTURE.md` §2を参照してください。
+This approach satisfies that assumption structurally: the Source Generator walks the expression tree depth-first, assigns each node a unique sequence range, and embeds it into the generated code as a constant. It does no more than what the Razor compiler already does for markup — done here for a C# expression instead. See `ARCHITECTURE.md` §2 for the formal definition of the assignment algorithm.
 
-### 5.3 静的解析可能サブセット(SSC)と動的リージョン
+### 5.3 The statically analyzable subset (SSC) and the dynamic region
 
-任意のC#コードに対して静的シーケンス割当は成立しないため、解析の適用範囲を明示的に定義します。
+Static sequence assignment cannot hold for arbitrary C# code, so the scope of the analysis is explicitly defined.
 
-SSCの内側にあるのは次の2つで、いずれも完全な静的割当の対象です。`Body` および `[ViewPart]` メソッド内の要素ヘルパー/装飾/コンビネータの直接記述と、`Component<T>()`・`Fragment`・`Raw` の直接呼び出し(インラインラムダを含む)です。SSCの外側は次の2通りに扱われます。
+SSC's interior holds two things, both subject to full static assignment: direct writing of an element helper/decoration/combinator inside a `Body` or `[ViewPart]` method, and a direct call to `Component<T>()`, `Fragment`, or `Raw` (including an inline lambda). Outside SSC, one of two treatments applies.
 
-移植可能な構文(ネイティブ `if` / `foreach` / `switch` 等)は、生成コードへそのまま移植された上で、境界に静的シーケンスを持つリージョン(`OpenRegion` / `CloseRegion`)で包まれます。リージョンはシーケンス空間を分離するため、内部の動的性が外部のDiffingへ波及することはありません。
+Transplantable syntax (a native `if` / `foreach` / `switch`, and so on) is transplanted whole into the generated code, and wrapped in a region (`OpenRegion` / `CloseRegion`) whose boundary carries a static sequence. Because a region isolates its sequence space, its internal dynamism never propagates out into the surrounding diffing.
 
-解析不能な呼び出しは、実行時に評価され、戻り値の `View` に内包された `RenderFragment` がリージョン内で描画されます。この経路のみ通常のヒープ割り当てが発生します。ただし `View` にフラグメントを入れる綴りは `RenderFragment` からの暗黙変換だけであり、設計時APIから組まれた `View` は実行時に空です。したがって `[ViewPart]` の付かない `View` 返却メソッドは、そのソース宣言が現コンパイルにある限りBCF3030 で止まります。この経路に残るのは、設計時APIを使わない本体と、宣言の読めない呼び出しです(`ARCHITECTURE.md` 付録A、付録B.11)。
+An unanalyzable call is evaluated at run time, and the `RenderFragment` its returned `View` wraps is drawn inside a region. Only this path allocates on the heap normally. The only spelling that puts a fragment into a `View`, though, is an implicit conversion from `RenderFragment`, and a `View` built from the design-time API is empty at run time — so a `View`-returning method with no `[ViewPart]` is stopped by BCF3030, as long as its source declaration is in the current compilation. What remains on this path is a body that never uses the design-time API, and a call whose declaration cannot be read (`ARCHITECTURE.md`'s Appendix A, 付録B.11).
 
-いずれの場合も正確性は保たれ、失われるのは該当領域の静的最適化のみです。生成器は情報診断BCF2001で最適化機会の喪失を通知します。
+In every case, correctness is preserved, and what is lost is only static optimization for that region. The generator notifies the loss of an optimization opportunity via the informational diagnostic BCF2001.
 
-アナライザーは現行実装では `Body` 本体での状態変更(インスタンスフィールド/プロパティへの代入、複合代入、インクリメント/デクリメント等の直接書き込み)をエラー診断BCF3001で検出します。`Body` は純粋な状態→UIの射影でなければならず、状態遷移はイベントハンドラに委ねる必要があります。なお、`Button` のonClickラムダ(遅延イベントハンドラ)はレンダリング後に実行されるため除外されます。メソッド呼び出し経由の副作用など任意の解析不能パスの完全な検出は保証しません。`[ViewPart]` 本体への適用は将来拡張の候補であり、この初期実装の保証範囲には含めません。
+In the current implementation, the analyzer detects a state mutation inside a `Body` body (a direct write — assignment, compound assignment, increment/decrement — to an instance field/property) as the error diagnostic BCF3001. `Body` must be a pure state-to-UI projection, with state transitions left to event handlers. A `Button`'s onClick lambda (a deferred event handler), though, is excluded, since it runs only after rendering. Complete detection of an arbitrary unanalyzable path, such as a side effect reached through a method call, is not guaranteed. Applying this to a `[ViewPart]` body is a candidate for future extension, and is not part of this initial implementation's guaranteed scope.
 
-Razorに同等の検査が無いことは、この診断を持たない理由になりません。Razor側にあるのは判断ではなく検査の不在であり、Blazorが同梱する `Microsoft.AspNetCore.Components.Analyzers` はレンダリングの純粋性を見ません。同じ問題に対して他の宣言的UIは検査する側に寄っています(Svelte 5は実行時エラー、Flutterはdebugアサーション、React Compilerはlint)。加えてこの表層では事情が悪い方に振れます。生成器は `Body` を写すのではなく変換します。静的サブツリーのmarkupへの畳み込み、シーケンス番号の静的割当、排他分岐の分離リージョンです(§5.1、§5.2、`ARCHITECTURE.md` §2.4–§2.7)。これらが健全なのは `Body` が状態の純粋な関数である限りであり、副作用を含む `Body` がこれらの変換に対して不変である保証はこの設計のどこにもありません。Razorでは作者が自分の書いたマークアップを読めますが、ここで実際に走るのは生成された `RenderView` であり、作者はそれを読みません。見えない出力を生む経路では、警告は手書きコードより弱い担保になります。
+That Razor carries no equivalent check is not a reason for this surface to lack this diagnostic. What sits on Razor's side is not a judgment but the absence of a check — the `Microsoft.AspNetCore.Components.Analyzers` Blazor bundles never looks at rendering purity. Other declarative UI facing the same problem leans toward checking it (Svelte 5 with a runtime error, Flutter with a debug assertion, the React Compiler with a lint). On top of that, the situation tilts worse on this surface: the generator does not copy `Body`, it transforms it — folding a static subtree into markup, statically assigning sequence numbers, isolating an exclusive branch into its own region (§5.1, §5.2, `ARCHITECTURE.md` §2.4–§2.7). These stay sound only as long as `Body` is a pure function of state, and nothing in this design guarantees that a `Body` carrying a side effect is invariant under these transforms. In Razor, the author can read the markup they themselves wrote; here, what actually runs is the generated `RenderView`, and the author never reads it. On a path that produces invisible output, a warning is a weaker guarantee than hand-written code.
 
-一方で柵は意図的に狭く、前段の通りメソッド越しの変更は報告しません。したがってこの診断が止めるのは事故であり、意図した副作用は呼び出しを1つ挟めば通ります(`Span[NextLabel()]`)。純粋性の証明ではなく較正としてこの範囲を選んでいます。診断が事故を止め、意図は表明の形を取る、という配分です。
+The fence is deliberately narrow, though, and as stated above never reports a mutation that goes through a method call — this diagnostic stops accidents, and a deliberate side effect still passes if wrapped in one call (`Span[NextLabel()]`). This scope was chosen as calibration, not as proof of purity: the division of labor is that the diagnostic stops accidents, and intent takes the shape of a declaration.
 
-### 5.4 Hot Reload戦略
+### 5.4 Hot Reload strategy
 
-`Body` 式の編集は、Source Generatorが再生成する `RenderView` のメソッド本体の変更として現れます。メソッド本体の差し替えは、.NET Hot Reload(Edit and Continue)が安定してサポートする編集クラスです。`[ViewPart]` メソッドの追加も「既存型へのメンバー追加」であり、サポート範囲内です。さらにBlazorには、Razor用の `MetadataUpdateHandler` によるコード更新後の再レンダリング経路が既に存在します。BlazorCodeFirstのコンポーネントは通常の `ComponentBase` 派生+通常の生成メソッドであるため、この既存経路にそのまま乗ります。独自のリロード機構は必要ありません。
+Editing a `Body` expression appears as a change to the method body of the `RenderView` the Source Generator regenerates. A method-body swap is an edit class .NET Hot Reload (Edit and Continue) supports stably. Adding a `[ViewPart]` method is also "a member addition to an existing type," within the supported range. Blazor also already has a re-render-after-code-update path for Razor, via `MetadataUpdateHandler`. Because a BlazorCodeFirst component is an ordinary `ComponentBase`-derived type plus an ordinary generated method, it rides this existing path as-is — no dedicated reload mechanism is needed.
 
-挙動は次のように仕様化します。要素を `Body` の途中へ挿入する編集では、後続ノードのシーケンス番号が再割当されます。リロード直後の初回レンダリングで、そのコンポーネントのDOMサブツリーが再構築されます。コンポーネントのフィールド状態は保持され、入力中のフォーカス等のDOMローカル状態は失われえます。これはRazorファイル編集時と同じ意味論です。
+The behavior is specified as follows. An edit that inserts an element partway through `Body` reassigns the sequence numbers of the nodes that follow. On the first render immediately after a reload, that component's DOM subtree is rebuilt: the component's field state survives, while DOM-local state — in-progress focus, and so on — can be lost. This is the same semantics as editing a Razor file.
 
-本設計が依存する唯一のBlazor標準外の前提は、編集セッション中にサードパーティSource Generatorが再実行され、生成コードの更新がEnCへ渡ることです。ここはVisual Studio / `dotnet watch` / Riderで挙動差が生じうるツーリング領域であり、環境ごとの確認を要します。特定環境で再実行が反映されない場合に備えた開発時フォールバック(DEBUGビルド限定の解釈モード)は `ARCHITECTURE.md` 付録Cに代替案として記載しています。
+The one assumption this design depends on outside the Blazor standard is that a third-party Source Generator re-runs during an edit session and its updated generated code is carried through to EnC. This is tooling territory where behavior can differ across Visual Studio / `dotnet watch` / Rider, and needs confirmation per environment. A development-time fallback for a specific environment found not to carry a re-run through (a DEBUG-build-only interpreted mode) is recorded as an alternative in `ARCHITECTURE.md`'s Appendix C.
 
 ---
 
-## 6. 既存Blazorエコシステムとの双方向互換性
+## 6. Two-way compatibility with the existing Blazor ecosystem
 
-BlazorCodeFirstは独自の閉じた世界を作りません。既存のRazorコンポーネント(`.razor`)やライブラリ(MudBlazor、QuickGrid等)をそのまま再利用できます。
+BlazorCodeFirst does not build its own closed world. An existing Razor component (`.razor`) or library (MudBlazor, QuickGrid, and so on) can be reused as-is.
 
-### 6.1 Razorの中でBlazorCodeFirstを使う
+### 6.1 Using BlazorCodeFirst inside Razor
 
 BlazorCodeFirstのコンポーネントは通常のBlazorコンポーネントです。基底型が `BodyComponentBase` であることと、レンダリングメソッドをSource Generatorが生成することを除けば、Blazorから見た姿は手書きのC#コンポーネントと変わりません。したがって既存の `.razor` からは、通常どおりタグとして名指せます。
 
