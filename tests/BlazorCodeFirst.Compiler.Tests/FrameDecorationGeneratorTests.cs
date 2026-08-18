@@ -406,6 +406,156 @@ public sealed class FrameDecorationGeneratorTests
         Assert.Contains(diagnostics, d => d.Id == "BCF3033");
     }
 
+    [Fact]
+    public void FormName_OnElement_IsEmittedAfterTheAttributesAndConsumesNoSequence()
+    {
+        var result = CompilationTestHost.RunGenerator(Body(
+            """Html.Form.Class("f").FormName("save")["x"]"""));
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenElement(0, \"form\")", generated);
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"f\")", generated);
+        Assert.Contains("__builder.AddNamedEvent(\"onsubmit\", \"save\")", generated);
+
+        // Unlike AddElementReferenceCapture this one takes no number: the child keeps seq 2, not 3.
+        Assert.Contains("__builder.AddContent(2, \"x\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void FormName_OnElement_ComesBeforeTheChildren()
+    {
+        // A dynamic child, so it stays a frame of its own rather than folding into markup: what this
+        // fixes is the order of two frames, which a fold would remove one of (mirrors
+        // Ref_OnElement_ComesBeforeTheChildren above).
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private string _text => "x";
+                protected override View Body => Html.Form.FormName("save")[Html.Span[_text]];
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        var namedEventAt = generated.IndexOf("AddNamedEvent(", System.StringComparison.Ordinal);
+        var childAt = generated.IndexOf("OpenElement(1", System.StringComparison.Ordinal);
+        Assert.True(namedEventAt >= 0 && childAt > namedEventAt, "the named event must precede the children");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void FormName_AndRef_TogetherEmitFormNameFirst()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public partial class C : BodyComponentBase
+            {
+                private ElementReference _form;
+                protected override View Body =>
+                    Html.Form.FormName("save").Ref(r => _form = r)["x"];
+            }
+            """);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        var namedEventAt = generated.IndexOf("AddNamedEvent(", System.StringComparison.Ordinal);
+        var captureAt = generated.IndexOf("AddElementReferenceCapture(", System.StringComparison.Ordinal);
+        Assert.True(namedEventAt >= 0 && captureAt > namedEventAt, "FormName must come before Ref");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void FormName_OnAnOtherwiseConstantElement_StopsTheFold()
+    {
+        var named = CompilationTestHost.RunGenerator(Body(
+            """Html.Form.FormName("save")[Html.Span["x"]]"""));
+        var generated = Assert.Single(named.GeneratedSources).SourceText.ToString();
+
+        // Every value here is constant, so without FormName this whole subtree would collapse into one
+        // AddMarkupContent frame. AddNamedEvent has no markup spelling, so the element path has to stay.
+        Assert.Contains("__builder.OpenElement(0, \"form\")", generated);
+        Assert.Contains("__builder.AddNamedEvent(\"onsubmit\", \"save\")", generated);
+        CompilationTestHost.AssertOutputCompiles(named);
+
+        var unnamed = CompilationTestHost.RunGenerator(Body("""Html.Form[Html.Span["x"]]"""));
+        Assert.Contains(
+            "__builder.AddMarkupContent(0,",
+            Assert.Single(unnamed.GeneratedSources).SourceText.ToString());
+    }
+
+    [Fact]
+    public void SecondFormName_ReportsBCF3033()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Form.FormName("a").FormName("b")["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3033");
+    }
+
+    [Fact]
+    public void FormName_WrittenAsLiteralNull_ReportsBCF3039()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Form.FormName(null!)["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3039");
+    }
+
+    [Fact]
+    public void FormName_WrittenAsEmptyStringLiteral_ReportsBCF3039()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Form.FormName("")["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3039");
+    }
+
+    [Fact]
+    public void FormName_WrittenAsNonConstantExpression_IsAccepted()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private string _name = "save";
+                protected override View Body => Html.Form.FormName(_name)["x"];
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3039");
+        Assert.Contains(
+            "__builder.AddNamedEvent(\"onsubmit\", _name)",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void FormName_OnANonFormElement_ReportsBCF3040()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Div.FormName("save")["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3040");
+    }
+
+    [Fact]
+    public void FormName_OnAFormElement_DoesNotReportBCF3040()
+    {
+        var result = CompilationTestHost.RunGenerator(Body(
+            """Html.Form.FormName("save")["x"]"""));
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3040");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

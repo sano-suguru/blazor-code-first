@@ -310,6 +310,25 @@ public static class DiagnosticExpectations
                 + "this fixture project references Microsoft.AspNetCore.Components.Web; since #396 a "
                 + "registration the compilation declares itself is read without it, and that path is "
                 + "pinned in-process rather than by a second fixture."),
+        new(
+            "BCF3039",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3039.cs",
+            "\"\"",
+            Note: "Anchors the empty string literal, which is what the author must delete or rewrite. The "
+                + "literal null shape is pinned in-process by "
+                + "FormName_WrittenAsLiteralNull_ReportsBCF3039, since a real build only needs one of the "
+                + "two shapes to prove the rule is reachable."),
+        new(
+            "BCF3040",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3040.cs",
+            "FormName",
+            Note: "Anchors the decoration's name, which is what the author deletes. The tag is not the "
+                + "mistake — Div is a legitimate element on its own, and .FormName is what has no effect "
+                + "on it."),
     ];
 
     /// <summary>

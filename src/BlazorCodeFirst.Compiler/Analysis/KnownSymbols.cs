@@ -872,6 +872,10 @@ internal sealed class KnownSymbols
                     // key straight off the argument (§2.7(E)).
                     case "Key": kind = SurfaceMethodKind.Key; break;
                     case "Ref": kind = SurfaceMethodKind.Ref; break;
+                    // Registered here for the same reason as Key: it stands for no attribute name, and the
+                    // decoration arm routes on the classification and reads the form name straight off the
+                    // argument (§2.7(E)).
+                    case "FormName": kind = SurfaceMethodKind.FormName; break;
                     // Both overloads of each land on one row, as the event shortcuts do: the decoration arm
                     // reads the value off the argument list and needs no per-overload symbol. Named here
                     // rather than in a shortcut table because neither stands for an attribute name the

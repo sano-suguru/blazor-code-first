@@ -521,6 +521,43 @@ public static class Decorations
         System.Action<Microsoft.AspNetCore.Components.ElementReference> capture) => element;
 
     /// <summary>
+    /// Design-time syntax naming this element's submitted form for static SSR round-tripping, which is
+    /// Razor's <c>@formname</c>: <paramref name="name"/> is what the framework matches an incoming POST
+    /// against to route it back to this render, via <c>RenderTreeBuilder.AddNamedEvent("onsubmit",
+    /// name)</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The event type is always the fixed string <c>"onsubmit"</c> — it is never derived from another
+    /// decoration on the chain (unlike an event modifier, §2.7(A)), and this surface exposes no way to
+    /// write a different one, matching both Razor's own compiled output and <c>EditForm</c>'s internal
+    /// use of <c>AddNamedEvent</c>. Writing <c>.FormName</c> with no <c>.On("onsubmit", …)</c> (or
+    /// <c>.Bind</c>-derived submit event) on the same element is not diagnosed: the framework accepts a
+    /// named form with no matching handler and silently does nothing on POST (measured against .NET 10
+    /// SSR).
+    /// </para>
+    /// <para>
+    /// Unlike <see cref="Key(ElementView, object?)"/> this appends a frame of its own, so it consumes no
+    /// sequence number but does stack a frame (§2.7(E)), and it is emitted after every attribute, event
+    /// and binding the element carries, before <see cref="Ref"/>. It stops the element folding into a
+    /// markup frame for the same reason a key does: markup has no spelling for a named event.
+    /// </para>
+    /// <para>
+    /// The name is not required to be a compile-time constant — any expression is accepted, the same as
+    /// <see cref="Key(ElementView, object?)"/> and <see cref="Ref"/>. A literal empty string or a literal
+    /// <see langword="null"/>, though, is rejected at compile time (BCF3039): the framework throws at run
+    /// time for either (measured), so a constant known to always throw is caught before it ships. Writing
+    /// this on an element whose tag is not the compile-time constant <c>"form"</c> is BCF3040:
+    /// <c>onsubmit</c> never fires natively outside a <c>&lt;form&gt;</c>, so the registration would
+    /// always be dead.
+    /// </para>
+    /// </remarks>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="name">The name a POST's <c>_handler</c> field must match to route back here.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView FormName(this ElementView element, string name) => element;
+
+    /// <summary>
     /// Design-time syntax making the preceding event call <c>preventDefault()</c> in the browser, which is
     /// Razor's <c>@onwheel:preventDefault</c>. It attaches to the event written before it on the same
     /// element, so <c>.On("onwheel", Zoom).PreventDefault()</c> modifies <c>onwheel</c>. A modifier with no

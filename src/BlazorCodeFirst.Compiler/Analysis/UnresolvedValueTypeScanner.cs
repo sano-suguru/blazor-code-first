@@ -121,6 +121,8 @@ internal static class UnresolvedValueTypeScanner
             // transplanted into generated code.
             case SurfaceMethodKind.Key:
             case SurfaceMethodKind.Ref:
+            // FormName reaches the same tail too: one value, no name argument, same as Key and Ref.
+            case SurfaceMethodKind.FormName:
             // The event modifiers reach the same tail for the same reason, and their valueless overload
             // needs nothing extra: the tail reads argument 0 through a null-conditional, so the spelling
             // that writes no argument reports nothing rather than throwing (#368).

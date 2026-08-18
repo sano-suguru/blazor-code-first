@@ -435,6 +435,32 @@ Drop the `.RenderMode` at the call site and let the component's own attribute ap
 genuinely has to vary by caller, remove the attribute from the component instead, and then every
 call site must name a mode.
 
+### BCF3039
+
+Error. `.FormName`'s argument is a literal empty string or `null`.
+
+```csharp
+Form.FormName("")["submit"]      // BCF3039
+Form.FormName("save")["submit"]  // what to write instead
+```
+
+`.FormName` lowers to `AddNamedEvent("onsubmit", name)`, and the framework throws at run time for
+either shape: `ArgumentException` for an empty name, `ArgumentNullException` for a null one. A
+runtime expression is not required to be a compile-time constant — only a literal known ahead of
+time to always throw is rejected here.
+
+### BCF3040
+
+Error. `.FormName` is written on an element whose tag is not `form`.
+
+```csharp
+Div.FormName("save")["submit"]    // BCF3040
+Form.FormName("save")["submit"]   // what to write instead
+```
+
+`.FormName` lowers to `AddNamedEvent("onsubmit", …)`, and `onsubmit` is a browser-native event that
+only ever fires on a `<form>` element. A registration on any other tag is never reached.
+
 ## Events
 
 ### BCF3019
