@@ -244,8 +244,15 @@ internal static class UnresolvedValueTypeScanner
 
         if (kind == SurfaceMethodKind.Bind)
         {
-            // The two name arguments are not value positions: a non-constant one is BCF3011's to
-            // report, and that rejection has already cleared recoverOwnValue by the time this runs.
+            // The two name arguments are not value positions, so this reads only from the getter
+            // onward and never reports on either name directly. A non-constant name is usually
+            // BCF3011's to report, with that rejection already clearing recoverOwnValue by the time
+            // this runs — but not always: an unselected-invocation sibling inside the name itself
+            // (the same shape used throughout this file) can poison the normal walk's own
+            // FactoryArguments.Bind before its constant check ever runs, leaving recoverOwnValue true
+            // with a non-constant name still in argument 0 (measured,
+            // BindNameSiblingOfUnselectedInvocation_UnresolvedType_DoesNotReportBCF3015). The name is
+            // still never read here either way.
             ReportBindArguments(method, args, context);
             return;
         }
