@@ -36,4 +36,25 @@ public class CssScopeEmissionTests
         Assert.DoesNotContain("bcf-", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
+
+    [Fact]
+    public void ScopedFoldableElement_EmbedsBareScopeAttributeInMarkupString()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => Html.Div["hello"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGeneratorWithCssScopes(
+            [("Counter.cs", source)], [("Counter.cs.css", "bcf-abcd1234")]);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains(
+            "__builder.AddMarkupContent(0, \"<div bcf-abcd1234>hello</div>\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
 }

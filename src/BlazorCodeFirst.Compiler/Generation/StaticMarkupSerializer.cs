@@ -192,6 +192,18 @@ internal static class StaticMarkupSerializer
             absorbed++;
         }
 
+        // What AddAttribute(seq, "bcf-xxxxxxxx") writes on the frame path (RenderViewEmitter), as a
+        // bare attribute in the folded markup string instead: no value, matching what the browser
+        // parses a presence-only attribute frame into. Counted here for the same reason every other
+        // branch in this method counts: the frame path emits one more Attribute frame on a scoped
+        // element, so WriteTo's caller (RenderViewEmitter.TryEmitFolded) must see one more absorbed
+        // frame or it would under-count what folding actually replaced.
+        if (element.CssScope is { } cssScope)
+        {
+            builder.Append(' ').Append(cssScope);
+            absorbed++;
+        }
+
         builder.Append('>');
 
         if (KnownSymbols.IsVoidTag(element.Tag))

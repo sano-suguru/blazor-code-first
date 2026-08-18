@@ -46,6 +46,19 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
         Assert.Equal(expectedScope, bundleScope);
     }
 
+    [Fact]
+    public void ProjectReference_fixture_generated_component_scopes_the_folded_markup_too()
+    {
+        var build = fixtures.ProjectReference;
+        var bundleScope = ExtractScope(build.BundledCss);
+
+        var generatedFiles = Directory.GetFiles(
+            build.GeneratedFilesDirectory, "*Counter.g.cs", SearchOption.AllDirectories);
+        var generatedSource = File.ReadAllText(Assert.Single(generatedFiles));
+
+        Assert.Contains($"<span {bundleScope}>hello</span>", generatedSource);
+    }
+
     private static string ExtractScope(string bundledCss)
     {
         var match = System.Text.RegularExpressions.Regex.Match(bundledCss, @"\[(bcf-[0-9a-f]{8})\]");
