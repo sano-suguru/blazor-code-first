@@ -10,7 +10,8 @@
 // This is emphatically NOT an emulation of Cloudflare's edge. `_headers` is ignored, so nothing
 // here exercises the cache directives or the X-Robots-Tag rules, and no `_redirects` handling
 // exists because the publish output must not contain that file at all (site.yml asserts its
-// absence). Checks that depend on the edge belong in #47, which runs against a deployment.
+// absence). Checks that depend on the edge belong in site/tests/browser/smoke, which runs against a
+// deployment.
 //
 // Usage: node serve.mjs <wwwroot> <port>
 

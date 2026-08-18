@@ -431,6 +431,24 @@ cd site/tests/browser && npm ci && npx playwright install chromium && npx playwr
 npx tsc --noEmit
 ```
 
+Both of the above measure a local publish output and need no deployment. What
+they cannot see is hydration behaviour and Cloudflare's edge routing, which
+exist only once something is actually deployed — a route that renders correctly
+prerendered but falls back to the not-found content once the client render
+replaces it, a console error the WebAssembly boot throws, a layout shift when
+that replacement happens, or an unmapped path Cloudflare answers with the home
+page instead of a 404 (#44's failure mode). `site/tests/browser/smoke` is that
+half, run by `site-smoke` in `site.yml` against the deployment `deploy` just
+produced — a canary, not a required check, for the same reason `deploy` itself
+is not one (#250): a check that needs Cloudflare to be reachable and correct
+must not be able to block a merge:
+
+```bash
+cd site/tests/browser
+BCF_SITE_BASE_URL=https://blazor-code-first-site.snsgr.workers.dev \
+  npx playwright test --config=smoke/playwright.smoke.config.ts
+```
+
 The dotnet half of those checks takes `site/Site.slnx`, which exists so the five
 projects are named once rather than per command. Build before formatting: the
 app's `RenderView` comes from the source generator referenced as an analyzer
