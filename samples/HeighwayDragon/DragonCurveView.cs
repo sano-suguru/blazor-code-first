@@ -17,13 +17,13 @@ public sealed partial class DragonCurveView : BodyComponentBase
     [Inject]
     public required IJSRuntime JS { get; set; }
 
+    private enum GenerationState { Ready, Generating, Succeeded, Failed }
+
     private ElementReference _canvas;
     private int _order = DefaultOrder;
     private bool _glReady;
     private bool _webglUnavailable;
-    private bool _generating;
-    private bool _justSucceeded;
-    private bool _generationFailed;
+    private GenerationState _generationState;
     private long _vertexCount;
     private double _workerMs;
     private double _uploadMs;
@@ -51,7 +51,7 @@ public sealed partial class DragonCurveView : BodyComponentBase
             Input.Type("range").Id("order-slider").Class("order-slider")
                 .Attr("min", MinOrder.ToString(CultureInfo.InvariantCulture))
                 .Attr("max", MaxOrder.ToString(CultureInfo.InvariantCulture))
-                .Attr("disabled", _generating)
+                .Attr("disabled", _generationState == GenerationState.Generating)
                 .Bind("value", "oninput",
                     () => _order.ToString(CultureInfo.InvariantCulture),
                     OnOrderInputAsync),
@@ -76,10 +76,13 @@ public sealed partial class DragonCurveView : BodyComponentBase
 
     private (string Text, string Class) Status =>
         _webglUnavailable ? ("WEBGL2 UNAVAILABLE", "status status--error") :
-        _generating ? ("GENERATING…", "status status--loading") :
-        _generationFailed ? ("GENERATION FAILED", "status status--error") :
-        _justSucceeded ? ("OK", "status status--success") :
-        ("READY", "status");
+        _generationState switch
+        {
+            GenerationState.Generating => ("GENERATING…", "status status--loading"),
+            GenerationState.Failed => ("GENERATION FAILED", "status status--error"),
+            GenerationState.Succeeded => ("OK", "status status--success"),
+            _ => ("READY", "status"),
+        };
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -104,7 +107,7 @@ public sealed partial class DragonCurveView : BodyComponentBase
 
     private async Task OnOrderInputAsync(string value)
     {
-        if (!_glReady || _generating ||
+        if (!_glReady || _generationState == GenerationState.Generating ||
             !int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var order))
         {
             return;
@@ -124,9 +127,7 @@ public sealed partial class DragonCurveView : BodyComponentBase
             "instead of swallowed or left to escape.")]
     private async Task RegenerateAsync(int order)
     {
-        _generating = true;
-        _justSucceeded = false;
-        _generationFailed = false;
+        _generationState = GenerationState.Generating;
         StateHasChanged();
 
         try
@@ -152,15 +153,14 @@ public sealed partial class DragonCurveView : BodyComponentBase
             _uploadMs = stopwatch.Elapsed.TotalMilliseconds;
 
             _vertexCount = vertexCount;
-            _justSucceeded = true;
+            _generationState = GenerationState.Succeeded;
         }
         catch (Exception)
         {
-            _generationFailed = true;
+            _generationState = GenerationState.Failed;
         }
         finally
         {
-            _generating = false;
             StateHasChanged();
         }
     }

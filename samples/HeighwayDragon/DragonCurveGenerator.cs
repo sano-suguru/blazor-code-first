@@ -10,8 +10,10 @@ public static class DragonCurveGenerator
     /// The hot-path entry point: the vertex count for <paramref name="order"/> is known ahead of
     /// time, so the caller preallocates exactly that many <see cref="Point"/>s. Fills the span in a
     /// single pass and tracks bounds inline, so an order-24 fill is one pass over 16M points instead
-    /// of a separate bounds sweep. Equivalence with an independently-written iterator is covered by
-    /// <c>FillPoints_AgreesWithIterator</c> in the test project.
+    /// of a separate bounds sweep, using the bit-twiddling turn rule from the JS prototype attached
+    /// to #295: no recursion, no string rewriting, and no auxiliary state beyond position,
+    /// direction, and the step counter. Equivalence with an independently-written iterator is
+    /// covered by <c>FillPoints_AgreesWithIterator</c> in the test project.
     /// </summary>
     public static (double minX, double maxX, double minY, double maxY) FillPoints(Span<Point> destination, int order)
     {
@@ -56,8 +58,8 @@ public static class DragonCurveGenerator
     }
 
     /// <summary>
-    /// The bit-twiddling turn rule from the JS prototype attached to #295: no recursion, no
-    /// string rewriting, and no auxiliary state beyond position, direction, and the step counter.
+    /// The direction after step <paramref name="k"/>: a 90-degree turn when the bit test says the
+    /// fold direction flips, straight ahead otherwise.
     /// </summary>
     private static (float dx, float dy) Turn(int k, float dx, float dy) =>
         (k & ((k & -k) << 1)) != 0 ? (-dy, dx) : (dy, -dx);
