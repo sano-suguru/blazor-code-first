@@ -2,11 +2,11 @@
 
   <PropertyGroup>
     <!-- Restore into an isolated folder so the fixed dev version can never be served from the
-         developer's global package cache, and purge that version before every restore so a rebuilt
-         package is actually re-extracted. Same reasoning as BlazorCodeFirst.TrimTestApp. -->
+         developer's global package cache. Same reasoning as BlazorCodeFirst.TrimTestApp. -->
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/nuget-packages</RestorePackagesPath>
-    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
   </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../../../eng/BlazorCodeFirstDevCache.props" />
 
   <!-- The same broken source as GeneratorDelivery.ProjectReference, compiled against the analyzer as
        an external consumer receives it: analyzers/dotnet/cs/BlazorCodeFirst.Compiler.dll inside the
@@ -18,13 +18,5 @@
   <ItemGroup>
     <PackageReference Include="BlazorCodeFirst" />
   </ItemGroup>
-
-  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
-    <!-- The message is what makes a wrong path observable: RemoveDir on a path that does not exist
-         is silent, so without this a mistyped cache path leaves the stale package in place and the
-         tests pass against it. Mirrors the TrimTestApp target. -->
-    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
-    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
-  </Target>
 
 </Project>

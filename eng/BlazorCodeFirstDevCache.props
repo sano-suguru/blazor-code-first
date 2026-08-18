@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- Shared by every project that restores BlazorCodeFirst from an isolated, version-pinned NuGet
+       cache instead of the developer's global one: cross-platform purge of that cache before each
+       restore, so NuGet cannot reuse stale package contents for the fixed development version. Only
+       fires during an actual NuGet restore (MSBuildRestoreSessionId is set).
+
+       Each importing project sets its own $(RestorePackagesPath) before importing this file;
+       $(_BlazorCodeFirstDevCachePath) below resolves against whichever value that project supplied.
+
+       The message is what makes a wrong path observable: RemoveDir on a path that does not exist is
+       silent, so without it a mistyped cache path leaves the stale package in place and the tests
+       pass against it. Prove a change still purges with a direct restore (CONTRIBUTING.md §Build and
+       test), which prints "Purging stale dev cache: <path>". -->
+
+  <PropertyGroup>
+    <_BlazorCodeFirstDevCachePath>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
+  </PropertyGroup>
+
+  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
+  </Target>
+
+</Project>

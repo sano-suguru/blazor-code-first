@@ -153,13 +153,15 @@ A new diagnostic needs a fixture shape and an entry in
 `DiagnosticExpectations.All`; the coverage guard fails until every descriptor is
 listed there or excluded with a reason.
 
-Five projects (the TrimTestApp, the WasmPackageApp,
-`msbuild-fixtures/RazorInterop.Package`, and both `diagnostic-fixtures/*.Package`
-fixtures) purge an isolated `blazorcodefirst/<version>` NuGet cache before
-restoring, so a rebuilt package is never shadowed by a stale one. Get that path
-wrong and nothing fails: the tests pass against the old package contents. If you
-change it, prove the purge still fires with a direct restore, which prints
-`Purging stale dev cache: <path>`:
+`eng/BlazorCodeFirstDevCache.props` purges an isolated `blazorcodefirst/<version>`
+NuGet cache before restoring, so a rebuilt package is never shadowed by a stale
+one. The TrimTestApp, the WasmPackageApp, both `diagnostic-fixtures/*.Package`
+fixtures, and the HeighwayDragon sample import it, each supplying its own
+`RestorePackagesPath` first. `msbuild-fixtures/RazorInterop.Package` purges two
+caches of its own and keeps its own target rather than importing this one. Get a
+cache path wrong and nothing fails: the tests pass against the old package
+contents. If you change one, prove the purge still fires with a direct restore,
+which prints `Purging stale dev cache: <path>`:
 
 ```bash
 dotnet restore tests/diagnostic-fixtures/GeneratorDelivery.Package/GeneratorDelivery.Package.csproj \
