@@ -11,9 +11,9 @@ import { publishRoot } from './site-pages';
  * failure stops the deployment rather than describing it afterwards (#251).
  *
  * It measures a local publish output on purpose, not a deployment. Hydration behaviour and
- * Cloudflare's edge routing genuinely need one and are #47's subject; layout, wrapping, and colour
- * need nothing but the files and a static server, and tying them to a deployment would put them
- * behind #66.
+ * Cloudflare's edge routing genuinely need one and are #47's subject, covered by `smoke/` under its
+ * own config; layout, wrapping, and colour need nothing but the files and a static server, and tying
+ * them to a deployment would put them behind #66.
  *
  * The port is 5200. 5100 belongs to tests/BlazorCodeFirst.WebAppTests/browser, and 5000 is held by
  * macOS ControlCenter.
@@ -31,6 +31,11 @@ const baseURL = process.env.BCF_SITE_BASE_URL ?? 'http://localhost:5200';
 
 export default defineConfig({
   testDir: '.',
+  // `smoke/` measures a deployment under its own config (playwright.smoke.config.ts), which requires
+  // BCF_SITE_BASE_URL and refuses to fall back to this suite's local server. Without this exclusion,
+  // testDir: '.' would also collect it here, where the local server answers every route with content
+  // that was never deployed and the smoke assertions would fail for a reason that is not a defect.
+  testIgnore: '**/smoke/**',
   retries: 0,
   // Without this Playwright parallelises by FILE, and this suite is two files: it ran its couple of
   // hundred tests on two workers and ignored `--workers` entirely, on a four-core CI runner. Every

@@ -638,8 +638,8 @@ jobs:
   # rather than describing it afterwards.
   #
   # Against the publish output `site-publish` built, not a deployment. Hydration behaviour and
-  # Cloudflare's edge routing genuinely need one and are #47's subject, which is blocked on #66;
-  # none of these checks needs anything but the files and a static server.
+  # Cloudflare's edge routing genuinely need one, and are `site-smoke`'s subject below; none of these
+  # checks needs anything but the files and a static server.
   #
   # Sharded, because this is the longest thing in the workflow by a wide margin: 302 tests, each
   # opening a page and waiting out the WebAssembly boot. Over the last 19 green runs of the job it
@@ -891,6 +891,79 @@ jobs:
       # URL commented; the step between them only calls `gh` and cannot dirty anything.
       - name: Verify the job left the working tree clean
         run: bash eng/verify-tree-clean.sh
+
+  # A canary on the deployment `deploy` just produced, not a gate (#47). `site-verified` below does
+  # not `need` this job and reports without it, for the same reason it does not need `deploy` either
+  # (#250): a check that depends on Cloudflare being reachable and correct must not be able to block
+  # a merge, or an edge outage becomes a repository outage. On a pull request a red run here is
+  # informational; on main it is the first thing to notice a deployment that built and uploaded clean
+  # but broke once a browser actually ran it.
+  #
+  # `needs: deploy` rather than repeating deploy's own `if`: a skipped `deploy` (a fork pull request,
+  # or Dependabot) skips this job for free, and there is nothing here to check without a deployment
+  # to point a browser at.
+  #
+  # Everything `site-publish` and `site-browser` check is provable from the publish output and a
+  # static server; nothing here needs either. What only a live deployment can show is hydration
+  # behaviour and Cloudflare's edge routing -- the `smoke/` suite's own config explains why in detail.
+  site-smoke:
+    needs: [plan, deploy]
+    if: needs.plan.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # For the smoke specs and site/content, which they read routes from the same way the sibling
+      # suite's specs read the publish output -- see smoke/deployed.ts.
+      - uses: actions/checkout@v7
+
+      - name: Resolve the deployed URL to smoke-test
+        id: url
+        env:
+          ENVIRONMENT: ${{ needs.plan.outputs.environment }}
+          ORIGIN: ${{ needs.plan.outputs.origin }}
+          PREVIEW_URL: ${{ needs.plan.outputs.preview_url }}
+        run: |
+          set -euo pipefail
+          if [ "$ENVIRONMENT" = production ]; then
+            url="$ORIGIN"
+          else
+            url="$PREVIEW_URL"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Smoke-testing $url"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/tests/browser/package-lock.json
+
+      - run: npm ci
+        working-directory: site/tests/browser
+
+      # package-lock.json pins playwright-core exactly, and the browser revision is a function of
+      # that version -- the same cache key the sibling job uses, and the same reason.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('site/tests/browser/package-lock.json') }}
+
+      - run: npx playwright install --with-deps chromium
+        working-directory: site/tests/browser
+
+      - name: Smoke-test the deployment
+        id: smoke
+        env:
+          BCF_SITE_BASE_URL: ${{ steps.url.outputs.url }}
+        run: npx playwright test --config=smoke/playwright.smoke.config.ts
+        working-directory: site/tests/browser
+
+      # Distinct name from the sibling job's, which upload-artifact would otherwise reject as already
+      # taken if both failed in the same run.
+      - if: failure() && steps.smoke.conclusion == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: site-smoke-playwright-traces
+          path: site/tests/browser/test-results
 
   # The required check on main, and the only job here that runs on every pull request (#250).
   #
