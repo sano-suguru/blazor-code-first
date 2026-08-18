@@ -7,6 +7,11 @@ rail-heading: Guide
 language-label: Language
 anchor-filter-label: Jump to a diagnostic
 anchor-filter-count: {shown} of {total}
+theme-toggle-name: Color theme: {state}
+theme-toggle-label: Theme
+theme-system: System
+theme-light: Light
+theme-dark: Dark
 group-start: Start here
 group-write: Writing views
 group-reference: Reference

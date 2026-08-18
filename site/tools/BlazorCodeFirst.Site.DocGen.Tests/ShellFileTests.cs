@@ -14,6 +14,11 @@ public class ShellFileTests
         "language-label: Language\n" +
         "anchor-filter-label: Jump to a diagnostic\n" +
         "anchor-filter-count: {shown} of {total}\n" +
+        "theme-toggle-name: Color theme: {state}\n" +
+        "theme-toggle-label: Theme\n" +
+        "theme-system: System\n" +
+        "theme-light: Light\n" +
+        "theme-dark: Dark\n" +
         "group-start: Start here\n" +
         "group-write: Writing views\n" +
         "group-reference: Reference\n";
@@ -40,6 +45,11 @@ public class ShellFileTests
         Assert.Equal("Guide", shell.RailHeading);
         Assert.Equal("Language", shell.LanguageLabel);
         Assert.Equal("{shown} of {total}", shell.AnchorFilterCount);
+        Assert.Equal("Color theme: {state}", shell.ThemeToggleName);
+        Assert.Equal("Theme", shell.ThemeToggleLabel);
+        Assert.Equal("System", shell.ThemeSystem);
+        Assert.Equal("Light", shell.ThemeLight);
+        Assert.Equal("Dark", shell.ThemeDark);
         Assert.Equal("This translation is behind.", shell.StaleNotice);
         Assert.Equal("Read the English page", shell.StaleLink);
     }
@@ -210,13 +220,29 @@ public class ShellFileTests
     [Fact]
     public void Parse_APlaceholderInAKeyThatDeclaresNone_Throws()
     {
-        // Defends against a typo landing in an ordinary key: shell.yml has one key with placeholders
-        // today, and every other key must not accidentally read as one.
+        // Defends against a typo landing in an ordinary key: a key not listed in PlaceholdersByKey
+        // must not accidentally read as one.
         string brokenRailHeading = Common.Replace("rail-heading: Guide\n", "rail-heading: {0} Guide\n", StringComparison.Ordinal);
 
         var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(brokenRailHeading));
 
         Assert.Contains("rail-heading", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ThemeToggleNameWithStateNotLast_Throws()
+    {
+        // {state} is never substituted -- ValidatePlaceholders' Terminal check is what a translator
+        // writing text after it fails against, before that text can render out of order.
+        string trailing = Common.Replace(
+            "theme-toggle-name: Color theme: {state}\n",
+            "theme-toggle-name: Color theme: {state} control\n",
+            StringComparison.Ordinal);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(trailing));
+
+        Assert.Contains("theme-toggle-name", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("{state}", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

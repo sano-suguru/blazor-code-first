@@ -89,6 +89,11 @@ public static class CSharpDocEmitter
         sb.Append("    string LanguageLabel,\n");
         sb.Append("    string AnchorFilterLabel,\n");
         sb.Append("    string AnchorFilterCount,\n");
+        sb.Append("    string ThemeToggleName,\n");
+        sb.Append("    string ThemeToggleLabel,\n");
+        sb.Append("    string ThemeSystem,\n");
+        sb.Append("    string ThemeLight,\n");
+        sb.Append("    string ThemeDark,\n");
         sb.Append("    ImmutableArray<GroupHeading> Groups,\n");
         sb.Append("    string? StaleNotice,\n");
         sb.Append("    string? StaleLink);\n\n");
@@ -228,6 +233,11 @@ public static class CSharpDocEmitter
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.LanguageLabel)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.AnchorFilterLabel)).Append("\",\n");
         sb.Append("            \"").Append(CSharpLiteral.Escape(shell.AnchorFilterCount)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.ThemeToggleName)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.ThemeToggleLabel)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.ThemeSystem)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.ThemeLight)).Append("\",\n");
+        sb.Append("            \"").Append(CSharpLiteral.Escape(shell.ThemeDark)).Append("\",\n");
         sb.Append("            [");
         sb.Append(string.Join(
             ", ",

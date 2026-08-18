@@ -28,6 +28,15 @@ namespace BlazorCodeFirst.Site.DocGen;
 /// named placeholders, <c>{shown}</c> and <c>{total}</c>. Which one comes first is a per-language
 /// choice; <see cref="ShellFile.Parse"/> checks that both are present, not their order.
 /// </param>
+/// <param name="ThemeToggleName">
+/// The colour-scheme control's accessible name, hidden from sighted readers, ending in the named
+/// placeholder <c>{state}</c> that stands in for whichever of <see cref="ThemeSystem"/>,
+/// <see cref="ThemeLight"/>, or <see cref="ThemeDark"/> is current. Never substituted -- see
+/// <see cref="PlaceholdersByKey"/> for why. See site/README.md's Shell text section for the full
+/// authoring contract.
+/// </param>
+/// <param name="ThemeToggleLabel">The control's decorative visible word ("Theme"), hidden from
+/// assistive technology because <see cref="ThemeToggleName"/> already names the control.</param>
 public sealed record ShellStrings(
     string Name,
     string IndexTitle,
@@ -37,6 +46,11 @@ public sealed record ShellStrings(
     string LanguageLabel,
     string AnchorFilterLabel,
     string AnchorFilterCount,
+    string ThemeToggleName,
+    string ThemeToggleLabel,
+    string ThemeSystem,
+    string ThemeLight,
+    string ThemeDark,
     IReadOnlyDictionary<string, string> Groups,
     string? StaleNotice,
     string? StaleLink);
@@ -142,6 +156,11 @@ public static partial class ShellFile
             declared["language-label"],
             declared["anchor-filter-label"],
             declared["anchor-filter-count"],
+            declared["theme-toggle-name"],
+            declared["theme-toggle-label"],
+            declared["theme-system"],
+            declared["theme-light"],
+            declared["theme-dark"],
             DocGroup.All.ToDictionary(g => g, g => declared[GroupKey(g)], StringComparer.Ordinal),
             declared.GetValueOrDefault(StaleNoticeKey),
             declared.GetValueOrDefault(StaleLinkKey));
@@ -157,22 +176,34 @@ public static partial class ShellFile
     [
         "name", "index-title", "index-description", "index-lead", "rail-heading", "language-label",
         "anchor-filter-label", "anchor-filter-count",
+        "theme-toggle-name", "theme-toggle-label", "theme-system", "theme-light", "theme-dark",
         .. DocGroup.All.Select(GroupKey),
         StaleNoticeKey, StaleLinkKey,
     ];
 
-    /// <summary>The named placeholders a key's value must carry, keyed by that key. A key absent from
-    /// here must carry none: <see cref="ValidatePlaceholders"/> is what a <c>{word}</c> placeholder
-    /// pasted into an ordinary sentence fails against, rather than reaching the reader as literal
-    /// braces. An unpaired brace with no matching close is not a placeholder shape this matches, so
-    /// it passes through unchecked, same as any other punctuation.</summary>
-    private static readonly IReadOnlyDictionary<string, string[]> PlaceholdersByKey =
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
+    /// <summary>One key's placeholder rule: the named placeholders its value must carry, and,
+    /// for a placeholder that is never substituted (only stripped, to yield a prefix another span
+    /// sits after in the DOM), the one that must be the last thing in the value -- text following it
+    /// would render before the span it names rather than after, not simply vanish.</summary>
+    private sealed record PlaceholderRule(string[] Names, string? Terminal = null);
+
+    private static readonly PlaceholderRule NoPlaceholders = new([]);
+
+    /// <summary>Each key's placeholder rule, keyed by the key. A key absent from here must carry no
+    /// placeholders: <see cref="ValidatePlaceholders"/> is what a <c>{word}</c> placeholder pasted
+    /// into an ordinary sentence fails against, rather than reaching the reader as literal braces. An
+    /// unpaired brace with no matching close is not a placeholder shape this matches, so it passes
+    /// through unchecked, same as any other punctuation.</summary>
+    private static readonly IReadOnlyDictionary<string, PlaceholderRule> PlaceholdersByKey =
+        new Dictionary<string, PlaceholderRule>(StringComparer.Ordinal)
         {
             // The count a screen reader hears after the diagnostics filter narrows. Which placeholder
             // comes first is a per-language choice (a translation may put the total before the shown
             // count), so this is a set to satisfy, not an order.
-            ["anchor-filter-count"] = ["shown", "total"],
+            ["anchor-filter-count"] = new(["shown", "total"]),
+            // The theme control's accessible-name template: every state's markup renders at once, so
+            // {state} is never substituted, only stripped to yield the hidden prefix span.
+            ["theme-toggle-name"] = new(["state"], Terminal: "state"),
         };
 
     [GeneratedRegex(@"\{(\w+)\}")]
@@ -180,16 +211,24 @@ public static partial class ShellFile
 
     private static void ValidatePlaceholders(string key, string value, string fileName)
     {
-        string[] expected = PlaceholdersByKey.GetValueOrDefault(key, []);
+        PlaceholderRule rule = PlaceholdersByKey.GetValueOrDefault(key, NoPlaceholders);
         var found = new HashSet<string>(
             PlaceholderPattern().Matches(value).Select(m => m.Groups[1].Value), StringComparer.Ordinal);
 
-        if (!found.SetEquals(expected))
+        if (!found.SetEquals(rule.Names))
         {
-            string wanted = expected.Length == 0
+            string wanted = rule.Names.Length == 0
                 ? "no placeholders"
-                : "exactly the placeholders " + string.Join(" and ", expected.Select(p => "{" + p + "}"));
+                : "exactly the placeholders " + string.Join(" and ", rule.Names.Select(p => "{" + p + "}"));
             throw Invalid(fileName, $"key '{key}' must use {wanted}, but the value is '{value}'.");
+        }
+
+        if (rule.Terminal is not null && !value.EndsWith($"{{{rule.Terminal}}}", StringComparison.Ordinal))
+        {
+            throw Invalid(
+                fileName,
+                $"key '{key}' must end with the placeholder '{{{rule.Terminal}}}', but the value is " +
+                $"'{value}'.");
         }
     }
 
