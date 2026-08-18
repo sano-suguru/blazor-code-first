@@ -536,6 +536,26 @@ public sealed class FrameDecorationGeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    [Fact]
+    public void FormName_OnANonFormElement_ReportsBCF3040()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Div.FormName("save")["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3040");
+    }
+
+    [Fact]
+    public void FormName_OnAFormElement_DoesNotReportBCF3040()
+    {
+        var result = CompilationTestHost.RunGenerator(Body(
+            """Html.Form.FormName("save")["x"]"""));
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3040");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

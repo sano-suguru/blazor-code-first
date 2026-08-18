@@ -1164,6 +1164,21 @@ internal static class DiagnosticDescriptors
             "time to always throw is rejected before it ships, the same way .Key(null) is specially " +
             "read rather than passed through unchanged.");
 
+    public static readonly DiagnosticDescriptor BCF3040 = new(
+        id: "BCF3040",
+        title: "FormName is written on an element whose tag is not 'form'",
+        messageFormat: "'.FormName' has no effect on a '{0}' element; onsubmit never fires natively " +
+            "outside a 'form' element",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            ".FormName lowers to AddNamedEvent(\"onsubmit\", …), and onsubmit is a browser-native event " +
+            "that only ever fires on a <form> element. An element helper's tag is already known as a " +
+            "compile-time constant by this point (BCF3009), so this check needs no content-model table " +
+            "— it is one string comparison, the same table-free posture BCF3034 takes. Falling short of " +
+            "this check would leave the surface behind Razor, which warns (RZ10022) for the same shape.");
+
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and

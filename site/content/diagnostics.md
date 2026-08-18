@@ -449,6 +449,18 @@ either shape: `ArgumentException` for an empty name, `ArgumentNullException` for
 runtime expression is not required to be a compile-time constant — only a literal known ahead of
 time to always throw is rejected here.
 
+### BCF3040
+
+Error. `.FormName` is written on an element whose tag is not `form`.
+
+```csharp
+Div.FormName("save")["submit"]    // BCF3040
+Form.FormName("save")["submit"]   // what to write instead
+```
+
+`.FormName` lowers to `AddNamedEvent("onsubmit", …)`, and `onsubmit` is a browser-native event that
+only ever fires on a `<form>` element. A registration on any other tag is never reached.
+
 ## Events
 
 ### BCF3019

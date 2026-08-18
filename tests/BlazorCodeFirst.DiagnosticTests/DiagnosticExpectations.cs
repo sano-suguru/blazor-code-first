@@ -320,6 +320,15 @@ public static class DiagnosticExpectations
                 + "literal null shape is pinned in-process by "
                 + "FormName_WrittenAsLiteralNull_ReportsBCF3039, since a real build only needs one of the "
                 + "two shapes to prove the rule is reachable."),
+        new(
+            "BCF3040",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3040.cs",
+            "FormName",
+            Note: "Anchors the decoration's name, which is what the author deletes. The tag is not the "
+                + "mistake — Div is a legitimate element on its own, and .FormName is what has no effect "
+                + "on it."),
     ];
 
     /// <summary>
