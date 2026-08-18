@@ -1,0 +1,86 @@
+<Project>
+
+  <!-- No shared "$(IntermediateOutputPath)bcf-scopedcss\" property is precomputed at the top of
+       this file: it is imported from the project body, before the SDK's own implicit Sdk.targets
+       import, which is what gives $(IntermediateOutputPath) its final, TFM-suffixed value. A
+       PropertyGroup here would evaluate too early and capture an empty or stale
+       $(IntermediateOutputPath). $(IntermediateOutputPath) is expanded directly wherever it is
+       needed below instead, which is safe: Inputs/Outputs and target-body evaluation both happen at
+       build-execution time, after the whole project (including Sdk.targets) has already been
+       evaluated. -->
+
+  <Target Name="BcfFindScopedCssInputs">
+    <ItemGroup>
+      <_BcfScopedCssInput Include="**/*.cs.css" Exclude="$(BaseIntermediateOutputPath)**;$(BaseOutputPath)**" />
+    </ItemGroup>
+  </Target>
+
+  <!-- No target-level Condition here (or on the two targets below): a Condition on a Target gates
+       its DependsOnTargets too, not just its own body, so MSBuild does not run a target's
+       dependencies at all when the target's own Condition is false. Since BcfFindScopedCssInputs is
+       the thing that would populate the item this target's Condition would test, gating on it here
+       would skip the very target that produces it. The task itself already no-ops correctly on an
+       empty ScopedCssInputs, so no Condition is needed at all. -->
+  <Target Name="BcfComputeScopedCssScope"
+          DependsOnTargets="BcfFindScopedCssInputs">
+    <ComputeScopedCssScopeTask
+        ScopedCssInputs="@(_BcfScopedCssInput)"
+        ProjectDirectory="$(MSBuildProjectDirectory)"
+        AssemblyName="$(AssemblyName)">
+      <Output TaskParameter="ScopedCssWithScope" ItemName="_BcfScopedCssWithScope" />
+    </ComputeScopedCssScopeTask>
+  </Target>
+
+  <Target Name="BcfStampCssScopeOnAdditionalFiles"
+          DependsOnTargets="BcfComputeScopedCssScope"
+          BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <AdditionalFiles Include="@(_BcfScopedCssWithScope)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="BcfRewriteScopedCss"
+          DependsOnTargets="BcfComputeScopedCssScope"
+          Inputs="@(_BcfScopedCssWithScope)"
+          Outputs="@(_BcfScopedCssWithScope -> '$(IntermediateOutputPath)bcf-scopedcss\%(FileName)%(Extension).rz.scp.css')">
+    <ItemGroup>
+      <_BcfScopedCssToRewrite Include="@(_BcfScopedCssWithScope)">
+        <OutputFile>$(IntermediateOutputPath)bcf-scopedcss\%(FileName)%(Extension).rz.scp.css</OutputFile>
+      </_BcfScopedCssToRewrite>
+    </ItemGroup>
+
+    <RewriteScopedCssTask FilesToRewrite="@(_BcfScopedCssToRewrite)" />
+
+    <ItemGroup>
+      <_BcfScopedCssRewritten Include="@(_BcfScopedCssToRewrite -> '%(OutputFile)')">
+        <OriginalItemSpec>%(_BcfScopedCssToRewrite.Identity)</OriginalItemSpec>
+        <CssScope>%(_BcfScopedCssToRewrite.CssScope)</CssScope>
+      </_BcfScopedCssRewritten>
+    </ItemGroup>
+    <ItemGroup>
+      <FileWrites Include="@(_BcfScopedCssRewritten)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="BcfDiscoverScopedCss"
+          DependsOnTargets="BcfStampCssScopeOnAdditionalFiles;BcfRewriteScopedCss" />
+
+  <!-- TFM-branched task assembly: VS's own MSBuild is net472, `dotnet build`'s MSBuild is net-core. -->
+  <UsingTask
+      TaskName="BlazorCodeFirst.Build.ComputeScopedCssScopeTask"
+      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net472/BlazorCodeFirst.Build.dll"
+      Condition="'$(MSBuildRuntimeType)' == 'Full'" />
+  <UsingTask
+      TaskName="BlazorCodeFirst.Build.ComputeScopedCssScopeTask"
+      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net10.0/BlazorCodeFirst.Build.dll"
+      Condition="'$(MSBuildRuntimeType)' != 'Full'" />
+  <UsingTask
+      TaskName="BlazorCodeFirst.Build.RewriteScopedCssTask"
+      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net472/BlazorCodeFirst.Build.dll"
+      Condition="'$(MSBuildRuntimeType)' == 'Full'" />
+  <UsingTask
+      TaskName="BlazorCodeFirst.Build.RewriteScopedCssTask"
+      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net10.0/BlazorCodeFirst.Build.dll"
+      Condition="'$(MSBuildRuntimeType)' != 'Full'" />
+
+</Project>
