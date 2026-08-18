@@ -221,10 +221,14 @@ A document opens a warning with a custom container, and closes it with the same 
 :::
 ````
 
-It renders as `<div class="warning">`, which `.prose .warning` in `css/app.css` draws the way it
-draws a code figure — hairline, small radius, tinted ground — in the warning hue. `StylesheetTests`
+It renders as `<div class="warning" role="note">`, which `.prose .warning` in `css/app.css` draws the
+way it draws a code figure — hairline, small radius, tinted ground — in the warning hue. `StylesheetTests`
 holds the class name against the one DocGen accepts, so renaming either half fails the build rather
-than shipping an unpainted div.
+than shipping an unpainted div. `role="note"` carries that same rank into the accessibility tree:
+without it a screen reader announced the block as one more paragraph among its neighbours, which is
+the state the bold paragraph below was already in. `AstRewriter.AddWarningRole` sets it once
+`MarkdownBodyRules.EnsureOnlyWarningContainers` has rejected every other container, and
+`MarkdownConverterTests` holds it.
 
 `warning` is the only info string a document may open, and `MarkdownBodyRules.EnsureOnlyWarningContainers`
 rejects every other one. The extension itself takes any word, so `:::note` would parse and render a
@@ -326,6 +330,15 @@ language-label: Language
 edition. A translation additionally declares `stale-notice` and `stale-link`, which the canonical
 language must not declare. Every key is required; there is no fallback to English, because one
 English word among translated ones is exactly what nobody would notice.
+
+`anchor-filter-count` is the one key that carries a placeholder: the sentence the diagnostics
+filter's live region announces after each keystroke, with `{shown}` and `{total}` standing in for the
+two counts (`{shown} of {total}` reads "12 of 42"). `ShellFile.Parse` checks that a key declaring
+placeholders carries exactly those names, and that every other key carries none — a `{word}`
+placeholder pasted into an ordinary sentence fails the build rather than reaching a reader as literal
+braces. The check is by name, not by position, because a translation may need the total first
+(`{total}件中{shown}件`); that word-order freedom is why the placeholders are named rather than
+numbered.
 
 `index-description` is to the `/docs` index route what a document's own `description` is to that
 document, and the same per-language limits bound it. The index is a page a search result can show,

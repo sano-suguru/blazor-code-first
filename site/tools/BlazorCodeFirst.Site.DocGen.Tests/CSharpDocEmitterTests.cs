@@ -24,6 +24,7 @@ public class CSharpDocEmitterTests
                 "Guide",
                 "Language",
                 "Jump to a diagnostic",
+                "{shown} of {total}",
                 DocGroup.All.ToDictionary(g => g, g => g + " heading", StringComparer.Ordinal),
                 meta.Lang == DocLang.Canonical ? null : "This translation is behind.",
                 meta.Lang == DocLang.Canonical ? null : "Read the English page");
@@ -111,6 +112,15 @@ public class CSharpDocEmitterTests
             "[" + string.Join(", ", DocGroup.All.Select(g => $"\"{g}\"")) + "]",
             source,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Emit_WritesTheAnchorFilterCountIntoTheShellText()
+    {
+        string source = EmitOne("a", "A", 1, "<p/>");
+
+        Assert.Contains("    string AnchorFilterCount,\n", source, StringComparison.Ordinal);
+        Assert.Contains("\"{shown} of {total}\"", source, StringComparison.Ordinal);
     }
 
     [Fact]

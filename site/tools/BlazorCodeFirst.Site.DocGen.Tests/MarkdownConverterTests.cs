@@ -92,6 +92,25 @@ public class MarkdownConverterTests
     }
 
     [Fact]
+    public void ToHtml_WarningContainer_GetsANoteRoleOnceParsedAsABody()
+    {
+        // Only the parsed-body path (ParseBody, then this ToHtml overload) adds the role: the
+        // fragment overload above renders no body rules at all, and no warning reaches it in
+        // practice. `role="note"` marks the block as ancillary content to a screen reader; the
+        // sighted rank still comes from .prose .warning in css/app.css.
+        var document = MarkdownConverter.ParseBody(":::warning\nDo not do that.\n:::\n", "sample.md");
+
+        string html = MarkdownConverter.ToHtml(
+            document,
+            new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal),
+            "sample.md",
+            "/docs");
+
+        Assert.Contains("class=\"warning\"", html);
+        Assert.Contains("role=\"note\"", html);
+    }
+
+    [Fact]
     public void ToHtml_ColonsInsideAFence_StayCode()
     {
         string html = MarkdownConverter.ToHtml("```csharp\nvar x = a ? b : c;\n```");

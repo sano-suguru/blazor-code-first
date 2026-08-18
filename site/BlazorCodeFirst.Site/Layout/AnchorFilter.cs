@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using BlazorCodeFirst;
 using BlazorCodeFirst.Site.Content;
 using static BlazorCodeFirst.Html;
@@ -81,9 +82,8 @@ public sealed partial class AnchorFilter : BodyComponentBase
     /// way. Nothing is matched against the section's prose: the reader who needs this one knows the
     /// id and not the wording, which is the whole reason the build prints the id.
     /// </remarks>
-    private ImmutableArray<string> Matches()
+    private ImmutableArray<string> Matches(ImmutableArray<string> all)
     {
-        var all = Ids(Entry);
         if (_filter.Trim().Length == 0)
         {
             return all;
@@ -102,22 +102,44 @@ public sealed partial class AnchorFilter : BodyComponentBase
         return builder.ToImmutable();
     }
 
-    protected override View Body =>
-        Div.Class("anchor-filter")[
-            Label.Class("anchor-filter-label").Attr("for", InputId)[
-                Docs.Shell(Entry.Lang).AnchorFilterLabel],
-            Input
-                .Id(InputId)
-                .Type("search")
-                .Class("anchor-filter-input")
-                .Attr("autocomplete", "off")
-                .Bind("value", "oninput", () => _filter),
-            Ul.Class("anchor-chips")[
-                ForEach(
-                    Matches(),
-                    key: id => id,
-                    content: id => Li[
-                        A.Href("#" + id).Class("anchor-chip")[id.ToUpperInvariant()]])]];
+    protected override View Body
+    {
+        get
+        {
+            var all = Ids(Entry);
+            var matches = Matches(all);
+            var shell = Docs.Shell(Entry.Lang);
+            return Div.Class("anchor-filter")[
+                Label.Class("anchor-filter-label").Attr("for", InputId)[
+                    shell.AnchorFilterLabel],
+                Input
+                    .Id(InputId)
+                    .Type("search")
+                    .Class("anchor-filter-input")
+                    .Attr("autocomplete", "off")
+                    .Bind("value", "oninput", () => _filter),
+                Div.Class("visually-hidden").Attr("role", "status").Attr("aria-live", "polite")[
+                    FormatCount(shell.AnchorFilterCount, matches.Length, all.Length)],
+                Ul.Class("anchor-chips")[
+                    ForEach(
+                        matches,
+                        key: id => id,
+                        content: id => Li[
+                            A.Href("#" + id).Class("anchor-chip")[id.ToUpperInvariant()]])]];
+        }
+    }
+
+    /// <summary>Substitutes the diagnostics filter's live-region sentence, matching each named
+    /// placeholder by name rather than by position.</summary>
+    /// <remarks>
+    /// A translation may need the total before the shown count, which is a difference in word order
+    /// rather than in the two numbers themselves — DocGen's shell file reader checks that
+    /// <c>shell.yml</c> carries both names and no others, not that they appear in a fixed order.
+    /// </remarks>
+    internal static string FormatCount(string template, int shown, int total) =>
+        template
+            .Replace("{shown}", shown.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
+            .Replace("{total}", total.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
 
     private const string InputId = "anchor-filter";
 }

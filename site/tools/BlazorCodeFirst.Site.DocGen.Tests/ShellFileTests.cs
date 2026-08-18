@@ -13,6 +13,7 @@ public class ShellFileTests
         "rail-heading: Guide\n" +
         "language-label: Language\n" +
         "anchor-filter-label: Jump to a diagnostic\n" +
+        "anchor-filter-count: {shown} of {total}\n" +
         "group-start: Start here\n" +
         "group-write: Writing views\n" +
         "group-reference: Reference\n";
@@ -38,6 +39,7 @@ public class ShellFileTests
         Assert.Equal("Every document, in reading order.", shell.IndexLead);
         Assert.Equal("Guide", shell.RailHeading);
         Assert.Equal("Language", shell.LanguageLabel);
+        Assert.Equal("{shown} of {total}", shell.AnchorFilterCount);
         Assert.Equal("This translation is behind.", shell.StaleNotice);
         Assert.Equal("Read the English page", shell.StaleLink);
     }
@@ -160,6 +162,61 @@ public class ShellFileTests
         var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(Common + Stale));
 
         Assert.Contains("stale-notice", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_AnchorFilterCountWithPlaceholdersInEitherOrder_Parses()
+    {
+        // The two numbers may need to swap order in translation (the real Japanese shell.yml puts
+        // the total first), so the check is that both names appear, not that they appear in a fixed
+        // order.
+        string reordered = Common.Replace(
+            "anchor-filter-count: {shown} of {total}\n",
+            "anchor-filter-count: {total} total, {shown} shown\n",
+            StringComparison.Ordinal);
+
+        var shell = ParseCanonical(reordered);
+
+        Assert.Equal("{total} total, {shown} shown", shell.AnchorFilterCount);
+    }
+
+    [Fact]
+    public void Parse_AnchorFilterCountMissingAPlaceholder_Throws()
+    {
+        string missingTotal = Common.Replace(
+            "anchor-filter-count: {shown} of {total}\n",
+            "anchor-filter-count: {shown} shown\n",
+            StringComparison.Ordinal);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(missingTotal));
+
+        Assert.Contains("anchor-filter-count", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("{total}", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_AnchorFilterCountWithAnUnknownPlaceholder_Throws()
+    {
+        string unknownPlaceholder = Common.Replace(
+            "anchor-filter-count: {shown} of {total}\n",
+            "anchor-filter-count: {shown} of {count}\n",
+            StringComparison.Ordinal);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(unknownPlaceholder));
+
+        Assert.Contains("anchor-filter-count", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_APlaceholderInAKeyThatDeclaresNone_Throws()
+    {
+        // Defends against a typo landing in an ordinary key: shell.yml has one key with placeholders
+        // today, and every other key must not accidentally read as one.
+        string brokenRailHeading = Common.Replace("rail-heading: Guide\n", "rail-heading: {0} Guide\n", StringComparison.Ordinal);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => ParseCanonical(brokenRailHeading));
+
+        Assert.Contains("rail-heading", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
