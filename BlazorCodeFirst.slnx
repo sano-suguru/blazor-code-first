@@ -1,10 +1,12 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/BlazorCodeFirst.Build/BlazorCodeFirst.Build.csproj" />
     <Project Path="src/BlazorCodeFirst.Compiler/BlazorCodeFirst.Compiler.csproj" />
     <Project Path="src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/BlazorCodeFirst.Benchmarks/BlazorCodeFirst.Benchmarks.csproj" />
+    <Project Path="tests/BlazorCodeFirst.Build.Tests/BlazorCodeFirst.Build.Tests.csproj" />
     <Project Path="tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj" />
     <Project Path="tests/BlazorCodeFirst.DiagnosticTests/BlazorCodeFirst.DiagnosticTests.csproj" />
     <Project Path="tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTests.csproj" />

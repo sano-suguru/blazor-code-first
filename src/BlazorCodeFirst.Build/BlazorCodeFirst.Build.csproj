@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net472;net10.0</TargetFrameworks>
+    <IsPackable>false</IsPackable>
+    <!-- This assembly runs inside MSBuild itself (both VS's net472 host and dotnet build's net10.0
+         host), never as an application dependency, so it must not carry its own copy of the MSBuild
+         object model into a consumer's build. -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="Runtime" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" ExcludeAssets="Runtime" />
+  </ItemGroup>
+
+</Project>
