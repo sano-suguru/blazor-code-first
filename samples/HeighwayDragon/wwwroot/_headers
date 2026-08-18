@@ -1,0 +1,7 @@
+# WasmEnableThreads (BlazorCodeFirst.Samples.HeighwayDragon.csproj) makes the .NET heap a
+# SharedArrayBuffer, which a browser only grants to a cross-origin-isolated page. These two
+# headers are what turn crossOriginIsolated on; every asset here is self-hosted, so COEP's
+# require-corp finds nothing cross-origin to block.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
