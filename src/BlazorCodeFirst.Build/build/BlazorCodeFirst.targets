@@ -116,39 +116,42 @@
        the broader @(_AllScopedCss) that DOES include our contribution) still tries to register a
        StaticWebAsset pointing at that now-missing file and throws. This target fills that specific
        gap: same task, same output path and base path the SDK's own call would have used, run only
-       when the SDK's own call was going to skip it. The Condition sits on the task element itself,
-       not the target, for the same DependsOnTargets-skip reason as BcfComputeScopedCssScope above.
+       when the SDK's own call was going to skip it. $(_BcfShouldSelfBundle) is computed once, in a
+       PropertyGroup at the top of this target's own body, rather than hoisted onto the Target's
+       Condition attribute, for the same DependsOnTargets-skip reason as BcfComputeScopedCssScope above.
        AfterTargets doesn't have that failure mode the way a target Condition does, but the pattern is
-       kept consistent. -->
+       kept consistent; a target-body PropertyGroup runs in execution order, after the items it reads
+       are already populated by BundleScopedCssFiles, so it is safe here. -->
   <Target Name="BcfBundleScopedCss"
           AfterTargets="BundleScopedCssFiles">
+    <PropertyGroup>
+      <_BcfShouldSelfBundle>false</_BcfShouldSelfBundle>
+      <_BcfShouldSelfBundle Condition="'@(_ScopedCssProjectBundles)' == '' and '@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfBundle>
+    </PropertyGroup>
     <ConcatenateCssFiles
-        Condition="'@(_ScopedCssProjectBundles)' == '' and '@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''"
+        Condition="'$(_BcfShouldSelfBundle)' == 'true'"
         ScopedCssFiles="@(_CurrentProjectDiscoveredScopedCssFiles)"
         ProjectBundles=""
         ScopedCssBundleBasePath="$(_ScopedCssBundleBasePath)"
         OutputFile="$(_ScopedCssOutputPath)" />
-    <ItemGroup Condition="'@(_ScopedCssProjectBundles)' == '' and '@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">
+    <ItemGroup Condition="'$(_BcfShouldSelfBundle)' == 'true'">
       <FileWrites Include="$(_ScopedCssOutputPath)" />
     </ItemGroup>
   </Target>
 
-  <!-- TFM-branched task assembly: VS's own MSBuild is net472, `dotnet build`'s MSBuild is net-core. -->
+  <!-- TFM-branched task assembly directory: VS's own MSBuild is net472, `dotnet build`'s MSBuild is
+       net-core. Computed once here rather than repeated per UsingTask, so adding a third task later
+       needs one new UsingTask line, not two. -->
+  <PropertyGroup>
+    <_BcfTaskTfmDirectory>net10.0</_BcfTaskTfmDirectory>
+    <_BcfTaskTfmDirectory Condition="'$(MSBuildRuntimeType)' == 'Full'">net472</_BcfTaskTfmDirectory>
+    <_BcfTaskAssembly>$(MSBuildThisFileDirectory)../tasks/$(_BcfTaskTfmDirectory)/BlazorCodeFirst.Build.dll</_BcfTaskAssembly>
+  </PropertyGroup>
   <UsingTask
       TaskName="BlazorCodeFirst.Build.ComputeScopedCssScopeTask"
-      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net472/BlazorCodeFirst.Build.dll"
-      Condition="'$(MSBuildRuntimeType)' == 'Full'" />
-  <UsingTask
-      TaskName="BlazorCodeFirst.Build.ComputeScopedCssScopeTask"
-      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net10.0/BlazorCodeFirst.Build.dll"
-      Condition="'$(MSBuildRuntimeType)' != 'Full'" />
+      AssemblyFile="$(_BcfTaskAssembly)" />
   <UsingTask
       TaskName="BlazorCodeFirst.Build.RewriteScopedCssTask"
-      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net472/BlazorCodeFirst.Build.dll"
-      Condition="'$(MSBuildRuntimeType)' == 'Full'" />
-  <UsingTask
-      TaskName="BlazorCodeFirst.Build.RewriteScopedCssTask"
-      AssemblyFile="$(MSBuildThisFileDirectory)../tasks/net10.0/BlazorCodeFirst.Build.dll"
-      Condition="'$(MSBuildRuntimeType)' != 'Full'" />
+      AssemblyFile="$(_BcfTaskAssembly)" />
 
 </Project>

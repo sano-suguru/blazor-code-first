@@ -1,11 +1,12 @@
 namespace BlazorCodeFirst.DiagnosticTests;
 
-public sealed class ScopedCssFixturesTests
+[Collection(RealBuildDiagnostics.Name)]
+public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
 {
     [Fact]
     public void ProjectReference_fixture_bundles_rewritten_scoped_css()
     {
-        var build = ScopedCssFixtures.BuildProjectReference();
+        var build = fixtures.ProjectReference;
 
         Assert.Contains(".my-component[bcf-", build.BundledCss, StringComparison.Ordinal);
         Assert.Contains("color: red;", build.BundledCss, StringComparison.Ordinal);
@@ -14,7 +15,7 @@ public sealed class ScopedCssFixturesTests
     [Fact]
     public void Package_fixture_bundles_rewritten_scoped_css()
     {
-        var build = ScopedCssFixtures.BuildPackage();
+        var build = fixtures.Package;
 
         Assert.Contains(".my-component[bcf-", build.BundledCss, StringComparison.Ordinal);
         Assert.Contains("color: red;", build.BundledCss, StringComparison.Ordinal);
@@ -29,7 +30,7 @@ public sealed class ScopedCssFixturesTests
         // ProjectReference/Package fixtures above only ever exercise the true branch (no .razor.css
         // at all), so this is the only fixture that proves the SDK-writes-the-bundle path still
         // includes BCF's contribution correctly.
-        var build = ScopedCssFixtures.BuildMixed();
+        var build = fixtures.Mixed;
 
         Assert.Contains(".my-component[bcf-", build.BundledCss, StringComparison.Ordinal);
         Assert.Contains("color: red;", build.BundledCss, StringComparison.Ordinal);

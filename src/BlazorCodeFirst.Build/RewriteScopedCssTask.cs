@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
@@ -12,13 +13,20 @@ public sealed class RewriteScopedCssTask : Microsoft.Build.Utilities.Task
 
     public override bool Execute()
     {
+        // Every current caller writes all outputs under the same directory, but tracking directories
+        // already created (rather than hoisting one CreateDirectory call before the loop) stays
+        // correct if a future caller's OutputFile values ever span more than one directory.
+        var createdDirectories = new HashSet<string>();
+
         foreach (var item in FilesToRewrite)
         {
             var inputPath = item.GetMetadata("FullPath");
             var outputPath = item.GetMetadata("OutputFile");
             var scope = item.GetMetadata("CssScope");
 
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            var outputDirectory = Path.GetDirectoryName(outputPath)!;
+            if (createdDirectories.Add(outputDirectory))
+                Directory.CreateDirectory(outputDirectory);
 
             var css = File.ReadAllText(inputPath);
             var rewritten = FlatSelectorCssRewriter.Rewrite(css, scope);
