@@ -102,9 +102,31 @@
   </Target>
 
   <Target Name="PackScopedCssBuildTask">
-    <!-- NoBuild=false, matching PackCompilerAnalyzer above: a global NoBuild=true from an outer
-         "dotnet pack" run with its no-build flag would otherwise propagate into this nested
-         Rebuild and fail with NETSDK1085 ("NoBuild was true but the Build target was invoked"). -->
+    <!-- Explicit Restore first: unlike BlazorCodeFirst.Compiler.csproj above, BlazorCodeFirst.Build
+         reaches this project only through $(ScopedCssBuildTaskProject) inside these MSBuild task
+         calls, not through a ProjectReference, so it never rides along in dotnet pack's own implicit
+         restore of BlazorCodeFirst.Runtime.csproj (a ProjectReference is what pulls
+         BlazorCodeFirst.Compiler.csproj into that restore graph; this project has no such edge).
+         On a clean checkout with no prior restore of BlazorCodeFirst.Build, the Rebuild calls below
+         failed with NETSDK1004 ("Assets file ... not found") for exactly this reason (confirmed by
+         reproducing it: deleting src/BlazorCodeFirst.Build/obj and re-running dotnet pack).
+
+         RemoveProperties="TargetFramework": an MSBuild task call with no Properties attribute
+         otherwise inherits this project's own global properties as-is, and dotnet pack's invocation
+         of this (non-multi-targeted) project carries a TargetFramework=net10.0 global property that
+         would otherwise narrow the restore to only net10.0, leaving BlazorCodeFirst.Build's net472
+         target framework out of the resulting assets file entirely (also confirmed by reproducing
+         it: restore ran, but the Rebuild call for net472 then failed with NETSDK1005, "doesn't have
+         a target for 'net472'"). Restore itself is TFM-agnostic (one assets.json covers every
+         TargetFramework), so it runs once, ahead of the two per-TFM Rebuild calls below.
+
+         NoBuild=false on the Rebuild calls, matching PackCompilerAnalyzer above: a global
+         NoBuild=true from an outer "dotnet pack" run with its no-build flag would otherwise
+         propagate into this nested Rebuild and fail with NETSDK1085 ("NoBuild was true but the
+         Build target was invoked"). -->
+    <MSBuild Projects="$(ScopedCssBuildTaskProject)"
+             Targets="Restore"
+             RemoveProperties="TargetFramework" />
     <MSBuild Projects="$(ScopedCssBuildTaskProject)"
              Targets="Rebuild"
              Properties="Configuration=$(Configuration);TargetFramework=net472;NoBuild=false" />
