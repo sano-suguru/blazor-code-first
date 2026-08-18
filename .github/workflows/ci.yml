@@ -28,12 +28,23 @@ jobs:
           - os: macos-latest
             rid: osx-arm64
             # `dotnet format` reads the same files and reaches the same verdict on either runner, so
-            # it runs on one leg rather than both. This leg, because it is the shorter one. Over the
-            # last 11 green runs of main with the check on both, the Linux leg averaged 149s and this
-            # one 130s, and the check itself was 25-44s of the Linux leg; two runs since the move put
-            # that leg at 124s and 114s. Runner-to-runner spread is wide enough (the Linux leg ranged
-            # 121-171s) that a single pair of runs cannot show this, which is why the figures here are
-            # means over a sample rather than one measurement.
+            # it runs on one leg rather than both. It was placed here (1966fc04, 2026-08-17) because
+            # this leg measured shorter at the time: over 11 green runs of main with the check on both,
+            # the Linux leg averaged 149s and this one 130s, and the check itself was 25-44s of the
+            # Linux leg; two runs since the move put this leg at 124s and 114s. Runner-to-runner spread
+            # is wide enough (the Linux leg ranged 121-171s) that a single pair of runs cannot show
+            # this, which is why the figures are means over a sample rather than one measurement.
+            #
+            # That comparison had already reversed one day later: 10 green runs sampled 2026-08-18
+            # put this leg at a 139s mean (109-162s) against the Linux leg's 112s (93-128s) -- this leg
+            # is now the slower one. The reversal is not the format check growing; it is that this
+            # leg's OTHER steps now cost about as much as the Linux leg's total (139s minus the ~29s
+            # mean format cost lands within a few seconds of 112s). Moving the check to the Linux leg
+            # would not shorten the workflow for the same reason: it would relocate roughly the same
+            # ~29s onto a leg whose own baseline is no cheaper, not remove it. The check stays on this
+            # leg because no leg currently costs less overall with it, not because this leg is still
+            # the shorter one -- and that comparison is volatile enough (it flipped within a day here)
+            # that neither claim should be read as a standing fact rather than a sampled one.
             #
             # A job of its own would be faster still and would not be a required check, which is the
             # trade this declines: the repository ruleset requires both legs by name, so the
