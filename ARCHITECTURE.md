@@ -151,7 +151,7 @@ Acceptance is limited to these two, and simple containment is not enough to judg
 
 This path rests on one premise, and that premise decides its scope: the only spelling that puts a fragment into a `View` is `implicit operator View(RenderFragment?)`, and every member of the design-time surface returns a default value (§3.2). So a `View` built from the surface carries no fragment, and putting it on the Opaque path still renders nothing. When the call target's source declaration is in the current compilation and its body references the design-time surface, this does not fall onto this path — BCF3030 (Error) stops it instead. What is accepted as Opaque is a body that does not reference the surface, and a declaration that cannot be read. The latter carries residue that cannot be judged, recorded in Appendix A's BCF2001 row.
 
-いずれの階層でも正確性は保たれます。失われるのはTransplantable/Opaque領域内部の静的差分最適化のみです。
+Accuracy is preserved at every tier. What is lost is only the static-diff optimization inside a Transplantable/Opaque region.
 
 ### 2.4 Static sequence-space separation for conditional branches
 
@@ -395,38 +395,18 @@ Appendix E carries the shape of the mismatch behind each of the four exclusions,
 
 A `ForEach`'s content root is never folded, because `SetKey` cannot attach to a markup frame (see (B)). What guards this is simply whether the emitting side passes a key to the content root — there is no separate predicate, so the two can never disagree. A run that would absorb only a single frame is also not folded, since that would only change the shape without reducing anything.
 
-**畳み込みは出力を変えずにコード経路を変えます。** 畳み込まれたマークアップと、要素経路が `HtmlEncoder` を通して書き出す出力は `&` `<` `>` `"` について同一です(それがDOM等価性の要件そのものなので当然そうなります)。したがって**出力に対するアサーションだけでは、畳み込み経路を通ったことを示せません**。畳み込みが静かに止まっても、そのテストは通り続けます。畳み込みを検査するテストが出力と併せて何を固定しなければならないかは、`CONTRIBUTING.md` §Conventions the code must uphold にあります。
+**Folding changes the code path, not the output.** The folded markup and what the element path writes out through `HtmlEncoder` are identical for `&` `<` `>` `"` (unsurprising, since that identity is exactly what DOM equivalence requires). So **an assertion over output alone cannot show that the folding path was taken** — a test like that keeps passing even if folding quietly stops working. What a test that checks folding must pin alongside the output is in `CONTRIBUTING.md` §Conventions the code must uphold.
 
-**コンポーネントのスカラーパラメータは値を型付きで渡します。** `.Param` の値は `AddComponentParameter` の
-`object?` 引数へ移植されるため、呼び出しサイトで持っていた目標型を失います。そこで発行側は、C#がその呼び出しで
-解決した型引数へのキャストで値を包みます。型は解決済みの型引数から採り、選択されたプロパティの宣言型からは
-採りません。値はその型引数へ既に変換済みであることをC#が保証しており、キャストが生成コードの中で束縛に失敗
-し得ないためです。参照型は常にnullable として書き出します。キャストはnullについて何も主張せず、生成ファイルは
-`#nullable enable` であるため、注釈を落とすと `null` と書かれた値でCS8600が出ます(#377、`Param_WithNullLiteralValue…`
-が固定)。型が解決できない場合は書かず、今日と同じ綴りのまま発行します(`Component<T>()` の型引数と同じ規則)。
+**A component's scalar parameter passes its value typed.** `.Param`'s value is transplanted into `AddComponentParameter`'s `object?` argument, losing the target type it had at the call site. So the emitting side wraps the value in a cast to the type argument C# resolved for that call. The type is taken from the resolved type argument, not from the selected property's declared type, because C# already guarantees the value has been converted to that type argument, so the cast can never fail to bind inside the generated code. A reference type is always written out as nullable: the cast asserts nothing about null, and since the generated file carries `#nullable enable`, dropping the annotation would raise CS8600 for a value written as `null` (#377, pinned by `Param_WithNullLiteralValue…`). When the type cannot be resolved, no cast is written, and it is emitted with the same spelling as today (the same rule as `Component<T>()`'s type argument).
 
-**コンポーネントの fragment スロット**: `RenderFragment` 型のパラメータは、スカラー値を持たずノードツリーを
-持ちます。そのため `ComponentParameter`(スカラー)とは別チャンネル(`ComponentSlot` / `ComponentSlotNode`)へ
-格納します。発行されるフレーム幅は `1 + Parameters.Length + Σ(1 + 内容のフレーム幅)` で、スロット1つが
-`AddComponentParameter` 1回とその内容の幅を消費します。
+**A component's fragment slot**: a `RenderFragment`-typed parameter carries no scalar value — it carries a node tree. So it is stored in a channel separate from `ComponentParameter` (scalar): `ComponentSlot` / `ComponentSlotNode`. The emitted frame width is `1 + Parameters.Length + Σ(1 + the content's frame width)`; each slot consumes one `AddComponentParameter` call plus its content's width.
 
-ラムダ内部のシーケンス番号は外側の平坦なカウンタを継続し、独立したシーケンス空間を作りません。
-スロットのフレームは呼び出し元ではなく**子コンポーネントのフレーム列**に属します。BlazorCodeFirst のジェネレータは
-常に `AddComponentParameter(seq, "ChildContent", (RenderFragment)(...))` を発行する側です。
-fragment を直接 invoke するかどうかは、渡し先コンポーネント(手書きでも Razor 生成でも)が `AddContent` に
-渡すか自分で呼ぶかの問題です。前者は Blazor のリージョンが隔離しますが、後者はリージョンが張られず、
-我々の番号がホスト自身のフレームと隣接します。0 から振り直すとホストの低い番号と衝突し、コンポーネントが
-再生成されて状態が失われます(実測)。平坦継続が厳密に安全側です。これは Razor と同一の挙動で、
-リージョンで包んでも解決しません(リージョンはホストのフレーム列における隣接関係を変えないため)。
+The sequence number inside the lambda continues the outer flat counter, creating no independent sequence space. A slot's frames belong not to the caller but to the **child component's own frame sequence**. BlazorCodeFirst's generator is always the side that emits `AddComponentParameter(seq, "ChildContent", (RenderFragment)(...))`. Whether the fragment is invoked directly is a question for the receiving component (hand-written or Razor-generated alike): whether it passes it on to `AddContent` or calls it itself. The former is isolated by a Blazor region; the latter opens no region, and our numbers end up adjacent to the host's own frames. Renumbering from 0 would collide with the host's low numbers, causing the component to be regenerated and losing state (measured). Continuing flat is strictly the safe side. This is identical to Razor's own behavior, and wrapping it in a region does not fix it either, since a region does not change adjacency within the host's own frame sequence.
 
-**ジェネリックな fragment スロット**: `RenderFragment<TContext>` 型のパラメータは `.Template` で受けます。
-名前が `ChildContent` の場合は角括弧でも受け、そちらはコンテキストを使わない綴りと同じものを発行します。
-発行するのは、`TContext` を取る外側のラムダと `RenderTreeBuilder` を取る内側のラムダを重ねた2段の式です。
-外側の引数は、コンテキストを使わない綴りでは破棄 `_`、コンテキストを読む綴りでは
-`__bcf_context_<論理プレオーダー番号>` という生成名になります。内側は非ジェネリックのスロットと同一です。
+**A generic fragment slot**: a `RenderFragment<TContext>`-typed parameter is received via `.Template`. When the name is `ChildContent`, a bracket also receives it, emitting the same thing as the spelling that ignores context. What is emitted is a two-tier expression: an outer lambda taking `TContext`, wrapping an inner lambda taking `RenderTreeBuilder`. The outer parameter is a discard `_` for a spelling that ignores context, or a generated name, `__bcf_context_<logical preorder number>`, for a spelling that reads it. The inner tier is identical to the non-generic slot.
 
 ```csharp
-// 入力(設計時のC#式)
+// Input (a design-time C# expression)
 Component<Card>()
     .Param(c => c.Title, "t")
     .Template(c => c.HeaderTemplate, Span["heading"])
@@ -434,8 +414,8 @@ Component<Card>()
 ```
 
 ```csharp
-// 出力(生成コード): スカラーが先、スロットはソース順、seqは平坦に継続する
-// (キャストの型名は表示の都合で短縮。実際は §2.2 のとおり global:: 修飾で書き出されます)
+// Output (generated code): scalars first, then slots in source order, seq continues flat
+// (the cast's type name is shortened here for display; it is actually written out with the global:: qualifier per §2.2)
 __b.OpenComponent<global::T.Card>(0);
 __b.AddComponentParameter(1, "Title", (string?)("t"));
 __b.AddComponentParameter(2, "HeaderTemplate", (RenderFragment<int>)((_) => (__builder) =>
@@ -451,20 +431,11 @@ __b.AddComponentParameter(4, "RowTemplate", (RenderFragment<int>)((__bcf_context
 __b.CloseComponent();
 ```
 
-チャンネルの発行順は、スカラーのパラメータがソース順で先、続いてスロットがソース順です。スロット内容の
-シーケンス番号は外側の平坦なカウンタをそのまま継続し、独立した空間を作りません(非ジェネリックのスロットと
-同じ規則です)。上の例の `RowTemplate` が `__bcf_context_3` を名乗るのは論理プレオーダー番号が3だからで、
-自身の `AddComponentParameter` のseq(4)とは別の数です。両者が一致する保証はありません。
+The channel's emission order is scalar parameters first, in source order, then slots, in source order. A slot's content's sequence number simply continues the outer flat counter, creating no independent space (the same rule as the non-generic slot). In the example above, `RowTemplate` is named `__bcf_context_3` because its logical preorder number is 3, a different number from its own `AddComponentParameter`'s seq (4) — there is no guarantee the two agree.
 
-コンテキストの名前は生成側が決め、作者の書いた識別子は生成コードに現れません。作者のラムダ引数は
-`[ViewPart]` の引数と同じ**穴**としてテンプレートに記録され、展開時に生成名が差し込まれます。穴の位置は
-解析時にパラメータの `ISymbol` から決まるため、同じ綴りの別物(同名のフィールド、内側のラムダが再宣言した
-同名の変数)は書き換わりません。ただし `ISymbol` と `TextSpan` はこの解析呼び出しの内側に閉じ、テンプレートへ
-渡るのは書き換え後の文字列だけです。ジェネレータのインクリメンタルモデルは不変・値等価なレコードと
-プリミティブと文字列だけで構成する必要があり、シンボルやスパンを持ち込めばキャッシュの等価判定が壊れます。
+The context's name is decided by the generated side; an identifier the author wrote never appears in generated code. The author's lambda parameter is recorded in the template as the same kind of **hole** as a `[ViewPart]`'s argument, and the generated name is spliced in at expansion time. The hole's position is decided at parse time from the parameter's `ISymbol`, so something that merely shares the spelling (a same-named field, a same-named variable an inner lambda redeclares) is never rewritten. `ISymbol` and `TextSpan`, though, stay closed inside this one parsing call — only the rewritten string ever crosses into the template. The generator's incremental model must be built purely from immutable, value-equal records, primitives, and strings; bringing in a symbol or a span would break the cache's equality check.
 
-逆向きの衝突も2つ塞いであります。作者が `__bcf_context_*` という名前を自分で宣言していれば
-`__bcf_authored_context_*` へ改名し、生成引数が作者の非静的メンバーを覆い隠す位置では `this.` を補います。
+Two collisions running the opposite direction are also closed off: if the author declared a name of their own that happens to be `__bcf_context_*`, it is renamed to `__bcf_authored_context_*`, and wherever a generated parameter would shadow the author's own non-static member, `this.` is supplied.
 
 **(E) Non-attribute frame decorations. Input: `.Key` / `.Ref` / `.RenderMode` / Output: a non-attribute frame placed after the attribute frames**
 
@@ -753,90 +724,90 @@ The second was collapsing an `IEnumerable<View>` spread other than `Select` down
 
 **B.18 Rejecting an event modifier that cannot reach a `.Bind`'s event with BCF3037**: make an event modifier written after `.Bind` a compile error, without resolving it. Implemented in #368, withdrawn in #370. Unlike B.5, the basis stayed correct — this was withdrawn not because the basis collapsed, but because what it was rejecting stopped needing rejection. What BCF3037 prevented was a break where a modifier silently attached to the end of the event channel and modified an event the author never wrote it for; this break is real, and with no rule there is no diagnostic for it either. What #370 changed was widening what the chain's backward walk answers, from "is this `.Bind`?" to "which channel was this written to?" The target is now decided by that same single walk, so the path to attaching to the wrong target vanished — and with it, the thing there was to reject. The number is not reused (`CONTRIBUTING.md` §Conventions the code must uphold).
 
-## 付録C: 開発時フォールバック案(解釈モード)
+## 付録C: A Development-Time Fallback (Interpreted Mode)
 
-§2.6のツーリング検証で、特定環境においてSource Generatorの再実行がEnCに反映されないと判明した場合に限り、次のDEBUGビルド限定フォールバックを導入する余地を残します。
+Only if §2.6's tooling verification finds that a specific environment does not carry a Source Generator re-run through to EnC, room is left to introduce the following DEBUG-build-only fallback.
 
-DEBUG構成では、設計時API群を慣性実装から実働実装(`View` に `RenderFragment` を構築して内包する)へ条件コンパイルで切り替え、`RenderView` の代わりに `Body` を実行時評価します。全体は単一のリージョン内で動的シーケンスを用いて描画されます。Hot Reloadは `Body` プロパティ本体の差し替え(EnC標準サポート)として自然に機能し、SGの再実行に依存しません。RELEASE構成では本仕様の生成コード経路のみが用いられるため、出荷物の性能・サイズ特性に影響しません。
+In a DEBUG configuration, the design-time API family switches by conditional compilation from its inert implementation to a working one (one that builds and wraps a `RenderFragment` inside `View`), and `Body` is evaluated at run time instead of `RenderView`. The whole thing renders inside a single region, using dynamic sequences. Hot Reload then works naturally as a `Body` property body swap (standard EnC support), with no dependence on the SG re-running. In a RELEASE configuration only this specification's generated-code path is used, so shipped performance and size characteristics are unaffected.
 
-本案は開発時と実行時で描画経路が二重化する複雑性を伴うため、§2.6のツーリング確認で必要性が示されるまで導入しません。
+This carries the complexity of a doubled render path between development time and run time, so it is not introduced until §2.6's tooling confirmation shows it is necessary.
 
-## 付録D: 検査しない翻訳の破れ(計測済み残余)
+## 付録D: Translation Breaks Left Unchecked (Measured Residue)
 
-`DESIGN.md` §4.1 は、検査するのが妥当性ではなく翻訳の破れであることを述べます。そして境界を、検査が依拠する表をこのリポジトリで著述して維持することになるかどうかに置き、単項側の最初の対象としてvoid要素に子を与える形(BCF3016、付録A A.1)を挙げます。この基準は#155で改訂しましたが、本付録の除外はいずれも改訂後の基準でも除外のままです。どれもここで表を著述することになるためです。本付録は、そこで検査の外に置かれた残余の一覧です。§4.1 が列挙を持たないと述べている先がここであり、curatedタグに対する `KnownSymbols.CuratedTags`、void要素に対する付録A A.1 と同じ位置にあります。本付録が載せるのは破れであって、妥当でない出力ではありません。`Div.Href("/x")` のように、書いたとおりに出て両描画経路が一致する形は、検査しない点では同じでもここには載りません(`DESIGN.md` §4.1、#335)。
+`DESIGN.md` §4.1 states that what is checked is a translation break, not validity, and places the boundary at whether checking it would commit this repository to authoring and maintaining a table the check depends on — naming, as the unary side's first case, giving a void element children (BCF3016, Appendix A A.1). That standard was revised in #155, but every exclusion in this appendix stays excluded under the revised standard too, because each would still require authoring a table here. This appendix is the list of residue that standard placed outside the check. This is where §4.1 says it has no enumeration, sitting in the same position as `KnownSymbols.CuratedTags` for curated tags and Appendix A A.1 for void elements. What this appendix carries is a break, not invalid output: a shape like `Div.Href("/x")`, which emits exactly what was written and agrees between both render paths, goes unchecked in the same sense but does not belong here (`DESIGN.md` §4.1, #335).
 
-**これは作業の一覧ではありません。** 各項は計測の結果として選ばれた位置の記録であり、BCF3016を広げるためのto-doではありません。付録Bと同じく、再検討には新しい証拠と本付録の改訂を要します。「診断があったほうが親切だ」は証拠ではありません。
+**This is not a work list.** Each item records a position chosen as the result of measurement — it is not a to-do list for widening BCF3016. As with Appendix B, reconsidering an item needs new evidence and a revision of this appendix. "A diagnostic would be kinder" is not evidence.
 
-計測はいずれも2026-08-03、net10.0 / ASP.NET Core 10.0.10 / Chromiumです。
+Every measurement here was taken on 2026-08-03, on net10.0 / ASP.NET Core 10.0.10 / Chromium.
 
-### D.1 単項側: BCF3016が覆わない破れ
+### D.1 The unary side: breaks BCF3016 does not cover
 
-要素タグ単独から決定できるにもかかわらず、BCF3016の対象ではない形です。BCF3016が覆うのは「その要素が子を持てるか」という一つの問いであり、以下はそれぞれ別の検査と別の直し方を要するため、どれもBCF3016には畳み込めません。
+Shapes decidable from the element tag alone, yet not covered by BCF3016. BCF3016 covers exactly one question — can this element take children — and each case below needs a different check and a different fix, so none of them can fold into BCF3016.
 
-**要素の子を取る `textarea` / `title`**。これらは内容をテキストとして読みます。要素の子はページがパースされた時点で潰れ、`appendChild` でDOMを組んだ場合は残ります。`Textarea[Span["x"]]` の `value` は、prerenderでは `"<span>x</span>"`、interactiveでは `""` です。`Textarea` はcuratedヘルパーであるため、この形は `Element` を経由せずに書けます。
+**`textarea` / `title` given an element child.** These read their content as text. An element child collapses at page-parse time, and survives when the DOM is built with `appendChild`. `Textarea[Span["x"]]`'s `value` is `"<span>x</span>"` under prerendering and `""` interactively. `Textarea` is a curated helper, so this shape is reachable without going through `Element`.
 
-**生テキスト要素にエスケープ済みのテキストが届く形**。`AddContent` はエスケープします。`script` / `style` / `xmp` / `plaintext` / `noembed` / `noframes` / `noscript` / `iframe` は内容を生テキストとして要求するため、エスケープが破壊になります。`Element("script")["if (a < b) alert(1);"]` は `<` / `>` / `&` / `'` がunicodeエスケープに置き換わった本体を出し、それらは演算子位置では不正であるためJSの構文エラーになります。`Element("style")` はHTMLの実体参照を出し、CSSはそれを復号しません。`Element("script")[Raw("…")]` は正しく出るため、除外した要素が能力を失わないという §4.1 の主張は成り立ったままです。破れるのは素の綴りのほうで、無言で破れます。したがってここでの検査は「この要素は子を取れない」ではなく「この要素には `Raw` が要る」と言うことになり、BCF3016とは別の文面を持ちます。
+**Escaped text reaching a raw-text element.** `AddContent` escapes. `script` / `style` / `xmp` / `plaintext` / `noembed` / `noframes` / `noscript` / `iframe` require their content as raw text, so escaping is destructive. `Element("script")["if (a < b) alert(1);"]` emits a body with `<` / `>` / `&` / `'` replaced by unicode escapes, invalid in an operator position, becoming a JS syntax error. `Element("style")` emits HTML entity references, which CSS never decodes. `Element("script")[Raw("…")]` emits correctly, so §4.1's claim that the excluded elements lose no capability still holds — it is the plain spelling that breaks, and it breaks silently. The check here, then, would not say "this element cannot take children" but "this element needs `Raw`" — different prose from BCF3016.
 
-**先頭の改行を落とす `textarea` / `pre`**。パーサは開始タグの直後の改行を1つ捨てます。`appendChild` は捨てません。`Pre["\ntext"]` は prerender で `"text"`、interactive で `"\ntext"` を読みます。`&#xA;` へのエスケープでは回避できません。この規則は文字参照の復号より後に適用されるためです。どちらもcuratedヘルパーです。判定に要るのは子の文字列の先頭1文字であり、形の検査ではなく内容の検査です。コンパイル時に知り得るとも限りません。
+**`textarea` / `pre` dropping a leading newline.** The parser discards one newline immediately following the opening tag; `appendChild` does not. `Pre["\ntext"]` reads as `"text"` under prerendering and `"\ntext"` interactively. Escaping to `&#xA;` does not avoid it, since this rule applies after character-reference decoding. Both are curated helpers. Judging this needs the child string's first character, which is a content check rather than a shape check, and is not always knowable at compile time.
 
-**廃止済みのパーサ的void 4タグ**。`param` / `keygen` / `basefont` / `bgsound` は標準の13要素とまったく同じ壊れ方をしますが、意図的にBCF3016の外にあります。§4.1 は検査対象をHTML Living Standardのvoid elementsの一覧として定義しており、集合が誰にも再導出できない列挙ではなく標準に追随するのはそのためです。この4つは除外第6群(標準が取り除いた要素)に含まれ、`Element` 経由でしか到達できません。
+**The four retired, parser-void tags.** `param` / `keygen` / `basefont` / `bgsound` break in exactly the same way as the standard 13 elements, but are deliberately outside BCF3016. §4.1 defines the check's target as the HTML Living Standard's list of void elements precisely so the set tracks the standard rather than being an enumeration nobody could re-derive. These four sit in exclusion group 6 (elements the standard removed), and are reachable only via `Element`.
 
-### D.2 二項側: (親, 子) の関係を要する破れ
+### D.2 The binary side: breaks that need a (parent, child) relationship
 
-判定に (親, 子) の二項関係を要する形です。§4.1 の境界の外側であり、検査しません。content model表をここで著述して維持することになるためです。二項側には性格の異なる2種類が混ざっており、その混在自体が境界をここに置いた理由の一つです。
+Shapes whose judgment needs the binary relationship (parent, child). This sits outside §4.1's boundary, and is not checked, because it would commit this repository to authoring and maintaining a content-model table here. The binary side mixes two kinds that differ in character, and that mixture itself is one reason the boundary was drawn here.
 
-**誤った綴りが、パーサに動かされる形。**
+**A wrong spelling the parser moves around.**
 
-| 出力 | パーサが読んだ後 |
+| Output | After the parser reads it |
 | --- | --- |
 | `<table><div>x</div></table>` | `<div>x</div><table></table>` |
-| `<p><div>x</div></p>` | `<p></p><div>x</div><p></p>`(`<p>` が1個から2個になります) |
-| `<table>裸のテキスト</table>` | `裸のテキスト<table></table>` |
+| `<p><div>x</div></p>` | `<p></p><div>x</div><p></p>` (`<p>` goes from one to two) |
+| `<table>bare text</table>` | `bare text<table></table>` |
 
-`Div[Col]` は子を一つも与えていない状態で食い違います。表の外の `col` は再パースで捨てられるためです。`Element("svg")[Element("b")]` は外来コンテンツの部分木から抜け出します。これらは原理的にはすべて診断で捕まえられます。ただし §4.1 が作らないと述べている (親, 子) のcontent model表を要します。
+`Div[Col]` diverges without even giving it any children: `col` outside a table is discarded on reparse. `Element("svg")[Element("b")]` escapes the foreign-content subtree. All of these could, in principle, be caught by a diagnostic, but doing so needs the (parent, child) content-model table §4.1 states will not be built.
 
-**正しい綴りが、パーサに正規化される形。** `Table[Tr[Td["x"]]]` は表を書く通常の綴りです。パーサは `tbody` を挿入し、interactive描画は挿入しません。
+**A correct spelling the parser normalizes.** `Table[Tr[Td["x"]]]` is the ordinary spelling for writing a table. The parser inserts `tbody`; interactive rendering does not.
 
-- prerender: `table > tbody > tr` が一致し、`table > tr` は一致しません
-- interactive: `table > tr` が一致し、`table > tbody > tr` は一致しません
+- prerender: `table > tbody > tr` matches; `table > tr` does not
+- interactive: `table > tr` matches; `table > tbody > tr` does not
 
-どちらかに合わせて書いたスタイルシートは、ハイドレーションで意味が変わります。ここには診断で直せる対象がありません。コードはすでに正しいためです。直す価値があるとすれば、直す場所は発行側かドキュメントです。
+A stylesheet written to match either one changes meaning across hydration. There is nothing here a diagnostic could fix, because the code is already correct. If this is worth fixing at all, the place to fix it is the emitting side, or the documentation.
 
-### D.3 再現手順
+### D.3 Reproduction steps
 
-1. `RenderView` が発行するのと同じ `RenderTreeBuilder` のフレームを発行します。
-2. `Microsoft.AspNetCore.Components.Web.HtmlRendering.HtmlRenderer` で描画し、`ToHtmlString()` を読みます。
-3. その文字列をブラウザで `innerHTML` に代入し、`appendChild` で組んだツリーと比較します。
+1. Emit the same `RenderTreeBuilder` frames `RenderView` would emit.
+2. Render with `Microsoft.AspNetCore.Components.Web.HtmlRendering.HtmlRenderer` and read `ToHtmlString()`.
+3. Assign that string to `innerHTML` in a browser, and compare against a tree built with `appendChild`.
 
-描画経路どうしの比較には、Interactive Serverのアプリをホストし、DOMを2回読みます。1回目は `blazor.web.js` を遮断した状態、2回目は `RendererInfo.IsInteractive` が真になった後です。
+To compare the two render paths against each other, host an Interactive Server app and read the DOM twice: once with `blazor.web.js` blocked, and once after `RendererInfo.IsInteractive` becomes true.
 
-## 付録E: 畳み込まない値(計測済みの境界)
+## 付録E: Values Not Folded (Measured Boundaries)
 
-§2.7 (D) が静的畳み込みから除外する値について、除外の根拠を置きます。いずれも Chromium 上で、畳み込み経路(`AddMarkupContent`)と要素経路(`AddContent` / `setAttribute`)の双方を比較して決めました。§2.7 が定めるのは何を畳むかであり、ここが記録するのはなぜその境界なのかです。
+This lays out the grounds for excluding certain values from §2.7(D)'s static folding. Every one was decided on Chromium, comparing the folded path (`AddMarkupContent`) against the element path (`AddContent` / `setAttribute`). §2.7 defines what gets folded; this records why the boundary sits where it does.
 
-### E.1 マークアップを往復できない4文字
+### E.1 The four characters that cannot round-trip through markup
 
-下の2つを見れば、仕様の読解だけでは足りないとわかります。うち1つは仕様上どの段も触れない文字です。
+Two of the cases below show that reading the spec alone is not enough — one of them is a character no stage of the spec even touches.
 
-- **復帰(CR)**。パーサはCRLFと単独のCRを、トークン化より前の入力ストリーム前処理でLFへ正規化します。これは `<template>` に対するフラグメントパースでも同じです。一方 `setAttribute` / `createTextNode` は正規化しません。属性値は空白の畳み込みを受けないため `getAttribute` に差が直接現れます(畳み込み経路は `"a\rb"` と `"a\r\nb"` の双方に対し `"a\nb"` を返す)。4つのうち実際に踏みやすいのはこれだけで、CRLFで取得したファイル中の逐語的文字列リテラルはこれを含みます。LFは正規化されないため畳み込み可能です。
-- **NUL**。乖離の形が位置によって2つに分かれます。マークアップ経路はテキスト内容ではNULを削除し、属性値では U+FFFD へ置換します。要素経路は双方で保ちます。処理が前処理ではなくトークン化と木構築に分かれて置かれているため、テキスト側と属性側で結果が揃いません。
-- **孤立サロゲート**。乖離は無く、保守的な除外です。.NET が描画バッチをUTF-8へエンコードする時点で U+FFFD へ置き換わるため、パーサに届く前に両経路とも U+FFFD になります。仕様上も、入力ストリーム中の孤立サロゲートは parse error であってストリームの書き換えではありません。
-- **先頭のU+FEFF**。HTMLのパース段はこれに触れません。ブラウザは描画バッチのフレーム文字列をデコードする際、先頭にあるバイト順マークだけを剥がします。畳み込みは値の位置を動かす操作なので、非畳み込みでは値が自身のフレーム文字列の先頭にあって剥がされ、畳み込みでは `<` で始まるより大きな文字列の内部に入って残ります。したがって除外の条件は文字ではなく位置です。この1つだけはマークアップ経路の方が原文に忠実ですが、畳み込みの契約は「両方の綴りが同じDOMを作る」ことであって、どちらが原文に近いかではありません。
+- **Carriage return (CR).** The parser normalizes CRLF and a lone CR to LF during input-stream preprocessing, ahead of tokenization; this holds for fragment parsing of `<template>` too. `setAttribute` / `createTextNode`, on the other hand, do not normalize. An attribute value undergoes no whitespace folding, so the difference shows up directly in `getAttribute` (the folded path returns `"a\nb"` for both `"a\rb"` and `"a\r\nb"`). Of the four, this is the one actually easy to hit — a verbatim string literal in a file fetched with CRLF line endings contains it. LF is not normalized, so it is foldable.
+- **NUL.** The shape of the mismatch splits in two by position. The markup path deletes NUL from text content, and replaces it with U+FFFD in an attribute value; the element path preserves it in both. Because the handling sits at tokenization and tree construction rather than preprocessing, the text side and the attribute side never agree.
+- **An isolated surrogate.** There is no mismatch; this is a conservative exclusion. By the time .NET encodes the render batch to UTF-8, it is already replaced with U+FFFD, so both paths already carry U+FFFD before it ever reaches the parser. Per spec too, an isolated surrogate in the input stream is a parse error, not a stream rewrite.
+- **A leading U+FEFF.** HTML's parse stage never touches this at all. What strips a leading byte-order mark is the browser, when it decodes a render-batch frame string. Because folding is an operation that moves a value's position, when unfolded the value sits at the start of its own frame string and gets stripped, while when folded it sits inside a larger string that starts with `<` and survives. So the exclusion condition here is position, not the character itself. This is the one case where the markup path is actually more faithful to the original — but folding's contract is that both spellings build the same DOM, not which one is closer to the source.
 
-### E.2 非文字列の値と、2つの例外
+### E.2 Non-string values, and two exceptions
 
-非文字列を除外する根拠は整形時点のカルチャです。実測では、コンポーネントの `OnInitialized` で `CultureInfo.CurrentCulture` を変えても属性の出力は変わらず、`CultureInfo.DefaultThreadCurrentCulture` を変えると変わります(#158)。
+The grounds for excluding a non-string value is the culture in effect at formatting time. Measured: changing `CultureInfo.CurrentCulture` inside a component's `OnInitialized` does not change the attribute output, while changing `CultureInfo.DefaultThreadCurrentCulture` does (#158).
 
-整形そのものは `AddAttribute` の呼び出しの中で終わっており、フレームへ入るのは整形済みの文字列です(2026-08-14に#245で実測)。#158の観察はこれと矛盾しません。`OnInitialized` と `RenderView` が同じスレッドで走るとは限らず、`CultureInfo.CurrentCulture` はスレッドごとだからです。子チャネルも同じです。数値の子を許した場合の解決先は `AddContent(int, object?)` の1つで(`int` / `double` / `decimal` / `DateTime` / enum のいずれもここに決まります)、この呼び出しもその場で `ToString` を呼び、`string?` を渡した場合と同じ `Text` フレームへ整形済みの文字列を積みます。畳み込みへは数値がそもそも到達しません。数値を補間した時点で文字列が定数でなくなるためで、`Span[$"n={3}"]` は畳み込まれず `Span["n=3"]` は畳み込まれます。この2つが意味するのは、本項の除外根拠が数値の子と補間文字列を分けないということです。数値の子の綴りを設けない根拠は別にあります(`DESIGN.md` §4.1、#245)。以上は `NonStringValueFormattingTests` と `ChildValueSpellingTests` が固定します。
+Formatting itself finishes inside the `AddAttribute` call, and what enters the frame is the already-formatted string (measured 2026-08-14, #245). This does not contradict #158's observation: `OnInitialized` and `RenderView` are not guaranteed to run on the same thread, and `CultureInfo.CurrentCulture` is per-thread. The child channel is the same. If a numeric child were allowed, it would resolve to the one overload `AddContent(int, object?)` (every one of `int` / `double` / `decimal` / `DateTime` / an enum resolves here), and this call also calls `ToString` on the spot, stacking the formatted string into the same `Text` frame as passing a `string?` would. A number never even reaches folding, though, since the string stops being constant the moment a number is interpolated — `Span[$"n={3}"]` does not fold, while `Span["n=3"]` does. Together these two mean this item's grounds for exclusion do not distinguish a numeric child from an interpolated string: the grounds for never introducing a numeric-child spelling in the first place lie elsewhere (`DESIGN.md` §4.1, #245). The above are pinned by `NonStringValueFormattingTests` and `ChildValueSpellingTests`.
 
-**定数 `null`** の一致は #171 で実測しました。要素経路のフレーム層・静的SSR・prerender・interactive初回・両方向の再描画のすべてで属性ごと不在に一致し、`""` とは全段で区別されます。対照としてコンポーネントのパラメータ経路は `null` でもフレームを積むため、省略は要素経路だけの性質です。ただし非畳み込み経路が定数 `null` を書くときは `(global::System.String?)` のキャストを伴います。`AddAttribute` の値位置が多重定義されており、裸の `null` は `string?` と `MulticastDelegate?` のどちらにも決まらずCS0121になるためです(#234で実測)。要素経路もフレームを出さない形にすれば markup と完全に一致しますが、シーケンス番号は発行した呼び出しに対して割り当てられるため、発行する定数 `false` の `bool` と扱いが割れます。
+**Agreement for a constant `null`** was measured in #171. It agrees on the attribute being entirely absent at every level — the element path's frame layer, static SSR, prerendering, the first interactive render, and re-renders in both directions — and is distinguished from `""` at every stage. By contrast, the component parameter path stacks a frame even for `null`, so omission is a property of the element path alone. When the unfolded path writes a constant `null`, though, it carries a `(global::System.String?)` cast: `AddAttribute`'s value position is overloaded, and a bare `null` resolves to neither `string?` nor `MulticastDelegate?`, becoming CS0121 (measured in #234). The element path could match markup exactly by emitting no frame at all too, but a sequence number is assigned against the call that was issued, splitting its treatment from the constant `false` `bool`, which does issue one.
 
-**定数 `bool`** の `true` が `name=""` になることはDOM等価として実測しました。prerender 出力は `=""` の無い裸の `name` を書き、これも同じDOMへパースされます。`false` に対して要素経路はフレームを1つも発行しないため、フレーム数も一致します。
+**For a constant `bool`**, that `true` becomes `name=""` was measured as DOM-equivalent. The prerendered output writes the bare `name` with no `=""`, and this too parses to the same DOM. For `false`, the element path emits no frame at all, so the frame count agrees too.
 
-**束縛値はこの節の対象外です**(2026-08-14実測、#307)。カルチャを伴う `.Bind` は属性側を `BindConverter.FormatValue(値, culture:)` で包むため、フレームへ入るのは呼び出しサイトに書かれたカルチャの下で整形済みの文字列です。上の実測はいずれも「整形は呼び出したスレッドのカルチャに従う」ことに帰着しますが、この経路では従いません。スレッドが `de-DE` を持ったまま `CultureInfo.InvariantCulture` を書いた束縛が `1234.5` を積むことを実測しました(`NonStringValueFormattingTests`)。包むかどうかは解決されたオーバーロードがカルチャを取るかだけで決まり、束縛値の型は見ないため、`string` と `bool` の既存経路の出力は1バイトも動きません。
+**A bound value is outside this section's scope** (measured 2026-08-14, #307). A `.Bind` that carries a culture wraps the attribute side in `BindConverter.FormatValue(value, culture:)`, so what enters the frame is a string already formatted under the culture written at the call site. Every measurement above comes down to "formatting follows the calling thread's culture," and this path does not follow that. Measured: with the thread holding `de-DE`, a binding that writes `CultureInfo.InvariantCulture` stacks `1234.5` (`NonStringValueFormattingTests`). Whether wrapping happens is decided purely by whether the resolved overload takes a culture, never by the bound value's type, so the existing `string` and `bool` paths' output does not move by a single byte.
 
-この経路の費用は整形時点ではなくトリムに出ます(2026-08-14実測)。値型を1つでも束縛すると `BindConverter` が丸ごと保持されます。`TrimTestApp` を値型束縛の有無で publish した比較では、`BindConverter` の残存メソッドが28から53へ、`Microsoft.AspNetCore.Components.dll` が71,680から81,408バイトへ増えました(osx-arm64、self-contained、`TrimMode=full`)。残る中にはアプリが束縛しない型の変換器も含まれます(`ConvertToGuidCore` など)。`FormatterDelegateCache` と `ParserDelegateCache` が全変換器を一箇所から参照し、そこに `[DynamicallyAccessedMembers(All)]` と `UnconditionalSuppressMessage` が付いているためです。費用はenum固有ではなく、`string` と `bool` だけを束縛するアプリには生じません。`TrimmedOutputTests` が固定します。
+This path's cost shows up in trimming, not in formatting (measured 2026-08-14). Binding even one value type keeps the whole of `BindConverter` alive. Comparing a `TrimTestApp` publish with and without a value-type binding: `BindConverter`'s surviving methods rose from 28 to 53, and `Microsoft.AspNetCore.Components.dll` grew from 71,680 to 81,408 bytes (osx-arm64, self-contained, `TrimMode=full`). What survives includes converters for types the app never binds (`ConvertToGuidCore`, for example) — because `FormatterDelegateCache` and `ParserDelegateCache` reference every converter from one place, carrying `[DynamicallyAccessedMembers(All)]` and `UnconditionalSuppressMessage`. This cost is not specific to enum, and never occurs for an app that binds only `string` and `bool`. `TrimmedOutputTests` pins this.
 
-### E.3 掃き出した文字クラス
+### E.3 Character classes swept out
 
-#150 は E.1 以外の文字クラスを掃き、いずれも両経路で一致することを実測しました(C0制御文字、DEL、NEL、NBSP、U+2028/U+2029、BMPおよび追加面の非文字、内部のBOM、U+FFFD自身、タブ、LF、連続空白、正しい対のサロゲート)。入力ストリーム前処理で書き換えが起きるのは改行正規化だけであり、サロゲート・非文字・制御文字は parse error に分類されるだけでストリームを書き換えません。
+#150 swept every character class other than E.1's, and measured that all of them agree between the two paths: C0 control characters, DEL, NEL, NBSP, U+2028/U+2029, non-characters in the BMP and the supplementary planes, an internal BOM, U+FFFD itself, tab, LF, runs of whitespace, and a correctly paired surrogate. The only rewrite that occurs during input-stream preprocessing is newline normalization; a surrogate, a non-character, and a control character are merely classified as a parse error and never rewrite the stream.
