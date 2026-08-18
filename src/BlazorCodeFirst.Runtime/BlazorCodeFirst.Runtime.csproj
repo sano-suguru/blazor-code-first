@@ -102,12 +102,15 @@
   </Target>
 
   <Target Name="PackScopedCssBuildTask">
+    <!-- NoBuild=false, matching PackCompilerAnalyzer above: a global NoBuild=true from an outer
+         "dotnet pack" run with its no-build flag would otherwise propagate into this nested
+         Rebuild and fail with NETSDK1085 ("NoBuild was true but the Build target was invoked"). -->
     <MSBuild Projects="$(ScopedCssBuildTaskProject)"
              Targets="Rebuild"
-             Properties="Configuration=$(Configuration);TargetFramework=net472" />
+             Properties="Configuration=$(Configuration);TargetFramework=net472;NoBuild=false" />
     <MSBuild Projects="$(ScopedCssBuildTaskProject)"
              Targets="Rebuild"
-             Properties="Configuration=$(Configuration);TargetFramework=net10.0" />
+             Properties="Configuration=$(Configuration);TargetFramework=net10.0;NoBuild=false" />
 
     <ItemGroup>
       <_ScopedCssBuildTaskNet472File Include="../BlazorCodeFirst.Build/bin/$(Configuration)/net472/BlazorCodeFirst.Build.dll" />

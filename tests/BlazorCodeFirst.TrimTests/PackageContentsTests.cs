@@ -14,8 +14,12 @@ public sealed class PackageContentsTests
     private static readonly string[] ExpectedPayloadFiles =
     [
         "analyzers/dotnet/cs/BlazorCodeFirst.Compiler.dll",
+        "build/BlazorCodeFirst.props",
+        "build/BlazorCodeFirst.targets",
         "lib/net10.0/BlazorCodeFirst.Runtime.dll",
-        "lib/net10.0/BlazorCodeFirst.Runtime.xml"
+        "lib/net10.0/BlazorCodeFirst.Runtime.xml",
+        "tasks/net10.0/BlazorCodeFirst.Build.dll",
+        "tasks/net472/BlazorCodeFirst.Build.dll"
     ];
 
     [Fact]
@@ -383,7 +387,8 @@ public sealed class PackageContentsTests
             || path.StartsWith("buildTransitive/", StringComparison.Ordinal)
             || path.StartsWith("contentFiles/", StringComparison.Ordinal)
             || path.StartsWith("tools/", StringComparison.Ordinal)
-            || path.StartsWith("runtimes/", StringComparison.Ordinal);
+            || path.StartsWith("runtimes/", StringComparison.Ordinal)
+            || path.StartsWith("tasks/", StringComparison.Ordinal);
 
     private static bool IsAllowedPackagePath(string path)
     {
