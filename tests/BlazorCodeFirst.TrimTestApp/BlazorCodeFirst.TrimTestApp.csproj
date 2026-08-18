@@ -7,15 +7,16 @@
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
-    <RestorePackagesPath>../../artifacts/nuget-packages</RestorePackagesPath>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../artifacts/nuget-packages</RestorePackagesPath>
     <!-- Fires on the three public types Program.cs declares in the global namespace, which are
          public so the trimmer keeps them reachable for TrimTests. Not on the Program class
          top-level statements synthesize: that one is internal, and CA1050 only considers externally
          visible types (#137). A deliberate exemption, until those types gain a namespace. -->
     <NoWarn>CA1050</NoWarn>
-    <!-- Computed path to the dev-version cache that must be cleared before restore. -->
-    <_BlazorCodeFirstDevCachePath>$(MSBuildThisFileDirectory)../../artifacts/nuget-packages/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstDevCachePath>
   </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/BlazorCodeFirstDevCache.props" />
+
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="BlazorCodeFirst" />
@@ -37,11 +38,4 @@
     <_ILLinkSuppressions Include="ILLink.LinkAttributes.xml" />
   </ItemGroup>
 
-  <!-- Cross-platform cache purge: delete only the isolated dev-version cache before restore
-       so NuGet cannot reuse stale package contents for the fixed development version.
-       Only fires during actual NuGet restore (MSBuildRestoreSessionId is set). -->
-  <Target Name="PurgeBlazorCodeFirstDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
-    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
-    <RemoveDir Directories="$(_BlazorCodeFirstDevCachePath)" Condition="Exists('$(_BlazorCodeFirstDevCachePath)')" />
-  </Target>
 </Project>
