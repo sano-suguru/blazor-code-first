@@ -197,13 +197,13 @@ internal static class DiagnosticDescriptors
     /// diff optimization for that area is lost.
     /// </summary>
     /// <remarks>
-    /// Info, not a warning: the call is correct and renders correctly, and 付録A assigns this ID to the
+    /// Info, not a warning: the call is correct and renders correctly, and Appendix A assigns this ID to the
     /// lost optimization alone. The case where the call renders <em>nothing</em> is
     /// <see cref="BCF3030"/>, which is a different fact and carries an error.
     /// <para>
     /// One residue this cannot see. A referenced assembly's <c>View</c>-returning method may be built from
     /// the design-time surface, in which case it carries no fragment and renders nothing, and no source
-    /// declaration exists here to tell. 付録A's row records it; <c>DESIGN.md</c> §4.3 already routes
+    /// declaration exists here to tell. Appendix A's row records it; <c>DESIGN.md</c> §4.3 already routes
     /// cross-assembly reuse to components.
     /// </para>
     /// </remarks>
@@ -624,7 +624,7 @@ internal static class DiagnosticDescriptors
     /// Sibling of BCF3004, which places the same restriction on <c>ForEach</c>'s content and key for the
     /// same reason. Arity is not this rule's concern: a zero-parameter or multi-parameter lambda does not
     /// convert to <c>Func&lt;TContext, View&gt;</c> at all, so C# rejects the call before this rule could
-    /// apply. The number follows BCF3021, which was withdrawn (付録B.5) and stays retired.
+    /// apply. The number follows BCF3021, which was withdrawn (Appendix B.5) and stays retired.
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3022 = new(
         id: "BCF3022",
@@ -789,7 +789,7 @@ internal static class DiagnosticDescriptors
     /// <remarks>
     /// <para>
     /// Each shape has a C# error of its own, and the declaration-stage cutoff keeps every one of them from
-    /// the author (付録A A.0): CS1503 on the index argument for a member, whose indexer the brackets quietly
+    /// the author (Appendix A A.0): CS1503 on the index argument for a member, whose indexer the brackets quietly
     /// call; CS0119 for a type; CS0118 for a namespace; CS0021 for a method group. Without this descriptor
     /// the author was told the expression "uses a construct that is not statically analyzable", which is
     /// untrue — the construct is ordinary and the lookup went elsewhere (#127).
@@ -883,7 +883,7 @@ internal static class DiagnosticDescriptors
     /// <para>
     /// A <c>View</c>-returning declaration of the author's own is not this diagnostic's business either,
     /// and for a stronger reason: it is the Opaque path <c>DESIGN.md</c> §5.3 reserves, whose spelling
-    /// 付録B.11(b) refuses to erase, and the forgotten <c>[ViewPart]</c> that reaches it by accident is
+    /// Appendix B.11(b) refuses to erase, and the forgotten <c>[ViewPart]</c> that reaches it by accident is
     /// answered by BCF2001 at Info (#260). Only members of the design-time API itself are reported, which
     /// is what <c>KnownSymbols.IsDesignTimeApiMember</c> decides.
     /// </para>
@@ -921,8 +921,8 @@ internal static class DiagnosticDescriptors
     /// the fragment the returned <c>View</c> carries. It carries none: every member of <c>Html</c>,
     /// <c>ElementView</c> and <c>Decorations</c> returns the default value, so the only route into
     /// <c>View.Fragment</c> is the <c>RenderFragment</c> conversion. Letting this call take the Opaque
-    /// path would turn 付録B.11(c)'s "cost you always notice" into the cost you never notice, which is the
-    /// trade that appendix refuses. 付録B.11's closing note is revised to name this diagnostic.
+    /// path would turn Appendix B.11(c)'s "cost you always notice" into the cost you never notice, which is the
+    /// trade that appendix refuses. Appendix B.11's closing note is revised to name this diagnostic.
     /// </para>
     /// <para>
     /// The predicate is "does the callee's body reference the design-time surface", not BCF1002's full

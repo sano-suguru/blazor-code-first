@@ -704,7 +704,7 @@ public sealed class RenderMutationAnalyzerTests
     /// <summary>
     /// The selector is not a deferred position. It is evaluated for the parameter it names while the
     /// frames are built, exactly as the getter is, so a mutation written in it is BCF3001 — which is
-    /// what ARCHITECTURE.md 付録A's BCF3001 row says by naming only the setter argument. This shape,
+    /// what ARCHITECTURE.md Appendix A's BCF3001 row says by naming only the setter argument. This shape,
     /// a bound parameter whose type is the component's own, is where the derivation #206 replaced
     /// answered otherwise.
     /// </summary>

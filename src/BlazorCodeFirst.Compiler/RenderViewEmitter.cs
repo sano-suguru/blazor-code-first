@@ -481,7 +481,7 @@ internal static class RenderViewEmitter
     /// <remarks>
     /// A written <c>false</c> still emits. The frame it would produce is dropped by the framework, but a
     /// sequence number belongs to the emitted call rather than to the resulting frame, which is the rule
-    /// 付録D already records for <c>.Attr(name, false)</c>. That is what keeps the width of an element a
+    /// Appendix D already records for <c>.Attr(name, false)</c>. That is what keeps the width of an element a
     /// function of the decorations written on it rather than of the values they carry (#234).
     /// </remarks>
     /// <summary>

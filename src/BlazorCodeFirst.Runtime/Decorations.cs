@@ -87,7 +87,7 @@ public static class Decorations
     /// There is no bulk <c>.Attrs(…)</c> splat and there will not be one (#308 / #320): a name that
     /// arrives at runtime cannot join the class channel's compile-time fold, and the duplicate check
     /// cannot see it. Bind each attribute individually with this overload or a named shortcut. The
-    /// reasons are in <c>ARCHITECTURE.md</c> 付録B.14.
+    /// reasons are in <c>ARCHITECTURE.md</c> Appendix B.14.
     /// </summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>

@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
-/// Keeps <c>ARCHITECTURE.md</c> 付録A, the canonical diagnostic table, and the document a reader
+/// Keeps <c>ARCHITECTURE.md</c> Appendix A, the canonical diagnostic table, and the document a reader
 /// actually consults, in step with the declared descriptor set in both directions.
 /// <c>AnalyzerReleases.Unshipped.md</c> is already enforced by RS2000 at build time; the table is the
 /// other half, and nothing checked it before (#86).
@@ -23,7 +23,7 @@ public sealed class DiagnosticTableTests
 
         Assert.True(
             missing.IsEmpty,
-            $"付録A does not document these declared diagnostics: {string.Join(", ", missing)}. " +
+            $"Appendix A does not document these declared diagnostics: {string.Join(", ", missing)}. " +
             $"Add a row to the 診断一覧 table in {AppendixA.DocumentPath}.");
     }
 
@@ -42,7 +42,7 @@ public sealed class DiagnosticTableTests
 
         Assert.True(
             undeclared.IsEmpty,
-            $"付録A documents diagnostics no descriptor declares: {string.Join(", ", undeclared)}. " +
+            $"Appendix A documents diagnostics no descriptor declares: {string.Join(", ", undeclared)}. " +
             "Remove the row, or record the ID in DiagnosticExpectations.DocumentedWithoutDescriptor with " +
             "the reason it is specified ahead of its implementation.");
     }
@@ -61,7 +61,7 @@ public sealed class DiagnosticTableTests
         Assert.True(
             stale.IsEmpty,
             $"These are excused from needing a descriptor but no longer need the excuse: {string.Join(", ", stale)}. " +
-            "The descriptor landed, or the 付録A row is gone. Either way, drop the entry so the exception " +
+            "The descriptor landed, or the Appendix A row is gone. Either way, drop the entry so the exception " +
             "does not outlive its reason.");
     }
 
@@ -79,7 +79,7 @@ public sealed class DiagnosticTableTests
         Assert.True(
             revived.IsEmpty,
             $"These IDs were retired and must not be reused: {string.Join(", ", revived)}. " +
-            "付録B records why each was withdrawn. A retired number stays taken, so a new diagnostic " +
+            "Appendix B records why each was withdrawn. A retired number stays taken, so a new diagnostic " +
             "takes the next number above every allocated and retired ID — `AnalyzerReleases.Unshipped.md` " +
             "is not the whole picture, since a retired ID is listed in neither release file.");
     }
@@ -94,7 +94,7 @@ public sealed class DiagnosticTableTests
             .Order(StringComparer.Ordinal)
             .ToImmutableArray();
 
-        Assert.True(repeated.IsEmpty, $"付録A documents the same diagnostic more than once: {string.Join(", ", repeated)}.");
+        Assert.True(repeated.IsEmpty, $"Appendix A documents the same diagnostic more than once: {string.Join(", ", repeated)}.");
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class DiagnosticTableTests
         // guard that reports nothing to compare as agreement is worse than no guard.
         Assert.True(
             unreadable.IsEmpty,
-            $"付録A does not state a severity for these diagnostics: {string.Join(", ", unreadable)}. " +
+            $"Appendix A does not state a severity for these diagnostics: {string.Join(", ", unreadable)}. " +
             $"It belongs in the second column and reads one of {string.Join(" / ", KnownKinds)}; if the columns " +
             "were reordered, reorder them back or teach AppendixA the new layout.");
     }
@@ -128,13 +128,13 @@ public sealed class DiagnosticTableTests
             .Select(static row => (Row: row, Descriptor: DeclaredDescriptors.ById[row.Id]))
             .Select(static pair => (pair.Row.Id, Documented: pair.Row.Kind!, Actual: DocumentedKindOf(pair.Descriptor)))
             .Where(static pair => !string.Equals(pair.Documented, pair.Actual, StringComparison.OrdinalIgnoreCase))
-            .Select(static pair => $"{pair.Id} (付録A says {pair.Documented}, the descriptor is {pair.Actual})")
+            .Select(static pair => $"{pair.Id} (Appendix A says {pair.Documented}, the descriptor is {pair.Actual})")
             .Order(StringComparer.Ordinal)
             .ToImmutableArray();
 
         Assert.True(
             wrong.IsEmpty,
-            $"付録A claims a severity the descriptor does not have: {string.Join(", ", wrong)}. " +
+            $"Appendix A claims a severity the descriptor does not have: {string.Join(", ", wrong)}. " +
             "Changing a diagnostic's severity is a change to the canonical table too.");
     }
 
@@ -146,7 +146,7 @@ public sealed class DiagnosticTableTests
         Assert.NotEmpty(AppendixA.Rows);
     }
 
-    /// <summary>Every severity 付録A has a wording for, and the only cell values worth comparing.</summary>
+    /// <summary>Every severity Appendix A has a wording for, and the only cell values worth comparing.</summary>
     private static ImmutableArray<string> KnownKinds { get; } = ["Error", "Warning", "Info"];
 
     /// <summary>
@@ -162,7 +162,7 @@ public sealed class DiagnosticTableTests
         kind is null ? "empty" : $"'{(kind.Length > 40 ? kind[..40] + "…" : kind)}'";
 
     /// <summary>
-    /// The severity as 付録A words it. Deliberately not shared with
+    /// The severity as Appendix A words it. Deliberately not shared with
     /// <c>DescriptorCoverageTests.ExpectedSeverity_MatchesTheDescriptor</c>: that one speaks SARIF, where
     /// <see cref="DiagnosticSeverity.Info"/> is reported as <c>note</c>, while the table writes
     /// <c>Info</c>. Both derive from <see cref="DiagnosticSeverity"/> rather than from each other.
@@ -173,9 +173,9 @@ public sealed class DiagnosticTableTests
             DiagnosticSeverity.Error => "Error",
             DiagnosticSeverity.Warning => "Warning",
             DiagnosticSeverity.Info => "Info",
-            // 付録A has never had to word one of these, so there is no convention to check against yet.
+            // Appendix A has never had to word one of these, so there is no convention to check against yet.
             // Whoever adds the first such descriptor decides what the table says, here and there.
             _ => throw new InvalidOperationException(
-                $"{descriptor.Id} has severity {descriptor.DefaultSeverity}, which 付録A has no wording for."),
+                $"{descriptor.Id} has severity {descriptor.DefaultSeverity}, which Appendix A has no wording for."),
         };
 }

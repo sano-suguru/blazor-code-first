@@ -74,7 +74,7 @@ public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
     [Fact]
     public void GeneratorFixture_ReportsNoAnalyzerDiagnostics_BecauseADeclarationErrorSuppressesThem()
     {
-        // The behaviour the whole design follows from (#76, ARCHITECTURE.md 付録A.0): csc does not run
+        // The behaviour the whole design follows from (#76, ARCHITECTURE.md Appendix A.0): csc does not run
         // the analyzer driver on a compilation that has a declaration-level error. The identical
         // CA1050-violating type is compiled into both fixtures, is reported in the analyzer one, and
         // is silently gone here. If this test ever fails, Roslyn changed and A.0 can be revisited.
@@ -83,7 +83,7 @@ public sealed class DiagnosticDeliveryTests(DiagnosticFixtures fixtures)
         Assert.True(build.Contains("CS0534"), build.Report());
         Assert.False(
             build.Contains("CA1050"),
-            "An analyzer diagnostic survived a declaration-level error; re-examine 付録A.0." +
+            "An analyzer diagnostic survived a declaration-level error; re-examine Appendix A.0." +
             Environment.NewLine + build.Report());
     }
 

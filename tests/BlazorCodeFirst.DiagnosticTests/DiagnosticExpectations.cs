@@ -320,7 +320,7 @@ public static class DiagnosticExpectations
     public static ImmutableArray<(string Id, string Reason)> Excluded { get; } = [];
 
     /// <summary>
-    /// IDs that <c>ARCHITECTURE.md</c> 付録A documents on purpose while no <c>DiagnosticDescriptor</c>
+    /// IDs that <c>ARCHITECTURE.md</c> Appendix A documents on purpose while no <c>DiagnosticDescriptor</c>
     /// declares them yet, each with the reason. This is the opposite axis from <see cref="Excluded"/>:
     /// those are declared diagnostics not proven against a real build, these are specified diagnostics
     /// not yet implemented. Without the list, a deliberate row is indistinguishable from a row that
@@ -333,7 +333,7 @@ public static class DiagnosticExpectations
     /// the old error in a preview build and searches for it must not find a different rule wearing the
     /// same name. <c>CONTRIBUTING.md</c>'s prohibition covers IDs listed in
     /// <c>AnalyzerReleases.Shipped.md</c>, which is empty, so this is what enforces the decision.
-    /// 付録B records the withdrawal itself.
+    /// Appendix B records the withdrawal itself.
     /// </summary>
     public static ImmutableArray<(string Id, string Reason)> RetiredIds { get; } =
     [

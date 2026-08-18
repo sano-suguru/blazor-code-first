@@ -182,7 +182,7 @@ public sealed class LoweredHeaderLocalTests
         AssertRefusedForTheLocal(SiblingAttributeBody);
 
     /// <summary>
-    /// BCF1002 names the position it is reported at. 付録A describes it as the view part diagnostic, and
+    /// BCF1002 names the position it is reported at. Appendix A describes it as the view part diagnostic, and
     /// it is also the report for a component's own design-time expression, so calling that expression a
     /// "ViewPart method" named the wrong thing (#361).
     /// </summary>

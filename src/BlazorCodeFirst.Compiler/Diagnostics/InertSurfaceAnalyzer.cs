@@ -18,7 +18,7 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 /// </para>
 /// <para>
 /// An analyzer rather than a generator diagnostic, and separate from <see cref="RenderMutationAnalyzer"/>.
-/// The shape compiles, so 付録A A.0's prohibition does not apply and the analyzer driver runs; BCF3001 is
+/// The shape compiles, so Appendix A A.0's prohibition does not apply and the analyzer driver runs; BCF3001 is
 /// the precedent for that. It stays its own type because BCF3001 looks only <em>inside</em> a design-time
 /// expression while this looks only <em>outside</em> one, and two opposite range tests in a single type
 /// leave it unreadable which condition a later change touched.
@@ -91,7 +91,7 @@ public sealed class InertSurfaceAnalyzer : DiagnosticAnalyzer
 
         // Is this the surface at all. The member half is what keeps a declaration of the author's own out —
         // one that merely returns an inert type is the Opaque path DESIGN.md §5.3 reserves, and reporting a
-        // call to one would erase a spelling 付録B.11(b) refuses to close.
+        // call to one would erase a spelling Appendix B.11(b) refuses to close.
         if (!IsDesignTimeApiReference(operation, knownSymbols))
             return;
 

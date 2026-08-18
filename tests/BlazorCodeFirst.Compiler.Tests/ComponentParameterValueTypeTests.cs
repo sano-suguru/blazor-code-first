@@ -129,7 +129,7 @@ public sealed class ComponentParameterValueTypeTests
     /// <summary>
     /// The resolved type argument and not the declared property type. The two differ only where the author
     /// writes the type argument out, and the resolved one is the type the value was already converted to at
-    /// the call site, so the cast can never fail to bind in a file the author cannot reach (付録A A.0).
+    /// the call site, so the cast can never fail to bind in a file the author cannot reach (Appendix A A.0).
     /// </summary>
     [Fact]
     public void Param_WithWidenedTypeArgument_CastsToTheWrittenTypeArgument()

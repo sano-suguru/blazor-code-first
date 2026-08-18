@@ -20,7 +20,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// <para>
 /// The C# error for that is CS1503, "cannot convert from 'string' to 'int'", which names neither the
 /// element, nor the member that took its place, nor the fix. It does not reach the author in any case, for
-/// the reason 付録A A.0 gives and <see cref="RejectedDecorationScanner"/>'s remarks work through for CS1929:
+/// the reason Appendix A A.0 gives and <see cref="RejectedDecorationScanner"/>'s remarks work through for CS1929:
 /// the body does not translate, so no <c>RenderView</c> is generated, so the class carries CS0534, a
 /// declaration-stage error, and <c>csc</c> stops before it binds method bodies. What the author was left
 /// with is BCF1003's "uses a construct that is not statically analyzable", said of an expression that is

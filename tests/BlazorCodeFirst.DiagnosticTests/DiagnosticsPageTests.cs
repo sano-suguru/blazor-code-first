@@ -5,11 +5,11 @@ namespace BlazorCodeFirst.DiagnosticTests;
 
 /// <summary>
 /// Keeps the documentation site's diagnostic reference in step with the declared descriptor set in
-/// both directions, the way <see cref="DiagnosticTableTests"/> keeps <c>ARCHITECTURE.md</c> 付録A.
+/// both directions, the way <see cref="DiagnosticTableTests"/> keeps <c>ARCHITECTURE.md</c> Appendix A.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two documents, two guards, and neither derives from the other. 付録A is Japanese and written for
+/// Two documents, two guards, and neither derives from the other. Appendix A is Japanese and written for
 /// whoever implements a diagnostic: which component reports it, and why the implementation sits where
 /// it does. The page is English and written for whoever hit one. What they share is the descriptor
 /// set, so each is held to that rather than to its counterpart.
@@ -48,14 +48,14 @@ public sealed class DiagnosticsPageTests
             .ToImmutableArray();
 
         // Stricter than DiagnosticTableTests, which excuses an ID recorded in
-        // DocumentedWithoutDescriptor. Specifying a diagnostic ahead of its implementation is 付録A's
+        // DocumentedWithoutDescriptor. Specifying a diagnostic ahead of its implementation is Appendix A's
         // business; a reader arrives here from a build failure, so an entry for a diagnostic nothing
         // can report is an entry nobody can arrive at.
         Assert.True(
             undeclared.IsEmpty,
             $"The site's diagnostic reference documents diagnostics no descriptor declares: " +
             $"{string.Join(", ", undeclared)}. Remove the entry, or land the descriptor. Specifying one " +
-            "ahead of its implementation belongs in 付録A, which has a register for it.");
+            "ahead of its implementation belongs in Appendix A, which has a register for it.");
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class DiagnosticsPageTests
 
     /// <summary>The severity as the page words it.</summary>
     /// <remarks>
-    /// Derived from <see cref="DiagnosticSeverity"/> rather than from 付録A's wording, for the reason
+    /// Derived from <see cref="DiagnosticSeverity"/> rather than from Appendix A's wording, for the reason
     /// <c>DiagnosticTableTests.DocumentedKindOf</c> gives: two documents that read each other drift
     /// together. The words match today, and neither is bound to the other.
     /// </remarks>
@@ -116,7 +116,7 @@ public sealed class DiagnosticsPageTests
             DiagnosticSeverity.Warning => "Warning",
             DiagnosticSeverity.Info => "Info",
             // The page has never had to word one of these, so there is no convention to check against
-            // yet. Whoever adds the first such descriptor decides what it says, here and in 付録A.
+            // yet. Whoever adds the first such descriptor decides what it says, here and in Appendix A.
             _ => throw new InvalidOperationException(
                 $"{descriptor.Id} has severity {descriptor.DefaultSeverity}, which the page has no wording for."),
         };

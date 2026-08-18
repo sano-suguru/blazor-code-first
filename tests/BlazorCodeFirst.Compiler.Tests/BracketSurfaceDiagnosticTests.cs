@@ -362,7 +362,7 @@ public sealed class BracketSurfaceDiagnosticTests
         // A spread of stored Views has no per-child written expression and is not a projection the
         // generator can fold, so it is not statically sequenceable children. #172 moved this boundary for
         // `.. source.Select(item => …)` and for nothing else: the singular Div[_view] is BCF1003 for the
-        // same reason (ARCHITECTURE.md 付録A), and admitting the plural would make a sequence of stored
+        // same reason (ARCHITECTURE.md Appendix A), and admitting the plural would make a sequence of stored
         // Views more permissive than one of them.
         var result = RunResult("""Div[[.._children]]""", """private readonly View[] _children = [];""");
 
