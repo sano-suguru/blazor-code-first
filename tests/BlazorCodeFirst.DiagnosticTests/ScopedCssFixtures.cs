@@ -1,6 +1,6 @@
 namespace BlazorCodeFirst.DiagnosticTests;
 
-public sealed record ScopedCssBuild(string Output, string BundledCss);
+public sealed record ScopedCssBuild(string Output, string BundledCss, string GeneratedFilesDirectory);
 
 /// <summary>
 /// Shared across every test in the <see cref="RealBuildDiagnostics"/> collection (see that
@@ -15,6 +15,7 @@ public sealed class ScopedCssFixtures
     private readonly Lazy<ScopedCssBuild> _projectReference;
     private readonly Lazy<ScopedCssBuild> _package;
     private readonly Lazy<ScopedCssBuild> _mixed;
+    private readonly Lazy<(int ExitCode, string Output)> _orphan;
 
     public ScopedCssFixtures()
     {
@@ -23,6 +24,7 @@ public sealed class ScopedCssFixtures
             () => BuildFixture("ScopedCss.ProjectReference"), LazyThreadSafetyMode.ExecutionAndPublication);
         _package = new(BuildPackage, LazyThreadSafetyMode.ExecutionAndPublication);
         _mixed = new(() => BuildFixture("ScopedCss.Mixed"), LazyThreadSafetyMode.ExecutionAndPublication);
+        _orphan = new(BuildOrphan, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public ScopedCssBuild ProjectReference => _projectReference.Value;
@@ -30,6 +32,12 @@ public sealed class ScopedCssFixtures
     public ScopedCssBuild Package => _package.Value;
 
     public ScopedCssBuild Mixed => _mixed.Value;
+
+    /// <summary>
+    /// The orphan fixture never produces a bundle (the build is expected to fail with BCF3041 before
+    /// bundling), so its accessor's shape deliberately differs from the others above.
+    /// </summary>
+    public (int ExitCode, string Output) Orphan => _orphan.Value;
 
     // BlazorCodeFirst.targets resolves its UsingTask entries from "tasks/{tfm}/" relative to
     // itself (the layout Task 6 packages into the NuGet payload) -- staging the just-built DLL
@@ -71,8 +79,17 @@ public sealed class ScopedCssFixtures
         var projectPath = Path.Combine(projectDirectory, $"{fixtureName}.csproj");
         Assert.True(File.Exists(projectPath), $"Fixture project not found: {projectPath}");
 
+        // Written outside the project directory, not to a "gen" subfolder under it: the SDK's default
+        // Compile glob ("**/*.cs") would otherwise re-include the emitted files as ordinary source on
+        // the next build, colliding with the same partial class the generator produces live (measured
+        // -- this is exactly what happened when the output path was project-local).
+        var generatedFilesDirectory = Path.Combine(
+            RepoLayout.ArtifactsDirectory, "scoped-css", "gen", fixtureName);
+
         var (exitCode, output) = NestedDotnet.Run(
-            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m"],
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
+             "-p:EmitCompilerGeneratedFiles=true",
+             "-p:CompilerGeneratedFilesOutputPath=" + generatedFilesDirectory],
             projectDirectory);
 
         Assert.True(exitCode == 0, $"Building {fixtureName} failed.{Environment.NewLine}{output}");
@@ -81,7 +98,7 @@ public sealed class ScopedCssFixtures
             Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
         var bundle = Assert.Single(bundlePath);
 
-        return new ScopedCssBuild(output, File.ReadAllText(bundle));
+        return new ScopedCssBuild(output, File.ReadAllText(bundle), generatedFilesDirectory);
     }
 
     private static ScopedCssBuild BuildPackage()
@@ -100,10 +117,15 @@ public sealed class ScopedCssFixtures
         var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Package");
         var projectPath = Path.Combine(projectDirectory, "ScopedCss.Package.csproj");
         var configFile = Path.Combine(projectDirectory, "NuGet.config");
+        // Outside the project directory; see BuildFixture's comment on the same property.
+        var generatedFilesDirectory = Path.Combine(
+            RepoLayout.ArtifactsDirectory, "scoped-css", "gen", "ScopedCss.Package");
 
         var (exitCode, output) = NestedDotnet.Run(
             ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
-             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true"],
+             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true",
+             "-p:EmitCompilerGeneratedFiles=true",
+             "-p:CompilerGeneratedFilesOutputPath=" + generatedFilesDirectory],
             projectDirectory);
 
         Assert.True(exitCode == 0, $"Building ScopedCss.Package failed.{Environment.NewLine}{output}");
@@ -112,6 +134,18 @@ public sealed class ScopedCssFixtures
             Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
         var packageBundle = Assert.Single(bundlePaths);
 
-        return new ScopedCssBuild(output, File.ReadAllText(packageBundle));
+        return new ScopedCssBuild(output, File.ReadAllText(packageBundle), generatedFilesDirectory);
+    }
+
+    private (int ExitCode, string Output) BuildOrphan()
+    {
+        _ = _stagedBuildTask.Value;
+
+        var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Orphan");
+        var projectPath = Path.Combine(projectDirectory, "ScopedCss.Orphan.csproj");
+
+        return NestedDotnet.Run(
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m"],
+            projectDirectory);
     }
 }

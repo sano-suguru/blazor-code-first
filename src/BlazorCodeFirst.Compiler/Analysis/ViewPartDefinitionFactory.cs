@@ -64,12 +64,16 @@ internal static class ViewPartDefinitionFactory
         if (definition is null)
         {
             return new ViewPartDiscoveryResult(
-                new ViewPartDefinitionEntry(methodKey, displayName, Definition: null, DeclarationDiagnosticReported: true),
+                new ViewPartDefinitionEntry(
+                    methodKey, displayName, declaration.SyntaxTree.FilePath,
+                    Definition: null, DeclarationDiagnosticReported: true),
                 bodyDiagnostics);
         }
 
         return new ViewPartDiscoveryResult(
-            new ViewPartDefinitionEntry(methodKey, displayName, definition, DeclarationDiagnosticReported: false),
+            new ViewPartDefinitionEntry(
+                methodKey, displayName, declaration.SyntaxTree.FilePath,
+                definition, DeclarationDiagnosticReported: false),
             bodyDiagnostics);
     }
 
@@ -363,7 +367,9 @@ internal static class ViewPartDefinitionFactory
     {
         var diagnostic = BuildDiagnostic(declaration, displayName, reason);
         return new ViewPartDiscoveryResult(
-            new ViewPartDefinitionEntry(methodKey, displayName, Definition: null, DeclarationDiagnosticReported: true),
+            new ViewPartDefinitionEntry(
+                methodKey, displayName, declaration.SyntaxTree.FilePath,
+                Definition: null, DeclarationDiagnosticReported: true),
             [diagnostic]);
     }
 

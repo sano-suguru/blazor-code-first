@@ -68,7 +68,41 @@ public static class CompilationTestHost
     }
 
     /// <summary>Runs the generator against a pre-built compilation and collects its results.</summary>
-    internal static GeneratorRunResult RunGenerator(CSharpCompilation compilation)
+    internal static GeneratorRunResult RunGenerator(CSharpCompilation compilation) =>
+        RunGeneratorCore(compilation, additionalTexts: [], optionsProvider: null);
+
+    /// <summary>
+    /// Parses each <c>(Path, Source)</c> tuple as in <see cref="RunGenerator(ValueTuple{string,string}[])"/>,
+    /// and additionally supplies one <see cref="AdditionalText"/> per <paramref name="cssScopes"/> entry
+    /// with its <c>CssScope</c> value visible through <c>build_metadata.AdditionalFiles.CssScope</c>, the
+    /// same key <c>BlazorCodeFirst.Build</c> stamps in a real build. Lets a test exercise scope resolution
+    /// without a nested <c>dotnet build</c>.
+    /// </summary>
+    internal static GeneratorRunResult RunGeneratorWithCssScopes(
+        (string Path, string Source)[] sources, (string CssPath, string Scope)[] cssScopes)
+    {
+        var syntaxTrees = sources
+            .Select(static source => CSharpSyntaxTree.ParseText(
+                source.Source,
+                CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.CSharp14),
+                path: source.Path))
+            .ToArray();
+
+        var compilation = CreateCompilation(syntaxTrees);
+
+        ImmutableArray<AdditionalText> additionalTexts = [.. cssScopes
+            .Select(static entry => (AdditionalText)new TestAdditionalText(entry.CssPath))];
+
+        var optionsProvider = new TestAnalyzerConfigOptionsProvider(
+            cssScopes.ToDictionary(static entry => entry.CssPath, static entry => entry.Scope));
+
+        return RunGeneratorCore(compilation, additionalTexts, optionsProvider);
+    }
+
+    private static GeneratorRunResult RunGeneratorCore(
+        CSharpCompilation compilation,
+        ImmutableArray<AdditionalText> additionalTexts,
+        AnalyzerConfigOptionsProvider? optionsProvider)
     {
         var driverOptions = new GeneratorDriverOptions(
             disabledOutputs: default,
@@ -76,6 +110,9 @@ public static class CompilationTestHost
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             generators: [new BlazorCodeFirstGenerator().AsSourceGenerator()],
+            additionalTexts: additionalTexts,
+            parseOptions: null,
+            optionsProvider: optionsProvider,
             driverOptions: driverOptions);
 
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);

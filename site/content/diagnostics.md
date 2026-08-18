@@ -796,6 +796,24 @@ Drop the format, or format the value in the getter and parse it in an explicit s
 read from the framework's own metadata rather than enumerated by this compiler, and the culture is
 not in question: every type this surface binds may carry one.
 
+## Scoped CSS
+
+### BCF3041
+
+Error. A `Foo.cs.css` file has no matching `Foo.cs`, and `Foo.cs` declares neither a component nor a
+`[ViewPart]` method.
+
+```
+Counter.cs.css   // scopes nothing: no Counter.cs in this project   // BCF3041
+```
+
+A `.cs.css` file's scope is discovered by matching its name against a `.cs` file — there is no
+explicit way to pair the two, unlike Razor's `ScopedCssInput`. An unmatched file is therefore always
+a mistake, most often a typo in the file name, so it is reported rather than silently dropped.
+
+Rename the `.cs.css` file to match the component (or the file declaring the `[ViewPart]` methods)
+whose elements it is meant to scope, or add that file if it does not exist yet.
+
 ## Next
 
 Back to [getting started](./getting-started.md), or read the [element

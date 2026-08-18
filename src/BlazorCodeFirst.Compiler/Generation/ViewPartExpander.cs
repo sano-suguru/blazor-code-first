@@ -25,22 +25,38 @@ internal readonly record struct ExpansionResult(
 /// </summary>
 internal static class ViewPartExpander
 {
+    /// <summary>
+    /// Everything one call to <see cref="Expand"/> carries unchanged through the whole recursion:
+    /// invariant across every node, unlike <c>substitution</c>/<c>activeMethodStack</c>/
+    /// <c>currentScope</c>, which vary per call as the traversal descends. Bundled into one type so a
+    /// future cross-cutting input (the way <c>cssScopes</c> itself joined <c>registry</c> and
+    /// <c>generatedTypeInheritanceKeys</c> here) is one field added to this record rather than another
+    /// parameter threaded through every recursive call site in this file.
+    /// </summary>
+    private sealed record ExpansionEnvironment(
+        ViewPartRegistry Registry,
+        ImmutableArray<string> GeneratedTypeInheritanceKeys,
+        CssScopeRegistry CssScopes,
+        ImmutableArray<DiagnosticInfo>.Builder Diagnostics);
+
     internal static ExpansionResult Expand(
         RenderTemplateNode root,
         ViewPartRegistry registry,
-        ImmutableArray<string> generatedTypeInheritanceKeys)
+        ImmutableArray<string> generatedTypeInheritanceKeys,
+        CssScopeRegistry cssScopes,
+        string? hostCssScope)
     {
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         var nextLogicalPreorderOrdinal = 0;
+        var environment = new ExpansionEnvironment(registry, generatedTypeInheritanceKeys, cssScopes, diagnostics);
 
         var node = ExpandNode(
             root,
             [],
             ref nextLogicalPreorderOrdinal,
             [],
-            registry,
-            generatedTypeInheritanceKeys,
-            diagnostics);
+            hostCssScope,
+            environment);
 
         return new ExpansionResult(node, diagnostics.ToImmutable());
     }
@@ -58,9 +74,8 @@ internal static class ViewPartExpander
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
-        ViewPartRegistry registry,
-        ImmutableArray<string> generatedTypeInheritanceKeys,
-        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+        string? currentScope,
+        ExpansionEnvironment environment)
     {
         // Every node consumes one logical preorder ordinal, assigned before its subtree is visited.
         var ordinal = nextLogicalPreorderOrdinal++;
@@ -74,9 +89,8 @@ internal static class ViewPartExpander
                         substitution,
                         ref nextLogicalPreorderOrdinal,
                         activeMethodStack,
-                        registry,
-                        generatedTypeInheritanceKeys,
-                        diagnostics);
+                        currentScope,
+                        environment);
                     if (thenNode is null)
                         return null;
 
@@ -88,9 +102,8 @@ internal static class ViewPartExpander
                             substitution,
                             ref nextLogicalPreorderOrdinal,
                             activeMethodStack,
-                            registry,
-                            generatedTypeInheritanceKeys,
-                            diagnostics);
+                            currentScope,
+                            environment);
                         if (otherwiseNode is null)
                             return null;
                     }
@@ -113,9 +126,8 @@ internal static class ViewPartExpander
                         extended,
                         ref nextLogicalPreorderOrdinal,
                         activeMethodStack,
-                        registry,
-                        generatedTypeInheritanceKeys,
-                        diagnostics);
+                        currentScope,
+                        environment);
                     if (content is null)
                         return null;
 
@@ -159,9 +171,8 @@ internal static class ViewPartExpander
                             slotSubstitution,
                             ref nextLogicalPreorderOrdinal,
                             activeMethodStack,
-                            registry,
-                            generatedTypeInheritanceKeys,
-                            diagnostics);
+                            currentScope,
+                            environment);
                         if (content is null)
                             return null;
 
@@ -189,7 +200,7 @@ internal static class ViewPartExpander
                 {
                     if (ExpandChildren(
                             element.Children, substitution, ref nextLogicalPreorderOrdinal,
-                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics)
+                            activeMethodStack, currentScope, environment)
                         is not { } children)
                     {
                         return null;
@@ -244,6 +255,7 @@ internal static class ViewPartExpander
                         Key = element.Key?.Substitute(substitution),
                         Ref = element.Ref?.Substitute(substitution),
                         FormName = element.FormName?.Substitute(substitution),
+                        CssScope = currentScope,
                     };
                 }
 
@@ -274,9 +286,8 @@ internal static class ViewPartExpander
                         blockSubstitution,
                         ref nextLogicalPreorderOrdinal,
                         activeMethodStack,
-                        registry,
-                        generatedTypeInheritanceKeys,
-                        diagnostics);
+                        currentScope,
+                        environment);
                     if (content is null)
                         return null;
 
@@ -294,7 +305,7 @@ internal static class ViewPartExpander
                 {
                     if (ExpandChildren(
                             fragment.Children, substitution, ref nextLogicalPreorderOrdinal,
-                            activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics)
+                            activeMethodStack, currentScope, environment)
                         is not { } children)
                     {
                         return null;
@@ -309,9 +320,8 @@ internal static class ViewPartExpander
                     substitution,
                     ref nextLogicalPreorderOrdinal,
                     activeMethodStack,
-                    registry,
-                    generatedTypeInheritanceKeys,
-                    diagnostics);
+                    currentScope,
+                    environment);
 
             case ContentHoleTemplateNode hole:
                 {
@@ -341,9 +351,8 @@ internal static class ViewPartExpander
                         content.Substitution,
                         ref nextLogicalPreorderOrdinal,
                         content.ActiveMethodStack,
-                        registry,
-                        generatedTypeInheritanceKeys,
-                        diagnostics);
+                        content.CssScope,
+                        environment);
                 }
 
             default:
@@ -360,16 +369,15 @@ internal static class ViewPartExpander
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
-        ViewPartRegistry registry,
-        ImmutableArray<string> generatedTypeInheritanceKeys,
-        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+        string? currentScope,
+        ExpansionEnvironment environment)
     {
         var expanded = ImmutableArray.CreateBuilder<RenderNode>(children.Length);
         foreach (var child in children.AsImmutableArray())
         {
             var expandedChild = ExpandNode(
                 child, substitution, ref nextLogicalPreorderOrdinal,
-                activeMethodStack, registry, generatedTypeInheritanceKeys, diagnostics);
+                activeMethodStack, currentScope, environment);
             if (expandedChild is null)
                 return null;
             expanded.Add(expandedChild);
@@ -383,10 +391,11 @@ internal static class ViewPartExpander
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
-        ViewPartRegistry registry,
-        ImmutableArray<string> generatedTypeInheritanceKeys,
-        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+        string? currentScope,
+        ExpansionEnvironment environment)
     {
+        var registry = environment.Registry;
+        var diagnostics = environment.Diagnostics;
         var methodKey = call.MethodKey;
 
         if (!registry.TryGet(methodKey, out var entry))
@@ -421,7 +430,7 @@ internal static class ViewPartExpander
 
         foreach (var requirement in definition.AccessRequirements)
         {
-            if (!SatisfiesAccess(requirement, generatedTypeInheritanceKeys))
+            if (!SatisfiesAccess(requirement, environment.GeneratedTypeInheritanceKeys))
             {
                 diagnostics.Add(CreateDiagnostic(
                     call,
@@ -463,7 +472,7 @@ internal static class ViewPartExpander
                 return null;
 
             innerArguments[contentArgument.ParameterOrdinal] = SubstitutedArgument.ForContent(
-                new ContentArgument(contentArgument.Content, substitution, activeMethodStack));
+                new ContentArgument(contentArgument.Content, substitution, activeMethodStack, currentScope));
         }
 
         // Emit the locals in source evaluation order (supplied arguments by source position, then implicit
@@ -502,14 +511,15 @@ internal static class ViewPartExpander
 
         var innerSubstitution = ImmutableArray.Create(innerArguments);
 
+        var calleeScope = environment.CssScopes.GetScopeOrDefault(entry.FilePath);
+
         var body = ExpandNode(
             definition.Body,
             innerSubstitution,
             ref nextLogicalPreorderOrdinal,
             activeMethodStack.Add(methodKey),
-            registry,
-            generatedTypeInheritanceKeys,
-            diagnostics);
+            calleeScope,
+            environment);
         if (body is null)
             return null;
 

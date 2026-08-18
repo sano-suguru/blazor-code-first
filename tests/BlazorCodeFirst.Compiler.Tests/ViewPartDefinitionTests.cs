@@ -108,8 +108,8 @@ public sealed class ViewPartDefinitionTests
     [Fact]
     public void ViewPartRegistry_EntriesDiscoveredOutOfOrder_RemainsValueEqual()
     {
-        var high = new ViewPartDefinitionEntry("K:b", "Beta", Definition: null, DeclarationDiagnosticReported: true);
-        var low = new ViewPartDefinitionEntry("K:a", "Alpha", Definition: null, DeclarationDiagnosticReported: true);
+        var high = new ViewPartDefinitionEntry("K:b", "Beta", "/repo/Beta.cs", Definition: null, DeclarationDiagnosticReported: true);
+        var low = new ViewPartDefinitionEntry("K:a", "Alpha", "/repo/Alpha.cs", Definition: null, DeclarationDiagnosticReported: true);
 
         var registry = ViewPartRegistry.Create([high, low]);
         var reordered = ViewPartRegistry.Create([low, high]);
@@ -129,8 +129,8 @@ public sealed class ViewPartDefinitionTests
     [Fact]
     public void ViewPartRegistry_DuplicateMethodKeys_RetainsFirstEntryOnly()
     {
-        var first = new ViewPartDefinitionEntry("K", "First", Definition: null, DeclarationDiagnosticReported: true);
-        var duplicate = new ViewPartDefinitionEntry("K", "Second", Definition: null, DeclarationDiagnosticReported: true);
+        var first = new ViewPartDefinitionEntry("K", "First", "/repo/First.cs", Definition: null, DeclarationDiagnosticReported: true);
+        var duplicate = new ViewPartDefinitionEntry("K", "Second", "/repo/Second.cs", Definition: null, DeclarationDiagnosticReported: true);
 
         var registry = ViewPartRegistry.Create([first, duplicate]);
 

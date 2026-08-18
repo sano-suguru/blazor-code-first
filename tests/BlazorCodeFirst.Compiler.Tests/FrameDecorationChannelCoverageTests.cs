@@ -113,7 +113,8 @@ public sealed class FrameDecorationChannelCoverageTests
 
     private static RenderNode Expand(RenderTemplateNode node)
     {
-        var result = Generation.ViewPartExpander.Expand(node, Analysis.ViewPartRegistry.Empty, []);
+        var result = Generation.ViewPartExpander.Expand(
+            node, Analysis.ViewPartRegistry.Empty, [], Analysis.CssScopeRegistry.Empty, hostCssScope: null);
 
         Assert.Empty(result.Diagnostics);
         Assert.NotNull(result.Node);

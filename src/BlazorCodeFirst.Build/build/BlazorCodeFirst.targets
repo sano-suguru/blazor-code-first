@@ -31,9 +31,23 @@
     </ComputeScopedCssScopeTask>
   </Target>
 
+  <!-- BeforeTargets names GenerateMSBuildEditorConfigFileCore explicitly, not just CoreCompile or the
+       empty GenerateMSBuildEditorConfigFile wrapper: that wrapper target
+       (Microsoft.Managed.Core.targets) has itself no body, only
+       DependsOnTargets="...;GenerateMSBuildEditorConfigFileCore", and it is Core that does the actual
+       work, reading CompilerVisibleItemMetadata (declared in BlazorCodeFirst.props) and each
+       matching item's metadata to write the per-file editorconfig section the generator reads
+       CssScope back from. A DependsOnTargets chain always finishes before a BeforeTargets insertion
+       point for the same named target runs, so naming the wrapper here (as an earlier version of this
+       target did) let Core already run, and write the file with no CssScope section at all, before
+       this target's stamp ever landed on @(AdditionalFiles) (measured directly with -v:diag target
+       ordering: GenerateMSBuildEditorConfigFileCore executed before BcfStampCssScopeOnAdditionalFiles
+       even started). The build still succeeded either way, silently: no exception, just a scope
+       attribute that never reached the generated component. Naming Core itself is what actually forces
+       this target to run first. -->
   <Target Name="BcfStampCssScopeOnAdditionalFiles"
           DependsOnTargets="BcfComputeScopedCssScope"
-          BeforeTargets="CoreCompile">
+          BeforeTargets="GenerateMSBuildEditorConfigFileCore;CoreCompile">
     <ItemGroup>
       <AdditionalFiles Include="@(_BcfScopedCssWithScope)" />
     </ItemGroup>
