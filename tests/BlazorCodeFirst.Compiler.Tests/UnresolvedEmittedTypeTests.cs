@@ -1674,6 +1674,38 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
+    /// <summary>
+    /// Two written arguments against <c>PreventDefault</c>'s zero-parameter overload, one of the
+    /// candidates <c>TrySelectCandidate</c> tries from the two-overload group. The bounds guard on
+    /// <c>HasValidArgumentOrder</c>'s params check exists for exactly this candidate: with zero declared
+    /// parameters, <c>nextPositional</c> reaches <c>parameterCount</c> on the very first written argument,
+    /// and indexing <c>parameters[nextPositional + offset]</c> without the guard walks past the array
+    /// (length 1, the receiver alone) and crashes the whole generator rather than letting this candidate
+    /// fail to bind cleanly.
+    /// </summary>
+    [Fact]
+    public void OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("x", MissingMethod() + typeof(Probe).Name).PreventDefault(true, false);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "CS8785");
+        AssertSingleBCF3015(result, source);
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)

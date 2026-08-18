@@ -746,6 +746,21 @@ internal static class UnresolvedValueTypeScanner
             if ((uint)nextPositional < (uint)parameterCount
                 && parameters[nextPositional + offset].IsParams)
             {
+                // Mutating this continue away (falling through to the increment below instead) is a
+                // stryker survivor, measured equivalent rather than assumed: nextPositional never escapes
+                // this function, so skipping the hold-in-place it does here for a params element only
+                // matters if something later compares against the corrupted value. Nothing can. C# requires
+                // params to be the last declared parameter, so no positional or named argument can follow
+                // one once its elements start, and a params element can only grow nextPositional past
+                // parameterCount, which the (uint)nextPositional < (uint)parameterCount guard on this same
+                // condition then short-circuits away from on the next iteration, the same guard that keeps
+                // the array index below in bounds either way. Checked against three shapes that each
+                // exercise a different neighbour of this line — the params indexer with two children
+                // (ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015 below), the zero-parameter
+                // PreventDefault overload overfilled with two arguments
+                // (OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator below), and the
+                // positional-then-named .Bind call above — and the full BlazorCodeFirst.Compiler.Tests
+                // suite passed unchanged with the continue removed.
                 continue;
             }
 
