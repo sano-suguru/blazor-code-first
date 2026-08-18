@@ -32,13 +32,21 @@ public static class Decorations
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Href(this ElementView element, string? value) => element;
+    public static ElementView Href(
+        this ElementView element,
+        [System.Diagnostics.CodeAnalysis.StringSyntax(
+            System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
+        string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>src</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Src(this ElementView element, string? value) => element;
+    public static ElementView Src(
+        this ElementView element,
+        [System.Diagnostics.CodeAnalysis.StringSyntax(
+            System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
+        string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>alt</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>

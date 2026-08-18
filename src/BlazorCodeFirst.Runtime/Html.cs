@@ -34,7 +34,12 @@ public static partial class Html
     /// The value may be a string literal or a field/const reference (delivery-mechanism independent). Raw
     /// opens no element, so it cannot be a ForEach content root (BCF3003) and cannot be decorated:
     /// decorations apply to <see cref="ElementView"/>, and Raw is a <see cref="View"/>.</summary>
-    public static View Raw(string rawHtml) => default;
+    // "Html" names no framework constant: .NET's StringSyntaxAttribute defines none for HTML.
+    // Visual Studio ignores an id it does not recognize; JetBrains IDEs resolve syntax ids
+    // against a wider table than the framework's own constants and may still act on this one.
+    public static View Raw(
+        [System.Diagnostics.CodeAnalysis.StringSyntax("Html")]
+        string rawHtml) => default;
 
     /// <summary>
     /// Design-time syntax marking where a <c>[ViewPart]</c> part places the content its caller supplied
