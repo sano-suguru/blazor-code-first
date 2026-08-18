@@ -82,4 +82,14 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
         Assert.Contains(".my-widget[b-", build.BundledCss, StringComparison.Ordinal);
         Assert.Contains("color: blue;", build.BundledCss, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Orphan_fixture_fails_the_build_with_BCF3041()
+    {
+        var (exitCode, output) = fixtures.Orphan;
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("BCF3041", output, StringComparison.Ordinal);
+        Assert.Contains("Orphan.cs.css", output, StringComparison.Ordinal);
+    }
 }

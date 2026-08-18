@@ -15,6 +15,7 @@ public sealed class ScopedCssFixtures
     private readonly Lazy<ScopedCssBuild> _projectReference;
     private readonly Lazy<ScopedCssBuild> _package;
     private readonly Lazy<ScopedCssBuild> _mixed;
+    private readonly Lazy<(int ExitCode, string Output)> _orphan;
 
     public ScopedCssFixtures()
     {
@@ -23,6 +24,7 @@ public sealed class ScopedCssFixtures
             () => BuildFixture("ScopedCss.ProjectReference"), LazyThreadSafetyMode.ExecutionAndPublication);
         _package = new(BuildPackage, LazyThreadSafetyMode.ExecutionAndPublication);
         _mixed = new(() => BuildFixture("ScopedCss.Mixed"), LazyThreadSafetyMode.ExecutionAndPublication);
+        _orphan = new(BuildOrphan, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public ScopedCssBuild ProjectReference => _projectReference.Value;
@@ -30,6 +32,12 @@ public sealed class ScopedCssFixtures
     public ScopedCssBuild Package => _package.Value;
 
     public ScopedCssBuild Mixed => _mixed.Value;
+
+    /// <summary>
+    /// The orphan fixture never produces a bundle (the build is expected to fail with BCF3041 before
+    /// bundling), so its accessor's shape deliberately differs from the others above.
+    /// </summary>
+    public (int ExitCode, string Output) Orphan => _orphan.Value;
 
     // BlazorCodeFirst.targets resolves its UsingTask entries from "tasks/{tfm}/" relative to
     // itself (the layout Task 6 packages into the NuGet payload) -- staging the just-built DLL
@@ -127,5 +135,17 @@ public sealed class ScopedCssFixtures
         var packageBundle = Assert.Single(bundlePaths);
 
         return new ScopedCssBuild(output, File.ReadAllText(packageBundle), generatedFilesDirectory);
+    }
+
+    private (int ExitCode, string Output) BuildOrphan()
+    {
+        _ = _stagedBuildTask.Value;
+
+        var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Orphan");
+        var projectPath = Path.Combine(projectDirectory, "ScopedCss.Orphan.csproj");
+
+        return NestedDotnet.Run(
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m"],
+            projectDirectory);
     }
 }

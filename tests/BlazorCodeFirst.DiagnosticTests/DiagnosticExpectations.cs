@@ -332,11 +332,20 @@ public static class DiagnosticExpectations
     ];
 
     /// <summary>
-    /// Descriptors deliberately not exercised end-to-end, each with the reason. Empty on purpose:
-    /// every declared diagnostic is currently proven to reach a real build, and an entry added here
+    /// Descriptors deliberately not exercised end-to-end, each with the reason. An entry added here
     /// should be an argued exception, not a way to make the coverage guard quiet.
     /// </summary>
-    public static ImmutableArray<(string Id, string Reason)> Excluded { get; } = [];
+    public static ImmutableArray<(string Id, string Reason)> Excluded { get; } =
+    [
+        (
+            "BCF3041",
+            "Firing requires BlazorCodeFirst.Build's MSBuild task wiring (CssScope AdditionalFiles " +
+            "metadata via BlazorCodeFirst.props/.targets), which the generic GeneratorDelivery.* " +
+            "fixtures do not import. Covered instead by ScopedCssFixturesTests against " +
+            "tests/msbuild-fixtures/ScopedCss.Orphan, in the same style as the other scoped-CSS-only " +
+            "assertions (bundle scope prefix, generated attribute) already tested outside the " +
+            "DiagnosticExpectations.All harness."),
+    ];
 
     /// <summary>
     /// IDs that <c>ARCHITECTURE.md</c> Appendix A documents on purpose while no <c>DiagnosticDescriptor</c>

@@ -108,6 +108,32 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                     productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
             });
 
+        // Every declared component's own file, and every declared [ViewPart]'s own file (valid or
+        // not — an invalid declaration still means the file is not orphaned, only that its own
+        // declaration has a separate, already-reported problem).
+        var componentFilePaths = analyses
+            .Select(static (a, _) => a!.FilePath)
+            .Collect();
+        var viewPartFilePaths = discoveryResults
+            .Select(static (r, _) => r.Entry.FilePath)
+            .Collect();
+
+        var orphanCssDiagnostics = cssScopeRegistry
+            .Combine(componentFilePaths)
+            .Combine(viewPartFilePaths)
+            .Select(static (input, _) =>
+                (EquatableArray<DiagnosticInfo>)OrphanScopedCssResolver.CollectOrphanDiagnostics(
+                    input.Left.Left, input.Left.Right, input.Right))
+            .WithTrackingName("OrphanScopedCssDiagnostics");
+
+        context.RegisterSourceOutput(
+            orphanCssDiagnostics,
+            static (productionContext, diagnostics) =>
+            {
+                foreach (var diagnostic in diagnostics)
+                    productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
+            });
+
         // Expand each analyzed component against the registry as a pure value transform. Both inputs are
         // value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic branch, and a
         // change to the compose API surface re-runs the transform above and correctly invalidates here.
