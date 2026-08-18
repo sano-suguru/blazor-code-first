@@ -175,14 +175,12 @@ public static partial class ShellFile
             ["anchor-filter-count"] = ["shown", "total"],
         };
 
-    private static readonly string[] NoPlaceholders = [];
-
     [GeneratedRegex(@"\{(\w+)\}")]
     private static partial Regex PlaceholderPattern();
 
     private static void ValidatePlaceholders(string key, string value, string fileName)
     {
-        string[] expected = PlaceholdersByKey.GetValueOrDefault(key, NoPlaceholders);
+        string[] expected = PlaceholdersByKey.GetValueOrDefault(key, []);
         var found = new HashSet<string>(
             PlaceholderPattern().Matches(value).Select(m => m.Groups[1].Value), StringComparer.Ordinal);
 
