@@ -750,6 +750,80 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// Two non-literal <c>params</c> children (not the single collection-expression-literal shape
+    /// <c>FactoryArguments</c> handles), bound through <c>BoundArguments.TryBindFallback</c>'s syntactic
+    /// route: a second broken child beside the reportable one is what makes <c>FactoryArguments.Bind</c>
+    /// fail for the outer indexer too — a single such child on its own still lets <c>FactoryArguments</c>
+    /// succeed, since the child invocation's own converted type (<c>ElementView</c>) resolves regardless
+    /// of its broken argument (measured). Kills both the statement-removal mutant on the fallback binder's
+    /// <c>paramsElements.Add(...)</c> call (the child is never added, so it is never scanned) and the
+    /// boolean mutant flipping its <c>IsSpread</c> argument to <see langword="true"/> (the child would be
+    /// routed to a splice scan instead, which finds no <c>.Select</c> projection here and reports nothing).
+    /// </summary>
+    [Fact]
+    public void ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div[Div.Class(MissingMethod() + typeof(Probe).Name), MissingMethod()];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// The statement-removal mutant on <c>ScanDecoration</c>'s <c>Bind</c> <c>return;</c>: without it,
+    /// the tail <c>ReportValue(args.At(0))</c> reads the attribute name argument. <c>ReportBindArguments</c>
+    /// only ever reads from the getter onward, so correct code never reports on either name argument.
+    /// </summary>
+    /// <remarks>
+    /// The class remarks reason that a non-constant name is always <c>BCF3011</c>'s to report and clears
+    /// <c>recoverOwnValue</c> first — true when the normal walk's own <c>FactoryArguments.Bind</c>
+    /// succeeds and reaches that name check. It does not hold when the name argument is itself what
+    /// breaks <c>FactoryArguments.Bind</c>: an unselected-invocation sibling in the name (the same shape
+    /// used throughout this file) poisons the whole call's binding before the normal walk's constant check
+    /// ever runs, so <c>ShouldRecoverUnresolvedValue</c> stays true and <c>ScanDecoration</c> reaches this
+    /// branch with a non-constant, unresolved-carrying name — measured with a throwaway probe: with the
+    /// getter and setter both clean, correct code reports only <c>BCF1003</c>, and the mutant additionally
+    /// reports <c>BCF3015</c> on the name's own <c>Probe</c>.
+    /// </remarks>
+    [Fact]
+    public void BindNameSiblingOfUnselectedInvocation_UnresolvedType_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _value = "";
+
+                protected override View Body =>
+                    Div.Bind(MissingMethod() + typeof(Probe).Name, "onchange", () => _value, v => { _value = v; });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void OnNonConstantNameHandlerLocalDeclaration_UnresolvedType_DoesNotReportBCF3015()
     {
@@ -837,6 +911,73 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// The statement-removal mutant on <c>ScanDecoration</c>'s <c>On</c>/<c>EventShortcut</c>
+    /// <c>return;</c>: without it, control falls through the <c>Attr</c> and <c>Bind</c> checks to the
+    /// tail <c>ReportValue(args.At(0))</c>, which for <c>.On</c> is the event name argument. Correct code
+    /// never reports on the name directly; <c>ReportEventArguments</c> only ever reports the handler. A
+    /// second, independently reportable unresolved name placed in the name argument (beside the
+    /// <c>MissingMethod()</c> sibling that keeps <c>ReportEventArguments</c> alive) makes the fallthrough
+    /// observable: the mutant reports it twice, at two different spans, where correct code reports the
+    /// handler's occurrence once.
+    /// </summary>
+    [Fact]
+    public void OnNonConstantNameCarriesUnresolvedType_ReportsBCF3015OnlyOnHandler()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.On(MissingMethod() + typeof(Probe).Name, () => Consume(typeof(Probe)));
+
+                private static void Consume(Type t) { }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
+    /// The statement-removal mutant on <c>ScanDecoration</c>'s <c>Attr</c> <c>return;</c>: without it,
+    /// control falls through the <c>Bind</c> check to the tail <c>ReportValue(args.At(0))</c>, the
+    /// attribute name argument. Correct code never reports on the name directly in the non-constant-name
+    /// arm; <c>ReportSelectedInvocationValues</c> only reports the value's own selected invocation. An
+    /// unresolved name placed in the (non-constant) attribute name, beside the value's own reportable
+    /// selected invocation, makes the fallthrough observable the same way as the <c>.On</c> case above.
+    /// </summary>
+    [Fact]
+    public void AttrNonConstantNameCarriesUnresolvedType_ReportsBCF3015OnlyOnValue()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr(typeof(Probe).Name + GetName(), MissingMethod() + Consume(typeof(Probe)));
+
+                private static string GetName() => "-x";
+                private static string Consume(Type t) => t.Name;
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]

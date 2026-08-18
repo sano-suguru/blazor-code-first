@@ -192,6 +192,20 @@ internal static class UnresolvedValueTypeScanner
                 ReportValue(args.At(1)?.Expression, context);
                 return;
 
+            // Reaching this arm at all needs Method resolved for the .Template call itself, which needs
+            // GetSymbolInfo to name a single overload of the two same-arity Template<TContext> spellings
+            // (GenericTemplateIgnored's View content and this one's Func<TContext, View> content).
+            // Measured across an invocation-shaped content body, an element-access-shaped one (not
+            // statement-expression-compatible with the other overload's RenderFragment-conversion path),
+            // a block-bodied one, and a body containing nothing but a bare unresolved typeof: every one
+            // that carries a name this scan could report on also poisons GetSymbolInfo into handing back
+            // both overloads as CandidateSymbols, regardless of body shape, because typing the lambda well
+            // enough to eliminate either candidate is exactly what the unresolved name inside it defeats.
+            // TrySelectCandidate then refuses the pair (their SurfaceMethodKinds differ), Method stays
+            // null, and this arm never runs. The complementary case — content clean enough that Method
+            // does resolve — reaches this line with nothing left to report. No construction found reaches
+            // it with both at once; the same shape as L431/L467's equivalence, just via lambda-conversion
+            // ambiguity instead of argument binding.
             case SurfaceMethodKind.GenericTemplateContextual:
                 ScanLambdaBody(args.At(1)?.Expression, context);
                 return;
@@ -244,8 +258,15 @@ internal static class UnresolvedValueTypeScanner
 
         if (kind == SurfaceMethodKind.Bind)
         {
-            // The two name arguments are not value positions: a non-constant one is BCF3011's to
-            // report, and that rejection has already cleared recoverOwnValue by the time this runs.
+            // The two name arguments are not value positions, so this reads only from the getter
+            // onward and never reports on either name directly. A non-constant name is usually
+            // BCF3011's to report, with that rejection already clearing recoverOwnValue by the time
+            // this runs — but not always: an unselected-invocation sibling inside the name itself
+            // (the same shape used throughout this file) can poison the normal walk's own
+            // FactoryArguments.Bind before its constant check ever runs, leaving recoverOwnValue true
+            // with a non-constant name still in argument 0 (measured,
+            // BindNameSiblingOfUnselectedInvocation_UnresolvedType_DoesNotReportBCF3015). The name is
+            // still never read here either way.
             ReportBindArguments(method, args, context);
             return;
         }
