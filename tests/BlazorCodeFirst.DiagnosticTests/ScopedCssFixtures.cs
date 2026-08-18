@@ -46,4 +46,35 @@ public sealed class ScopedCssFixtures
 
         return new ScopedCssBuild(output, File.ReadAllText(bundle));
     }
+
+    public static ScopedCssBuild BuildPackage()
+    {
+        var packageFeed = Path.Combine(RepoLayout.ArtifactsDirectory, "scoped-css", "feed");
+        if (Directory.Exists(packageFeed))
+            Directory.Delete(packageFeed, recursive: true);
+        Directory.CreateDirectory(packageFeed);
+
+        var (packExitCode, packOutput) = NestedDotnet.Run(
+            ["pack", Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"),
+             "-c", "Release", "-o", packageFeed, "--nologo", "-v:m"],
+            RepoLayout.Root);
+        Assert.True(packExitCode == 0, $"Packing BlazorCodeFirst.Runtime failed.{Environment.NewLine}{packOutput}");
+
+        var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Package");
+        var projectPath = Path.Combine(projectDirectory, "ScopedCss.Package.csproj");
+        var configFile = Path.Combine(projectDirectory, "NuGet.config");
+
+        var (exitCode, output) = NestedDotnet.Run(
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
+             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true"],
+            projectDirectory);
+
+        Assert.True(exitCode == 0, $"Building ScopedCss.Package failed.{Environment.NewLine}{output}");
+
+        var bundlePaths = Directory.GetFiles(
+            Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
+        var packageBundle = Assert.Single(bundlePaths);
+
+        return new ScopedCssBuild(output, File.ReadAllText(packageBundle));
+    }
 }

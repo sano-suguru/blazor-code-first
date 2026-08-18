@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/scoped-css/packages</RestorePackagesPath>
+    <_BlazorCodeFirstCache>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstCache>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="BlazorCodeFirst" />
+  </ItemGroup>
+  <Target Name="PurgeScopedCssDevCache" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstCache)" Condition="Exists('$(_BlazorCodeFirstCache)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstCache)" Condition="Exists('$(_BlazorCodeFirstCache)')" />
+  </Target>
+</Project>
