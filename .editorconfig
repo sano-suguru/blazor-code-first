@@ -143,6 +143,30 @@ dotnet_diagnostic.CA1062.severity = none
 [tests/BlazorCodeFirst.IntegrationTests/DiffCost/*.cs]
 dotnet_diagnostic.BL0006.severity = none
 
+# BlazorCodeFirst.Build multi-targets net472 (VS's own MSBuild host) alongside net10.0 (dotnet
+# build's host), so its code cannot use APIs that only exist on the newer TFM. These rules each
+# recommend exactly such an API (SHA256.HashData, Convert.ToHexStringLower, span-based
+# Substring/AsSpan overloads, ArgumentNullException.ThrowIfNull), and only fire on this project's
+# net10.0 leg — the net472 leg simply cannot see them. Portability wins over the modernization
+# suggestion here.
+[src/BlazorCodeFirst.Build/**.cs]
+dotnet_diagnostic.CA1850.severity = none
+dotnet_diagnostic.CA1872.severity = none
+dotnet_diagnostic.CA1845.severity = none
+dotnet_diagnostic.CA1510.severity = none
+# The (string, string, StringComparison) Replace overload is .NET Core-only; the net472 leg can
+# only see (string, string). Every Replace call in this project targets literal ASCII characters
+# ('-', '\', '/'), which are ordinal by construction, so the globalization concern CA1307 raises
+# does not apply here regardless of which overload is available.
+dotnet_diagnostic.CA1307.severity = none
+# MSBuild's own Task parameter binding contract requires item-list ([Required]/[Output]) task
+# parameters to be ITaskItem[] arrays -- that shape is not this project's choice to change.
+dotnet_diagnostic.CA1819.severity = none
+# string.EndsWith(char) and the AsSpan-based Substring alternatives are both .NET Core-only; the
+# net472 leg can only see the string-argument overloads this project already uses.
+dotnet_diagnostic.CA1865.severity = none
+dotnet_diagnostic.CA1846.severity = none
+
 # Allocation benchmarks: same RenderTree access as above. BenchmarkDotNet additionally requires
 # public instance [Benchmark] methods on a public class it instantiates by reflection, which CA1822
 # (mark as static) and CA1812 (uninstantiated internal class) both misread. CA1001 wants the

@@ -65,12 +65,16 @@ packaged_files=$(
 
 expected_payload_files=$(printf '%s\n' \
   'analyzers/dotnet/cs/BlazorCodeFirst.Compiler.dll' \
+  'build/BlazorCodeFirst.props' \
+  'build/BlazorCodeFirst.targets' \
   'lib/net10.0/BlazorCodeFirst.Runtime.dll' \
-  'lib/net10.0/BlazorCodeFirst.Runtime.xml')
+  'lib/net10.0/BlazorCodeFirst.Runtime.xml' \
+  'tasks/net10.0/BlazorCodeFirst.Build.dll' \
+  'tasks/net472/BlazorCodeFirst.Build.dll' | LC_ALL=C sort)
 
 payload_files=$(
   printf '%s\n' "$packaged_files" |
-    awk '/^(analyzers|lib|build|buildTransitive|contentFiles|tools|runtimes)\//'
+    awk '/^(analyzers|lib|build|buildTransitive|contentFiles|tools|runtimes|tasks)\//'
 )
 
 if [ "$payload_files" != "$expected_payload_files" ]; then
@@ -103,7 +107,9 @@ while IFS= read -r packaged_file; do
   case "$packaged_file" in
     '[Content_Types].xml' | '_rels/.rels' | 'BlazorCodeFirst.nuspec' | 'README.md' | \
     'analyzers/dotnet/cs/BlazorCodeFirst.Compiler.dll' | 'lib/net10.0/BlazorCodeFirst.Runtime.dll' | \
-    'lib/net10.0/BlazorCodeFirst.Runtime.xml' )
+    'lib/net10.0/BlazorCodeFirst.Runtime.xml' | 'build/BlazorCodeFirst.props' | \
+    'build/BlazorCodeFirst.targets' | 'tasks/net10.0/BlazorCodeFirst.Build.dll' | \
+    'tasks/net472/BlazorCodeFirst.Build.dll' )
       ;;
     package/services/metadata/core-properties/*.psmdcp)
       ;;
