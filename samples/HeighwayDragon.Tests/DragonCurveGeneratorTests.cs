@@ -8,21 +8,21 @@ public class DragonCurveGeneratorTests
     [Fact]
     public void Order0_MatchesKnownSequence()
     {
-        var points = DragonCurveGenerator.GeneratePoints(0).ToArray();
+        var points = GeneratePoints(0).ToArray();
         Assert.Equal([new Point(0, 0), new Point(1, 0)], points);
     }
 
     [Fact]
     public void Order1_MatchesKnownSequence()
     {
-        var points = DragonCurveGenerator.GeneratePoints(1).ToArray();
+        var points = GeneratePoints(1).ToArray();
         Assert.Equal([new Point(0, 0), new Point(1, 0), new Point(1, -1)], points);
     }
 
     [Fact]
     public void Order2_MatchesKnownSequence()
     {
-        var points = DragonCurveGenerator.GeneratePoints(2).ToArray();
+        var points = GeneratePoints(2).ToArray();
         Assert.Equal(
             [new Point(0, 0), new Point(1, 0), new Point(1, -1), new Point(0, -1), new Point(0, -2)],
             points);
@@ -31,7 +31,7 @@ public class DragonCurveGeneratorTests
     [Fact]
     public void Order3_MatchesKnownSequence()
     {
-        var points = DragonCurveGenerator.GeneratePoints(3).ToArray();
+        var points = GeneratePoints(3).ToArray();
         Assert.Equal(
             [
                 new Point(0, 0), new Point(1, 0), new Point(1, -1), new Point(0, -1), new Point(0, -2),
@@ -55,7 +55,7 @@ public class DragonCurveGeneratorTests
     public void FillPoints_AgreesWithIterator()
     {
         const int order = 10;
-        var expected = DragonCurveGenerator.GeneratePoints(order).ToArray();
+        var expected = GeneratePoints(order).ToArray();
         var actual = new Point[DragonCurveGenerator.VertexCount(order)];
         DragonCurveGenerator.FillPoints(actual, order);
         Assert.Equal(expected, actual);
@@ -81,7 +81,7 @@ public class DragonCurveGeneratorTests
     public void FillPoints_Order24_ProducesExpectedVertexCount()
     {
         const int order = 24;
-        var expected = DragonCurveGenerator.GeneratePoints(order).ToArray();
+        var expected = GeneratePoints(order).ToArray();
         var points = new Point[DragonCurveGenerator.VertexCount(order)];
         DragonCurveGenerator.FillPoints(points, order);
         Assert.Equal(16_777_217, points.Length);
@@ -107,6 +107,35 @@ public class DragonCurveGeneratorTests
         var points = new[] { new Point(1f, 2f), new Point(3f, 4f) };
         var floats = MemoryMarshal.Cast<Point, float>(points);
         Assert.Equal<float>([1f, 2f, 3f, 4f], floats.ToArray());
+    }
+
+    /// <summary>
+    /// An independently-written iterator over the dragon curve's bit-twiddling turn rule, kept
+    /// only in the test project, so <c>FillPoints_AgreesWithIterator</c> and
+    /// <c>FillPoints_Order24_ProducesExpectedVertexCount</c> check <c>FillPoints</c>' output
+    /// against a second implementation rather than itself.
+    /// </summary>
+    private static IEnumerable<Point> GeneratePoints(int order)
+    {
+        var total = 1 << order;
+        var cx = 0f;
+        var cy = 0f;
+        var dx = 1f;
+        var dy = 0f;
+
+        yield return new Point(cx, cy);
+
+        for (var k = 1; k <= total; k++)
+        {
+            cx += dx;
+            cy += dy;
+            yield return new Point(cx, cy);
+
+            if (k < total)
+            {
+                (dx, dy) = (k & ((k & -k) << 1)) != 0 ? (-dy, dx) : (dy, -dx);
+            }
+        }
     }
 
     /// <summary>
