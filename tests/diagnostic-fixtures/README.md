@@ -19,7 +19,7 @@ not run the analyzer driver at all when the compilation has a declaration-level 
 analyzer diagnostic can only be asserted in a compilation that has none. That is why the
 `AnalyzerDelivery.*` fixtures contain only shapes that compile: adding any of the shapes from
 `GeneratorDelivery.*` would suppress every diagnostic under test for reasons that have nothing to do
-with any of them. See `ARCHITECTURE.md` 付録A.0. Several such shapes may live side by side, and two do
+with any of them. See `ARCHITECTURE.md` Appendix A.0. Several such shapes may live side by side, and two do
 — BCF3001 in `Mutating.cs` and BCF3029 in `Bcf3029.cs` — because neither one's failure is a
 declaration error.
 

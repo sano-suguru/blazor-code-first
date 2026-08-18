@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components.RenderTree;
 namespace BlazorCodeFirst.WebAppTests;
 
 /// <summary>
-/// What an attribute splat would cost, which is the premise under <c>ARCHITECTURE.md</c> 付録B.14 and the
+/// What an attribute splat would cost, which is the premise under <c>ARCHITECTURE.md</c> Appendix B.14 and the
 /// §4.1 rule it carries: a tag or an attribute name is a token the generator reads, never a value (#308 /
 /// #320). None of the forms measured here exists in this surface, so the subject is
 /// <see cref="RenderTreeBuilder"/> itself, and pinning it against the referenced package is what keeps the

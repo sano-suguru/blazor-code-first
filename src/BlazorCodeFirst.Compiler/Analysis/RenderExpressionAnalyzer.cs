@@ -564,10 +564,10 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// <para>
     /// Every other spread returns null here and lands on BCF1003. That is where a stored <c>View</c> read
-    /// in the singular already sits (<c>ARCHITECTURE.md</c> 付録A), so admitting the plural to the Opaque
+    /// in the singular already sits (<c>ARCHITECTURE.md</c> Appendix A), so admitting the plural to the Opaque
     /// path would make a sequence of stored Views more permissive than one of them. The Opaque path also
     /// could not report the difference: a field is not a call, so BCF3030 cannot see it, and a surface-
-    /// built <c>View</c> carries no fragment and would render nothing in silence (付録B).
+    /// built <c>View</c> carries no fragment and would render nothing in silence (Appendix B).
     /// </para>
     /// </remarks>
     private static ForEachTemplateNode? AnalyzeSplice(
@@ -984,7 +984,7 @@ internal static class RenderExpressionAnalyzer
     /// cannot fail to bind. The declared property type carries no such guarantee. A property whose type
     /// converts to the value's implicitly and not back — a struct with an <c>implicit operator string</c>
     /// is enough — binds <c>.Param&lt;string&gt;</c> at the call site and gets CS0030 from a cast to the
-    /// declared type (measured), inside a file the author cannot reach (付録A A.0). That is the failure
+    /// declared type (measured), inside a file the author cannot reach (Appendix A A.0). That is the failure
     /// this is here to remove rather than move.
     /// </para>
     /// <para>
@@ -1722,7 +1722,7 @@ internal static class RenderExpressionAnalyzer
     /// <para>
     /// <see cref="MethodKind.Ordinary"/> is required because the callee has to be a method that exists in
     /// generated code and is called as written. That excludes a local function, which the generated
-    /// <c>RenderView</c> cannot name; a reduced extension, which 付録A's BCF3026 row keeps at BCF1003
+    /// <c>RenderView</c> cannot name; a reduced extension, which Appendix A's BCF3026 row keeps at BCF1003
     /// because an <c>ElementView</c>-taking, <c>View</c>-returning extension is a wrapping form rather than
     /// a decoration; and a conversion operator, which <see cref="Classify"/> already filters but which
     /// costs nothing to exclude again where the consequence would be silent.
@@ -1765,7 +1765,7 @@ internal static class RenderExpressionAnalyzer
     /// <remarks>
     /// Answers <see langword="false"/> for a method with no source declaration in this compilation. A
     /// referenced assembly's <c>View</c>-returning method may still be surface-built and still render
-    /// nothing; nothing here can tell, and 付録A's BCF2001 row records that residue. <c>DESIGN.md</c> §4.3
+    /// nothing; nothing here can tell, and Appendix A's BCF2001 row records that residue. <c>DESIGN.md</c> §4.3
     /// already routes cross-assembly reuse to components.
     /// <para>
     /// Memoized on the context, because the answer is a property of the callee and deciding it binds that

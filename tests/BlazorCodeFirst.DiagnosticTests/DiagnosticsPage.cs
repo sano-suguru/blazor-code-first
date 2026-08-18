@@ -18,7 +18,7 @@ internal sealed record DiagnosticsPageEntry(string Id, string? Kind);
 /// <para>
 /// The site-side twin of <see cref="AppendixA"/>, and deliberately a second reader rather than a
 /// second call into that one. The two documents answer different readers and have different shapes:
-/// 付録A is one table, this is one heading per diagnostic so a document can link a reader straight to
+/// Appendix A is one table, this is one heading per diagnostic so a document can link a reader straight to
 /// the entry that names their build failure. A shared parser would tie the page's layout to the
 /// appendix's, and neither is free to change without the other.
 /// </para>

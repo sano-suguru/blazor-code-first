@@ -345,7 +345,7 @@ public sealed class InertSurfaceAnalyzerTests
         """;
 
     /// <summary>
-    /// The Opaque reservation (DESIGN.md §5.3, 付録B.11(b)): a View-returning declaration of the author's own
+    /// The Opaque reservation (DESIGN.md §5.3, Appendix B.11(b)): a View-returning declaration of the author's own
     /// carries no [ViewPart], is not part of the design-time API, and is reported neither where it is
     /// declared nor where it is called. The forgotten attribute is BCF2001's to answer at Info (#260).
     /// </summary>

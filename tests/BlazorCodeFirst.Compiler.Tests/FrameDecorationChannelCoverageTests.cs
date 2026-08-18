@@ -20,7 +20,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// </para>
 /// <para>
 /// Discovered reflectively rather than listed, so a sixth channel is covered by declaring it. This is the
-/// same both-directions guard <c>DiagnosticTableTests</c> gives 付録A and <c>KnownSymbolsSyncTests</c>
+/// same both-directions guard <c>DiagnosticTableTests</c> gives Appendix A and <c>KnownSymbolsSyncTests</c>
 /// gives the curated tables: the test reads the real declaration instead of a transcription of it, so it
 /// cannot be satisfied by copying the thing it checks.
 /// </para>

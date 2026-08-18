@@ -105,7 +105,7 @@ public sealed class KnownSymbolsSyncTests
     /// <remarks>
     /// The same change of question <see cref="ExpectedCuratedNames"/> buys, for the same reason: "are these
     /// thirteen hash-set entries right" cannot be checked by reading, while "is this sorted list the
-    /// standard's void elements" is one comparison against a published document, and 付録A's BCF3016 row
+    /// standard's void elements" is one comparison against a published document, and Appendix A's BCF3016 row
     /// writes the list out a third time for a reader who never opens this file. Unlike the curated set this
     /// one is closed in practice, the standard has not added a void element in over a decade, so a failure
     /// here is a transcription slip rather than news from the standard.
@@ -805,7 +805,7 @@ public sealed class KnownSymbolsSyncTests
     /// What that costs is quiet and one-sided, which is why it needs a test rather than care. An
     /// <c>ElementView.Key(…)</c> or <c>ComponentView&lt;T&gt;.Ref(…)</c> returning an inert type would pass
     /// BCF3029's type test and fail its member test, so the chain walk would step over it and anchor the
-    /// report on an inner helper instead of the whole expression — contradicting 付録A's stated
+    /// report on an inner helper instead of the whole expression — contradicting Appendix A's stated
     /// <c>位置は最も外側の設計時式の全体</c> in the direction where nothing throws and no test looks.
     /// </para>
     /// <para>

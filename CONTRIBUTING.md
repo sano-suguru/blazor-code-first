@@ -285,7 +285,7 @@ measurements above are not gated. It takes about an hour.
 
 `DiagnosticDescriptors.cs` is excluded in the config. All 416 of its mutants
 rewrite a message or a title, and what a descriptor is held to — its ID and its
-severity against 付録A — is `DiagnosticTableTests`'s assertion rather than the
+severity against Appendix A — is `DiagnosticTableTests`'s assertion rather than the
 message text's. Mutating the file reported the same non-finding 185 times.
 
 Two limits bound what it covers. A mutant that fails to compile takes every
@@ -512,8 +512,8 @@ recorded.
 A settled position is not current state, and an Issue is the wrong place to keep
 one. Once a question is answered — an alternative rejected, a limit chosen and
 measured — the answer lands in a document and the Issue closes: rejected
-alternatives in `ARCHITECTURE.md` 付録B, and translation breaks that the surface
-deliberately leaves unchecked in 付録D. Closing costs the record nothing, since
+alternatives in `ARCHITECTURE.md` Appendix B, and translation breaks that the surface
+deliberately leaves unchecked in Appendix D. Closing costs the record nothing, since
 a closed Issue stays searchable, linkable, and readable in full. Leaving it open
 costs twice: the open list stops meaning "outstanding work", and the record goes
 stale in a place nobody re-reads. #74 is the worked example — it named a
@@ -657,10 +657,10 @@ listed there and never run reads exactly like one that was.
   components. Its type argument must resolve while the generator runs, so a
   `.razor` component declared in the same project cannot be named (`BCF3012`),
   because source generators cannot observe each other's output. `[ViewPart]` has no
-  Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` 付録B.4).
+  Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` Appendix B.4).
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence
-  off the shapes that cannot work; 付録A states the exact conditions. `BCF3013`
+  off the shapes that cannot work; Appendix A states the exact conditions. `BCF3013`
   requires a settable `[Parameter]` named `ChildContent` of a fragment type, of
   either arity. A generic fragment under any other name is never reached through
   brackets and is always named with `.Template`, so do not widen the bracket
@@ -673,12 +673,12 @@ listed there and never run reads exactly like one that was.
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts, so do not repurpose or remove them. An ID recorded in
   `DiagnosticExpectations.RetiredIds` is burned rather than free: it shipped, was
-  withdrawn (付録B records why), and must not be handed to a different rule. A
+  withdrawn (Appendix B records why), and must not be handed to a different rule. A
   new diagnostic therefore takes the next number above every allocated *and*
   retired ID. `DiagnosticTableTests` enforces that. New IDs and public
   APIs must be tracked in the corresponding `Unshipped` / `PublicAPI` files or
   the analyzer build gates (RS2000/RS0016) fail.
-- `ARCHITECTURE.md` 付録A is the canonical diagnostic table, and
+- `ARCHITECTURE.md` Appendix A is the canonical diagnostic table, and
   `DiagnosticTableTests` checks it against `DiagnosticDescriptors` in both
   directions: a descriptor with no row fails, and a row with no descriptor fails
   unless the ID is recorded in

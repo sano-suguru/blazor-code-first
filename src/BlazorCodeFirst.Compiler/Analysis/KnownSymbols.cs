@@ -673,7 +673,7 @@ internal sealed class KnownSymbols
     /// </para>
     /// <para>
     /// Referenced assemblies are deliberately not swept: #155 could not bound what that costs, so a
-    /// registration living in one goes unread and is recorded as residue (<c>ARCHITECTURE.md</c> 付録A
+    /// registration living in one goes unread and is recorded as residue (<c>ARCHITECTURE.md</c> Appendix A
     /// BCF3028).
     /// </para>
     /// </remarks>
@@ -1029,7 +1029,7 @@ internal sealed class KnownSymbols
     /// <summary>
     /// Whether <paramref name="type"/> is one of the design-time inert types — <c>View</c>,
     /// <c>ElementView</c>, <c>SlotView</c>, or any construction of <c>ComponentView&lt;T&gt;</c> — the set
-    /// <c>ARCHITECTURE.md</c> 付録A enumerates on the BCF3014 row.
+    /// <c>ARCHITECTURE.md</c> Appendix A enumerates on the BCF3014 row.
     /// </summary>
     /// <remarks>
     /// One predicate for the one set, asked from the two opposite directions the design cares about: the
@@ -1110,7 +1110,7 @@ internal sealed class KnownSymbols
     /// The complement matters as much as the set. A user's own declaration that merely returns an inert type
     /// is <em>not</em> a member of this API, and <c>InertSurfaceAnalyzer</c> depends on that: a
     /// <c>View</c>-returning method without <c>[ViewPart]</c> is the Opaque escape hatch
-    /// <c>DESIGN.md</c> §5.3 reserves and 付録B.11(b) refuses to close, so reporting a call to one would
+    /// <c>DESIGN.md</c> §5.3 reserves and Appendix B.11(b) refuses to close, so reporting a call to one would
     /// erase a spelling the design deliberately leaves open (#68).
     /// </para>
     /// </remarks>

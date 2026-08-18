@@ -197,7 +197,7 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// writes is that binding's own event frame — which is exactly the frame <c>RenderTreeUpdater</c> reads
 /// the name back from. Write and read are therefore per binding, and two bindings on one element each
 /// keep their own resynchronized name (measured, #162). BCF3021 once rejected the second on the
-/// grounds that they would collide; 付録B.5 records why that was withdrawn.
+/// grounds that they would collide; Appendix B.5 records why that was withdrawn.
 /// </para>
 /// </remarks>
 /// <param name="ValueTypeName">
