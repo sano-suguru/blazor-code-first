@@ -1203,6 +1203,83 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// A decoration chain link whose own overload is ambiguous, walked by
+    /// <c>HasRejectedElementTag</c> while unwinding an indexer's receiver toward its <c>Element(tag)</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>.Attr(string, string?)</c>, <c>.Attr(string, bool)</c> and <c>.Attr(string)</c> all apply to
+    /// <c>Div.Attr("x", MissingMethod())</c> once the error-typed second argument is present, so
+    /// <c>GetSymbolInfo</c> answers <c>Symbol=null</c>, <c>CandidateReason=OverloadResolutionFailure</c> —
+    /// measured. The invocation's own <em>type</em> still resolves to <c>ElementView</c> regardless (every
+    /// candidate returns it), which is what lets <c>.Class("c")</c> keep binding on top of it and the
+    /// indexer recognize the whole chain. <c>HasRejectedElementTag</c> unwinds past <c>.Class</c> (an
+    /// element decoration) and reaches this <c>.Attr</c> call next, where its own symbol resolution
+    /// fails — the one shape that reaches the method-unresolved branch without the outer indexer losing
+    /// recognition first.
+    /// </remarks>
+    [Fact]
+    public void DecorationChainAmbiguousReceiver_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("x", MissingMethod()).Class("c")[typeof(Probe).Name];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// A non-decoration call sitting in an indexer's receiver chain, ahead of a rejected
+    /// <c>Element(tag)</c>. <c>HasRejectedElementTag</c> has to give up as soon as it meets a link that is
+    /// neither <c>Element(tag)</c> nor one of the element decoration kinds, answering "not rejected"
+    /// without climbing any further — the same fail-open rule the class remarks state for every route this
+    /// gate cannot analyze.
+    /// </summary>
+    /// <remarks>
+    /// <c>.Key</c> is such a link: it reaches generated code but is not itself a decoration this gate
+    /// walks through. Putting a rejected tag <em>beneath</em> it (a non-constant <c>Element(_tag)</c>) is
+    /// what tells the two mutants on this branch apart from the correct answer: giving up at <c>.Key</c>
+    /// and climbing past it disagree only when what sits further up would flip the verdict, and a rejected
+    /// tag is exactly that flip. The correct answer stays "not rejected" and the bracketed child is
+    /// scanned; either mutant — negating the kind check or answering the wrong constant when it fires —
+    /// climbs to the rejected tag instead and swallows the report.
+    /// </remarks>
+    [Fact]
+    public void NonDecorationReceiverBeforeRejectedTag_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly string _tag = "div";
+
+                protected override View Body =>
+                    Element(_tag).Key(1)[typeof(Probe).Name];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
     /// The handler argument of an event decoration is a value position on the failure path too, for both
     /// argument layouts: a named shortcut carries it at argument 0 and <c>.On</c> at argument 1.
     /// </summary>
