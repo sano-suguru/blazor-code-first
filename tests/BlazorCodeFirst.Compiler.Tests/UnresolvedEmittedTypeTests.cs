@@ -1573,6 +1573,41 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Single(context.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// Three leading named arguments, each already in its declared position, followed by one trailing
+    /// positional argument. <c>HasValidArgumentOrder</c>'s bookkeeping only has to track position for a
+    /// reordered name, but a named argument that lands on its own natural slot still walks the same
+    /// <c>nextPositional</c> increment, and a call this shape reaches the trailing positional argument's
+    /// own out-of-position check with a value the increment left behind.
+    /// </summary>
+    [Fact]
+    public void NamedArgumentsInPositionThenTrailingPositional_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _value = "";
+
+                protected override View Body =>
+                    Div.Bind(
+                        attributeName: MissingMethod() + "x",
+                        eventName: "onchange",
+                        get: () => _value,
+                        v => { _value = v; System.Console.WriteLine(typeof(Probe)); });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
