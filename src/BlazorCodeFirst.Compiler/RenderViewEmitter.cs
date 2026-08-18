@@ -607,9 +607,7 @@ internal static class RenderViewEmitter
         // After every attribute, event and binding frame, and before .Ref/the children. AddNamedEvent takes
         // no sequence argument, so `next` is untouched by it (ARCHITECTURE.md §2.7(E)).
         if (node.FormName is { } formName)
-        {
             writer.AppendLine($"__builder.AddNamedEvent(\"onsubmit\", {formName.ToCode()});");
-        }
 
         // After every attribute, event and binding frame, and before the children. Both halves are forced:
         // AssertCanAddAttribute reads the last non-attribute frame's type, so an attribute written after
