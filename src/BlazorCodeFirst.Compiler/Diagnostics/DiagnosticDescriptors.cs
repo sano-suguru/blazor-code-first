@@ -1148,6 +1148,22 @@ internal static class DiagnosticDescriptors
                 + "registration disables produces an attribute the renderer ignores, so it is reported at "
                 + "the call site instead, as Razor reports the same combination.");
 
+    public static readonly DiagnosticDescriptor BCF3039 = new(
+        id: "BCF3039",
+        title: "FormName must not be a literal empty string or null",
+        messageFormat: ".FormName's argument must not be a literal empty string or null; " +
+            "AddNamedEvent throws for either at run time",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            ".FormName lowers to RenderTreeBuilder.AddNamedEvent(\"onsubmit\", name), which throws " +
+            "ArgumentException for an empty name and ArgumentNullException for a null one (measured " +
+            "against .NET 10). The argument itself is not required to be a compile-time constant — a " +
+            "runtime expression is accepted, matching .Key and .Ref — but a literal known at compile " +
+            "time to always throw is rejected before it ships, the same way .Key(null) is specially " +
+            "read rather than passed through unchanged.");
+
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and

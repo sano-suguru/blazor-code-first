@@ -496,6 +496,46 @@ public sealed class FrameDecorationGeneratorTests
         Assert.Contains(diagnostics, d => d.Id == "BCF3033");
     }
 
+    [Fact]
+    public void FormName_WrittenAsLiteralNull_ReportsBCF3039()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Form.FormName(null!)["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3039");
+    }
+
+    [Fact]
+    public void FormName_WrittenAsEmptyStringLiteral_ReportsBCF3039()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Form.FormName("")["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3039");
+    }
+
+    [Fact]
+    public void FormName_WrittenAsNonConstantExpression_IsAccepted()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private string _name = "save";
+                protected override View Body => Html.Form.FormName(_name)["x"];
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3039");
+        Assert.Contains(
+            "__builder.AddNamedEvent(\"onsubmit\", _name)",
+            Assert.Single(result.GeneratedSources).SourceText.ToString());
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

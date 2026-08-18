@@ -1096,12 +1096,12 @@ internal static class RenderExpressionAnalyzer
 
         if (kind == SurfaceMethodKind.FormName)
         {
-            return ReportDuplicateFrameDecoration(decoAccess, element.FormName, context)
-                ? null
-                : element with
-                {
-                    FormName = ExpressionTemplateFactory.Create(firstArg.Expression, context),
-                };
+            if (ReportDuplicateFrameDecoration(decoAccess, element.FormName, context))
+                return null;
+
+            return TakeFormName(firstArg, context) is { } formName
+                ? element with { FormName = formName }
+                : null;
         }
 
         // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an
@@ -2039,6 +2039,28 @@ internal static class RenderExpressionAnalyzer
     {
         var written = ExpressionTemplateFactory.Create(argument.Expression, context);
         return written.Constant is NullConstant ? null : written;
+    }
+
+    /// <summary>
+    /// Reads <c>.FormName</c>'s argument, reporting BCF3039 for a compile-time-constant empty string or
+    /// literal <see langword="null"/>. Unlike <see cref="TakeKey"/> a constant <see langword="null"/> is
+    /// never a valid outcome here — <c>AddNamedEvent</c> throws <see cref="System.ArgumentNullException"/>
+    /// for a null name and <see cref="System.ArgumentException"/> for an empty one at run time (measured)
+    /// — so both are reported rather than silently accepted or declined. A non-constant expression is not
+    /// this case and is returned unchanged: it may still evaluate to null or empty at run time, and the
+    /// framework's own exception is the answer for that, the same way a non-constant `.Key` value is left
+    /// to the framework.
+    /// </summary>
+    private static ExpressionTemplate? TakeFormName(ArgumentSyntax argument, ViewPartBodyContext context)
+    {
+        var written = ExpressionTemplateFactory.Create(argument.Expression, context);
+        var isEmptyOrNullLiteral = written.Constant is NullConstant or StringConstant { Text.Length: 0 };
+        if (!isEmptyOrNullLiteral)
+            return written;
+
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3039, argument.Expression.GetLocation(), []));
+        return null;
     }
 
     /// <summary>
