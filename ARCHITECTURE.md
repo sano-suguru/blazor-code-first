@@ -1,112 +1,97 @@
 # BlazorCodeFirst Architecture
 
-**内部アーキテクチャ: コンパイルアルゴリズム、シーケンス割当、メモリレイアウト**
+**Internal architecture: the compilation algorithm, sequence assignment, memory layout**
 
-前提環境: .NET 10(ベースライン)、.NET 11(条件付き機能)
+Target environment: .NET 10 (baseline), .NET 11 (conditional features)
 
-> 背景・目的・使い方の概要は `DESIGN.md` を参照。
-
----
-
-## 0. 表記と前提
-
-記号を用いるのは、シーケンス番号の安定条件(§1.2)という本設計の中核を厳密に述べる箇所に限ります。そこでは集合・写像の基本的な記法(`f : A → B` は写像、`|X|` は要素数)を用います。それ以外の箇所は通常の文章で記述します。
-
-本仕様が依存する言語・ランタイム機能:
-
-| 機能                                             | 要件                               | 用途                             |
-| ------------------------------------------------ | ---------------------------------- | -------------------------------- |
-| Source Generatorによる部分クラスへのメンバー生成 | 全対応バージョン(成熟した標準機能) | `RenderView` の生成(§2)          |
-| ILトリミング / Native AOT                        | .NET 10                            | 慣性API・未使用コードの除去(§5)  |
-| Union型 / `closed` 階層                          | C# 15 / .NET 11(条件付き)          | `ViewNode` の閉世界定義(§6)      |
-| Runtime Async                                    | .NET 11(条件付き)                  | イベントパイプライン軽量化(§4.3) |
-
-コア機構が特定の最新言語機能に依存しない点は、本設計の意図的な性質です。検討の末に不採用とした代替アーキテクチャ(Interceptor方式、ランタイムref structツリー方式)とその理由は付録Bに記します。
+> For background, goals, and usage, see `DESIGN.md`.
 
 ---
 
-## 1. 抽象数理モデルと形式定義
+## 0. Notation and assumptions
 
-### 1.1 状態と射影
+Symbols are used only where this design's core needs to be stated precisely: the sequence-number stability conditions (§1.2). There, basic set and mapping notation is used (`f : A → B` for a mapping, `|X|` for cardinality). Everywhere else is ordinary prose.
 
-コンポーネントの状態空間を `S`、時刻 `t` における状態を `s_t`(`s_t ∈ S`)とします。Blazor内部のレンダリングツリー(フレーム列)の集合を `R` とし、時刻 `t` に生成されるフレーム列を `r_t`(`r_t ∈ R`)とします。`R` と `r_t` は差分検知の安定条件(§1.2)で用います。
+Language and runtime features this specification depends on:
 
-Source Generatorはビルド時に、設計時のUI式を「状態を受け取ってフレーム列を返す関数」(型でいえば `S → R`)へコンパイルします。実行時に動くのはこの生成関数だけであり、`r_t` はそれを状態 `s_t` に適用した結果です。UI式そのもの(設計時の構文的実体)は実行時には評価されません。Razorとの対比で言えば、Razorコンパイラはこの入力をマークアップとして受け取り、BlazorCodeFirstはC#式として受け取る、という違いです。
+| Feature                                                | Requirement                            | Use                                          |
+| ------------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
+| Source Generator member generation into a partial class | Every supported version (a mature, standard feature) | Generating `RenderView` (§2)          |
+| IL trimming / Native AOT                                 | .NET 10                                 | Removing the inert API and unused code (§5)   |
+| Union types / `closed` hierarchies                       | C# 15 / .NET 11 (conditional)           | `ViewNode`'s closed-world definition (§6)     |
+| Runtime Async                                            | .NET 11 (conditional)                   | Lightening the event pipeline (§4.3)          |
 
-生成された関数は純粋(状態のみに依存し副作用を持たない)であることを規約とします(単一方向データフロー、§4.1)。設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)内の状態変更は診断BCF3001の対象となります。BCF3001の初期検出範囲はコンポーネントのインスタンスメンバーへの静的識別可能な直接書き込み(フィールド代入、プロパティ代入、複合代入、インクリメント/デクリメント演算子)に限ります。`Button` のonClickラムダのような遅延ハンドラ引数内の変更は、レンダリング後に実行されるため除外されます。除外する位置は付録AのBCF3001行が定めます。任意のメソッド呼び出し経由の副作用(非同期連鎖等)の完全な検出は初期スライスでは保証しません。
+That the core mechanism does not depend on any particular bleeding-edge language feature is a deliberate property of this design. Alternative architectures considered and rejected (an Interceptor-based approach, a runtime ref-struct-tree approach) and why are recorded in Appendix B.
 
-### 1.2 レンダリングツリーの等価性と差分検知
+---
 
-`R` の各フレーム `n ∈ r_t` はシーケンス番号 `seq(n) ∈ ℕ` を持つ。Blazorの差分演算子を
+## 1. Abstract mathematical model and formal definitions
+
+### 1.1 State and projection
+
+Let `S` be a component's state space, and `s_t` (`s_t ∈ S`) the state at time `t`. Let `R` be the set of Blazor's internal rendering trees (frame sequences), and `r_t` (`r_t ∈ R`) the frame sequence generated at time `t`. `R` and `r_t` are used in the diff-detection stability condition (§1.2).
+
+At build time, the Source Generator compiles a design-time UI expression into "a function that takes a state and returns a frame sequence" (typed as `S → R`). Only this generated function runs at run time, and `r_t` is the result of applying it to state `s_t`. The UI expression itself (the design-time syntactic entity) is never evaluated at run time. Contrasted with Razor: the Razor compiler takes this same input as markup, where BlazorCodeFirst takes it as a C# expression.
+
+It is a convention that the generated function is pure — it depends only on state and carries no side effects (single-direction data flow, §4.1). A state mutation inside a design-time expression (`BodyComponentBase.Body` or `ChromeLayoutBase.Chrome`) is covered by diagnostic BCF3001. BCF3001's initial detection scope is limited to a statically identifiable direct write to a component instance member (field assignment, property assignment, compound assignment, the increment/decrement operators). A mutation inside a deferred handler argument, such as a `Button`'s onClick lambda, is excluded because it runs after rendering; the excluded positions are defined by Appendix A's BCF3001 row. Complete detection of a side effect reached through an arbitrary method call (e.g. an async chain) is not guaranteed in the initial slice.
+
+### 1.2 Rendering-tree equivalence and diff detection
+
+Each frame `n ∈ r_t` in `R` carries a sequence number `seq(n) ∈ ℕ`. Let Blazor's diff operator be
 
 ```
 Δ : R × R → Patch
 ```
 
-とし、`Δ(r_t, r_{t+1})` がDOMへ適用されます。Blazorの差分アルゴリズムは、両ツリーを先頭から同時走査し、シーケンス番号の一致・大小比較のみでフレームの同一性(保持/挿入/削除)を判定します。
+and `Δ(r_t, r_{t+1})` is applied to the DOM. Blazor's diff algorithm walks both trees simultaneously from the start, and judges frame identity (retain/insert/delete) purely by comparing sequence numbers for equality and ordering.
 
-**定理1(シーケンス安定性条件)**
-`Δ` が最小コスト O(|r_t| + |r_{t+1}|) で、かつ意味的に同一のノードの状態を保存するためには、任意の意味的同一ノード対 `(n, n′)`(`n ∈ r_t`, `n′ ∈ r_{t+1}`)について次が成立しなければなりません:
+**Theorem 1 (sequence stability condition)**
+For `Δ` to run at minimum cost O(|r_t| + |r_{t+1}|) and preserve the state of semantically identical nodes, the following must hold for every semantically identical node pair `(n, n′)` (`n ∈ r_t`, `n′ ∈ r_{t+1}`):
 
 ```
 seq(n) = seq(n′)                                   … (1)
 ```
 
-**系1**: 条件(1)を満たす十分条件は、`seq` が実行時の生成順序ではなくソースコード上の構文位置の関数であることです。フレームを生成した式ノードの構文位置を `π(n)` としたとき、ある単射 `σ` が存在して:
+**Corollary 1**: A sufficient condition to satisfy condition (1) is that `seq` is a function of the syntactic position in source code rather than the run-time generation order. Letting `π(n)` be the syntactic position of the expression node that generated the frame, there exists an injection `σ` such that:
 
 ```
-seq(n) = σ(π(n)),   σ : Π → ℕ は単射             … (2)
+seq(n) = σ(π(n)),   σ : Π → ℕ is an injection      … (2)
 ```
 
-本方式では `σ` はビルド時にSource Generatorが構成し、生成コードへリテラル定数として埋め込まれるため、条件(2)は構造的に満たされます。対照的に、ランタイムインクリメント方式(`seq(n) = 生成順序`)は、条件付きレンダリングや要素挿入により `π` と生成順序の対応が崩れた時点で条件(1)に違反し、計算量が O(n) の走査へ劣化します。
+In this approach, `σ` is constructed by the Source Generator at build time and embedded into the generated code as literal constants, so condition (2) is satisfied structurally. In contrast, a runtime-increment approach (`seq(n) = generation order`) violates condition (1) the moment conditional rendering or element insertion breaks the correspondence between `π` and generation order, degrading to an O(n) walk.
 
-条件(1)の違反から先に何が起きるかは、キーの有無で分かれます(実測値は `DESIGN.md` §7.2)。キーを持たない場合、一致すべきフレーム以降が「削除+新規挿入」と誤判定され、再構築されたコンポーネントの内部状態(入力中のテキスト等)が消失します。ただしその範囲は構造的条件に依存し、ずれ幅がノードのフレーム幅の倍数であるときは後続ノードが1つずれた位置で一致するため、破棄は末尾に限られ残りはテキスト書き換えになります。一方、キーを持つ場合は兄弟グループ内のキー照合が成立するため、シーケンスがずれても状態は保持されます。つまり状態消失は、条件(1)違反とキーの不在が重なって初めて生じます。条件(1)違反だけからは導かれません。
+What follows a violation of condition (1) splits on whether a key is present (measured figures: `DESIGN.md` §7.2). Without a key, the frames from the point that should have matched onward are misjudged as "delete plus fresh insert," and the internal state of the reconstructed component (in-progress text input, for example) is lost. That range still depends on a structural condition, though: when the offset is a multiple of a node's frame width, a later node matches at a position shifted by one, so the loss is confined to the tail and the rest becomes a text rewrite. With a key, on the other hand, key matching within the sibling group holds, so state survives even when the sequence shifts. State loss, in other words, only occurs where a condition-(1) violation and the absence of a key coincide — it does not follow from a condition-(1) violation alone.
 
-シーケンス番号が構文位置に固定されていることが状態保持に効いてくるのは、リージョン(`OpenRegion`、§5.3)が介在する場合です。リージョン自身のシーケンスがずれるとリージョンごと破棄され、キー照合は兄弟グループの内側でしか働かないため状態を救えません。`If` / `ForEach` がリージョンを発行する本方式において、条件(2)はこの意味で本質的です。
+State preservation depends on the sequence number being fixed to syntactic position specifically where a region (`OpenRegion`, §5.3) is involved. If a region's own sequence shifts, the whole region is discarded, and because key matching only operates within a sibling group, it cannot rescue the state. In this design, where `If` / `ForEach` each emit a region, condition (2) is essential in exactly this sense.
 
 ---
 
-## 2. コンパイルアルゴリズム
+## 2. The compilation algorithm
 
-### 2.1 全体パイプライン
+### 2.1 The overall pipeline
 
 ```
-[ユーザーコード]                     [Source Generator]
-partial class C :                    ① partial検証・Body発見
-BodyComponentBase                 ② SSC分類(§2.3)
-  View Body => …        ──AST──▶    ③ DFS順シーケンス割当(§2.2)
-  [ViewPart] View F() => …         ④ RenderView(RenderTreeBuilder) の生成
-                                        — 静的seq定数の埋め込み
-                                        — 動的式・ラムダの構文移植
-                                        — [ViewPart] のインライン展開
+[User code]                          [Source Generator]
+partial class C :                    ① partial verification, Body discovery
+BodyComponentBase                 ② SSC classification (§2.3)
+  View Body => …        ──AST──▶    ③ DFS-order sequence assignment (§2.2)
+  [ViewPart] View F() => …         ④ Generating RenderView(RenderTreeBuilder)
+                                        — embedding static seq constants
+                                        — transplanting dynamic expressions/lambdas as syntax
+                                        — inline-expanding [ViewPart]
 ```
 
-生成物は同一partialクラス内の `RenderView` オーバーライドであり、基底クラス(`BodyComponentBase` またはレイアウトの `ChromeLayoutBase`)の `BuildRenderTree` から呼び出されます。設計時表現(`BodyComponentBase.Body` または `ChromeLayoutBase.Chrome`)と設計時APIは、いずれも実行時に到達不能であり、AOTビルドではILトリマーが除去します。ここでいう設計時APIとは、`Html`・`Decorations` の全メンバーと、設計時慣性型 `View` / `ComponentView<T>` / `ElementView`(付録A、BCF3014)の全メンバーです。除去は `System.Reflection.Metadata` によるMethodDef不在検査をもって確認できる設計であり、その確認手段はトリムテストが担います。
+The output is a `RenderView` override in the same partial class, called from the base class's (`BodyComponentBase`, or a layout's `ChromeLayoutBase`) `BuildRenderTree`. Both the design-time expression (`BodyComponentBase.Body` or `ChromeLayoutBase.Chrome`) and the design-time API are unreachable at run time, and the IL trimmer removes them in an AOT build. The design-time API here means every member of `Html` and `Decorations`, and every member of the design-time inert types `View` / `ComponentView<T>` / `ElementView` (Appendix A, BCF3014). The design is verifiable by checking, via `System.Reflection.Metadata`, that no MethodDef remains; the trim tests carry out that verification.
 
-設計時表現のゲッターは**1つの `return` へ到達できなければなりません**。`=> expr` / `get => expr` /
-`get { return expr; }` の 3 つの綴りは同一であり、いずれも同じ `RenderView` を生成します。その `return`
-の手前には、ローカル宣言文と式文を並べられます。これは `ForEach` の `content` が受け付けるブロックと同じ
-形であり(§2.3 Transplantable)、書かれた文はフレーム発行の手前へ移植されます。形を読む実装は1つで、
-`RenderExpressionAnalyzer.TryReadTransplantableBlock` がゲッターと `content` の双方に答えます。文を置ける
-ことは副作用を許すことではなく、状態変更は BCF3001 のままです。BCF1004 として残るのは4つで、2つ目の
-`return`、ネイティブの制御構文、生成器の予約名(`__bcf_` 接頭辞と `__builder`)を持つローカル、そして
-翻訳対象のゲッター本体を宣言しない自動プロパティです。再abstract化(`abstract override`)と、実装部を
-持たない partial プロパティは対象外です。後者は CS9248 が原因を名指します。設計時表現は実行時に評価され
-ない不活性な構文であり、この制約は「構文を静的に翻訳する」という前提そのものです。
+A design-time expression's getter **must reach exactly one `return`**. The three spellings `=> expr` / `get => expr` / `get { return expr; }` are identical, and each generates the same `RenderView`. Local declaration statements and expression statements may precede that `return`. This is the same shape `ForEach`'s `content` accepts (§2.3 Transplantable), and the written statements are transplanted ahead of frame emission. One implementation reads this shape: `RenderExpressionAnalyzer.TryReadTransplantableBlock` answers for both the getter and `content`. Being able to place statements does not permit side effects — a state mutation is still BCF3001. Four shapes remain as BCF1004: a second `return`; a native control construct; a local with a generator-reserved name (the `__bcf_` prefix and `__builder`); and an auto-property that declares no getter body to translate. A re-abstraction (`abstract override`), and a partial property with no implementing part, are excluded — CS9248 names the cause of the latter. A design-time expression is inert syntax never evaluated at run time, and this constraint is simply the premise of "translating syntax statically."
 
-設計時表現の代わりに `RenderView` を手書きでオーバーライドすることは合法であり、SSC部分集合で表現できない
-ボディのためのエスケープハッチです。この場合ジェネレータは何も生成しません(生成すると同名メンバーの重複で
-CS0111 になり、著者は自分のコードを消すしか手がなくなります)。設計時表現は未使用となり、BCF1004 も報告され
-ません。
+Hand-writing an override of `RenderView` instead of a design-time expression is legal, and is the escape hatch for a body the SSC subset cannot express. In this case the generator produces nothing — generating one would duplicate the member name into CS0111, leaving the author no option but to delete their own code. The design-time expression goes unused, and BCF1004 is not reported either.
 
-BlazorCodeFirstコンポーネントとして認識される宣言形状は、トップレベルの `partial class` です。ジェネリック
-(`partial class Foo<T>`)はサポートされ、生成部は同じ型パラメータ名を再掲します(制約句は再掲しません。
-制約は型パラメータに属するため一方の宣言にあれば十分です)。ネストした型は BCF1005 で拒否されます。
-`record` は `object` または別の `record` しか継承できないため(CS8864)、BlazorCodeFirstコンポーネントにはできません。
+The declaration shape recognized as a BlazorCodeFirst component is a top-level `partial class`. Generics (`partial class Foo<T>`) are supported, and the generated part repeats the same type parameter names (it does not repeat the constraint clause — a constraint belongs to the type parameter, so having it on one declaration is enough). A nested type is rejected by BCF1005. A `record` can only inherit `object` or another `record` (CS8864), so it cannot be a BlazorCodeFirst component.
 
-### 2.2 シーケンス割当
+### 2.2 Sequence assignment
 
-`Body` の式ツリー `e` を深さ優先(preorder)で走査し、各UIノードに互いに素なシーケンス区間を予約します。`counter` はソースコード上の絶対オフセットではなく、構文ツリーの論理的な preorder 走査順で割り振られる整数(preorder 序数)です。これにより、コメントや空白の変更がシーケンス番号の安定性に影響しないことが保証されます。
+`Body`'s expression tree `e` is walked depth-first (preorder), reserving a disjoint sequence range for each UI node. `counter` is not an absolute offset in the source code, but an integer assigned by the syntax tree's logical preorder walk order (a preorder ordinal). This guarantees that a change to a comment or whitespace never affects sequence-number stability.
 
 ```
 procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
@@ -115,123 +100,123 @@ procedure Compile(e: ExpressionTree, model: SemanticModel) → RenderView:
     for each node v in DFS-Preorder(e):
         match Classify(v, model):
             case Factory(kind) | Decorator(kind):
-                w ← EmittedWidth(v)                 // 当該ノードが発行したフレーム数(発行が権威、§2.7(D))
+                w ← EmittedWidth(v)                 // the frame count this node emitted (emission is authoritative, §2.7(D))
                 code += EmitFrames(kind, v.Args, seqBase: counter)
                 counter ← counter + w
             case Combinator(If | ForEach):
                 code += ExpandCombinator(v, ref counter)   // §2.4
             case ViewPartCall(m):
-                code += Compile(Body(m), model)            // インライン展開(再帰)
-            case Transplantable(stmt):                     // ネイティブ if/foreach 等
+                code += Compile(Body(m), model)            // inline expansion (recursive)
+            case Transplantable(stmt):                     // a native if/foreach, etc.
                 code += WrapInRegion(Transplant(stmt), seq: counter); counter += 1
-            case Opaque(expr):                             // 非[ViewPart]のView返却呼び出し等
+            case Opaque(expr):                             // a non-[ViewPart] View-returning call, etc.
                 code += WrapInRegion(EmitFragmentOf(expr), seq: counter); counter += 1
                 report BCF2001(v)
     return code
 ```
 
-上の擬似コードはノード単位のループとして書いていますが、畳み込みの単位は**連続する兄弟の run** であり(§2.7(D))、run 全体が1つの `AddMarkupContent` として発行されます。したがって幅を定めるのは発行そのものであって、ノード種別ではありません(§2.7(B))。幅を独立に計算する実装は存在せず、増やしてもいけません。
+The pseudocode above is written as a per-node loop, but the unit of folding is **a run of consecutive siblings** (§2.7(D)), and the whole run is emitted as one `AddMarkupContent`. So it is the emission itself, not the node kind, that determines the width (§2.7(B)). No implementation computes the width independently, and none should be added.
 
-`FrameWidth` はシーケンス引数を消費する `RenderTreeBuilder` 呼び出し数のみをカウントし、`CloseElement`・`CloseRegion` のようにシーケンス引数を持たない呼び出しは含みません。ノード種別と、そのノードが畳み込み可能かどうかから定まります。例えば、子を持たない `Span` = 1 [`OpenElement`]、**動的な**文字列子を1つ持つ `Span`(`Span[$"...{x}"]`)= 2 [`OpenElement` + `AddContent`]、onclick属性1個付き `Button` = 3 [`OpenElement` + `AddAttribute` + `AddContent`] です。イベントは畳み込みを阻むため、`Button` の子が定数でもこの幅です。対して**定数**の文字列子を1つ持つ `Span`(`Span["..."]`)はそれ自体が畳み込み可能なので幅 1 です(`AddMarkupContent` 1回)。
+`FrameWidth` counts only the `RenderTreeBuilder` calls that consume a sequence argument, and excludes calls with no sequence argument such as `CloseElement`/`CloseRegion`. It is determined by the node kind and by whether that node can be folded. For example: a `Span` with no children = 1 [`OpenElement`]; a `Span` with one **dynamic** string child (`Span[$"...{x}"]`) = 2 [`OpenElement` + `AddContent`]; a `Button` with one onclick attribute = 3 [`OpenElement` + `AddAttribute` + `AddContent`]. An event blocks folding, so this is the width even when the `Button`'s child is constant. A `Span` with one **constant** string child (`Span["..."]`), by contrast, is itself foldable, so its width is 1 (a single `AddMarkupContent`).
 
-装飾チェーンのうち `class` は親要素の `class` 属性へ静的に合成されるため、`.Class` の追加はフレーム数を増やしません(`.Class("a").Class("b")` は単一の `AddAttribute` に畳み込まれます)。畳み込む値は、コンパイル時に読める項を先に片付けてから組み立てます。定数 `null` の項は落ち、隣接する定数文字列は1つのリテラルへ畳まれ、残った項が2つ以上あるときだけ、生成クラスが自身のために持つ `private static` の join を呼びます。この join は実行時に `null` の項を飛ばすため、区切りの空白は項と一緒に消えます(#236)。項が全て落ちても `AddAttribute` は発行されるため、フレーム幅は装飾の個数だけで決まり、値によって動きません(#234)。
+Within a decoration chain, `class` is statically composed into the parent element's `class` attribute, so adding `.Class` never increases the frame count (`.Class("a").Class("b")` folds into a single `AddAttribute`). The folded value is assembled after first clearing away the terms readable at compile time. A constant `null` term drops; adjacent constant strings fold into one literal; and only when two or more terms remain does it call the `private static` join the generated class keeps for itself. Because this join skips `null` terms at run time, the separating space disappears along with the term (#236). `AddAttribute` is still emitted even when every term drops, so the frame width is determined purely by the number of decorations and never moves with the value (#234).
 
-`class` 以外の属性・イベント装飾(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ1装飾につき1フレームが追加されます(詳細は§2.7(A))。例外は `.Bind` で、1つにつき属性フレームとイベントフレームの2つを追加します。同一要素に何個でも置けるため、この2フレームがその個数ぶん積まれます(§2.7(A))。動的引数(補間文字列、状態参照、イベントラムダ)は評価されず、構文として `EmitFrames` の出力へ移植されます。同一partialクラス内に生成されるため、`this` 経由のprivateアクセスは保存されます。
+An attribute or event decoration other than `class` (`.Href` / `.Attr` / `.OnClick` / `.On`, and so on) adds one frame per decoration (details in §2.7(A)). The exception is `.Bind`, which adds two — an attribute frame and an event frame — per instance; any number can be placed on the same element, and these two frames stack that many times (§2.7(A)). A dynamic argument (an interpolated string, a state reference, an event lambda) is never evaluated — it is transplanted as syntax into `EmitFrames`'s output. Because it is generated inside the same partial class, `private` access via `this` is preserved.
 
-値式を生成コードへ移植するとき、解決済みの型名は `global::` から始まる完全修飾名へ正規化します。未解決の型名は、元ファイルの `using` や名前空間に依存する表記のままでは安全に移植できないためBCF3015とします。ただし、作者が `global::` から記述した型参照は字句コンテキストに依存しないので通常のC#の名前解決に委ねます。ジェネリック型の外側と各型引数は独立に判定します。分解宣言の `var` だけは書かれたまま残します。括弧付き designation の手前に言語はどの型も置けないため、正規化した名前を書ける形がそこには無いからです(#342)。
+When a value expression is transplanted into generated code, a resolved type name is normalized to its fully-qualified form starting with `global::`. An unresolved type name becomes BCF3015, since a spelling that depends on the original file's `using`s or namespace cannot be transplanted safely as-is. A type reference the author already wrote from `global::`, however, is left to ordinary C# name resolution, since it does not depend on lexical context. A generic type's outer type and each type argument are judged independently. Only a deconstruction declaration's `var` is left exactly as written, because the language allows no type at all before a parenthesized designation — there is simply no shape there in which a normalized name could be written (#342).
 
-`Html.Fragment`(ラッパーレスなグルーピング)は自身のフレームを開かないため、その `FrameWidth` は子ノードの `FrameWidth` の総和です(ローカル変数を持たない `[ViewPart]` 展開ノードと同型)。ただし子がすべて畳み込み可能な場合、fragment 全体が1つの run となり幅は 1 になります(§2.7(D))。`Html.Raw`(信頼済み生HTML注入)は `AddMarkupContent` を1回発行するだけの単一フレームで、`FrameWidth` = 1 です(子を持たない文字列コンテンツノードの `AddContent` と同型)。いずれも要素/コンポーネントのフレームを開かないため、`ForEach` の `content` の根には使えず(BCF3003)、装飾もできません(BCF3008、詳細は§2.7(A)と付録A)。
+`Html.Fragment` (wrapperless grouping) opens no frame of its own, so its `FrameWidth` is the sum of its children's `FrameWidth` (the same shape as a `[ViewPart]` expansion node with no local variables). When every child is foldable, though, the whole fragment becomes one run and its width is 1 (§2.7(D)). `Html.Raw` (trusted raw HTML injection) is a single frame that only emits one `AddMarkupContent`, `FrameWidth` = 1 (the same shape as `AddContent` for a childless string content node). Neither opens an element/component frame, so neither can serve as the root of a `ForEach`'s `content` (BCF3003), nor can either be decorated (BCF3008, details in §2.7(A) and Appendix A).
 
-装飾不可は型システムでも表現されています。装飾は `ElementView` の拡張であり、`Fragment` / `Raw` は `View` なのでCS1929です。それでもBCF3008を報告するのは、このCS1929が作者へ届かないためです。設計時表現が翻訳できないコンポーネントには `RenderView` が生成されず、クラスは必ず宣言段階エラーのCS0534を負うため、`csc` はメソッド本体の束縛へ進みません。`RejectedDecorationScanner` が存在しなかった時点の実MSBuild測定では、フィクスチャ `Bcf3008Host` が報告したのはCS0534とBCF1003だけで、CS1929は現れませんでした。BCF3008を報告するようになった現在は、同じフィクスチャがそれも報告します。同じビルドでBCF1003は届いています。この打ち切りを越えられるのは生成器の診断だけです。
+That decoration is not allowed is also expressed in the type system: a decoration is an extension of `ElementView`, and `Fragment` / `Raw` are `View`, so it is CS1929. BCF3008 is still reported because this CS1929 never reaches the author. A component whose design-time expression cannot be translated has no `RenderView` generated, and the class always carries the declaration-stage error CS0534, so `csc` never proceeds to binding the method body. A real-MSBuild measurement taken before `RejectedDecorationScanner` existed found that fixture `Bcf3008Host` reported only CS0534 and BCF1003 — no CS1929 appeared. Now that BCF3008 is reported, the same fixture reports it too. BCF1003 reaches the author in the same build. Only a generator diagnostic can get past this cutoff.
 
-### 2.3 静的シーケンス可能サブセット(SSC)
+### 2.3 The statically sequenceable subset (SSC)
 
-任意のC#コードに対して条件(2)の `σ` は構成できません(呼び出しグラフが実行時にのみ確定するため)。解析の適用範囲を次の3階層に分類します:
+Condition (2)'s `σ` cannot be constructed for arbitrary C# code, because the call graph is only settled at run time. The scope of the analysis is classified into the following three tiers:
 
-**SSC(完全静的)**: 静的シーケンス割当の対象。
-- SSC-1: `Body` 本体、および `[ViewPart]` メソッド本体における、要素ヘルパー/装飾の直接記述、および `Component<T>()`・`Fragment`・`Raw` の直接呼び出し
-- SSC-2: `If(cond, then, otherwise)` コンビネータ(両分岐がインラインラムダであること)
-- SSC-3: `ForEach(source, key, content)` コンビネータ(`content` がインラインラムダ、`key` はインライン式ラムダまたは書かれた `null`)、およびその糖衣である子リスト内のスプレッド `[.. <source>.Select(<インライン式ラムダ>)]`(同一のノードへ畳まれ、`SetKey` を出さない点まで一致する)
-- SSC-4: SSC-1〜3の任意のネスト、および `[ViewPart]` 呼び出しの静的インライン展開
+**SSC (fully static)**: subject to static sequence assignment.
+- SSC-1: direct writing of an element helper/decoration, and a direct call to `Component<T>()`, `Fragment`, or `Raw`, in a `Body` body or a `[ViewPart]` method body
+- SSC-2: the `If(cond, then, otherwise)` combinator (both branches must be inline lambdas)
+- SSC-3: the `ForEach(source, key, content)` combinator (`content` an inline lambda, `key` an inline expression lambda or a written `null`), and its sugar, the spread `[.. <source>.Select(<inline expression lambda>)]` inside a child list (which folds into the same node, matching down to not emitting `SetKey`)
+- SSC-4: any nesting of SSC-1 through SSC-3, and static inline expansion of a `[ViewPart]` call
 
-**Transplantable(構文移植)**: 文が生成コードへ構文ごと移植され、境界リージョンで包まれます(§2.5)。受理する形は1つで、ローカル宣言文と式文が並び、最後に `return <SSC式>;` が1つ来るブロックです。書ける位置は3つあり、`ForEach` の `content` に書かれたブロック本体ラムダ、設計時表現(`Body` / `Chrome`)のゲッター、そして `[ViewPart]` の本体です。1つ目では文がループの内側へ、2つ目では `RenderView` のフレーム発行の手前へ、3つ目では展開先へ落ちます。移植した文はシーケンス引数を持つ呼び出しを含まないため、シーケンス幅は式1つで書いた場合と同じです。複数の `return` とネイティブの `if` / `foreach` / `switch` は、それぞれ独自のシーケンス空間を要するので受理しません。診断は位置で分かれ、`content` はBCF3004、ゲッターはBCF1004、`[ViewPart]` はBCF1002 です。
+**Transplantable (syntax transplant)**: a statement is transplanted whole into generated code and wrapped in a boundary region (§2.5). One shape is accepted: a block containing local declaration statements and expression statements, ending in exactly one `return <SSC expression>;`. It can be written in three positions: a block-bodied lambda written in `ForEach`'s `content`, a design-time expression's (`Body` / `Chrome`) getter, and a `[ViewPart]`'s body. In the first the statements fall inside the loop; in the second, ahead of `RenderView`'s frame emission; in the third, into the expansion site. A transplanted statement contains no call that takes a sequence argument, so the sequence width is the same as writing a single expression. Multiple `return`s and a native `if` / `foreach` / `switch` are each not accepted, since each would need its own sequence space. The diagnostic splits by position: `content` is BCF3004, the getter is BCF1004, and `[ViewPart]` is BCF1002.
 
-`[ViewPart]` の本体が囲みスコープへ束縛するローカルは、その定義でだけ生成名を受け取ります(#336、#343)。定義の本体は呼び出しごとに複製されるため、著者の書いた名前は1つの生成スコープで2度宣言されえます。束縛の経路は2つあり、先頭の文が宣言するローカルと、返却式の designation(パターン変数、`out var`、分解)です。後者だけを持つ式本体もこの命名を受けます。ラムダの内側は対象外です。`If` の分岐も `ForEach` の content も生成コードでは自分の波括弧に落ちるため、2つの展開が1つのスコープで出会いません。命名は反復変数と同じ機構で、宣言子の識別子も参照も同じ hole が担い、名前は展開が鋳造します。設計時表現の側は書かれた名前のままです。1つの設計時表現の中では著者の入れ子と生成コードの入れ子が一致するため、書かれた名前はそこで必ず合法だからです(兄弟のブロックは兄弟の生成スコープになり、ゲッターのローカルとブロックのローカルが同名なら著者のファイルで既にCS0136 です)。
+A local a `[ViewPart]`'s body binds into an enclosing scope receives a generated name only at that definition (#336, #343). Because the definition's body is duplicated at every call site, a name the author wrote can end up declared twice in one generated scope. There are two binding paths: a local the leading statement declares, and a designation in the return expression (a pattern variable, `out var`, a deconstruction). An expression body that has only the latter also receives this renaming. The inside of a lambda is excluded. Because both an `If` branch and a `ForEach`'s content fall into their own braces in the generated code, the two expansions never meet in one scope. The renaming uses the same mechanism as an iteration variable: both the declarator's identifier and its references are carried by the same hole, and the expansion casts the name. The design-time-expression side keeps the written name as-is, because within a single design-time expression the author's nesting and the generated code's nesting coincide, so the written name is always legal there (sibling blocks become sibling generated scopes, and if a getter's local and a block's local shared a name, the author's own file would already be CS0136).
 
-囲みスコープのローカルを受理する位置は2つで、いずれも lowered された構文のヘッダです(#361)。`If` の条件は生成された `if` のヘッダへ落ち、両分岐を包みます。`ForEach` と、その糖衣である `..source.Select(…)` のソースは生成された `foreach` のヘッダへ落ち、ループ本体を包みます。`key` の本体はそのループ本体の `SetKey` へ落ちるため同じく読めます。移植ブロックと同じ機構(`ViewPartBodyContext.PushTransplantedScope`)で登録し、設計時表現と `[ViewPart]` の双方が同じ検査を読むので、2つの位置は同時に閉じます。
+There are two positions that accept a local from the enclosing scope, and both are headers of lowered syntax (#361). An `If`'s condition falls into the generated `if`'s header, enclosing both branches. `ForEach`, and the source of its sugar `..source.Select(…)`, falls into the generated `foreach`'s header, enclosing the loop body; `key`'s body falls into that loop body's `SetKey`, so it reads the same way. Registration uses the same mechanism as a transplanted block (`ViewPartBodyContext.PushTransplantedScope`), and since both a design-time expression and a `[ViewPart]` read the same check, the two positions close together.
 
-受理はこの2つに限り、判定は包含だけでは足りません。理由は位置ごとに違います。コンポーネントのスロットは中身が `RenderFragment` ラムダ1つに包まれるため、あるスロットで宣言したローカルは兄弟のスロットにも兄弟のパラメータにも届きません。要素の兄弟は逆に1つのブロックへ並ぶものの、著者の順序では並びません。class チャネルは属性ループの手前へ、イベントとバインドはその後ろへ落ち、定数の子の連なりは1つの markup フレームへ畳まれるためです(§2.7)。著者のファイルでは `out var` が囲む文までスコープを持つので、どちらの形もC#としては通ります。境界の両側は `LoweredHeaderLocalTests` が押さえています。
+Acceptance is limited to these two, and simple containment is not enough to judge it — the reason differs by position. A component's slot has its contents wrapped in a single `RenderFragment` lambda, so a local declared in one slot reaches neither a sibling slot nor a sibling parameter. An element's siblings, conversely, do line up into one block, but not in the author's order: the class channel falls ahead of the attribute loop, event and bind decorations fall after it, and a run of constant children folds into one markup frame (§2.7). In the author's file, `out var` scopes all the way to the enclosing statement, so both shapes are valid C#. `LoweredHeaderLocalTests` pins both sides of the boundary.
 
-**Opaque(実行時評価)**: `[ViewPart]` の付かない `View` 返却メソッド呼び出し、デリゲート経由の間接呼び出し等。SGは内部を解析できないため、呼び出し式を生成コードへ移植し、実行時に返された `View` の内包する `RenderFragment` を描画します。診断BCF2001(Info)で通知されます。
+**Opaque (runtime evaluation)**: a call to a `View`-returning method with no `[ViewPart]`, an indirect call through a delegate, and so on. The SG cannot analyze the inside, so it transplants the call expression into generated code and renders, at run time, the `RenderFragment` the returned `View` wraps. Notified by diagnostic BCF2001 (Info).
 
-この経路には前提が1つあり、それが受理範囲を決めます。`View` にフラグメントを入れる綴りは `implicit operator View(RenderFragment?)` だけであり、設計時表層のメンバーはすべて既定値を返します(§3.2)。したがって表層から組まれた `View` はフラグメントを持たず、Opaque経路へ載せても何も描画しません。呼び出し先のソース宣言が現コンパイル内にあり、その本体が設計時表層を参照している場合は、この経路へ落とさずBCF3030(Error)で止めます。Opaqueとして受けるのは、本体が表層を参照していない場合と、宣言が読めない場合です。後者には判定できない残余があり、付録A のBCF2001 行に記録しています。
+This path rests on one premise, and that premise decides its scope: the only spelling that puts a fragment into a `View` is `implicit operator View(RenderFragment?)`, and every member of the design-time surface returns a default value (§3.2). So a `View` built from the surface carries no fragment, and putting it on the Opaque path still renders nothing. When the call target's source declaration is in the current compilation and its body references the design-time surface, this does not fall onto this path — BCF3030 (Error) stops it instead. What is accepted as Opaque is a body that does not reference the surface, and a declaration that cannot be read. The latter carries residue that cannot be judged, recorded in Appendix A's BCF2001 row.
 
 いずれの階層でも正確性は保たれます。失われるのはTransplantable/Opaque領域内部の静的差分最適化のみです。
 
-### 2.4 条件分岐における静的シーケンス空間の分離
+### 2.4 Static sequence-space separation for conditional branches
 
-SSC-2の `If` について、両分岐に互いに素な静的シーケンス区間を予約します:
+For SSC-2's `If`, a disjoint static sequence range is reserved for each branch:
 
 ```
 If(condition, then: T₁, otherwise: T₂)
 
-割当:  seq(境界リージョン)  = k
-       seq空間(T₁)          = [k+1,  k+1+W(T₁))
-       seq空間(T₂)          = [k+1+W(T₁), k+1+W(T₁)+W(T₂))
+Assignment:  seq(boundary region)  = k
+             seq space(T₁)         = [k+1,  k+1+W(T₁))
+             seq space(T₂)         = [k+1+W(T₁), k+1+W(T₁)+W(T₂))
 ```
 
-生成コードの概念形:
+Conceptual shape of the generated code:
 
 ```csharp
 __b.OpenRegion(k);
 if (condition)
 {
-    /* T₁ のフレーム列: seq ∈ [k+1, k+1+W(T₁)) */
+    /* T₁'s frame sequence: seq ∈ [k+1, k+1+W(T₁)) */
 }
 else
 {
-    /* T₂ のフレーム列: seq ∈ [k+1+W(T₁), …) — T₁と重複しない */
+    /* T₂'s frame sequence: seq ∈ [k+1+W(T₁), …) — does not overlap T₁ */
 }
 __b.CloseRegion();
 ```
 
-`condition` が `true → false` に遷移した際、`T₁` と `T₂` のシーケンスが交差しないため、Blazorエンジンは「同一スロットの書き換え(誤った状態引き継ぎ)」ではなく「セグメント全体の排他的破棄と新規生成」として正しく検知します。これは定理1の条件(1)を、分岐セマンティクス(異なる分岐のノードは意味的に非同一)と整合する形で満たします。
+When `condition` transitions `true → false`, `T₁` and `T₂`'s sequences never intersect, so the Blazor engine correctly detects this as "exclusive discard of the whole segment and fresh generation" rather than "rewriting the same slot" (which would carry over the wrong state). This satisfies Theorem 1's condition (1) in a way consistent with branch semantics — nodes in different branches are not semantically identical.
 
-`ForEach`(SSC-3)は `foreach` へ展開され、テンプレート `content` に単一の静的シーケンス空間を割り当てた上で、反復インスタンス間の同一性を `SetKey(key(item))` で識別します。シーケンスが「テンプレート内の構文位置」を、キーが「データ同一性」を担う責務分担と、リスト変異時の最小パッチは §2.7(B) に入出力例として示します。
+`ForEach` (SSC-3) expands into a `foreach`, assigning a single static sequence space to the template `content` and identifying identity across iteration instances with `SetKey(key(item))`. The division of responsibility — sequence carries "syntactic position within the template," key carries "data identity" — and the minimal patch under a list mutation are shown as input/output examples in §2.7(B).
 
-### 2.5 リージョンによるシーケンス空間の分離
+### 2.5 Sequence-space separation via regions
 
-Transplantable / Opaque領域 `D` は、境界に単一の静的シーケンスを持つリージョンで包まれます:
+A Transplantable / Opaque region `D` is wrapped in a region whose boundary carries a single static sequence:
 
 ```csharp
-__b.OpenRegion(seq_D);           // seq_D は静的に割当済み
-__b.SetKey(runtimeKey);          // Opaqueの場合、必要に応じてランタイムキー
-/* D の内容 */
+__b.OpenRegion(seq_D);           // seq_D was assigned statically
+__b.SetKey(runtimeKey);          // for Opaque, a runtime key where needed
+/* D's content */
 __b.CloseRegion();
 ```
 
-Blazorのリージョンはシーケンス空間を分離するため、`D` 内部の動的性が外部のDiffingへ波及することはありません。
+Because a Blazor region isolates its sequence space, `D`'s internal dynamism never propagates out to the surrounding diffing.
 
-### 2.6 Hot Reload適合性
+### 2.6 Hot Reload compatibility
 
-開発時の編集を、.NET Hot Reload(EnC)の編集クラスに対応付けて分類します。
+Development-time edits are classified by mapping them to .NET Hot Reload's (EnC's) edit classes.
 
-`Body` 式または `[ViewPart]` 本体の変更は、再生成された `RenderView` のメソッド本体差し替えとして現れます。メソッド本体の更新はEnCが安定してサポートする編集クラスです。`[ViewPart]` メソッドの新規追加は既存型へのメンバー追加であり、同じくサポート範囲内です。コンポーネントクラスのシグネチャ変更等のrude editは、Razorコンポーネントと同様にアプリケーション再起動を要します。
+A change to a `Body` expression or a `[ViewPart]` body appears as a method-body swap in the regenerated `RenderView`. A method-body update is an edit class EnC supports stably. Adding a new `[ViewPart]` method is a member addition to an existing type, likewise within the supported range. A rude edit, such as a change to the component class's signature, requires an application restart, the same as with a Razor component.
 
-リロード後の初回レンダリングの意味論は §1.2 から直接導かれます。編集により構文位置写像 `π` が変化した場合、新旧の `σ(π(n))` は一般に一致しないため(条件(1)の不成立)、当該コンポーネントのフレーム列は差分検知上「排他的破棄と新規生成」として扱われます。コンポーネントインスタンス自体は保持されるためC#フィールドの状態は残り、DOMローカル状態(フォーカス、スクロール位置等)は失われます。これはRazorファイル編集時と同一の意味論であり、追加の仕様を要しません。
+The semantics of the first render after a reload follow directly from §1.2. When an edit changes the syntactic-position mapping `π`, the old and new `σ(π(n))` generally no longer agree (condition (1) fails to hold), so the affected component's frame sequence is treated by diff detection as "exclusive discard and fresh generation." Because the component instance itself is retained, C# field state survives, while DOM-local state (focus, scroll position, and so on) is lost. This is the same semantics as editing a Razor file, and needs no additional specification.
 
-適用経路もBlazor標準に乗ります。生成コードは通常の `ComponentBase` 派生型のメソッドであるため、Blazorが備える `MetadataUpdateHandler` による更新後再レンダリング機構がそのまま機能します。本設計固有のツーリング依存は「編集セッション中にSource Generatorが再実行され、生成コードの更新がEnCへ適用されること」の一点のみです。Visual Studio / `dotnet watch` / Riderで挙動差が生じうるため、環境ごとの確認を要します。特定環境で再実行がEnCへ反映されないと判明した場合の開発時フォールバックは付録Cに示します。
+The application path also rides on the Blazor standard. Because the generated code is an ordinary method on a `ComponentBase`-derived type, Blazor's own `MetadataUpdateHandler`-driven re-render-after-update mechanism works unchanged. This design's only tooling-specific dependency is the single point that the Source Generator re-runs during an edit session and its updated generated code is applied through EnC. Behavior can differ across Visual Studio / `dotnet watch` / Rider, so each environment needs its own confirmation. Appendix C shows the development-time fallback for a case where a specific environment is found not to carry a re-run through to EnC.
 
-### 2.7 主要な変換の入出力仕様: 装飾の畳み込み・リスト・部品再利用・静的畳み込み・フレーム装飾
+### 2.7 Input/output specification for the key transforms: decoration folding, lists, part reuse, static folding, frame decorations
 
-本方式で要となるのは、装飾チェーン・リスト・`[ViewPart]`・静的サブツリー・非属性のフレーム装飾の5つの変換です(単純な要素発行はここに含みません)。§2.4の `If` と同じ密度で、それぞれ「どの入力を、どの生成コードに変えるか」を定めます。
+This design turns on five transforms: the decoration chain, lists, `[ViewPart]`, static subtrees, and non-attribute frame decorations (plain element emission is not included here). At the same level of detail as §2.4's `If`, each one defines exactly which input turns into which generated code.
 
-**(A) 装飾チェーンの畳み込み。入力: 装飾の連鎖 / 出力: `class` は畳み込み、他の属性・イベントは1:1のフレーム**
+**(A) Folding a decoration chain. Input: a chain of decorations / Output: `class` folds, other attributes and events emit 1:1 frames**
 
-装飾メソッドは所有要素の属性・イベントへ静的に合成され、ラッパーノードを増やしません。`class` は特別で、`.Class`(または `.Attr("class", …)`)を何個連ねても単一の `class` 属性へ畳み込まれ、追加の属性フレームは生まれません。`class` 以外の属性・イベント(`.Href` / `.Attr` / `.OnClick` / `.On` 等)はそれぞれ独立した属性/イベントフレームとして1:1で発行され、同一属性・イベントの重複バインディングはBCF3010で診断されます。`class` に届く綴りは3つあり、畳み込むのはそのうち2つです。`.Bind("class", …)` はチャネルへ加わらず自分の属性フレームを出すため、装飾と共存させると `class` 属性が2つ発行されます。これはBCF3024で診断されます。
+A decoration method is statically composed into the owning element's attributes and events, and adds no wrapper node. `class` is special: however many `.Class` (or `.Attr("class", …)`) are chained, they fold into a single `class` attribute, producing no extra attribute frame. An attribute or event other than `class` (`.Href` / `.Attr` / `.OnClick` / `.On`, and so on) is each emitted 1:1 as its own independent attribute/event frame, and a duplicate binding of the same attribute or event is diagnosed by BCF3010. Three spellings reach `class`, and only two of them fold: `.Bind("class", …)` does not join the channel and emits its own attribute frame, so combining it with a decoration emits two `class` attributes — diagnosed by BCF3024.
 
 ```csharp
-// 入力(設計時のC#式)
+// Input (a design-time C# expression)
 Button
     .Class("btn")
     .Class("btn-primary")
@@ -239,7 +224,7 @@ Button
 ```
 
 ```csharp
-// 出力(生成コード): 2つの .Class は1つの class 属性へ畳み込まれ、.OnClick は独立したフレーム
+// Output (generated code): the two .Class calls fold into one class attribute; .OnClick is its own frame
 __b.OpenElement(k,   "button");
 __b.AddAttribute(k+1, "class", "btn btn-primary");
 __b.AddAttribute(k+2, "onclick", /* () => Save() */);
@@ -247,78 +232,78 @@ __b.AddContent(k+3, "Save");
 __b.CloseElement();
 ```
 
-この `Button` の `FrameWidth` は4(`OpenElement` + `class` 属性 + `onclick` イベント + `AddContent`)です。`.Class` を何回連ねてもフレーム幅は増えませんが、`class` 以外の装飾を1つ追加するとフレーム幅も1つ増えます。ラッパーノード方式(装飾ごとに専用のラッパー要素を生成する方式)であれば装飾はDOMノードそのものを増やしますが、本方式はいずれの装飾も所有要素の属性・イベントとして合成するためDOM深さは増えません。この非対称性が、装飾を重ねても差分検知のシーケンス割当が安定する根拠です。
+This `Button`'s `FrameWidth` is 4 (`OpenElement` + the `class` attribute + the `onclick` event + `AddContent`). Chaining `.Class` any number of times never increases the frame width, but adding one decoration other than `class` increases the frame width by one. A wrapper-node approach (one that generates a dedicated wrapper element per decoration) would have each decoration increase the DOM node count itself, but this design composes every decoration into the owning element's attributes and events, so DOM depth never increases. This asymmetry is the basis for diff detection's sequence assignment staying stable as decorations pile up.
 
-イベントフレームの値は `EventCallback.Factory.Create` の呼び出しで、ハンドラの式はその引数へ移植します。`.On<TArgs>` が解決した場合は、その型引数を `Create<TArgs>` として書き出します(書かれた型引数と推論された型引数を区別しません。同じオーバーロードに解決した2つの綴りであり、片方だけに書けば同じ呼び出しを2通りに翻訳することになります)。移植先には、呼び出しサイトでハンドラへ型を与えていたパラメータがありません。`Create` は多重定義であるため、型引数が無ければメソッドグループは `TValue` を推論できず、型注釈の無いラムダ引数は `object` へ束縛されます。どちらも作者が書いていないファイルの中のCS1503になるので、呼び出しサイトの型引数をそのまま書き出して推論を経路から外します(#371)。型引数を持たない綴り(引数無しの `.On` とイベントショートカット)は書き出す型を持たないため `Create` のままです。この表層が許すハンドラの綴りすべてが生成コードで束縛することは `HtmlDecorationGeneratorTests.On_WithATypeArgument_NamesItOnCreate` が生成物をコンパイルして押さえます。
+An event frame's value is a call to `EventCallback.Factory.Create`, with the handler expression transplanted into its argument. When `.On<TArgs>` resolved, its type argument is written out as `Create<TArgs>` (a written type argument and an inferred one are not distinguished — they are two spellings that resolved to the same overload, and writing out only one would translate the same call two different ways). The transplant site has no parameter that was giving the handler its type at the call site. Because `Create` is overloaded, without a type argument the method group cannot infer `TValue`, and a lambda argument with no type annotation binds to `object` — both become CS1503 inside a file the author never wrote, so the call site's type argument is written out as-is to keep inference off the path (#371). A spelling with no type argument (a bare `.On` and an event shortcut) has no type to write out, and stays plain `Create`. That every handler spelling this surface allows binds in the generated code is pinned by `HtmlDecorationGeneratorTests.On_WithATypeArgument_NamesItOnCreate`, which compiles the generated output.
 
-1:1の唯一の例外が双方向束縛です。`.Bind` は属性フレーム1つとイベントフレーム1つを発行するため、この装飾の `FrameWidth` は2です。束縛のイベントにイベント修飾子を書いた場合は、その1つにつき1増えます(§2.7 (A) のイベント修飾子の項)。束縛先の属性が `value` または `checked` のときは、加えて `SetUpdatesAttributeName` を1回呼びます。これはシーケンス引数を取らないためフレームを増やしません(直前の属性フレームに、再同期対象の属性名を記録するだけです)。この2つの属性名に限るのは、クライアントが返すのが `EventFieldInfo` の組み立てるその要素自身の `value`(チェックボックスなら `checked`)だけだからです。`RenderTreeUpdater` はその値を、この呼び出しが指名したフレームへ書きます。それ以外の属性名を指名すると、フォーム要素では無関係のフレームを上書きして本来の属性を取り残し、フォーム要素以外では `EventFieldInfo.fromEvent` が `null` を返すため呼び出し自体が空振りになります。記録先が要素ではなく直前の属性フレームであるため、同一要素に2つの束縛を置いても各々が自分の名前を保ち、上書きも再同期の喪失も起きません(実測)。同一要素に束縛を何個置いても構いません。モデル側も要素あたりの束縛をコレクションとして持ちます。名前が衝突した場合はBCF3010が報告し、束縛先が `class` で同じ要素がクラスチャネルへの装飾も持つ場合はBCF3024が報告します。かつてこれをBCF3021で拒否していましたが、根拠が誤りであったため撤回しました(付録B.5)。
+The one exception to 1:1 is two-way binding. `.Bind` emits one attribute frame and one event frame, so this decoration's `FrameWidth` is 2. Writing an event modifier on a bound event adds one more per modifier (§2.7(A)'s event-modifier item). When the bound attribute is `value` or `checked`, it also calls `SetUpdatesAttributeName` once; since this takes no sequence argument, it adds no frame (it only records the attribute name to resynchronize into the immediately preceding attribute frame). It is limited to these two attribute names because the only thing the client returns is that element's own `value` (or `checked` for a checkbox) as `EventFieldInfo` assembles it. `RenderTreeUpdater` writes that value into the frame this call named. Naming any other attribute overwrites an unrelated frame on a form element, leaving the real attribute stale, and on a non-form element `EventFieldInfo.fromEvent` returns `null`, so the call itself is a no-op. Because the record target is the immediately preceding attribute frame rather than the element, placing two bindings on the same element leaves each keeping its own name, with no overwrite and no lost resync (measured). Any number of bindings may be placed on the same element; the model side also holds an element's bindings as a collection. A name collision is reported by BCF3010, and when the bound attribute is `class` and the same element also carries a class-channel decoration, BCF3024 reports it. This was once rejected by BCF3021, but that was withdrawn because its basis was wrong (付録B.5).
 
 ```csharp
-// 入力(設計時のC#式)
+// Input (a design-time C# expression)
 Input.Type("text").Bind("value", "oninput", () => _name)
 ```
 
 ```csharp
-// 出力(生成コード): 属性フレームとイベントフレームの2つ、そして再同期の記録
+// Output (generated code): two frames, the attribute frame and the event frame, plus the resync record
 __b.OpenElement(k,   "input");
 __b.AddAttribute(k+1, "type", "text");
-__b.AddAttribute(k+2, "value", _name);                  // 属性フレーム
+__b.AddAttribute(k+2, "value", _name);                  // attribute frame
 __b.AddAttribute(k+3, "oninput", EventCallbackFactoryBinderExtensions.CreateBinder(
-    EventCallback.Factory, this, __value => _name = __value, _name));   // イベントフレーム
-__b.SetUpdatesAttributeName("value");                   // シーケンス引数を取らない
+    EventCallback.Factory, this, __value => _name = __value, _name));   // event frame
+__b.SetUpdatesAttributeName("value");                   // takes no sequence argument
 __b.CloseElement();
 ```
 
-`CreateBinder` を拡張メソッドの静的呼び出しとして書くのは、生成ファイルが `using` を持たず、Razorの書くインスタンス構文(`EventCallback.Factory.CreateBinder(…)`)がCS1061になるためです。同じ正規化を作者の書いた拡張メソッドにも適用しています(§2.2)。setterを明示する形では、この `__value => …` の位置に `(Action<T>)(setter)` が入ります。非同期setterでは `RuntimeHelpers.CreateInferredBindSetter(callback: setter, value: 現在値)` が入ります。いずれの形でも現在値を `CreateBinder` の最後の引数として渡す点と、フレーム数は変わりません。
+`CreateBinder` is written as a static extension-method call because the generated file carries no `using`, and Razor's instance syntax (`EventCallback.Factory.CreateBinder(…)`) would be CS1061. The same normalization is applied to an author-written extension method too (§2.2). In the shape that writes the setter explicitly, `(Action<T>)(setter)` fills the `__value => …` position. For an async setter, `RuntimeHelpers.CreateInferredBindSetter(callback: setter, value: <current value>)` fills it. Either shape passes the current value as `CreateBinder`'s last argument, and the frame count does not change.
 
-`.Bind` は(D)の静的畳み込みに参加しません。値がフィールドやプロパティの読み出しである以上、コンパイル時定数になり得ません。ただし畳み込みを止めているのは値の非定数性ではなく、述語そのものです。`StaticMarkupSerializer.IsFoldableElement` が、束縛のコレクション `ElementNode.Bindings` が空でない要素を畳み込み不可として返します。値の判定に任せれば、束縛が黙って落ちてただの属性だけが残る出力を、この述語が原理的に作れてしまうためです。
+`.Bind` never takes part in (D)'s static folding. Its value is a read of a field or property, so it can never be a compile-time constant. But it is not the value's non-constancy that stops folding — the predicate itself does. `StaticMarkupSerializer.IsFoldableElement` returns not-foldable for any element whose binding collection `ElementNode.Bindings` is non-empty. Leaving it to a value check would let this predicate produce, in principle, output where the binding silently drops and only a plain attribute remains.
 
-コンポーネント側の `.Bind` はこの非対称性を持ちません。導かれた `{名前}Changed` と `{名前}Expression` は、通常のパラメータフレームとして積まれます。したがってフレーム幅は `.Param` 2回ぶんで、`{名前}Expression` を宣言している型に対しては3回ぶんです((D)末尾のコンポーネントのフレーム幅の式がそのまま成り立ちます)。要素側の `SetUpdatesAttributeName` に相当するものもありません。DOMを持つのは束縛先のコンポーネントであって、この呼び出し元ではないためです。
+A component-side `.Bind` carries none of this asymmetry. The derived `{name}Changed` and `{name}Expression` stack as ordinary parameter frames, so the frame width is two `.Param`'s worth, or three for a type that declares `{name}Expression` (the component frame-width formula at the end of (D) applies as-is). Nor is there anything corresponding to the element side's `SetUpdatesAttributeName`, since it is the bound-to component that owns the DOM, not this call site.
 
-イベント修飾子(`.PreventDefault` / `.StopPropagation`、Razorの `@onwheel:preventDefault`)は、直前に書かれたイベントに付き、そのイベントのフレームの直後に自分のフレームを1つ積みます。名前は `__internal_preventDefault_<イベント名>` と `__internal_stopPropagation_<イベント名>` で、値は `bool` です。
+An event modifier (`.PreventDefault` / `.StopPropagation`, Razor's `@onwheel:preventDefault`) attaches to the immediately preceding event, and stacks one frame of its own right after that event's frame. Its name is `__internal_preventDefault_<event name>` or `__internal_stopPropagation_<event name>`, and its value is `bool`.
 
 ```csharp
-// 入力
+// Input
 Div.Ref(r => _el = r).On<WheelEventArgs>("onwheel", Zoom).StopPropagation().PreventDefault()
 
-// 出力
+// Output
 __b.OpenElement(k, "div");
 __b.AddAttribute(k+1, "onwheel", EventCallback.Factory.Create<WheelEventArgs>(this, Zoom));
-__b.AddAttribute(k+2, "__internal_preventDefault_onwheel", true);   // 連鎖の順ではなく、常にこの順
+__b.AddAttribute(k+2, "__internal_preventDefault_onwheel", true);   // always this order, not the chain's order
 __b.AddAttribute(k+3, "__internal_stopPropagation_onwheel", true);
-__b.AddElementReferenceCapture(k+4, r => _el = r);                  // 修飾子より後ろ
+__b.AddElementReferenceCapture(k+4, r => _el = r);                  // after the modifiers
 __b.CloseElement();
 ```
 
-この形について、決めた点が3つあります。
+Three points were decided about this shape.
 
-1つ目は、フレームワークの `AddEventPreventDefaultAttribute` を呼ばず `AddAttribute` を直接書くことです。あの2つは `RenderTreeBuilder` のメンバーではなく `Microsoft.AspNetCore.Components.Web` の `WebRenderTreeBuilderExtensions` が持つ拡張メソッドで、中身はここに書いたのと同一の `AddAttribute` 呼び出しです(実測)。呼べば出荷パッケージの依存集合にそのアセンブリが入ります。#23 が選んだ粒度の細かい参照を崩し、#156 がまだ決めていない問いを副作用で確定させることになるため、名前を自分で書きます。代償は生成コードにフレームワーク内部の名前が入ることで、`EventModifierParityTests` がそれを買い戻します。生成側の綴りを `RenderViewEmitter` の定数から読み、拡張メソッドの出すフレームと突き合わせるため、命名規則が変われば黙った no-op ではなくテストが落ちます。
+First, this writes `AddAttribute` directly rather than calling the framework's `AddEventPreventDefaultAttribute`. Those two are not members of `RenderTreeBuilder` but extension methods on `Microsoft.AspNetCore.Components.Web`'s `WebRenderTreeBuilderExtensions`, and their contents are the identical `AddAttribute` call written here (measured). Calling them would pull that assembly into the shipped package's dependency set, unraveling the fine-grained references #23 chose and settling, as a side effect, a question #156 has not yet decided — so the name is written by hand instead. The cost is that a framework-internal name ends up in the generated code, and `EventModifierParityTests` buys that back: it reads the generated spelling from `RenderViewEmitter`'s constants and cross-checks it against the frame the extension method emits, so a change to the naming convention fails a test rather than becoming a silent no-op.
 
-2つ目は、呼び出しを出す引き金が値ではなく「呼び出しサイトに書かれたかどうか」であることです。書かなければ何も出ません。`.PreventDefault(false)` と書けば呼び出しは出てシーケンス番号を1つ消費し、フレームはフレームワーク側が落とします(実測)。番号は生じたフレームではなく発行した呼び出しに付くという、付録Dが定数 `false` の `bool` について既に置いている規則をそのまま適用したものです。値は実行時の式でよく、`.Attr(name, bool)` と同じ扱いになります。
+Second, what triggers emitting the call is not the value but whether it was written at the call site. Write nothing and nothing is emitted. Write `.PreventDefault(false)` and the call is emitted, consuming one sequence number, and the framework side drops the frame (measured). This is a straightforward application of the rule Appendix D already states for a constant `false` `bool`: the number attaches to the call that was issued, not to the frame that resulted. The value may be a runtime expression, handled the same way as `.Attr(name, bool)`.
 
-「直前に書かれたイベント」が指すのは、イベントを書く装飾すべてです。`.On` とイベントショートカットに加えて `.Bind` が入ります。2つのチャネルは互いの順序を記録しないので、どちらが後に書かれたかを答えられるのは構文だけです。判定は連鎖を左へ遡り、イベントを生まない装飾(`.Class` / `.Attr` / 他の修飾子)を跨いで、最初にイベントを生む装飾がどちらのチャネルへ書いたかを答えます。修飾子はそのチャネルの末尾に付きます。答えが末尾と一致するのは、装飾の分類が自分のレシーバを先に解析するためです。修飾子に到達した時点でノードに載っているのは、その修飾子より左に書かれたものだけであり、左で最も近いイベント生成装飾は、そのチャネルへ最後に積まれた1件になります。
+"The immediately preceding event" refers to any decoration that writes an event — `.On`, an event shortcut, and `.Bind` alike. The two channels record no order relative to each other, so only the syntax can answer which was written later. The judgment walks the chain leftward, stepping over decorations that produce no event (`.Class` / `.Attr` / other modifiers), and asks which channel the first event-producing decoration it finds wrote to. The modifier attaches to the end of that channel. The answer matches the end because decoration classification parses its own receiver first: at the point a modifier is reached, only what was written to its left is on the node, and the nearest event-producing decoration to the left is the one most recently stacked onto that channel.
 
-束縛側の出力は `SetUpdatesAttributeName` の後ろに置きます。この呼び出しは直前の属性フレームへ記録するため、束縛のイベントフレームとの間に修飾子を挟むと、再同期する属性名が修飾子のフレームに載ります(#370)。
+The binding-side output places the modifier after `SetUpdatesAttributeName`. Because this call records into the immediately preceding attribute frame, inserting a modifier between it and the bound event frame would put the resync attribute name on the modifier's frame instead (#370).
 
-3つ目は、位置に新しい規則が要らないことです。修飾子は属性フレームなので、(E)の3つと違って属性の範囲の中に入ります。`AssertCanAddAttribute` が参照キャプチャの後ろに属性を置くことを拒む以上、`.Ref` より前でなければなりませんが、エミッタは元から属性・イベント・束縛をすべて出し終えてからキャプチャを積むため((E))、この順序は構成上満たされます。作者が連鎖をどの順で書いても出力は上の順になります。
+Third, position needs no new rule. A modifier is an attribute frame, so unlike the three in (E) it falls inside the attribute range. Since `AssertCanAddAttribute` refuses to place an attribute after a reference capture, it must come before `.Ref` — but the emitter already stacks the capture only after every attribute, event, and binding has been emitted (E), so this ordering is satisfied structurally. Whatever order the author writes the chain in, the output follows the order above.
 
-**(B) `ForEach`。入力: リストの変異 / 出力: キー整合の最小パッチ**
+**(B) `ForEach`. Input: a list mutation / Output: the minimal patch under key matching**
 
-`ForEach`(SSC-3)は `foreach` へ展開され、テンプレート `content` に単一の静的シーケンス空間を割り当てた上で、反復インスタンス間の同一性を `SetKey(key(item))` で識別します。シーケンスが「テンプレート内の構文位置」を、キーが「データ同一性」を担い、責務が直交します。
+`ForEach` (SSC-3) expands into a `foreach`, assigning a single static sequence space to the template `content` and identifying identity across iteration instances with `SetKey(key(item))`. Sequence carries "syntactic position within the template," key carries "data identity" — the two responsibilities are orthogonal.
 
 ```csharp
-// 入力
+// Input
 ForEach(_items, key: t => t.Id, content: item =>
     Div.Class(item.Done ? "task done" : "task")[Span[item.Title]])
 ```
 
 ```csharp
-// 出力(生成コード): テンプレートのseqは反復間で不変、同一性はキーが担う
+// Output (generated code): the template's seq stays the same across iterations; identity is the key's job
 __b.OpenRegion(k);
 foreach (var item in _items)
 {
-    __b.OpenElement(k+1, "div");                        // Div (content の根要素): seq ∈ [k+1, k+1+W(content))
-    __b.SetKey(item.Id);                                // ← 根要素を開いた「直後」に付ける
+    __b.OpenElement(k+1, "div");                        // Div (content's root element): seq ∈ [k+1, k+1+W(content))
+    __b.SetKey(item.Id);                                // ← attach "immediately after" opening the root element
     __b.AddAttribute(k+2, "class", item.Done ? "task done" : "task");
     __b.OpenElement(k+3, "span"); __b.AddContent(k+4, item.Title); __b.CloseElement();
     __b.CloseElement();
@@ -326,26 +311,26 @@ foreach (var item in _items)
 __b.CloseRegion();
 ```
 
-`SetKey` は Blazor の `RenderTreeBuilder` において「現在開いている要素/コンポーネントフレーム」にキーを付与します(Razor の `@key` と同型)。したがってキーは `content` の**根要素/コンポーネントを開いた直後**に出さなければなりません。`OpenElement` の前(親がリージョンの状態)で呼ぶと、実行時に `InvalidOperationException: Cannot set a key on a frame of type Region.` となります。この帰結として、`ForEach` の `content` は**単一の要素またはコンポーネントを根に持つ**必要があります(キーの置き場が要素/コンポーネントに限られるため)。`content` の根がリージョンになる形(裸の `if`/`ForEach`/`switch` 等)はキーを適用できず、診断 BCF3003(Error)で通知します。`Html.Fragment`(ラッパーレスなグルーピング)と `Html.Raw`(信頼済み生HTML注入)も単一の要素/コンポーネントフレームを開かない点で同じ制約を受け、`content` の根には使えません(BCF3003)。入れ子のキー付きリストは内側ループを容器要素で包みます(例: `content: o => Div[ForEach(o.Items, …)]`)。これは Razor で `@if` に直接 `@key` を付けられず要素で包むのと同じ制約です。
+In Blazor's `RenderTreeBuilder`, `SetKey` attaches a key to "the frame of the element/component currently open" (the same shape as Razor's `@key`). The key must therefore be emitted **immediately after** opening `content`'s **root element/component**. Calling it before `OpenElement` — while the parent is still a region — throws `InvalidOperationException: Cannot set a key on a frame of type Region.` at run time. It follows that `ForEach`'s `content` must **have a single element or component as its root**, because a key can only be placed on an element or a component. A shape whose `content` root becomes a region (a bare `if`/`ForEach`/`switch`, and so on) cannot take a key, and is notified by diagnostic BCF3003 (Error). `Html.Fragment` (wrapperless grouping) and `Html.Raw` (trusted raw HTML injection) fall under the same constraint, since neither opens a single element/component frame, and neither can serve as `content`'s root (BCF3003). A nested keyed list wraps the inner loop in a container element (e.g. `content: o => Div[ForEach(o.Items, …)]`) — the same constraint as Razor, where `@key` cannot be placed directly on `@if` and needs an element to wrap it.
 
-この非キー可能性の判定は2つの層で行われ、両者は一致します。テンプレート走査層(`KeyabilityResolver.ResolveRootKind`)と静的展開後ツリー層(`ViewPartExpander.IsKeyableRoot`)のいずれも、キー可能な根を要素とコンポーネントに限ります。どのノード型がどう分類されるかは `KeyabilityResolverTests` が型ごとに固定します。
+This not-keyable judgment is made at two layers, and the two agree: both the template-walking layer (`KeyabilityResolver.ResolveRootKind`) and the post-static-expansion tree layer (`ViewPartExpander.IsKeyableRoot`) limit a keyable root to an element or a component. `KeyabilityResolverTests` pins, per type, how each node type is classified.
 
-未知のノード型に対する扱いは、この2層で意図的に非対称です。`IsKeyableRoot` の既定 `false` は、新種のノードが増えてもキー可否判定を安全側(非キー可能)へ倒します。一方 `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ViewPartExpander.ExpandNode` は未知のノード型に対して例外を送出し、ケース漏れを黙って通しません。フレーム発行・根種別解決は「未知のノード型はバグとして早期検出する」契約、`IsKeyableRoot` は「未知のノード型は非キー可能として扱う」既定、という分担です。
+Handling an unknown node type is deliberately asymmetric between these two layers. `IsKeyableRoot`'s default of `false` tilts the keyability judgment toward the safe side (not keyable) even as new node kinds are added. `RenderViewEmitter.EmitNode` / `KeyabilityResolver.ResolveRootKind` / `ViewPartExpander.ExpandNode`, on the other hand, throw on an unknown node type, never letting a missed case pass silently. The division is: frame emission and root-kind resolution carry the contract "an unknown node type is caught early as a bug"; `IsKeyableRoot` carries the default "an unknown node type is treated as not keyable."
 
-シーケンス幅を定める実装は発行そのものだけです。各 `Emit*` は自身が進めたカーソルを返し、兄弟の開始位置はその戻り値です。したがって新種のノードを追加する際に足すケースは `RenderViewEmitter.EmitNode` の1箇所で、漏れは例外で検出されます。
+The only implementation that determines sequence width is emission itself. Each `Emit*` returns the cursor it advanced, and a sibling's starting position is that return value. So adding a new node kind means adding exactly one case, in `RenderViewEmitter.EmitNode`, and a missed case is caught by the exception.
 
-シーケンス算術を守るのは、発行されたテキストが持つ性質です。生成コードに現れるシーケンス引数は、木の形に関わらず出現順で `0..N-1` の密な連番になります。どのノード種別も、予約した番号を必ずテキストへ書くためです。`If` は両分岐を予約して両方を発行し、`ForEach` は content 幅を予約して content を発行します。スロットは外側の平坦なカウンタを継続し、`CloseElement` / `CloseRegion` / `CloseComponent` / `SetKey` は消費しません。全ノード種別を覆うコーパスに対して `RenderViewEmitterSequenceTests` がこれを検査します。独立計算した幅との比較は合計しか見ないため、相殺する2つの誤りと `If` の分岐レンジの重複を通しますが、この性質は両方を落とします。なおこの密性は本実装の割当方式の性質であり、Blazor の要求ではありません。Blazor が要求するのは、シーケンス番号が構文位置に対して安定であることだけです。
+What guards the sequence arithmetic is a property of the emitted text itself: whatever shape the tree takes, the sequence arguments appearing in generated code are a dense run of `0..N-1` in order of appearance, because every node kind always writes the number it reserved into the text. `If` reserves both branches and emits both; `ForEach` reserves the content width and emits content. A slot continues the outer flat counter, and `CloseElement` / `CloseRegion` / `CloseComponent` / `SetKey` consume none. `RenderViewEmitterSequenceTests` checks this against a corpus covering every node kind. A comparison against an independently computed width only looks at the total, so it would pass two offsetting errors and an overlap in `If`'s branch ranges — but this property catches both. This density, by the way, is a property of this implementation's assignment scheme, not a Blazor requirement; all Blazor requires is that a sequence number is stable relative to syntactic position.
 
-`RenderFragmentContentNode` が消費するシーケンス番号は、`RenderFragment?` の非nullを問わず常に1です。シーケンス引数を消費する `AddContent` 呼び出しが必ず要り、それが開くリージョンフレームだけが非nullのとき限りであるためです。
+`RenderFragmentContentNode` consumes exactly one sequence number always, regardless of whether the `RenderFragment?` is non-null. A sequence-consuming `AddContent` call is always required, and the region frame it opens exists only when the value is non-null.
 
-入力が `[A, B, C]` から先頭挿入で `[X, A, B, C]` へ変異した場合の出力パッチを追います。テンプレートのシーケンス番号は全反復で同一であり、識別はキーが担うため、Blazorはキー `A, B, C` を既存フレームへ一致させ(行の状態とDOMサブツリーを保持)、`X` の1行のみを挿入します。仮にキーがインデックス由来であれば、位置0を「A→X の変更」、位置1を「B→A の変更」…と誤認し、全行を書き換えて各行のローカル状態(フォーカス位置等)を失います。キーが「データ同一性」を、シーケンスが「テンプレート位置」を分担することが、この最小パッチと状態保持を同時に成立させます。
+Trace the output patch when the input mutates from `[A, B, C]` to `[X, A, B, C]` by a leading insertion. Because the template's sequence number is the same across every iteration and identity is carried by the key, Blazor matches keys `A, B, C` against the existing frames (preserving row state and the DOM subtree) and inserts only the one row for `X`. If the key were index-derived instead, position 0 would be misread as "A → X changed," position 1 as "B → A changed," and so on — every row would be rewritten and each row's local state (focus position, and so on) would be lost. Key carrying "data identity" and sequence carrying "template position" is what makes this minimal patch and state preservation hold at the same time.
 
-**(C) `[ViewPart]` の静的インライン展開。入力: 部品呼び出し / 出力: 連続seqへの直接展開**
+**(C) `[ViewPart]`'s static inline expansion. Input: a part call / Output: direct expansion into a contiguous seq**
 
-`[ViewPart]` メソッド呼び出しは、呼び出しサイトへ本体をインライン展開します(§2.2 の `ViewPartCall` ケース)。メソッド呼び出しもリージョン境界も生成されず、シーケンス番号は周囲の本体と連続します。引数は構文として移植されます。
+A `[ViewPart]` method call is inline-expanded, body and all, at the call site (§2.2's `ViewPartCall` case). Neither a method call nor a region boundary is generated, and the sequence number stays contiguous with the surrounding body. Arguments are transplanted as syntax.
 
 ```csharp
-// 入力
+// Input
 protected override View Body =>
     Div[Toolbar("My App"), Span["Body"]];
 
@@ -355,26 +340,26 @@ private static View Toolbar(string title) =>
 ```
 
 ```csharp
-// 出力(生成コード): Toolbar はインライン展開され、seqは 0 から連続する
-__b.OpenElement(0, "div");                              // Div (Body の根要素)
-//   ↓ Toolbar("My App") のインライン展開開始(リージョン境界なし)
-__b.OpenElement(1, "div");                              // Div (Toolbar 本体)
+// Output (generated code): Toolbar is inline-expanded, and seq runs contiguously from 0
+__b.OpenElement(0, "div");                              // Div (Body's root element)
+//   ↓ start of Toolbar("My App")'s inline expansion (no region boundary)
+__b.OpenElement(1, "div");                              // Div (Toolbar's body)
 __b.AddAttribute(2, "class", "toolbar");
-__b.OpenElement(3, "span"); __b.AddContent(4, "My App"); __b.CloseElement();  // 引数 title を移植
+__b.OpenElement(3, "span"); __b.AddContent(4, "My App"); __b.CloseElement();  // the title argument, transplanted
 __b.CloseElement();
-//   ↑ Toolbar 展開終わり
+//   ↑ end of Toolbar's expansion
 __b.OpenElement(5, "span"); __b.AddContent(6, "Body"); __b.CloseElement();
 __b.CloseElement();
 ```
 
-`[ViewPart]` 呼び出しは、その本体を呼び出しサイトへ直接書いた場合と同じフレーム列・シーケンス区間を生みます。実行時ディスパッチもリージョン分離も介在しません。対照的に、`[ViewPart]` の付かない `View` 返却メソッドはOpaque(§2.3)として扱われ、リージョンで包まれ実行時に `RenderFragment` として描画され、診断BCF2001の対象となります。部品再利用の速度・トリミング特性を分けるのは、この静的展開可能性です。属性を付けたかどうかは関係しません。
+A `[ViewPart]` call produces the same frame sequence and sequence range as writing its body directly at the call site. Neither runtime dispatch nor region isolation is involved. By contrast, a `View`-returning method with no `[ViewPart]` is treated as Opaque (§2.3): wrapped in a region, rendered at run time as a `RenderFragment`, and subject to diagnostic BCF2001. It is this static-expandability, not whether the attribute was attached, that separates the speed and trimming characteristics of part reuse.
 
-**(D) 静的サブツリーの畳み込み。入力: 定数だけで書かれた兄弟の連なり / 出力: 1つの `AddMarkupContent` フレーム**
+**(D) Folding a static subtree. Input: a run of siblings written entirely in constants / Output: a single `AddMarkupContent` frame**
 
-値がコンパイル時定数である要素・テキストだけで構成された部分は、マークアップ文字列へ直列化され単一の `AddMarkupContent` フレームとして発行されます。畳み込みの単位は**サブツリーではなく run**、すなわち連続する畳み込み可能な兄弟の極大列です。
+A region made up only of elements and text whose values are compile-time constants is serialized into a markup string and emitted as a single `AddMarkupContent` frame. The unit of folding is **a run, not a subtree** — a maximal sequence of consecutive foldable siblings.
 
 ```csharp
-// 入力(設計時のC#式)
+// Input (a design-time C# expression)
 Div.Class("doc")[
     H1["BlazorCodeFirst"],
     Nav.Class("toc")[A.Href("#design")["Design"]],
@@ -383,7 +368,7 @@ Div.Class("doc")[
 ```
 
 ```csharp
-// 出力(生成コード): 動的な Span の前後がそれぞれ1フレームへ畳み込まれる
+// Output (generated code): the runs before and after the dynamic Span each fold into one frame
 __b.OpenElement(0, "div");
 __b.AddAttribute(1, "class", "doc");
 __b.AddMarkupContent(2, "<h1>BlazorCodeFirst</h1><nav class=\"toc\"><a href=\"#design\">Design</a></nav>");
@@ -392,23 +377,23 @@ __b.AddMarkupContent(5, "<p>Attributes are written before children.</p>");
 __b.CloseElement();
 ```
 
-畳まれた run のフレーム幅は、run が含む要素・属性・テキストの個数によらず1です。隣接する静的兄弟は、間に動的なものが無ければ1フレームへ合体します。この「サブツリーではなく run」という単位は #142 の測定が示した訂正であり、削減の実体は個々の静的サブツリーではなく静的兄弟の連なりから来ます。
+A folded run's frame width is 1, regardless of how many elements, attributes, and text nodes the run contains. Adjacent static siblings merge into one frame whenever nothing dynamic sits between them. This unit — a run rather than a subtree — is a correction #142's measurement revealed: the substance of the reduction comes from a run of static siblings, not from individual static subtrees.
 
-ラッパー要素が要素フレームのまま残るのは、**畳み込めない子を持つときだけ**です。上の例で `div` が残るのは動的な `Span` を子に持つからで、マークアップフレームは完全なマークアップを運ぶため、開始タグと部分的な子リストを一緒には畳めません。逆に部分木全体が畳み込み可能なら根の開始タグも同じ文字列に入り、完全に静的な `Body` はコンポーネント全体で `AddMarkupContent(0, …)` の1フレームに落ちます。Razorコンパイラも同じ条件で同じ形を出します(#140 が引用しているフレーム比較で差分が frame 0 ではなく frame 2 から始まっていたのは、その例の `div` が動的な子を持っていたためです)。
+A wrapper element stays an element frame only when it has a child that cannot be folded. In the example above, `div` stays because it has a dynamic `Span` as a child — a markup frame carries complete markup, so an opening tag cannot be folded together with a partial child list. Conversely, when the whole subtree is foldable, the root's opening tag lands in the same string too, and a fully static `Body` collapses the whole component into one `AddMarkupContent(0, …)` frame. The Razor compiler emits the same shape under the same condition (in the frame comparison #140 cites, the diff started at frame 2 rather than frame 0 because that example's `div` had a dynamic child).
 
-畳み込み可能性は SSC(§2.3)より真に狭いことに注意が必要です。SSCはシーケンス番号を静的に割り当てられるかの分類ですが、畳み込みはノードの**値**がコンパイル時定数であることを要求します。`Span[$"Count: {Count}"]` はSSCに属しますが、値が定数でないため畳み込みの対象になりません。
+Note that foldability is a strictly narrower notion than SSC (§2.3). SSC classifies whether a sequence number can be assigned statically, while folding requires the node's **value** to be a compile-time constant. `Span[$"Count: {Count}"]` belongs to SSC, but is not eligible for folding because its value is not constant.
 
-畳み込み対象のタグは allow-list、すなわち curated タグ ∪ void タグ ∪ カスタム要素名から、テキストの解釈が通常要素と異なる `pre` / `textarea` / `iframe` を除いたものです。`AddContent` に渡した値はBlazorがエスケープしますが `AddMarkupContent` はしないため、テキストと属性値のエスケープは直列化器の責務になります。`Html.Raw` は畳み込みから除外します。既に1フレームであり単独で畳んでも得が無く、隣接する run へ混ぜるのは危険なためです(`Raw("<i>")` のような不均衡な文字列は、run 全体を1回でパースするときに後続の兄弟を `<i>` の内側へ入れてしまいます)。
+The set of foldable tags is an allow-list: curated tags ∪ void tags ∪ custom element names, minus `pre` / `textarea` / `iframe`, whose text is interpreted differently from an ordinary element. Blazor escapes a value passed to `AddContent` but not one passed to `AddMarkupContent`, so escaping text and attribute values becomes the serializer's own responsibility. `Html.Raw` is excluded from folding: it is already one frame, so folding it alone gains nothing, and mixing it into an adjacent run is dangerous (an unbalanced string like `Raw("<i>")` would, when the whole run is parsed in one pass, pull the following siblings inside the `<i>`).
 
-値がマークアップを往復できない場合も畳みません。除外は復帰(CR)・NUL・孤立サロゲート・先頭のU+FEFFの4つです。
+A value is also not folded when it cannot round-trip through markup. Four cases are excluded: carriage return (CR), NUL, an isolated surrogate, and a leading U+FEFF.
 
-定数であっても、**文字列でない値は畳みません**(#158)。整形が従うカルチャをコンパイラが知り得ないためです(整形がいつどこで起きるかは付録E.2)。`3.5` が `en-US` で `"3.5"`、`de-DE` で `"3,5"` としてDOMへ届くのに、コンパイラはどちらになるかを知り得ません。畳めば片方が markup へ焼き込まれ、同じ値が「周囲が静的かどうか」で違う文字列になります。除外の代償は畳み込みの取りこぼし1回です。
+Even when constant, **a value that is not a string is not folded** (#158), because the compiler cannot know the culture the formatting will follow (when and where formatting happens is Appendix E.2). `3.5` reaches the DOM as `"3.5"` under `en-US` and as `"3,5"` under `de-DE`, and the compiler cannot know which. Folding it would bake one of them into the markup, so the same value would become a different string depending on whether its surroundings happen to be static. The cost of this exclusion is one missed opportunity to fold.
 
-例外は2つあります。**定数 `null`** は、文字列でもそれ以外でも `AddAttribute` が属性ごと省略するため、markup 側も何も書かないことで一致します。**定数 `bool`** は整形すべきものを持たないため、markup が両方の結果を厳密に表現できます(`true` は `name=""`、`false` は属性そのものの省略)。`.Attr(name, bool)` が非文字列の唯一の綴りであるのはこの理由によります(`DESIGN.md` §4.1 と #158)。クラスチャネルは連結で畳むため、ここでも定数文字列だけを受け付けます。
+There are two exceptions. A **constant `null`** — string or otherwise — is omitted entirely, attribute and all, by `AddAttribute`, so the markup side matches by writing nothing either. A **constant `bool`** has nothing to format, so markup can express both outcomes exactly (`true` becomes `name=""`, `false` omits the attribute entirely). This is why `.Attr(name, bool)` is the one non-`string` spelling (`DESIGN.md` §4.1 and #158). The class channel folds by concatenation, so it too accepts only constant strings here.
 
-4つの除外それぞれの乖離の形、2つの例外を裏づける実測、および一致が確認できて掃き出した文字クラスは付録Eに置きます。
+Appendix E carries the shape of the mismatch behind each of the four exclusions, the measurements backing the two exceptions, and the character classes swept out once agreement was confirmed.
 
-`ForEach` の content 根は畳みません。`SetKey` はマークアップフレームへ付けられないためです((B) 参照)。これを守っているのは発行側が content 根へ渡すキーの有無であり、独立した述語を置いていないので、両者が食い違う余地はありません。吸収するフレームが1つしかない run も畳みません。形だけ変えて、何も減らないからです。
+A `ForEach`'s content root is never folded, because `SetKey` cannot attach to a markup frame (see (B)). What guards this is simply whether the emitting side passes a key to the content root — there is no separate predicate, so the two can never disagree. A run that would absorb only a single frame is also not folded, since that would only change the shape without reducing anything.
 
 **畳み込みは出力を変えずにコード経路を変えます。** 畳み込まれたマークアップと、要素経路が `HtmlEncoder` を通して書き出す出力は `&` `<` `>` `"` について同一です(それがDOM等価性の要件そのものなので当然そうなります)。したがって**出力に対するアサーションだけでは、畳み込み経路を通ったことを示せません**。畳み込みが静かに止まっても、そのテストは通り続けます。畳み込みを検査するテストが出力と併せて何を固定しなければならないかは、`CONTRIBUTING.md` §Conventions the code must uphold にあります。
 
