@@ -162,6 +162,10 @@ dotnet_diagnostic.CA1307.severity = none
 # MSBuild's own Task parameter binding contract requires item-list ([Required]/[Output]) task
 # parameters to be ITaskItem[] arrays -- that shape is not this project's choice to change.
 dotnet_diagnostic.CA1819.severity = none
+# string.EndsWith(char) and the AsSpan-based Substring alternatives are both .NET Core-only; the
+# net472 leg can only see the string-argument overloads this project already uses.
+dotnet_diagnostic.CA1865.severity = none
+dotnet_diagnostic.CA1846.severity = none
 
 # Allocation benchmarks: same RenderTree access as above. BenchmarkDotNet additionally requires
 # public instance [Benchmark] methods on a public class it instantiates by reflection, which CA1822
