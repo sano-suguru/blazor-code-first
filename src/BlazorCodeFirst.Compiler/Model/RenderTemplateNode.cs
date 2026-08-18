@@ -274,6 +274,13 @@ internal sealed record ElementTemplateNode(
     /// for the same reason (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? Ref { get; init; }
+
+    /// <summary>
+    /// The form name written with <c>.FormName</c>, or <see langword="null"/>. Lowers to
+    /// <c>AddNamedEvent("onsubmit", …)</c>, which appends a frame but consumes no sequence number
+    /// (§2.7(E)). Like <see cref="Ref"/> it stops the fold, since markup has no spelling for it.
+    /// </summary>
+    public ExpressionTemplate? FormName { get; init; }
 }
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

@@ -122,6 +122,13 @@ internal sealed record ElementNode(
     /// attribute, event and binding frames, consuming one sequence number (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? Ref { get; init; }
+
+    /// <summary>
+    /// The form name written with <c>.FormName</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.FormName"/>; emitted as <c>AddNamedEvent("onsubmit", …)</c> before
+    /// <see cref="Ref"/>, consuming no sequence number (§2.7(E)).
+    /// </summary>
+    public ExpressionTemplate? FormName { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>

@@ -279,6 +279,11 @@ internal static class StaticMarkupSerializer
         if (element.Ref is not null)
             return false;
 
+        // A named event has no markup spelling either, same reason as the key: folding would erase the
+        // AddNamedEvent call and leave the element looking like an ordinary form with no route back.
+        if (element.FormName is not null)
+            return false;
+
         // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
         // left here is not the value's type but whether it is a constant this markup can carry: a constant
         // null has no text to join and no attribute to write — the frame path drops it too (#236), so both
