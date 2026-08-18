@@ -1,6 +1,6 @@
 namespace BlazorCodeFirst.DiagnosticTests;
 
-public sealed record ScopedCssBuild(string Output, string BundledCss);
+public sealed record ScopedCssBuild(string Output, string BundledCss, string GeneratedFilesDirectory);
 
 /// <summary>
 /// Shared across every test in the <see cref="RealBuildDiagnostics"/> collection (see that
@@ -71,8 +71,17 @@ public sealed class ScopedCssFixtures
         var projectPath = Path.Combine(projectDirectory, $"{fixtureName}.csproj");
         Assert.True(File.Exists(projectPath), $"Fixture project not found: {projectPath}");
 
+        // Written outside the project directory, not to a "gen" subfolder under it: the SDK's default
+        // Compile glob ("**/*.cs") would otherwise re-include the emitted files as ordinary source on
+        // the next build, colliding with the same partial class the generator produces live (measured
+        // -- this is exactly what happened when the output path was project-local).
+        var generatedFilesDirectory = Path.Combine(
+            RepoLayout.ArtifactsDirectory, "scoped-css", "gen", fixtureName);
+
         var (exitCode, output) = NestedDotnet.Run(
-            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m"],
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
+             "-p:EmitCompilerGeneratedFiles=true",
+             "-p:CompilerGeneratedFilesOutputPath=" + generatedFilesDirectory],
             projectDirectory);
 
         Assert.True(exitCode == 0, $"Building {fixtureName} failed.{Environment.NewLine}{output}");
@@ -81,7 +90,7 @@ public sealed class ScopedCssFixtures
             Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
         var bundle = Assert.Single(bundlePath);
 
-        return new ScopedCssBuild(output, File.ReadAllText(bundle));
+        return new ScopedCssBuild(output, File.ReadAllText(bundle), generatedFilesDirectory);
     }
 
     private static ScopedCssBuild BuildPackage()
@@ -100,10 +109,15 @@ public sealed class ScopedCssFixtures
         var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Package");
         var projectPath = Path.Combine(projectDirectory, "ScopedCss.Package.csproj");
         var configFile = Path.Combine(projectDirectory, "NuGet.config");
+        // Outside the project directory; see BuildFixture's comment on the same property.
+        var generatedFilesDirectory = Path.Combine(
+            RepoLayout.ArtifactsDirectory, "scoped-css", "gen", "ScopedCss.Package");
 
         var (exitCode, output) = NestedDotnet.Run(
             ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
-             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true"],
+             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true",
+             "-p:EmitCompilerGeneratedFiles=true",
+             "-p:CompilerGeneratedFilesOutputPath=" + generatedFilesDirectory],
             projectDirectory);
 
         Assert.True(exitCode == 0, $"Building ScopedCss.Package failed.{Environment.NewLine}{output}");
@@ -112,6 +126,6 @@ public sealed class ScopedCssFixtures
             Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
         var packageBundle = Assert.Single(bundlePaths);
 
-        return new ScopedCssBuild(output, File.ReadAllText(packageBundle));
+        return new ScopedCssBuild(output, File.ReadAllText(packageBundle), generatedFilesDirectory);
     }
 }

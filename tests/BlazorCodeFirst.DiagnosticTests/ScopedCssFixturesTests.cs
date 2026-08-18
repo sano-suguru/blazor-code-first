@@ -22,6 +22,38 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
     }
 
     [Fact]
+    public void ProjectReference_fixture_generated_component_carries_the_bundles_own_scope_hash()
+    {
+        var build = fixtures.ProjectReference;
+
+        var bundleScope = ExtractScope(build.BundledCss);
+
+        var generatedFiles = Directory.GetFiles(
+            build.GeneratedFilesDirectory, "*Counter.g.cs", SearchOption.AllDirectories);
+        var generatedSource = File.ReadAllText(Assert.Single(generatedFiles));
+
+        Assert.Contains($"__builder.AddAttribute(2, \"{bundleScope}\");", generatedSource);
+
+        // Cross-check against a hash computed independently of the build, not just against the
+        // bundle's own claim: proves the *generator's* path-matching (AdditionalText.Path vs
+        // SyntaxTree.FilePath) landed on the value BlazorCodeFirst.Build actually assigned, rather
+        // than both sides of this test agreeing by construction.
+        var expectedScope = BlazorCodeFirst.Build.ScopeIdentifier.Compute(
+            projectDirectory: Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.ProjectReference"),
+            cssFilePath: Path.Combine(
+                RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.ProjectReference", "Counter.cs.css"),
+            assemblyName: "ScopedCss.ProjectReference");
+        Assert.Equal(expectedScope, bundleScope);
+    }
+
+    private static string ExtractScope(string bundledCss)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(bundledCss, @"\[(bcf-[0-9a-f]{8})\]");
+        Assert.True(match.Success, $"No bcf- scope attribute found in bundle.{Environment.NewLine}{bundledCss}");
+        return match.Groups[1].Value;
+    }
+
+    [Fact]
     public void Mixed_fixture_bundle_contains_both_bcf_and_razor_scoped_css()
     {
         // Exercises the false branch of BcfBundleScopedCss's Condition: a project with a real
