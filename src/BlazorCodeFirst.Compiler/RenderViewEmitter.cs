@@ -604,6 +604,21 @@ internal static class RenderViewEmitter
             next = EmitEventModifiers(
                 writer, bind.EventName, bind.PreventDefault, bind.StopPropagation, next);
         }
+        // Immediately after every class/attribute/event/binding frame and before FormName/Ref, the
+        // only position that is unconditionally safe: AddNamedEvent (FormName) and
+        // AddElementReferenceCapture (Ref) are not Attribute frames, so an AddAttribute call placed
+        // after either would risk Blazor's AssertCanAddAttribute (which requires the immediately
+        // preceding frame to be Element/Component/Attribute). Written as the bare one-argument
+        // AddAttribute overload, matching Razor's own scope-attribute emission (design doc
+        // §ジェネレーター): the frame carries no value, it is a presence-only attribute.
+        if (node.CssScope is { } cssScope)
+        {
+            var scopeLiteral = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
+                cssScope, quote: true);
+            writer.AppendLine($"__builder.AddAttribute({next}, {scopeLiteral});");
+            next++;
+        }
+
         // After every attribute, event and binding frame, and before .Ref/the children. AddNamedEvent takes
         // no sequence argument, so `next` is untouched by it (ARCHITECTURE.md §2.7(E)).
         if (node.FormName is { } formName)
