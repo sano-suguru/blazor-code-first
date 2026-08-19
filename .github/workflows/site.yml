@@ -672,6 +672,9 @@ jobs:
     needs: [plan, site-publish]
     if: needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
+    # Backstop for the install-hang risk noted below: even a fully exhausted retry loop is
+    # bounded, so a real hang fails within this instead of riding out GitHub's 6-hour default.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -715,7 +718,18 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('site/tests/browser/package-lock.json') }}
 
-      - run: npx playwright install --with-deps chromium
+      # `--with-deps` shells out to apt, which has been observed hanging indefinitely mid-fetch
+      # against the Ubuntu archive mirror on GitHub-hosted runners -- no error, no dpkg-lock
+      # message, just silence well past apt's own Acquire::http::Timeout. That leaves the process
+      # itself as the only thing that can bound the wait, so `timeout` kills it and the loop
+      # retries rather than the job riding out GitHub's default 6-hour cap.
+      - name: Install Playwright browsers
+        run: |
+          for attempt in 1 2 3; do
+            timeout 5m npx playwright install --with-deps chromium && exit 0
+            echo "playwright install attempt $attempt failed or timed out, retrying..."
+          done
+          exit 1
         working-directory: site/tests/browser
 
       # The shard count is `strategy.job-total`, not a literal repeated from the matrix above:
@@ -925,6 +939,8 @@ jobs:
     needs: [plan, deploy]
     if: needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
+    # Same backstop as `site-browser` -- see the comment on its install step.
+    timeout-minutes: 20
     steps:
       # For the smoke specs and site/content, which they read routes from the same way the sibling
       # suite's specs read the publish output -- see smoke/deployed.ts.
@@ -946,7 +962,14 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('site/tests/browser/package-lock.json') }}
 
-      - run: npx playwright install --with-deps chromium
+      # Same install-hang risk as the sibling job -- see the comment there.
+      - name: Install Playwright browsers
+        run: |
+          for attempt in 1 2 3; do
+            timeout 5m npx playwright install --with-deps chromium && exit 0
+            echo "playwright install attempt $attempt failed or timed out, retrying..."
+          done
+          exit 1
         working-directory: site/tests/browser
 
       - name: Smoke-test the deployment
