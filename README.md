@@ -66,13 +66,18 @@ the build.
 
 ## Status
 
-Prerelease. The surface is deliberately narrow and grows one issue at a time. Not supported yet:
-`preventDefault` / `stopPropagation`, `@ref` for elements and components, and form helpers.
+Prerelease. The surface is deliberately narrow and grows one issue at a time. `PreventDefault` /
+`StopPropagation` event modifiers, `.Ref(...)` for elements and components, and form helpers
+(`EditForm`, `InputText`, `DataAnnotationsValidator`, `ValidationSummary`, all through
+`Component<T>()`) are already covered. Issue #72 tracks the current gaps, such as typed event
+shortcuts and scoped CSS.
 
-A tag and an attribute name are always compile-time constants, so there is no `@attributes` splat
-and no runtime-valued name. That is a decision rather than a gap: the class channel folds at compile
-time and the duplicate check reads the name, and both go silent once the name is a value
-(`DESIGN.md` §4.1).
+A tag name and an attribute name are always compile-time constants, so there is no runtime-valued
+name: the class channel folds at compile time and the duplicate check reads the name, and both go
+silent once the name is a value (`DESIGN.md` §4.1). The one exception is
+`.Attrs(IReadOnlyDictionary<string, object>?)`, an element decoration that spreads an already-resolved
+dictionary of attributes — Blazor's `@attributes` — without introducing a runtime-valued name; an
+explicit `.Class` / `.Attr` still wins over anything the dictionary carries.
 
 ## Installation
 
