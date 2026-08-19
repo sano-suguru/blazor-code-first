@@ -2005,6 +2005,48 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// A misnamed argument against a two-parameter <c>[ViewPart]</c> overload, single-candidate so
+    /// <c>TrySelectCandidate</c>'s fast path never asks <c>FillsEveryParameter</c> -- validation runs
+    /// only through <c>ScanRenderExpression</c>'s own <c>BindArguments</c> call, which is what
+    /// <c>HasValidArgumentOrder</c> and <c>FindParameter</c> gate.
+    /// </summary>
+    /// <remarks>
+    /// <c>FindParameter</c>'s not-found sentinel has to be negative for both of its readers'
+    /// <c>&lt; 0</c> checks to catch it. Flipping the sign turns a name nothing declares into the
+    /// ordinal one past the search's start: with a single-parameter overload that still overflows the
+    /// bounds check <c>TryBindFallback</c> applies elsewhere and this scanner reports nothing either
+    /// way, but a second parameter puts the wrong ordinal back in bounds, so the misnamed argument binds
+    /// silently to <c>extra</c> instead of being refused, and its own unresolved name is walked and
+    /// reported as if it had been written there correctly.
+    /// </remarks>
+    [Fact]
+    public void MisnamedArgumentAgainstMultiParameterOverload_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value, string extra = "") => Span[value + extra];
+
+                protected override View Body =>
+                    Label(bogus: MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
