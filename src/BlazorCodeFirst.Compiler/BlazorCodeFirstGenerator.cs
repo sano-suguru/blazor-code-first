@@ -24,17 +24,16 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
         // CompilerVisibleItemMetadata declaration in BlazorCodeFirst.props) into a value-equal
         // registry, the same combine-in shape ViewPartRegistry already uses below.
         var cssScopeRegistry = context.AdditionalTextsProvider
+            .Where(static text => text.Path.EndsWith(".cs.css", StringComparison.OrdinalIgnoreCase))
             .Combine(context.AnalyzerConfigOptionsProvider)
             .Select(static (pair, _) =>
             {
                 var (text, optionsProvider) = pair;
-                if (!text.Path.EndsWith(".cs.css", StringComparison.OrdinalIgnoreCase))
-                    return (CssScopeEntry?)null;
-
                 var options = optionsProvider.GetOptions(text);
-                return options.TryGetValue("build_metadata.AdditionalFiles.CssScope", out var scope)
+                CssScopeEntry? entry = options.TryGetValue("build_metadata.AdditionalFiles.CssScope", out var scope)
                     ? new CssScopeEntry(text.Path, scope)
                     : null;
+                return entry;
             })
             .Where(static entry => entry is not null)
             .Select(static (entry, _) => entry!.Value)
