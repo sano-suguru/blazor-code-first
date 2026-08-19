@@ -326,12 +326,13 @@ public sealed class UnresolvedEmittedTypeTests
     /// The same static <c>Decorations.Attr(Div, ...)</c> spelling as
     /// <see cref="StaticDecorationValue_UnresolvedType_RemainsBCF1003Only"/>, but with a sibling unselected
     /// invocation so the body reaches this scanner's own failure-recovery walk rather than being reported
-    /// through <c>RenderExpressionAnalyzer.Analyze</c>'s success path. <c>IsFluentExtensionInvocation</c>
-    /// is what keeps a static call's arguments unread here: its receiver, <c>Decorations</c>, resolves to
-    /// the method's own containing type, which the fluent spelling's receiver (an <c>ElementView</c> value)
-    /// never does. Flipping the <c>ReducedFrom</c> fast path or the receiver-type comparison wrongly reads
-    /// this call as fluent and reports BCF3015 at the wrong argument position instead of leaving the body
-    /// at BCF1003.
+    /// through <c>RenderExpressionAnalyzer.Analyze</c>'s success path. On this shape, what keeps the
+    /// argument unread is not <c>IsFluentExtensionInvocation</c>'s answer (see the equivalence note on that
+    /// method) but <c>BoundArguments.TryBindFallback</c> binding against an offset that assumes the
+    /// receiver is omitted, which a fully-written static call's argument count never satisfies: the bind
+    /// fails before <c>ScanDecoration</c>'s gate is ever reached. Disabling either of
+    /// <c>TryBindFallback</c>'s own arithmetic checks (<c>declaredCount</c>, <c>index + offset</c>) lets the
+    /// mismatch through and crashes the generator instead of leaving the body at BCF1003.
     /// </summary>
     [Fact]
     public void StaticDecorationValueWithSiblingUnselectedInvocation_DoesNotReportBCF3015()
