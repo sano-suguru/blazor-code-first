@@ -9,6 +9,20 @@
        build-execution time, after the whole project (including Sdk.targets) has already been
        evaluated. -->
 
+  <!-- dotnet watch discovers what to watch through its own DotNetWatch.targets, imported only by
+       the watch process itself, never by a plain build. That file's _CollectWatchItems target reads
+       $(CustomCollectWatchItems) (a semicolon list of target names, populated in
+       BlazorCodeFirst.props) as one of its DependsOnTargets, the same extension point the Razor SDK
+       uses for .razor.css/.cshtml.css (_RazorSdkCustomCollectWatchItems in
+       Sdk.Razor.CurrentVersion.targets). Without this, .cs.css sits outside dotnet watch's file set
+       entirely and a change to it triggers no rebuild. -->
+  <Target Name="_BcfCustomCollectWatchItems">
+    <ItemGroup>
+      <Watch Include="%(None.FullPath)"
+             Condition="$([System.String]::Copy('%(None.FullPath)').EndsWith('.cs.css')) AND '%(None.Watch)' != 'false'" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="BcfFindScopedCssInputs">
     <ItemGroup>
       <_BcfScopedCssInput Include="**/*.cs.css" Exclude="$(BaseIntermediateOutputPath)**;$(BaseOutputPath)**" />
