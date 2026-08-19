@@ -798,6 +798,17 @@ internal static class UnresolvedValueTypeScanner
             if (argument.NameColon is { } nameColon)
             {
                 var index = FindParameter(parameters, offset, nameColon.Name.Identifier.ValueText);
+                // Flipping this refusal to accept is a stryker survivor, measured equivalent rather than
+                // assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
+                // BlazorCodeFirst.DiagnosticTests left every test passing unchanged, including
+                // MisnamedArgumentAgainstMultiParameterOverload_DoesNotReportBCF3015 above, which was
+                // written to probe exactly this line and instead exposed that this function's verdict is
+                // never the only gate: both binders BindArguments tries next re-derive the same name and
+                // refuse it independently -- FactoryArguments.Bind reads Roslyn's own argument.Parameter,
+                // which a name naming no declared parameter never has, and TryBindFallback's own
+                // FindParameter call, immediately below this same struct's TryBindFallback, has its own
+                // unmutated index < 0 check. Wrongly accepting the call here only lets a later, correct
+                // refusal answer instead of this one.
                 if (index < 0)
                     return false;
 
