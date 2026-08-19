@@ -74,7 +74,10 @@ internal sealed record ComponentSlotNode(string Name, RenderNode Content)
 internal sealed record ComponentNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode
+    EquatableArray<ComponentSlotNode> Slots = default,
+    // Expanded counterpart of ComponentTemplateNode.Attributes: HTML attribute names written with
+    // .Attr/.Class (#314), emitted before every AddComponentParameter call.
+    EquatableArray<AttributeTemplate> Attributes = default) : RenderNode
 {
     /// <summary>
     /// The key written with <c>.Key</c>, or <see langword="null"/>. Expanded counterpart of
@@ -129,6 +132,13 @@ internal sealed record ElementNode(
     /// <see cref="Ref"/>, consuming no sequence number (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? FormName { get; init; }
+
+    /// <summary>
+    /// The dictionary written with <c>.Attrs</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.AttributesSplat"/>; emitted as <c>AddMultipleAttributes</c>
+    /// before every other attribute-producing decoration, consuming one sequence number.
+    /// </summary>
+    public ExpressionTemplate? AttributesSplat { get; init; }
 
     /// <summary>
     /// The scoped-CSS attribute value (<c>bcf-xxxxxxxx</c>) this element's owning file carries, or

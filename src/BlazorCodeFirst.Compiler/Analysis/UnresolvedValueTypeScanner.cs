@@ -114,6 +114,12 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.Attr:
             case SurfaceMethodKind.On:
             case SurfaceMethodKind.Bind:
+            // The ComponentView<T> receivers of the same two channels (#314): .Class carries its one
+            // value at argument 0, exactly as the element side does, so it needs no arm of its own.
+            // .Attr needs one below, the same special-casing the element side's Attr arm already has,
+            // because its name/value argument split is identical on this receiver.
+            case SurfaceMethodKind.ComponentClass:
+            case SurfaceMethodKind.ComponentAttr:
             // The non-attribute frame decorations reach ScanDecoration's tail, which reports argument 0:
             // both carry their one value there and neither has a name argument, exactly as .Class does.
             // A capture action is a lambda rather than a value, and that changes nothing — the event arm
@@ -123,6 +129,10 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.Ref:
             // FormName reaches the same tail too: one value, no name argument, same as Key and Ref.
             case SurfaceMethodKind.FormName:
+            // AttributesSplat reaches the same tail for the same reason: one dictionary value, no
+            // name argument, the same single-value shape as Key/Ref/FormName (ARCHITECTURE.md
+            // Appendix B.14, revised #387).
+            case SurfaceMethodKind.AttributesSplat:
             // The event modifiers reach the same tail for the same reason, and their valueless overload
             // needs nothing extra: the tail reads argument 0 through a null-conditional, so the spelling
             // that writes no argument reports nothing rather than throwing (#368).
@@ -247,7 +257,7 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (kind == SurfaceMethodKind.Attr)
+        if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.ComponentAttr)
         {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);

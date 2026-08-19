@@ -185,7 +185,10 @@ internal static class ViewPartExpander
                     }
 
                     return new ComponentNode(
-                        component.TypeName, parameters.ToImmutable(), slots.ToImmutable())
+                        component.TypeName,
+                        parameters.ToImmutable(),
+                        slots.ToImmutable(),
+                        SubstituteAttributes(component.Attributes, substitution))
                     {
                         Key = component.Key?.Substitute(substitution),
                         RenderMode = component.RenderMode?.Substitute(substitution),
@@ -205,10 +208,6 @@ internal static class ViewPartExpander
                     {
                         return null;
                     }
-
-                    var attributes = ImmutableArray.CreateBuilder<AttributeTemplate>(element.Attributes.Length);
-                    foreach (var a in element.Attributes.AsImmutableArray())
-                        attributes.Add(new AttributeTemplate(a.Name, a.Value.Substitute(substitution)));
 
                     var events = ImmutableArray.CreateBuilder<EventTemplate>(element.Events.Length);
                     foreach (var e in element.Events.AsImmutableArray())
@@ -247,7 +246,7 @@ internal static class ViewPartExpander
                     return new ElementNode(
                         element.Tag,
                         SubstituteClasses(element.Classes, substitution),
-                        attributes.ToImmutable(),
+                        SubstituteAttributes(element.Attributes, substitution),
                         events.ToImmutable(),
                         children)
                     {
@@ -255,6 +254,7 @@ internal static class ViewPartExpander
                         Key = element.Key?.Substitute(substitution),
                         Ref = element.Ref?.Substitute(substitution),
                         FormName = element.FormName?.Substitute(substitution),
+                        AttributesSplat = element.AttributesSplat?.Substitute(substitution),
                         CssScope = currentScope,
                     };
                 }
@@ -619,6 +619,19 @@ internal static class ViewPartExpander
         var builder = ImmutableArray.CreateBuilder<ExpressionTemplate>(classes.Length);
         foreach (var @class in classes)
             builder.Add(@class.Substitute(substitution));
+        return builder.ToImmutable();
+    }
+
+    /// <summary>Substitutes an element's or a component's <c>.Attr</c>/<c>.Class</c> attribute list.</summary>
+    private static EquatableArray<AttributeTemplate> SubstituteAttributes(
+        EquatableArray<AttributeTemplate> attributes, ImmutableArray<SubstitutedArgument> substitution)
+    {
+        if (attributes.Length == 0)
+            return attributes;
+
+        var builder = ImmutableArray.CreateBuilder<AttributeTemplate>(attributes.Length);
+        foreach (var attribute in attributes)
+            builder.Add(new AttributeTemplate(attribute.Name, attribute.Value.Substitute(substitution)));
         return builder.ToImmutable();
     }
 

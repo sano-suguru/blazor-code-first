@@ -296,6 +296,52 @@ internal static class RenderViewEmitter
         return seq + 1;
     }
 
+    /// <summary>
+    /// Emits the <c>.Attrs</c> splat, if written, and returns the next sequence number. Positioned
+    /// before the class channel and every other attribute-producing decoration
+    /// (<c>ARCHITECTURE.md</c> Appendix B.14, revised #387): <c>AddMultipleAttributes</c> always
+    /// claims the lowest sequence number of any attribute-shaped frame on the element, so every
+    /// explicit decoration that follows wins Blazor's last-frame-wins duplicate resolution, and any
+    /// dictionary key the call site did not otherwise write survives untouched. Absent, this method
+    /// is a no-op and <paramref name="seq"/> passes through unchanged, so an element with no
+    /// <c>.Attrs</c> generates byte-identical sequencing to before this method existed.
+    /// </summary>
+    /// <remarks>
+    /// The explicit cast anchors the transplanted expression to the parameter's declared type, the
+    /// same reason every other transplanted expression in this file carries one (the bind setter's
+    /// <c>Action&lt;T&gt;</c>, a slot's <c>RenderFragment</c>, the <c>.Ref</c> capture).
+    /// </remarks>
+    private static int EmitAttributesSplat(IndentedWriter writer, ExpressionTemplate? splat, int seq)
+    {
+        if (splat is null)
+            return seq;
+
+        writer.AppendLine(
+            $"__builder.AddMultipleAttributes({seq}, "
+                + "(global::System.Collections.Generic.IReadOnlyDictionary<string, object>?)"
+                + $"({splat.ToCode()}));");
+        return seq + 1;
+    }
+
+    /// <summary>
+    /// Emits one <c>AddAttribute</c> per <c>.Attr</c>/<c>.Class</c> and returns the next sequence
+    /// number. Shared by the element and component sides: both hold their names and values the same
+    /// way (<see cref="AttributeTemplate"/>) and lower to the identical builder call, differing only
+    /// in which decorations feed the list and where in each frame's channel order it is called.
+    /// </summary>
+    private static int EmitAttributes(IndentedWriter writer, EquatableArray<AttributeTemplate> attributes, int seq)
+    {
+        foreach (var attribute in attributes)
+        {
+            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
+            writer.AppendLine(
+                $"__builder.AddAttribute({seq}, {name}, {attribute.Value.ToAttributeValueCode()});");
+            seq++;
+        }
+
+        return seq;
+    }
+
     private static int EmitIf(IndentedWriter writer, IfNode node, int seq)
     {
         // seq is consumed by OpenRegion.
@@ -376,6 +422,13 @@ internal static class RenderViewEmitter
         writer.AppendLine($"__builder.OpenComponent<{node.TypeName}>({seq});");
         EmitKey(writer, node.Key, key);
         int next = seq + 1;
+        // .Class/.Attr (#314), emitted before every AddComponentParameter call — the same attribute
+        // range shape the element side uses, satisfying AssertCanAddComponentParameter's frame-kind
+        // contiguity rule. Blazor routes a name matching no declared parameter into
+        // [Parameter(CaptureUnmatchedValues = true)]; one that does match binds it directly through
+        // this same AddAttribute call (measured), which is exactly why BCF3042 exists to reject that
+        // collision earlier rather than let it bind silently.
+        next = EmitAttributes(writer, node.Attributes, next);
         foreach (var parameter in node.Parameters)
         {
             // Cast to the type the call site resolved. AddComponentParameter takes object?, so the value
@@ -527,14 +580,9 @@ internal static class RenderViewEmitter
         writer.AppendLine($"__builder.OpenElement({seq}, {tag});");
         EmitKey(writer, node.Key, key);
         int next = seq + 1;
+        next = EmitAttributesSplat(writer, node.AttributesSplat, next);
         next = EmitClassAttribute(writer, node.Classes, next);
-        foreach (var attribute in node.Attributes)
-        {
-            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
-            writer.AppendLine(
-                $"__builder.AddAttribute({next}, {name}, {attribute.Value.ToAttributeValueCode()});");
-            next++;
-        }
+        next = EmitAttributes(writer, node.Attributes, next);
         foreach (var e in node.Events)
         {
             var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(e.Name, quote: true);

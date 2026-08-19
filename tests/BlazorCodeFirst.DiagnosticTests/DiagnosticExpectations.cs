@@ -329,6 +329,16 @@ public static class DiagnosticExpectations
             Note: "Anchors the decoration's name, which is what the author deletes. The tag is not the "
                 + "mistake — Div is a legitimate element on its own, and .FormName is what has no effect "
                 + "on it."),
+        new(
+            "BCF3042",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3042.cs",
+            "Attr",
+            Note: "Anchors the decoration's name, which is what the author deletes in favor of .Param. "
+                + "The written name (\"label\") differs in case from the declared parameter (Label) on "
+                + "purpose, since that is the shape this rule exists to catch — an exact-case collision "
+                + "is pinned in-process by AttrNameCollidingWithDeclaredParameter_ExactCase_IsBCF3042."),
     ];
 
     /// <summary>

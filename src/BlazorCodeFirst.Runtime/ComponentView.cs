@@ -198,6 +198,58 @@ public readonly struct ComponentView<TComponent>
     public ComponentView<TComponent> Ref(System.Action<TComponent> capture) => this;
 
     /// <summary>
+    /// Design-time syntax adding a CSS class to this component call, which Blazor routes into the
+    /// target's <c>[Parameter(CaptureUnmatchedValues = true)]</c> dictionary when it declares no
+    /// <c>Class</c> parameter of its own (#314). Sugar for <c>.Attr("class", value)</c> — unlike the
+    /// element decoration <c>Decorations.Class(ElementView, string?)</c>, this does not fold: writing
+    /// it twice, or beside <c>.Attr("class", …)</c>, is BCF3010. A name that collides with a declared
+    /// <c>[Parameter]</c>, case-insensitively, is BCF3042 instead — use <see cref="Param{TValue}"/> for
+    /// that.
+    /// </summary>
+    /// <remarks>
+    /// Declared here rather than in <see cref="Decorations"/> for the same reason as <see cref="Key"/>:
+    /// a component's builder is this type and not <c>ElementView</c>. Unlike <c>Key</c>, this is not
+    /// merely a style choice — a same-named <c>Decorations</c> extension on a second, unrelated
+    /// extended type measurably degrades Roslyn's error recovery for every <em>other</em> failed
+    /// <c>.Class</c>/<c>.Attr</c> call in a body, on any receiver, turning a recoverable single-candidate
+    /// type into an unrecoverable error type. Measured: with that extension in place, an otherwise
+    /// unrelated <c>.Param</c> call several frames away stopped resolving to a concrete method
+    /// entirely. A member never enters extension-method candidate collection, so it carries none of
+    /// that risk.
+    /// </remarks>
+    /// <param name="value">The CSS class value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Class(string? value) => this;
+
+    /// <summary>
+    /// Design-time syntax adding an arbitrary attribute to this component call, which Blazor routes
+    /// into the target's <c>[Parameter(CaptureUnmatchedValues = true)]</c> dictionary when the name
+    /// matches no declared parameter (#314). <paramref name="name"/> must be a non-empty compile-time
+    /// constant, the same rule the element decoration <c>Decorations.Attr(ElementView, string, string?)</c>
+    /// carries. A name that does match a declared <c>[Parameter]</c>, case-insensitively, is BCF3042:
+    /// use <c>.Param(c =&gt; c.Name, value)</c> instead, so the value is type-checked.
+    /// </summary>
+    /// <remarks>Declared here rather than in <see cref="Decorations"/>; see <see cref="Class"/>'s remarks.</remarks>
+    /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Attr(string name, string? value) => this;
+
+    /// <summary>Design-time syntax adding a boolean attribute to this component call; see the string overload.</summary>
+    /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
+    /// <param name="value">The attribute's presence; any <see langword="bool"/> expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Attr(string name, bool value) => this;
+
+    /// <summary>
+    /// Design-time syntax adding a valueless attribute to this component call; see the string overload.
+    /// Equivalent to the <see langword="bool"/> overload with <see langword="true"/>.
+    /// </summary>
+    /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Attr(string name) => this;
+
+    /// <summary>
     /// Design-time syntax binding <paramref name="children"/> to the component's <c>ChildContent</c>
     /// parameter, mirroring how Razor binds nested content.
     /// </summary>

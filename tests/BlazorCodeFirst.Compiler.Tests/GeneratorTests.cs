@@ -3141,14 +3141,23 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void Generator_ClassOnComponent_IsRejectedByTypeSystem()
+    public void Generator_ClassOnComponent_CompilesAndEmitsAddAttribute()
     {
+        // Was CS1929 before #314: ComponentView<T> declared no .Class, and extension resolution does
+        // not cross the user-defined implicit conversion to View, so the call did not compile at all.
+        // .Class/.Attr are now ComponentView<T> members (#314), routed by Blazor into the callee's
+        // [Parameter(CaptureUnmatchedValues = true)] dictionary, so this is valid, generator-handled
+        // syntax rather than a type-system rejection.
         var result = CompilationTestHost.RunGenerator("""
             using BlazorCodeFirst;
             using Microsoft.AspNetCore.Components;
             using static BlazorCodeFirst.Html;
 
-            public sealed class Widget : ComponentBase { }
+            public sealed class Widget : ComponentBase
+            {
+                [Parameter(CaptureUnmatchedValues = true)]
+                public System.Collections.Generic.IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+            }
 
             public partial class Counter : BodyComponentBase
             {
@@ -3156,9 +3165,10 @@ public sealed class GeneratorTests
             }
             """);
 
-        // ComponentView<T> has no .Class, and extension resolution does not cross the user-defined
-        // implicit conversion to View, so this is a plain C# error, not a generator diagnostic.
-        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
+        Assert.DoesNotContain(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1929");
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("__builder.AddAttribute(1, \"class\", \"x\");", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]

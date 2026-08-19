@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Components.RenderTree;
 namespace BlazorCodeFirst.WebAppTests;
 
 /// <summary>
-/// What an attribute splat would cost, which is the premise under <c>ARCHITECTURE.md</c> Appendix B.14 and the
-/// §4.1 rule it carries: a tag or an attribute name is a token the generator reads, never a value (#308 /
-/// #320). None of the forms measured here exists in this surface, so the subject is
-/// <see cref="RenderTreeBuilder"/> itself, and pinning it against the referenced package is what keeps the
-/// decision resting on the platform's behaviour rather than on a reading of its source.
+/// What an attribute splat costs and buys, which is the premise under <c>ARCHITECTURE.md</c> Appendix B.14
+/// and the §4.1 rule it carries: a tag or an attribute <em>name</em> is a token the generator reads, never a
+/// value (#308/#320), but a dictionary of already-resolved name+value pairs is a narrower thing, adopted for
+/// <c>ElementView.Attrs</c> on the emission order this file measures below (#387). The subject throughout is
+/// <see cref="RenderTreeBuilder"/> itself, not this surface's generated output (that is
+/// <c>RenderViewEmitterDecorationTests</c>' job), and pinning it against the referenced package is what keeps
+/// the decision resting on the platform's behaviour rather than on a reading of its source.
 /// </summary>
 /// <remarks>
 /// #308 assumed the obstacle was sequencing, because the attribute count is a runtime value. It is not:
@@ -61,6 +63,51 @@ public sealed class AttributeSplatMeasurementTests
         // that appears nowhere in the source.
         Assert.Equal("class", attribute.AttributeName);
         Assert.Equal("from-dictionary", attribute.AttributeValue);
+    }
+
+    [Fact]
+    public void SplatFirst_TheExplicitFrameWins_AndUnwrittenKeysSurvive()
+    {
+        using var builder = new RenderTreeBuilder();
+        builder.OpenElement(0, "div");
+        builder.AddMultipleAttributes(1, new Dictionary<string, object>
+        {
+            ["class"] = "from-dictionary",
+            ["id"] = "from-dictionary",
+        });
+        builder.AddAttribute(2, "class", "card");
+        builder.CloseElement();
+
+        var attributes = Frames(builder).FindAll(f => f.FrameType == RenderTreeFrameType.Attribute);
+
+        // Reversing the order from the test above flips the outcome: the explicit frame now wins
+        // (the folded class channel's value survives, unreplaced), and the dictionary key the call
+        // site never wrote ("id") survives untouched beside it. This is the #387 decision.
+        Assert.Equal(2, attributes.Count);
+        Assert.Contains(attributes, a => a.AttributeName == "class" && (string)a.AttributeValue! == "card");
+        Assert.Contains(attributes, a => a.AttributeName == "id" && (string)a.AttributeValue! == "from-dictionary");
+    }
+
+    [Fact]
+    public void Splat_WithANullDictionary_AppendsNoFrameAndDoesNotThrow()
+    {
+        // Backs the decision to let `.Attrs` accept a null dictionary rather than rejecting it: the
+        // platform itself treats a null AddMultipleAttributes argument as "nothing to add", not an
+        // error, so the generated code needs no null guard of its own.
+        using var builder = new RenderTreeBuilder();
+        builder.OpenElement(0, "div");
+        var ex = Record.Exception(() =>
+            builder.AddMultipleAttributes(1, (IEnumerable<KeyValuePair<string, object>>?)null));
+        builder.AddAttribute(2, "class", "card");
+        builder.CloseElement();
+
+        Assert.Null(ex);
+        // The null-dictionary call appended no frame, so the one remaining attribute frame is the
+        // explicit .Attr("class", …) at sequence 2, not the splat's own sequence 1 — that sequence
+        // number is simply never used for a frame when the dictionary is null.
+        var attribute = Assert.Single(Frames(builder), f => f.FrameType == RenderTreeFrameType.Attribute);
+        Assert.Equal(2, attribute.Sequence);
+        Assert.Equal("card", (string)attribute.AttributeValue!);
     }
 
     [Fact]

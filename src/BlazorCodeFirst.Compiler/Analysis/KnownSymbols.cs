@@ -183,6 +183,11 @@ internal sealed class KnownSymbols
             ["Key"] = SurfaceMethodKind.ComponentKey,
             ["RenderMode"] = SurfaceMethodKind.ComponentRenderMode,
             ["Ref"] = SurfaceMethodKind.ComponentRef,
+            // Declared as ComponentView<T> members, not Decorations extensions (#314) — see
+            // ComponentView.Class's remarks for why. Members, so this table is what recognizes them;
+            // there is no second receiver for the Decorations-extension loop below to admit.
+            ["Class"] = SurfaceMethodKind.ComponentClass,
+            ["Attr"] = SurfaceMethodKind.ComponentAttr,
         };
 
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
@@ -840,6 +845,7 @@ internal sealed class KnownSymbols
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)
                     continue;
+
                 if (ElementViewType is not null
                     && !(method.Parameters.Length > 0
                         && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, ElementViewType)))
@@ -876,6 +882,10 @@ internal sealed class KnownSymbols
                     // decoration arm routes on the classification and reads the form name straight off the
                     // argument (§2.7(E)).
                     case "FormName": kind = SurfaceMethodKind.FormName; break;
+                    // Registered here for the same reason as Key/FormName: it stands for no single
+                    // attribute name, and the decoration arm routes on the classification and reads
+                    // the dictionary expression straight off the argument.
+                    case "Attrs": kind = SurfaceMethodKind.AttributesSplat; break;
                     // Both overloads of each land on one row, as the event shortcuts do: the decoration arm
                     // reads the value off the argument list and needs no per-overload symbol. Named here
                     // rather than in a shortcut table because neither stands for an attribute name the
