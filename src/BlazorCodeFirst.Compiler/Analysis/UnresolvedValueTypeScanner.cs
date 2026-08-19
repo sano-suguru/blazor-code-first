@@ -485,6 +485,15 @@ internal static class UnresolvedValueTypeScanner
         if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out _, out var selector))
             return;
 
+        // Two stryker survivors on this guard (the negation, and the block's own return) are measured,
+        // not proven equivalent: disabling either or both, then running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests, left every test passing regardless. No input has been
+        // constructed that reaches this line with a resolved, non-Enumerable.Select method: a splice's
+        // element access binds through FactoryArguments whenever the invocation itself resolves, the same
+        // operation-based route the success path uses, so by the time TryBindFallback -- and this scanner
+        // -- ever runs on a splice, the invocation.Symbol this checks has so far always been null. Whether
+        // a resolved non-Select candidate can reach here at all, the way SpliceSyntax's own remarks say a
+        // resolved Select one cannot avoid the success path either, is open rather than closed.
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is IMethodSymbol method
             && !context.KnownSymbols.IsEnumerableSelect(method))
