@@ -831,8 +831,7 @@ internal static class UnresolvedValueTypeScanner
         // LookupSymbols query this branch does, filtered through the same IsRecognized check, and would
         // find the exact same ForEach symbol on the exact same input. This branch can only differ from that
         // one when something unrelated already occupies candidates by the time execution reaches it, which
-        // nothing under ForEach's own name can do. Widening the construction that defeats this equivalence
-        // is future work, not a gap this survivor list can be read as unaccounted for.
+        // nothing under ForEach's own name can do.
         if (context.KnownSymbols.HtmlForEach is { } forEach
             && IsHtmlForEachInScope(invocation, forEach, context))
         {
@@ -1299,8 +1298,7 @@ internal static class UnresolvedValueTypeScanner
         // branch here is ever consulted for it — the caller's early return on a failed bind, not this
         // method's answer, is what already keeps a static call's arguments unread. The receiver-shaped
         // case this method exists to catch — a fluent call recovered with an unreduced symbol — has not
-        // been constructed with an observable difference between the two answers; widening that
-        // construction is future work, not a gap this survivor list can be read as unaccounted for.
+        // been constructed with an observable difference between the two answers.
         return context.SemanticModel.GetSymbolInfo(access.Expression, context.CancellationToken).Symbol
                 is not INamedTypeSymbol receiverType
             || !SymbolEqualityComparer.Default.Equals(receiverType, method.ContainingType);
