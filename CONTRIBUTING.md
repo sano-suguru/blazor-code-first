@@ -79,6 +79,10 @@ dotnet test tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTe
 
 # The measurements published in DESIGN.md §7.1 (allocations per render)
 dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*'
+
+# The registry-broadcast cost behind #480 (per-view-part-edit recomputation, not yet published anywhere)
+dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj -c Release \
+  --filter FullyQualifiedName~RegistryBroadcastCostTests --logger "console;verbosity=detailed"
 ```
 
 Only the `BlazorCodeFirst.DiagnosticTests` command builds the successful Razor interop fixtures under
