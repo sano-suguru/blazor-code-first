@@ -495,11 +495,13 @@ public sealed class BracketSurfaceDiagnosticTests
     [InlineData("""Fragment("a").Class("x")""")]
     [InlineData("""Raw("<b/>").Class("x")""")]
     [InlineData("""If(true, then: () => Span["y"]).Class("x")""")]
-    [InlineData("""Component<Card>().Class("x")""")]
+    [InlineData("""Component<Card>().Href("/")""")]
     [InlineData("""Div["y"].Class("x")""")]
     public void DecoratingANonElement_ReportsBCF3008(string body)
     {
-        // Each of these receivers is a View or a ComponentView<T>, and neither has a Class.
+        // Each of these receivers is a View or a ComponentView<T>. .Class/.Attr are declared as
+        // ComponentView<T> members too (#314), so a component receiver no longer proves this for
+        // every decoration — .Href is an attribute shortcut with no component-side counterpart.
         AssertReportsBCF3008(RunResult(body));
     }
 

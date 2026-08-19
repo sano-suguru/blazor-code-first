@@ -1456,6 +1456,50 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// A rejected tag behind a decoration chain that carries two different
+    /// <see cref="SurfaceMethodKind"/>s, <c>.Id</c> (<c>AttributeShortcut</c>) and <c>.Attr</c>
+    /// (<c>Attr</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>IsElementDecoration</c>'s <c>or</c> chain has five joins across its six kinds (<c>Class</c>,
+    /// <c>AttributeShortcut</c>, <c>EventShortcut</c>, <c>Attr</c>, <c>On</c>, <c>Bind</c>). A stryker
+    /// mutant that flips one <c>or</c> to <c>and</c> collapses that join's two neighboring kinds into an
+    /// unmatchable conjunction (C# pattern precedence binds <c>and</c> tighter than <c>or</c>), dropping
+    /// both from the recognized set at once; the four survivors this test kills are the
+    /// <c>Class</c>/<c>AttributeShortcut</c>, <c>AttributeShortcut</c>/<c>EventShortcut</c>,
+    /// <c>EventShortcut</c>/<c>Attr</c>, and <c>Attr</c>/<c>On</c> joins. This chain's two kinds, <c>.Id</c>
+    /// (<c>AttributeShortcut</c>) and <c>.Attr</c> (<c>Attr</c>), are chosen because at least one of the
+    /// two sits in every one of those four joins, so whichever <c>or</c> a mutant drops,
+    /// <c>HasRejectedElementTag</c>'s unwind meets an unrecognized kind at one of the two links and gives
+    /// up early — answering "not rejected" and letting the bracketed child be scanned, which reports the
+    /// BCF3015 this test asserts against.
+    /// </remarks>
+    [Fact]
+    public void RejectedTagBehindMixedDecorationChain_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly string _tag = "div";
+
+                protected override View Body =>
+                    Element(_tag).Id("x").Attr("k", "v")[typeof(Probe).Name];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3009");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
     /// The handler argument of an event decoration is a value position on the failure path too, for both
     /// argument layouts: a named shortcut carries it at argument 0 and <c>.On</c> at argument 1.
     /// </summary>
@@ -1818,6 +1862,45 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// Two <c>using static</c> imports each bring a same-named, same-arity, one-string-parameter method into
+    /// one bare call's candidate group: <c>Html.Raw</c> (<see cref="SurfaceMethodKind.Raw"/>) and a
+    /// <c>[ViewPart]</c> declared on an unrelated helper type (<see cref="SurfaceMethodKind.None"/>). Both
+    /// bind and fill the one written, poisoned argument, so <c>AreInterchangeableOverloads</c>' own kind
+    /// comparison is what has to refuse the pair; disabling it (the branch answering <see langword="true"/>
+    /// instead of refusing on a kind mismatch) wrongly accepts the group and reports BCF3015 through
+    /// <c>Html.Raw</c>, the first candidate <see cref="TrySelectCandidate"/> tries, instead of leaving the
+    /// call refused and the body at BCF1003.
+    /// </summary>
+    [Fact]
+    public void SameNameFromTwoUsingStaticImportsWithDifferentKind_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            using static T.Helpers;
+
+            namespace T;
+
+            public static class Helpers
+            {
+                [ViewPart]
+                public static View Raw(string value) => Span[value];
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Raw(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
     /// One written argument against a single <c>[ViewPart]</c> overload with two required parameters, so
     /// the call underfills it. <c>AddRecognizedCandidate</c> is reached twice for this same method — once
     /// from the invocation's own <c>CandidateSymbols</c> and once from resolving the bare method-group
@@ -1843,6 +1926,203 @@ public sealed class UnresolvedEmittedTypeTests
             {
                 [ViewPart]
                 private static View Label(string value, string extra) => Span[value];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
+    /// A content-taking <c>[ViewPart]</c>'s bracketed content, reached through this scanner's failure
+    /// recovery once the part's own argument fails to resolve. <c>TryGetRecognizedIndexer</c> resolves the
+    /// brackets to <c>SlotView</c>'s own indexer, which <c>IsRecognized</c> deliberately does not admit
+    /// (class remarks on <see cref="IsRecognized(IPropertySymbol, KnownSymbols)"/>): the content slot is
+    /// not a surface child list this scanner has an arm for, so the unresolved type inside it stays the
+    /// generic BCF1003. Widening that pattern to admit anything but <c>ChildrenIndexerKind.Element</c>
+    /// wrongly recognizes the content indexer too, and the resulting walk reports BCF3015 on a name this
+    /// scanner was never written to reach.
+    /// </summary>
+    [Fact]
+    public void ContentSlotIndexerWithSiblingUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static SlotView Card(string title) => Div.Class("card")[H2[title], Slot];
+
+                protected override View Body =>
+                    Card(MissingMethod() + "t")[Div[typeof(Probe).Name]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// A name nested directly inside an unselected invocation's own argument list, rather than beside it.
+    /// <c>IsInsideUnselectedInvocation</c>'s ancestor walk must find this suppression by climbing past the
+    /// nearer, unrelated syntax between the name and the invocation (a <c>TypeOfExpressionSyntax</c>, its
+    /// argument, the argument list), none of which is itself an invocation or element access.
+    /// </summary>
+    /// <remarks>
+    /// Requiring every ancestor to answer the predicate, rather than only one, would fail on the first
+    /// such node and stop suppressing every name this scanner is meant to leave alone -- <see
+    /// cref="AttrNonConstantNameSelectedInvocationSibling_UnresolvedType_ReportsBCF3015"/>'s remarks
+    /// record the same nesting as what keeps a <em>selected</em> sibling's report reachable; this test
+    /// pins the complementary case, that an <em>unselected</em> parent's own suppression still reaches
+    /// through the same climb.
+    /// </remarks>
+    [Fact]
+    public void NestedInUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("data-type", MissingMethod(typeof(Probe)));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// An unresolved <c>.Select(...)</c> call, syntactically shaped like a spliced child list's
+    /// projection but written where children are not read at all -- an <c>.Attr</c> value -- so its
+    /// invocation is never a spread element's operand.
+    /// </summary>
+    /// <remarks>
+    /// <c>IsSplicedSelect</c> exists to exempt exactly the shape <see cref="SpliceSyntax"/> matches from
+    /// the ordinary unselected-invocation suppression, on the ground that the sweep deliberately walks
+    /// into a genuine splice and must not suppress a value under it on the way out. Answering that
+    /// exemption from either half of its check alone, rather than both together, wrongly exempts this
+    /// call too: it matches <c>SpliceSyntax.IsProjection</c> by name and arity, but its parent is an
+    /// <c>ArgumentSyntax</c>, not a <c>SpreadElementSyntax</c>, so it was never reached by a deliberate
+    /// splice walk and the ordinary suppression is what is supposed to answer for it.
+    /// </remarks>
+    [Fact]
+    public void UnspreadSelectShapedCall_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("x", MissingSource.Select(i => typeof(Probe)));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// A misnamed argument against a two-parameter <c>[ViewPart]</c> overload, single-candidate so
+    /// <c>TrySelectCandidate</c>'s fast path never asks <c>FillsEveryParameter</c> -- validation runs
+    /// only through <c>ScanRenderExpression</c>'s own <c>BindArguments</c> call, which is what
+    /// <c>HasValidArgumentOrder</c> and <c>FindParameter</c> gate.
+    /// </summary>
+    /// <remarks>
+    /// <c>FindParameter</c>'s not-found sentinel has to be negative for both of its readers'
+    /// <c>&lt; 0</c> checks to catch it. Flipping the sign turns a name nothing declares into the
+    /// ordinal one past the search's start: with a single-parameter overload that still overflows the
+    /// bounds check <c>TryBindFallback</c> applies elsewhere and this scanner reports nothing either
+    /// way, but a second parameter puts the wrong ordinal back in bounds, so the misnamed argument binds
+    /// silently to <c>extra</c> instead of being refused, and its own unresolved name is walked and
+    /// reported as if it had been written there correctly.
+    /// </remarks>
+    [Fact]
+    public void MisnamedArgumentAgainstMultiParameterOverload_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value, string extra = "") => Span[value + extra];
+
+                protected override View Body =>
+                    Label(bogus: MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// A candidate that only fills by leaving an optional parameter unwritten, alongside a second,
+    /// same-named overload that never fills at all (one written argument against three required
+    /// parameters, always short by two regardless of this mutant).
+    /// </summary>
+    /// <remarks>
+    /// <c>FillsEveryParameter</c>'s optional exemption is what lets the first overload pass; widening its
+    /// guard to check <em>any</em> non-params parameter -- optional ones included -- for a written
+    /// argument wrongly refuses that overload for the same reason <c>Html.If</c>'s own <c>otherwise</c>
+    /// exists to be omittable (class remarks). With both candidates refused, <c>TrySelectCandidate</c>
+    /// names no method and this scanner cannot recover the type that would resolve BCF3015, so the body
+    /// is left with only the earlier BCF1003 that generic compile failures like a MissingMethod call
+    /// already report.
+    /// </remarks>
+    [Fact]
+    public void SecondViewPartOverloadUnderfillsWhileFirstOmitsOptional_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value, string extra = "") => Span[value + extra];
+
+                [ViewPart]
+                private static View Label(string value1, string value2, string value3) =>
+                    Span[value1 + value2 + value3];
 
                 protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
             }

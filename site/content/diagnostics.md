@@ -718,6 +718,22 @@ A part that takes content declares `SlotView` as its return type and names `Slot
 Naming it twice would emit the caller's content twice; not naming it at all would discard content
 the caller was required to supply.
 
+### BCF3042
+
+Error. `.Class`/`.Attr` on a component call names, case-insensitively, a parameter the component
+declares.
+
+```csharp
+Component<Card>().Attr("label", "hi")           // BCF3042: Card declares [Parameter] Label
+Component<Card>().Param(c => c.Label, "hi")     // what to write instead
+```
+
+Blazor matches an attribute name against a component's declared parameters case-insensitively, so
+`"label"` would otherwise silently set `Label` at runtime instead of landing in
+`AdditionalAttributes` — bypassing `.Param`'s type checking and giving no signal that it happened.
+
+Bind the parameter with `.Param` instead, so the value is checked against its declared type.
+
 ## Two-way binding
 
 ### BCF3017

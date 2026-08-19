@@ -3,7 +3,7 @@ title: 診断
 description: このコンパイラが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。
 order: 100
 group: reference
-source-hash: bfe09ffb
+source-hash: 2fb99f58
 ---
 
 このコンパイラが報告する診断のすべてと、その意味と、代わりに書くものです。
@@ -708,6 +708,22 @@ protected override View Body => Div[Slot];       // BCF3025: Body は角括弧�
 
 内容を取るパーツは、返り値の型に `SlotView` を宣言し、`Slot` をちょうど1回書きます。2回書けば
 呼び出し側の内容が2回出力され、1回も書かなければ、渡すことを義務づけた内容を捨てることになります。
+
+### BCF3042
+
+Error. コンポーネント呼び出しに書いた `.Class`/`.Attr` の名前が、大文字小文字を区別せずに、その
+コンポーネントが宣言するパラメーターと一致しています。
+
+```csharp
+Component<Card>().Attr("label", "hi")           // BCF3042: Card は [Parameter] Label を宣言
+Component<Card>().Param(c => c.Label, "hi")     // 代わりにこう書く
+```
+
+Blazor は属性名をコンポーネントの宣言したパラメーターへ、大文字小文字を区別せずに突き合わせます。
+そのため `"label"` は、`AdditionalAttributes` へ届く代わりに実行時に `Label` を書き換えてしまい、
+`.Param` の型チェックを素通りしたまま、何も起きなかったかのように見えます。
+
+パラメーターは `.Param` でバインドしてください。宣言した型でチェックされます。
 
 ## 双方向バインディング
 

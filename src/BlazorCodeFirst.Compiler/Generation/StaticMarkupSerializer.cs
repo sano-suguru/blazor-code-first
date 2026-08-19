@@ -296,6 +296,13 @@ internal static class StaticMarkupSerializer
         if (element.FormName is not null)
             return false;
 
+        // A splat's dictionary is a runtime value with no markup spelling at all, same shape as the
+        // three checks above: folding would silently drop the whole AddMultipleAttributes call and
+        // every attribute the author wrote .Attrs to carry, leaving output that matches nothing the
+        // source asked for (ARCHITECTURE.md Appendix B.14, revised #387).
+        if (element.AttributesSplat is not null)
+            return false;
+
         // The channel admits nothing but a string in the first place (ClassChannel.Admit), so the question
         // left here is not the value's type but whether it is a constant this markup can carry: a constant
         // null has no text to join and no attribute to write — the frame path drops it too (#236), so both

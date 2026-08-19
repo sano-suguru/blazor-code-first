@@ -56,7 +56,7 @@ public sealed class FrameDecorationChannelCoverageTests
     public void TheChannelsAreDiscovered_SoTheGuardsBelowAreNotVacuous()
     {
         Assert.Equal(
-            ["FormName", "Key", "Ref"],
+            ["AttributesSplat", "FormName", "Key", "Ref"],
             Channels<ElementTemplateNode>().Select(static p => p.Name));
         Assert.Equal(
             ["Key", "Ref", "RenderMode"],
