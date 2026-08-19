@@ -264,4 +264,30 @@ public class ScopedCssRewriterTests
             "\n    @keyframes my-animation-TestScope { /* whatever */ }\n",
             result);
     }
+
+    [Fact]
+    public void RewritesAnimationNamesWhenMatchingKnownKeyframes()
+    {
+        var css = "\n    .myclass {\n        color: red;\n        animation: /* ignore comment */ my-animation 1s infinite;\n    }\n\n    .another-thing { animation-name: different-animation; }\n\n    h1 { animation: unknown-animation; } /* Should not be scoped */\n\n    @keyframes my-animation { /* whatever */ }\n    @keyframes different-animation { /* whatever */ }\n    @keyframes unused-animation { /* whatever */ }\n";
+
+        var result = ScopedCssRewriter.Rewrite("file.css", css, "TestScope", out var errors);
+
+        Assert.Empty(errors);
+        Assert.Equal(
+            "\n    .myclass[TestScope] {\n        color: red;\n        animation: /* ignore comment */ my-animation-TestScope 1s infinite;\n    }\n\n    .another-thing[TestScope] { animation-name: different-animation-TestScope; }\n\n    h1[TestScope] { animation: unknown-animation; } /* Should not be scoped */\n\n    @keyframes my-animation-TestScope { /* whatever */ }\n    @keyframes different-animation-TestScope { /* whatever */ }\n    @keyframes unused-animation-TestScope { /* whatever */ }\n",
+            result);
+    }
+
+    [Fact]
+    public void RewritesMultipleAnimationNames()
+    {
+        var css = "\n    .myclass1 { animation-name: my-animation , different-animation }\n    .myclass2 { animation: 4s linear 0s alternate my-animation infinite, different-animation 0s }\n    @keyframes my-animation { }\n    @keyframes different-animation { }\n";
+
+        var result = ScopedCssRewriter.Rewrite("file.css", css, "TestScope", out var errors);
+
+        Assert.Empty(errors);
+        Assert.Equal(
+            "\n    .myclass1[TestScope] { animation-name: my-animation-TestScope , different-animation-TestScope }\n    .myclass2[TestScope] { animation: 4s linear 0s alternate my-animation-TestScope infinite, different-animation-TestScope 0s }\n    @keyframes my-animation-TestScope { }\n    @keyframes different-animation-TestScope { }\n",
+            result);
+    }
 }

@@ -52,19 +52,20 @@ public readonly struct CssRewriteError : IEquatable<CssRewriteError>
 }
 
 /// <summary>
-/// Rewrites a <c>.cs.css</c> file's selectors to carry a scope attribute, mirroring dotnet/sdk's
-/// <c>RewriteCss.cs</c> (src/StaticWebAssetsSdk/Tasks/ScopedCss/RewriteCss.cs) but implemented on a
-/// hand-rolled, position-tracking scanner instead of Microsoft.Css.Parser's AST (see
+/// Rewrites a <c>.cs.css</c> file's selectors, <c>@keyframes</c> names, and animation-name
+/// declarations to carry a scope attribute, mirroring dotnet/sdk's <c>RewriteCss.cs</c>
+/// (src/StaticWebAssetsSdk/Tasks/ScopedCss/RewriteCss.cs) but implemented on a hand-rolled,
+/// position-tracking scanner instead of Microsoft.Css.Parser's AST (see
 /// docs/superpowers/specs/2026-08-18-scoped-css-design.md, "スパイクで確定した事実 7." for why an
 /// off-the-shelf parser -- specifically ExCSS -- cannot support this).
 ///
-/// The rewrite walks the document to build an edit list (insert <c>[scope]</c>, or delete a
+/// The rewrite runs in two passes over the original text. Pass 1 collects every
+/// <c>@keyframes</c> identifier in the document, because an <c>animation</c>/<c>animation-name</c>
+/// declaration is free to reference a keyframes name declared later in the same file. Pass 2 walks
+/// the document to build an edit list (insert <c>[scope]</c>, insert <c>-{scope}</c>, or delete a
 /// stripped <c>::deep</c> token) expressed as absolute offsets into the ORIGINAL text, which are
 /// applied in a single left-to-right pass at the end. This is what preserves comments and
 /// whitespace exactly outside of the edited spans.
-///
-/// <c>@keyframes</c> name suffixing and <c>animation</c>/<c>animation-name</c> value rewriting are
-/// not yet supported -- that lands in follow-up tasks in this same plan.
 /// </summary>
 public static class ScopedCssRewriter
 {
@@ -82,22 +83,61 @@ public static class ScopedCssRewriter
         if (scope is null)
             throw new ArgumentNullException(nameof(scope));
 
+        var keyframeNames = CollectKeyframeNames(css);
         var edits = new List<Edit>();
         var errorList = new List<CssRewriteError>();
 
-        ProcessRuleList(css, 0, css.Length, edits, errorList, filePath);
+        ProcessRuleList(css, 0, css.Length, keyframeNames, edits, errorList, filePath);
 
         errors = errorList;
         return ApplyEdits(css, scope, edits);
     }
 
+    // ---- Pass 1: keyframe name collection --------------------------------------------------
+
+    private static HashSet<string> CollectKeyframeNames(string css)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var i = 0;
+
+        while (i < css.Length)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            if (css[i] == '@' && i + 1 + 9 <= css.Length &&
+                string.Compare(css, i + 1, "keyframes", 0, 9, StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                var afterKeyword = i + 1 + 9;
+                if (afterKeyword >= css.Length || !IsIdentifierChar(css[afterKeyword]))
+                {
+                    var nameStart = SkipInsignificant(css, afterKeyword, css.Length);
+                    var nameEnd = nameStart;
+                    while (nameEnd < css.Length && IsIdentifierChar(css[nameEnd]))
+                        nameEnd++;
+
+                    if (nameEnd > nameStart)
+                        names.Add(css.Substring(nameStart, nameEnd - nameStart));
+
+                    i = nameEnd > nameStart ? nameEnd : afterKeyword;
+                    continue;
+                }
+            }
+
+            i++;
+        }
+
+        return names;
+    }
+
+    // ---- Pass 2: edit list construction ------------------------------------------------------
+
     // Walks a rule list (the top-level stylesheet, or the body of a block at-rule such as
     // @media) and dispatches each rule found within [start, end) to selector scoping or (via
-    // recursion) another rule list. @keyframes gets its own handling in a follow-up task; until
-    // then its body is scanned like any other block at-rule's, which is wrong but not exercised
-    // by any test yet.
+    // recursion) another rule list.
     private static void ProcessRuleList(
-        string css, int start, int end, List<Edit> edits, List<CssRewriteError> errors, string filePath)
+        string css, int start, int end, HashSet<string> keyframeNames,
+        List<Edit> edits, List<CssRewriteError> errors, string filePath)
     {
         var i = start;
         var preludeStart = start;
@@ -137,13 +177,15 @@ public static class ScopedCssRewriter
                         // @media, @supports, @font-face, or an unrecognized block at-rule:
                         // recurse. A declarations-only body (@font-face) has no nested '{', so the
                         // recursive call finds nothing and returns immediately -- a safe no-op.
-                        ProcessRuleList(css, bodyStart, bodyEnd, edits, errors, filePath);
+                        ProcessRuleList(css, bodyStart, bodyEnd, keyframeNames, edits, errors, filePath);
                     }
                 }
                 else
                 {
                     foreach (var selector in SplitTopLevel(css, preludeStart, preludeEnd, ','))
                         ScanSelector(css, selector.Start, selector.End, edits);
+
+                    ScanDeclarationsForAnimationNames(css, bodyStart, bodyEnd, keyframeNames, edits);
                 }
 
                 i = bodyEnd < end ? bodyEnd + 1 : bodyEnd;
@@ -292,6 +334,90 @@ public static class ScopedCssRewriter
 
         result.Add(new TextSpan(segmentStart, end));
         return result;
+    }
+
+    // Finds the first top-level (outside strings, comments, and parens) occurrence of `target`
+    // within [start, end), or -1 if none.
+    private static int FindTopLevelChar(string css, int start, int end, char target)
+    {
+        var depth = 0;
+        var i = start;
+
+        while (i < end)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            var c = css[i];
+            if (c == '(')
+            {
+                depth++;
+            }
+            else if (c == ')')
+            {
+                if (depth > 0) depth--;
+            }
+            else if (depth == 0 && c == target)
+            {
+                return i;
+            }
+
+            i++;
+        }
+
+        return -1;
+    }
+
+    private static void ScanDeclarationsForAnimationNames(
+        string css, int bodyStart, int bodyEnd, HashSet<string> keyframeNames, List<Edit> edits)
+    {
+        foreach (var declaration in SplitTopLevel(css, bodyStart, bodyEnd, ';'))
+        {
+            var colon = FindTopLevelChar(css, declaration.Start, declaration.End, ':');
+            if (colon < 0)
+                continue;
+
+            var propertyStart = SkipInsignificant(css, declaration.Start, colon);
+            var propertyEnd = colon;
+            while (propertyEnd > propertyStart && char.IsWhiteSpace(css[propertyEnd - 1]))
+                propertyEnd--;
+
+            var propertyName = css.Substring(propertyStart, propertyEnd - propertyStart);
+            if (!string.Equals(propertyName, "animation", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(propertyName, "animation-name", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            ScanValueForKeyframeIdentifiers(css, colon + 1, declaration.End, keyframeNames, edits);
+        }
+    }
+
+    private static void ScanValueForKeyframeIdentifiers(
+        string css, int start, int end, HashSet<string> keyframeNames, List<Edit> edits)
+    {
+        var i = start;
+
+        while (i < end)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            var c = css[i];
+            if (char.IsLetter(c) || c == '-' || c == '_')
+            {
+                var identStart = i;
+                i++;
+                while (i < end && IsIdentifierChar(css[i]))
+                    i++;
+
+                var identifier = css.Substring(identStart, i - identStart);
+                if (keyframeNames.Contains(identifier))
+                    edits.Add(new Edit(i, EditKind.InsertSuffix));
+
+                continue;
+            }
+
+            i++;
+        }
     }
 
     // Scans one comma-split selector for its scope insertion point (mirrors
