@@ -118,22 +118,13 @@ public sealed class RazorInteropFixtures
 
         Directory.CreateDirectory(packageFeed);
 
-        Pack(
+        NestedDotnet.Pack(
             Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"),
             packageFeed);
-        Pack(
+        NestedDotnet.Pack(
             Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "RazorInterop.Library", "RazorInterop.Library.csproj"),
             packageFeed);
 
         return packageFeed;
-    }
-
-    private static void Pack(string projectPath, string packageFeed)
-    {
-        var (exitCode, output) = NestedDotnet.Run(
-            ["pack", projectPath, "-c", "Release", "-o", packageFeed, "--nologo", "-v:m"],
-            RepoLayout.Root);
-
-        Assert.True(exitCode == 0, $"Packing '{projectPath}' failed.{Environment.NewLine}{output}");
     }
 }

@@ -175,24 +175,28 @@
        This target fills that gap: same task, same output path the SDK's own call would have used,
        run only when the SDK's own call was going to skip it. Mirrors BcfBundleScopedCss above, one
        layer up (project bundle instead of app bundle); see that target's own comment for why
-       $(_BcfShouldSelfBundleProject) is computed in a target-body PropertyGroup rather than a
+       $(_BcfShouldSelfHandleProjectBundle) is computed in a target-body PropertyGroup rather than a
        Condition attribute. A library that also has .razor.css needs no help here: @(_ScopedCss) is
        then non-empty, the SDK's own call runs, and it already reads
        @(_CurrentProjectDiscoveredScopedCssFiles), which includes BCF's own contribution via the
-       existing BcfRegisterScopedCssStaticWebAssets target above. -->
+       existing BcfRegisterScopedCssStaticWebAssets target above. $(_BcfShouldSelfHandleProjectBundle)
+       is computed once here, not recomputed in BcfRegisterScopedCssProjectBundle below: this target
+       always runs first (ResolveScopedCssAssetsDependsOn lists GenerateScopedCssFiles, whose chain
+       includes BundleScopedCssFiles, ahead of ResolveBundledCssAssets), so the property this target
+       sets is already available by the time that one reads it. -->
   <Target Name="BcfBundleScopedCssProject"
           AfterTargets="BundleScopedCssFiles">
     <PropertyGroup>
-      <_BcfShouldSelfBundleProject>false</_BcfShouldSelfBundleProject>
-      <_BcfShouldSelfBundleProject Condition="'@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfBundleProject>
+      <_BcfShouldSelfHandleProjectBundle>false</_BcfShouldSelfHandleProjectBundle>
+      <_BcfShouldSelfHandleProjectBundle Condition="'@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfHandleProjectBundle>
     </PropertyGroup>
     <ConcatenateCssFiles
-        Condition="'$(_BcfShouldSelfBundleProject)' == 'true'"
+        Condition="'$(_BcfShouldSelfHandleProjectBundle)' == 'true'"
         ScopedCssFiles="@(_CurrentProjectDiscoveredScopedCssFiles)"
         ProjectBundles=""
         ScopedCssBundleBasePath="$(_ScopedCssBundleBasePath)"
         OutputFile="$(_ScopedCssProjectOutputPath)" />
-    <ItemGroup Condition="'$(_BcfShouldSelfBundleProject)' == 'true'">
+    <ItemGroup Condition="'$(_BcfShouldSelfHandleProjectBundle)' == 'true'">
       <FileWrites Include="$(_ScopedCssProjectOutputPath)" />
     </ItemGroup>
   </Target>
@@ -204,21 +208,18 @@
        alongside DefineStaticWebAssets: registering only the asset made the later
        ApplyCompressionNegotiation task (Microsoft.NET.Sdk.StaticWebAssets.Compression.targets) fail
        the whole build with "Endpoints not found for related asset" (measured against a scratch
-       project during the spike for this feature). -->
+       project during the spike for this feature). Reads $(_BcfShouldSelfHandleProjectBundle) rather
+       than recomputing it: see BcfBundleScopedCssProject above for why that is safe here. -->
   <Target Name="BcfRegisterScopedCssProjectBundle"
           AfterTargets="ResolveBundledCssAssets">
-    <PropertyGroup>
-      <_BcfShouldSelfRegisterProject>false</_BcfShouldSelfRegisterProject>
-      <_BcfShouldSelfRegisterProject Condition="'@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfRegisterProject>
-    </PropertyGroup>
-    <ItemGroup Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'">
+    <ItemGroup Condition="'$(_BcfShouldSelfHandleProjectBundle)' == 'true'">
       <_BcfScopedCssProjectBundleCandidate Include="$(_ScopedCssProjectOutputPath)">
         <RelativePath Condition="'$(StaticWebAssetFingerprintingEnabled)' == 'true'">$(PackageId)#[.{fingerprint}]!.bundle.scp.css</RelativePath>
         <RelativePath Condition="'$(StaticWebAssetFingerprintingEnabled)' != 'true'">$(PackageId).bundle.scp.css</RelativePath>
       </_BcfScopedCssProjectBundleCandidate>
     </ItemGroup>
     <DefineStaticWebAssets
-        Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'"
+        Condition="'$(_BcfShouldSelfHandleProjectBundle)' == 'true'"
         CandidateAssets="@(_BcfScopedCssProjectBundleCandidate)"
         SourceType="Computed"
         SourceId="$(PackageId)"
@@ -236,13 +237,13 @@
       <Output TaskParameter="Assets" ItemName="_BcfScopedCssProjectBundleStaticWebAsset" />
     </DefineStaticWebAssets>
     <DefineStaticWebAssetEndpoints
-        Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'"
+        Condition="'$(_BcfShouldSelfHandleProjectBundle)' == 'true'"
         CandidateAssets="@(_BcfScopedCssProjectBundleStaticWebAsset)"
         ExistingEndpoints="@(StaticWebAssetEndpoint)"
         ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
       <Output TaskParameter="Endpoints" ItemName="_BcfScopedCssProjectBundleStaticWebAssetEndpoint" />
     </DefineStaticWebAssetEndpoints>
-    <ItemGroup Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'">
+    <ItemGroup Condition="'$(_BcfShouldSelfHandleProjectBundle)' == 'true'">
       <StaticWebAsset Include="@(_BcfScopedCssProjectBundleStaticWebAsset)" />
       <StaticWebAssetEndpoint Include="@(_BcfScopedCssProjectBundleStaticWebAssetEndpoint)" />
     </ItemGroup>
