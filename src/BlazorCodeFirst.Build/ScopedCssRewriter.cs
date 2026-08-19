@@ -52,14 +52,27 @@ public readonly struct CssRewriteError : IEquatable<CssRewriteError>
 }
 
 /// <summary>
-/// Appends <c>[scope]</c> to every top-level selector in a CSS document that contains only flat
-/// rule blocks (no at-rules, no nesting, no <c>::deep</c>). This is deliberately narrow: a
-/// <c>.cs.css</c> file that needs <c>@media</c>/<c>@keyframes</c>/<c>::deep</c> throws rather than
-/// silently emitting something that looks scoped but is not -- full at-rule support lands in a
-/// follow-up task in this same plan.
+/// Rewrites a <c>.cs.css</c> file's selectors to carry a scope attribute, mirroring dotnet/sdk's
+/// <c>RewriteCss.cs</c> (src/StaticWebAssetsSdk/Tasks/ScopedCss/RewriteCss.cs) but implemented on a
+/// hand-rolled, position-tracking scanner instead of Microsoft.Css.Parser's AST (see
+/// docs/superpowers/specs/2026-08-18-scoped-css-design.md, "スパイクで確定した事実 7." for why an
+/// off-the-shelf parser -- specifically ExCSS -- cannot support this).
+///
+/// The rewrite walks the document to build an edit list (insert <c>[scope]</c>, or delete a
+/// stripped <c>::deep</c> token) expressed as absolute offsets into the ORIGINAL text, which are
+/// applied in a single left-to-right pass at the end. This is what preserves comments and
+/// whitespace exactly outside of the edited spans.
+///
+/// At-rules (<c>@media</c>, <c>@keyframes</c>, <c>@import</c>, ...) are not yet supported -- that
+/// lands in follow-up tasks in this same plan.
 /// </summary>
 public static class ScopedCssRewriter
 {
+    private static readonly HashSet<string> LegacyPseudoElementNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "after", "before", "first-letter", "first-line",
+    };
+
     public static string Rewrite(string filePath, string css, string scope, out IReadOnlyList<CssRewriteError> errors)
     {
         if (filePath is null)
@@ -69,60 +82,349 @@ public static class ScopedCssRewriter
         if (scope is null)
             throw new ArgumentNullException(nameof(scope));
 
-        var result = new StringBuilder(css.Length + 64);
-        var selectorStart = 0;
+        var edits = new List<Edit>();
+        ProcessRuleList(css, 0, css.Length, edits);
 
-        for (var i = 0; i < css.Length; i++)
+        errors = [];
+        return ApplyEdits(css, scope, edits);
+    }
+
+    // Walks a rule list (the top-level stylesheet) and dispatches each rule found within
+    // [start, end) to selector scoping. At-rules throw for now -- a follow-up task replaces this
+    // branch.
+    private static void ProcessRuleList(string css, int start, int end, List<Edit> edits)
+    {
+        var i = start;
+        var preludeStart = start;
+
+        while (i < end)
         {
-            var c = css[i];
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
 
-            if (c == '@' && IsAtTopLevelRuleStart(css, i))
-            {
-                throw new NotSupportedException(
-                    "ScopedCssRewriter cannot rewrite a CSS file containing a top-level " +
-                    "at-rule ('@media', '@keyframes', '@import', etc.). Full at-rule support lands " +
-                    "in a follow-up task.");
-            }
+            var c = css[i];
 
             if (c == '{')
             {
-                var selectorText = css.Substring(selectorStart, i - selectorStart);
-                result.Append(AppendScopeToSelectorList(selectorText, scope));
-                result.Append('{');
-                selectorStart = i + 1;
+                var preludeEnd = i;
+                var trimmedPreludeStart = SkipInsignificant(css, preludeStart, preludeEnd);
+                var isAtRule = trimmedPreludeStart < preludeEnd && css[trimmedPreludeStart] == '@';
+
+                var bodyStart = i + 1;
+                var bodyEnd = FindMatchingBrace(css, bodyStart, end);
+
+                if (isAtRule)
+                {
+                    throw new NotSupportedException(
+                        "ScopedCssRewriter cannot rewrite a CSS file containing a top-level " +
+                        "at-rule ('@media', '@keyframes', '@import', etc.) yet. Support lands in a " +
+                        "follow-up task.");
+                }
+
+                foreach (var selector in SplitTopLevel(css, preludeStart, preludeEnd, ','))
+                    ScanSelector(css, selector.Start, selector.End, edits);
+
+                i = bodyEnd < end ? bodyEnd + 1 : bodyEnd;
+                preludeStart = i;
+                continue;
+            }
+
+            i++;
+        }
+
+        // A statement-form at-rule (e.g. "@import url('other.css');") never hits the '{' branch
+        // above at all, so without this check it would silently pass through unrewritten instead
+        // of being rejected like a block at-rule is. Statement at-rules get real handling (';'
+        // dispatch, @import detection) in a follow-up task; until then, any trailing content that
+        // still looks like an at-rule once the loop runs out is treated the same as a block
+        // at-rule: unsupported.
+        var trailingStart = SkipInsignificant(css, preludeStart, end);
+        if (trailingStart < end && css[trailingStart] == '@')
+        {
+            throw new NotSupportedException(
+                "ScopedCssRewriter cannot rewrite a CSS file containing a top-level " +
+                "at-rule ('@media', '@keyframes', '@import', etc.) yet. Support lands in a " +
+                "follow-up task.");
+        }
+    }
+
+    // Given the index just past an opening '{' (so already one level deep), finds the index of
+    // its matching '}' within [i, end). Literal-skip-aware so a brace inside a string or comment
+    // is never mistaken for a structural one.
+    private static int FindMatchingBrace(string css, int i, int end)
+    {
+        var depth = 1;
+
+        while (i < end)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            var c = css[i];
+            if (c == '{')
+            {
+                depth++;
             }
             else if (c == '}')
             {
-                result.Append(css.Substring(selectorStart, i + 1 - selectorStart));
-                selectorStart = i + 1;
+                depth--;
+                if (depth == 0)
+                    return i;
+            }
+
+            i++;
+        }
+
+        return end;
+    }
+
+    // Splits [start, end) on top-level occurrences of `delimiter` (outside strings, comments, and
+    // parens). Used for comma-separated selector lists here; a follow-up task reuses it for
+    // semicolon-separated declarations.
+    private static List<TextSpan> SplitTopLevel(string css, int start, int end, char delimiter)
+    {
+        var result = new List<TextSpan>();
+        var depth = 0;
+        var segmentStart = start;
+        var i = start;
+
+        while (i < end)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            var c = css[i];
+            if (c == '(')
+            {
+                depth++;
+            }
+            else if (c == ')')
+            {
+                if (depth > 0) depth--;
+            }
+            else if (depth == 0 && c == delimiter)
+            {
+                result.Add(new TextSpan(segmentStart, i));
+                i++;
+                segmentStart = i;
+                continue;
+            }
+
+            i++;
+        }
+
+        result.Add(new TextSpan(segmentStart, end));
+        return result;
+    }
+
+    // Scans one comma-split selector for its scope insertion point (mirrors
+    // FindScopeInsertionEdits.VisitSelector + FindPositionToInsertInSelector +
+    // IsSingleColonPseudoElement + IsTrailingCombinator from dotnet/sdk's RewriteCss.cs).
+    //
+    // A single left-to-right pass tracks two things: `contentEnd`, the offset just past the last
+    // "real" selector-content character seen (excluding top-level whitespace and top-level
+    // >/+/~ combinators, and excluding anything inside a skipped string/comment), and
+    // `pseudoBoundary`, the start of the first pseudo-element-like token seen since the last
+    // top-level whitespace/combinator reset -- i.e. within the CURRENT compound selector only.
+    // The reset is deferred (`pendingReset`) rather than applied immediately: the scanned span
+    // always runs up to the delimiter ('{'/','), which includes trailing whitespace *after* the
+    // real content (e.g. "a::before " before '{'), and that trailing whitespace must not discard
+    // a pseudo-element boundary found just before it.
+    //
+    // If a standalone "::deep" is found first, it wins outright: the scope goes right after
+    // whatever content preceded it (or at "::deep" itself if nothing did), the "::deep" text
+    // itself is deleted, and everything after it in this selector is left untouched (only the
+    // first "::deep" in a selector is ever treated as the boundary).
+    private static void ScanSelector(string css, int start, int end, List<Edit> edits)
+    {
+        var depth = 0;
+        var contentEnd = start;
+        int? pseudoBoundary = null;
+        var pendingReset = false;
+        var i = start;
+
+        while (i < end)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            var c = css[i];
+
+            if (depth == 0 && c == ':' && i + 6 <= end && string.CompareOrdinal(css, i, "::deep", 0, 6) == 0)
+            {
+                var insertionPoint = pseudoBoundary ?? (contentEnd > start ? contentEnd : i);
+                edits.Add(new Edit(insertionPoint, EditKind.InsertScope));
+                edits.Add(new Edit(i, EditKind.DeleteDeep));
+                return;
+            }
+
+            if (depth == 0 && IsWhitespace(c))
+            {
+                pendingReset = true;
+                i++;
+                continue;
+            }
+
+            if (depth == 0 && (c == '>' || c == '+' || c == '~'))
+            {
+                pendingReset = true;
+                i++;
+                continue;
+            }
+
+            if (depth == 0 && c == ':')
+            {
+                if (pendingReset) { pseudoBoundary = null; pendingReset = false; }
+
+                if (i + 1 < end && css[i + 1] == ':')
+                {
+                    pseudoBoundary ??= i;
+                    i += 2;
+                    while (i < end && IsIdentifierChar(css[i]))
+                        i++;
+                    contentEnd = i;
+                    continue;
+                }
+
+                var identStart = i + 1;
+                var identEnd = identStart;
+                while (identEnd < end && IsIdentifierChar(css[identEnd]))
+                    identEnd++;
+
+                if (identEnd > identStart && LegacyPseudoElementNames.Contains(css.Substring(identStart, identEnd - identStart)))
+                    pseudoBoundary ??= i;
+
+                i = identEnd > identStart ? identEnd : i + 1;
+                contentEnd = i;
+                continue;
+            }
+
+            if (c == '(')
+            {
+                if (pendingReset) { pseudoBoundary = null; pendingReset = false; }
+                depth++;
+                i++;
+                contentEnd = i;
+                continue;
+            }
+
+            if (c == ')')
+            {
+                if (pendingReset) { pseudoBoundary = null; pendingReset = false; }
+                if (depth > 0) depth--;
+                i++;
+                contentEnd = i;
+                continue;
+            }
+
+            if (pendingReset) { pseudoBoundary = null; pendingReset = false; }
+            i++;
+            contentEnd = i;
+        }
+
+        var finalInsertionPoint = pseudoBoundary ?? contentEnd;
+        edits.Add(new Edit(finalInsertionPoint, EditKind.InsertScope));
+    }
+
+    // ---- Small shared scanning helpers -------------------------------------------------------
+
+    private static int SkipInsignificant(string css, int start, int end)
+    {
+        var i = start;
+        while (i < end)
+        {
+            var skipped = CssLexer.SkipLiteral(css, i);
+            if (skipped != i) { i = skipped; continue; }
+
+            if (char.IsWhiteSpace(css[i])) { i++; continue; }
+            break;
+        }
+
+        return i;
+    }
+
+    private static bool IsWhitespace(char c) => c is ' ' or '\t' or '\n' or '\r' or '\f';
+
+    private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '-' || c == '_';
+
+    // ---- Edit list application ----------------------------------------------------------------
+
+    private readonly struct TextSpan
+    {
+        public TextSpan(int start, int end)
+        {
+            Start = start;
+            End = end;
+        }
+
+        public int Start { get; }
+        public int End { get; }
+    }
+
+    private enum EditKind
+    {
+        InsertScope,
+        InsertSuffix,
+        DeleteDeep,
+    }
+
+    private readonly struct Edit
+    {
+        public Edit(int position, EditKind kind)
+        {
+            Position = position;
+            Kind = kind;
+        }
+
+        public int Position { get; }
+        public EditKind Kind { get; }
+    }
+
+    private static string ApplyEdits(string css, string scope, List<Edit> edits)
+    {
+        if (edits.Count == 0)
+            return css;
+
+        edits.Sort((a, b) =>
+        {
+            var byPosition = a.Position.CompareTo(b.Position);
+            return byPosition != 0 ? byPosition : EditOrder(a.Kind).CompareTo(EditOrder(b.Kind));
+        });
+
+        var result = new StringBuilder(css.Length + edits.Count * 8);
+        var cursor = 0;
+
+        foreach (var edit in edits)
+        {
+            result.Append(css, cursor, edit.Position - cursor);
+            cursor = edit.Position;
+
+            switch (edit.Kind)
+            {
+                case EditKind.InsertScope:
+                    result.Append('[').Append(scope).Append(']');
+                    break;
+                case EditKind.InsertSuffix:
+                    result.Append('-').Append(scope);
+                    break;
+                case EditKind.DeleteDeep:
+                    cursor += 6;
+                    break;
             }
         }
 
-        result.Append(css.Substring(selectorStart));
-        errors = [];
+        result.Append(css, cursor, css.Length - cursor);
         return result.ToString();
     }
 
-    private static bool IsAtTopLevelRuleStart(string css, int atIndex)
+    // An insertion and a deletion can land on the same position only in the leading-"::deep" case
+    // (e.g. "::deep b"): the scope insertion point and the deletion start are both the index of
+    // "::deep" itself. Insertions must sort first there, so "[scope]" is written before the six
+    // characters of "::deep" are skipped.
+    private static int EditOrder(EditKind kind) => kind switch
     {
-        var firstBrace = css.IndexOf('{');
-        var beforeFirstBrace = firstBrace < 0 || atIndex < firstBrace;
-        return beforeFirstBrace ||
-            css.Substring(0, atIndex).TrimEnd().EndsWith("}", StringComparison.Ordinal);
-    }
-
-    private static string AppendScopeToSelectorList(string selectorList, string scope)
-    {
-        var parts = selectorList.Split(',');
-        for (var i = 0; i < parts.Length; i++)
-            parts[i] = parts[i].TrimEnd() + $"[{scope}]" + TrailingWhitespace(parts[i]);
-
-        return string.Join(",", parts);
-    }
-
-    private static string TrailingWhitespace(string value)
-    {
-        var trimmed = value.TrimEnd();
-        return value.Substring(trimmed.Length);
-    }
+        EditKind.InsertScope or EditKind.InsertSuffix => 0,
+        EditKind.DeleteDeep => 1,
+        _ => 2,
+    };
 }
