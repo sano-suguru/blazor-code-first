@@ -930,6 +930,68 @@ jobs:
       # suite's specs read the publish output -- see smoke/deployed.ts.
       - uses: actions/checkout@v7
 
+      # Restored for the wait-gate step below, which needs to know the exact fingerprinted
+      # `_framework/*.wasm` filenames and their real bytes. Nothing in this job serves these files
+      # locally, so the path they land at does not matter; it is the same one `deploy` and
+      # `site-browser` use only so a reader does not have to learn a second convention.
+      - uses: actions/download-artifact@v8
+        with:
+          name: site-publish
+          path: site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+
+      # #474: the first request `deploy` and this job ever made to a just-created preview alias hit
+      # Cloudflare before it had finished routing that hostname, and got back 404 once and then, on
+      # mono's own retries, the same fixed body for two DIFFERENT `.wasm` files -- their SHA-256
+      # matched each other, not either file's real content. Nothing before this step ever waited for
+      # that propagation; the ~45s the job had already spent on checkout and installs was not enough
+      # on the one run this was caught.
+      #
+      # This is a readiness gate the whole suite waits behind, not a per-test retry: it runs once,
+      # before Playwright starts, and reads the exact asset a hydration failure would depend on. That
+      # is why it does not run into `readTwice`'s objection to "a poll-until-stable loop" in
+      # smoke/deployed.ts -- that comment is about hiding a genuine, lasting regression behind retries
+      # on an assertion the suite reports. A timeout here still fails the job, loudly, and names the
+      # asset and URL that never converged; it removes deploy-propagation lag from what the suite
+      # measures, which was never its subject. Two consecutive matching reads per asset, not one, for
+      # the same reason `readTwice` reads twice: a single successful probe from a load-balanced edge
+      # does not prove the next request lands on a POP that has caught up too.
+      - name: Wait for the deployed WASM assets to match the publish output
+        env:
+          DEPLOYED_URL: ${{ needs.plan.outputs.deployed_url }}
+        run: |
+          set -euo pipefail
+
+          P=site/BlazorCodeFirst.Site/bin/Release/net10.0/publish/wwwroot
+          POLL_INTERVAL=4
+          BUDGET_SECONDS=90
+
+          mapfile -t wasm_files < <(cd "$P" && find _framework -maxdepth 1 -type f -name '*.wasm' -print0 | xargs -0 -n1 basename | LC_ALL=C sort)
+          if [ "${#wasm_files[@]}" -eq 0 ]; then
+            echo "::error::no _framework/*.wasm file in the publish output, so there is nothing to wait for" >&2
+            exit 1
+          fi
+
+          deadline=$((SECONDS + BUDGET_SECONDS))
+          for name in "${wasm_files[@]}"; do
+            expected=$(sha256sum "$P/_framework/$name" | cut -d' ' -f1)
+            url="$DEPLOYED_URL/_framework/$name"
+            consecutive=0
+            while [ "$consecutive" -lt 2 ]; do
+              actual=$(curl -fsSL --max-time 10 "$url" 2>/dev/null | sha256sum | cut -d' ' -f1) || actual=""
+              if [ "$actual" = "$expected" ]; then
+                consecutive=$((consecutive + 1))
+                continue
+              fi
+              consecutive=0
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "::error::$name at $url did not converge to the published content within ${BUDGET_SECONDS}s (expected sha256 $expected, last read $actual)" >&2
+                exit 1
+              fi
+              sleep "$POLL_INTERVAL"
+            done
+            echo "$name converged at $url"
+          done
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
