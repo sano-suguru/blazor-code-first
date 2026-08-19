@@ -184,3 +184,4 @@ static BlazorCodeFirst.Decorations.PreventDefault(this BlazorCodeFirst.ElementVi
 static BlazorCodeFirst.Decorations.PreventDefault(this BlazorCodeFirst.ElementView element, bool value) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.StopPropagation(this BlazorCodeFirst.ElementView element) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.StopPropagation(this BlazorCodeFirst.ElementView element, bool value) -> BlazorCodeFirst.ElementView
+static BlazorCodeFirst.Decorations.Attrs(this BlazorCodeFirst.ElementView element, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? value) -> BlazorCodeFirst.ElementView

@@ -281,6 +281,20 @@ internal sealed record ElementTemplateNode(
     /// (§2.7(E)). Like <see cref="Ref"/> it stops the fold, since markup has no spelling for it.
     /// </summary>
     public ExpressionTemplate? FormName { get; init; }
+
+    /// <summary>
+    /// The dictionary written with <c>.Attrs</c>, or <see langword="null"/> when none was written.
+    /// Emitted as <c>AddMultipleAttributes</c>, positioned before the class channel and every other
+    /// attribute-producing decoration so an explicit decoration always wins Blazor's last-frame-wins
+    /// duplicate resolution (<c>ARCHITECTURE.md</c> Appendix B.14, revised #387). One at most; a
+    /// second is BCF3033, the same single-value-channel rule <see cref="Key"/>/<see cref="Ref"/>/
+    /// <see cref="FormName"/> already carry — this compiler's model holds one dictionary per
+    /// element, not because the builder itself forbids two, but because nothing motivates two. Like
+    /// <see cref="Key"/>/<see cref="Ref"/>/<see cref="FormName"/> it also stops the fold: markup has
+    /// no spelling for a runtime dictionary, and folding would silently drop it
+    /// (<see cref="Generation.StaticMarkupSerializer"/>).
+    /// </summary>
+    public ExpressionTemplate? AttributesSplat { get; init; }
 }
 
 internal sealed record TextContentTemplateNode(ExpressionTemplate Content) : RenderTemplateNode;

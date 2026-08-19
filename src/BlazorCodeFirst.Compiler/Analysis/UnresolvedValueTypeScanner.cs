@@ -123,6 +123,10 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.Ref:
             // FormName reaches the same tail too: one value, no name argument, same as Key and Ref.
             case SurfaceMethodKind.FormName:
+            // AttributesSplat reaches the same tail for the same reason: one dictionary value, no
+            // name argument, the same single-value shape as Key/Ref/FormName (ARCHITECTURE.md
+            // Appendix B.14, revised #387).
+            case SurfaceMethodKind.AttributesSplat:
             // The event modifiers reach the same tail for the same reason, and their valueless overload
             // needs nothing extra: the tail reads argument 0 through a null-conditional, so the spelling
             // that writes no argument reports nothing rather than throwing (#368).

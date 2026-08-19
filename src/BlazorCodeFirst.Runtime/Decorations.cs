@@ -84,10 +84,12 @@ public static class Decorations
     /// name is single-binding (a duplicate is reported). <c>style</c> is one of those ordinary names:
     /// <c>.Attr("style", …)</c> writes it, and two of them on one element is BCF3010 rather than a
     /// second fold. There is deliberately no <c>.Style</c> shortcut (#321, <c>DESIGN.md</c> §4.1).
-    /// There is no bulk <c>.Attrs(…)</c> splat and there will not be one (#308 / #320): a name that
-    /// arrives at runtime cannot join the class channel's compile-time fold, and the duplicate check
-    /// cannot see it. Bind each attribute individually with this overload or a named shortcut. The
-    /// reasons are in <c>ARCHITECTURE.md</c> Appendix B.14.
+    /// There is no bulk splat of attribute *names* — <c>$"data-{kind}"</c> is still rejected, and
+    /// always will be (#308/#320): a name that arrives at runtime cannot join the class channel's
+    /// compile-time fold, and the duplicate check cannot see it. <see cref="Attrs"/> is narrower
+    /// than that: it spreads a dictionary of already-resolved name+value pairs, never a runtime
+    /// *name* written on this element's own decoration chain. The reasons for both are in
+    /// <c>ARCHITECTURE.md</c> Appendix B.14, revised #387.
     /// </summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
@@ -158,6 +160,24 @@ public static class Decorations
     /// <param name="name">The attribute name; must be a non-empty compile-time constant.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Attr(this ElementView element, string name) => element;
+
+    /// <summary>
+    /// Design-time syntax spreading a dictionary of attributes onto the owning element, which is the
+    /// receiving half of Blazor's <c>CaptureUnmatchedValues</c>: a component that declares
+    /// <c>[Parameter(CaptureUnmatchedValues = true)]</c> can forward what it captured onto a native
+    /// element it wraps. Emitted before every other attribute-producing decoration on this element,
+    /// so an explicit <see cref="Class"/>/<see cref="Attr(ElementView, string, string?)"/> written
+    /// anywhere in the chain always wins a name the dictionary also carries, and any key the chain
+    /// does not otherwise write survives untouched (<c>ARCHITECTURE.md</c> Appendix B.14, revised
+    /// #387). At most one per element; a second call is BCF3033. A <see langword="null"/> dictionary
+    /// is a no-op — no frame, no exception (measured against <c>RenderTreeBuilder</c>).
+    /// </summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attributes to spread, or <see langword="null"/> for none.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Attrs(
+        this ElementView element,
+        System.Collections.Generic.IReadOnlyDictionary<string, object>? value) => element;
 
     /// <summary>
     /// Design-time syntax adding an event handler. <paramref name="eventName"/> is the full HTML event

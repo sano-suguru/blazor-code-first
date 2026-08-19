@@ -296,6 +296,33 @@ internal static class RenderViewEmitter
         return seq + 1;
     }
 
+    /// <summary>
+    /// Emits the <c>.Attrs</c> splat, if written, and returns the next sequence number. Positioned
+    /// before the class channel and every other attribute-producing decoration
+    /// (<c>ARCHITECTURE.md</c> Appendix B.14, revised #387): <c>AddMultipleAttributes</c> always
+    /// claims the lowest sequence number of any attribute-shaped frame on the element, so every
+    /// explicit decoration that follows wins Blazor's last-frame-wins duplicate resolution, and any
+    /// dictionary key the call site did not otherwise write survives untouched. Absent, this method
+    /// is a no-op and <paramref name="seq"/> passes through unchanged, so an element with no
+    /// <c>.Attrs</c> generates byte-identical sequencing to before this method existed.
+    /// </summary>
+    /// <remarks>
+    /// The explicit cast anchors the transplanted expression to the parameter's declared type, the
+    /// same reason every other transplanted expression in this file carries one (the bind setter's
+    /// <c>Action&lt;T&gt;</c>, a slot's <c>RenderFragment</c>, the <c>.Ref</c> capture).
+    /// </remarks>
+    private static int EmitAttributesSplat(IndentedWriter writer, ExpressionTemplate? splat, int seq)
+    {
+        if (splat is null)
+            return seq;
+
+        writer.AppendLine(
+            $"__builder.AddMultipleAttributes({seq}, "
+                + "(global::System.Collections.Generic.IReadOnlyDictionary<string, object>?)"
+                + $"({splat.ToCode()}));");
+        return seq + 1;
+    }
+
     private static int EmitIf(IndentedWriter writer, IfNode node, int seq)
     {
         // seq is consumed by OpenRegion.
@@ -527,6 +554,7 @@ internal static class RenderViewEmitter
         writer.AppendLine($"__builder.OpenElement({seq}, {tag});");
         EmitKey(writer, node.Key, key);
         int next = seq + 1;
+        next = EmitAttributesSplat(writer, node.AttributesSplat, next);
         next = EmitClassAttribute(writer, node.Classes, next);
         foreach (var attribute in node.Attributes)
         {

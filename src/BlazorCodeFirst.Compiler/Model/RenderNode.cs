@@ -129,6 +129,13 @@ internal sealed record ElementNode(
     /// <see cref="Ref"/>, consuming no sequence number (§2.7(E)).
     /// </summary>
     public ExpressionTemplate? FormName { get; init; }
+
+    /// <summary>
+    /// The dictionary written with <c>.Attrs</c>, or <see langword="null"/>. Expanded counterpart of
+    /// <see cref="ElementTemplateNode.AttributesSplat"/>; emitted as <c>AddMultipleAttributes</c>
+    /// before every other attribute-producing decoration, consuming one sequence number.
+    /// </summary>
+    public ExpressionTemplate? AttributesSplat { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>

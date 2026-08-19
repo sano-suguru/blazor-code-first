@@ -341,7 +341,8 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.Ref
                 or SurfaceMethodKind.FormName
                 or SurfaceMethodKind.PreventDefault
-                or SurfaceMethodKind.StopPropagation =>
+                or SurfaceMethodKind.StopPropagation
+                or SurfaceMethodKind.AttributesSplat =>
                 ClassifyDecoration(invocation, method, kind, context),
             SurfaceMethodKind.None => ClassifyNonSurfaceCall(invocation, method, context),
         };
@@ -1109,6 +1110,21 @@ internal static class RenderExpressionAnalyzer
             return TakeFormName(firstArg, context) is { } formName
                 ? element with { FormName = formName }
                 : null;
+        }
+
+        // A single-field channel like Key/Ref/FormName above, not a repeatable one like Attr: the
+        // dictionary is opaque to the generator, so there is nothing here to fold or duplicate-check
+        // by name (ARCHITECTURE.md Appendix B.14, revised #387). A second .Attrs on the same element
+        // is BCF3033, the same rule those three already carry.
+        if (kind == SurfaceMethodKind.AttributesSplat)
+        {
+            if (ReportDuplicateFrameDecoration(decoAccess, element.AttributesSplat, context))
+                return null;
+
+            return element with
+            {
+                AttributesSplat = ExpressionTemplateFactory.Create(firstArg.Expression, context),
+            };
         }
 
         // The name a named shortcut stands for, or null for the .Attr and .On spellings that take it as an

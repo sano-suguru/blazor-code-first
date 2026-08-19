@@ -138,4 +138,12 @@ internal enum SurfaceMethodKind
 
     /// <summary><c>Decorations.StopPropagation</c>, either overload; see <see cref="PreventDefault"/>.</summary>
     StopPropagation,
+
+    /// <summary>
+    /// <c>Decorations.Attrs(this ElementView, IReadOnlyDictionary&lt;string, object&gt;?)</c>. Not an
+    /// ordinary attribute: it lowers to <c>AddMultipleAttributes</c>, a single-field channel like
+    /// <see cref="Key"/>/<see cref="Ref"/>/<see cref="FormName"/> rather than a repeatable one like
+    /// <see cref="Attr"/> (<c>ARCHITECTURE.md</c> Appendix B.14, revised #387).
+    /// </summary>
+    AttributesSplat,
 }

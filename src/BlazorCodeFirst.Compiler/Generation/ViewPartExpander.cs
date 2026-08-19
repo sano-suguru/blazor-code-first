@@ -244,6 +244,7 @@ internal static class ViewPartExpander
                         Key = element.Key?.Substitute(substitution),
                         Ref = element.Ref?.Substitute(substitution),
                         FormName = element.FormName?.Substitute(substitution),
+                        AttributesSplat = element.AttributesSplat?.Substitute(substitution),
                     };
                 }
 
