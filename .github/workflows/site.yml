@@ -728,6 +728,12 @@ jobs:
           for attempt in 1 2 3; do
             timeout 5m npx playwright install --with-deps chromium && exit 0
             echo "playwright install attempt $attempt failed or timed out, retrying..."
+            # `timeout` only signals its direct child (node), not the root-elevated apt-get it
+            # shells out to, so a timed-out attempt leaves apt-get running and holding the dpkg
+            # lock -- observed making every subsequent retry fail instantly instead of retrying.
+            sudo pkill -9 -f apt-get || true
+            sudo pkill -9 -f dpkg || true
+            sleep 5
           done
           exit 1
         working-directory: site/tests/browser
@@ -968,6 +974,12 @@ jobs:
           for attempt in 1 2 3; do
             timeout 5m npx playwright install --with-deps chromium && exit 0
             echo "playwright install attempt $attempt failed or timed out, retrying..."
+            # `timeout` only signals its direct child (node), not the root-elevated apt-get it
+            # shells out to, so a timed-out attempt leaves apt-get running and holding the dpkg
+            # lock -- observed making every subsequent retry fail instantly instead of retrying.
+            sudo pkill -9 -f apt-get || true
+            sudo pkill -9 -f dpkg || true
+            sleep 5
           done
           exit 1
         working-directory: site/tests/browser
