@@ -2047,6 +2047,48 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// A candidate that only fills by leaving an optional parameter unwritten, alongside a second,
+    /// same-named overload that never fills at all (one written argument against three required
+    /// parameters, always short by two regardless of this mutant).
+    /// </summary>
+    /// <remarks>
+    /// <c>FillsEveryParameter</c>'s optional exemption is what lets the first overload pass; widening its
+    /// guard to check <em>any</em> non-params parameter -- optional ones included -- for a written
+    /// argument wrongly refuses that overload for the same reason <c>Html.If</c>'s own <c>otherwise</c>
+    /// exists to be omittable (class remarks). With both candidates refused, <c>TrySelectCandidate</c>
+    /// names no method and this scanner cannot recover the type that would resolve BCF3015, so the body
+    /// is left with only the earlier BCF1003 that generic compile failures like a MissingMethod call
+    /// already report.
+    /// </remarks>
+    [Fact]
+    public void SecondViewPartOverloadUnderfillsWhileFirstOmitsOptional_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value, string extra = "") => Span[value + extra];
+
+                [ViewPart]
+                private static View Label(string value1, string value2, string value3) =>
+                    Span[value1 + value2 + value3];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
