@@ -1929,6 +1929,44 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// A name nested directly inside an unselected invocation's own argument list, rather than beside it.
+    /// <c>IsInsideUnselectedInvocation</c>'s ancestor walk must find this suppression by climbing past the
+    /// nearer, unrelated syntax between the name and the invocation (a <c>TypeOfExpressionSyntax</c>, its
+    /// argument, the argument list), none of which is itself an invocation or element access.
+    /// </summary>
+    /// <remarks>
+    /// Requiring every ancestor to answer the predicate, rather than only one, would fail on the first
+    /// such node and stop suppressing every name this scanner is meant to leave alone -- <see
+    /// cref="AttrNonConstantNameSelectedInvocationSibling_UnresolvedType_ReportsBCF3015"/>'s remarks
+    /// record the same nesting as what keeps a <em>selected</em> sibling's report reachable; this test
+    /// pins the complementary case, that an <em>unselected</em> parent's own suppression still reaches
+    /// through the same climb.
+    /// </remarks>
+    [Fact]
+    public void NestedInUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("data-type", MissingMethod(typeof(Probe)));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
