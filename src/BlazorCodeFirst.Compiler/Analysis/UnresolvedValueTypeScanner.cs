@@ -216,6 +216,11 @@ internal static class UnresolvedValueTypeScanner
             // does resolve — reaches this line with nothing left to report. No construction found reaches
             // it with both at once; the same shape as L431/L467's equivalence, just via lambda-conversion
             // ambiguity instead of argument binding.
+            // Mutating this call away is a stryker survivor, measured equivalent for the reason the
+            // preceding comment records: the complementary case leaves Method null, and
+            // ScanRenderExpression's own guard above returns before the switch is ever reached, not just
+            // before this arm. Confirmed by removing the call and running BlazorCodeFirst.Compiler.Tests
+            // and BlazorCodeFirst.DiagnosticTests unchanged.
             case SurfaceMethodKind.GenericTemplateContextual:
                 ScanLambdaBody(args.At(1)?.Expression, context);
                 return;
@@ -360,6 +365,12 @@ internal static class UnresolvedValueTypeScanner
             return;
 
         var written = WrittenParameterCount(method);
+        // Widening this bound to <= is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+        // left every test passing unchanged. written is exactly _byDeclaredParameter.Length (the array At
+        // indexes into), so the one extra index this widening reaches sits one past the end -- At's own
+        // (uint)index < (uint)length bounds check answers null for it the same as an omitted optional
+        // argument would, and ReportValue no-ops on null.
         for (var index = bind.GetterIndex; index < written; index++)
             ReportValue(args.At(index)?.Expression, context);
     }
@@ -460,6 +471,15 @@ internal static class UnresolvedValueTypeScanner
 
     private static void ScanChildren(BoundArguments args, ViewPartBodyContext context)
     {
+        // Mutating this return away is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the removal and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Reading why: both binders
+        // that produce a BoundArguments (BoundArguments.FromFactory, wrapping FactoryArguments.Bind, and
+        // BoundArguments.TryBindFallback below) only ever set HasUnanalyzableParamsArgument true while
+        // ParamsElements is still empty and can only return with it having stayed empty afterward -- a
+        // further params argument, named or not, aborts the whole bind (returns null) rather than adding
+        // to it. HasUnanalyzableParamsArgument true therefore already implies an empty ParamsElements, so
+        // the foreach below has nothing to iterate whether or not this guard returns first.
         if (args.HasUnanalyzableParamsArgument)
             return;
 
@@ -495,6 +515,15 @@ internal static class UnresolvedValueTypeScanner
         if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out _, out var selector))
             return;
 
+        // Two stryker survivors on this guard (the negation, and the block's own return) are measured,
+        // not proven equivalent: disabling either or both, then running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests, left every test passing regardless. No input has been
+        // constructed that reaches this line with a resolved, non-Enumerable.Select method: a splice's
+        // element access binds through FactoryArguments whenever the invocation itself resolves, the same
+        // operation-based route the success path uses, so by the time TryBindFallback -- and this scanner
+        // -- ever runs on a splice, the invocation.Symbol this checks has so far always been null. Whether
+        // a resolved non-Select candidate can reach here at all, the way SpliceSyntax's own remarks say a
+        // resolved Select one cannot avoid the success path either, is open rather than closed.
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is IMethodSymbol method
             && !context.KnownSymbols.IsEnumerableSelect(method))
@@ -528,6 +557,12 @@ internal static class UnresolvedValueTypeScanner
 
         foreach (var name in expression.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No test harness cancels this token, so the call is a
+            // responsiveness measure with nothing to be observed either throwing or not throwing --
+            // equivalent by construction of the token every test host hands this generator, not by any
+            // property of this scanner's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
             if (IsInsideNameofConstant(name, context))
@@ -614,6 +649,16 @@ internal static class UnresolvedValueTypeScanner
             // was written for.
             var arguments = node switch
             {
+                // A stryker survivor that widens this to || (matching a resolved surface call too, or an
+                // unresolved non-surface call alone) is measured, not proven equivalent: hand-applying it
+                // and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every
+                // test passing unchanged. Reading why, for the half that is understood: an unresolved
+                // invocation this arm would now wrongly walk into is still an ancestor of every name inside
+                // it, and ReportValue's own IsInsideUnselectedInvocation climbs ancestors independently of
+                // how it was reached, so it re-suppresses the same name this arm would have leaked. What
+                // remains open is the other half -- a resolved surface call nested in a value position,
+                // which this arm's own || would now also walk -- no input constructing that shape has been
+                // tried, so this side is not ruled out the way the first is.
                 InvocationExpressionSyntax invocation
                     when context.SemanticModel.GetSymbolInfo(
                             invocation, context.CancellationToken).Symbol is IMethodSymbol
@@ -697,6 +742,32 @@ internal static class UnresolvedValueTypeScanner
         // condition is this site's own, and the receiver rule underneath it is KnownSymbols' (#211). The
         // offset is read first so the fluent test's semantic query is only paid by a method that has a
         // receiver to skip at all.
+        //
+        // Three stryker survivors on this block (dropping ReducedFrom, forcing the ternary's true branch,
+        // and widening its && to ||) are measured equivalent, not assumed: hand-applying each alone and
+        // running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+        // passing unchanged. Reading why splits by mutant.
+        //
+        // Dropping ReducedFrom only changes anything when selectedMethod is itself a reduced symbol
+        // (a fluent call), and there it changes nothing observable: ReceiverOffset's contract answers 0
+        // for a reduced method and 1 for its unreduced ReducedFrom, so the (method, offset) pair this
+        // computes -- (reduced, 0) under the mutant, (unreduced, 1) unmutated -- index to the exact same
+        // logical, non-receiver parameter at every ordinal either way; the loop below reads only through
+        // that pairing, never method or offset individually.
+        //
+        // Forcing the ternary true, and widening && to ||, both only change anything for a call this
+        // scanner would otherwise read args from where the method is a genuine, unreduced extension method
+        // (receiverOffset != 0) invoked by its static spelling (IsFluentExtensionInvocation false) --
+        // every one of which is a decoration (SurfaceMethodKind.Class/AttributeShortcut/EventShortcut/
+        // Attr/On/Bind/Key/Ref/FormName/PreventDefault/StopPropagation), the one family of surface method
+        // this scanner reads static-spelling arguments from. ScanDecoration already refuses every static
+        // spelling outright through its own, independent IsFluentExtensionInvocation check before ever
+        // reading an argument, so whether this function accepts or wrongly rejects the very same call
+        // changes nothing ScanDecoration would have reported anyway. Every other surface kind this
+        // scanner's switch reads arguments from -- If/ForEach/Raw/Fragment (top-level, not extension
+        // methods) and ScalarParam/FragmentParam/GenericTemplate*/ComponentBind/ComponentKey/
+        // ComponentRenderMode/ComponentRef (instance methods on ComponentView<T>, not extension methods
+        // either) -- already has receiverOffset == 0, where both mutants agree with the original.
         var method = selectedMethod.ReducedFrom ?? selectedMethod;
         var receiverOffset = KnownSymbols.ReceiverOffset(method);
         var offset = receiverOffset != 0
@@ -739,6 +810,17 @@ internal static class UnresolvedValueTypeScanner
             if (argument.NameColon is { } nameColon)
             {
                 var index = FindParameter(parameters, offset, nameColon.Name.Identifier.ValueText);
+                // Flipping this refusal to accept is a stryker survivor, measured equivalent rather than
+                // assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
+                // BlazorCodeFirst.DiagnosticTests left every test passing unchanged, including
+                // MisnamedArgumentAgainstMultiParameterOverload_DoesNotReportBCF3015 above, which was
+                // written to probe exactly this line and instead exposed that this function's verdict is
+                // never the only gate: both binders BindArguments tries next re-derive the same name and
+                // refuse it independently -- FactoryArguments.Bind reads Roslyn's own argument.Parameter,
+                // which a name naming no declared parameter never has, and TryBindFallback's own
+                // FindParameter call, immediately below this same struct's TryBindFallback, has its own
+                // unmutated index < 0 check. Wrongly accepting the call here only lets a later, correct
+                // refusal answer instead of this one.
                 if (index < 0)
                     return false;
 
@@ -803,6 +885,15 @@ internal static class UnresolvedValueTypeScanner
     /// not — so the count is the same either way and unreducing first would only be a second spelling of
     /// the same rule (#211).
     /// </remarks>
+    // Swapping this - for + is a stryker survivor, measured equivalent rather than assumed: hand-applying
+    // it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+    // passing unchanged. Reading why: ReceiverOffset never answers negative, so the swap only ever
+    // inflates the count above the true one, never below it. Both readers of this value only ever read
+    // through it, never write past what it bounds: BoundArguments.FromFactory sizes _byDeclaredParameter
+    // to exactly this count, so an inflated count only adds trailing null entries (every index beyond
+    // FactoryArguments' own real content is already null there), and ReportBindArguments' loop bound
+    // just walks a few extra always-null slots through At(), which no-ops on null exactly as it does on
+    // an omitted optional argument.
     private static int WrittenParameterCount(IMethodSymbol method) =>
         method.Parameters.Length - KnownSymbols.ReceiverOffset(method);
 
@@ -812,6 +903,15 @@ internal static class UnresolvedValueTypeScanner
     /// the answer to this question never depends on it: a group that named no overload is a surface call
     /// all the same.
     /// </summary>
+    // Forcing selectOverload to true here is a stryker survivor, proven equivalent rather than measured:
+    // this reader asks only .IsSurfaceCall, and every RecognizedInvocation constructor sets it without
+    // reading selectOverload at all -- Named and FromGroup both hard-code true, None (candidates.Count
+    // == 0, reached before the selectOverload ternary) is the only false, and TrySelectCandidate itself
+    // only ever returns through FromGroup. selectOverload's own ternary chooses between running
+    // TrySelectCandidate and skipping straight to FromGroup(null, null), both of which already answer
+    // true once candidates.Count > 0, so no path through Recognize can make this call's own IsSurfaceCall
+    // answer depend on which selectOverload it was given. Confirmed by hand-applying the flip and running
+    // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged.
     private static bool IsSurfaceCall(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context) =>
         Recognize(invocation, context, selectOverload: false).IsSurfaceCall;
@@ -848,6 +948,16 @@ internal static class UnresolvedValueTypeScanner
             return RecognizedInvocation.Named(forEach);
         }
 
+        // Two stryker survivors here (removing the statement in this loop's body, and removing the
+        // expressionMethod call below) are measured equivalent, not assumed: hand-applying each alone and
+        // running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+        // passing unchanged. Reading why: three sources feed candidates here, and
+        // DuplicateCandidateFromExpressionAndInvocationInfo_UnresolvedType_ReportsBCF3015's own remarks
+        // record the mechanism -- symbolInfo.CandidateSymbols, the bare expressionMethod reference, and
+        // expressionInfo.CandidateSymbols itself all resolve to the same overload set for any call this
+        // scanner reaches, so AddRecognizedCandidate's dedup loop collapses them regardless of which
+        // source is silenced; removing either of the first two still leaves the remaining sources to add
+        // the identical candidate.
         var candidates = new List<IMethodSymbol>();
         foreach (var symbol in symbolInfo.CandidateSymbols)
             AddRecognizedCandidate(symbol, candidates, context);
@@ -1139,6 +1249,15 @@ internal static class UnresolvedValueTypeScanner
         ElementAccessExpressionSyntax elementAccess,
         ViewPartBodyContext context)
     {
+        // The two stryker survivors that remove this method's early returns (this block's return
+        // selected, and the loop's own return candidate below) are measured equivalent, not assumed:
+        // hand-applying each alone and together, then running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests, left every test passing regardless. Reading why: whichever
+        // property either branch names, IsRecognized has already narrowed it to the element or component
+        // indexer, and that indexer is declared on ElementView or ComponentView<T> respectively -- the
+        // same type elementAccess.Expression's own type is, since the property found is an indexer of it.
+        // Falling through to the receiver-type fallback below re-derives the identical answer from that
+        // same type, so no early return here can differ from what the fallback alone would find.
         var symbolInfo = context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken);
         if (symbolInfo.Symbol is IPropertySymbol { IsIndexer: true } selected
             && IsRecognized(selected, context.KnownSymbols))
