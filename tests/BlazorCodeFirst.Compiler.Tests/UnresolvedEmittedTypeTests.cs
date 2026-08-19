@@ -1573,6 +1573,177 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Single(context.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// Three leading named arguments, each already in its declared position, followed by one trailing
+    /// positional argument. <c>HasValidArgumentOrder</c>'s bookkeeping only has to track position for a
+    /// reordered name, but a named argument that lands on its own natural slot still walks the same
+    /// <c>nextPositional</c> increment, and a call this shape reaches the trailing positional argument's
+    /// own out-of-position check with a value the increment left behind.
+    /// </summary>
+    [Fact]
+    public void NamedArgumentsInPositionThenTrailingPositional_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _value = "";
+
+                protected override View Body =>
+                    Div.Bind(
+                        attributeName: MissingMethod() + "x",
+                        eventName: "onchange",
+                        get: () => _value,
+                        v => { _value = v; System.Console.WriteLine(typeof(Probe)); });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
+    /// Two leading positional arguments, filling their declared slots without ever naming them, followed
+    /// by a named argument for the next slot. <c>HasValidArgumentOrder</c>'s unconditional
+    /// <c>nextPositional++</c> for an ordinary (non-<see langword="params"/>) positional argument keeps
+    /// this bookkeeping in step for the positional case, the same way the named-match increment does for
+    /// the named case above; dropping or reversing it leaves the later named argument compared against a
+    /// stale position and misclassified as out of order.
+    /// </summary>
+    [Fact]
+    public void PositionalArgumentsThenNamedArgument_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private string _value = "";
+
+                protected override View Body =>
+                    Div.Bind(
+                        MissingMethod() + "x",
+                        "onchange",
+                        get: () => _value,
+                        v => { _value = v; System.Console.WriteLine(typeof(Probe)); });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
+    /// A named argument spelling that matches no parameter of any <c>.Attr</c> overload.
+    /// <c>FindParameter</c>'s search loop stops at <c>parameters.Length</c> without finding one and
+    /// returns -1; widening that bound to <c>parameters.Length</c> inclusive walks one ordinal past the
+    /// array and throws, taking the whole generator down (<c>CS8785</c>) instead of degrading this one
+    /// body to <c>BCF1003</c>.
+    /// </summary>
+    [Fact]
+    public void MisnamedArgument_DoesNotCrashTheGenerator()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr(bogus: "x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "CS8785");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// Two written arguments against <c>PreventDefault</c>'s zero-parameter overload, one of the
+    /// candidates <c>TrySelectCandidate</c> tries from the two-overload group. The bounds guard on
+    /// <c>HasValidArgumentOrder</c>'s params check exists for exactly this candidate: with zero declared
+    /// parameters, <c>nextPositional</c> reaches <c>parameterCount</c> on the very first written argument,
+    /// and indexing <c>parameters[nextPositional + offset]</c> without the guard walks past the array
+    /// (length 1, the receiver alone) and crashes the whole generator rather than letting this candidate
+    /// fail to bind cleanly.
+    /// </summary>
+    [Fact]
+    public void OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("x", MissingMethod() + typeof(Probe).Name).PreventDefault(true, false);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "CS8785");
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
+    /// One written argument against two same-named <c>[ViewPart]</c> overloads, the one-parameter shape
+    /// and a two-parameter shape whose second parameter is required. Resolution failure hands both back
+    /// as candidates regardless of arity, so <c>FillsEveryParameter</c> is what excludes the two-parameter
+    /// overload (its second parameter is unfilled) before <c>TrySelectCandidate</c> ever has to compare
+    /// the two candidates' shapes — a decoration overload group can't isolate this the same way, because
+    /// their shorter member (see <c>Div.Attr(string)</c>) always fills on the shared prefix and the group
+    /// refuses on arity either way. Disabling this check (loop skipped, either boolean negated, or the
+    /// rejection return flipped to accept) lets the two-parameter overload wrongly pass, and
+    /// <c>AreInterchangeableOverloads</c>' own arity mismatch then refuses the whole group.
+    /// </summary>
+    [Fact]
+    public void ViewPartOverloadMissingRequiredParameter_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value) => Span[value];
+
+                [ViewPart]
+                private static View Label(string value, string extra) => Span[value];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)

@@ -703,6 +703,18 @@ internal static class UnresolvedValueTypeScanner
         int offset)
     {
         var parameterCount = parameters.Length - offset;
+        // Mutating this to <= 0 is a stryker survivor, measured equivalent rather than assumed: a
+        // zero-parameter call (Element, Component, or the valueless PreventDefault/StopPropagation
+        // overload) does reach parameterCount == 0 (confirmed with a throwaway probe on
+        // Div.Attr("x", MissingMethod() + typeof(Probe).Name).PreventDefault()), but returning false
+        // there instead of falling through to an empty, vacuously-true loop makes no observable
+        // difference. HasValidArgumentOrder failing only ever suppresses BindArguments, and every
+        // reachable zero-parameter kind already reports nothing whether or not BindArguments runs:
+        // Element/Component return before the switch's kind arms read anything, and the valueless
+        // PreventDefault/StopPropagation spelling's arm reports args.At(0), which is null either way
+        // for a zero-length bound-argument list. Reverting the mutant by hand and running both
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests confirmed no test tells
+        // the two apart.
         if (parameterCount < 0)
             return false;
 
@@ -734,6 +746,22 @@ internal static class UnresolvedValueTypeScanner
             if ((uint)nextPositional < (uint)parameterCount
                 && parameters[nextPositional + offset].IsParams)
             {
+                // Mutating this continue away (falling through to the increment below instead) is a
+                // stryker survivor, measured equivalent rather than assumed: nextPositional never escapes
+                // this function, so skipping the hold-in-place it does here for a params element only
+                // matters if something later compares against the corrupted value. Nothing can. C# requires
+                // params to be the last declared parameter, so no positional or named argument can follow
+                // one once its elements start, and a params element can only grow nextPositional past
+                // parameterCount, which the (uint)nextPositional < (uint)parameterCount guard on this same
+                // condition then short-circuits away from on the next iteration, the same guard that keeps
+                // the array index below in bounds either way. Checked against three shapes that each
+                // exercise a different neighbour of this line — the params indexer with two children
+                // (ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015), the zero-parameter
+                // PreventDefault overload overfilled with two arguments
+                // (OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator), and the positional-then-named
+                // .Bind call (PositionalArgumentsThenNamedArgument_UnresolvedType_ReportsBCF3015), all in
+                // UnresolvedEmittedTypeTests.cs — and the full BlazorCodeFirst.Compiler.Tests suite passed
+                // unchanged with the continue removed.
                 continue;
             }
 
@@ -968,6 +996,13 @@ internal static class UnresolvedValueTypeScanner
     private static bool FillsEveryParameter(BoundArguments args, IMethodSymbol method)
     {
         var offset = KnownSymbols.ReceiverOffset(method);
+        // The two stryker survivors that swap - for + on offset here and at the array index below (one on
+        // each of the two arithmetic mutants) are measured equivalent, not assumed: a throwaway probe
+        // logging offset and ReducedFrom for every method TrySelectCandidate's loop hands this function
+        // found offset == 0 for every candidate reached in the multi-candidate path — an extension method
+        // candidate always arrives already reduced there (ReceiverOffset's own contract answers 0 for a
+        // reduced method), so + and - agree everywhere this runs. Confirmed by hand-applying both mutants
+        // together and running the full BlazorCodeFirst.Compiler.Tests suite unchanged.
 
         for (var index = 0; index < method.Parameters.Length - offset; index++)
         {
@@ -1319,6 +1354,15 @@ internal static class UnresolvedValueTypeScanner
             int offset)
         {
             var declaredCount = parameters.Length - offset;
+            // Mutating this to <= 0 is a stryker survivor, measured equivalent rather than assumed, by
+            // the same reasoning as the parallel check in HasValidArgumentOrder above. declaredCount ==
+            // 0 additionally looks unreachable through this overload's own callers: the indexer caller's
+            // offset is always 0 against a real indexer's parameter list, which is never empty, and the
+            // invocation caller only runs once FactoryArguments.Bind has already failed for this call —
+            // measured with the same throwaway probe (Div.Attr("x", MissingMethod() +
+            // typeof(Probe).Name).PreventDefault()) that a zero-argument call's own operation binds
+            // fine regardless of what is broken in its receiver chain, so the fallback this guards is
+            // never reached with zero declared parameters to begin with.
             if (declaredCount < 0)
                 return null;
 
