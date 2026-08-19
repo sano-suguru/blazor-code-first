@@ -1967,6 +1967,44 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// An unresolved <c>.Select(...)</c> call, syntactically shaped like a spliced child list's
+    /// projection but written where children are not read at all -- an <c>.Attr</c> value -- so its
+    /// invocation is never a spread element's operand.
+    /// </summary>
+    /// <remarks>
+    /// <c>IsSplicedSelect</c> exists to exempt exactly the shape <see cref="SpliceSyntax"/> matches from
+    /// the ordinary unselected-invocation suppression, on the ground that the sweep deliberately walks
+    /// into a genuine splice and must not suppress a value under it on the way out. Answering that
+    /// exemption from either half of its check alone, rather than both together, wrongly exempts this
+    /// call too: it matches <c>SpliceSyntax.IsProjection</c> by name and arity, but its parent is an
+    /// <c>ArgumentSyntax</c>, not a <c>SpreadElementSyntax</c>, so it was never reached by a deliberate
+    /// splice walk and the ordinary suppression is what is supposed to answer for it.
+    /// </remarks>
+    [Fact]
+    public void UnspreadSelectShapedCall_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("x", MissingSource.Select(i => typeof(Probe)));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)
