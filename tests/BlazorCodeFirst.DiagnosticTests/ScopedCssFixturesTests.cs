@@ -148,4 +148,25 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
         Assert.Contains(".my-component[bcf-", packagedBundleContent, StringComparison.Ordinal);
         Assert.Contains("color: red;", packagedBundleContent, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void LibraryMixed_fixture_app_bundle_imports_the_mixed_librarys_project_bundle()
+    {
+        var build = fixtures.LibraryMixed;
+
+        Assert.Contains("@import '_content/", build.BundledCss, StringComparison.Ordinal);
+        Assert.Contains(".bundle.scp.css';", build.BundledCss, StringComparison.Ordinal);
+
+        var libraryBundlePaths = Directory.GetFiles(
+            Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.MixedLibrary", "obj"),
+            "*.bundle.scp.css",
+            SearchOption.AllDirectories);
+        var libraryBundle = Assert.Single(libraryBundlePaths);
+        var libraryBundleContent = File.ReadAllText(libraryBundle);
+
+        Assert.Contains(".my-component[bcf-", libraryBundleContent, StringComparison.Ordinal);
+        Assert.Contains("color: red;", libraryBundleContent, StringComparison.Ordinal);
+        Assert.Contains(".my-widget[b-", libraryBundleContent, StringComparison.Ordinal);
+        Assert.Contains("color: blue;", libraryBundleContent, StringComparison.Ordinal);
+    }
 }
