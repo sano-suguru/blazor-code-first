@@ -958,6 +958,10 @@ jobs:
       - name: Wait for the deployed WASM assets to match the publish output
         env:
           DEPLOYED_URL: ${{ needs.plan.outputs.deployed_url }}
+        # `container:` on this job switches the runner's default shell for `run:` from bash to
+        # sh, which has neither `pipefail` nor `mapfile`. Pinned explicitly rather than left to
+        # default, since the default is exactly what broke this the first time.
+        shell: bash
         run: |
           set -euo pipefail
 
