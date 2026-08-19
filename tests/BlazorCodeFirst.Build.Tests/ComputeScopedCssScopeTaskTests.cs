@@ -1,6 +1,4 @@
-using System.Collections;
 using BlazorCodeFirst.Build;
-using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 using Xunit;
 
@@ -32,22 +30,5 @@ public class ComputeScopedCssScopeTaskTests
         Assert.NotEqual(
             task.ScopedCssWithScope[0].GetMetadata("CssScope"),
             task.ScopedCssWithScope[1].GetMetadata("CssScope"));
-    }
-
-    private sealed class StubBuildEngine : IBuildEngine
-    {
-        public bool ContinueOnError => false;
-        public int LineNumberOfTaskNode => 0;
-        public int ColumnNumberOfTaskNode => 0;
-        public string ProjectFileOfTaskNode => string.Empty;
-
-        public bool BuildProjectFile(
-            string projectFileName, string[] targetNames, IDictionary globalProperties, IDictionary targetOutputs) =>
-            true;
-
-        public void LogCustomEvent(CustomBuildEventArgs e) { }
-        public void LogErrorEvent(BuildErrorEventArgs e) { }
-        public void LogMessageEvent(BuildMessageEventArgs e) { }
-        public void LogWarningEvent(BuildWarningEventArgs e) { }
     }
 }

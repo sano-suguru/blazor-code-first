@@ -973,15 +973,25 @@ internal static class UnresolvedValueTypeScanner
         // to sit after this, and could never answer differently from the one above: nothing between them
         // reaches anything the test reads.
         //
-        // Two stryker survivors here (this loop's own body, and the includeReducedExtensionMethods flag)
-        // are measured, not proven equivalent, and left as such rather than forced: coverage data confirms
-        // some existing test reaches this branch with candidates.Count == 0 (it is Survived, not
-        // NoCoverage), and removing the loop body outright, then running BlazorCodeFirst.Compiler.Tests and
-        // BlazorCodeFirst.DiagnosticTests, leaves every test passing regardless. No input has been
-        // constructed that isolates which test reaches this branch or why its outcome is unaffected. Unlike
-        // the neighboring IsHtmlForEachInScope cluster, this branch is not subsumed by anything later in
-        // Recognize — it IS the last resort — so the mechanism behind this survival is open, not closed;
-        // narrowing it is future work.
+        // Two stryker survivors here (this loop's own body, and the includeReducedExtensionMethods flag) are
+        // equivalent, proven from what this exact call to LookupSymbols can still contribute at this point,
+        // rather than measured against particular inputs. This differs from the IsHtmlForEachInScope branch
+        // above, which runs the same kind of query before candidates is even built and only against
+        // symbolInfo.Symbol: that branch's LookupSymbols call genuinely can be the first thing to notice
+        // ForEach, when a poisoned argument left symbolInfo.Symbol null. This one runs after candidates was
+        // already offered every symbol symbolInfo.CandidateSymbols and expressionInfo (both the resolved
+        // method and its own CandidateSymbols) could name, so reaching candidates.Count == 0 here means
+        // either the name resolves to nothing in scope at all -- and LookupSymbols filtered by that identical
+        // name then finds nothing either -- or it resolves only to symbols AddRecognizedCandidate already
+        // saw and rejected as unrecognized (the shadowing-Raw shape a probe construction confirms: a
+        // same-class method that shadows a same-named Html member reaches symbolInfo.CandidateSymbols
+        // already, poisoned argument and all). The second case cannot smuggle in a *different*, recognized
+        // symbol that the two prior sources missed: LookupSymbols honors the same hiding/combining rule as
+        // ordinary invocation-expression binding (a same-named local declaration suppresses an outer member
+        // from both alike; two `using static` imports that both declare the name combine into one group for
+        // both alike), so whatever it finds here was already a candidate this function tried and discarded.
+        // Either way the loop body never runs with a symbol IsRecognized would accept, and
+        // includeReducedExtensionMethods's value is consulted on a query that never contributes one.
         if (candidates.Count == 0 && invocation.Expression is SimpleNameSyntax invocationName)
         {
             foreach (var symbol in context.SemanticModel.LookupSymbols(

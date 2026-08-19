@@ -147,6 +147,9 @@ jobs:
     # Counted by rule rather than by number: the set has grown three times and the count was stale
     # each time.
     runs-on: ubuntu-latest
+    # Backstop for the install-hang risk noted below: even a fully exhausted retry loop is
+    # bounded, so a real hang fails within this instead of riding out GitHub's 6-hour default.
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v7
@@ -187,7 +190,25 @@ jobs:
       # Not split on a cache hit. --with-deps has to run apt every time (the cache restores the
       # browser binary, not the shared libraries), and the download is skipped on its own when the
       # binary is already there, so a conditional pair of steps would do the same work in two lines.
-      - run: npx playwright install --with-deps chromium
+      #
+      # `--with-deps` shells out to apt, which has been observed hanging indefinitely mid-fetch
+      # against the Ubuntu archive mirror on GitHub-hosted runners -- no error, no dpkg-lock
+      # message, just silence well past apt's own Acquire::http::Timeout. That leaves the process
+      # itself as the only thing that can bound the wait, so `timeout` kills it and the loop
+      # retries rather than the job riding out GitHub's default 6-hour cap.
+      - name: Install Playwright browsers
+        run: |
+          for attempt in 1 2 3; do
+            timeout 5m npx playwright install --with-deps chromium && exit 0
+            echo "playwright install attempt $attempt failed or timed out, retrying..."
+            # `timeout` only signals its direct child (node), not the root-elevated apt-get it
+            # shells out to, so a timed-out attempt leaves apt-get running and holding the dpkg
+            # lock -- observed making every subsequent retry fail instantly instead of retrying.
+            sudo pkill -9 -f apt-get || true
+            sudo pkill -9 -f dpkg || true
+            sleep 5
+          done
+          exit 1
         working-directory: tests/BlazorCodeFirst.WebAppTests/browser
 
       - run: npx playwright test
