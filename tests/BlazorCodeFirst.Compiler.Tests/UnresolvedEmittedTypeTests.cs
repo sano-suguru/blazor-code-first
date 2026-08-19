@@ -1901,6 +1901,55 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// A second <c>using static</c> brings a same-named, same-arity generic <c>ForEach&lt;TItem&gt;</c> into
+    /// scope from a <c>[ViewPart]</c> declared on an unrelated helper type, exactly matching
+    /// <c>Html.ForEach&lt;T&gt;</c>'s three parameters after substitution. Neither is more specific than the
+    /// other, so the call's own <c>GetSymbolInfo</c> answers null with both as candidates -- the state
+    /// <see cref="UnresolvedValueTypeScanner.IsHtmlForEachInScope"/> exists to recover from, reached before
+    /// the ordinary candidate-gathering loop below it ever runs. Disabling that recovery (removing its
+    /// call site's own <c>return</c>, or the inner loop's) leaves <c>candidates</c> built from
+    /// <c>symbolInfo.CandidateSymbols</c> instead, where the two same-named methods carry different
+    /// <c>SurfaceMethodKind</c>s and <c>AreInterchangeableOverloads</c> refuses the pair, reporting BCF1003
+    /// through the whole call rather than BCF3015 through the unresolved <c>key</c> argument.
+    /// <c>Helpers.ForEach</c> has to stay generic to keep the two candidates tied on specificity; declaring
+    /// it as a <c>[ViewPart]</c> generic method is itself unsupported (BCF1002), which this test also
+    /// expects rather than works around.
+    /// </summary>
+    [Fact]
+    public void ForEachSameNameFromTwoUsingStaticImportsWithDifferentKind_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            using static T.Helpers;
+
+            namespace T;
+
+            public static class Helpers
+            {
+                [ViewPart]
+                public static View ForEach<TItem>(
+                    IEnumerable<TItem> source, Func<TItem, object?>? key, Func<TItem, View> content) => Span["x"];
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly int[] _items = [1];
+
+                protected override View Body =>
+                    ForEach(_items, key: _ => typeof(Probe), content: i => Div[i.ToString()]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1002");
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
     /// One written argument against a single <c>[ViewPart]</c> overload with two required parameters, so
     /// the call underfills it. <c>AddRecognizedCandidate</c> is reached twice for this same method — once
     /// from the invocation's own <c>CandidateSymbols</c> and once from resolving the bare method-group

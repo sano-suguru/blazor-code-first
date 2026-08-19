@@ -931,17 +931,20 @@ internal static class UnresolvedValueTypeScanner
         if (symbolInfo.Symbol is IMethodSymbol method && IsRecognized(method, context))
             return RecognizedInvocation.Named(method);
 
-        // Four stryker survivors on this branch and on IsHtmlForEachInScope itself (the known-null guard,
-        // the includeReducedExtensionMethods flag, the loop's own return true, and this block's return) are
-        // measured equivalent, not assumed: forcing the branch to always fall through (return false, or
-        // return true without the block's own return) and running BlazorCodeFirst.Compiler.Tests and
-        // BlazorCodeFirst.DiagnosticTests unchanged left every test passing. Reading why: this branch only
-        // has anything to find when the ordinary candidate gathering below turns up nothing for ForEach's
-        // name, and the SimpleNameSyntax name lookup a few lines down (candidates.Count == 0) does the same
-        // LookupSymbols query this branch does, filtered through the same IsRecognized check, and would
-        // find the exact same ForEach symbol on the exact same input. This branch can only differ from that
-        // one when something unrelated already occupies candidates by the time execution reaches it, which
-        // nothing under ForEach's own name can do.
+        // The includeReducedExtensionMethods flag inside IsHtmlForEachInScope is the one stryker
+        // survivor left on this branch, proven equivalent rather than measured: the loop below only
+        // returns true for a symbol that normalizes equal to `known` itself (Html.ForEach, which is
+        // not an extension method), so whatever the flag adds to or removes from LookupSymbols'
+        // result is, at most, a differently-named or differently-declared method the equality check
+        // was always going to reject. Html.ForEach's own presence in that result never depends on
+        // the flag, since it is found as an ordinary static member either way.
+        // The rest of this branch -- the known-null guard, the loop's own return true, and this
+        // block's own return -- is killed by
+        // ForEachSameNameFromTwoUsingStaticImportsWithDifferentKind_ReportsBCF3015: a second
+        // `using static` brings a same-arity, differently-classified ForEach into the call's own
+        // CandidateSymbols alongside Html.ForEach<T>, and this branch is what still selects
+        // Html.ForEach rather than falling through to the kind-mismatch refusal
+        // AreInterchangeableOverloads gives the group below.
         if (context.KnownSymbols.HtmlForEach is { } forEach
             && IsHtmlForEachInScope(invocation, forEach, context))
         {
