@@ -120,11 +120,25 @@ public static class ScopedCssRewriter
 
                 if (isAtRule)
                 {
-                    // @media, @supports, @font-face, @keyframes, or an unrecognized block
-                    // at-rule: recurse. A declarations-only body (@font-face) has no nested '{',
-                    // so the recursive call finds nothing and returns immediately -- a safe
-                    // no-op.
-                    ProcessRuleList(css, bodyStart, bodyEnd, edits, errors, filePath);
+                    var keyword = ReadAtKeyword(css, trimmedPreludeStart);
+
+                    if (string.Equals(keyword, "keyframes", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var nameRange = FindIdentifierAfterAtKeyword(css, trimmedPreludeStart, preludeEnd);
+                        if (nameRange is { } range && range.End > range.Start)
+                            edits.Add(new Edit(range.End, EditKind.InsertSuffix));
+
+                        // The body is intentionally not descended into: keyframe selectors
+                        // (from/to/N%) never get [scope], and animation-name declarations don't
+                        // occur inside keyframe steps.
+                    }
+                    else
+                    {
+                        // @media, @supports, @font-face, or an unrecognized block at-rule:
+                        // recurse. A declarations-only body (@font-face) has no nested '{', so the
+                        // recursive call finds nothing and returns immediately -- a safe no-op.
+                        ProcessRuleList(css, bodyStart, bodyEnd, edits, errors, filePath);
+                    }
                 }
                 else
                 {
@@ -177,6 +191,21 @@ public static class ScopedCssRewriter
             i++;
 
         return css.Substring(start, i - start);
+    }
+
+    private static TextSpan? FindIdentifierAfterAtKeyword(string css, int atIndex, int preludeEnd)
+    {
+        var i = atIndex + 1;
+        while (i < preludeEnd && (char.IsLetterOrDigit(css[i]) || css[i] == '-'))
+            i++;
+
+        i = SkipInsignificant(css, i, preludeEnd);
+
+        var nameStart = i;
+        while (i < preludeEnd && IsIdentifierChar(css[i]))
+            i++;
+
+        return i == nameStart ? null : new TextSpan(nameStart, i);
     }
 
     private static (int Line, int Column) LocateLineColumn(string css, int index)

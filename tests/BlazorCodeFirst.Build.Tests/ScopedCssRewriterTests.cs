@@ -251,4 +251,17 @@ public class ScopedCssRewriterTests
             "file.css(5,5): @import rules are not supported within scoped CSS files because the loading order would be undefined. @import may only be placed in non-scoped CSS files.",
             errors[3].ToString());
     }
+
+    [Fact]
+    public void AddsScopeToKeyframeNames()
+    {
+        var css = "\n    @keyframes my-animation { /* whatever */ }\n";
+
+        var result = ScopedCssRewriter.Rewrite("file.css", css, "TestScope", out var errors);
+
+        Assert.Empty(errors);
+        Assert.Equal(
+            "\n    @keyframes my-animation-TestScope { /* whatever */ }\n",
+            result);
+    }
 }
