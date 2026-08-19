@@ -1461,13 +1461,18 @@ public sealed class UnresolvedEmittedTypeTests
     /// (<c>Attr</c>).
     /// </summary>
     /// <remarks>
-    /// <c>IsElementDecoration</c>'s four disjuncts each pair with the next through C# pattern
-    /// precedence (<c>and</c> binds tighter than <c>or</c>), so dropping any single <c>or</c> silently
-    /// drops two kinds from the recognized set, not one. This chain's two kinds, <c>AttributeShortcut</c>
-    /// and <c>Attr</c>, together appear in every one of those pairs, so whichever <c>or</c> a mutant
-    /// drops, <c>HasRejectedElementTag</c>'s unwind meets an unrecognized kind at one of the two links
-    /// and gives up early — answering "not rejected" and letting the bracketed child be scanned,
-    /// which reports the BCF3015 this test asserts against.
+    /// <c>IsElementDecoration</c>'s <c>or</c> chain has five joins across its six kinds (<c>Class</c>,
+    /// <c>AttributeShortcut</c>, <c>EventShortcut</c>, <c>Attr</c>, <c>On</c>, <c>Bind</c>). A stryker
+    /// mutant that flips one <c>or</c> to <c>and</c> collapses that join's two neighboring kinds into an
+    /// unmatchable conjunction (C# pattern precedence binds <c>and</c> tighter than <c>or</c>), dropping
+    /// both from the recognized set at once; the four survivors this test kills are the
+    /// <c>Class</c>/<c>AttributeShortcut</c>, <c>AttributeShortcut</c>/<c>EventShortcut</c>,
+    /// <c>EventShortcut</c>/<c>Attr</c>, and <c>Attr</c>/<c>On</c> joins. This chain's two kinds, <c>.Id</c>
+    /// (<c>AttributeShortcut</c>) and <c>.Attr</c> (<c>Attr</c>), are chosen because at least one of the
+    /// two sits in every one of those four joins, so whichever <c>or</c> a mutant drops,
+    /// <c>HasRejectedElementTag</c>'s unwind meets an unrecognized kind at one of the two links and gives
+    /// up early — answering "not rejected" and letting the bracketed child be scanned, which reports the
+    /// BCF3015 this test asserts against.
     /// </remarks>
     [Fact]
     public void RejectedTagBehindMixedDecorationChain_DoesNotReportBCF3015()

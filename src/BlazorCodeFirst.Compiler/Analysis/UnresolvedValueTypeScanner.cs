@@ -206,15 +206,11 @@ internal static class UnresolvedValueTypeScanner
             // does resolve — reaches this line with nothing left to report. No construction found reaches
             // it with both at once; the same shape as L431/L467's equivalence, just via lambda-conversion
             // ambiguity instead of argument binding.
-            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
-            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
-            // left every test passing unchanged. Reading why: per this arm's own class remarks, reaching
-            // it at all needs Method resolved for the .Template call, and the measured condition under
-            // which that happens is a content body clean enough that the unresolved-name ambiguity this
-            // arm exists for has already resolved -- the complementary case (a name genuinely unresolved
-            // in the content) keeps both same-arity Template<TContext> overloads as candidates, so Method
-            // stays null and ScanRenderExpression's own guard above returns before the switch is ever
-            // reached, not just before this arm.
+            // Mutating this call away is a stryker survivor, measured equivalent for the reason the
+            // preceding comment records: the complementary case leaves Method null, and
+            // ScanRenderExpression's own guard above returns before the switch is ever reached, not just
+            // before this arm. Confirmed by removing the call and running BlazorCodeFirst.Compiler.Tests
+            // and BlazorCodeFirst.DiagnosticTests unchanged.
             case SurfaceMethodKind.GenericTemplateContextual:
                 ScanLambdaBody(args.At(1)?.Expression, context);
                 return;
@@ -905,10 +901,7 @@ internal static class UnresolvedValueTypeScanner
     // TrySelectCandidate and skipping straight to FromGroup(null, null), both of which already answer
     // true once candidates.Count > 0, so no path through Recognize can make this call's own IsSurfaceCall
     // answer depend on which selectOverload it was given. Confirmed by hand-applying the flip and running
-    // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged; a prior session's
-    // progress note claimed this same mutant was already killed by hand ("fails four existing tests") and
-    // that Stryker's own scoring simply misattributed the coverage -- re-verified this session and found
-    // the claim mistaken, not the scoring: no test failed under the applied mutant.
+    // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged.
     private static bool IsSurfaceCall(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context) =>
         Recognize(invocation, context, selectOverload: false).IsSurfaceCall;
