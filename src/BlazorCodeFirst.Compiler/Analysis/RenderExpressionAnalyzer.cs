@@ -329,7 +329,9 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.ComponentBind
                 or SurfaceMethodKind.ComponentKey
                 or SurfaceMethodKind.ComponentRenderMode
-                or SurfaceMethodKind.ComponentRef =>
+                or SurfaceMethodKind.ComponentRef
+                or SurfaceMethodKind.ComponentClass
+                or SurfaceMethodKind.ComponentAttr =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
@@ -805,6 +807,14 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
+        // .Class/.Attr on a component call (#314) select no parameter either — an HTML attribute name
+        // is not a Blazor parameter name, and the two are checked as different name spaces (BCF3010
+        // for a repeated attribute, BCF3041 for a name that collides with a declared parameter). They
+        // route out here for the same reason as the frame-decoration block below: only the receiver
+        // recursion above is shared.
+        if (kind is SurfaceMethodKind.ComponentClass or SurfaceMethodKind.ComponentAttr)
+            return ClassifyComponentAttribute(invocation, paramAccess, method, kind, inner, context);
+
         // Neither .Key nor .RenderMode selects a parameter, so both route out before everything below: the
         // selector, the settability rule, and BCF3007 are all about a parameter they do not have. They
         // share this method only for the receiver recursion above, which every chained spelling needs.
@@ -972,6 +982,83 @@ internal static class RenderExpressionAnalyzer
         // its key exactly that way (measured), and a channel added later would lose its value the same
         // way with nothing failing.
         return inner with { Parameters = appended };
+    }
+
+    /// <summary>
+    /// <c>.Class</c>/<c>.Attr</c> on a <c>ComponentView&lt;TComponent&gt;</c> receiver: a single
+    /// constant HTML attribute on a component call (#314), routed by Blazor into the callee's
+    /// <c>[Parameter(CaptureUnmatchedValues = true)]</c> dictionary when the name matches no declared
+    /// parameter. Mirrors <see cref="ClassifyDecoration"/>'s element-side <c>.Class</c>/<c>.Attr</c>
+    /// arm, minus the class channel (no folding on this receiver, #314's scope is a single constant
+    /// attribute) and plus BCF3041 (a name matching a declared <c>[Parameter]</c> case-insensitively
+    /// is rejected, pointing at <c>.Param</c>, rather than silently binding it — measured: Blazor's
+    /// own parameter matching is case-insensitive).
+    /// </summary>
+    private static ComponentTemplateNode? ClassifyComponentAttribute(
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax paramAccess,
+        IMethodSymbol method,
+        SurfaceMethodKind kind,
+        ComponentTemplateNode inner,
+        ViewPartBodyContext context)
+    {
+        if (FactoryArguments.Bind(invocation, context) is not { } args
+            || args.At(0) is not { } firstArg)
+        {
+            return null;
+        }
+
+        var attributeValue = ValueParameter(method, kind == SurfaceMethodKind.ComponentAttr
+            ? SurfaceMethodKind.Attr // reuses .Attr's "name consumes argument 0" arity rule
+            : kind);
+        // Unlike the element side's ClassifyDecoration, there is no attributeValueType read here:
+        // that type only ever feeds FoldIntoClassChannel's admission check (BCF3023), and this
+        // receiver has no class channel to admit into — class-channel folding is deliberately not
+        // reproduced on ComponentView<T> (#314's scope).
+
+        string attrName;
+        if (kind == SurfaceMethodKind.ComponentClass)
+        {
+            attrName = "class";
+        }
+        else if (!TryResolveDecorationName(invocation, firstArg, shortcutName: null, context, out attrName!))
+        {
+            return null;
+        }
+
+        if (!TryResolveAttributeValue(args, paramAccess, attributeValue, out var value))
+            return null;
+
+        // TComponent is the containing type's type argument, resolved at this call site: .Class/.Attr
+        // are declared as ComponentView<TComponent> members (not generic methods of their own, unlike
+        // the extension-method shape this mirrors), so the type parameter method.TypeArguments would
+        // read is always empty here — the same source BCF3041 needs to look up the declared
+        // [Parameter] set, with no selector lambda to read it from the way .Param does.
+        if (method.ContainingType.TypeArguments.Length == 1
+            && method.ContainingType.TypeArguments[0] is { } componentType
+            && FindSettableParameterIgnoreCase(componentType, attrName, context) is { } collidingParameter)
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3041,
+                paramAccess.Name.GetLocation(),
+                [attrName, collidingParameter.Name, componentType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)]));
+            return null;
+        }
+
+        if (HasAttributeBinding(inner, attrName))
+        {
+            context.RejectUnresolvedValueRecovery(invocation.Span);
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3010, paramAccess.Name.GetLocation(), [attrName]));
+            return null;
+        }
+
+        return inner with
+        {
+            Attributes = inner.Attributes.AsImmutableArray().Add(
+                new AttributeTemplate(attrName, value.Normalize(context))),
+        };
     }
 
     /// <summary>
@@ -2485,6 +2572,33 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// The settable <c>[Parameter]</c> whose name matches <paramref name="name"/> case-insensitively,
+    /// that <paramref name="componentType"/> declares or inherits, or <see langword="null"/>. Unlike
+    /// <see cref="FindSettableParameter"/> this is an <em>exhaustive</em> scan rather than a
+    /// <c>GetMembers(name)</c> exact-name lookup, because BCF3041 exists precisely to catch a name
+    /// that does <em>not</em> match exactly (measured: Blazor's own parameter binding matches
+    /// case-insensitively, so an exact-name-only check would miss the case the diagnostic exists for).
+    /// </summary>
+    private static IPropertySymbol? FindSettableParameterIgnoreCase(
+        ITypeSymbol componentType, string name, ViewPartBodyContext context)
+    {
+        for (var current = componentType; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers())
+            {
+                if (member is IPropertySymbol property
+                    && string.Equals(property.Name, name, System.StringComparison.OrdinalIgnoreCase)
+                    && IsSettableParameter(property, context))
+                {
+                    return property;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Whether <paramref name="changed"/> can receive a binding's write-back for
     /// <paramref name="valueType"/>: its type is exactly <c>EventCallback&lt;TValue&gt;</c>.
     /// </summary>
@@ -2778,6 +2892,25 @@ internal static class RenderExpressionAnalyzer
         foreach (var slot in node.Slots.AsImmutableArray())
         {
             if (string.Equals(slot.Name, name, System.StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="node"/> already carries an <c>.Attr</c>/<c>.Class</c> decoration named
+    /// <paramref name="name"/>. A separate name space from <see cref="HasBinding(ComponentTemplateNode, string)"/>'s
+    /// <c>Parameters</c>/<c>Slots</c> check: an HTML attribute name and a Blazor parameter name are
+    /// different targets on a component, and a name that collides across the two is rejected earlier,
+    /// at classification time, as BCF3041 — this check only guards against the same attribute name
+    /// being written twice.
+    /// </summary>
+    private static bool HasAttributeBinding(ComponentTemplateNode node, string name)
+    {
+        foreach (var attribute in node.Attributes.AsImmutableArray())
+        {
+            if (string.Equals(attribute.Name, name, System.StringComparison.Ordinal))
                 return true;
         }
 

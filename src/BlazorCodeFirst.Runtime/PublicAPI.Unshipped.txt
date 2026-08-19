@@ -185,3 +185,7 @@ static BlazorCodeFirst.Decorations.PreventDefault(this BlazorCodeFirst.ElementVi
 static BlazorCodeFirst.Decorations.StopPropagation(this BlazorCodeFirst.ElementView element) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.StopPropagation(this BlazorCodeFirst.ElementView element, bool value) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.Attrs(this BlazorCodeFirst.ElementView element, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? value) -> BlazorCodeFirst.ElementView
+BlazorCodeFirst.ComponentView<TComponent>.Class(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Attr(string! name, string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Attr(string! name, bool value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Attr(string! name) -> BlazorCodeFirst.ComponentView<TComponent>

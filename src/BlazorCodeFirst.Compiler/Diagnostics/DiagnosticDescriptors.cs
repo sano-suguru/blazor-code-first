@@ -354,23 +354,26 @@ internal static class DiagnosticDescriptors
     /// BCF3010: An attribute or event is bound more than once on the same element. Neither outcome is what
     /// the author wrote: two bindings in the attribute channel leave the earlier one dead (the last write
     /// wins), while one name bound through the attribute channel and the event channel keeps both, so an
-    /// inline handler and a C# handler each fire on every event. <c>class</c> is the sole exception,
-    /// multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute.
+    /// inline handler and a C# handler each fire on every event. On an element, <c>class</c> is the sole
+    /// exception, multiple <c>.Class</c>/<c>.Attr("class", …)</c> fold into one space-joined attribute —
+    /// this diagnostic also fires on a <c>ComponentView&lt;TComponent&gt;</c> receiver (#314), where
+    /// there is no fold at all and every name, <c>class</c> included, is single-binding.
     /// </summary>
     public static readonly DiagnosticDescriptor BCF3010 = new(
         id: "BCF3010",
         title: "Attribute or event is bound more than once",
-        messageFormat: "'{0}' is bound more than once on this element; remove the duplicate (only 'class' may be repeated, because it folds)",
+        messageFormat: "'{0}' is bound more than once; remove the duplicate (on an element, 'class' may be repeated, because it folds there)",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Every attribute and event other than 'class' is single-binding. Two bindings of one name in " +
-            "the attribute channel make the earlier value dead, because the last write wins; a name bound " +
-            "once through the attribute channel and once through the event channel keeps both, so an " +
-            "inline handler and a C# handler both fire. Neither is what the author asked for, so the " +
-            "duplicate is reported at compile time. Multiple .Class or .Attr(\"class\", …) decorations " +
-            "fold into a single class attribute.");
+            "Every attribute and event other than an element's 'class' is single-binding. Two bindings " +
+            "of one name in the attribute channel make the earlier value dead, because the last write " +
+            "wins; a name bound once through the attribute channel and once through the event channel " +
+            "keeps both, so an inline handler and a C# handler both fire. Neither is what the author " +
+            "asked for, so the duplicate is reported at compile time. On an element, multiple .Class or " +
+            ".Attr(\"class\", …) decorations fold into a single class attribute instead; a " +
+            "ComponentView<TComponent> receiver has no such fold, so 'class' is single-binding there too.");
 
     /// <summary>
     /// BCF3011: A <c>.Attr</c> name or <c>.On</c> event name is not a non-empty compile-time constant
@@ -1178,6 +1181,31 @@ internal static class DiagnosticDescriptors
             "compile-time constant by this point (BCF3009), so this check needs no content-model table " +
             "— it is one string comparison, the same table-free posture BCF3034 takes. Falling short of " +
             "this check would leave the surface behind Razor, which warns (RZ10022) for the same shape.");
+
+    /// <summary>
+    /// BCF3041: <c>.Attr</c>/<c>.Class</c> on a <c>ComponentView&lt;TComponent&gt;</c> receiver whose
+    /// name matches a declared <c>[Parameter]</c> case-insensitively. Blazor's own parameter binding
+    /// matches names case-insensitively (measured), so left unguarded this would silently set the
+    /// parameter and bypass <c>.Param</c>'s type checking entirely — the one guess this surface makes
+    /// that DESIGN.md §4.1 requires to be verifiable, and here it is (<c>TComponent</c>'s declared
+    /// members are known at the call site).
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3041 = new(
+        id: "BCF3041",
+        title: "Component attribute name collides with a declared parameter",
+        messageFormat: "'{0}' matches the declared parameter '{1}' on '{2}' case-insensitively; bind " +
+            "it through .Param(c => c.{1}, ...) (or .Template if '{1}' is a generic RenderFragment " +
+            "slot) instead of .Attr/.Class, so the value is type-checked",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            ".Attr and .Class on a ComponentView<TComponent> exist to reach an HTML attribute the " +
+            "target has no matching [Parameter] for, which Blazor routes into " +
+            "[Parameter(CaptureUnmatchedValues = true)] at runtime. A name that does match a declared " +
+            "[Parameter] is never that case: Blazor's own binding matches parameter names " +
+            "case-insensitively, so an unguarded .Attr would silently set the parameter, bypassing " +
+            ".Param's compile-time type check with nothing to show for it at the call site.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static

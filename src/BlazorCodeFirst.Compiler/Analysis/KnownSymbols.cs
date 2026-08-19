@@ -183,6 +183,11 @@ internal sealed class KnownSymbols
             ["Key"] = SurfaceMethodKind.ComponentKey,
             ["RenderMode"] = SurfaceMethodKind.ComponentRenderMode,
             ["Ref"] = SurfaceMethodKind.ComponentRef,
+            // Declared as ComponentView<T> members, not Decorations extensions (#314) — see
+            // ComponentView.Class's remarks for why. Members, so this table is what recognizes them;
+            // there is no second receiver for the Decorations-extension loop below to admit.
+            ["Class"] = SurfaceMethodKind.ComponentClass,
+            ["Attr"] = SurfaceMethodKind.ComponentAttr,
         };
 
     /// <summary>Authoritative curated element helper name → HTML tag table. The compiler owns this map;
@@ -840,6 +845,7 @@ internal sealed class KnownSymbols
             {
                 if (member is not IMethodSymbol { IsExtensionMethod: true } method)
                     continue;
+
                 if (ElementViewType is not null
                     && !(method.Parameters.Length > 0
                         && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, ElementViewType)))

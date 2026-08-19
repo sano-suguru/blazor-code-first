@@ -74,7 +74,10 @@ internal sealed record ComponentSlotNode(string Name, RenderNode Content)
 internal sealed record ComponentNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlotNode> Slots = default) : RenderNode
+    EquatableArray<ComponentSlotNode> Slots = default,
+    // Expanded counterpart of ComponentTemplateNode.Attributes: HTML attribute names written with
+    // .Attr/.Class (#314), emitted before every AddComponentParameter call.
+    EquatableArray<AttributeTemplate> Attributes = default) : RenderNode
 {
     /// <summary>
     /// The key written with <c>.Key</c>, or <see langword="null"/>. Expanded counterpart of

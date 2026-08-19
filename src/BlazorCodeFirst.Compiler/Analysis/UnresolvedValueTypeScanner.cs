@@ -114,6 +114,12 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.Attr:
             case SurfaceMethodKind.On:
             case SurfaceMethodKind.Bind:
+            // The ComponentView<T> receivers of the same two channels (#314): .Class carries its one
+            // value at argument 0, exactly as the element side does, so it needs no arm of its own.
+            // .Attr needs one below, the same special-casing the element side's Attr arm already has,
+            // because its name/value argument split is identical on this receiver.
+            case SurfaceMethodKind.ComponentClass:
+            case SurfaceMethodKind.ComponentAttr:
             // The non-attribute frame decorations reach ScanDecoration's tail, which reports argument 0:
             // both carry their one value there and neither has a name argument, exactly as .Class does.
             // A capture action is a lambda rather than a value, and that changes nothing — the event arm
@@ -237,7 +243,7 @@ internal static class UnresolvedValueTypeScanner
             return;
         }
 
-        if (kind == SurfaceMethodKind.Attr)
+        if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.ComponentAttr)
         {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
                 ReportValue(args.At(1)?.Expression, context);

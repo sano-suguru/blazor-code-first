@@ -173,8 +173,12 @@ internal static class ViewPartExpander
                         });
                     }
 
+                    var attributes = ImmutableArray.CreateBuilder<AttributeTemplate>(component.Attributes.Length);
+                    foreach (var a in component.Attributes.AsImmutableArray())
+                        attributes.Add(new AttributeTemplate(a.Name, a.Value.Substitute(substitution)));
+
                     return new ComponentNode(
-                        component.TypeName, parameters.ToImmutable(), slots.ToImmutable())
+                        component.TypeName, parameters.ToImmutable(), slots.ToImmutable(), attributes.ToImmutable())
                     {
                         Key = component.Key?.Substitute(substitution),
                         RenderMode = component.RenderMode?.Substitute(substitution),

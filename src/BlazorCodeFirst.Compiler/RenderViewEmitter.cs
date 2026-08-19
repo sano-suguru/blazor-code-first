@@ -403,6 +403,19 @@ internal static class RenderViewEmitter
         writer.AppendLine($"__builder.OpenComponent<{node.TypeName}>({seq});");
         EmitKey(writer, node.Key, key);
         int next = seq + 1;
+        // .Class/.Attr (#314), emitted before every AddComponentParameter call — the same attribute
+        // range shape the element side uses, satisfying AssertCanAddComponentParameter's frame-kind
+        // contiguity rule. Blazor routes a name matching no declared parameter into
+        // [Parameter(CaptureUnmatchedValues = true)]; one that does match binds it directly through
+        // this same AddAttribute call (measured), which is exactly why BCF3041 exists to reject that
+        // collision earlier rather than let it bind silently.
+        foreach (var attribute in node.Attributes)
+        {
+            var attributeName = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
+            writer.AppendLine(
+                $"__builder.AddAttribute({next}, {attributeName}, {attribute.Value.ToAttributeValueCode()});");
+            next++;
+        }
         foreach (var parameter in node.Parameters)
         {
             // Cast to the type the call site resolved. AddComponentParameter takes object?, so the value

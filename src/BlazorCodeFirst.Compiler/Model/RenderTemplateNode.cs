@@ -124,7 +124,13 @@ internal sealed record ComponentSlot(string Name, RenderTemplateNode Content)
 internal sealed record ComponentTemplateNode(
     string TypeName,
     EquatableArray<ComponentParameter> Parameters,
-    EquatableArray<ComponentSlot> Slots = default) : RenderTemplateNode
+    EquatableArray<ComponentSlot> Slots = default,
+    // HTML attribute names written with .Attr/.Class (#314), one frame each, emitted before every
+    // AddComponentParameter call. A separate name space from Parameters/Slots above: an attribute
+    // name colliding with a declared parameter name is rejected earlier, at classification time, as
+    // BCF3041, so nothing here is ever checked against Parameters/Slots — only against itself
+    // (BCF3010, a name written twice).
+    EquatableArray<AttributeTemplate> Attributes = default) : RenderTemplateNode
 {
     /// <summary>
     /// The key written with <c>.Key</c>, or <see langword="null"/>. The same channel

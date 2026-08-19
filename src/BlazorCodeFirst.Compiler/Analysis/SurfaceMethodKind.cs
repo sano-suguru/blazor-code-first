@@ -146,4 +146,22 @@ internal enum SurfaceMethodKind
     /// <see cref="Attr"/> (<c>ARCHITECTURE.md</c> Appendix B.14, revised #387).
     /// </summary>
     AttributesSplat,
+
+    /// <summary>
+    /// <c>Decorations.Class&lt;TComponent&gt;(this ComponentView&lt;TComponent&gt;, string?)</c>. Sugar
+    /// for <c>.Attr("class", value)</c> on a component call — no class-channel folding on this
+    /// receiver (#314's scope is a single constant attribute, not concatenation); two class-shaped
+    /// decorations on one component call is BCF3010, the same as any other duplicate name.
+    /// </summary>
+    ComponentClass,
+
+    /// <summary>
+    /// <c>Decorations.Attr&lt;TComponent&gt;(this ComponentView&lt;TComponent&gt;, string, ...)</c>, any
+    /// overload. Emits a plain <c>AddAttribute</c> before every <c>AddComponentParameter</c>, which
+    /// Blazor routes into the callee's <c>[Parameter(CaptureUnmatchedValues = true)]</c> dictionary
+    /// when the name matches no declared parameter (#314). A name that does match, case-insensitively
+    /// (measured — Blazor's own matching is case-insensitive), is rejected as BCF3041 rather than
+    /// silently binding the parameter and bypassing <c>.Param</c>'s type checking.
+    /// </summary>
+    ComponentAttr,
 }
