@@ -932,10 +932,12 @@ internal static class UnresolvedValueTypeScanner
             return RecognizedInvocation.Named(method);
 
         // The includeReducedExtensionMethods flag inside IsHtmlForEachInScope is the one stryker
-        // survivor left on this branch, proven equivalent rather than measured: a [ViewPart] method
-        // can never be declared as a `this` extension method (BCF1002 refuses it, #203), and no
-        // built-in Html decoration is named ForEach, so a symbol LookupSymbols finds under that
-        // exact name can never be an extension method for the flag to admit or exclude either way.
+        // survivor left on this branch, proven equivalent rather than measured: the loop below only
+        // returns true for a symbol that normalizes equal to `known` itself (Html.ForEach, which is
+        // not an extension method), so whatever the flag adds to or removes from LookupSymbols'
+        // result is, at most, a differently-named or differently-declared method the equality check
+        // was always going to reject. Html.ForEach's own presence in that result never depends on
+        // the flag, since it is found as an ordinary static member either way.
         // The rest of this branch -- the known-null guard, the loop's own return true, and this
         // block's own return -- is killed by
         // ForEachSameNameFromTwoUsingStaticImportsWithDifferentKind_ReportsBCF3015: a second
