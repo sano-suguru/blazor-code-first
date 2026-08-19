@@ -1862,6 +1862,45 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// Two <c>using static</c> imports each bring a same-named, same-arity, one-string-parameter method into
+    /// one bare call's candidate group: <c>Html.Raw</c> (<see cref="SurfaceMethodKind.Raw"/>) and a
+    /// <c>[ViewPart]</c> declared on an unrelated helper type (<see cref="SurfaceMethodKind.None"/>). Both
+    /// bind and fill the one written, poisoned argument, so <c>AreInterchangeableOverloads</c>' own kind
+    /// comparison is what has to refuse the pair; disabling it (the branch answering <see langword="true"/>
+    /// instead of refusing on a kind mismatch) wrongly accepts the group and reports BCF3015 through
+    /// <c>Html.Raw</c>, the first candidate <see cref="TrySelectCandidate"/> tries, instead of leaving the
+    /// call refused and the body at BCF1003.
+    /// </summary>
+    [Fact]
+    public void SameNameFromTwoUsingStaticImportsWithDifferentKind_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            using static T.Helpers;
+
+            namespace T;
+
+            public static class Helpers
+            {
+                [ViewPart]
+                public static View Raw(string value) => Span[value];
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Raw(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
     /// One written argument against a single <c>[ViewPart]</c> overload with two required parameters, so
     /// the call underfills it. <c>AddRecognizedCandidate</c> is reached twice for this same method — once
     /// from the invocation's own <c>CandidateSymbols</c> and once from resolving the bare method-group
