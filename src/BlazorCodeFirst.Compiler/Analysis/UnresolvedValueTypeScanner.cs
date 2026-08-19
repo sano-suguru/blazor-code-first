@@ -359,6 +359,12 @@ internal static class UnresolvedValueTypeScanner
             return;
 
         var written = WrittenParameterCount(method);
+        // Widening this bound to <= is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+        // left every test passing unchanged. written is exactly _byDeclaredParameter.Length (the array At
+        // indexes into), so the one extra index this widening reaches sits one past the end -- At's own
+        // (uint)index < (uint)length bounds check answers null for it the same as an omitted optional
+        // argument would, and ReportValue no-ops on null.
         for (var index = bind.GetterIndex; index < written; index++)
             ReportValue(args.At(index)?.Expression, context);
     }
@@ -873,6 +879,15 @@ internal static class UnresolvedValueTypeScanner
     /// not — so the count is the same either way and unreducing first would only be a second spelling of
     /// the same rule (#211).
     /// </remarks>
+    // Swapping this - for + is a stryker survivor, measured equivalent rather than assumed: hand-applying
+    // it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+    // passing unchanged. Reading why: ReceiverOffset never answers negative, so the swap only ever
+    // inflates the count above the true one, never below it. Both readers of this value only ever read
+    // through it, never write past what it bounds: BoundArguments.FromFactory sizes _byDeclaredParameter
+    // to exactly this count, so an inflated count only adds trailing null entries (every index beyond
+    // FactoryArguments' own real content is already null there), and ReportBindArguments' loop bound
+    // just walks a few extra always-null slots through At(), which no-ops on null exactly as it does on
+    // an omitted optional argument.
     private static int WrittenParameterCount(IMethodSymbol method) =>
         method.Parameters.Length - KnownSymbols.ReceiverOffset(method);
 
