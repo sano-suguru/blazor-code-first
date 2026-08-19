@@ -95,6 +95,11 @@ public static class ScopedCssRewriter
 
     // ---- Pass 1: keyframe name collection --------------------------------------------------
 
+    // Reuses ReadAtKeyword/FindIdentifierAfterAtKeyword (the same helpers Pass 2 uses to
+    // recognize and name-suffix a @keyframes block) rather than hand-rolling a second
+    // keyword/identifier scan here. Passing css.Length as the upper bound in place of a
+    // prelude-bounded end is safe: FindIdentifierAfterAtKeyword's identifier scan already
+    // self-terminates on the first non-identifier character.
     private static HashSet<string> CollectKeyframeNames(string css)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -105,22 +110,18 @@ public static class ScopedCssRewriter
             var skipped = CssLexer.SkipLiteral(css, i);
             if (skipped != i) { i = skipped; continue; }
 
-            if (css[i] == '@' && i + 1 + 9 <= css.Length &&
-                string.Compare(css, i + 1, "keyframes", 0, 9, StringComparison.OrdinalIgnoreCase) == 0)
+            if (css[i] == '@')
             {
-                var afterKeyword = i + 1 + 9;
-                if (afterKeyword >= css.Length || !IsIdentifierChar(css[afterKeyword]))
+                var keyword = ReadAtKeyword(css, i);
+                if (string.Equals(keyword, "keyframes", StringComparison.OrdinalIgnoreCase))
                 {
-                    var nameStart = SkipInsignificant(css, afterKeyword, css.Length);
-                    var nameEnd = nameStart;
-                    while (nameEnd < css.Length && IsIdentifierChar(css[nameEnd]))
-                        nameEnd++;
-
-                    if (nameEnd > nameStart)
-                        names.Add(css.Substring(nameStart, nameEnd - nameStart));
-
-                    i = nameEnd > nameStart ? nameEnd : afterKeyword;
-                    continue;
+                    var nameRange = FindIdentifierAfterAtKeyword(css, i, css.Length);
+                    if (nameRange is { } range && range.End > range.Start)
+                    {
+                        names.Add(css.Substring(range.Start, range.End - range.Start));
+                        i = range.End;
+                        continue;
+                    }
                 }
             }
 
@@ -152,8 +153,7 @@ public static class ScopedCssRewriter
             if (c == '{')
             {
                 var preludeEnd = i;
-                var trimmedPreludeStart = SkipInsignificant(css, preludeStart, preludeEnd);
-                var isAtRule = trimmedPreludeStart < preludeEnd && css[trimmedPreludeStart] == '@';
+                var isAtRule = TryGetAtRuleStart(css, preludeStart, preludeEnd, out var trimmedPreludeStart);
 
                 var bodyStart = i + 1;
                 var bodyEnd = FindMatchingBrace(css, bodyStart, end);
@@ -195,9 +195,7 @@ public static class ScopedCssRewriter
 
             if (c == ';')
             {
-                var preludeEnd = i;
-                var trimmedPreludeStart = SkipInsignificant(css, preludeStart, preludeEnd);
-                var isAtRule = trimmedPreludeStart < preludeEnd && css[trimmedPreludeStart] == '@';
+                var isAtRule = TryGetAtRuleStart(css, preludeStart, i, out var trimmedPreludeStart);
 
                 if (isAtRule)
                 {
@@ -223,6 +221,15 @@ public static class ScopedCssRewriter
 
             i++;
         }
+    }
+
+    // Trims leading whitespace/comments off [preludeStart, preludeEnd) and reports whether what
+    // remains starts with '@'. Shared by both of ProcessRuleList's dispatch branches ('{' and
+    // ';'), which otherwise repeated this exact trim-and-check.
+    private static bool TryGetAtRuleStart(string css, int preludeStart, int preludeEnd, out int trimmedStart)
+    {
+        trimmedStart = SkipInsignificant(css, preludeStart, preludeEnd);
+        return trimmedStart < preludeEnd && css[trimmedStart] == '@';
     }
 
     private static string ReadAtKeyword(string css, int atIndex)
@@ -297,47 +304,9 @@ public static class ScopedCssRewriter
         return end;
     }
 
-    // Splits [start, end) on top-level occurrences of `delimiter` (outside strings, comments, and
-    // parens). Used for comma-separated selector lists here; a follow-up task reuses it for
-    // semicolon-separated declarations.
-    private static List<TextSpan> SplitTopLevel(string css, int start, int end, char delimiter)
-    {
-        var result = new List<TextSpan>();
-        var depth = 0;
-        var segmentStart = start;
-        var i = start;
-
-        while (i < end)
-        {
-            var skipped = CssLexer.SkipLiteral(css, i);
-            if (skipped != i) { i = skipped; continue; }
-
-            var c = css[i];
-            if (c == '(')
-            {
-                depth++;
-            }
-            else if (c == ')')
-            {
-                if (depth > 0) depth--;
-            }
-            else if (depth == 0 && c == delimiter)
-            {
-                result.Add(new TextSpan(segmentStart, i));
-                i++;
-                segmentStart = i;
-                continue;
-            }
-
-            i++;
-        }
-
-        result.Add(new TextSpan(segmentStart, end));
-        return result;
-    }
-
     // Finds the first top-level (outside strings, comments, and parens) occurrence of `target`
-    // within [start, end), or -1 if none.
+    // within [start, end), or -1 if none. The single shared paren-depth/literal-skip primitive
+    // behind both top-level scans below.
     private static int FindTopLevelChar(string css, int start, int end, char target)
     {
         var depth = 0;
@@ -366,6 +335,28 @@ public static class ScopedCssRewriter
         }
 
         return -1;
+    }
+
+    // Splits [start, end) on top-level occurrences of `delimiter` (outside strings, comments, and
+    // parens), by repeatedly calling FindTopLevelChar. Used for comma-separated selector lists
+    // and semicolon-separated declarations.
+    private static List<TextSpan> SplitTopLevel(string css, int start, int end, char delimiter)
+    {
+        var result = new List<TextSpan>();
+        var segmentStart = start;
+
+        while (true)
+        {
+            var delimiterIndex = FindTopLevelChar(css, segmentStart, end, delimiter);
+            if (delimiterIndex < 0)
+            {
+                result.Add(new TextSpan(segmentStart, end));
+                return result;
+            }
+
+            result.Add(new TextSpan(segmentStart, delimiterIndex));
+            segmentStart = delimiterIndex + 1;
+        }
     }
 
     private static void ScanDeclarationsForAnimationNames(
