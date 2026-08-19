@@ -1892,6 +1892,43 @@ public sealed class UnresolvedEmittedTypeTests
         AssertSingleBCF3015(result, source);
     }
 
+    /// <summary>
+    /// A content-taking <c>[ViewPart]</c>'s bracketed content, reached through this scanner's failure
+    /// recovery once the part's own argument fails to resolve. <c>TryGetRecognizedIndexer</c> resolves the
+    /// brackets to <c>SlotView</c>'s own indexer, which <c>IsRecognized</c> deliberately does not admit
+    /// (class remarks on <see cref="IsRecognized(IPropertySymbol, KnownSymbols)"/>): the content slot is
+    /// not a surface child list this scanner has an arm for, so the unresolved type inside it stays the
+    /// generic BCF1003. Widening that pattern to admit anything but <c>ChildrenIndexerKind.Element</c>
+    /// wrongly recognizes the content indexer too, and the resulting walk reports BCF3015 on a name this
+    /// scanner was never written to reach.
+    /// </summary>
+    [Fact]
+    public void ContentSlotIndexerWithSiblingUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static SlotView Card(string title) => Div.Class("card")[H2[title], Slot];
+
+                protected override View Body =>
+                    Card(MissingMethod() + "t")[Div[typeof(Probe).Name]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Empty(result.GeneratedSources);
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)

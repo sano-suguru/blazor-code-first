@@ -1129,6 +1129,15 @@ internal static class UnresolvedValueTypeScanner
         ElementAccessExpressionSyntax elementAccess,
         ViewPartBodyContext context)
     {
+        // The two stryker survivors that remove this method's early returns (this block's return
+        // selected, and the loop's own return candidate below) are measured equivalent, not assumed:
+        // hand-applying each alone and together, then running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests, left every test passing regardless. Reading why: whichever
+        // property either branch names, IsRecognized has already narrowed it to the element or component
+        // indexer, and that indexer is declared on ElementView or ComponentView<T> respectively -- the
+        // same type elementAccess.Expression's own type is, since the property found is an indexer of it.
+        // Falling through to the receiver-type fallback below re-derives the identical answer from that
+        // same type, so no early return here can differ from what the fallback alone would find.
         var symbolInfo = context.SemanticModel.GetSymbolInfo(elementAccess, context.CancellationToken);
         if (symbolInfo.Symbol is IPropertySymbol { IsIndexer: true } selected
             && IsRecognized(selected, context.KnownSymbols))
