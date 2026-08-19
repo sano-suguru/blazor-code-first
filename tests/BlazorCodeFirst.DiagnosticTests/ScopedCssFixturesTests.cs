@@ -84,6 +84,18 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
     }
 
     [Fact]
+    public void AtRules_fixture_bundles_media_keyframes_animation_and_deep_combinator()
+    {
+        var build = fixtures.AtRules;
+
+        Assert.Contains(".my-component[bcf-", build.BundledCss, StringComparison.Ordinal);
+        Assert.Contains("@media (min-width: 600px)", build.BundledCss, StringComparison.Ordinal);
+        Assert.Matches(@"@keyframes my-fade-bcf-[0-9a-f]{8}", build.BundledCss);
+        Assert.Matches(@"animation:\s*my-fade-bcf-[0-9a-f]{8}", build.BundledCss);
+        Assert.DoesNotContain("::deep", build.BundledCss, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Orphan_fixture_fails_the_build_with_BCF3041()
     {
         var (exitCode, output) = fixtures.Orphan;

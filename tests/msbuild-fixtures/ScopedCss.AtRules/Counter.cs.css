@@ -1,0 +1,22 @@
+.my-component {
+    color: red;
+}
+
+@media (min-width: 600px) {
+    .my-component {
+        color: blue;
+    }
+}
+
+@keyframes my-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.my-component {
+    animation: my-fade 1s infinite;
+}
+
+::deep .child {
+    color: green;
+}
