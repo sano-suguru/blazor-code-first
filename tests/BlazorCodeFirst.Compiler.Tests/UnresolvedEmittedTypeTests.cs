@@ -322,6 +322,41 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// The same static <c>Decorations.Attr(Div, ...)</c> spelling as
+    /// <see cref="StaticDecorationValue_UnresolvedType_RemainsBCF1003Only"/>, but with a sibling unselected
+    /// invocation so the body reaches this scanner's own failure-recovery walk rather than being reported
+    /// through <c>RenderExpressionAnalyzer.Analyze</c>'s success path. On this shape, what keeps the
+    /// argument unread is not <c>IsFluentExtensionInvocation</c>'s answer (see the equivalence note on that
+    /// method) but <c>BoundArguments.TryBindFallback</c> binding against an offset that assumes the
+    /// receiver is omitted, which a fully-written static call's argument count never satisfies: the bind
+    /// fails before <c>ScanDecoration</c>'s gate is ever reached. Disabling either of
+    /// <c>TryBindFallback</c>'s own arithmetic checks (<c>declaredCount</c>, <c>index + offset</c>) lets the
+    /// mismatch through and crashes the generator instead of leaving the body at BCF1003.
+    /// </summary>
+    [Fact]
+    public void StaticDecorationValueWithSiblingUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Decorations.Attr(Div, "data-type", MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void NonElementDecorationValue_UnresolvedType_RemainsBCF3008Only()
     {
@@ -1732,6 +1767,80 @@ public sealed class UnresolvedEmittedTypeTests
                 [ViewPart]
                 private static View Label(string value) => Span[value];
 
+                [ViewPart]
+                private static View Label(string value, string extra) => Span[value];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    /// <summary>
+    /// One written argument against two same-arity <c>[ViewPart]</c> overloads whose one parameter is
+    /// named differently in each (<c>value</c> vs <c>count</c>) and typed differently to keep the pair a
+    /// legal overload (parameter names alone do not distinguish a signature). Both fill under
+    /// <c>FillsEveryParameter</c>, so <c>AreInterchangeableOverloads</c>' own name comparison is what has
+    /// to refuse the pair; disabling it (the loop bound widened past the array, or the name/<c>IsParams</c>
+    /// disjunction narrowed to a conjunction so a differing name alone no longer trips it) wrongly accepts
+    /// the group and reports BCF3015 through whichever candidate <see cref="TrySelectCandidate"/> tried
+    /// first, instead of leaving the call refused and the body at BCF1003.
+    /// </summary>
+    [Fact]
+    public void ViewPartOverloadsWithDifferingParameterNames_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value) => Span[value];
+
+                [ViewPart]
+                private static View Label(int count) => Span[count.ToString()];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// One written argument against a single <c>[ViewPart]</c> overload with two required parameters, so
+    /// the call underfills it. <c>AddRecognizedCandidate</c> is reached twice for this same method — once
+    /// from the invocation's own <c>CandidateSymbols</c> and once from resolving the bare method-group
+    /// reference (<c>invocation.Expression</c>) on its own — and its dedup loop is what collapses that pair
+    /// back into a single candidate. With one candidate, <c>TrySelectCandidate</c>'s <c>candidates.Count
+    /// == 1</c> fast path returns it "as it stands" without asking <c>FillsEveryParameter</c>, so the call
+    /// still reports through its one bound argument. Disabling the dedup leaves both duplicate entries in
+    /// the list, forcing the multi-candidate loop instead — which does ask
+    /// <c>FillsEveryParameter</c>, finds the same underfilled method twice, and refuses both, leaving the
+    /// body at BCF1003 instead of naming the type that could not be resolved.
+    /// </summary>
+    [Fact]
+    public void DuplicateCandidateFromExpressionAndInvocationInfo_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
                 [ViewPart]
                 private static View Label(string value, string extra) => Span[value];
 
