@@ -1319,6 +1319,12 @@ internal static class UnresolvedValueTypeScanner
                         yield return argument;
                 }
 
+                // Mutating this yield away is a stryker survivor, measured equivalent rather than assumed:
+                // ExplicitArguments has exactly one reader, the [ViewPart] arm in ScanRenderExpression, and
+                // a [ViewPart] declaration can never carry a params parameter (ViewPartDefinitionFactory
+                // rejects one with BCF1002 at the declaration), so ParamsElements is always empty on every
+                // BoundArguments this loop is reachable from. Confirmed by removing the yield and running
+                // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged.
                 foreach (var argument in ParamsElements)
                     yield return argument.Expression;
             }
@@ -1329,6 +1335,12 @@ internal static class UnresolvedValueTypeScanner
         /// <see cref="At"/> answers without its walk back up to the <see cref="ArgumentSyntax"/>, for
         /// callers weighing a parameter list rather than reading an argument.
         /// </summary>
+        // Widening this bound to <= is a stryker survivor, measured equivalent rather than assumed:
+        // HasArgumentAt has exactly one caller, FillsEveryParameter's loop, which computes its own bound
+        // (method.Parameters.Length - offset) from the same KnownSymbols.ReceiverOffset(method) this
+        // BoundArguments was built with, so index never reaches _byDeclaredParameter.Length from there —
+        // the widened bound is never exercised. Confirmed by hand-applying the mutant and running
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged.
         public bool HasArgumentAt(int index) =>
             (uint)index < (uint)_byDeclaredParameter.Length && _byDeclaredParameter[index] is not null;
 
@@ -1454,6 +1466,17 @@ internal static class UnresolvedValueTypeScanner
                     return null;
 
                 byParameter[index] = argument.Expression;
+                // Flipping this to NameColon is not null is a stryker survivor, measured equivalent
+                // rather than assumed: HasValidArgumentOrder already refused this call before it reaches
+                // here unless every named argument up to this point was in position, which by that
+                // function's own rule means each one named exactly the next unfilled slot in written
+                // order. A later positional argument's own search loop above (the `while` scanning for the
+                // next null slot) re-derives the correct index from byParameter's contents regardless of
+                // what nextPositional was left at, provided it starts no higher than the true next-empty
+                // slot — which holding this update to positional arguments only, or to named ones only,
+                // both guarantee under that same rule. Confirmed by hand-applying the flip and running
+                // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged, including
+                // the leading-named-then-trailing-positional shapes this line exists for.
                 if (argument.NameColon is null)
                     nextPositional = index + 1;
             }
