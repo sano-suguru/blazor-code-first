@@ -1816,6 +1816,42 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
+    /// <summary>
+    /// One written argument against a single <c>[ViewPart]</c> overload with two required parameters, so
+    /// the call underfills it. <c>AddRecognizedCandidate</c> is reached twice for this same method — once
+    /// from the invocation's own <c>CandidateSymbols</c> and once from resolving the bare method-group
+    /// reference (<c>invocation.Expression</c>) on its own — and its dedup loop is what collapses that pair
+    /// back into a single candidate. With one candidate, <c>TrySelectCandidate</c>'s <c>candidates.Count
+    /// == 1</c> fast path returns it "as it stands" without asking <c>FillsEveryParameter</c>, so the call
+    /// still reports through its one bound argument. Disabling the dedup leaves both duplicate entries in
+    /// the list, forcing the multi-candidate loop instead — which does ask
+    /// <c>FillsEveryParameter</c>, finds the same underfilled method twice, and refuses both, leaving the
+    /// body at BCF1003 instead of naming the type that could not be resolved.
+    /// </summary>
+    [Fact]
+    public void DuplicateCandidateFromExpressionAndInvocationInfo_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value, string extra) => Span[value];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
     private static void AssertSingleBCF3015(
         GeneratorRunResult result,
         string source)

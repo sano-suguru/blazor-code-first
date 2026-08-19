@@ -853,6 +853,16 @@ internal static class UnresolvedValueTypeScanner
         // The name is looked up only when nothing else offered a candidate. A second HtmlForEach test used
         // to sit after this, and could never answer differently from the one above: nothing between them
         // reaches anything the test reads.
+        //
+        // Two stryker survivors here (this loop's own body, and the includeReducedExtensionMethods flag)
+        // are measured, not proven equivalent, and left as such rather than forced: coverage data confirms
+        // some existing test reaches this branch with candidates.Count == 0 (it is Survived, not
+        // NoCoverage), and removing the loop body outright, then running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests, leaves every test passing regardless. No input has been
+        // constructed that isolates which test reaches this branch or why its outcome is unaffected. Unlike
+        // the neighboring IsHtmlForEachInScope cluster, this branch is not subsumed by anything later in
+        // Recognize — it IS the last resort — so the mechanism behind this survival is open, not closed;
+        // narrowing it is future work.
         if (candidates.Count == 0 && invocation.Expression is SimpleNameSyntax invocationName)
         {
             foreach (var symbol in context.SemanticModel.LookupSymbols(
@@ -867,6 +877,14 @@ internal static class UnresolvedValueTypeScanner
         if (candidates.Count == 0)
             return RecognizedInvocation.None;
 
+        // Forcing this ternary to always take the TrySelectCandidate branch is a stryker survivor,
+        // measured equivalent rather than assumed: selectOverload is false only from IsSurfaceCall, whose
+        // one caller reads .IsSurfaceCall and nothing else, and RecognizedInvocation.FromGroup sets
+        // IsSurfaceCall true unconditionally -- the same true this branch already reaches after
+        // TrySelectCandidate runs, since candidates.Count > 0 is already established above. Running
+        // TrySelectCandidate's binding work for a caller that only needed the boolean costs cycles, not
+        // correctness. Confirmed by forcing the branch and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests unchanged.
         return selectOverload
             ? TrySelectCandidate(invocation, candidates, context)
             : RecognizedInvocation.FromGroup(selected: null, arguments: null);
