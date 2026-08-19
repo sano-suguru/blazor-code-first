@@ -2906,9 +2906,13 @@ internal static class RenderExpressionAnalyzer
     /// at classification time, as BCF3041 — this check only guards against the same attribute name
     /// being written twice.
     /// </summary>
-    private static bool HasAttributeBinding(ComponentTemplateNode node, string name)
+    private static bool HasAttributeBinding(ComponentTemplateNode node, string name) =>
+        AttributesContainName(node.Attributes, name);
+
+    /// <summary>Whether <paramref name="attributes"/> already carries one named <paramref name="name"/>.</summary>
+    private static bool AttributesContainName(EquatableArray<AttributeTemplate> attributes, string name)
     {
-        foreach (var attribute in node.Attributes.AsImmutableArray())
+        foreach (var attribute in attributes.AsImmutableArray())
         {
             if (string.Equals(attribute.Name, name, System.StringComparison.Ordinal))
                 return true;
@@ -2936,11 +2940,8 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     private static bool HasBinding(ElementTemplateNode node, string name)
     {
-        foreach (var attribute in node.Attributes.AsImmutableArray())
-        {
-            if (string.Equals(attribute.Name, name, System.StringComparison.Ordinal))
-                return true;
-        }
+        if (AttributesContainName(node.Attributes, name))
+            return true;
 
         foreach (var @event in node.Events.AsImmutableArray())
         {

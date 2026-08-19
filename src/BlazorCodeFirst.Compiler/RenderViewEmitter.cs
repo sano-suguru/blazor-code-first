@@ -323,6 +323,25 @@ internal static class RenderViewEmitter
         return seq + 1;
     }
 
+    /// <summary>
+    /// Emits one <c>AddAttribute</c> per <c>.Attr</c>/<c>.Class</c> and returns the next sequence
+    /// number. Shared by the element and component sides: both hold their names and values the same
+    /// way (<see cref="AttributeTemplate"/>) and lower to the identical builder call, differing only
+    /// in which decorations feed the list and where in each frame's channel order it is called.
+    /// </summary>
+    private static int EmitAttributes(IndentedWriter writer, EquatableArray<AttributeTemplate> attributes, int seq)
+    {
+        foreach (var attribute in attributes)
+        {
+            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
+            writer.AppendLine(
+                $"__builder.AddAttribute({seq}, {name}, {attribute.Value.ToAttributeValueCode()});");
+            seq++;
+        }
+
+        return seq;
+    }
+
     private static int EmitIf(IndentedWriter writer, IfNode node, int seq)
     {
         // seq is consumed by OpenRegion.
@@ -409,13 +428,7 @@ internal static class RenderViewEmitter
         // [Parameter(CaptureUnmatchedValues = true)]; one that does match binds it directly through
         // this same AddAttribute call (measured), which is exactly why BCF3041 exists to reject that
         // collision earlier rather than let it bind silently.
-        foreach (var attribute in node.Attributes)
-        {
-            var attributeName = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
-            writer.AppendLine(
-                $"__builder.AddAttribute({next}, {attributeName}, {attribute.Value.ToAttributeValueCode()});");
-            next++;
-        }
+        next = EmitAttributes(writer, node.Attributes, next);
         foreach (var parameter in node.Parameters)
         {
             // Cast to the type the call site resolved. AddComponentParameter takes object?, so the value
@@ -569,13 +582,7 @@ internal static class RenderViewEmitter
         int next = seq + 1;
         next = EmitAttributesSplat(writer, node.AttributesSplat, next);
         next = EmitClassAttribute(writer, node.Classes, next);
-        foreach (var attribute in node.Attributes)
-        {
-            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
-            writer.AppendLine(
-                $"__builder.AddAttribute({next}, {name}, {attribute.Value.ToAttributeValueCode()});");
-            next++;
-        }
+        next = EmitAttributes(writer, node.Attributes, next);
         foreach (var e in node.Events)
         {
             var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(e.Name, quote: true);
