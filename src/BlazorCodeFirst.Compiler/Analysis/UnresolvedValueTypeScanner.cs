@@ -897,6 +897,18 @@ internal static class UnresolvedValueTypeScanner
     /// the answer to this question never depends on it: a group that named no overload is a surface call
     /// all the same.
     /// </summary>
+    // Forcing selectOverload to true here is a stryker survivor, proven equivalent rather than measured:
+    // this reader asks only .IsSurfaceCall, and every RecognizedInvocation constructor sets it without
+    // reading selectOverload at all -- Named and FromGroup both hard-code true, None (candidates.Count
+    // == 0, reached before the selectOverload ternary) is the only false, and TrySelectCandidate itself
+    // only ever returns through FromGroup. selectOverload's own ternary chooses between running
+    // TrySelectCandidate and skipping straight to FromGroup(null, null), both of which already answer
+    // true once candidates.Count > 0, so no path through Recognize can make this call's own IsSurfaceCall
+    // answer depend on which selectOverload it was given. Confirmed by hand-applying the flip and running
+    // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged; a prior session's
+    // progress note claimed this same mutant was already killed by hand ("fails four existing tests") and
+    // that Stryker's own scoring simply misattributed the coverage -- re-verified this session and found
+    // the claim mistaken, not the scoring: no test failed under the applied mutant.
     private static bool IsSurfaceCall(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context) =>
         Recognize(invocation, context, selectOverload: false).IsSurfaceCall;
