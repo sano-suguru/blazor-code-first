@@ -206,6 +206,15 @@ internal static class UnresolvedValueTypeScanner
             // does resolve — reaches this line with nothing left to report. No construction found reaches
             // it with both at once; the same shape as L431/L467's equivalence, just via lambda-conversion
             // ambiguity instead of argument binding.
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. Reading why: per this arm's own class remarks, reaching
+            // it at all needs Method resolved for the .Template call, and the measured condition under
+            // which that happens is a content body clean enough that the unresolved-name ambiguity this
+            // arm exists for has already resolved -- the complementary case (a name genuinely unresolved
+            // in the content) keeps both same-arity Template<TContext> overloads as candidates, so Method
+            // stays null and ScanRenderExpression's own guard above returns before the switch is ever
+            // reached, not just before this arm.
             case SurfaceMethodKind.GenericTemplateContextual:
                 ScanLambdaBody(args.At(1)?.Expression, context);
                 return;
@@ -450,6 +459,15 @@ internal static class UnresolvedValueTypeScanner
 
     private static void ScanChildren(BoundArguments args, ViewPartBodyContext context)
     {
+        // Mutating this return away is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the removal and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Reading why: both binders
+        // that produce a BoundArguments (BoundArguments.FromFactory, wrapping FactoryArguments.Bind, and
+        // BoundArguments.TryBindFallback below) only ever set HasUnanalyzableParamsArgument true while
+        // ParamsElements is still empty and can only return with it having stayed empty afterward -- a
+        // further params argument, named or not, aborts the whole bind (returns null) rather than adding
+        // to it. HasUnanalyzableParamsArgument true therefore already implies an empty ParamsElements, so
+        // the foreach below has nothing to iterate whether or not this guard returns first.
         if (args.HasUnanalyzableParamsArgument)
             return;
 
