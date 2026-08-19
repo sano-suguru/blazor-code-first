@@ -730,6 +730,32 @@ internal static class UnresolvedValueTypeScanner
         // condition is this site's own, and the receiver rule underneath it is KnownSymbols' (#211). The
         // offset is read first so the fluent test's semantic query is only paid by a method that has a
         // receiver to skip at all.
+        //
+        // Three stryker survivors on this block (dropping ReducedFrom, forcing the ternary's true branch,
+        // and widening its && to ||) are measured equivalent, not assumed: hand-applying each alone and
+        // running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+        // passing unchanged. Reading why splits by mutant.
+        //
+        // Dropping ReducedFrom only changes anything when selectedMethod is itself a reduced symbol
+        // (a fluent call), and there it changes nothing observable: ReceiverOffset's contract answers 0
+        // for a reduced method and 1 for its unreduced ReducedFrom, so the (method, offset) pair this
+        // computes -- (reduced, 0) under the mutant, (unreduced, 1) unmutated -- index to the exact same
+        // logical, non-receiver parameter at every ordinal either way; the loop below reads only through
+        // that pairing, never method or offset individually.
+        //
+        // Forcing the ternary true, and widening && to ||, both only change anything for a call this
+        // scanner would otherwise read args from where the method is a genuine, unreduced extension method
+        // (receiverOffset != 0) invoked by its static spelling (IsFluentExtensionInvocation false) --
+        // every one of which is a decoration (SurfaceMethodKind.Class/AttributeShortcut/EventShortcut/
+        // Attr/On/Bind/Key/Ref/FormName/PreventDefault/StopPropagation), the one family of surface method
+        // this scanner reads static-spelling arguments from. ScanDecoration already refuses every static
+        // spelling outright through its own, independent IsFluentExtensionInvocation check before ever
+        // reading an argument, so whether this function accepts or wrongly rejects the very same call
+        // changes nothing ScanDecoration would have reported anyway. Every other surface kind this
+        // scanner's switch reads arguments from -- If/ForEach/Raw/Fragment (top-level, not extension
+        // methods) and ScalarParam/FragmentParam/GenericTemplate*/ComponentBind/ComponentKey/
+        // ComponentRenderMode/ComponentRef (instance methods on ComponentView<T>, not extension methods
+        // either) -- already has receiverOffset == 0, where both mutants agree with the original.
         var method = selectedMethod.ReducedFrom ?? selectedMethod;
         var receiverOffset = KnownSymbols.ReceiverOffset(method);
         var offset = receiverOffset != 0
