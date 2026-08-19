@@ -941,13 +941,16 @@ internal static class UnresolvedValueTypeScanner
     /// proxy for the arms that do read raw ordinals.
     /// </para>
     /// <para>
-    /// The refusing half is still untested, and deliberately so rather than by oversight. Every recognized
-    /// name resolves to a single method and no arm that reads raw ordinals has an overload group whose
-    /// positions disagree, so no call site can currently be written whose reading changes with the survivor
-    /// picked; answering the first candidate that merely binds passes the whole suite. What the check buys
-    /// is that a future overload breaking an arm's agreement costs a refused diagnostic rather than a
-    /// silently misread one, which is the trade #197 asked for. A later reader finding it untested should
-    /// weigh it on that, not take the absent test for a gap to fill.
+    /// No arm that reads raw ordinals has an overload group whose positions disagree, so no call site can
+    /// be written whose <em>reading</em> changes with the survivor picked; answering the first candidate
+    /// that merely binds passes every such arm. The refusing half is observable a different way: two
+    /// user-defined <c>[ViewPart]</c> overloads of one arity that disagree by name (<c>Label(string value)</c>
+    /// vs <c>Label(int count)</c>) read identically either way — <see cref="SurfaceMethodKind.None"/> walks
+    /// every explicit argument without reading a position — but disabling the refusal still turns a
+    /// deliberately-unresolvable call from BCF1003 into a wrongly-selected BCF3015, which is what
+    /// <c>ViewPartOverloadsWithDifferingParameterNames_DoesNotReportBCF3015</c> asserts against. What the
+    /// check buys beyond that test is that a future overload breaking an arm's agreement costs a refused
+    /// diagnostic rather than a silently misread one, which is the trade #197 asked for.
     /// </para>
     /// </remarks>
     private static RecognizedInvocation TrySelectCandidate(
