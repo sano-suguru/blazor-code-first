@@ -113,8 +113,13 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
         Assert.Contains("@import '_content/", build.BundledCss, StringComparison.Ordinal);
         Assert.Contains(".bundle.scp.css';", build.BundledCss, StringComparison.Ordinal);
 
+        // "obj/Debug/", not the bare "obj/" directory: BuildFixture below always builds in the
+        // default (Debug) configuration, but ScopedCss.Library is a shared fixture project also
+        // packed in Release configuration by BuildLibraryPackage's Pack() call for the
+        // LibraryPackage fixture -- searching the whole "obj/" tree finds both configurations'
+        // outputs and breaks Assert.Single (measured: this test run alongside LibraryPackage's).
         var libraryBundlePaths = Directory.GetFiles(
-            Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Library", "obj"),
+            Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Library", "obj", "Debug"),
             "*.bundle.scp.css",
             SearchOption.AllDirectories);
         var libraryBundle = Assert.Single(libraryBundlePaths);
@@ -122,5 +127,25 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
 
         Assert.Contains(".my-component[bcf-", libraryBundleContent, StringComparison.Ordinal);
         Assert.Contains("color: red;", libraryBundleContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LibraryPackage_fixture_app_bundle_imports_the_librarys_project_bundle()
+    {
+        var build = fixtures.LibraryPackage;
+
+        Assert.Contains("@import '_content/", build.BundledCss, StringComparison.Ordinal);
+        Assert.Contains(".bundle.scp.css';", build.BundledCss, StringComparison.Ordinal);
+
+        var packageContentPaths = Directory.GetFiles(
+            Path.Combine(RepoLayout.ArtifactsDirectory, "scoped-css-library", "packages",
+                "blazorcodefirst.scopedcsslibraryfixture", RepoLayout.PackageVersion, "staticwebassets"),
+            "*.bundle.scp.css",
+            SearchOption.TopDirectoryOnly);
+        var packagedBundle = Assert.Single(packageContentPaths);
+        var packagedBundleContent = File.ReadAllText(packagedBundle);
+
+        Assert.Contains(".my-component[bcf-", packagedBundleContent, StringComparison.Ordinal);
+        Assert.Contains("color: red;", packagedBundleContent, StringComparison.Ordinal);
     }
 }

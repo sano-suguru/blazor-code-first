@@ -18,6 +18,7 @@ public sealed class ScopedCssFixtures
     private readonly Lazy<ScopedCssBuild> _atRules;
     private readonly Lazy<(int ExitCode, string Output)> _orphan;
     private readonly Lazy<ScopedCssBuild> _libraryProjectReference;
+    private readonly Lazy<ScopedCssBuild> _libraryPackage;
 
     public ScopedCssFixtures()
     {
@@ -30,6 +31,7 @@ public sealed class ScopedCssFixtures
         _orphan = new(BuildOrphan, LazyThreadSafetyMode.ExecutionAndPublication);
         _libraryProjectReference = new(
             () => BuildFixture("ScopedCss.LibraryProjectReference"), LazyThreadSafetyMode.ExecutionAndPublication);
+        _libraryPackage = new(BuildLibraryPackage, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public ScopedCssBuild ProjectReference => _projectReference.Value;
@@ -41,6 +43,8 @@ public sealed class ScopedCssFixtures
     public ScopedCssBuild AtRules => _atRules.Value;
 
     public ScopedCssBuild LibraryProjectReference => _libraryProjectReference.Value;
+
+    public ScopedCssBuild LibraryPackage => _libraryPackage.Value;
 
     /// <summary>
     /// The orphan fixture never produces a bundle (the build is expected to fail with BCF3041 before
@@ -117,11 +121,7 @@ public sealed class ScopedCssFixtures
             Directory.Delete(packageFeed, recursive: true);
         Directory.CreateDirectory(packageFeed);
 
-        var (packExitCode, packOutput) = NestedDotnet.Run(
-            ["pack", Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"),
-             "-c", "Release", "-o", packageFeed, "--nologo", "-v:m"],
-            RepoLayout.Root);
-        Assert.True(packExitCode == 0, $"Packing BlazorCodeFirst.Runtime failed.{Environment.NewLine}{packOutput}");
+        Pack(Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"), packageFeed);
 
         var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Package");
         var projectPath = Path.Combine(projectDirectory, "ScopedCss.Package.csproj");
@@ -144,6 +144,55 @@ public sealed class ScopedCssFixtures
         var packageBundle = Assert.Single(bundlePaths);
 
         return new ScopedCssBuild(output, File.ReadAllText(packageBundle), generatedFilesDirectory);
+    }
+
+    // The library fixture itself imports BlazorCodeFirst.props/.targets directly (see
+    // ScopedCss.Library.csproj), which is what requires staging the task assembly before packing it
+    // -- BuildPackage above packs only BlazorCodeFirst.Runtime.csproj, which builds its own compiler
+    // and build-task DLLs from source as part of packing and never needs this staging step.
+    private ScopedCssBuild BuildLibraryPackage()
+    {
+        _ = _stagedBuildTask.Value;
+
+        var packageFeed = Path.Combine(RepoLayout.ArtifactsDirectory, "scoped-css-library", "feed");
+        if (Directory.Exists(packageFeed))
+            Directory.Delete(packageFeed, recursive: true);
+        Directory.CreateDirectory(packageFeed);
+
+        Pack(Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"), packageFeed);
+        Pack(
+            Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Library", "ScopedCss.Library.csproj"),
+            packageFeed);
+
+        var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.LibraryPackage");
+        var projectPath = Path.Combine(projectDirectory, "ScopedCss.LibraryPackage.csproj");
+        var configFile = Path.Combine(projectDirectory, "NuGet.config");
+        var generatedFilesDirectory = Path.Combine(
+            RepoLayout.ArtifactsDirectory, "scoped-css-library", "gen", "ScopedCss.LibraryPackage");
+
+        var (exitCode, output) = NestedDotnet.Run(
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
+             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true",
+             "-p:EmitCompilerGeneratedFiles=true",
+             "-p:CompilerGeneratedFilesOutputPath=" + generatedFilesDirectory],
+            projectDirectory);
+
+        Assert.True(exitCode == 0, $"Building ScopedCss.LibraryPackage failed.{Environment.NewLine}{output}");
+
+        var bundlePaths = Directory.GetFiles(
+            Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
+        var bundle = Assert.Single(bundlePaths);
+
+        return new ScopedCssBuild(output, File.ReadAllText(bundle), generatedFilesDirectory);
+    }
+
+    private static void Pack(string projectPath, string packageFeed)
+    {
+        var (exitCode, output) = NestedDotnet.Run(
+            ["pack", projectPath, "-c", "Release", "-o", packageFeed, "--nologo", "-v:m"],
+            RepoLayout.Root);
+
+        Assert.True(exitCode == 0, $"Packing '{projectPath}' failed.{Environment.NewLine}{output}");
     }
 
     private (int ExitCode, string Output) BuildOrphan()

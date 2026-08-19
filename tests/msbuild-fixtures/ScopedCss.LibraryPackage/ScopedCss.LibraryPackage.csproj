@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../../artifacts/diagnostic-tests/scoped-css-library/packages</RestorePackagesPath>
+    <_BlazorCodeFirstCache>$(RestorePackagesPath)/blazorcodefirst/$(BlazorCodeFirstPackageVersion)</_BlazorCodeFirstCache>
+    <_ScopedCssLibraryFixtureCache>$(RestorePackagesPath)/blazorcodefirst.scopedcsslibraryfixture/$(BlazorCodeFirstPackageVersion)</_ScopedCssLibraryFixtureCache>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="BlazorCodeFirst" />
+    <PackageReference Include="BlazorCodeFirst.ScopedCssLibraryFixture" VersionOverride="$(BlazorCodeFirstPackageVersion)" />
+  </ItemGroup>
+  <Target Name="PurgeScopedCssLibraryDevCaches" BeforeTargets="Restore" Condition="'$(MSBuildRestoreSessionId)' != ''">
+    <Message Importance="high" Text="Purging stale dev cache: $(_BlazorCodeFirstCache)" Condition="Exists('$(_BlazorCodeFirstCache)')" />
+    <Message Importance="high" Text="Purging stale dev cache: $(_ScopedCssLibraryFixtureCache)" Condition="Exists('$(_ScopedCssLibraryFixtureCache)')" />
+    <RemoveDir Directories="$(_BlazorCodeFirstCache)" Condition="Exists('$(_BlazorCodeFirstCache)')" />
+    <RemoveDir Directories="$(_ScopedCssLibraryFixtureCache)" Condition="Exists('$(_ScopedCssLibraryFixtureCache)')" />
+  </Target>
+</Project>
