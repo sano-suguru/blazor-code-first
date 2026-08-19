@@ -29,7 +29,7 @@ public sealed class RewriteScopedCssTask : Microsoft.Build.Utilities.Task
                 Directory.CreateDirectory(outputDirectory);
 
             var css = File.ReadAllText(inputPath);
-            var rewritten = FlatSelectorCssRewriter.Rewrite(css, scope);
+            var rewritten = ScopedCssRewriter.Rewrite(inputPath, css, scope, out _);
             File.WriteAllText(outputPath, rewritten);
         }
 
