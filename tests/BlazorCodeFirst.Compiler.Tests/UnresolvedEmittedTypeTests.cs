@@ -1456,6 +1456,45 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
+    /// A rejected tag behind a decoration chain that carries two different
+    /// <see cref="SurfaceMethodKind"/>s, <c>.Id</c> (<c>AttributeShortcut</c>) and <c>.Attr</c>
+    /// (<c>Attr</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>IsElementDecoration</c>'s four disjuncts each pair with the next through C# pattern
+    /// precedence (<c>and</c> binds tighter than <c>or</c>), so dropping any single <c>or</c> silently
+    /// drops two kinds from the recognized set, not one. This chain's two kinds, <c>AttributeShortcut</c>
+    /// and <c>Attr</c>, together appear in every one of those pairs, so whichever <c>or</c> a mutant
+    /// drops, <c>HasRejectedElementTag</c>'s unwind meets an unrecognized kind at one of the two links
+    /// and gives up early — answering "not rejected" and letting the bracketed child be scanned,
+    /// which reports the BCF3015 this test asserts against.
+    /// </remarks>
+    [Fact]
+    public void RejectedTagBehindMixedDecorationChain_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly string _tag = "div";
+
+                protected override View Body =>
+                    Element(_tag).Id("x").Attr("k", "v")[typeof(Probe).Name];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3009");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
     /// The handler argument of an event decoration is a value position on the failure path too, for both
     /// argument layouts: a named shortcut carries it at argument 0 and <c>.On</c> at argument 1.
     /// </summary>
