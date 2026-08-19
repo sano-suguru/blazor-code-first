@@ -426,7 +426,7 @@ internal static class RenderViewEmitter
         // range shape the element side uses, satisfying AssertCanAddComponentParameter's frame-kind
         // contiguity rule. Blazor routes a name matching no declared parameter into
         // [Parameter(CaptureUnmatchedValues = true)]; one that does match binds it directly through
-        // this same AddAttribute call (measured), which is exactly why BCF3041 exists to reject that
+        // this same AddAttribute call (measured), which is exactly why BCF3042 exists to reject that
         // collision earlier rather than let it bind silently.
         next = EmitAttributes(writer, node.Attributes, next);
         foreach (var parameter in node.Parameters)
@@ -652,6 +652,21 @@ internal static class RenderViewEmitter
             next = EmitEventModifiers(
                 writer, bind.EventName, bind.PreventDefault, bind.StopPropagation, next);
         }
+        // Immediately after every class/attribute/event/binding frame and before FormName/Ref, the
+        // only position that is unconditionally safe: AddNamedEvent (FormName) and
+        // AddElementReferenceCapture (Ref) are not Attribute frames, so an AddAttribute call placed
+        // after either would risk Blazor's AssertCanAddAttribute (which requires the immediately
+        // preceding frame to be Element/Component/Attribute). Written as the bare one-argument
+        // AddAttribute overload, matching Razor's own scope-attribute emission (design doc
+        // §ジェネレーター): the frame carries no value, it is a presence-only attribute.
+        if (node.CssScope is { } cssScope)
+        {
+            var scopeLiteral = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
+                cssScope, quote: true);
+            writer.AppendLine($"__builder.AddAttribute({next}, {scopeLiteral});");
+            next++;
+        }
+
         // After every attribute, event and binding frame, and before .Ref/the children. AddNamedEvent takes
         // no sequence argument, so `next` is untouched by it (ARCHITECTURE.md §2.7(E)).
         if (node.FormName is { } formName)

@@ -79,6 +79,7 @@ internal static class ComponentModelFactory
             ClassName: symbol.Name,
             TypeParameters: BuildTypeParameters(symbol),
             Namespace: namespaceName,
+            FilePath: classDeclaration.SyntaxTree.FilePath,
             DesignTimeExpressionName: expressionName,
             InheritanceKeys: BuildInheritanceKeys(symbol),
             Template: null,
@@ -179,6 +180,7 @@ internal static class ComponentModelFactory
             ClassName: symbol.Name,
             TypeParameters: BuildTypeParameters(symbol),
             Namespace: namespaceName,
+            FilePath: classDeclaration.SyntaxTree.FilePath,
             DesignTimeExpressionName: expressionName,
             InheritanceKeys: BuildInheritanceKeys(symbol),
             Template: template,
@@ -191,7 +193,8 @@ internal static class ComponentModelFactory
     /// final <see cref="ComponentModelResult"/>. This is a pure function of value inputs, so it runs after
     /// the registry combine without reintroducing symbols into the pipeline.
     /// </summary>
-    internal static ComponentModelResult Expand(ComponentAnalysis analysis, ViewPartRegistry registry)
+    internal static ComponentModelResult Expand(
+        ComponentAnalysis analysis, ViewPartRegistry registry, CssScopeRegistry cssScopes)
     {
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
         diagnostics.AddRange(analysis.BodyDiagnostics.AsImmutableArray());
@@ -219,10 +222,14 @@ internal static class ComponentModelFactory
 
         KeyabilityResolver.CollectForEachContentDiagnostics(analysis.Template, registry, diagnostics);
 
+        var hostCssScope = cssScopes.GetScopeOrDefault(analysis.FilePath);
+
         var expansion = ViewPartExpander.Expand(
             analysis.Template,
             registry,
-            analysis.InheritanceKeys.AsImmutableArray());
+            analysis.InheritanceKeys.AsImmutableArray(),
+            cssScopes,
+            hostCssScope);
         diagnostics.AddRange(expansion.Diagnostics);
 
         var hasError = diagnostics.Any(static d => d.IsError);

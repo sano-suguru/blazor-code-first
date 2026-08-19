@@ -3,7 +3,7 @@ title: 診断
 description: このコンパイラが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。
 order: 100
 group: reference
-source-hash: aaa70e79
+source-hash: 2fb99f58
 ---
 
 このコンパイラが報告する診断のすべてと、その意味と、代わりに書くものです。
@@ -709,13 +709,13 @@ protected override View Body => Div[Slot];       // BCF3025: Body は角括弧�
 内容を取るパーツは、返り値の型に `SlotView` を宣言し、`Slot` をちょうど1回書きます。2回書けば
 呼び出し側の内容が2回出力され、1回も書かなければ、渡すことを義務づけた内容を捨てることになります。
 
-### BCF3041
+### BCF3042
 
 Error. コンポーネント呼び出しに書いた `.Class`/`.Attr` の名前が、大文字小文字を区別せずに、その
 コンポーネントが宣言するパラメーターと一致しています。
 
 ```csharp
-Component<Card>().Attr("label", "hi")           // BCF3041: Card は [Parameter] Label を宣言
+Component<Card>().Attr("label", "hi")           // BCF3042: Card は [Parameter] Label を宣言
 Component<Card>().Param(c => c.Label, "hi")     // 代わりにこう書く
 ```
 
@@ -798,6 +798,24 @@ Input.Bind("value", "oninput", () => _count, format: "N0")   // BCF3031
 書式を外すか、ゲッターで整形してセッターで解析してください。受け付ける集合はフレームワーク自身の
 メタデータから読んでおり、このコンパイラが列挙しているのではありません。カルチャーは問題になりま
 せん。この API がバインドするどの型も、カルチャーを持てます。
+
+## スコープ付きCSS
+
+### BCF3041
+
+Error. `Foo.cs.css` に対応する `Foo.cs` がありません。`Foo.cs` はコンポーネントも `[ViewPart]`
+メソッドも宣言していません。
+
+```
+Counter.cs.css   // 何もスコープしない: このプロジェクトに Counter.cs がない   // BCF3041
+```
+
+`.cs.css` ファイルのスコープは、`.cs` ファイルとの名前の一致だけで決まります。Razor の
+`ScopedCssInput` のような明示的な対応付けの手段はありません。対応の取れないファイルは常に
+誤りです。多くはファイル名の打ち間違いなので、黙って捨てずに報告します。
+
+`.cs.css` ファイルの名前を、スコープしたいコンポーネント(または `[ViewPart]` メソッドを宣言する
+ファイル)に合わせてください。そのファイルがまだ無ければ追加してください。
 
 ## 次に読むもの
 

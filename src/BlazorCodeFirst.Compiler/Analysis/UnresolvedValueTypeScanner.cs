@@ -202,6 +202,20 @@ internal static class UnresolvedValueTypeScanner
                 ReportValue(args.At(1)?.Expression, context);
                 return;
 
+            // Reaching this arm at all needs Method resolved for the .Template call itself, which needs
+            // GetSymbolInfo to name a single overload of the two same-arity Template<TContext> spellings
+            // (GenericTemplateIgnored's View content and this one's Func<TContext, View> content).
+            // Measured across an invocation-shaped content body, an element-access-shaped one (not
+            // statement-expression-compatible with the other overload's RenderFragment-conversion path),
+            // a block-bodied one, and a body containing nothing but a bare unresolved typeof: every one
+            // that carries a name this scan could report on also poisons GetSymbolInfo into handing back
+            // both overloads as CandidateSymbols, regardless of body shape, because typing the lambda well
+            // enough to eliminate either candidate is exactly what the unresolved name inside it defeats.
+            // TrySelectCandidate then refuses the pair (their SurfaceMethodKinds differ), Method stays
+            // null, and this arm never runs. The complementary case — content clean enough that Method
+            // does resolve — reaches this line with nothing left to report. No construction found reaches
+            // it with both at once; the same shape as L431/L467's equivalence, just via lambda-conversion
+            // ambiguity instead of argument binding.
             case SurfaceMethodKind.GenericTemplateContextual:
                 ScanLambdaBody(args.At(1)?.Expression, context);
                 return;
@@ -254,8 +268,15 @@ internal static class UnresolvedValueTypeScanner
 
         if (kind == SurfaceMethodKind.Bind)
         {
-            // The two name arguments are not value positions: a non-constant one is BCF3011's to
-            // report, and that rejection has already cleared recoverOwnValue by the time this runs.
+            // The two name arguments are not value positions, so this reads only from the getter
+            // onward and never reports on either name directly. A non-constant name is usually
+            // BCF3011's to report, with that rejection already clearing recoverOwnValue by the time
+            // this runs — but not always: an unselected-invocation sibling inside the name itself
+            // (the same shape used throughout this file) can poison the normal walk's own
+            // FactoryArguments.Bind before its constant check ever runs, leaving recoverOwnValue true
+            // with a non-constant name still in argument 0 (measured,
+            // BindNameSiblingOfUnselectedInvocation_UnresolvedType_DoesNotReportBCF3015). The name is
+            // still never read here either way.
             ReportBindArguments(method, args, context);
             return;
         }
@@ -692,6 +713,18 @@ internal static class UnresolvedValueTypeScanner
         int offset)
     {
         var parameterCount = parameters.Length - offset;
+        // Mutating this to <= 0 is a stryker survivor, measured equivalent rather than assumed: a
+        // zero-parameter call (Element, Component, or the valueless PreventDefault/StopPropagation
+        // overload) does reach parameterCount == 0 (confirmed with a throwaway probe on
+        // Div.Attr("x", MissingMethod() + typeof(Probe).Name).PreventDefault()), but returning false
+        // there instead of falling through to an empty, vacuously-true loop makes no observable
+        // difference. HasValidArgumentOrder failing only ever suppresses BindArguments, and every
+        // reachable zero-parameter kind already reports nothing whether or not BindArguments runs:
+        // Element/Component return before the switch's kind arms read anything, and the valueless
+        // PreventDefault/StopPropagation spelling's arm reports args.At(0), which is null either way
+        // for a zero-length bound-argument list. Reverting the mutant by hand and running both
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests confirmed no test tells
+        // the two apart.
         if (parameterCount < 0)
             return false;
 
@@ -723,6 +756,22 @@ internal static class UnresolvedValueTypeScanner
             if ((uint)nextPositional < (uint)parameterCount
                 && parameters[nextPositional + offset].IsParams)
             {
+                // Mutating this continue away (falling through to the increment below instead) is a
+                // stryker survivor, measured equivalent rather than assumed: nextPositional never escapes
+                // this function, so skipping the hold-in-place it does here for a params element only
+                // matters if something later compares against the corrupted value. Nothing can. C# requires
+                // params to be the last declared parameter, so no positional or named argument can follow
+                // one once its elements start, and a params element can only grow nextPositional past
+                // parameterCount, which the (uint)nextPositional < (uint)parameterCount guard on this same
+                // condition then short-circuits away from on the next iteration, the same guard that keeps
+                // the array index below in bounds either way. Checked against three shapes that each
+                // exercise a different neighbour of this line — the params indexer with two children
+                // (ParamsChildViaFallbackBinder_UnresolvedType_ReportsBCF3015), the zero-parameter
+                // PreventDefault overload overfilled with two arguments
+                // (OverfilledZeroParameterCandidate_DoesNotCrashTheGenerator), and the positional-then-named
+                // .Bind call (PositionalArgumentsThenNamedArgument_UnresolvedType_ReportsBCF3015), all in
+                // UnresolvedEmittedTypeTests.cs — and the full BlazorCodeFirst.Compiler.Tests suite passed
+                // unchanged with the continue removed.
                 continue;
             }
 
@@ -782,6 +831,17 @@ internal static class UnresolvedValueTypeScanner
         if (symbolInfo.Symbol is IMethodSymbol method && IsRecognized(method, context))
             return RecognizedInvocation.Named(method);
 
+        // Four stryker survivors on this branch and on IsHtmlForEachInScope itself (the known-null guard,
+        // the includeReducedExtensionMethods flag, the loop's own return true, and this block's return) are
+        // measured equivalent, not assumed: forcing the branch to always fall through (return false, or
+        // return true without the block's own return) and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests unchanged left every test passing. Reading why: this branch only
+        // has anything to find when the ordinary candidate gathering below turns up nothing for ForEach's
+        // name, and the SimpleNameSyntax name lookup a few lines down (candidates.Count == 0) does the same
+        // LookupSymbols query this branch does, filtered through the same IsRecognized check, and would
+        // find the exact same ForEach symbol on the exact same input. This branch can only differ from that
+        // one when something unrelated already occupies candidates by the time execution reaches it, which
+        // nothing under ForEach's own name can do.
         if (context.KnownSymbols.HtmlForEach is { } forEach
             && IsHtmlForEachInScope(invocation, forEach, context))
         {
@@ -802,6 +862,16 @@ internal static class UnresolvedValueTypeScanner
         // The name is looked up only when nothing else offered a candidate. A second HtmlForEach test used
         // to sit after this, and could never answer differently from the one above: nothing between them
         // reaches anything the test reads.
+        //
+        // Two stryker survivors here (this loop's own body, and the includeReducedExtensionMethods flag)
+        // are measured, not proven equivalent, and left as such rather than forced: coverage data confirms
+        // some existing test reaches this branch with candidates.Count == 0 (it is Survived, not
+        // NoCoverage), and removing the loop body outright, then running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests, leaves every test passing regardless. No input has been
+        // constructed that isolates which test reaches this branch or why its outcome is unaffected. Unlike
+        // the neighboring IsHtmlForEachInScope cluster, this branch is not subsumed by anything later in
+        // Recognize — it IS the last resort — so the mechanism behind this survival is open, not closed;
+        // narrowing it is future work.
         if (candidates.Count == 0 && invocation.Expression is SimpleNameSyntax invocationName)
         {
             foreach (var symbol in context.SemanticModel.LookupSymbols(
@@ -816,6 +886,14 @@ internal static class UnresolvedValueTypeScanner
         if (candidates.Count == 0)
             return RecognizedInvocation.None;
 
+        // Forcing this ternary to always take the TrySelectCandidate branch is a stryker survivor,
+        // measured equivalent rather than assumed: selectOverload is false only from IsSurfaceCall, whose
+        // one caller reads .IsSurfaceCall and nothing else, and RecognizedInvocation.FromGroup sets
+        // IsSurfaceCall true unconditionally -- the same true this branch already reaches after
+        // TrySelectCandidate runs, since candidates.Count > 0 is already established above. Running
+        // TrySelectCandidate's binding work for a caller that only needed the boolean costs cycles, not
+        // correctness. Confirmed by forcing the branch and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests unchanged.
         return selectOverload
             ? TrySelectCandidate(invocation, candidates, context)
             : RecognizedInvocation.FromGroup(selected: null, arguments: null);
@@ -902,13 +980,16 @@ internal static class UnresolvedValueTypeScanner
     /// proxy for the arms that do read raw ordinals.
     /// </para>
     /// <para>
-    /// The refusing half is still untested, and deliberately so rather than by oversight. Every recognized
-    /// name resolves to a single method and no arm that reads raw ordinals has an overload group whose
-    /// positions disagree, so no call site can currently be written whose reading changes with the survivor
-    /// picked; answering the first candidate that merely binds passes the whole suite. What the check buys
-    /// is that a future overload breaking an arm's agreement costs a refused diagnostic rather than a
-    /// silently misread one, which is the trade #197 asked for. A later reader finding it untested should
-    /// weigh it on that, not take the absent test for a gap to fill.
+    /// No arm that reads raw ordinals has an overload group whose positions disagree, so no call site can
+    /// be written whose <em>reading</em> changes with the survivor picked; answering the first candidate
+    /// that merely binds passes every such arm. The refusing half is observable a different way: two
+    /// user-defined <c>[ViewPart]</c> overloads of one arity that disagree by name (<c>Label(string value)</c>
+    /// vs <c>Label(int count)</c>) read identically either way — <see cref="SurfaceMethodKind.None"/> walks
+    /// every explicit argument without reading a position — but disabling the refusal still turns a
+    /// deliberately-unresolvable call from BCF1003 into a wrongly-selected BCF3015, which is what
+    /// <c>ViewPartOverloadsWithDifferingParameterNames_DoesNotReportBCF3015</c> asserts against. What the
+    /// check buys beyond that test is that a future overload breaking an arm's agreement costs a refused
+    /// diagnostic rather than a silently misread one, which is the trade #197 asked for.
     /// </para>
     /// </remarks>
     private static RecognizedInvocation TrySelectCandidate(
@@ -957,6 +1038,13 @@ internal static class UnresolvedValueTypeScanner
     private static bool FillsEveryParameter(BoundArguments args, IMethodSymbol method)
     {
         var offset = KnownSymbols.ReceiverOffset(method);
+        // The two stryker survivors that swap - for + on offset here and at the array index below (one on
+        // each of the two arithmetic mutants) are measured equivalent, not assumed: a throwaway probe
+        // logging offset and ReducedFrom for every method TrySelectCandidate's loop hands this function
+        // found offset == 0 for every candidate reached in the multi-candidate path — an extension method
+        // candidate always arrives already reduced there (ReceiverOffset's own contract answers 0 for a
+        // reduced method), so + and - agree everywhere this runs. Confirmed by hand-applying both mutants
+        // together and running the full BlazorCodeFirst.Compiler.Tests suite unchanged.
 
         for (var index = 0; index < method.Parameters.Length - offset; index++)
         {
@@ -1208,6 +1296,19 @@ internal static class UnresolvedValueTypeScanner
 
         // Failure recovery can return the known unreduced symbol even for fluent syntax. Distinguish
         // that case from an unsupported static call by the receiver, not by ReducedFrom alone.
+        //
+        // Both mutants on this method (the ReducedFrom fast-path check above, and the receiver-type
+        // equality below) are measured equivalent, not assumed: hand-applying each alone and running
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests, including
+        // StaticDecorationValueWithSiblingUnselectedInvocation_DoesNotReportBCF3015 which was written to
+        // probe exactly this method, left every test passing either way. Reading why: BoundArguments'
+        // fallback binder (TryBindFallback) always applies KnownSymbols.ReceiverOffset unconditionally,
+        // never consulting this method, so a fully-written static call (which supplies the receiver as an
+        // explicit argument the offset then wrongly reserves a slot for) fails to bind before either
+        // branch here is ever consulted for it — the caller's early return on a failed bind, not this
+        // method's answer, is what already keeps a static call's arguments unread. The receiver-shaped
+        // case this method exists to catch — a fluent call recovered with an unreduced symbol — has not
+        // been constructed with an observable difference between the two answers.
         return context.SemanticModel.GetSymbolInfo(access.Expression, context.CancellationToken).Symbol
                 is not INamedTypeSymbol receiverType
             || !SymbolEqualityComparer.Default.Equals(receiverType, method.ContainingType);
@@ -1244,6 +1345,12 @@ internal static class UnresolvedValueTypeScanner
                         yield return argument;
                 }
 
+                // Mutating this yield away is a stryker survivor, measured equivalent rather than assumed:
+                // ExplicitArguments has exactly one reader, the [ViewPart] arm in ScanRenderExpression, and
+                // a [ViewPart] declaration can never carry a params parameter (ViewPartDefinitionFactory
+                // rejects one with BCF1002 at the declaration), so ParamsElements is always empty on every
+                // BoundArguments this loop is reachable from. Confirmed by removing the yield and running
+                // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged.
                 foreach (var argument in ParamsElements)
                     yield return argument.Expression;
             }
@@ -1254,6 +1361,12 @@ internal static class UnresolvedValueTypeScanner
         /// <see cref="At"/> answers without its walk back up to the <see cref="ArgumentSyntax"/>, for
         /// callers weighing a parameter list rather than reading an argument.
         /// </summary>
+        // Widening this bound to <= is a stryker survivor, measured equivalent rather than assumed:
+        // HasArgumentAt has exactly one caller, FillsEveryParameter's loop, which computes its own bound
+        // (method.Parameters.Length - offset) from the same KnownSymbols.ReceiverOffset(method) this
+        // BoundArguments was built with, so index never reaches _byDeclaredParameter.Length from there —
+        // the widened bound is never exercised. Confirmed by hand-applying the mutant and running
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged.
         public bool HasArgumentAt(int index) =>
             (uint)index < (uint)_byDeclaredParameter.Length && _byDeclaredParameter[index] is not null;
 
@@ -1308,6 +1421,15 @@ internal static class UnresolvedValueTypeScanner
             int offset)
         {
             var declaredCount = parameters.Length - offset;
+            // Mutating this to <= 0 is a stryker survivor, measured equivalent rather than assumed, by
+            // the same reasoning as the parallel check in HasValidArgumentOrder above. declaredCount ==
+            // 0 additionally looks unreachable through this overload's own callers: the indexer caller's
+            // offset is always 0 against a real indexer's parameter list, which is never empty, and the
+            // invocation caller only runs once FactoryArguments.Bind has already failed for this call —
+            // measured with the same throwaway probe (Div.Attr("x", MissingMethod() +
+            // typeof(Probe).Name).PreventDefault()) that a zero-argument call's own operation binds
+            // fine regardless of what is broken in its receiver chain, so the fallback this guards is
+            // never reached with zero declared parameters to begin with.
             if (declaredCount < 0)
                 return null;
 
@@ -1370,6 +1492,17 @@ internal static class UnresolvedValueTypeScanner
                     return null;
 
                 byParameter[index] = argument.Expression;
+                // Flipping this to NameColon is not null is a stryker survivor, measured equivalent
+                // rather than assumed: HasValidArgumentOrder already refused this call before it reaches
+                // here unless every named argument up to this point was in position, which by that
+                // function's own rule means each one named exactly the next unfilled slot in written
+                // order. A later positional argument's own search loop above (the `while` scanning for the
+                // next null slot) re-derives the correct index from byParameter's contents regardless of
+                // what nextPositional was left at, provided it starts no higher than the true next-empty
+                // slot — which holding this update to positional arguments only, or to named ones only,
+                // both guarantee under that same rule. Confirmed by hand-applying the flip and running
+                // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged, including
+                // the leading-named-then-trailing-positional shapes this line exists for.
                 if (argument.NameColon is null)
                     nextPositional = index + 1;
             }

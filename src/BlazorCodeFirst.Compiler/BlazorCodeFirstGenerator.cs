@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler.Analysis;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
@@ -17,6 +19,29 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // Reads every .cs.css file's CssScope metadata (stamped by BlazorCodeFirst.Build's
+        // BcfStampCssScopeOnAdditionalFiles target on AdditionalFiles, surfaced here through the
+        // CompilerVisibleItemMetadata declaration in BlazorCodeFirst.props) into a value-equal
+        // registry, the same combine-in shape ViewPartRegistry already uses below.
+        var cssScopeRegistry = context.AdditionalTextsProvider
+            .Combine(context.AnalyzerConfigOptionsProvider)
+            .Select(static (pair, _) =>
+            {
+                var (text, optionsProvider) = pair;
+                if (!text.Path.EndsWith(".cs.css", StringComparison.OrdinalIgnoreCase))
+                    return (CssScopeEntry?)null;
+
+                var options = optionsProvider.GetOptions(text);
+                return options.TryGetValue("build_metadata.AdditionalFiles.CssScope", out var scope)
+                    ? new CssScopeEntry(text.Path, scope)
+                    : null;
+            })
+            .Where(static entry => entry is not null)
+            .Select(static (entry, _) => entry!.Value)
+            .Collect()
+            .Select(static (entries, _) => CssScopeRegistry.Create(entries))
+            .WithTrackingName("CssScopeRegistry");
+
         // Analyze each candidate component inside the syntax transform: KnownSymbols is resolved
         // transiently from the candidate's own compilation and its design-time expression (Body or
         // Chrome) is classified into a symbol-free template here, so no
@@ -84,12 +109,50 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
                     productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
             });
 
+        // Every declared component's own file, and every declared [ViewPart]'s own file (valid or
+        // not — an invalid declaration still means the file is not orphaned, only that its own
+        // declaration has a separate, already-reported problem). Both wrapped as EquatableArray
+        // immediately: Collect() (and registry.Entries, read fresh here) hand back a plain
+        // ImmutableArray, which compares by backing-array reference in the incremental cache and so
+        // would mark orphanCssDiagnostics changed on every edit to any component or [ViewPart] file,
+        // even when the actual path set is unchanged.
+        var componentFilePaths = analyses
+            .Select(static (a, _) => a!.FilePath)
+            .Collect()
+            .Select(static (paths, _) => (EquatableArray<string>)paths);
+
+        // Derived from registry rather than a second discoveryResults.Collect(): registry already
+        // carries FilePath on every entry it collects from the same source.
+        var viewPartFilePaths = registry
+            .Select(static (r, _) => (EquatableArray<string>)ImmutableArray.CreateRange(
+                r.Entries.AsImmutableArray(), static (ViewPartDefinitionEntry e) => e.FilePath));
+
+        var orphanCssDiagnostics = cssScopeRegistry
+            .Combine(componentFilePaths)
+            .Combine(viewPartFilePaths)
+            .Select(static (input, _) =>
+                (EquatableArray<DiagnosticInfo>)OrphanScopedCssResolver.CollectOrphanDiagnostics(
+                    input.Left.Left,
+                    input.Left.Right.AsImmutableArray(),
+                    input.Right.AsImmutableArray()))
+            .WithTrackingName("OrphanScopedCssDiagnostics");
+
+        context.RegisterSourceOutput(
+            orphanCssDiagnostics,
+            static (productionContext, diagnostics) =>
+            {
+                foreach (var diagnostic in diagnostics)
+                    productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
+            });
+
         // Expand each analyzed component against the registry as a pure value transform. Both inputs are
         // value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic branch, and a
         // change to the compose API surface re-runs the transform above and correctly invalidates here.
         var modelResults = analyses
             .Combine(registry)
-            .Select(static (input, _) => ComponentModelFactory.Expand(input.Left!, input.Right))
+            .Combine(cssScopeRegistry)
+            .Select(static (input, _) =>
+                ComponentModelFactory.Expand(input.Left.Left!, input.Left.Right, input.Right))
             .WithTrackingName("ComponentModeling");
 
         // Report model (call-site expansion) diagnostics separately, reconstructing Roslyn diagnostics

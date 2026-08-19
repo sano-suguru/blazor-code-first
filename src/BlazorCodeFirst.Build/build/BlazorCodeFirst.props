@@ -8,4 +8,10 @@
     <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="CssScope" />
   </ItemGroup>
 
+  <!-- Registers _BcfCustomCollectWatchItems (BlazorCodeFirst.targets) with dotnet watch's own
+       extension point. See that target for why this is needed. -->
+  <PropertyGroup>
+    <CustomCollectWatchItems>$(CustomCollectWatchItems);_BcfCustomCollectWatchItems</CustomCollectWatchItems>
+  </PropertyGroup>
+
 </Project>

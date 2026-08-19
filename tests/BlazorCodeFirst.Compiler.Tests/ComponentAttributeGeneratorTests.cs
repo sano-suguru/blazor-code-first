@@ -102,7 +102,7 @@ public sealed class ComponentAttributeGeneratorTests
     }
 
     [Fact]
-    public void AttrNameCollidingWithDeclaredParameter_ExactCase_IsBCF3041()
+    public void AttrNameCollidingWithDeclaredParameter_ExactCase_IsBCF3042()
     {
         var result = CompilationTestHost.RunGenerator(
             $$"""
@@ -117,15 +117,15 @@ public sealed class ComponentAttributeGeneratorTests
             }
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3041");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3042");
     }
 
     [Fact]
-    public void AttrNameCollidingWithDeclaredParameter_DifferentCase_IsStillBCF3041()
+    public void AttrNameCollidingWithDeclaredParameter_DifferentCase_IsStillBCF3042()
     {
         // Measured: Blazor's own parameter binding matches names case-insensitively, so a
         // lowercase "title" would otherwise silently set [Parameter] Title at runtime, bypassing
-        // .Param's type checking entirely. This is exactly the gap BCF3041 exists to close.
+        // .Param's type checking entirely. This is exactly the gap BCF3042 exists to close.
         var result = CompilationTestHost.RunGenerator(
             $$"""
             using BlazorCodeFirst;
@@ -139,7 +139,7 @@ public sealed class ComponentAttributeGeneratorTests
             }
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3041");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3042");
     }
 
     [Fact]

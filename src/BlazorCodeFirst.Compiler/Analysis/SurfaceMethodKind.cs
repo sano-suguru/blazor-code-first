@@ -160,7 +160,7 @@ internal enum SurfaceMethodKind
     /// overload. Emits a plain <c>AddAttribute</c> before every <c>AddComponentParameter</c>, which
     /// Blazor routes into the callee's <c>[Parameter(CaptureUnmatchedValues = true)]</c> dictionary
     /// when the name matches no declared parameter (#314). A name that does match, case-insensitively
-    /// (measured — Blazor's own matching is case-insensitive), is rejected as BCF3041 rather than
+    /// (measured — Blazor's own matching is case-insensitive), is rejected as BCF3042 rather than
     /// silently binding the parameter and bypassing <c>.Param</c>'s type checking.
     /// </summary>
     ComponentAttr,

@@ -28,6 +28,12 @@ namespace BlazorCodeFirst.Compiler;
 /// Names are taken verbatim from the symbol because every partial declaration of a generic type must use
 /// the same type-parameter names in the same order (CS0264), so the generated part cannot rename them.
 /// </param>
+/// <param name="FilePath">
+/// The declaring syntax tree's file path (<c>classDeclaration.SyntaxTree.FilePath</c>), symbol-free.
+/// Scope is a file-unit concept (design doc §スコープの単位はファイル): this is what
+/// <see cref="ComponentModelFactory.Expand"/> looks up in the <c>CssScopeRegistry</c> to find this
+/// component's own <c>.cs.css</c> scope, and what a later BCF3041 orphan check compares against.
+/// </param>
 /// <param name="FailureLocation">
 /// Where to blame when <paramref name="Template"/> is <see langword="null"/> because classification
 /// failed: the innermost expression that could not be translated. Carried as symbol-free coordinates for
@@ -44,6 +50,7 @@ internal sealed record ComponentAnalysis(
     string ClassName,
     EquatableArray<string> TypeParameters,
     string? Namespace,
+    string FilePath,
     string DesignTimeExpressionName,
     EquatableArray<string> InheritanceKeys,
     RenderTemplateNode? Template,

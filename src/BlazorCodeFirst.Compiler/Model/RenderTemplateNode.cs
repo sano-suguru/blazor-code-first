@@ -128,7 +128,7 @@ internal sealed record ComponentTemplateNode(
     // HTML attribute names written with .Attr/.Class (#314), one frame each, emitted before every
     // AddComponentParameter call. A separate name space from Parameters/Slots above: an attribute
     // name colliding with a declared parameter name is rejected earlier, at classification time, as
-    // BCF3041, so nothing here is ever checked against Parameters/Slots — only against itself
+    // BCF3042, so nothing here is ever checked against Parameters/Slots — only against itself
     // (BCF3010, a name written twice).
     EquatableArray<AttributeTemplate> Attributes = default) : RenderTemplateNode
 {

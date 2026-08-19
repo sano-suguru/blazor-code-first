@@ -26,5 +26,9 @@
        real MSBuild build of the fixtures reports, never on an in-process run. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\BlazorCodeFirst.Compiler\BlazorCodeFirst.Compiler.csproj" />
+    <!-- ScopeIdentifier.Compute, used by ScopedCssFixturesTests to independently recompute the
+         expected scope hash rather than trusting the real build's own output for both sides of the
+         comparison. -->
+    <ProjectReference Include="..\..\src\BlazorCodeFirst.Build\BlazorCodeFirst.Build.csproj" />
   </ItemGroup>
 </Project>

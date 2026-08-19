@@ -1183,15 +1183,43 @@ internal static class DiagnosticDescriptors
             "this check would leave the surface behind Razor, which warns (RZ10022) for the same shape.");
 
     /// <summary>
-    /// BCF3041: <c>.Attr</c>/<c>.Class</c> on a <c>ComponentView&lt;TComponent&gt;</c> receiver whose
+    /// BCF3041: A <c>.cs.css</c> file has no matching component or <c>[ViewPart]</c> declaration.
+    /// </summary>
+    /// <remarks>
+    /// Stricter than Razor, which silently discards a convention-discovered orphan <c>.razor.css</c>
+    /// and only errors (BLAZOR102) for an explicitly written <c>ScopedCssInput</c>. BCF has no
+    /// explicit-input escape hatch — the <c>.cs.css</c>/<c>.cs</c> pairing is convention-only — so
+    /// silently discarding it would let a typo in the file name go unnoticed (design doc §診断). A
+    /// file that declares only <c>[ViewPart]</c> methods (no component) is not orphaned: its scope
+    /// still reaches rendered elements through expansion at every call site (design doc §ViewPart
+    /// 展開でのスコープ伝播), so the check counts a <c>[ViewPart]</c>-declaring file as a match too,
+    /// not just a component-declaring one.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3041 = new(
+        id: "BCF3041",
+        title: "Scoped CSS file has no matching component or view part",
+        messageFormat: "'{0}' has no matching component or [ViewPart] declaration; " +
+            "rename the file or add '{1}'",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A .cs.css file's scope is discovered by file-name convention (Foo.cs.css scopes Foo.cs), " +
+            "with no explicit-pairing escape hatch. An orphan is therefore always a mistake — most " +
+            "often a typo in the .cs.css file's name — rather than a deliberately unused file, so it " +
+            "is reported rather than silently discarded (unlike Razor's own convention-discovered " +
+            "orphan .razor.css, which Razor drops without comment).");
+
+    /// <summary>
+    /// BCF3042: <c>.Attr</c>/<c>.Class</c> on a <c>ComponentView&lt;TComponent&gt;</c> receiver whose
     /// name matches a declared <c>[Parameter]</c> case-insensitively. Blazor's own parameter binding
     /// matches names case-insensitively (measured), so left unguarded this would silently set the
     /// parameter and bypass <c>.Param</c>'s type checking entirely — the one guess this surface makes
     /// that DESIGN.md §4.1 requires to be verifiable, and here it is (<c>TComponent</c>'s declared
     /// members are known at the call site).
     /// </summary>
-    public static readonly DiagnosticDescriptor BCF3041 = new(
-        id: "BCF3041",
+    public static readonly DiagnosticDescriptor BCF3042 = new(
+        id: "BCF3042",
         title: "Component attribute name collides with a declared parameter",
         messageFormat: "'{0}' matches the declared parameter '{1}' on '{2}' case-insensitively; bind " +
             "it through .Param(c => c.{1}, ...) (or .Template if '{1}' is a generic RenderFragment " +

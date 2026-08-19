@@ -139,6 +139,17 @@ internal sealed record ElementNode(
     /// before every other attribute-producing decoration, consuming one sequence number.
     /// </summary>
     public ExpressionTemplate? AttributesSplat { get; init; }
+
+    /// <summary>
+    /// The scoped-CSS attribute value (<c>bcf-xxxxxxxx</c>) this element's owning file carries, or
+    /// <see langword="null"/> when that file has no matching <c>.cs.css</c>. Resolved per element
+    /// rather than once per component because a <c>[ViewPart]</c> call expands elements from a
+    /// different file into this tree, each carrying that file's own scope (design doc
+    /// §ViewPart展開でのスコープ伝播). <see cref="RenderViewEmitter"/> and
+    /// <see cref="Generation.StaticMarkupSerializer"/> each read this to inject
+    /// <c>AddAttribute(seq, "bcf-xxxxxxxx")</c> or the equivalent bare markup attribute.
+    /// </summary>
+    public string? CssScope { get; init; }
 }
 
 /// <summary>A bare text node emitted with AddContent (no wrapping element).</summary>

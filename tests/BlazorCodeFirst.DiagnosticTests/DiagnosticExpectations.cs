@@ -330,23 +330,32 @@ public static class DiagnosticExpectations
                 + "mistake — Div is a legitimate element on its own, and .FormName is what has no effect "
                 + "on it."),
         new(
-            "BCF3041",
+            "BCF3042",
             FixtureKind.GeneratorViaProjectReference,
             "error",
-            "Bcf3041.cs",
+            "Bcf3042.cs",
             "Attr",
             Note: "Anchors the decoration's name, which is what the author deletes in favor of .Param. "
                 + "The written name (\"label\") differs in case from the declared parameter (Label) on "
                 + "purpose, since that is the shape this rule exists to catch — an exact-case collision "
-                + "is pinned in-process by AttrNameCollidingWithDeclaredParameter_ExactCase_IsBCF3041."),
+                + "is pinned in-process by AttrNameCollidingWithDeclaredParameter_ExactCase_IsBCF3042."),
     ];
 
     /// <summary>
-    /// Descriptors deliberately not exercised end-to-end, each with the reason. Empty on purpose:
-    /// every declared diagnostic is currently proven to reach a real build, and an entry added here
+    /// Descriptors deliberately not exercised end-to-end, each with the reason. An entry added here
     /// should be an argued exception, not a way to make the coverage guard quiet.
     /// </summary>
-    public static ImmutableArray<(string Id, string Reason)> Excluded { get; } = [];
+    public static ImmutableArray<(string Id, string Reason)> Excluded { get; } =
+    [
+        (
+            "BCF3041",
+            "Firing requires BlazorCodeFirst.Build's MSBuild task wiring (CssScope AdditionalFiles " +
+            "metadata via BlazorCodeFirst.props/.targets), which the generic GeneratorDelivery.* " +
+            "fixtures do not import. Covered instead by ScopedCssFixturesTests against " +
+            "tests/msbuild-fixtures/ScopedCss.Orphan, in the same style as the other scoped-CSS-only " +
+            "assertions (bundle scope prefix, generated attribute) already tested outside the " +
+            "DiagnosticExpectations.All harness."),
+    ];
 
     /// <summary>
     /// IDs that <c>ARCHITECTURE.md</c> Appendix A documents on purpose while no <c>DiagnosticDescriptor</c>

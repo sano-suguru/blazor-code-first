@@ -9,6 +9,20 @@
        build-execution time, after the whole project (including Sdk.targets) has already been
        evaluated. -->
 
+  <!-- dotnet watch discovers what to watch through its own DotNetWatch.targets, imported only by
+       the watch process itself, never by a plain build. That file's _CollectWatchItems target reads
+       $(CustomCollectWatchItems) (a semicolon list of target names, populated in
+       BlazorCodeFirst.props) as one of its DependsOnTargets, the same extension point the Razor SDK
+       uses for .razor.css/.cshtml.css (_RazorSdkCustomCollectWatchItems in
+       Sdk.Razor.CurrentVersion.targets). Without this, .cs.css sits outside dotnet watch's file set
+       entirely and a change to it triggers no rebuild. -->
+  <Target Name="_BcfCustomCollectWatchItems">
+    <ItemGroup>
+      <Watch Include="%(None.FullPath)"
+             Condition="$([System.String]::Copy('%(None.FullPath)').EndsWith('.cs.css')) AND '%(None.Watch)' != 'false'" />
+    </ItemGroup>
+  </Target>
+
   <Target Name="BcfFindScopedCssInputs">
     <ItemGroup>
       <_BcfScopedCssInput Include="**/*.cs.css" Exclude="$(BaseIntermediateOutputPath)**;$(BaseOutputPath)**" />
@@ -31,9 +45,23 @@
     </ComputeScopedCssScopeTask>
   </Target>
 
+  <!-- BeforeTargets names GenerateMSBuildEditorConfigFileCore explicitly, not just CoreCompile or the
+       empty GenerateMSBuildEditorConfigFile wrapper: that wrapper target
+       (Microsoft.Managed.Core.targets) has itself no body, only
+       DependsOnTargets="...;GenerateMSBuildEditorConfigFileCore", and it is Core that does the actual
+       work, reading CompilerVisibleItemMetadata (declared in BlazorCodeFirst.props) and each
+       matching item's metadata to write the per-file editorconfig section the generator reads
+       CssScope back from. A DependsOnTargets chain always finishes before a BeforeTargets insertion
+       point for the same named target runs, so naming the wrapper here (as an earlier version of this
+       target did) let Core already run, and write the file with no CssScope section at all, before
+       this target's stamp ever landed on @(AdditionalFiles) (measured directly with -v:diag target
+       ordering: GenerateMSBuildEditorConfigFileCore executed before BcfStampCssScopeOnAdditionalFiles
+       even started). The build still succeeded either way, silently: no exception, just a scope
+       attribute that never reached the generated component. Naming Core itself is what actually forces
+       this target to run first. -->
   <Target Name="BcfStampCssScopeOnAdditionalFiles"
           DependsOnTargets="BcfComputeScopedCssScope"
-          BeforeTargets="CoreCompile">
+          BeforeTargets="GenerateMSBuildEditorConfigFileCore;CoreCompile">
     <ItemGroup>
       <AdditionalFiles Include="@(_BcfScopedCssWithScope)" />
     </ItemGroup>

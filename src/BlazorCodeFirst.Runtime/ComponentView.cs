@@ -203,7 +203,7 @@ public readonly struct ComponentView<TComponent>
     /// <c>Class</c> parameter of its own (#314). Sugar for <c>.Attr("class", value)</c> — unlike the
     /// element decoration <c>Decorations.Class(ElementView, string?)</c>, this does not fold: writing
     /// it twice, or beside <c>.Attr("class", …)</c>, is BCF3010. A name that collides with a declared
-    /// <c>[Parameter]</c>, case-insensitively, is BCF3041 instead — use <see cref="Param{TValue}"/> for
+    /// <c>[Parameter]</c>, case-insensitively, is BCF3042 instead — use <see cref="Param{TValue}"/> for
     /// that.
     /// </summary>
     /// <remarks>
@@ -226,7 +226,7 @@ public readonly struct ComponentView<TComponent>
     /// into the target's <c>[Parameter(CaptureUnmatchedValues = true)]</c> dictionary when the name
     /// matches no declared parameter (#314). <paramref name="name"/> must be a non-empty compile-time
     /// constant, the same rule the element decoration <c>Decorations.Attr(ElementView, string, string?)</c>
-    /// carries. A name that does match a declared <c>[Parameter]</c>, case-insensitively, is BCF3041:
+    /// carries. A name that does match a declared <c>[Parameter]</c>, case-insensitively, is BCF3042:
     /// use <c>.Param(c =&gt; c.Name, value)</c> instead, so the value is type-checked.
     /// </summary>
     /// <remarks>Declared here rather than in <see cref="Decorations"/>; see <see cref="Class"/>'s remarks.</remarks>
