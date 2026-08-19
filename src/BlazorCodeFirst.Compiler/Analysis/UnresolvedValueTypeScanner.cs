@@ -933,6 +933,16 @@ internal static class UnresolvedValueTypeScanner
             return RecognizedInvocation.Named(forEach);
         }
 
+        // Two stryker survivors here (removing the statement in this loop's body, and removing the
+        // expressionMethod call below) are measured equivalent, not assumed: hand-applying each alone and
+        // running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+        // passing unchanged. Reading why: three sources feed candidates here, and
+        // DuplicateCandidateFromExpressionAndInvocationInfo_UnresolvedType_ReportsBCF3015's own remarks
+        // record the mechanism -- symbolInfo.CandidateSymbols, the bare expressionMethod reference, and
+        // expressionInfo.CandidateSymbols itself all resolve to the same overload set for any call this
+        // scanner reaches, so AddRecognizedCandidate's dedup loop collapses them regardless of which
+        // source is silenced; removing either of the first two still leaves the remaining sources to add
+        // the identical candidate.
         var candidates = new List<IMethodSymbol>();
         foreach (var symbol in symbolInfo.CandidateSymbols)
             AddRecognizedCandidate(symbol, candidates, context);
