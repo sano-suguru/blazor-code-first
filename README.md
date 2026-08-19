@@ -1,6 +1,7 @@
 # BlazorCodeFirst
 
 [![CI](https://github.com/sano-suguru/blazor-code-first/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sano-suguru/blazor-code-first/actions/workflows/ci.yml)
+[![Status: Prerelease](https://img.shields.io/badge/status-prerelease-orange.svg)](CONTRIBUTING.md#releasing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Blazor components written in C#, not `.razor`. HTML's own vocabulary becomes ordinary C#
@@ -63,21 +64,6 @@ through it like any other code. That is C# type checking, not validation of the 
 analyzers catch what the type system cannot see, such as a component that forgets `partial`, state
 mutated inside `Body`, or a duplicate attribute. Each is reported as a `BCF****` diagnostic during
 the build.
-
-## Status
-
-Prerelease. The surface is deliberately narrow and grows one issue at a time. `PreventDefault` /
-`StopPropagation` event modifiers, `.Ref(...)` for elements and components, and form helpers
-(`EditForm`, `InputText`, `DataAnnotationsValidator`, `ValidationSummary`, all through
-`Component<T>()`) are already covered. Issue #72 tracks the current gaps, such as typed event
-shortcuts and scoped CSS.
-
-A tag name and an attribute name are always compile-time constants, so there is no runtime-valued
-name: the class channel folds at compile time and the duplicate check reads the name, and both go
-silent once the name is a value (`DESIGN.md` §4.1). The one exception is
-`.Attrs(IReadOnlyDictionary<string, object>?)`, an element decoration that spreads an already-resolved
-dictionary of attributes — Blazor's `@attributes` — without introducing a runtime-valued name; an
-explicit `.Class` / `.Attr` still wins over anything the dictionary carries.
 
 ## Installation
 
