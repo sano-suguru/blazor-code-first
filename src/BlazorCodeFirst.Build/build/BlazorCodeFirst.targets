@@ -167,6 +167,87 @@
     </ItemGroup>
   </Target>
 
+  <!-- Library->app scoped CSS propagation (issue #312 item 3, design doc
+       docs/superpowers/specs/2026-08-19-scoped-css-library-propagation-design.md). The SDK's own
+       project-bundle ConcatenateCssFiles call (Microsoft.NET.Sdk.StaticWebAssets.ScopedCss.targets,
+       the second ConcatenateCssFiles call inside BundleScopedCssFiles) is gated on
+       '@(_ScopedCss) != ""', so it never runs for a pure-.cs.css library (no .razor.css at all).
+       This target fills that gap: same task, same output path the SDK's own call would have used,
+       run only when the SDK's own call was going to skip it. Mirrors BcfBundleScopedCss above, one
+       layer up (project bundle instead of app bundle); see that target's own comment for why
+       $(_BcfShouldSelfBundleProject) is computed in a target-body PropertyGroup rather than a
+       Condition attribute. A library that also has .razor.css needs no help here: @(_ScopedCss) is
+       then non-empty, the SDK's own call runs, and it already reads
+       @(_CurrentProjectDiscoveredScopedCssFiles), which includes BCF's own contribution via the
+       existing BcfRegisterScopedCssStaticWebAssets target above. -->
+  <Target Name="BcfBundleScopedCssProject"
+          AfterTargets="BundleScopedCssFiles">
+    <PropertyGroup>
+      <_BcfShouldSelfBundleProject>false</_BcfShouldSelfBundleProject>
+      <_BcfShouldSelfBundleProject Condition="'@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfBundleProject>
+    </PropertyGroup>
+    <ConcatenateCssFiles
+        Condition="'$(_BcfShouldSelfBundleProject)' == 'true'"
+        ScopedCssFiles="@(_CurrentProjectDiscoveredScopedCssFiles)"
+        ProjectBundles=""
+        ScopedCssBundleBasePath="$(_ScopedCssBundleBasePath)"
+        OutputFile="$(_ScopedCssProjectOutputPath)" />
+    <ItemGroup Condition="'$(_BcfShouldSelfBundleProject)' == 'true'">
+      <FileWrites Include="$(_ScopedCssProjectOutputPath)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Registers the ProjectBundle StaticWebAsset the target above just wrote. The SDK's own
+       registration (ResolveBundledCssAssets) is ALSO gated on '@(_ScopedCss) != ""'. Without this, a
+       pure-.cs.css library never produces an outgoing StaticWebAsset a referencing project's
+       GetCurrentProjectStaticWebAssets could pick up. DefineStaticWebAssetEndpoints is required
+       alongside DefineStaticWebAssets: registering only the asset made the later
+       ApplyCompressionNegotiation task (Microsoft.NET.Sdk.StaticWebAssets.Compression.targets) fail
+       the whole build with "Endpoints not found for related asset" (measured against a scratch
+       project during the spike for this feature). -->
+  <Target Name="BcfRegisterScopedCssProjectBundle"
+          AfterTargets="ResolveBundledCssAssets">
+    <PropertyGroup>
+      <_BcfShouldSelfRegisterProject>false</_BcfShouldSelfRegisterProject>
+      <_BcfShouldSelfRegisterProject Condition="'@(_ScopedCss)' == '' and '@(_BcfScopedCssRewritten)' != ''">true</_BcfShouldSelfRegisterProject>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'">
+      <_BcfScopedCssProjectBundleCandidate Include="$(_ScopedCssProjectOutputPath)">
+        <RelativePath Condition="'$(StaticWebAssetFingerprintingEnabled)' == 'true'">$(PackageId)#[.{fingerprint}]!.bundle.scp.css</RelativePath>
+        <RelativePath Condition="'$(StaticWebAssetFingerprintingEnabled)' != 'true'">$(PackageId).bundle.scp.css</RelativePath>
+      </_BcfScopedCssProjectBundleCandidate>
+    </ItemGroup>
+    <DefineStaticWebAssets
+        Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'"
+        CandidateAssets="@(_BcfScopedCssProjectBundleCandidate)"
+        SourceType="Computed"
+        SourceId="$(PackageId)"
+        ContentRoot="$(_ScopedCssProjectBundleContentRoot)"
+        BasePath="$(StaticWebAssetBasePath)"
+        AssetKind="All"
+        AssetMode="Reference"
+        AssetRole="Primary"
+        RelatedAsset=""
+        AssetMergeSource="$(StaticWebAssetMergeTarget)"
+        AssetTraitName="ScopedCss"
+        AssetTraitValue="ProjectBundle"
+        CopyToOutputDirectory="Never"
+        CopyToPublishDirectory="PreserveNewest">
+      <Output TaskParameter="Assets" ItemName="_BcfScopedCssProjectBundleStaticWebAsset" />
+    </DefineStaticWebAssets>
+    <DefineStaticWebAssetEndpoints
+        Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'"
+        CandidateAssets="@(_BcfScopedCssProjectBundleStaticWebAsset)"
+        ExistingEndpoints="@(StaticWebAssetEndpoint)"
+        ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+      <Output TaskParameter="Endpoints" ItemName="_BcfScopedCssProjectBundleStaticWebAssetEndpoint" />
+    </DefineStaticWebAssetEndpoints>
+    <ItemGroup Condition="'$(_BcfShouldSelfRegisterProject)' == 'true'">
+      <StaticWebAsset Include="@(_BcfScopedCssProjectBundleStaticWebAsset)" />
+      <StaticWebAssetEndpoint Include="@(_BcfScopedCssProjectBundleStaticWebAssetEndpoint)" />
+    </ItemGroup>
+  </Target>
+
   <!-- TFM-branched task assembly directory: VS's own MSBuild is net472, `dotnet build`'s MSBuild is
        net-core. Computed once here rather than repeated per UsingTask, so adding a third task later
        needs one new UsingTask line, not two. -->

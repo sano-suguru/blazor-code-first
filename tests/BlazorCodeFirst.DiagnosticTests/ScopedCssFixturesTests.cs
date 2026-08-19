@@ -104,4 +104,23 @@ public sealed class ScopedCssFixturesTests(ScopedCssFixtures fixtures)
         Assert.Contains("BCF3041", output, StringComparison.Ordinal);
         Assert.Contains("Orphan.cs.css", output, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void LibraryProjectReference_fixture_app_bundle_imports_the_librarys_project_bundle()
+    {
+        var build = fixtures.LibraryProjectReference;
+
+        Assert.Contains("@import '_content/", build.BundledCss, StringComparison.Ordinal);
+        Assert.Contains(".bundle.scp.css';", build.BundledCss, StringComparison.Ordinal);
+
+        var libraryBundlePaths = Directory.GetFiles(
+            Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Library", "obj"),
+            "*.bundle.scp.css",
+            SearchOption.AllDirectories);
+        var libraryBundle = Assert.Single(libraryBundlePaths);
+        var libraryBundleContent = File.ReadAllText(libraryBundle);
+
+        Assert.Contains(".my-component[bcf-", libraryBundleContent, StringComparison.Ordinal);
+        Assert.Contains("color: red;", libraryBundleContent, StringComparison.Ordinal);
+    }
 }

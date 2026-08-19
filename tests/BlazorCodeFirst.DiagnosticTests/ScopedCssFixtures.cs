@@ -17,6 +17,7 @@ public sealed class ScopedCssFixtures
     private readonly Lazy<ScopedCssBuild> _mixed;
     private readonly Lazy<ScopedCssBuild> _atRules;
     private readonly Lazy<(int ExitCode, string Output)> _orphan;
+    private readonly Lazy<ScopedCssBuild> _libraryProjectReference;
 
     public ScopedCssFixtures()
     {
@@ -27,6 +28,8 @@ public sealed class ScopedCssFixtures
         _mixed = new(() => BuildFixture("ScopedCss.Mixed"), LazyThreadSafetyMode.ExecutionAndPublication);
         _atRules = new(() => BuildFixture("ScopedCss.AtRules"), LazyThreadSafetyMode.ExecutionAndPublication);
         _orphan = new(BuildOrphan, LazyThreadSafetyMode.ExecutionAndPublication);
+        _libraryProjectReference = new(
+            () => BuildFixture("ScopedCss.LibraryProjectReference"), LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public ScopedCssBuild ProjectReference => _projectReference.Value;
@@ -36,6 +39,8 @@ public sealed class ScopedCssFixtures
     public ScopedCssBuild Mixed => _mixed.Value;
 
     public ScopedCssBuild AtRules => _atRules.Value;
+
+    public ScopedCssBuild LibraryProjectReference => _libraryProjectReference.Value;
 
     /// <summary>
     /// The orphan fixture never produces a bundle (the build is expected to fail with BCF3041 before
