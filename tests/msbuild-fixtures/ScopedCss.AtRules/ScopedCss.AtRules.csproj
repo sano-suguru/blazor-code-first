@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <ProjectReference Include="../../../src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj" />
+    <ProjectReference Include="../../../src/BlazorCodeFirst.Compiler/BlazorCodeFirst.Compiler.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Import Project="../../../src/BlazorCodeFirst.Build/build/BlazorCodeFirst.props" />
+  <Import Project="../../../src/BlazorCodeFirst.Build/build/BlazorCodeFirst.targets" />
+</Project>
