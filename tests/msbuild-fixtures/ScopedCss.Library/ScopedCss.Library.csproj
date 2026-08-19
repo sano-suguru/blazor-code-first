@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <PackageId>BlazorCodeFirst.ScopedCssLibraryFixture</PackageId>
+    <!-- Version comes from eng/Versions.props: this fixture package is delivered alongside
+         BlazorCodeFirst and the propagation tests assert both resolve at the same version. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Not FrameworkReference Include="Microsoft.AspNetCore.App": that shared-framework reference
+         has no browser-wasm runtime pack (issue #23, see BlazorCodeFirst.Runtime.csproj's own
+         comment on the same point), and this library is consumed by a
+         Microsoft.NET.Sdk.BlazorWebAssembly app. Microsoft.AspNetCore.Components comes in
+         transitively through the BlazorCodeFirst.Runtime ProjectReference below. -->
+    <ProjectReference Include="../../../src/BlazorCodeFirst.Runtime/BlazorCodeFirst.Runtime.csproj" />
+    <ProjectReference Include="../../../src/BlazorCodeFirst.Compiler/BlazorCodeFirst.Compiler.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Import Project="../../../src/BlazorCodeFirst.Build/build/BlazorCodeFirst.props" />
+  <Import Project="../../../src/BlazorCodeFirst.Build/build/BlazorCodeFirst.targets" />
+</Project>

@@ -65,6 +65,18 @@ internal static class NestedDotnet
         return (process.ExitCode, output.ToString());
     }
 
+    // Shared by every fixture class that packs a project into a local feed (ScopedCssFixtures,
+    // RazorInteropFixtures): same "pack -c Release -o <feed>" invocation shape, same failure
+    // message, so it lives here once instead of once per fixture class.
+    public static void Pack(string projectPath, string packageFeed)
+    {
+        var (exitCode, output) = Run(
+            ["pack", projectPath, "-c", "Release", "-o", packageFeed, "--nologo", "-v:m"],
+            RepoLayout.Root);
+
+        Assert.True(exitCode == 0, $"Packing '{projectPath}' failed.{Environment.NewLine}{output}");
+    }
+
     private static void AppendLine(StringBuilder builder, string? line)
     {
         if (line is null)

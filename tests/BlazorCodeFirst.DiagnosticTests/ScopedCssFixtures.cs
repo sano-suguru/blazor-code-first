@@ -12,21 +12,34 @@ public sealed record ScopedCssBuild(string Output, string BundledCss, string Gen
 public sealed class ScopedCssFixtures
 {
     private readonly Lazy<bool> _stagedBuildTask;
+    // Shared by BuildPackage and BuildLibraryPackage: packing BlazorCodeFirst.Runtime.csproj builds
+    // its own compiler and build-task DLLs from source, the most expensive step either fixture pays,
+    // so both fixtures restore from this one feed instead of each packing Runtime a second time.
+    private readonly Lazy<string> _runtimePackageFeed;
     private readonly Lazy<ScopedCssBuild> _projectReference;
     private readonly Lazy<ScopedCssBuild> _package;
     private readonly Lazy<ScopedCssBuild> _mixed;
     private readonly Lazy<ScopedCssBuild> _atRules;
     private readonly Lazy<(int ExitCode, string Output)> _orphan;
+    private readonly Lazy<ScopedCssBuild> _libraryProjectReference;
+    private readonly Lazy<ScopedCssBuild> _libraryPackage;
+    private readonly Lazy<ScopedCssBuild> _libraryMixed;
 
     public ScopedCssFixtures()
     {
         _stagedBuildTask = new(StageBuildTaskAssembly, LazyThreadSafetyMode.ExecutionAndPublication);
+        _runtimePackageFeed = new(PackRuntimeFeed, LazyThreadSafetyMode.ExecutionAndPublication);
         _projectReference = new(
             () => BuildFixture("ScopedCss.ProjectReference"), LazyThreadSafetyMode.ExecutionAndPublication);
         _package = new(BuildPackage, LazyThreadSafetyMode.ExecutionAndPublication);
         _mixed = new(() => BuildFixture("ScopedCss.Mixed"), LazyThreadSafetyMode.ExecutionAndPublication);
         _atRules = new(() => BuildFixture("ScopedCss.AtRules"), LazyThreadSafetyMode.ExecutionAndPublication);
         _orphan = new(BuildOrphan, LazyThreadSafetyMode.ExecutionAndPublication);
+        _libraryProjectReference = new(
+            () => BuildFixture("ScopedCss.LibraryProjectReference"), LazyThreadSafetyMode.ExecutionAndPublication);
+        _libraryPackage = new(BuildLibraryPackage, LazyThreadSafetyMode.ExecutionAndPublication);
+        _libraryMixed = new(
+            () => BuildFixture("ScopedCss.LibraryMixed"), LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     public ScopedCssBuild ProjectReference => _projectReference.Value;
@@ -36,6 +49,12 @@ public sealed class ScopedCssFixtures
     public ScopedCssBuild Mixed => _mixed.Value;
 
     public ScopedCssBuild AtRules => _atRules.Value;
+
+    public ScopedCssBuild LibraryProjectReference => _libraryProjectReference.Value;
+
+    public ScopedCssBuild LibraryPackage => _libraryPackage.Value;
+
+    public ScopedCssBuild LibraryMixed => _libraryMixed.Value;
 
     /// <summary>
     /// The orphan fixture never produces a bundle (the build is expected to fail with BCF3041 before
@@ -105,18 +124,9 @@ public sealed class ScopedCssFixtures
         return new ScopedCssBuild(output, File.ReadAllText(bundle), generatedFilesDirectory);
     }
 
-    private static ScopedCssBuild BuildPackage()
+    private ScopedCssBuild BuildPackage()
     {
-        var packageFeed = Path.Combine(RepoLayout.ArtifactsDirectory, "scoped-css", "feed");
-        if (Directory.Exists(packageFeed))
-            Directory.Delete(packageFeed, recursive: true);
-        Directory.CreateDirectory(packageFeed);
-
-        var (packExitCode, packOutput) = NestedDotnet.Run(
-            ["pack", Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"),
-             "-c", "Release", "-o", packageFeed, "--nologo", "-v:m"],
-            RepoLayout.Root);
-        Assert.True(packExitCode == 0, $"Packing BlazorCodeFirst.Runtime failed.{Environment.NewLine}{packOutput}");
+        var packageFeed = _runtimePackageFeed.Value;
 
         var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Package");
         var projectPath = Path.Combine(projectDirectory, "ScopedCss.Package.csproj");
@@ -139,6 +149,55 @@ public sealed class ScopedCssFixtures
         var packageBundle = Assert.Single(bundlePaths);
 
         return new ScopedCssBuild(output, File.ReadAllText(packageBundle), generatedFilesDirectory);
+    }
+
+    // The library fixture itself imports BlazorCodeFirst.props/.targets directly (see
+    // ScopedCss.Library.csproj), which is what requires staging the task assembly before packing it
+    // -- PackRuntimeFeed packs only BlazorCodeFirst.Runtime.csproj, which builds its own compiler
+    // and build-task DLLs from source as part of packing and never needs this staging step.
+    private ScopedCssBuild BuildLibraryPackage()
+    {
+        _ = _stagedBuildTask.Value;
+
+        var packageFeed = _runtimePackageFeed.Value;
+        NestedDotnet.Pack(
+            Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.Library", "ScopedCss.Library.csproj"),
+            packageFeed);
+
+        var projectDirectory = Path.Combine(RepoLayout.Root, "tests", "msbuild-fixtures", "ScopedCss.LibraryPackage");
+        var projectPath = Path.Combine(projectDirectory, "ScopedCss.LibraryPackage.csproj");
+        var configFile = Path.Combine(projectDirectory, "NuGet.config");
+        var generatedFilesDirectory = Path.Combine(
+            RepoLayout.ArtifactsDirectory, "scoped-css-library", "gen", "ScopedCss.LibraryPackage");
+
+        var (exitCode, output) = NestedDotnet.Run(
+            ["build", projectPath, "-t:Rebuild", "--nologo", "-v:m",
+             "-p:RestoreConfigFile=" + configFile, "-p:RestoreForce=true",
+             "-p:EmitCompilerGeneratedFiles=true",
+             "-p:CompilerGeneratedFilesOutputPath=" + generatedFilesDirectory],
+            projectDirectory);
+
+        Assert.True(exitCode == 0, $"Building ScopedCss.LibraryPackage failed.{Environment.NewLine}{output}");
+
+        var bundlePaths = Directory.GetFiles(
+            Path.Combine(projectDirectory, "obj"), "*.styles.css", SearchOption.AllDirectories);
+        var bundle = Assert.Single(bundlePaths);
+
+        return new ScopedCssBuild(output, File.ReadAllText(bundle), generatedFilesDirectory);
+    }
+
+    private static string PackRuntimeFeed()
+    {
+        var packageFeed = Path.Combine(RepoLayout.ArtifactsDirectory, "scoped-css", "feed");
+        if (Directory.Exists(packageFeed))
+            Directory.Delete(packageFeed, recursive: true);
+        Directory.CreateDirectory(packageFeed);
+
+        NestedDotnet.Pack(
+            Path.Combine(RepoLayout.Root, "src", "BlazorCodeFirst.Runtime", "BlazorCodeFirst.Runtime.csproj"),
+            packageFeed);
+
+        return packageFeed;
     }
 
     private (int ExitCode, string Output) BuildOrphan()
