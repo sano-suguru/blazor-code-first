@@ -545,6 +545,12 @@ internal static class UnresolvedValueTypeScanner
 
         foreach (var name in expression.DescendantNodesAndSelf().OfType<SimpleNameSyntax>())
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No test harness cancels this token, so the call is a
+            // responsiveness measure with nothing to be observed either throwing or not throwing --
+            // equivalent by construction of the token every test host hands this generator, not by any
+            // property of this scanner's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
             if (IsInsideNameofConstant(name, context))
@@ -631,6 +637,16 @@ internal static class UnresolvedValueTypeScanner
             // was written for.
             var arguments = node switch
             {
+                // A stryker survivor that widens this to || (matching a resolved surface call too, or an
+                // unresolved non-surface call alone) is measured, not proven equivalent: hand-applying it
+                // and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every
+                // test passing unchanged. Reading why, for the half that is understood: an unresolved
+                // invocation this arm would now wrongly walk into is still an ancestor of every name inside
+                // it, and ReportValue's own IsInsideUnselectedInvocation climbs ancestors independently of
+                // how it was reached, so it re-suppresses the same name this arm would have leaked. What
+                // remains open is the other half -- a resolved surface call nested in a value position,
+                // which this arm's own || would now also walk -- no input constructing that shape has been
+                // tried, so this side is not ruled out the way the first is.
                 InvocationExpressionSyntax invocation
                     when context.SemanticModel.GetSymbolInfo(
                             invocation, context.CancellationToken).Symbol is IMethodSymbol
