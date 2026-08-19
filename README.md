@@ -1,6 +1,7 @@
 # BlazorCodeFirst
 
 [![CI](https://github.com/sano-suguru/blazor-code-first/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sano-suguru/blazor-code-first/actions/workflows/ci.yml)
+[![Status: Prerelease](https://img.shields.io/badge/status-prerelease-orange.svg)](CONTRIBUTING.md#releasing)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Blazor components written in C#, not `.razor`. HTML's own vocabulary becomes ordinary C#
@@ -63,16 +64,6 @@ through it like any other code. That is C# type checking, not validation of the 
 analyzers catch what the type system cannot see, such as a component that forgets `partial`, state
 mutated inside `Body`, or a duplicate attribute. Each is reported as a `BCF****` diagnostic during
 the build.
-
-## Status
-
-Prerelease. The surface is deliberately narrow and grows one issue at a time. Not supported yet:
-`preventDefault` / `stopPropagation`, `@ref` for elements and components, and form helpers.
-
-A tag and an attribute name are always compile-time constants, so there is no `@attributes` splat
-and no runtime-valued name. That is a decision rather than a gap: the class channel folds at compile
-time and the duplicate check reads the name, and both go silent once the name is a value
-(`DESIGN.md` §4.1).
 
 ## Installation
 
