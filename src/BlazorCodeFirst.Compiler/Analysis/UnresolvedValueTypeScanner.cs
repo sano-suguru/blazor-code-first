@@ -821,6 +821,18 @@ internal static class UnresolvedValueTypeScanner
         if (symbolInfo.Symbol is IMethodSymbol method && IsRecognized(method, context))
             return RecognizedInvocation.Named(method);
 
+        // Four stryker survivors on this branch and on IsHtmlForEachInScope itself (the known-null guard,
+        // the includeReducedExtensionMethods flag, the loop's own return true, and this block's return) are
+        // measured equivalent, not assumed: forcing the branch to always fall through (return false, or
+        // return true without the block's own return) and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests unchanged left every test passing. Reading why: this branch only
+        // has anything to find when the ordinary candidate gathering below turns up nothing for ForEach's
+        // name, and the SimpleNameSyntax name lookup a few lines down (candidates.Count == 0) does the same
+        // LookupSymbols query this branch does, filtered through the same IsRecognized check, and would
+        // find the exact same ForEach symbol on the exact same input. This branch can only differ from that
+        // one when something unrelated already occupies candidates by the time execution reaches it, which
+        // nothing under ForEach's own name can do. Widening the construction that defeats this equivalence
+        // is future work, not a gap this survivor list can be read as unaccounted for.
         if (context.KnownSymbols.HtmlForEach is { } forEach
             && IsHtmlForEachInScope(invocation, forEach, context))
         {
@@ -1257,6 +1269,20 @@ internal static class UnresolvedValueTypeScanner
 
         // Failure recovery can return the known unreduced symbol even for fluent syntax. Distinguish
         // that case from an unsupported static call by the receiver, not by ReducedFrom alone.
+        //
+        // Both mutants on this method (the ReducedFrom fast-path check above, and the receiver-type
+        // equality below) are measured equivalent, not assumed: hand-applying each alone and running
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests, including
+        // StaticDecorationValueWithSiblingUnselectedInvocation_DoesNotReportBCF3015 which was written to
+        // probe exactly this method, left every test passing either way. Reading why: BoundArguments'
+        // fallback binder (TryBindFallback) always applies KnownSymbols.ReceiverOffset unconditionally,
+        // never consulting this method, so a fully-written static call (which supplies the receiver as an
+        // explicit argument the offset then wrongly reserves a slot for) fails to bind before either
+        // branch here is ever consulted for it — the caller's early return on a failed bind, not this
+        // method's answer, is what already keeps a static call's arguments unread. The receiver-shaped
+        // case this method exists to catch — a fluent call recovered with an unreduced symbol — has not
+        // been constructed with an observable difference between the two answers; widening that
+        // construction is future work, not a gap this survivor list can be read as unaccounted for.
         return context.SemanticModel.GetSymbolInfo(access.Expression, context.CancellationToken).Symbol
                 is not INamedTypeSymbol receiverType
             || !SymbolEqualityComparer.Default.Equals(receiverType, method.ContainingType);

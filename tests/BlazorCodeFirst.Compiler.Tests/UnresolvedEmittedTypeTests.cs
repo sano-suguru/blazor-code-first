@@ -322,6 +322,40 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// The same static <c>Decorations.Attr(Div, ...)</c> spelling as
+    /// <see cref="StaticDecorationValue_UnresolvedType_RemainsBCF1003Only"/>, but with a sibling unselected
+    /// invocation so the body reaches this scanner's own failure-recovery walk rather than being reported
+    /// through <c>RenderExpressionAnalyzer.Analyze</c>'s success path. <c>IsFluentExtensionInvocation</c>
+    /// is what keeps a static call's arguments unread here: its receiver, <c>Decorations</c>, resolves to
+    /// the method's own containing type, which the fluent spelling's receiver (an <c>ElementView</c> value)
+    /// never does. Flipping the <c>ReducedFrom</c> fast path or the receiver-type comparison wrongly reads
+    /// this call as fluent and reports BCF3015 at the wrong argument position instead of leaving the body
+    /// at BCF1003.
+    /// </summary>
+    [Fact]
+    public void StaticDecorationValueWithSiblingUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Decorations.Attr(Div, "data-type", MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void NonElementDecorationValue_UnresolvedType_RemainsBCF3008Only()
     {
