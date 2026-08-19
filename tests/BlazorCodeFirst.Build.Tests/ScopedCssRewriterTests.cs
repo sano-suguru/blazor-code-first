@@ -41,18 +41,6 @@ public class ScopedCssRewriterTests
             result);
     }
 
-    [Theory]
-    [InlineData("@media (min-width: 640px) { .a { color: red; } }")]
-    [InlineData("@keyframes fade { from { opacity: 0; } }")]
-    [InlineData("@import url('other.css');")]
-    public void Rewrite_throws_for_top_level_at_rules(string css)
-    {
-        var exception = Assert.Throws<NotSupportedException>(
-            () => ScopedCssRewriter.Rewrite("file.css", css, "bcf-abcd1234", out _));
-
-        Assert.Contains("at-rule", exception.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
     [Fact]
     public void HandlesEmptyFile()
     {
@@ -227,5 +215,40 @@ public class ScopedCssRewriterTests
         Assert.Equal(
             "\n    .a .b[TestScope] /* comment ::deep 1 */    /* comment ::deep 2 */  .c /* ::deep */ .d { color: red; }\n    [TestScope] * { color: blue; } /* Leading deep combinator */\n    another[TestScope]  { color: green }  /* Trailing deep combinator */\n",
             result);
+    }
+
+    [Fact]
+    public void HandlesAtBlocks()
+    {
+        var css = "\n    .myclass { color: red; }\n\n    @media only screen and (max-width: 600px) {\n        .another .thing {\n            content: 'This should not be a selector: .fake-selector { color: red }'\n        }\n    }\n";
+
+        var result = ScopedCssRewriter.Rewrite("file.css", css, "TestScope", out var errors);
+
+        Assert.Empty(errors);
+        Assert.Equal(
+            "\n    .myclass[TestScope] { color: red; }\n\n    @media only screen and (max-width: 600px) {\n        .another .thing[TestScope] {\n            content: 'This should not be a selector: .fake-selector { color: red }'\n        }\n    }\n",
+            result);
+    }
+
+    [Fact]
+    public void RejectsImportStatements()
+    {
+        var css = "\n    @import \"basic-import.css\";\n    @import \"import-with-media-type.css\" print;\n    @import \"import-with-media-query.css\" screen and (orientation:landscape);\n    @ImPoRt /* comment */ \"scheme://path/to/complex-import\" /* another-comment */ screen;\n    @otheratrule \"should-not-cause-error.css\";\n    /* @import \"should-be-ignored-because-it-is-in-a-comment.css\"; */\n    .myclass { color: red; }\n";
+
+        ScopedCssRewriter.Rewrite("file.css", css, "TestScope", out var errors);
+
+        Assert.Equal(4, errors.Count);
+        Assert.Equal(
+            "file.css(2,5): @import rules are not supported within scoped CSS files because the loading order would be undefined. @import may only be placed in non-scoped CSS files.",
+            errors[0].ToString());
+        Assert.Equal(
+            "file.css(3,5): @import rules are not supported within scoped CSS files because the loading order would be undefined. @import may only be placed in non-scoped CSS files.",
+            errors[1].ToString());
+        Assert.Equal(
+            "file.css(4,5): @import rules are not supported within scoped CSS files because the loading order would be undefined. @import may only be placed in non-scoped CSS files.",
+            errors[2].ToString());
+        Assert.Equal(
+            "file.css(5,5): @import rules are not supported within scoped CSS files because the loading order would be undefined. @import may only be placed in non-scoped CSS files.",
+            errors[3].ToString());
     }
 }

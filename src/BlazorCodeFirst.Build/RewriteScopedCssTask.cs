@@ -24,15 +24,35 @@ public sealed class RewriteScopedCssTask : Microsoft.Build.Utilities.Task
             var outputPath = item.GetMetadata("OutputFile");
             var scope = item.GetMetadata("CssScope");
 
+            var css = File.ReadAllText(inputPath);
+            var rewritten = ScopedCssRewriter.Rewrite(inputPath, css, scope, out var errors);
+
+            if (errors.Count > 0)
+            {
+                foreach (var error in errors)
+                {
+                    Log.LogError(
+                        subcategory: null,
+                        errorCode: null,
+                        helpKeyword: null,
+                        file: error.FilePath,
+                        lineNumber: error.Line,
+                        columnNumber: error.Column,
+                        endLineNumber: 0,
+                        endColumnNumber: 0,
+                        message: error.Message);
+                }
+
+                continue;
+            }
+
             var outputDirectory = Path.GetDirectoryName(outputPath)!;
             if (createdDirectories.Add(outputDirectory))
                 Directory.CreateDirectory(outputDirectory);
 
-            var css = File.ReadAllText(inputPath);
-            var rewritten = ScopedCssRewriter.Rewrite(inputPath, css, scope, out _);
             File.WriteAllText(outputPath, rewritten);
         }
 
-        return true;
+        return !Log.HasLoggedErrors;
     }
 }

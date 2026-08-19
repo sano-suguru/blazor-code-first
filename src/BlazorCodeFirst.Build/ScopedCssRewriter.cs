@@ -63,8 +63,8 @@ public readonly struct CssRewriteError : IEquatable<CssRewriteError>
 /// applied in a single left-to-right pass at the end. This is what preserves comments and
 /// whitespace exactly outside of the edited spans.
 ///
-/// At-rules (<c>@media</c>, <c>@keyframes</c>, <c>@import</c>, ...) are not yet supported -- that
-/// lands in follow-up tasks in this same plan.
+/// <c>@keyframes</c> name suffixing and <c>animation</c>/<c>animation-name</c> value rewriting are
+/// not yet supported -- that lands in follow-up tasks in this same plan.
 /// </summary>
 public static class ScopedCssRewriter
 {
@@ -83,16 +83,21 @@ public static class ScopedCssRewriter
             throw new ArgumentNullException(nameof(scope));
 
         var edits = new List<Edit>();
-        ProcessRuleList(css, 0, css.Length, edits);
+        var errorList = new List<CssRewriteError>();
 
-        errors = [];
+        ProcessRuleList(css, 0, css.Length, edits, errorList, filePath);
+
+        errors = errorList;
         return ApplyEdits(css, scope, edits);
     }
 
-    // Walks a rule list (the top-level stylesheet) and dispatches each rule found within
-    // [start, end) to selector scoping. At-rules throw for now -- a follow-up task replaces this
-    // branch.
-    private static void ProcessRuleList(string css, int start, int end, List<Edit> edits)
+    // Walks a rule list (the top-level stylesheet, or the body of a block at-rule such as
+    // @media) and dispatches each rule found within [start, end) to selector scoping or (via
+    // recursion) another rule list. @keyframes gets its own handling in a follow-up task; until
+    // then its body is scanned like any other block at-rule's, which is wrong but not exercised
+    // by any test yet.
+    private static void ProcessRuleList(
+        string css, int start, int end, List<Edit> edits, List<CssRewriteError> errors, string filePath)
     {
         var i = start;
         var preludeStart = start;
@@ -115,37 +120,80 @@ public static class ScopedCssRewriter
 
                 if (isAtRule)
                 {
-                    throw new NotSupportedException(
-                        "ScopedCssRewriter cannot rewrite a CSS file containing a top-level " +
-                        "at-rule ('@media', '@keyframes', '@import', etc.) yet. Support lands in a " +
-                        "follow-up task.");
+                    // @media, @supports, @font-face, @keyframes, or an unrecognized block
+                    // at-rule: recurse. A declarations-only body (@font-face) has no nested '{',
+                    // so the recursive call finds nothing and returns immediately -- a safe
+                    // no-op.
+                    ProcessRuleList(css, bodyStart, bodyEnd, edits, errors, filePath);
                 }
-
-                foreach (var selector in SplitTopLevel(css, preludeStart, preludeEnd, ','))
-                    ScanSelector(css, selector.Start, selector.End, edits);
+                else
+                {
+                    foreach (var selector in SplitTopLevel(css, preludeStart, preludeEnd, ','))
+                        ScanSelector(css, selector.Start, selector.End, edits);
+                }
 
                 i = bodyEnd < end ? bodyEnd + 1 : bodyEnd;
                 preludeStart = i;
                 continue;
             }
 
+            if (c == ';')
+            {
+                var preludeEnd = i;
+                var trimmedPreludeStart = SkipInsignificant(css, preludeStart, preludeEnd);
+                var isAtRule = trimmedPreludeStart < preludeEnd && css[trimmedPreludeStart] == '@';
+
+                if (isAtRule)
+                {
+                    var keyword = ReadAtKeyword(css, trimmedPreludeStart);
+                    if (string.Equals(keyword, "import", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var (line, column) = LocateLineColumn(css, trimmedPreludeStart);
+                        errors.Add(new CssRewriteError(
+                            filePath, line, column,
+                            "@import rules are not supported within scoped CSS files because the " +
+                            "loading order would be undefined. @import may only be placed in " +
+                            "non-scoped CSS files."));
+                    }
+
+                    // Any other statement at-rule (e.g. "@otheratrule \"...\";") passes through
+                    // silently.
+                }
+
+                i++;
+                preludeStart = i;
+                continue;
+            }
+
             i++;
         }
+    }
 
-        // A statement-form at-rule (e.g. "@import url('other.css');") never hits the '{' branch
-        // above at all, so without this check it would silently pass through unrewritten instead
-        // of being rejected like a block at-rule is. Statement at-rules get real handling (';'
-        // dispatch, @import detection) in a follow-up task; until then, any trailing content that
-        // still looks like an at-rule once the loop runs out is treated the same as a block
-        // at-rule: unsupported.
-        var trailingStart = SkipInsignificant(css, preludeStart, end);
-        if (trailingStart < end && css[trailingStart] == '@')
+    private static string ReadAtKeyword(string css, int atIndex)
+    {
+        var i = atIndex + 1;
+        var start = i;
+        while (i < css.Length && (char.IsLetterOrDigit(css[i]) || css[i] == '-'))
+            i++;
+
+        return css.Substring(start, i - start);
+    }
+
+    private static (int Line, int Column) LocateLineColumn(string css, int index)
+    {
+        var line = 1;
+        var lastNewline = -1;
+
+        for (var i = 0; i < index && i < css.Length; i++)
         {
-            throw new NotSupportedException(
-                "ScopedCssRewriter cannot rewrite a CSS file containing a top-level " +
-                "at-rule ('@media', '@keyframes', '@import', etc.) yet. Support lands in a " +
-                "follow-up task.");
+            if (css[i] == '\n')
+            {
+                line++;
+                lastNewline = i;
+            }
         }
+
+        return (line, index - lastNewline);
     }
 
     // Given the index just past an opening '{' (so already one level deep), finds the index of
