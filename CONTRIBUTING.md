@@ -116,25 +116,18 @@ either, for the same reason as above. `--filter '*'` picks it up along with the
 dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*StaticFoldBenchmarks*'
 ```
 
-Its two component pairs were written before the emitter folded, when the element
-spelling was the unfolded baseline and the markup spelling hand-wrote the folded
-shape with `Html.Raw`. The two sides then rendered deliberately different
-frames. Now that the emitter folds, each pair's two sides emit the same frames,
-and `Program.Main` gates that equality rather than the strict inequality it once
-required: if the counts diverge, the element spelling stopped folding.
-`FoldFixtureTests` pins each pair's folded frame count and asserts both sides
-render the same DOM.
+Its two component pairs render the element spelling and the markup spelling of
+the same content. `Program.Main` gates their frame counts as equal: if they
+diverge, the element spelling stopped folding. `FoldFixtureTests` pins each
+pair's folded frame count and asserts both sides render the same DOM.
 
 `ClassChannelBenchmarks` is a third unpublished set, in two groups. The
-`generation rule` rows measure what the class channel's join allocates, before
-and after a change to the generation rule that builds it, against no second
-side: Razor has no additive class channel, so the comparison is this generator
-against its own previous output. That is what #236 needed before it could change
-the rule at all. The `join site` rows do have a second side — the join written
-into each generated class, against the one span-taking runtime method #239
-weighed against it — so `Program.Main` gates them on the two candidates
-answering the same text, on the same terms as the frame gates above.
-`--filter '*'` picks the set up; to run only it:
+`generation rule` rows measure what the class channel's join allocates against
+its own previous output, since Razor has no additive class channel to compare
+against (#236). The `join site` rows compare the join written into each
+generated class against the span-taking runtime method it replaced (#239), and
+`Program.Main` gates them on the two candidates matching, on the same terms as
+the frame gates above. `--filter '*'` picks the set up; to run only it:
 
 ```bash
 # The #236 decision input only (not a DESIGN.md figure)
@@ -171,12 +164,9 @@ dotnet restore tests/diagnostic-fixtures/GeneratorDelivery.Package/GeneratorDeli
 `dotnet test` will not show it, because MSBuild builds those fixtures inside the
 test process and their output never surfaces.
 
-Blazor's browser-side markup path is not covered by `dotnet test`. A text frame
-reaches the DOM through `createTextNode`, while a markup frame is parsed by
-assigning `innerHTML` on a shared `<template>` element. bUnit parses a document
-string with AngleSharp and prerendering writes markup verbatim, so neither sees
-the difference. The #140 static fold produces markup frames, so its parity with
-the element path is checked in a real browser:
+Blazor's browser-side markup path is not covered by `dotnet test` (`ARCHITECTURE.md`
+§2.7 D explains why bUnit cannot see the difference). The #140 static fold produces
+markup frames, so its parity with the element path is checked in a real browser:
 
 ```bash
 # Compare folded and unfolded spellings of the same content. The config starts
@@ -623,9 +613,8 @@ listed there and never run reads exactly like one that was.
 
 ## Conventions the code must uphold
 
-- Sequence numbers are source syntax positions, never runtime generation order.
-  Allocate them statically with preorder traversal and give mutually exclusive
-  branches disjoint ranges.
+- Sequence numbers are source syntax positions, never runtime generation order
+  (`ARCHITECTURE.md` §2.2, static sequence assignment).
 - `ForEach`'s key is either written or explicitly declined with `key: null`; the
   parameter has no default, so the absence is spelled rather than omitted. A
   written key represents item identity: sequence numbers identify template
@@ -633,18 +622,14 @@ listed there and never run reads exactly like one that was.
   list diffs as an index-derived key does, which is why declining is written at
   the call site. `[.. source.Select(item => …)]` is the same declined loop,
   spliced into a child list.
-- Classes that declare the design-time expression override (`Body` or `Chrome`)
-  must be `partial` so the generator can emit `RenderView` (otherwise
-  `BCF1001`), and must be top-level classes (nested classes are rejected with
-  `BCF1005`). Merely inheriting a BlazorCodeFirst base does not require it. A
-  hand-written `RenderView` override suppresses generation entirely, and with it
-  every diagnostic about the design-time expression including `BCF1001`:
-  nothing is generated into that class, so `partial` would change nothing.
+- A class that declares the design-time expression override (`Body` or `Chrome`)
+  must be `partial` and a top-level type. `BCF1001` and `BCF1005` enforce this;
+  Appendix A states the exceptions.
 - `Body`, `Chrome`, the element helpers, decorators, `Component<T>()`,
-  `Fragment`, and `Raw` are inert design-time constructs. The design-time
+  `Fragment`, and `Raw` are inert design-time constructs: the design-time
   expression (`BodyComponentBase.Body` or `ChromeLayoutBase.Chrome`) must
-  not be evaluated at runtime or mutate state; state mutation inside it is
-  reported as `BCF3001`.
+  not be evaluated at runtime or mutate state. `BCF3001` enforces this;
+  Appendix A states the excluded positions.
 - Preserve one-way flow: event dispatch precedes state mutation, which precedes
   rendering and DOM diff application.
 - Keep the SSC path free of runtime UI trees, reflection, and runtime
@@ -660,34 +645,25 @@ listed there and never run reads exactly like one that was.
   asserts: either the frame count, or that the prerender output is empty. Folded
   markup and the element path's `HtmlEncoder` output are identical by
   construction (`ARCHITECTURE.md` §2.7 D), so folding can stop silently and an
-  output-only assertion keeps passing. #140 hit four shapes of this. A benchmark
-  frame gate required the folded side to emit strictly fewer frames, and stopped
-  running anything once both sides became equal. A prerender escaping check
-  passed either way, because `HtmlRenderer` escapes ordinary text frames itself.
-  A folded/unfolded pair lost its other half when the unfolded side turned
-  constant and quietly folded too. A browser gate never reached the
-  markup-insertion path at all, because the prerendered content was still what
-  the page was showing.
+  output-only assertion keeps passing. #140 is the worked example: a benchmark's
+  frame-count gate, a prerender escaping check, a folded/unfolded fixture pair,
+  and a browser gate each kept passing after folding silently stopped, each for a
+  reason specific to that assertion's shape.
 - Preserve bidirectional Razor compatibility. A BlazorCodeFirst component stays a
-  plain Blazor component, so a `.razor` file names it as a tag with no same-project
-  restriction: what Razor resolves is the hand-written class, and the generator only
-  fills in `RenderView`. The other direction, `Component<T>()`, reaches existing Razor
-  components. Its type argument must resolve while the generator runs, so a
-  `.razor` component declared in the same project cannot be named (`BCF3012`),
-  because source generators cannot observe each other's output. `[ViewPart]` has no
-  Razor-facing entry point and is not to grow one (`ARCHITECTURE.md` Appendix B.4).
+  plain Blazor component: a `.razor` file can name it as a tag with no same-project
+  restriction. The other direction, `Component<T>()`, reaches existing Razor
+  components except one declared in the same project (`BCF3012`; Appendix A
+  states why). `[ViewPart]` has no Razor-facing entry point and is not to grow
+  one (`ARCHITECTURE.md` Appendix B.4).
 - `Component<T>()[children]` binds children to `ChildContent`, mirroring Razor's
   rule that nested content becomes `ChildContent`. `BCF3013` and `BCF3014` fence
-  off the shapes that cannot work; Appendix A states the exact conditions. `BCF3013`
-  requires a settable `[Parameter]` named `ChildContent` of a fragment type, of
-  either arity. A generic fragment under any other name is never reached through
-  brackets and is always named with `.Template`, so do not widen the bracket
-  channel past that name.
+  off the shapes that cannot work; Appendix A states the exact conditions. A
+  generic fragment under any other name is always named with `.Template`; do not
+  widen the bracket channel past `ChildContent`.
 - Value expressions copied into generated code must be lexical-context
-  independent, because the generated file carries no `using` directives.
-  Resolved type names are normalized to `global::`-qualified names and an
-  unresolved one reports `BCF3015`. Keep this separate from `BCF3012`, which is
-  reserved for the render-node type argument of `Component<T>()`.
+  independent, because the generated file carries no `using` directives
+  (`ARCHITECTURE.md` §2.2). An unresolved type reference reports `BCF3015`, kept
+  separate from `BCF3012` (the render-node type argument of `Component<T>()`).
 - Diagnostic IDs listed in `AnalyzerReleases.Shipped.md` are published
   specification contracts, so do not repurpose or remove them. An ID recorded in
   `DiagnosticExpectations.RetiredIds` is burned rather than free: it shipped, was
@@ -762,22 +738,10 @@ fine, and `eng/verify-site-prerender.sh` does it, but only downstream of the
 check that pins the two together.
 
 This is written down because reading was tried first and lost, four times, each
-time on code that was already written and already green:
-
-- #155, twice. The `TArgs` type-parameter exclusion was not what kept
-  `.On("onclick")` out of BCF3028 (the unsubstituted parameter's `BaseType` is
-  `EventArgs`, so the assignability walk accepted it anyway), and branch order
-  was not what kept a mistyped handler on a `Fragment(…)` as BCF3008 (Roslyn
-  offers no candidate symbols for a receiver no extension method can take).
-- #127, once. The type arm of `ShadowedElementHelperScanner` was not what
-  excluded CS0119: once the element access fails to bind, the identifier alone
-  carries no *symbol* either, so the arm it was credited to was unreachable.
-  What it does carry was measured by #266, which is what reaches the type case
-  now.
-- #68, once, and this one was a test rather than a claim. BCF3029's
-  local-function exemption was covered by a source whose enclosing method also
-  returned an inert type, so the arm under test could be deleted and the test
-  still passed. The mutation found it; the review of the test had not.
+time on code that was already written and already green: #155 (twice), #127,
+and #68 (a test rather than a claim). Each time, inspection judged the code
+correct for the wrong reason, and only mutating the implementation and watching
+the check fail exposed it.
 
 Documentation and source comments are written in English. `site/content/ja/` is
 the exception: it holds the Japanese edition of the documentation site, which is
