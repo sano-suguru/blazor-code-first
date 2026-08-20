@@ -252,25 +252,6 @@ internal static class RejectedDecorationScanner
     }
 
     /// <summary>
-    /// Whether <paramref name="invocation"/> writes a name in a decoration's position, on a receiver that
-    /// does open an element frame, that <c>Decorations</c> does not declare.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The receiver test is symbol identity against our own <c>ElementView</c>, and it is what separates this
-    /// from every other call in a failed body: <c>Helper()</c> and <c>item.Title.ToUpper()</c> have no such
-    /// receiver and are not decorations that went wrong. The name test is the complement of
-    /// <see cref="IsMisplacedDecoration"/>'s, so the two conditions cannot both hold.
-    /// </para>
-    /// <para>
-    /// Both measured shapes of #241 arrive here. A misspelling binds to nothing, and an extension method the
-    /// consumer declared on <c>ElementView</c> binds cleanly and gives one back, so the return-type test is
-    /// what separates a decoration-shaped call from <c>ToString</c> and from any other ordinary member of an
-    /// element. A binding that returns <c>View</c> is left out on purpose: it wraps rather than decorates,
-    /// and it keeps reporting BCF1003.
-    /// </para>
-    /// </remarks>
-    /// <summary>
     /// Whether <paramref name="invocation"/> is an <c>.On&lt;TArgs&gt;</c> whose type argument is outside the
     /// <c>where TArgs : System.EventArgs</c> constraint the decoration declares. On a match,
     /// <paramref name="handler"/> is the argument the report anchors at and <paramref name="declared"/> is the
@@ -357,6 +338,25 @@ internal static class RejectedDecorationScanner
         return false;
     }
 
+    /// <summary>
+    /// Whether <paramref name="invocation"/> writes a name in a decoration's position, on a receiver that
+    /// does open an element frame, that <c>Decorations</c> does not declare.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The receiver test is symbol identity against our own <c>ElementView</c>, and it is what separates this
+    /// from every other call in a failed body: <c>Helper()</c> and <c>item.Title.ToUpper()</c> have no such
+    /// receiver and are not decorations that went wrong. The name test is the complement of
+    /// <see cref="IsMisplacedDecoration"/>'s, so the two conditions cannot both hold.
+    /// </para>
+    /// <para>
+    /// Both measured shapes of #241 arrive here. A misspelling binds to nothing, and an extension method the
+    /// consumer declared on <c>ElementView</c> binds cleanly and gives one back, so the return-type test is
+    /// what separates a decoration-shaped call from <c>ToString</c> and from any other ordinary member of an
+    /// element. A binding that returns <c>View</c> is left out on purpose: it wraps rather than decorates,
+    /// and it keeps reporting BCF1003.
+    /// </para>
+    /// </remarks>
     private static bool IsUnknownDecorationName(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {

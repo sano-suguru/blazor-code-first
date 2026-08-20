@@ -100,7 +100,7 @@ internal static class StaticMarkupSerializer
         switch (node)
         {
             case TextContentNode text:
-                AppendEscapedText(builder, ConstantTextOf(text.Content, node));
+                AppendEscaped(builder, ConstantTextOf(text.Content, node), escapeQuote: false);
                 absorbed++;
                 return;
 
@@ -155,7 +155,7 @@ internal static class StaticMarkupSerializer
                     written = true;
                 }
 
-                AppendEscapedAttributeValue(builder, ConstantTextOf(@class, element));
+                AppendEscaped(builder, ConstantTextOf(@class, element), escapeQuote: true);
             }
 
             if (written)
@@ -186,7 +186,7 @@ internal static class StaticMarkupSerializer
                 continue;
 
             builder.Append(' ').Append(attribute.Name).Append("=\"");
-            AppendEscapedAttributeValue(builder, value);
+            AppendEscaped(builder, value, escapeQuote: true);
             builder.Append('"');
             absorbed++;
         }
@@ -221,32 +221,18 @@ internal static class StaticMarkupSerializer
                 $"'{owner.GetType().Name}' carries no constant string; the caller must partition on IsFoldable first.");
 
     /// <summary>
-    /// Escapes text content. <c>&gt;</c> is not strictly required outside an attribute value, but it is
-    /// escaped anyway so no sequence of written text can be read as closing a construct.
+    /// Escapes text content, or an attribute value written inside double quotes when
+    /// <paramref name="escapeQuote"/> is set. <c>&gt;</c> is not strictly required outside an attribute
+    /// value, but it is escaped anyway so no sequence of written text can be read as closing a construct.
     /// </summary>
-    private static void AppendEscapedText(StringBuilder builder, string value)
+    private static void AppendEscaped(StringBuilder builder, string value, bool escapeQuote)
     {
         foreach (var c in value)
         {
             switch (c)
             {
                 case '&': builder.Append("&amp;"); break;
-                case '<': builder.Append("&lt;"); break;
-                case '>': builder.Append("&gt;"); break;
-                default: builder.Append(c); break;
-            }
-        }
-    }
-
-    /// <summary>Escapes an attribute value written inside double quotes.</summary>
-    private static void AppendEscapedAttributeValue(StringBuilder builder, string value)
-    {
-        foreach (var c in value)
-        {
-            switch (c)
-            {
-                case '&': builder.Append("&amp;"); break;
-                case '"': builder.Append("&quot;"); break;
+                case '"' when escapeQuote: builder.Append("&quot;"); break;
                 case '<': builder.Append("&lt;"); break;
                 case '>': builder.Append("&gt;"); break;
                 default: builder.Append(c); break;
@@ -457,8 +443,8 @@ internal static class StaticMarkupSerializer
     /// measured, the markup path replaces a NUL with U+FFFD in an attribute value and drops it entirely
     /// from text content, while the element path keeps it in both. The character-reference route the
     /// earlier note also cited (<c>&amp;#0;</c> resolving to U+FFFD) cannot arise at all, because
-    /// <see cref="AppendEscapedText"/> and <see cref="AppendEscapedAttributeValue"/> turn <c>&amp;</c>
-    /// into <c>&amp;amp;</c>, so no character reference can ever form out of a value.
+    /// <see cref="AppendEscaped"/> turns <c>&amp;</c> into <c>&amp;amp;</c>, so no character reference can
+    /// ever form out of a value.
     /// </para>
     /// <para>
     /// <b>A lone surrogate.</b> Refused conservatively, and deliberately kept although no divergence

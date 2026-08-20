@@ -77,11 +77,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
         // re-reported, reconstructing each location from the captured symbol-free coordinates.
         context.RegisterSourceOutput(
             discoveryResults,
-            static (productionContext, result) =>
-            {
-                foreach (var diagnostic in result.Diagnostics)
-                    productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
-            });
+            static (productionContext, result) => ReportAll(productionContext, result.Diagnostics));
 
         // Collect every source view part entry, including invalid declarations, into a
         // deterministic value-equal registry consumed by call-site expansion.
@@ -102,11 +98,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(
             viewPartForEachDiagnostics,
-            static (productionContext, diagnostics) =>
-            {
-                foreach (var diagnostic in diagnostics)
-                    productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
-            });
+            static (productionContext, diagnostics) => ReportAll(productionContext, diagnostics));
 
         // Every declared component's own file, and every declared [ViewPart]'s own file (valid or
         // not — an invalid declaration still means the file is not orphaned, only that its own
@@ -138,11 +130,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
 
         context.RegisterSourceOutput(
             orphanCssDiagnostics,
-            static (productionContext, diagnostics) =>
-            {
-                foreach (var diagnostic in diagnostics)
-                    productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
-            });
+            static (productionContext, diagnostics) => ReportAll(productionContext, diagnostics));
 
         // Expand each analyzed component against the registry as a pure value transform. Both inputs are
         // value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic branch, and a
@@ -158,11 +146,7 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
         // only inside the output callback.
         context.RegisterSourceOutput(
             modelResults,
-            static (productionContext, result) =>
-            {
-                foreach (var diagnostic in result.Diagnostics)
-                    productionContext.ReportDiagnostic(diagnostic.ToDiagnostic());
-            });
+            static (productionContext, result) => ReportAll(productionContext, result.Diagnostics));
 
         // Add source only when a final model exists.
         var components = modelResults
@@ -173,5 +157,11 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
             components,
             static (productionContext, model) =>
                 productionContext.AddSource(model!.HintName, RenderViewEmitter.Emit(model)));
+    }
+
+    private static void ReportAll(SourceProductionContext context, EquatableArray<DiagnosticInfo> diagnostics)
+    {
+        foreach (var diagnostic in diagnostics)
+            context.ReportDiagnostic(diagnostic.ToDiagnostic());
     }
 }

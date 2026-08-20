@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler.Diagnostics;
 
 namespace BlazorCodeFirst.Compiler;
@@ -42,15 +41,4 @@ internal sealed record ComponentModel(
 /// is an <see cref="EquatableArray{T}"/>, which treats a <c>default</c> array as equal to an empty one, so
 /// equality never depends on whether the no-diagnostic case is stored as <c>default</c> or empty.
 /// </remarks>
-internal sealed record ComponentModelResult
-{
-    public ComponentModelResult(ComponentModel? model, ImmutableArray<DiagnosticInfo> diagnostics)
-    {
-        Model = model;
-        Diagnostics = diagnostics;
-    }
-
-    public ComponentModel? Model { get; }
-
-    public EquatableArray<DiagnosticInfo> Diagnostics { get; }
-}
+internal sealed record ComponentModelResult(ComponentModel? Model, EquatableArray<DiagnosticInfo> Diagnostics);
