@@ -409,6 +409,38 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
     }
 
+    /// <summary>
+    /// The statement-removal mutant on <c>TryResolveDecorationName</c>'s
+    /// <c>RejectUnresolvedValueRecovery</c> call: without it, a rejected name leaves
+    /// <c>ShouldRecoverUnresolvedValue</c> true, and <c>ScanDecoration</c>'s <c>Attr</c> arm falls to
+    /// <c>ReportSelectedInvocationValues</c> on the value. <c>typeof(Probe).Name</c> alone (the sibling
+    /// test above) has no nested invocation for that narrower scan to descend into, so it cannot tell the
+    /// mutant apart; wrapping the same unresolved type as an argument to a real, non-surface method call
+    /// gives the scan something to walk into.
+    /// </summary>
+    [Fact]
+    public void AttrWithInvalidNameAndInvocationWrappedUnresolvedValue_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr(typeof(string).Name, string.Concat(typeof(Probe).Name));
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
+    }
+
     [Fact]
     public void DuplicateAttribute_UnresolvedValueType_RemainsBCF3010Owned()
     {

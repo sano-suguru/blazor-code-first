@@ -13,6 +13,7 @@ public sealed class ComponentInteropTests
             [Parameter] public string Label { get; set; } = "";
             [Parameter] public string Title { get; set; } = "";
             public string NotAParam { get; set; } = "";
+            public string PublicField = "";
         }
         """;
 
@@ -52,6 +53,65 @@ public sealed class ComponentInteropTests
         var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3006" && d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
+    }
+
+    [Fact]
+    public void Component_ParamSelectsPropertyOfProperty_ReportsBCF3005AndNoSource()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Component<Child>().Param(c => c.Label.Length, 0);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3005" && d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
+    }
+
+    [Fact]
+    public void Component_ParamSelectsViaMethodGroup_ReportsBCF3005AndNoSource()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                private static int SelectLabelLength(Child c) => c.Label.Length;
+
+                protected override View Body => Component<Child>().Param(SelectLabelLength, 0);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3005" && d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
+    }
+
+    [Fact]
+    public void Component_ParamSelectsField_ReportsBCF3005AndNoSource()
+    {
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Component<Child>().Param(c => c.PublicField, "hi");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Child.cs", ChildSource), ("Host.cs", host));
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3005" && d.Severity == DiagnosticSeverity.Error);
         Assert.DoesNotContain(result.GeneratedSources, s => s.HintName.Contains("Host"));
     }
 

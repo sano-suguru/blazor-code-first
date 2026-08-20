@@ -200,6 +200,12 @@ internal static class RenderExpressionAnalyzer
         foreach (var node in root.DescendantNodes(
             static child => child is not AnonymousFunctionExpressionSyntax))
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No test harness cancels this token, so the call is a
+            // responsiveness measure with nothing to be observed either throwing or not throwing --
+            // equivalent by construction of the token every test host hands this generator, not by any
+            // property of this walk's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
             if (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out _)
@@ -218,6 +224,12 @@ internal static class RenderExpressionAnalyzer
 
     private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
+        // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+        // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+        // left every test passing unchanged. No test harness cancels this token, so the call is a
+        // responsiveness measure with nothing to be observed either throwing or not throwing --
+        // equivalent by construction of the token every test host hands this generator, not by any
+        // property of this classification's own logic.
         context.CancellationToken.ThrowIfCancellationRequested();
 
         var expressionType = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
@@ -1918,6 +1930,12 @@ internal static class RenderExpressionAnalyzer
 
         foreach (var reference in method.DeclaringSyntaxReferences)
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No test harness cancels this token, so the call is a
+            // responsiveness measure with nothing to be observed either throwing or not throwing --
+            // equivalent by construction of the token every test host hands this generator, not by any
+            // property of this outer walk's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
             var declaration = reference.GetSyntax(context.CancellationToken);
@@ -1931,6 +1949,12 @@ internal static class RenderExpressionAnalyzer
 
             foreach (var node in declaration.DescendantNodes())
             {
+                // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+                // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+                // left every test passing unchanged. No test harness cancels this token, so the call is a
+                // responsiveness measure with nothing to be observed either throwing or not throwing --
+                // equivalent by construction of the token every test host hands this generator, not by any
+                // property of this inner walk's own logic.
                 context.CancellationToken.ThrowIfCancellationRequested();
 
                 if (node is not (InvocationExpressionSyntax or ElementAccessExpressionSyntax
@@ -3251,6 +3275,12 @@ internal static class RenderExpressionAnalyzer
         foreach (var descendant in node.DescendantNodes(
             static child => child is not AnonymousFunctionExpressionSyntax))
         {
+            // Mutating this continue away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. TryGetDeclaredLocalIdentifier leaves `identifier` at its
+            // default SyntaxToken on a false return, whose ValueText is "" -- a string neither
+            // GeneratedNamePrefix nor BuilderName below can ever match, so a non-declaring descendant falls
+            // through this iteration as a no-op with or without the continue.
             if (!ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(descendant, out var identifier))
                 continue;
 
@@ -3289,6 +3319,18 @@ internal static class RenderExpressionAnalyzer
                 parameter = paren.ParameterList.Parameters[0];
                 body = paren.Body;
                 return true;
+            // Mutating this return away is a stryker survivor, measured equivalent rather than assumed:
+            // flipping it to true and running BlazorCodeFirst.Compiler.Tests and
+            // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. This branch is reached
+            // for two different reasons at its two call sites, and both absorb the flip. At
+            // TryExtractSingleParameterLambda, the caller pattern-matches this method's null-forgiven
+            // `body` against ExpressionSyntax; a null body fails that match regardless of the bool this
+            // returns, so TryExtractSingleParameterLambda itself still answers false either way. At
+            // TryBindForEachContent, the caller has already proven `content is LambdaExpressionSyntax`
+            // before reaching here, so only a wrong-arity parenthesized lambda (0 or 2+ parameters) can
+            // land in this branch -- and no construction found reaches it with the invocation still
+            // resolving to the ForEach method symbol; overload resolution fails on the arity mismatch
+            // first, so Classify never calls this function for that content at all.
             default:
                 parameter = null!;
                 body = null!;
@@ -3473,6 +3515,14 @@ internal static class RenderExpressionAnalyzer
         if (body is not MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiver } memberAccess)
             return false;
 
+        // Mutating this return away is a stryker no-coverage survivor, reasoned equivalent rather than
+        // measured: no test reaches this branch at all, because `parameter` only ever arrives here as a
+        // ParameterSyntax TryExtractSingleParameterLambda has already read straight off a lambda that is
+        // itself part of the tree `context.SemanticModel` was built from. A parameter declaration, unlike
+        // an expression, cannot fail to bind to a declared symbol within its own tree -- there is no
+        // unresolved-reference or error-recovery path for it the way there is for the member access
+        // checked below. Left in place as documentation of the invariant rather than something a test
+        // could exercise.
         if (context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken) is not { } parameterSymbol)
             return false;
 
@@ -3511,6 +3561,13 @@ internal static class RenderExpressionAnalyzer
                 if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, parameterAttribute))
                 {
                     hasParameterAttribute = true;
+
+                    // Mutating this break away is a stryker survivor, measured equivalent rather than
+                    // assumed: removing it and running BlazorCodeFirst.Compiler.Tests and
+                    // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. The outer for
+                    // loop's own condition already stops at the next iteration once hasParameterAttribute
+                    // is true, so this break only skips redundant re-checks of the same property's
+                    // remaining attributes -- nothing downstream can observe whether it ran.
                     break;
                 }
             }
