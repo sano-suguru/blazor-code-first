@@ -3515,6 +3515,14 @@ internal static class RenderExpressionAnalyzer
         if (body is not MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiver } memberAccess)
             return false;
 
+        // Mutating this return away is a stryker no-coverage survivor, reasoned equivalent rather than
+        // measured: no test reaches this branch at all, because `parameter` only ever arrives here as a
+        // ParameterSyntax TryExtractSingleParameterLambda has already read straight off a lambda that is
+        // itself part of the tree `context.SemanticModel` was built from. A parameter declaration, unlike
+        // an expression, cannot fail to bind to a declared symbol within its own tree -- there is no
+        // unresolved-reference or error-recovery path for it the way there is for the member access
+        // checked below. Left in place as documentation of the invariant rather than something a test
+        // could exercise.
         if (context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken) is not { } parameterSymbol)
             return false;
 
