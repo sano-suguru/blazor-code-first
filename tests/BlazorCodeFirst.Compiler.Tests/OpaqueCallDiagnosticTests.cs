@@ -35,6 +35,82 @@ public sealed class OpaqueCallDiagnosticTests
         }
         """;
 
+    /// <summary>
+    /// <c>Saved</c> is a non-indexer property, not an <c>ElementTags</c> entry, and not <c>Html.Slot</c>,
+    /// so the property arm must fall through to <see langword="null"/> rather than read it as a slot: the
+    /// slot arm's own check (<c>ClassifySlot</c>) never compares against <c>resolvedProperty</c> at all, it
+    /// only asks whether <c>Html.Slot</c>'s own ordinal is registered, so misrouting <em>any</em> unrelated
+    /// property here reports BCF3025 in its name instead of translating -- or failing to translate -- the
+    /// property the author actually wrote (#487).
+    /// </summary>
+    [Fact]
+    public void BarePropertyOfTypeView_WhenNeitherAnElementNorSlot_IsNotReadAsASlot()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                private static View Saved => Html.Div;
+
+                protected override View Body => Saved;
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3025");
+    }
+
+    /// <summary>
+    /// <c>otherwise</c> bound to a method group rather than an inline lambda: <c>ExtractLambdaBody</c>
+    /// cannot recover a body from it, and the check right after must still short-circuit rather than pass
+    /// that <see langword="null"/> body on to <c>DeclaresReservedName</c>, which throws on it (#487).
+    /// </summary>
+    [Fact]
+    public void IfOtherwiseBranch_WhenNotAnInlineLambda_ReportsBCF1003WithoutThrowing()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                private static View NotALambda() => Div;
+
+                protected override View Body =>
+                    If(true, then: () => Span["ok"], otherwise: NotALambda);
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// <c>content is null</c> forced false would construct a <c>ForEachTemplateNode</c> around the null
+    /// content anyway, sending a template with no root down into keyability resolution instead of
+    /// answering this splice as untranslatable and letting it recover as BCF1003 (#487).
+    /// </summary>
+    [Fact]
+    public void SpliceProjectionBody_WhenUntranslatable_ReportsBCF1003WithoutThrowing()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using System.Collections.Generic;
+            using System.Linq;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<int> _xs = new();
+                private readonly View _stored;
+
+                protected override View Body => Div[[.._xs.Select(x => _stored)]];
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void ViewReturningCall_WhenCalleeBuildsFromTheDesignTimeSurface_ReportsBCF3030AndNotBCF1003()
     {

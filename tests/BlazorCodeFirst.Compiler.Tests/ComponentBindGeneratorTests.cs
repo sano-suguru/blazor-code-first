@@ -83,6 +83,27 @@ public sealed class ComponentBindGeneratorTests
         Assert.Contains(result.Diagnostics, d => d.Id == id);
     }
 
+    /// <summary>
+    /// Like <see cref="AssertDiagnosticWith"/>, plus asserting BCF3015 is absent: the guard under test
+    /// must be the one that suppresses the unresolved-type reference <paramref name="body"/> carries,
+    /// not the generic <c>UnresolvedValueTypeScanner</c> fallback (#487).
+    /// </summary>
+    private static void AssertDiagnosticWithoutBcf3015(string probe, string body, string id)
+    {
+        var source = $$"""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                {{body}}
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(("Probe.cs", probe), ("Host.cs", source));
+        Assert.Contains(result.Diagnostics, d => d.Id == id);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3015");
+    }
+
     [Fact]
     public void Bind_ComponentWithoutValueExpression_EmitsTwoParameters()
     {
@@ -234,5 +255,52 @@ public sealed class ComponentBindGeneratorTests
             protected override View Body =>
                 Html.Component<Probe>().Bind(c => c.Value, () => Name);
             """, "BCF3018");
+    }
+
+    /// <summary>
+    /// The unresolved reference goes through a plain helper call rather than a bare value inside the
+    /// getter's lambda body: a bare value there would poison <c>FactoryArguments.Bind</c> for the whole
+    /// invocation before the duplicate check is ever reached (#487). The duplicate check runs before the
+    /// getter argument is read at all, so a helper-call getter carries the payload here regardless of its
+    /// own shape.
+    /// </summary>
+    [Fact]
+    public void Bind_BesideParamOnChangeCallback_WithUnresolvedTypeArgument_ReportsBcf3007AndNotBcf3015()
+    {
+        AssertDiagnosticWithoutBcf3015(Probe, """
+            private static System.Func<string> MakeGetter(string s) => () => s;
+            protected override View Body =>
+                Html.Component<Probe>()
+                    .Param(c => c.ValueChanged, default(Microsoft.AspNetCore.Components.EventCallback<string>))
+                    .Bind(c => c.Value, MakeGetter(typeof(Unresolved).Name));
+            """, "BCF3007");
+    }
+
+    /// <summary>
+    /// Same helper-call construction as the duplicate-check probe above: the assignability check also
+    /// runs before the getter argument is read, so its own shape is free to carry the payload.
+    /// </summary>
+    [Fact]
+    public void Bind_ComponentWithoutChangeCallback_WithUnresolvedTypeArgument_ReportsBcf3020AndNotBcf3015()
+    {
+        AssertDiagnosticWithoutBcf3015(ProbeWithoutChanged, """
+            private static System.Func<string> MakeGetter(string s) => () => s;
+            protected override View Body =>
+                Html.Component<ProbeWithoutChanged>().Bind(c => c.Value, MakeGetter(typeof(Unresolved).Name));
+            """, "BCF3020");
+    }
+
+    /// <summary>
+    /// The same helper-call getter that carries the payload past the two guards above is, here, the very
+    /// shape this guard exists to reject: a getter argument that is not an inline lambda at all.
+    /// </summary>
+    [Fact]
+    public void Bind_NonLambdaGetter_WithUnresolvedTypeArgument_ReportsBcf3017AndNotBcf3015()
+    {
+        AssertDiagnosticWithoutBcf3015(Probe, """
+            private static System.Func<string> MakeGetter(string s) => () => s;
+            protected override View Body =>
+                Html.Component<Probe>().Bind(c => c.Value, MakeGetter(typeof(Unresolved).Name));
+            """, "BCF3017");
     }
 }

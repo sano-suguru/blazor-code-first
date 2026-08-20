@@ -40,6 +40,35 @@ public sealed class ComponentAttributeGeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// The component surface's own bare-<c>.Attr</c> counterpart to
+    /// <c>HtmlAttributeGeneratorTests.BareAttr_EmitsTheSameSourceAsAnExplicitTrue</c>: the one-argument
+    /// arity here still needs <c>ValueParameter</c> routed through <c>SurfaceMethodKind.Attr</c>'s "name
+    /// consumes argument 0" rule, or the value read for a bare <c>.Attr("disabled")</c> comes from the
+    /// name argument's own slot instead of being synthesized as the omitted <see langword="true"/> (#487).
+    /// </summary>
+    [Fact]
+    public void BareAttr_EmitsTheSameSourceAsAnExplicitTrue()
+    {
+        string Run(string body) => Assert.Single(CompilationTestHost.RunGenerator(
+            $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            {{TargetComponent}}
+
+            public partial class TestComponent : BodyComponentBase
+            {
+                protected override View Body => {{body}};
+            }
+            """).GeneratedSources).SourceText.ToString();
+
+        var bare = Run("""Component<Widget>().Attr("disabled")""");
+        var explicitTrue = Run("""Component<Widget>().Attr("disabled", true)""");
+
+        Assert.Equal(explicitTrue, bare);
+    }
+
     [Fact]
     public void Class_IsSugarForAttrClass()
     {

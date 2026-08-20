@@ -105,6 +105,20 @@ public sealed class VoidElementDiagnosticTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// An explicit empty collection literal reaches this rule with a real zero-length children array,
+    /// unlike the childless spelling above, which never opens brackets at all. The rule has to stay keyed
+    /// on there being a child, not merely on the bracket syntax being present (#487).
+    /// </summary>
+    [Fact]
+    public void VoidElement_WithAnExplicitEmptyChildrenLiteral_IsAccepted()
+    {
+        var result = RunResult("""Img[[]]""");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     [Fact]
     public void NonVoidElement_WithChildren_IsAccepted()
     {

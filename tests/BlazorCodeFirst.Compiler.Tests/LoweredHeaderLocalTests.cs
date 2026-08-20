@@ -180,6 +180,49 @@ public sealed class LoweredHeaderLocalTests
         AssertRefusedForTheLocal(SiblingAttributeBody);
 
     /// <summary>
+    /// A sibling <c>ForEach</c>'s own source is a header of its own, pushed and popped independently: a
+    /// leaked pop of the first loop's header scope would leave it registered while the second loop's
+    /// content is read, wrongly admitting a reference that, once both loops lower to their own disjoint
+    /// <c>foreach</c> blocks, names a local from a scope the second block does not enclose (#487).
+    /// </summary>
+    [Fact]
+    public void ForEachSource_DeclaringALocalReadFromASiblingForEachContent_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Div[
+                ForEach(Items(Take(out var n)), i => i, i => Span["x"]),
+                ForEach(Items(0), j => j, j => Span[n.ToString()])
+            ]
+            """);
+
+    /// <summary>Same leak, on the spread spelling <see cref="SpliceSource_DeclaringALocalReadFromTheProjection_IsAccepted"/> accepts.</summary>
+    [Fact]
+    public void SpliceSource_DeclaringALocalReadFromASiblingProjection_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Div[[
+                ..Items(Take(out var n)).Select(i => Span["x"]),
+                ..Items(0).Select(j => Span[n.ToString()])
+            ]]
+            """);
+
+    /// <summary>
+    /// <c>ClassifyIf</c>'s own condition-header scope, popped independently of the <c>ForEach</c>/spread
+    /// header pops above: a leaked pop here would leave the first <c>If</c>'s condition-declared local
+    /// registered while a sibling that follows it is read, the same class of defect as the source-header
+    /// leaks above but on the <c>If</c> construct's own finally (#487).
+    /// </summary>
+    [Fact]
+    public void IfCondition_DeclaringALocalReadFromASiblingElement_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Div[
+                If(Take(out var n) == 0, () => Span["a"], () => Span["b"]),
+                Span[n.ToString()]
+            ]
+            """);
+
+    /// <summary>
     /// BCF1002 names the position it is reported at. Appendix A describes it as the view part diagnostic, and
     /// it is also the report for a component's own design-time expression, so calling that expression a
     /// "ViewPart method" named the wrong thing (#361).

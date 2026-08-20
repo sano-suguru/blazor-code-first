@@ -108,6 +108,7 @@ public sealed class DiagnosticPipelineTests
     /// </summary>
     private const string InnermostFailureHost = """
         using System.Collections.Generic;
+        using System.Linq;
         using BlazorCodeFirst;
         using Microsoft.AspNetCore.Components;
         using static BlazorCodeFirst.Html;
@@ -134,6 +135,15 @@ public sealed class DiagnosticPipelineTests
             // all. This one exercises the same "unrecognized receiver" descent with a shape that still
             // compiles.
             private static ElementView OpaqueElementView() => default;
+
+            // Matches SpliceSyntax.TryMatchProjection's name-only syntactic test ("Select") without
+            // resolving to Enumerable.Select, so AnalyzeSplice reaches its own untranslatable arm rather
+            // than the LINQ-projection one.
+            private sealed class Bag
+            {
+                public IEnumerable<View> Select(System.Func<int, View> selector) => new View[0];
+            }
+            private readonly Bag _bag = new();
         }
         """;
 
@@ -150,6 +160,10 @@ public sealed class DiagnosticPipelineTests
         """If(Flag, then: () => Span["ok"], otherwise: () => _stored)""",
         "_stored")]
     [InlineData("ForEach content", """ForEach(_xs, key: x => x, content: x => _stored)""", "_stored")]
+    [InlineData(
+        "spread projection",
+        """Div[[.._bag.Select(x => Span[x.ToString()])]]""",
+        "_bag.Select(x => Span[x.ToString()])")]
     [InlineData("Component<T> children", """Component<Card>()[_stored]""", "_stored")]
     [InlineData("Fragment children", """Fragment(Span["ok"], _stored)""", "_stored")]
     [InlineData("Param receiver", """OpaqueComponent().Param(c => c.Title, "t")""", "OpaqueComponent()")]
