@@ -19,11 +19,6 @@ public sealed class RewriteScopedCssTask : Microsoft.Build.Utilities.Task
     /// <inheritdoc />
     public override bool Execute()
     {
-        // Every current caller writes all outputs under the same directory, but tracking directories
-        // already created (rather than hoisting one CreateDirectory call before the loop) stays
-        // correct if a future caller's OutputFile values ever span more than one directory.
-        var createdDirectories = new HashSet<string>();
-
         foreach (var item in FilesToRewrite)
         {
             var inputPath = item.GetMetadata("FullPath");
@@ -53,8 +48,7 @@ public sealed class RewriteScopedCssTask : Microsoft.Build.Utilities.Task
             }
 
             var outputDirectory = Path.GetDirectoryName(outputPath)!;
-            if (createdDirectories.Add(outputDirectory))
-                Directory.CreateDirectory(outputDirectory);
+            Directory.CreateDirectory(outputDirectory);
 
             File.WriteAllText(outputPath, rewritten);
         }

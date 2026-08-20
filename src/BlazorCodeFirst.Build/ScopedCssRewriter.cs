@@ -7,64 +7,14 @@ namespace BlazorCodeFirst.Build;
 /// rather than rewritten because the loading order of an imported stylesheet relative to its scoped
 /// parent is undefined once scope attributes are involved.
 /// </summary>
-public readonly struct CssRewriteError : IEquatable<CssRewriteError>
+/// <param name="FilePath">The <c>.cs.css</c> file the error was found in.</param>
+/// <param name="Line">The 1-based line the error starts at.</param>
+/// <param name="Column">The 1-based column the error starts at.</param>
+/// <param name="Message">The human-readable description of the error.</param>
+public readonly record struct CssRewriteError(string FilePath, int Line, int Column, string Message)
 {
-    /// <summary>Creates a rewrite error at the given source position.</summary>
-    /// <param name="filePath">The <c>.cs.css</c> file the error was found in.</param>
-    /// <param name="line">The 1-based line the error starts at.</param>
-    /// <param name="column">The 1-based column the error starts at.</param>
-    /// <param name="message">The human-readable description of the error.</param>
-    public CssRewriteError(string filePath, int line, int column, string message)
-    {
-        FilePath = filePath;
-        Line = line;
-        Column = column;
-        Message = message;
-    }
-
-    /// <summary>The <c>.cs.css</c> file the error was found in.</summary>
-    public string FilePath { get; }
-
-    /// <summary>The 1-based line the error starts at.</summary>
-    public int Line { get; }
-
-    /// <summary>The 1-based column the error starts at.</summary>
-    public int Column { get; }
-
-    /// <summary>The human-readable description of the error.</summary>
-    public string Message { get; }
-
     /// <summary>Formats the error as <c>path(line,column): message</c>, matching MSBuild's diagnostic format.</summary>
     public override string ToString() => $"{FilePath}({Line},{Column}): {Message}";
-
-    /// <summary>Returns whether this error and <paramref name="other"/> report the same position and message.</summary>
-    public bool Equals(CssRewriteError other) =>
-        FilePath == other.FilePath && Line == other.Line && Column == other.Column && Message == other.Message;
-
-    /// <inheritdoc />
-    public override bool Equals(object? obj) => obj is CssRewriteError other && Equals(other);
-
-    // System.HashCode is unavailable on net472 (this project multi-targets net472;net10.0), so the
-    // combine is done by hand instead.
-    /// <inheritdoc />
-    public override int GetHashCode()
-    {
-        unchecked
-        {
-            var hash = 17;
-            hash = hash * 31 + (FilePath?.GetHashCode() ?? 0);
-            hash = hash * 31 + Line;
-            hash = hash * 31 + Column;
-            hash = hash * 31 + (Message?.GetHashCode() ?? 0);
-            return hash;
-        }
-    }
-
-    /// <summary>Returns whether <paramref name="left"/> and <paramref name="right"/> report the same position and message.</summary>
-    public static bool operator ==(CssRewriteError left, CssRewriteError right) => left.Equals(right);
-
-    /// <summary>Returns whether <paramref name="left"/> and <paramref name="right"/> report a different position or message.</summary>
-    public static bool operator !=(CssRewriteError left, CssRewriteError right) => !left.Equals(right);
 }
 
 /// <summary>
