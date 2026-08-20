@@ -3237,8 +3237,6 @@ internal static class RenderExpressionAnalyzer
         return false;
     }
 
-    /// <summary>Analyzes each child expression into a child template node, returning null if any child
-    /// cannot be statically analyzed (propagated as translation failure).</summary>
     /// <summary>
     /// The children written in an element access's brackets, or <see langword="null"/> when they cannot be
     /// analyzed. The one place the bracket channel's binding rule lives, shared by all three indexers that
