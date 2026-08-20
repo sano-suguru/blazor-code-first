@@ -2812,25 +2812,39 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// The settable <c>[Parameter]</c> named <paramref name="name"/> that <paramref name="componentType"/>
-    /// declares or inherits, or <see langword="null"/>. Walks the base chain for the reason
-    /// <see cref="TryFindChildContentParameter"/> does: Blazor accepts a parameter declared on a base class,
-    /// and Roslyn's <c>GetMembers</c> on the derived type alone would not see it.
+    /// The first property in <paramref name="componentType"/>'s base chain, starting at
+    /// <paramref name="componentType"/> itself, for which <paramref name="getMembers"/> yields a member
+    /// satisfying <paramref name="predicate"/>. Shared by <see cref="FindSettableParameter"/>,
+    /// <see cref="FindSettableParameterIgnoreCase"/>, and <see cref="TryFindChildContentParameter"/>,
+    /// which differ only in which members each type contributes and what makes one acceptable.
     /// </summary>
-    private static IPropertySymbol? FindSettableParameter(
-        ITypeSymbol componentType, string name, ViewPartBodyContext context)
+    private static IPropertySymbol? FindInBaseChain(
+        ITypeSymbol componentType,
+        Func<ITypeSymbol, IEnumerable<ISymbol>> getMembers,
+        Func<IPropertySymbol, bool> predicate)
     {
         for (var current = componentType; current is not null; current = current.BaseType)
         {
-            foreach (var member in current.GetMembers(name))
+            foreach (var member in getMembers(current))
             {
-                if (member is IPropertySymbol property && IsSettableParameter(property, context))
+                if (member is IPropertySymbol property && predicate(property))
                     return property;
             }
         }
 
         return null;
     }
+
+    /// <summary>
+    /// The settable <c>[Parameter]</c> named <paramref name="name"/> that <paramref name="componentType"/>
+    /// declares or inherits, or <see langword="null"/>. Walks the base chain for the reason
+    /// <see cref="TryFindChildContentParameter"/> does: Blazor accepts a parameter declared on a base class,
+    /// and Roslyn's <c>GetMembers</c> on the derived type alone would not see it.
+    /// </summary>
+    private static IPropertySymbol? FindSettableParameter(
+        ITypeSymbol componentType, string name, ViewPartBodyContext context) =>
+        FindInBaseChain(componentType, current => current.GetMembers(name), property =>
+            IsSettableParameter(property, context));
 
     /// <summary>
     /// The settable <c>[Parameter]</c> whose name matches <paramref name="name"/> case-insensitively,
@@ -2841,23 +2855,10 @@ internal static class RenderExpressionAnalyzer
     /// case-insensitively, so an exact-name-only check would miss the case the diagnostic exists for).
     /// </summary>
     private static IPropertySymbol? FindSettableParameterIgnoreCase(
-        ITypeSymbol componentType, string name, ViewPartBodyContext context)
-    {
-        for (var current = componentType; current is not null; current = current.BaseType)
-        {
-            foreach (var member in current.GetMembers())
-            {
-                if (member is IPropertySymbol property
-                    && string.Equals(property.Name, name, System.StringComparison.OrdinalIgnoreCase)
-                    && IsSettableParameter(property, context))
-                {
-                    return property;
-                }
-            }
-        }
-
-        return null;
-    }
+        ITypeSymbol componentType, string name, ViewPartBodyContext context) =>
+        FindInBaseChain(componentType, current => current.GetMembers(), property =>
+            string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)
+            && IsSettableParameter(property, context));
 
     /// <summary>
     /// Whether <paramref name="changed"/> can receive a binding's write-back for
@@ -3855,30 +3856,33 @@ internal static class RenderExpressionAnalyzer
     private static bool TryFindChildContentParameter(
         ITypeSymbol componentType, ViewPartBodyContext context, out string? contextTypeName)
     {
-        for (var current = componentType; current is not null; current = current.BaseType)
-        {
-            foreach (var member in current.GetMembers(ChildContentParameterName))
+        string? foundContextTypeName = null;
+        var found = FindInBaseChain(
+            componentType,
+            current => current.GetMembers(ChildContentParameterName),
+            property =>
             {
-                if (member is not IPropertySymbol property || !IsSettableParameter(property, context))
-                    continue;
+                if (!IsSettableParameter(property, context))
+                    return false;
 
                 if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType
                     && SymbolEqualityComparer.Default.Equals(property.Type, renderFragmentType))
                 {
-                    contextTypeName = null;
+                    foundContextTypeName = null;
                     return true;
                 }
 
                 if (TryGetFragmentContextTypeName(property, context.KnownSymbols, out var contextType))
                 {
-                    contextTypeName = contextType;
+                    foundContextTypeName = contextType;
                     return true;
                 }
-            }
-        }
 
-        contextTypeName = null;
-        return false;
+                return false;
+            });
+
+        contextTypeName = foundContextTypeName;
+        return found is not null;
     }
 
 }
