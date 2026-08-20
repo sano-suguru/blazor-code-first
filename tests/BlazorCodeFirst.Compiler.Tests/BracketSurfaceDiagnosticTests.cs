@@ -113,6 +113,21 @@ public sealed class BracketSurfaceDiagnosticTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// An empty indexer, <c>Component&lt;T&gt;()[]</c>, is a C# syntax error (CS0443) rather than a shape
+    /// this compiler could name a specific BCF diagnostic for. #463 asked for one, having tested only the
+    /// generator's own diagnostics in isolation; CS0443 is a parse-stage error, so unlike the body-binding
+    /// errors <see cref="AssertReportsBCF3008"/>'s remarks describe, it survives the declaration-stage
+    /// cutoff and reaches the author in every real build without help from this generator.
+    /// </summary>
+    [Fact]
+    public void ComponentIndexer_EmptyBrackets_ReportsCS0443()
+    {
+        var result = RunResult("""Component<Plain>()[]""");
+
+        Assert.Contains(OutputErrors(result), static d => d.Id == "CS0443");
+    }
+
     [Fact]
     public void FragmentParamThenChildren_SameSlot_ReportsBCF3007()
     {
