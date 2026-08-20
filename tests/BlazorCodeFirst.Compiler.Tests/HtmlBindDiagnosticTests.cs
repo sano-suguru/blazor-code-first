@@ -42,6 +42,24 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
+    public void Bind_BlockBodiedGetter_WithUnresolvedTypeArgument_ReportsBcf3017AndNotBcf3015()
+    {
+        // The unresolved reference sits in the format argument rather than inside the getter lambda: an
+        // unresolved name inside a lambda body poisons the whole invocation's IOperation before
+        // FactoryArguments.Bind ever runs, which sends the call down a different, untranslatable-body
+        // route (BCF1003, no BCF3011/17/etc.) instead of exercising this guard at all.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => { return _name; }, typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3017");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void Bind_MethodGroupGetter_ReportsBcf3017()
     {
         const string body = """
@@ -64,6 +82,22 @@ public sealed class HtmlBindDiagnosticTests
             """;
 
         AssertDiagnostic(body, "BCF3018");
+    }
+
+    [Fact]
+    public void Bind_MethodCallGetter_WithUnresolvedTypeArgument_ReportsBcf3018AndNotBcf3015()
+    {
+        // As above (Bind_BlockBodiedGetter's probe): the unresolved reference sits in the format
+        // argument, not the getter, or FactoryArguments.Bind never runs and this guard is never reached.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _name.ToUpperInvariant(), typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3018");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
     }
 
     [Fact]
@@ -233,6 +267,24 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
+    public void Bind_TwiceOnOneAttributeName_WithUnresolvedTypeArgument_ReportsBcf3010AndNotBcf3015()
+    {
+        // The unresolved reference sits in the second Bind's format argument, not its getter: see
+        // Bind_BlockBodiedGetter's probe for why a lambda-embedded one never reaches this guard at all.
+        const string body = """
+            private string _a = "";
+            private string _b = "";
+            protected override View Body =>
+                Html.Input.Bind("value", "oninput", () => _a)
+                    .Bind("value", "onchange", () => _b, typeof(Probe).Name,
+                        System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3010");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void Bind_TwiceOnOneEventName_ReportsBcf3010()
     {
         // The event channel half. Two bindings sharing an event name emit two frames under one name, of
@@ -308,6 +360,22 @@ public sealed class HtmlBindDiagnosticTests
             """;
 
         AssertDiagnostic(body, "BCF3024");
+    }
+
+    [Fact]
+    public void Bind_OnClassBesideClassDecoration_WithUnresolvedTypeArgument_ReportsBcf3024AndNotBcf3015()
+    {
+        // The unresolved reference sits in the format argument, not the getter: see
+        // Bind_BlockBodiedGetter's probe for why a lambda-embedded one never reaches this guard at all.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Div.Class("card").Bind("class", "oninput", () => _name, typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture)["x"];
+            """;
+
+        AssertDiagnostic(body, "BCF3024");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
     }
 
     [Fact]
@@ -400,6 +468,43 @@ public sealed class HtmlBindDiagnosticTests
     }
 
     [Fact]
+    public void Bind_NonConstantAttributeName_WithUnresolvedTypeArgument_ReportsBcf3011AndNotBcf3015()
+    {
+        // The unresolved reference sits in the format argument, not the getter: see
+        // Bind_BlockBodiedGetter's probe for why a lambda-embedded one never reaches this guard at all.
+        const string body = """
+            private string _attr = "value";
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind(_attr, "oninput", () => _name, typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3011");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// The event-name half of the same constant-name check: the attribute half above reaches the guard on
+    /// argument 0, this reaches it on argument 1. The fresh mutation sweep marked the attribute half
+    /// Survived and this event half NoCoverage, so only this half had never been exercised.
+    /// </summary>
+    [Fact]
+    public void Bind_NonConstantEventName_WithUnresolvedTypeArgument_ReportsBcf3011AndNotBcf3015()
+    {
+        const string body = """
+            private string _event = "oninput";
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind("value", _event, () => _name, typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3011");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void Bind_EventNameWithoutOnPrefix_OrSwapped_ReportsBcf3019()
     {
         // Also what catches the attribute and event names being written the wrong way round, since both
@@ -411,6 +516,22 @@ public sealed class HtmlBindDiagnosticTests
             """;
 
         AssertDiagnostic(body, "BCF3019");
+    }
+
+    [Fact]
+    public void Bind_EventNameWithoutOnPrefix_WithUnresolvedTypeArgument_ReportsBcf3019AndNotBcf3015()
+    {
+        // The unresolved reference sits in the format argument, not the getter: see
+        // Bind_BlockBodiedGetter's probe for why a lambda-embedded one never reaches this guard at all.
+        const string body = """
+            private string _name = "";
+            protected override View Body =>
+                Html.Input.Bind("oninput", "value", () => _name, typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3019");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
     }
 
     [Fact]
@@ -454,6 +575,21 @@ public sealed class HtmlBindDiagnosticTests
 
         var diagnostic = Assert.Single(Diags(body), d => d.Id == "BCF3031");
         Assert.Contains("int", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void Bind_FormatOnInteger_WithUnresolvedTypeArgument_ReportsBcf3031AndNotBcf3015()
+    {
+        const string body = """
+            private int _age;
+            protected override View Body =>
+                Html.Input.Bind(
+                    "value", "oninput", () => _age, typeof(Probe).Name,
+                    System.Globalization.CultureInfo.InvariantCulture);
+            """;
+
+        AssertDiagnostic(body, "BCF3031");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
     }
 
     [Fact]

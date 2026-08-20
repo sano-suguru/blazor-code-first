@@ -82,6 +82,27 @@ public sealed class ComponentAttributeGeneratorTests
     }
 
     [Fact]
+    public void DuplicateAttrName_WithUnresolvedTypeArgument_ReportsBcf3010AndNotBcf3015()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            {{TargetComponent}}
+
+            public partial class TestComponent : BodyComponentBase
+            {
+                protected override View Body =>
+                    Component<Widget>().Attr("class", "a").Attr("class", typeof(Unresolved).Name);
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3010");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void ClassThenAttrClass_IsAlsoBCF3010_NoFolding()
     {
         var result = CompilationTestHost.RunGenerator(
@@ -140,6 +161,26 @@ public sealed class ComponentAttributeGeneratorTests
             """);
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3042");
+    }
+
+    [Fact]
+    public void AttrNameCollidingWithDeclaredParameter_WithUnresolvedTypeArgument_ReportsBcf3042AndNotBcf3015()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            $$"""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            {{TargetComponent}}
+
+            public partial class TestComponent : BodyComponentBase
+            {
+                protected override View Body => Component<Widget>().Attr("Title", typeof(Unresolved).Name);
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3042");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3015");
     }
 
     [Fact]

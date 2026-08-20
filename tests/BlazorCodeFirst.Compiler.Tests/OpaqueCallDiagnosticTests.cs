@@ -48,6 +48,94 @@ public sealed class OpaqueCallDiagnosticTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
+    /// <summary>
+    /// The same shape as <see cref="ViewReturningCall_WhenCalleeBuildsFromTheDesignTimeSurface_ReportsBCF3030AndNotBCF1003"/>,
+    /// but the callee's declaration lives in a different file (a different <c>SyntaxTree</c>) from the call
+    /// site. <c>ComputeBodyBuildsFromDesignTimeSurface</c> picks between reusing <c>context.SemanticModel</c>
+    /// and building a fresh one for the callee's own tree; a semantic query run through the wrong model for
+    /// a node's tree throws, so this pins that the cross-file branch is taken and answers correctly rather
+    /// than merely not crashing.
+    /// </summary>
+    [Fact]
+    public void ViewReturningCall_WhenCalleeIsDeclaredInAnotherFile_ReportsBCF3030()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+
+                public partial class C : BodyComponentBase
+                {
+                    protected override View Body => Html.Div[Card("hello")];
+                }
+                """),
+            ("Card.cs", """
+                using BlazorCodeFirst;
+
+                public partial class C
+                {
+                    private static View Card(string title) => Html.Span[title];
+                }
+                """));
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3030");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// A callee whose only reference to the design-time surface is a bare property access with no
+    /// invocation or indexer over it (<c>Html.Div</c>, converted to <c>View</c> at the <c>return</c>).
+    /// <c>ComputeBodyBuildsFromDesignTimeSurface</c>'s syntax-kind prefilter has to admit a plain
+    /// <c>MemberAccessExpressionSyntax</c>, not only an invocation or an indexer, or this callee is missed
+    /// entirely and reported as the wrong kind (BCF2001, opaque) instead of BCF3030.
+    /// </summary>
+    [Fact]
+    public void ViewReturningCall_WhenCalleeIsABarePropertyAccess_ReportsBCF3030()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body => Html.Div[Bare()];
+
+                private static View Bare() => Html.Span;
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3030");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF2001");
+    }
+
+    /// <summary>
+    /// The same bare-property-access shape, but reached through <c>using static BlazorCodeFirst.Html</c>
+    /// (the exact spelling <c>tests/diagnostic-fixtures/GeneratorDelivery.ProjectReference/Bcf2001Bcf3030.cs</c>
+    /// uses). Written this way, the callee's design-time reference is a lone
+    /// <c>IdentifierNameSyntax</c> ("Span") with no enclosing <c>MemberAccessExpressionSyntax</c> at all —
+    /// unlike the qualified <c>Html.Span</c> spelling above, where the parent-name skip in
+    /// <c>ComputeBodyBuildsFromDesignTimeSurface</c> is redundant with the outer member-access node right
+    /// beside it. Only this unqualified spelling makes that skip's own correctness observable: inverting
+    /// it (or flipping its <c>==</c>) makes the walk skip the one node carrying the answer, with nothing
+    /// else to catch it, and BCF3030 is missed.
+    /// </summary>
+    [Fact]
+    public void ViewReturningCall_WhenCalleeIsABarePropertyAccess_ViaUsingStatic_ReportsBCF3030()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body => Div[Bare()];
+
+                private static View Bare() => Span;
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3030");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF2001");
+    }
+
     [Fact]
     public void ViewReturningCall_WhenCalleeIsAViewPart_ReportsNothing()
     {

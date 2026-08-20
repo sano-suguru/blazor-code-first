@@ -94,6 +94,15 @@ public sealed class ComponentSlotDiagnosticTests
     }
 
     [Fact]
+    public void ScalarParam_ViewValue_WithUnresolvedTypeArgument_ReportsBCF3014AndNotBCF3015()
+    {
+        var result = Run("Component<Card>().Param(c => c.Payload, Div[typeof(Unresolved).Name])");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3014");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void ScalarParam_ComponentViewValue_ReportsBCF3014()
     {
         var result = Run("Component<Card>().Param(c => c.Payload, Component<Card>())");
@@ -115,6 +124,25 @@ public sealed class ComponentSlotDiagnosticTests
         var result = Run("Component<Card>().Param(c => c.Title, \"t\")");
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3014");
+    }
+
+    /// <summary>
+    /// The receiver-recursion guard at the top of <c>ClassifyComponentParameter</c>: a chained
+    /// <c>.Param</c> whose receiver is itself an already-rejected <c>.Param</c> call (here, a duplicate
+    /// <c>Title</c> binding, BCF3007) never resolves to a <see cref="ComponentTemplateNode"/>, so this
+    /// call's own value never reaches generated code either. That value carries an unresolved reference,
+    /// which the failure scanner must not go on to report — the same contract every other rejection in
+    /// this file keeps.
+    /// </summary>
+    [Fact]
+    public void ChainedParam_WithRejectedReceiver_AndUnresolvedTypeArgument_ReportsBCF3007AndNotBCF3015()
+    {
+        var result = Run(
+            "Component<Card>().Param(c => c.Title, \"a\").Param(c => c.Title, \"b\")"
+            + ".Param(c => c.Payload, Div[typeof(Unresolved).Name])");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3007");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3015");
     }
 
     [Fact]
