@@ -156,6 +156,45 @@ public sealed class ViewPartTransplantTests
     }
 
     [Fact]
+    public void ViewPart_WhenTwoSiblingForEachContentsEachDeclareALocal_PopsTheFirstBeforePushingTheSecond()
+    {
+        // Both content lambdas are analyzed against the one ViewPartBodyContext this expansion carries, in
+        // written order: the first content's Analyze has to pop its own render variable in its finally
+        // before the second content's Push computes its ordinal from context.RenderVariableDepth, or every
+        // ordinal from there on inherits the leak.
+        var result = Run(
+            """=> Div[Part()];""",
+            """
+            Part() => Div[
+                    ForEach(Inner, x => x, x =>
+                        {
+                            var b = x.ToUpperInvariant();
+                            return Span[b];
+                        }),
+                    ForEach(Inner, y => y, y =>
+                        {
+                            var c = y.ToUpperInvariant();
+                            return Span[c];
+                        })
+                ];
+            """);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+
+        // Two distinct locals, each reading only its own loop's iteration variable — a leaked pop shifts
+        // the second content's ordinal into the first's, which either collides two locals under one name
+        // or reads past the substitution's end (both fail this count).
+        Assert.Equal(
+            2,
+            Regex.Matches(generated, "__bcf_local_[0-9]+_0").Select(m => m.Value).Distinct().Count());
+        Assert.Contains("string __bcf_local_4_0 = __bcf_item_3.ToUpperInvariant();", generated);
+        Assert.Contains("string __bcf_local_8_0 = __bcf_item_7.ToUpperInvariant();", generated);
+    }
+
+    [Fact]
     public void ViewPart_WhenACalledTwicePartDeclaresInBothAStatementAndItsExpression_NamesThemInWrittenOrder()
     {
         // The two sources of minted names in one body. The ordinals are assigned in written order —
