@@ -49,6 +49,11 @@ public sealed partial class GuestbookPage : BodyComponentBase
             // which would not match what [SupplyParameterFromForm] on NewEntry (below) expects to
             // bind back (verified: split into a child component first, POST came back 500,
             // "EditForm requires either a Model parameter" — the posted fields never reached it).
+            // A [ViewPart] taking NewEntryModel and used from here hits the same failure, though for a
+            // different reason: every [ViewPart] argument is captured into a generator-synthesized local
+            // (`__bcf_arg_N_M = NewEntry;`) and every reference inside the part's body is rewritten to
+            // that local's name, so ValueExpression reads `__bcf_arg_N_M.Name`, never `NewEntry.Name`
+            // (verified: posted field names came back as literally `__bcf_arg_13_0.Name`; see #495).
             Component<EditForm>()
                 .Param(f => f.Model, NewEntry)
                 .Param(f => f.FormName, "create")

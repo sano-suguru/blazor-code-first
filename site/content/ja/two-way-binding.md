@@ -3,7 +3,7 @@ title: 双方向バインディング
 description: .Bind は Razor の bind ディレクティブを、属性・イベント・現在値を読むラムダとして明示的に書いたもの。
 order: 80
 group: write
-source-hash: 269abcef
+source-hash: 1ccb491a
 ---
 
 双方向バインディングは、値を DOM へ書き出し、利用者の編集を自分の状態へ読み戻す、1つの装飾
@@ -274,6 +274,15 @@ protected override View Body =>
 読む書き方と、`.Param` でキャッシュしたデリゲートを渡すほうがよい場面については、
 [ジェネリックなフラグメントのパラメーター](./components-and-reuse.md#ジェネリックなフラグメントのパラメーター)を
 見てください。
+
+静的SSRでは — ページにインタラクティブなレンダーモードが無い場合は — `EditForm.Model` を
+保持するプロパティ自身に `[SupplyParameterFromForm]` が必要です。単なるフィールドでは足りません。
+POST されたフォームから復元されるのは `[SupplyParameterFromForm]` を持つプロパティだけで、それ以外は
+POST 前の値のまま、多くの場合 `null` です。バインドする入力を別のコンポーネントへ切り出しても
+この問題は避けられません。`InputText` / `InputTextArea` は自分自身の `ValueExpression` から
+POST するフィールド名を導くので、子コンポーネント側のパラメーターは、保持元のプロパティが
+期待するのとは違う名前で POST してしまいます。動く形は
+`samples/Guestbook/Components/Pages/GuestbookPage.cs` を見てください。
 
 セッターを明示する形と `async` のセッターは、こちらでも使えます。意味は要素のときと同じです。
 `TValue` は、カルチャーと書式のどちらも取りません。値が向かう先は DOM ではなくパラメーターです。
