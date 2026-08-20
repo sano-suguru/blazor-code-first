@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Text;
 using BlazorCodeFirst.Compiler.Generation;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler;
@@ -32,6 +33,8 @@ internal static class RenderViewEmitter
 
     /// <summary>The <c>stopPropagation</c> half; see <see cref="PreventDefaultAttributePrefix"/>.</summary>
     internal const string StopPropagationAttributePrefix = "__internal_stopPropagation_";
+
+    private static string Literal(string s) => SymbolDisplay.FormatLiteral(s, quote: true);
 
     /// <summary>
     /// A binding's <c>CreateBinder</c> call up to its setter argument, written as the static call it is.
@@ -278,8 +281,7 @@ internal static class RenderViewEmitter
         if (StaticMarkupSerializer.WriteTo(markup, run) < 2)
             return false;
 
-        var literal = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
-            markup.ToString(), quote: true);
+        var literal = Literal(markup.ToString());
         writer.AppendLine($"__builder.AddMarkupContent({seq}, {literal});");
         next = seq + 1;
         return true;
@@ -344,7 +346,7 @@ internal static class RenderViewEmitter
     {
         foreach (var attribute in attributes)
         {
-            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(attribute.Name, quote: true);
+            var name = Literal(attribute.Name);
             writer.AppendLine(
                 $"__builder.AddAttribute({seq}, {name}, {attribute.Value.ToAttributeValueCode()});");
             seq++;
@@ -574,8 +576,7 @@ internal static class RenderViewEmitter
         if (value is null)
             return seq;
 
-        var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
-            prefix + eventName, quote: true);
+        var name = Literal(prefix + eventName);
         writer.AppendLine($"__builder.AddAttribute({seq}, {name}, {value.ToCode()});");
         return seq + 1;
     }
@@ -587,7 +588,7 @@ internal static class RenderViewEmitter
         // an escape. BCF3009 rejects every tag whose spelling this would rescue, so nothing reaches here
         // needing it today; it stays because the invariant is the emitter's own, and a caller filtered
         // by an analyzer in another file is not the same thing as a tag that cannot be misread (#388).
-        var tag = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(node.Tag, quote: true);
+        var tag = Literal(node.Tag);
         writer.AppendLine($"__builder.OpenElement({seq}, {tag});");
         EmitKey(writer, node.Key, key);
         int next = seq + 1;
@@ -596,7 +597,7 @@ internal static class RenderViewEmitter
         next = EmitAttributes(writer, node.Attributes, next);
         foreach (var e in node.Events)
         {
-            var name = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(e.Name, quote: true);
+            var name = Literal(e.Name);
             // The type argument the surface call resolved to, written out rather than left to inference.
             // `Create` is overloaded and the handler arrives here without the parameter type that gave it
             // context at the call site, so a method group has nothing to infer TValue from and an untyped
@@ -612,10 +613,8 @@ internal static class RenderViewEmitter
         }
         foreach (var bind in node.Bindings)
         {
-            var attributeName =
-                global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.AttributeName, quote: true);
-            var eventName =
-                global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(bind.EventName, quote: true);
+            var attributeName = Literal(bind.AttributeName);
+            var eventName = Literal(bind.EventName);
             // The raw value and the attribute's value part company once a culture is written: the binder
             // takes the raw one, because CreateBinder's existingValue is the bound field and not the text
             // the element shows, while the attribute frame takes the formatted string. The two were the
@@ -672,8 +671,7 @@ internal static class RenderViewEmitter
         // §ジェネレーター): the frame carries no value, it is a presence-only attribute.
         if (node.CssScope is { } cssScope)
         {
-            var scopeLiteral = global::Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(
-                cssScope, quote: true);
+            var scopeLiteral = Literal(cssScope);
             writer.AppendLine($"__builder.AddAttribute({next}, {scopeLiteral});");
             next++;
         }
