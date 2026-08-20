@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Isolated for the same reason HeighwayDragon isolates its own restore: BlazorCodeFirst is not
+         published to nuget.org yet (#295), so this restores the locally packed build via
+         NuGet.config's local-blazorcodefirst source instead. -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory)../../artifacts/samples/packages</RestorePackagesPath>
+    <!-- CA1515 recommends `internal` for a type an assembly's own API surface does not need public,
+         which is every type below; CA1812 then flags each of them as "apparently never instantiated"
+         once they are internal. Both readings miss the same fact: the Blazor Router discovers
+         GuestbookPage by scanning the assembly's exported types (an internal [Route] component was
+         verified to 404), and GuestbookStore is constructed by the DI container. Neither call site is
+         a `new` expression, or a public export, that either analyzer can trace, so every type here
+         stays public and both rules are suppressed project-wide rather than fought type by type. -->
+    <NoWarn>$(NoWarn);CA1515;CA1812</NoWarn>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/BlazorCodeFirstDevCache.props" />
+
+  <ItemGroup>
+    <!-- Microsoft.NET.Sdk.Web already supplies the ASP.NET Core framework reference a hosted app
+         needs, unlike HeighwayDragon's WASM SDK, which needed Microsoft.AspNetCore.Components
+         .WebAssembly as a package instead. -->
+    <PackageReference Include="BlazorCodeFirst" />
+  </ItemGroup>
+
+</Project>
