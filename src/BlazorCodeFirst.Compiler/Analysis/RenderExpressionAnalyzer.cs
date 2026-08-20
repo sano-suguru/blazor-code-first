@@ -3275,6 +3275,12 @@ internal static class RenderExpressionAnalyzer
         foreach (var descendant in node.DescendantNodes(
             static child => child is not AnonymousFunctionExpressionSyntax))
         {
+            // Mutating this continue away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. TryGetDeclaredLocalIdentifier leaves `identifier` at its
+            // default SyntaxToken on a false return, whose ValueText is "" -- a string neither
+            // GeneratedNamePrefix nor BuilderName below can ever match, so a non-declaring descendant falls
+            // through this iteration as a no-op with or without the continue.
             if (!ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(descendant, out var identifier))
                 continue;
 
