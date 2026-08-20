@@ -2564,6 +2564,17 @@ internal static class RenderExpressionAnalyzer
         if (setter is null
             && BindTargetResolver.CheckAssignable(getterBody!, context) != BindTargetFailure.None)
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No construction was found that reaches this branch with
+            // an unresolved type reference still present to suppress: the two-argument overload this
+            // branch requires (no setter) leaves getterArg as the only argument slot, and it must already
+            // be an inline lambda for BindTargetResolver.TryGetBody above to have succeeded, so a
+            // reference placed anywhere in its body — bare or nested inside a well-typed helper call —
+            // measurably poisons FactoryArguments.Bind for the whole invocation first, reporting BCF3015
+            // through the generic fallback instead of ever reaching this branch (#487), the same
+            // difficulty class the cluster's other three sites needed a non-lambda argument slot to route
+            // around.
             context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3018, getterBody!.GetLocation(), [getterBody!.ToString()]));
