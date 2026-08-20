@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -265,9 +266,15 @@ internal static class UnresolvedValueTypeScanner
         if (kind is SurfaceMethodKind.Attr or SurfaceMethodKind.ComponentAttr)
         {
             if (IsNonEmptyConstantString(args.At(0)?.Expression, context))
+            {
                 ReportValue(args.At(1)?.Expression, context);
+            }
             else
+            {
                 ReportSelectedInvocationValues(args.At(1)?.Expression, context);
+                ReportNonConstantAttrName(invocation, args.At(0)?.Expression, context);
+            }
+
             return;
         }
 
@@ -695,6 +702,25 @@ internal static class UnresolvedValueTypeScanner
         && context.SemanticModel.GetConstantValue(expression, context.CancellationToken) is
         { HasValue: true, Value: string value }
         && !string.IsNullOrWhiteSpace(value);
+
+    /// <summary>
+    /// Recovers BCF3011 for a non-constant <c>.Attr</c>/<c>.ComponentAttr</c> name reached only through
+    /// this failure-path sweep (#451). The normal walk's own name check,
+    /// <c>RenderExpressionAnalyzer.TryResolveDecorationName</c>, never runs when <c>FactoryArguments.Bind</c>
+    /// already failed for the same invocation — which is exactly when this scanner's own syntactic binder
+    /// still reaches here, since it does not need a valid <see cref="IOperation"/> the way that bind does.
+    /// Without this, a name and a value that each independently break the invocation's own binding lost
+    /// both diagnostics instead of at least this one.
+    /// </summary>
+    private static void ReportNonConstantAttrName(
+        InvocationExpressionSyntax invocation, ExpressionSyntax? name, ViewPartBodyContext context)
+    {
+        if (name is null)
+            return;
+
+        context.RejectUnresolvedValueRecovery(invocation.Span);
+        context.Diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.BCF3011, name.GetLocation(), []));
+    }
 
     private static BoundArguments? BindArguments(
         InvocationExpressionSyntax invocation,
