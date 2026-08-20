@@ -136,6 +136,21 @@ public sealed class HtmlAttributeGeneratorTests
     }
 
     [Fact]
+    public void DecorationOnUnclassifiableReceiver_WithUnresolvedTypeArgument_ReportsBcf1003AndNotBcf3015()
+    {
+        // The ternary's arms are both ElementView, so `.Attr` resolves at the C# level; Classify has no
+        // arm for ConditionalExpressionSyntax, so Analyze(decoAccess.Expression, ...) returns null and
+        // this decoration's own invocation returns null in turn, unreported (the receiver's own failure
+        // is what surfaces, at the top-level BCF1003 fallback). The unresolved type reference sits in
+        // .Attr's own value argument, inside this decoration's invocation span rather than the
+        // unclassifiable receiver's, so it is this guard's Reject call that must suppress it.
+        var diagnostics = Diags("""(true ? Html.Div : Html.Span).Attr("x", typeof(Unresolved).Name)["y"]""");
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF1003");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void BooleanValueOnClassChannel_WithUnresolvedTypeArgument_ReportsBcf3023AndNotBcf3015()
     {
         // typeof(Unresolved).IsClass is itself a bool value, so the same expression both trips the
@@ -177,6 +192,31 @@ public sealed class HtmlAttributeGeneratorTests
     public void DuplicateEvent_ReportsBCF3010()
     {
         Assert.Contains(Diags("""Html.Button.OnClick(() => { }).On("onclick", () => { })["x"]"""), d => d.Id == "BCF3010");
+    }
+
+    /// <summary>
+    /// The unresolved reference goes through a plain helper call rather than a bare value inside the
+    /// second decoration's handler lambda body, which would poison <c>FactoryArguments.Bind</c> for that
+    /// invocation before this duplicate check is ever reached (see the .Bind format-argument probes in
+    /// HtmlBindDiagnosticTests). The duplicate is reported on the second, outer .On call, so that is the
+    /// invocation whose own Reject call must suppress the reference this test carries.
+    /// </summary>
+    [Fact]
+    public void DuplicateEvent_WithUnresolvedTypeArgument_ReportsBcf3010AndNotBcf3015()
+    {
+        var source = """
+            using BlazorCodeFirst;
+            public partial class C : BodyComponentBase
+            {
+                private static System.Action MakeHandler(string s) => () => { };
+                protected override View Body =>
+                    Html.Button.OnClick(() => { }).On("onclick", MakeHandler(typeof(Probe).Name))["x"];
+            }
+            """;
+        var diagnostics = CompilationTestHost.RunGenerator(source).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3010");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3015");
     }
 
     [Fact]

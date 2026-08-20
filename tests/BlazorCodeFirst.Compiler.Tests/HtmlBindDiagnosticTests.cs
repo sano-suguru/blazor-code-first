@@ -545,6 +545,25 @@ public sealed class HtmlBindDiagnosticTests
         AssertDiagnostic(body, "BCF3019");
     }
 
+    /// <summary>
+    /// The unresolved reference goes through a plain helper call rather than a bare value: sitting inside
+    /// the handler lambda's own body would poison FactoryArguments.Bind for the whole invocation before
+    /// this guard is reached at all (see the format-argument probes above), and On/OnClick take no third,
+    /// non-delegate argument slot the way element .Bind does.
+    /// </summary>
+    [Fact]
+    public void On_EventNameWithoutOnPrefix_WithUnresolvedTypeArgument_ReportsBcf3019AndNotBcf3015()
+    {
+        const string body = """
+            private static System.Action MakeHandler(string s) => () => { };
+            protected override View Body =>
+                Html.Button.On("click", MakeHandler(typeof(Probe).Name));
+            """;
+
+        AssertDiagnostic(body, "BCF3019");
+        Assert.DoesNotContain(Diags(body), d => d.Id == "BCF3015");
+    }
+
     [Fact]
     public void On_EventNameWithOnPrefix_IsAccepted()
     {
