@@ -843,13 +843,13 @@ internal static class RenderExpressionAnalyzer
             return kind switch
             {
                 SurfaceMethodKind.ComponentKey =>
-                    ReportDuplicateFrameDecoration(paramAccess, inner.Key, context)
+                    ReportDuplicateFrameDecoration(invocation, paramAccess, inner.Key, context)
                         ? null
                         : TakeKey(frameArg, context) is { } key ? inner with { Key = key } : inner,
                 SurfaceMethodKind.ComponentRenderMode =>
-                    ClassifyComponentRenderMode(paramAccess, method, inner, frameArg, context),
+                    ClassifyComponentRenderMode(invocation, paramAccess, method, inner, frameArg, context),
                 SurfaceMethodKind.ComponentRef =>
-                    ReportDuplicateFrameDecoration(paramAccess, inner.Ref, context)
+                    ReportDuplicateFrameDecoration(invocation, paramAccess, inner.Ref, context)
                         ? null
                         : inner with { Ref = ExpressionTemplateFactory.Create(frameArg.Expression, context) },
                 // Unreachable: the `if` above admits exactly the three kinds named here. Written out so a
@@ -1161,7 +1161,7 @@ internal static class RenderExpressionAnalyzer
             return null;
 
         if (RoutesBeforeArgumentGuard(kind))
-            return ClassifyEventModifier(decoAccess, method, kind, element, args, context);
+            return ClassifyEventModifier(invocation, decoAccess, method, kind, element, args, context);
 
         // Every kind below reads a first argument, and every kind that can be written without one has
         // routed above. So this is not "the author wrote no argument" but a call this compiler was not
@@ -1178,7 +1178,7 @@ internal static class RenderExpressionAnalyzer
         // keeps the emitter to one question and leaves the fold available to an element that declined.
         if (kind == SurfaceMethodKind.Key)
         {
-            if (ReportDuplicateFrameDecoration(decoAccess, element.Key, context))
+            if (ReportDuplicateFrameDecoration(invocation, decoAccess, element.Key, context))
                 return null;
 
             return TakeKey(firstArg, context) is { } key ? element with { Key = key } : element;
@@ -1189,14 +1189,14 @@ internal static class RenderExpressionAnalyzer
         // the same reason `.On("onclick", null)` is not: it binds, and no author reaches it by accident.
         if (kind == SurfaceMethodKind.Ref)
         {
-            return ReportDuplicateFrameDecoration(decoAccess, element.Ref, context)
+            return ReportDuplicateFrameDecoration(invocation, decoAccess, element.Ref, context)
                 ? null
                 : element with { Ref = ExpressionTemplateFactory.Create(firstArg.Expression, context) };
         }
 
         if (kind == SurfaceMethodKind.FormName)
         {
-            if (ReportDuplicateFrameDecoration(decoAccess, element.FormName, context))
+            if (ReportDuplicateFrameDecoration(invocation, decoAccess, element.FormName, context))
                 return null;
 
             if (element.Tag != "form")
@@ -1217,7 +1217,7 @@ internal static class RenderExpressionAnalyzer
         // is BCF3033, the same rule those three already carry.
         if (kind == SurfaceMethodKind.AttributesSplat)
         {
-            if (ReportDuplicateFrameDecoration(decoAccess, element.AttributesSplat, context))
+            if (ReportDuplicateFrameDecoration(invocation, decoAccess, element.AttributesSplat, context))
                 return null;
 
             return element with
@@ -1479,6 +1479,7 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// </remarks>
     private static ElementTemplateNode? ClassifyEventModifier(
+        InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
         IMethodSymbol method,
         SurfaceMethodKind kind,
@@ -1518,21 +1519,21 @@ internal static class RenderExpressionAnalyzer
         }
         else
         {
-            context.RejectUnresolvedValueRecovery(decoAccess.Span);
+            context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3035, decoAccess.Name.GetLocation(), [method.Name]));
             return null;
         }
 
         if (ReportDuplicateFrameDecoration(
-                decoAccess, existing, context, DiagnosticDescriptors.BCF3036, eventName))
+                invocation, decoAccess, existing, context, DiagnosticDescriptors.BCF3036, eventName))
         {
             return null;
         }
 
         // After the duplicate check, because a modifier written twice on an event that refuses it is one
         // mistake to the author and the duplicate is what they delete first.
-        if (ReportRefusedEventModifier(decoAccess, method, kind, eventName, context))
+        if (ReportRefusedEventModifier(invocation, decoAccess, method, kind, eventName, context))
             return null;
 
         // Read through the attribute channel's own resolver rather than beside it. The implied true of the
@@ -1581,6 +1582,7 @@ internal static class RenderExpressionAnalyzer
     /// both channels arrive at it the same way.
     /// </remarks>
     private static bool ReportRefusedEventModifier(
+        InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
         IMethodSymbol method,
         SurfaceMethodKind kind,
@@ -1590,7 +1592,7 @@ internal static class RenderExpressionAnalyzer
         if (!context.KnownSymbols.RefusesEventModifier(eventName, kind))
             return false;
 
-        context.RejectUnresolvedValueRecovery(decoAccess.Span);
+        context.RejectUnresolvedValueRecovery(invocation.Span);
         context.Diagnostics.Add(DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF3038, decoAccess.Name.GetLocation(), [method.Name, eventName]));
         return true;
@@ -2052,13 +2054,14 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// </remarks>
     private static ComponentTemplateNode? ClassifyComponentRenderMode(
+        InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax paramAccess,
         IMethodSymbol method,
         ComponentTemplateNode component,
         ArgumentSyntax modeArg,
         ViewPartBodyContext context)
     {
-        if (ReportDuplicateFrameDecoration(paramAccess, component.RenderMode, context))
+        if (ReportDuplicateFrameDecoration(invocation, paramAccess, component.RenderMode, context))
             return null;
 
         if (method.ContainingType is not { TypeArguments.Length: 1 } componentViewType)
@@ -2067,7 +2070,7 @@ internal static class RenderExpressionAnalyzer
         var componentType = componentViewType.TypeArguments[0];
         if (DeclaredRenderMode(componentType, context) is { } declared)
         {
-            context.RejectUnresolvedValueRecovery(paramAccess.Span);
+            context.RejectUnresolvedValueRecovery(invocation.Span);
             context.Diagnostics.Add(DiagnosticInfo.Create(
                 DiagnosticDescriptors.BCF3034,
                 paramAccess.Name.GetLocation(),
@@ -2131,6 +2134,7 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// </remarks>
     private static bool ReportDuplicateFrameDecoration(
+        InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax access,
         ExpressionTemplate? existing,
         ViewPartBodyContext context,
@@ -2141,7 +2145,7 @@ internal static class RenderExpressionAnalyzer
             return false;
 
         var name = access.Name.Identifier.ValueText;
-        context.RejectUnresolvedValueRecovery(access.Span);
+        context.RejectUnresolvedValueRecovery(invocation.Span);
         context.Diagnostics.Add(DiagnosticInfo.Create(
             descriptor ?? DiagnosticDescriptors.BCF3033,
             access.Name.GetLocation(),

@@ -1057,6 +1057,15 @@ public sealed class BracketSurfaceDiagnosticTests
         Assert.Contains("PreventDefault", reported.GetMessage(CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PreventDefault_WithNoEventBeforeIt_AndUnresolvedTypeArgument_ReportsBCF3035AndNotBCF3015()
+    {
+        var diagnostics = Run("""Div.Class("x").PreventDefault(typeof(Probe).IsClass)""", WheelMembers);
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3035");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3015");
+    }
+
     /// <summary>
     /// Written before the event it was meant for, which is the shape the chain makes easy to reach.
     /// </summary>

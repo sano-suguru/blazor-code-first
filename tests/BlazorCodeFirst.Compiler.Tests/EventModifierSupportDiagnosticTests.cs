@@ -58,6 +58,15 @@ public sealed class EventModifierSupportDiagnosticTests
         Assert.Contains("oncancel", message, System.StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void StopPropagation_OnAnEventThatDisablesIt_WithUnresolvedTypeArgument_ReportsBCF3038AndNotBCF3015()
+    {
+        var diagnostics = Run("""Div.On("oncancel", Go).StopPropagation(typeof(Probe).IsClass)""");
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3038");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3015");
+    }
+
     /// <summary>
     /// The same event accepts <c>preventDefault</c>, which all 96 framework registrations enable.
     /// </summary>
