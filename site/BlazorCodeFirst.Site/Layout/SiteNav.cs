@@ -55,7 +55,7 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
                 A.Href("/counter").Class(LinkClass("/counter"))["Demo"],
                 A.Href("https://github.com/sano-suguru/blazor-code-first")
                     .Class("chip")
-                    .Attr("rel", "noopener")["Source"],
+                    .Rel("noopener")["Source"],
                 ThemeToggle(Docs.Shell(CurrentLang()))]];
 
     /// <summary>The colour-scheme control: system, light, dark, in that cycle.</summary>
@@ -83,7 +83,7 @@ public sealed partial class SiteNav : BodyComponentBase, IDisposable
     /// </remarks>
     [ViewPart]
     private static View ThemeToggle(ShellText shell) =>
-        Button.Class("theme-toggle").Attr("type", "button").Attr("data-theme-toggle", "")[
+        Button.Class("theme-toggle").Type("button").Attr("data-theme-toggle", "")[
             Span.Class("visually-hidden")[
                 shell.ThemeToggleName.Replace("{state}", "", StringComparison.Ordinal)],
             Span.Class("theme-toggle__label").Attr("aria-hidden", "true")[shell.ThemeToggleLabel],

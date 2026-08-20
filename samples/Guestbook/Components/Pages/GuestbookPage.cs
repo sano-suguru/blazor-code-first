@@ -60,9 +60,9 @@ public sealed partial class GuestbookPage : BodyComponentBase
                 .Param(f => f.OnValidSubmit, EventCallback.Factory.Create<EditContext>(this, HandleCreate))[
                     Component<DataAnnotationsValidator>(),
                     Component<ValidationSummary>(),
-                    Label.Attr("for", "name")["Name"],
+                    Label.For("name")["Name"],
                     Component<InputText>().Attr("id", "name").Bind(c => c.Value, () => NewEntry.Name),
-                    Label.Attr("for", "message")["Message"],
+                    Label.For("message")["Message"],
                     Component<InputTextArea>().Attr("id", "message").Bind(c => c.Value, () => NewEntry.Message),
                     Button.Type("submit")["Sign the guestbook"]]],
 
@@ -78,10 +78,10 @@ public sealed partial class GuestbookPage : BodyComponentBase
                     Article.Class("entry")[
                         Header[
                             Strong[entry.Name],
-                            Time.Attr("datetime", entry.CreatedAt.ToString("O", CultureInfo.InvariantCulture))[
+                            Time.Datetime(entry.CreatedAt.ToString("O", CultureInfo.InvariantCulture))[
                                 entry.CreatedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)]],
                         P[entry.Message],
-                        Form.Attr("method", "post").FormName($"delete-{entry.Id}")
+                        Form.Method("post").FormName($"delete-{entry.Id}")
                             .On("onsubmit", () => HandleDelete(entry.Id))[
                                 Component<AntiforgeryToken>(),
                                 Button.Type("submit").Class("delete")["Delete"]]])]];

@@ -85,7 +85,7 @@ public sealed partial class Home : BodyComponentBase
                                 Code[InstallCommand],
                                 Button
                                     .Class("install-copy")
-                                    .Attr("type", "button")
+                                    .Type("button")
                                     .Attr("aria-label", "Copy the install command")
                                     .OnClick(() => CopyInstallCommandAsync())[
                                         _copied ? "Copied" : "Copy"]],

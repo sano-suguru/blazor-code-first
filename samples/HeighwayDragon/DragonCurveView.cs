@@ -49,9 +49,9 @@ public sealed partial class DragonCurveView : BodyComponentBase
                 Div.Id("order-value").Class("panel-value")[_order.ToString(CultureInfo.InvariantCulture)]
             ],
             Input.Type("range").Id("order-slider").Class("order-slider")
-                .Attr("min", MinOrder.ToString(CultureInfo.InvariantCulture))
-                .Attr("max", MaxOrder.ToString(CultureInfo.InvariantCulture))
-                .Attr("disabled", _generationState == GenerationState.Generating)
+                .Min(MinOrder.ToString(CultureInfo.InvariantCulture))
+                .Max(MaxOrder.ToString(CultureInfo.InvariantCulture))
+                .Disabled(_generationState == GenerationState.Generating)
                 .Bind("value", "oninput",
                     () => _order.ToString(CultureInfo.InvariantCulture),
                     OnOrderInputAsync),

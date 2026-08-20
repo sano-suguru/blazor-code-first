@@ -107,7 +107,7 @@ public sealed partial class DocsNav : BodyComponentBase, IDisposable
                     content: l => Li[
                         A.Href(slug is null ? Docs.RoutePrefix(l) : Docs.Href(l, slug))
                             .Class("lang-link")
-                            .Attr("lang", l)[Docs.Shell(l).Name]])]);
+                            .Lang(l)[Docs.Shell(l).Name]])]);
 
     /// <summary>The other editions that can show what the reader is looking at.</summary>
     private static List<string> Counterparts(string lang, string? slug) =>

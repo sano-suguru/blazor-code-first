@@ -52,14 +52,14 @@ public sealed partial class CounterPage : BodyComponentBase
                     Span.Class("demo-count")[$"{_count}"],
                     If(_count >= 3, () => Span.Class("demo-milestone")["Milestone reached"])],
                 Div.Class("demo-buttons")[
-                    Button.Class("chip chip--primary").Attr("type", "button").OnClick(() => _count++)[
+                    Button.Class("chip chip--primary").Type("button").OnClick(() => _count++)[
                         "Increment"],
                     ForEach(
                         Steps,
                         key: step => step.Id,
                         content: step => Button
                             .Class("chip")
-                            .Attr("type", "button")
+                            .Type("button")
                             .OnClick(() => _count += step.Amount)[$"+{step.Amount}"])]],
             Section.Class("demo")[
                 Figure.Class("figure")[

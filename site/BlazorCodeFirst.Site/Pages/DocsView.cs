@@ -45,7 +45,7 @@ internal static class DocsView
     public static View Document(DocEntry entry) =>
         Div.Class("shell")[
             Div.Class("docs-shell")[
-                Article.Class("prose docs-content").Attr("lang", entry.Lang)[
+                Article.Class("prose docs-content").Lang(entry.Lang)[
                     Component<PageTitle>()[entry.Title],
                     Component<SiteMeta>()
                         .Param(m => m.Title, entry.Title)
@@ -82,7 +82,7 @@ internal static class DocsView
 
         return Div.Class("shell")[
             Div.Class("docs-shell")[
-                Section.Class("prose docs-content").Attr("lang", lang)[
+                Section.Class("prose docs-content").Lang(lang)[
                     Component<PageTitle>()[shell.IndexTitle],
                     Component<SiteMeta>()
                         .Param(m => m.Title, shell.IndexTitle)

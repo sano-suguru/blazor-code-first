@@ -27,7 +27,7 @@ public sealed partial class LiveSearch : BodyComponentBase
     private string _query = "";
 
     protected override View Body => Div.Class("live-search")[
-        Input.Type("search").Attr("placeholder", "Filter entries as you type…")
+        Input.Type("search").Placeholder("Filter entries as you type…")
             .Bind("value", "oninput", () => _query, v => _query = v),
         ForEach(Store.Search(_query),
             key: e => e.Id,

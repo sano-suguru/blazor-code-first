@@ -20,7 +20,7 @@ public sealed partial class SiteFooter : BodyComponentBase
                 Div.Class("foot-links")[
                     A.Href("https://github.com/sano-suguru/blazor-code-first")
                         .Class("foot-link")
-                        .Attr("rel", "noopener")["Repository"],
+                        .Rel("noopener")["Repository"],
                     A.Href("/docs").Class("foot-link")["Documentation"],
                     Span["MIT"]]]];
 }
