@@ -1,6 +1,3 @@
-using BlazorCodeFirst;
-using static BlazorCodeFirst.Html;
-
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 /// <summary>

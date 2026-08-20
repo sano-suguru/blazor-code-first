@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Threading;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -98,7 +96,7 @@ internal sealed class ViewPartBodyContext
 
     /// <summary>
     /// All diagnostics recorded while normalizing this body, both errors (for example BCF1002) and
-    /// warnings (for example BCF3002). Definition/model validity is gated on <see cref="DiagnosticInfo.IsError"/>
+    /// warnings (for example BCF3002). Definition/model validity is gated on <see cref="Diagnostics.DiagnosticInfo.IsError"/>
     /// severity, not on this collection being non-empty, so a warning-only body still builds successfully
     /// and surfaces its warnings.
     /// </summary>
@@ -106,7 +104,7 @@ internal sealed class ViewPartBodyContext
 
     /// <summary>
     /// The expression that failed to translate, or <see langword="null"/> if none did. Set by
-    /// <see cref="RenderExpressionAnalyzer.Analyze"/> on every failed classification, keeping only the
+    /// <see cref="RenderExpressionAnalyzer.Analyze(Microsoft.CodeAnalysis.CSharp.Syntax.ExpressionSyntax, ViewPartBodyContext)"/> on every failed classification, keeping only the
     /// first: recursion is depth-first and no caller recovers from a <see langword="null"/> child, so the
     /// first failure recorded is the innermost one and every enclosing failure is a consequence of it.
     /// This is what gives BCF1003 a location: it is raised after classification, where no syntax remains.

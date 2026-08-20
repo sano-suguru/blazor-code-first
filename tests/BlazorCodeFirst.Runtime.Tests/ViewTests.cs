@@ -1,5 +1,3 @@
-using BlazorCodeFirst;
-
 namespace BlazorCodeFirst.Runtime.Tests;
 
 public sealed class ViewTests

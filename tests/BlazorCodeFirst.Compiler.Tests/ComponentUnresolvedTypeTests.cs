@@ -1,5 +1,3 @@
-using System.Linq;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Tests;

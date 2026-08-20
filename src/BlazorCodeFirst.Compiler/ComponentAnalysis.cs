@@ -18,22 +18,31 @@ namespace BlazorCodeFirst.Compiler;
 /// not, so downstream emission gates on <see cref="DiagnosticInfo.IsError"/> severity rather than on
 /// this collection being non-empty.
 /// </remarks>
-/// <param name="DesignTimeExpressionName">
-/// The name of the design-time expression this component declares, <c>Body</c> on a component,
-/// <c>Chrome</c> on a layout. Carried as a value so diagnostics raised after the semantic stage can
-/// name the real expression instead of hardcoding one of them.
-/// </param>
+/// <param name="HintName">The generated file's hint name, passed straight to <c>AddSource</c>.</param>
+/// <param name="ClassName">The component class's own name, without namespace or type parameters.</param>
 /// <param name="TypeParameters">
 /// The component's own type-parameter names in declaration order, empty for a non-generic component.
 /// Names are taken verbatim from the symbol because every partial declaration of a generic type must use
 /// the same type-parameter names in the same order (CS0264), so the generated part cannot rename them.
 /// </param>
+/// <param name="Namespace">The component's namespace, or <see langword="null"/> for one declared in the global namespace.</param>
 /// <param name="FilePath">
 /// The declaring syntax tree's file path (<c>classDeclaration.SyntaxTree.FilePath</c>), symbol-free.
 /// Scope is a file-unit concept (design doc §スコープの単位はファイル): this is what
 /// <see cref="ComponentModelFactory.Expand"/> looks up in the <c>CssScopeRegistry</c> to find this
 /// component's own <c>.cs.css</c> scope, and what a later BCF3041 orphan check compares against.
 /// </param>
+/// <param name="DesignTimeExpressionName">
+/// The name of the design-time expression this component declares, <c>Body</c> on a component,
+/// <c>Chrome</c> on a layout. Carried as a value so diagnostics raised after the semantic stage can
+/// name the real expression instead of hardcoding one of them.
+/// </param>
+/// <param name="InheritanceKeys">
+/// Method keys of every <c>ViewPart</c>-attributed method reachable through the component's base classes,
+/// used to resolve an unqualified view-part call against inherited candidates.
+/// </param>
+/// <param name="Template">The classified render template, or <see langword="null"/> when the body is not a recognized statically-sequenceable construct.</param>
+/// <param name="BodyDiagnostics">Every diagnostic normalization recorded while classifying the body, both errors and non-rejecting warnings.</param>
 /// <param name="FailureLocation">
 /// Where to blame when <paramref name="Template"/> is <see langword="null"/> because classification
 /// failed: the innermost expression that could not be translated. Carried as symbol-free coordinates for

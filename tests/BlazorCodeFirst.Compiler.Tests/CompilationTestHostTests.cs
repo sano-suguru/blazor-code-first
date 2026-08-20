@@ -1,5 +1,3 @@
-using System.Linq;
-
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>

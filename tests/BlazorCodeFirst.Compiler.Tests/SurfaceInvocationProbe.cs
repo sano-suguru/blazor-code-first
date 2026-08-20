@@ -1,8 +1,6 @@
-using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Operations;
-using Xunit;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 

@@ -1,6 +1,4 @@
 using System.Collections.Immutable;
-using System.Linq;
-using System.Threading;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -325,7 +323,7 @@ internal static class ViewPartDefinitionFactory
     }
 
     /// <summary>
-    /// How many times <paramref name="expression"/> names <c>Html.Slot</c>, counting both the unqualified
+    /// How many times <paramref name="body"/> names <c>Html.Slot</c>, counting both the unqualified
     /// spelling under <c>using static</c> and the qualified escape hatch, and counting references inside
     /// nested lambdas (an <c>If</c> branch) as well.
     /// </summary>

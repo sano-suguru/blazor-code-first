@@ -55,9 +55,11 @@ namespace BlazorCodeFirst.Compiler.Diagnostics;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
 {
+    /// <inheritdoc />
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
         [DiagnosticDescriptors.BCF3001];
 
+    /// <inheritdoc />
     public override void Initialize(AnalysisContext context)
     {
         if (context is null)

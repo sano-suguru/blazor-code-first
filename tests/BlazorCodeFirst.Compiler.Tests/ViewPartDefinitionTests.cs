@@ -1,8 +1,5 @@
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Linq;
-using BlazorCodeFirst.Compiler;
 using BlazorCodeFirst.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;

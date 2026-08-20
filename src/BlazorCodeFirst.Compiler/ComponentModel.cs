@@ -15,11 +15,15 @@ namespace BlazorCodeFirst.Compiler;
 /// <c>ComponentModel</c> instances are only created when the design-time expression is fully
 /// SSC-analyzable; a null <c>RootNode</c> is therefore not representable.
 /// </remarks>
+/// <param name="HintName">The generated file's hint name, passed straight to <c>AddSource</c>.</param>
+/// <param name="ClassName">The component class's own name, without namespace or type parameters.</param>
 /// <param name="TypeParameters">
 /// The component's own type-parameter names in declaration order, empty for a non-generic component.
 /// Names are taken verbatim from the symbol because every partial declaration of a generic type must use
 /// the same type-parameter names in the same order (CS0264), so the generated part cannot rename them.
 /// </param>
+/// <param name="Namespace">The component's namespace, or <see langword="null"/> for one declared in the global namespace.</param>
+/// <param name="RootNode">The statically analyzed render-node tree extracted from the component's design-time expression.</param>
 internal sealed record ComponentModel(
     string HintName,
     string ClassName,

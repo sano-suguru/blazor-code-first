@@ -8,6 +8,8 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// (<c>RenderExpressionAnalyzer.CreateInvocationArguments</c> recomputes the default from the callee's
 /// own symbol), so carrying them here paid for a second copy that nothing consulted.
 /// </remarks>
+/// <param name="Ordinal">The substitution ordinal expansion places this parameter's argument at.</param>
+/// <param name="TypeName">The parameter's type, fully qualified, used to declare the local that holds it.</param>
 /// <param name="IsContent">
 /// Whether this parameter is a <c>View</c>-typed content slot (#34) rather than a value. Expansion declares
 /// no local for one — content is a node subtree and there is nothing to bind — so the flag is carried here
@@ -51,6 +53,9 @@ internal sealed record ViewPartAccessRequirement(
 /// <see cref="ViewPartAccessRequirement.RequiredContainingTypeKey"/>, the <em>declaring</em> type of each
 /// referenced member.
 /// </remarks>
+/// <param name="Parameters">The parameters this view part accepts, in call-site order.</param>
+/// <param name="AccessRequirements">The accessibility requirements expansion sites must satisfy.</param>
+/// <param name="Body">The normalized, symbol-free render template.</param>
 /// <param name="HasSlot">
 /// Whether this definition names <c>Html.Slot</c>, which is exactly whether it returns <c>SlotView</c>
 /// (#176). The ordinal that slot is bound at is <see cref="SlotOrdinal"/>, derived rather than stored: it is
@@ -77,12 +82,16 @@ internal sealed record ViewPartDefinition(
 /// set to <see langword="true"/> so expansion can distinguish an already-diagnosed source declaration
 /// from a metadata-only method that must report BCF1002 at the call site.
 /// </summary>
+/// <param name="MethodKey">The declaring method's symbol-free key, what the registry is keyed on.</param>
+/// <param name="DisplayName">The method's display name, read by every diagnostic that names this view part.</param>
 /// <param name="FilePath">
 /// The declaring method's syntax tree file path, symbol-free. Present regardless of validity (even
 /// when <see cref="Definition"/> is <see langword="null"/>): a file that attempts a <c>[ViewPart]</c>
 /// declaration is not an orphaned <c>.cs.css</c> file just because the declaration itself is invalid,
 /// and expansion (<c>ViewPartExpander.ExpandCall</c>) reads this to resolve the callee's own scope.
 /// </param>
+/// <param name="Definition">The valid definition, or <see langword="null"/> when the declaration was rejected.</param>
+/// <param name="DeclarationDiagnosticReported">Whether the invalid declaration already reported its own diagnostic.</param>
 internal sealed record ViewPartDefinitionEntry(
     string MethodKey,
     string DisplayName,

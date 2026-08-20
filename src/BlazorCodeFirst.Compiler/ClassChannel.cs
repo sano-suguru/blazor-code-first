@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
@@ -110,6 +109,7 @@ internal static class ClassChannel
     /// Whether the channel takes a decoration of <paramref name="valueType"/> onto
     /// <paramref name="element"/>, and when it does not, which rule refused it.
     /// </summary>
+    /// <param name="element">The element the decoration would fold onto.</param>
     /// <param name="valueType">
     /// The type of the decoration's value parameter on the overload the C# compiler picked, not the type
     /// of the value expression written there. The channel's question is which spelling of the surface was

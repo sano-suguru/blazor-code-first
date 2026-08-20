@@ -1,5 +1,3 @@
-using BlazorCodeFirst;
-
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 // Semantic shell exercising the RM3 vocabulary end-to-end: a nav + header shell, a Main panel whose body

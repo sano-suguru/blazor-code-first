@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler.Diagnostics;
 
@@ -28,6 +27,7 @@ internal enum ContentRootKind
 /// BCF3003 and BCF3032 cannot afford, since between them they decide whether a <c>SetKey</c> has a frame
 /// to land on and whether it would be the second one landing there.
 /// </remarks>
+/// <param name="Kind">The frame kind the template's root produces.</param>
 /// <param name="IsKeyed">
 /// Whether the root carries a <c>.Key</c>. Always <see langword="false"/> for a root that is not an
 /// element or component, which has nowhere to carry one.
@@ -49,6 +49,9 @@ internal static class KeyabilityResolver
     public static ContentRoot ResolveRoot(RenderTemplateNode node, ViewPartRegistry registry) =>
         ResolveRoot(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
 
+    /// <param name="node">The template whose root is being resolved.</param>
+    /// <param name="registry">The view part registry, followed transitively when the root is a view part call.</param>
+    /// <param name="activeKeys">The method keys already on the call stack, guarding against a cyclic view part call.</param>
     /// <param name="content">
     /// The content the enclosing call supplied, by callee ordinal, or <see langword="null"/> when this walk has
     /// no call above it — which is the registry pass over a definition nobody calls.

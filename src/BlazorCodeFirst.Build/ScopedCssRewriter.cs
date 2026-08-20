@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Text;
 
 namespace BlazorCodeFirst.Build;
@@ -11,6 +9,11 @@ namespace BlazorCodeFirst.Build;
 /// </summary>
 public readonly struct CssRewriteError : IEquatable<CssRewriteError>
 {
+    /// <summary>Creates a rewrite error at the given source position.</summary>
+    /// <param name="filePath">The <c>.cs.css</c> file the error was found in.</param>
+    /// <param name="line">The 1-based line the error starts at.</param>
+    /// <param name="column">The 1-based column the error starts at.</param>
+    /// <param name="message">The human-readable description of the error.</param>
     public CssRewriteError(string filePath, int line, int column, string message)
     {
         FilePath = filePath;
@@ -19,20 +22,31 @@ public readonly struct CssRewriteError : IEquatable<CssRewriteError>
         Message = message;
     }
 
+    /// <summary>The <c>.cs.css</c> file the error was found in.</summary>
     public string FilePath { get; }
+
+    /// <summary>The 1-based line the error starts at.</summary>
     public int Line { get; }
+
+    /// <summary>The 1-based column the error starts at.</summary>
     public int Column { get; }
+
+    /// <summary>The human-readable description of the error.</summary>
     public string Message { get; }
 
+    /// <summary>Formats the error as <c>path(line,column): message</c>, matching MSBuild's diagnostic format.</summary>
     public override string ToString() => $"{FilePath}({Line},{Column}): {Message}";
 
+    /// <summary>Returns whether this error and <paramref name="other"/> report the same position and message.</summary>
     public bool Equals(CssRewriteError other) =>
         FilePath == other.FilePath && Line == other.Line && Column == other.Column && Message == other.Message;
 
+    /// <inheritdoc />
     public override bool Equals(object? obj) => obj is CssRewriteError other && Equals(other);
 
     // System.HashCode is unavailable on net472 (this project multi-targets net472;net10.0), so the
     // combine is done by hand instead.
+    /// <inheritdoc />
     public override int GetHashCode()
     {
         unchecked
@@ -46,8 +60,10 @@ public readonly struct CssRewriteError : IEquatable<CssRewriteError>
         }
     }
 
+    /// <summary>Returns whether <paramref name="left"/> and <paramref name="right"/> report the same position and message.</summary>
     public static bool operator ==(CssRewriteError left, CssRewriteError right) => left.Equals(right);
 
+    /// <summary>Returns whether <paramref name="left"/> and <paramref name="right"/> report a different position or message.</summary>
     public static bool operator !=(CssRewriteError left, CssRewriteError right) => !left.Equals(right);
 }
 
@@ -74,6 +90,15 @@ public static class ScopedCssRewriter
         "after", "before", "first-letter", "first-line",
     };
 
+    /// <summary>
+    /// Rewrites <paramref name="css"/>'s selectors, <c>@keyframes</c> names, and animation-name
+    /// declarations to carry <paramref name="scope"/>.
+    /// </summary>
+    /// <param name="filePath">The source file, used only to attach a location to <paramref name="errors"/>.</param>
+    /// <param name="css">The original, unscoped stylesheet text.</param>
+    /// <param name="scope">The scope identifier to inject into selectors and keyframe names.</param>
+    /// <param name="errors">Every <c>@import</c> found; the rewrite is not applied to the rule that produced one.</param>
+    /// <returns>The rewritten stylesheet text.</returns>
     public static string Rewrite(string filePath, string css, string scope, out IReadOnlyList<CssRewriteError> errors)
     {
         if (filePath is null)

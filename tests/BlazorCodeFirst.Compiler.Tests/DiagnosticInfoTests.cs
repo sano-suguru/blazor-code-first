@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;

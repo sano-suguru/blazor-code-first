@@ -1,16 +1,22 @@
-using System.Collections.Generic;
-using System.IO;
 using Microsoft.Build.Framework;
-using Microsoft.Build.Utilities;
 
 namespace BlazorCodeFirst.Build;
 
 // Base class spelled out fully: see the comment on ComputeScopedCssScopeTask.
+/// <summary>
+/// MSBuild task that rewrites each input's scoped CSS to its output path, attaching the
+/// <c>CssScope</c> metadata <see cref="ComputeScopedCssScopeTask"/> computed for it.
+/// </summary>
 public sealed class RewriteScopedCssTask : Microsoft.Build.Utilities.Task
 {
+    /// <summary>
+    /// The items to rewrite. Each carries <c>FullPath</c> (the source file), <c>OutputFile</c>
+    /// (the rewritten destination), and <c>CssScope</c> (the identifier to inject) as metadata.
+    /// </summary>
     [Required]
     public ITaskItem[] FilesToRewrite { get; set; } = [];
 
+    /// <inheritdoc />
     public override bool Execute()
     {
         // Every current caller writes all outputs under the same directory, but tracking directories
