@@ -13,11 +13,7 @@ public sealed class GuestbookStore
 
     public GuestbookStore() => Add("Ada Lovelace", "First entry, seeded on startup.");
 
-    public IReadOnlyList<GuestbookEntry> All()
-    {
-        lock (_gate)
-            return [.. _entries.OrderByDescending(e => e.CreatedAt)];
-    }
+    public IReadOnlyList<GuestbookEntry> All() => Search("");
 
     public void Add(string name, string message)
     {
