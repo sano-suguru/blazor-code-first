@@ -1495,6 +1495,12 @@ internal static class RenderExpressionAnalyzer
             handlerArgument.GetLocation(),
             [
                 declared.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                // Mutating this fragment away is a stryker survivor, measured equivalent rather than
+                // assumed: emptying it and running BlazorCodeFirst.Compiler.Tests and
+                // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. No test asserts this
+                // message's exact wording, the same reason DiagnosticDescriptors.cs is excluded from the
+                // mutate config wholesale (CONTRIBUTING.md §Build and test): what a diagnostic is held to
+                // is its id and severity against ARCHITECTURE.md's Appendix A, not its message text.
                 $"'{eventName}' delivers '{deliveredName}'; write the handler's parameter as that type or "
                     + "as a base of it",
             ]));
@@ -1562,6 +1568,16 @@ internal static class RenderExpressionAnalyzer
         // The branch reads the resolved target's name and its existing value; everything after it is one
         // path for both channels, because a modifier is the same decoration wherever its event came from.
         // Only the write back at the end has to know which channel it is returning to.
+        //
+        // Every mutation of these two conditions -- && to ||, either Length bound loosened to >= 0 -- is a
+        // stryker survivor, measured equivalent rather than assumed for the same reason the remark above
+        // gives: the walk that sets `channel` is the same walk that filled `events`/`bindings`, so
+        // channel == Event and events.Length > 0 cannot disagree for any invocation reaching this method
+        // today, and likewise for Binding. Hand-applying each mutation individually (the && to || flip on
+        // both conditions, and the > 0 to >= 0 loosening on events.Length) and running both
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test passing
+        // unchanged, including a probe combining an earlier .On with a later .Bind on one element to try
+        // to split the two channels apart.
         string eventName;
         ExpressionTemplate? existing;
         if (channel == EventProducer.Event && events.Length > 0)
@@ -2259,6 +2275,15 @@ internal static class RenderExpressionAnalyzer
         context.Diagnostics.Add(DiagnosticInfo.Create(
             descriptor ?? DiagnosticDescriptors.BCF3033,
             access.Name.GetLocation(),
+            // Mutating this ternary's condition away is a stryker survivor, measured equivalent rather
+            // than assumed: forcing the false branch unconditionally, so a null extraMessageArgument
+            // rides along as an unused second message argument, and running
+            // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test passing
+            // unchanged (the mutation itself only compiles under this project's TreatWarningsAsErrors by
+            // suppressing CS8601 for the hand-applied probe). An extra format argument a descriptor's
+            // message does not reference is silently unused rather than thrown on, the same reason no
+            // test here asserts a diagnostic's exact message text (DiagnosticDescriptors.cs's own
+            // exclusion from the mutate config, CONTRIBUTING.md §Build and test).
             extraMessageArgument is null ? [name] : [name, extraMessageArgument]));
         return true;
     }
@@ -3012,6 +3037,13 @@ internal static class RenderExpressionAnalyzer
         if (children is null)
             return null;
 
+        // Loosening the > 0 bound to >= 0 is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+        // left every test passing unchanged, including empty brackets after a ChildContent .Param
+        // (Component<Card>().Param(c => c.ChildContent, ...)[]), the one shape that would need a real
+        // zero-length children.Value to reach this line at all. That shape reports BCF1003 before this
+        // method is even reached, for a reason upstream of this check, so no construction was found where
+        // `children` is non-null (past the guard above) and its own Length is zero.
         if (children.Value.Length > 0 && HasBinding(component, ChildContentParameterName))
         {
             context.Diagnostics.Add(DiagnosticInfo.Create(
@@ -3067,6 +3099,14 @@ internal static class RenderExpressionAnalyzer
 
         // All children share the single ChildContent fragment; a Fragment node groups them without emitting
         // a wrapper element, matching how Razor lowers multiple nested children.
+        // Mutating this condition away is a stryker survivor, measured equivalent rather than assumed:
+        // forcing the false branch, so a single child is wrapped in a FragmentTemplateNode instead of
+        // used directly, and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+        // left every test passing unchanged, including a direct byte-for-byte compare of generated output
+        // for Component<Card>()[Div["x"]] against the unmutated code. FragmentTemplateNode's own remit --
+        // grouping several children without a wrapper element -- degenerates to identical output for
+        // exactly one child, so the special case this ternary exists for is an optimization (skip
+        // allocating a FragmentTemplateNode and its array) rather than a behavioral branch.
         RenderTemplateNode content = children.Length == 1
             ? children[0]
             : new FragmentTemplateNode(children);

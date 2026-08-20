@@ -145,6 +145,20 @@ public sealed class ComponentSlotDiagnosticTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// An explicit empty collection literal reaches <c>TryAppendChildContentSlot</c> with a real
+    /// zero-length <c>children</c>, unlike bare empty brackets, which fail earlier for an unrelated
+    /// reason. Zero children is a no-op, not a failure: nothing was written to require a
+    /// <c>ChildContent</c> parameter or duplicate an existing one (#487).
+    /// </summary>
+    [Fact]
+    public void ExplicitEmptyChildrenLiteral_OnAComponentWithNoChildContent_IsAccepted()
+    {
+        var result = Run("Component<NoChildContent>()[[]]");
+
+        Assert.Empty(result.Diagnostics);
+    }
+
     [Fact]
     public void ChildrenAndFragmentParam_SameSlot_ReportsBCF3007()
     {
