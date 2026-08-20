@@ -1763,6 +1763,14 @@ internal static class RenderExpressionAnalyzer
     private static IParameterSymbol? ValueParameter(IMethodSymbol method, SurfaceMethodKind kind)
     {
         var nameParameters = kind == SurfaceMethodKind.Attr ? 1 : 0;
+        // Flipping the ReceiverOffset subtraction to addition is a stryker survivor, measured equivalent
+        // rather than assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. ReceiverOffset is 0 for every
+        // fluent (reduced) call this surface admits -- the form every existing test writes -- so + and -
+        // agree there; only the unreduced static spelling (Decorations.PreventDefault(receiver)) would
+        // tell them apart, and that spelling was measured to report BCF1003 under the unmutated code too,
+        // for a reason upstream of this arity check, so no construction was found that reaches this line
+        // with ReceiverOffset nonzero.
         return method.Parameters.Length - KnownSymbols.ReceiverOffset(method) - nameParameters > 0
             ? method.Parameters[method.Parameters.Length - 1]
             : null;
