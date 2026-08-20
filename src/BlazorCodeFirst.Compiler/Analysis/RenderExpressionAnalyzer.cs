@@ -3319,6 +3319,18 @@ internal static class RenderExpressionAnalyzer
                 parameter = paren.ParameterList.Parameters[0];
                 body = paren.Body;
                 return true;
+            // Mutating this return away is a stryker survivor, measured equivalent rather than assumed:
+            // flipping it to true and running BlazorCodeFirst.Compiler.Tests and
+            // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. This branch is reached
+            // for two different reasons at its two call sites, and both absorb the flip. At
+            // TryExtractSingleParameterLambda, the caller pattern-matches this method's null-forgiven
+            // `body` against ExpressionSyntax; a null body fails that match regardless of the bool this
+            // returns, so TryExtractSingleParameterLambda itself still answers false either way. At
+            // TryBindForEachContent, the caller has already proven `content is LambdaExpressionSyntax`
+            // before reaching here, so only a wrong-arity parenthesized lambda (0 or 2+ parameters) can
+            // land in this branch -- and no construction found reaches it with the invocation still
+            // resolving to the ForEach method symbol; overload resolution fails on the arity mismatch
+            // first, so Classify never calls this function for that content at all.
             default:
                 parameter = null!;
                 body = null!;
