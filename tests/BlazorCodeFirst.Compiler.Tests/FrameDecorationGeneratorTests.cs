@@ -82,6 +82,17 @@ public sealed class FrameDecorationGeneratorTests
     }
 
     [Fact]
+    public void SecondKey_WithUnresolvedTypeValue_ReportsBCF3033AndNotBCF3015()
+    {
+        var diagnostics = CompilationTestHost
+            .RunGenerator(Body("""Html.Div.Key(1).Key(typeof(Probe).Name)["x"]"""))
+            .Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3033");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3015");
+    }
+
+    [Fact]
     public void KeyDeclinedAfterAKey_IsStillTheDuplicate()
     {
         // Writing null declines a key; it does not retract one. The pair is BCF3033, not a div that
@@ -241,6 +252,34 @@ public sealed class FrameDecorationGeneratorTests
             """, "Fixed")).Diagnostics;
 
         Assert.Contains(diagnostics, d => d.Id == "BCF3034");
+    }
+
+    [Fact]
+    public void RenderMode_OnAComponentWhoseDeclarationFixesIt_WithUnresolvedTypeArgument_ReportsBCF3034AndNotBCF3015()
+    {
+        var diagnostics = CompilationTestHost.RunGenerator($$"""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+            using Microsoft.AspNetCore.Components.Web;
+
+            public sealed class InteractiveAttribute : RenderModeAttribute
+            {
+                public override IComponentRenderMode Mode => RenderMode.InteractiveServer;
+            }
+
+            [Interactive]
+            public class Fixed : ComponentBase { }
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body =>
+                    Html.Component<Fixed>().RenderMode(
+                        typeof(Probe).IsClass ? RenderMode.InteractiveServer : null);
+            }
+            """).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3034");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3015");
     }
 
     [Fact]
