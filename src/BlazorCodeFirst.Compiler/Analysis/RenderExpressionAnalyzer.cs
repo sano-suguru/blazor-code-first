@@ -1915,6 +1915,13 @@ internal static class RenderExpressionAnalyzer
             return memoized;
 
         var answer = ComputeBodyBuildsFromDesignTimeSurface(method, context);
+        // Mutating this call away is a stryker survivor, measured equivalent rather than assumed: removing
+        // it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every test
+        // passing unchanged. The diagnostic ClassifyCallee reports comes from `answer` (already computed
+        // above) and is added once per call site regardless of memoization; a caller invoking the same
+        // callee from several call sites still gets one correctly-placed diagnostic per site either way.
+        // Skipping the record only removes the cache hit above, forcing a recompute on every later call
+        // site that shares this callee -- a responsiveness cost with nothing diagnostic to observe.
         context.RecordSurfaceBuiltCallee(method, answer);
         return answer;
     }
@@ -1945,6 +1952,16 @@ internal static class RenderExpressionAnalyzer
             // The context's own model when the callee shares the body's tree, which is the common case of a
             // helper beside the component. A model built here starts with empty bound-node caches, and the
             // walk below is about to force a bind of every candidate in the declaration.
+            //
+            // Forcing the condition true, or flipping == to !=, are both real kills: either sends a
+            // cross-file callee's nodes through context.SemanticModel, a model built for a different
+            // SyntaxTree, and Roslyn throws on that mismatch --
+            // OpaqueCallDiagnosticTests.ViewReturningCall_WhenCalleeIsDeclaredInAnotherFile_ReportsBCF3030
+            // pins the cross-file case red under each. Forcing the condition false is measured equivalent
+            // rather than assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
+            // BlazorCodeFirst.DiagnosticTests left every test passing unchanged, including that same-tree
+            // case -- GetSemanticModel answers identically for a tree it is already the model of, just
+            // without the reused bound-node cache, so the same-file path only gets slower, not wrong.
             var model = declaration.SyntaxTree == context.SemanticModel.SyntaxTree
                 ? context.SemanticModel
                 : context.SemanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
@@ -1962,10 +1979,44 @@ internal static class RenderExpressionAnalyzer
                 if (node is not (InvocationExpressionSyntax or ElementAccessExpressionSyntax
                         or IdentifierNameSyntax or MemberAccessExpressionSyntax))
                 {
+                    // Mutating this continue away is a stryker survivor, measured equivalent rather than
+                    // assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
+                    // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Falling through
+                    // instead of skipping only sends a node of some other syntax kind (a literal, a lambda,
+                    // a block, ...) into the same GetTypeInfo/GetSymbolInfo/IsDesignTimeApiReference calls
+                    // every admitted kind already reaches below; those calls accept any SyntaxNode and
+                    // IsDesignTimeApiReference can only turn that into a spurious `return true` if some
+                    // other kind of node's type or symbol also happened to match a known design-time one,
+                    // which no construction has been found to do. The prefilter is what its own remark
+                    // says it is: a responsiveness measure against nodes it already knows cannot match.
                     continue;
                 }
 
+                // Negating this whole condition is a real kill, pinned by
+                // OpaqueCallDiagnosticTests.ViewReturningCall_WhenCalleeIsABarePropertyAccess_ViaUsingStatic_ReportsBCF3030:
+                // written through `using static Html`, the callee's one design-time reference is a bare
+                // IdentifierNameSyntax with no enclosing member access, and inverting the skip makes the
+                // walk pass over the one node carrying the answer, with nothing else to catch it.
+                //
+                // Flipping == to != is measured equivalent rather than assumed: hand-applying it and
+                // running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left every
+                // test passing unchanged. Reading why: the flip swaps which side of a qualified member
+                // access (`Html.Span`) gets skipped -- the Name (`Span`) under == or the receiver (`Html`)
+                // under != -- and IsDesignTimeApiReference below can only ever return true from what it
+                // checks, never suppress a true from what it skips. Not skipping the Name only adds a
+                // redundant check next to the parent member-access node the walk already visits; skipping
+                // the receiver removes nothing observable, because the bare `Html` in `Html.Span` never
+                // itself answers true (only members like Span, and the surface types their access resolves
+                // to, do). The bare-identifier construction above that kills the negation cannot distinguish
+                // this flip either, for the same reason: it has no enclosing member access for either side
+                // of the comparison to select between.
                 if (node.Parent is MemberAccessExpressionSyntax parent && parent.Name == node)
+                    // Mutating this continue away is a stryker survivor, measured equivalent for the same
+                    // reason the == vs != flip just above is: not skipping the Name of a qualified member
+                    // access only adds a redundant IsDesignTimeApiReference check next to the parent
+                    // member-access node the walk already visits, and that call can only add a `return
+                    // true`, never suppress one. Hand-applying it and running BlazorCodeFirst.Compiler.Tests
+                    // and BlazorCodeFirst.DiagnosticTests left every test passing unchanged.
                     continue;
 
                 if (symbols.IsDesignTimeApiReference(

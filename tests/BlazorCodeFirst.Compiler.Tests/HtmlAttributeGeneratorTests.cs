@@ -135,6 +135,17 @@ public sealed class HtmlAttributeGeneratorTests
         Assert.Contains(Diags("""Html.Div.Class("a").Attr("class", true)["x"]"""), d => d.Id == "BCF3023");
     }
 
+    [Fact]
+    public void BooleanValueOnClassChannel_WithUnresolvedTypeArgument_ReportsBcf3023AndNotBcf3015()
+    {
+        // typeof(Unresolved).IsClass is itself a bool value, so the same expression both trips the
+        // channel's type refusal and carries the unresolved reference the refusal must suppress.
+        var diagnostics = Diags("""Html.Div.Attr("class", typeof(Unresolved).IsClass)["x"]""");
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3023");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3015");
+    }
+
     /// <summary>
     /// The rule is about the class channel, not about the <see langword="bool"/> overload:
     /// <c>.Attr("class", …)</c> with a string still folds. The other half — that the overload keeps
@@ -184,6 +195,29 @@ public sealed class HtmlAttributeGeneratorTests
         Assert.Contains(Diags("""Html.Div.OnClick(() => { }).Attr("onclick", "alert(1)")"""), d => d.Id == "BCF3010");
         Assert.Contains(Diags("""Html.Div.Attr("onclick", "alert(1)").On("onclick", () => { })"""), d => d.Id == "BCF3010");
         Assert.Contains(Diags("""Html.Div.On("onclick", () => { }).Attr("onclick", "alert(1)")"""), d => d.Id == "BCF3010");
+    }
+
+    /// <summary>
+    /// The class channel's other refusal: a name already bound through <c>.Bind</c>, reached this time by
+    /// the <c>.Class</c>/<c>.Attr</c> fold arm rather than by <c>ClassifyBind</c>'s own side of BCF3024
+    /// (see <c>Bind_OnClassBeforeClassDecoration_ReportsBcf3024</c> in HtmlBindDiagnosticTests).
+    /// </summary>
+    [Fact]
+    public void ClassAfterBoundBindName_WithUnresolvedTypeArgument_ReportsBcf3024AndNotBcf3015()
+    {
+        var source = """
+            using BlazorCodeFirst;
+            public partial class C : BodyComponentBase
+            {
+                private string _name = "";
+                protected override View Body =>
+                    Html.Div.Bind("class", "oninput", () => _name).Class(typeof(Unresolved).Name)["x"];
+            }
+            """;
+        var diagnostics = CompilationTestHost.RunGenerator(source).Diagnostics;
+
+        Assert.Contains(diagnostics, d => d.Id == "BCF3024");
+        Assert.DoesNotContain(diagnostics, d => d.Id == "BCF3015");
     }
 
     [Fact]

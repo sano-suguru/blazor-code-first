@@ -282,11 +282,15 @@ rewrite a message or a title, and what a descriptor is held to — its ID and it
 severity against Appendix A — is `DiagnosticTableTests`'s assertion rather than the
 message text's. Mutating the file reported the same non-finding 185 times.
 
-Two limits bound what it covers. A mutant that fails to compile takes every
+Three limits bound what it covers. A mutant that fails to compile takes every
 other mutant in its method with it, and the shape that trips this most often is
 `TryGet…(out var …)`, which most of this compiler's analysis is written in. Only
 `BlazorCodeFirst.Compiler` is mutated, because `DiagnosticTests` builds against
-packed packages that a rebuilt assembly never reaches.
+packed packages that a rebuilt assembly never reaches. And coverage-based test
+selection instruments in-process test runs to learn which tests to rerun per
+mutant; it cannot see into `DiagnosticTests`' own `dotnet pack`/`dotnet build`
+subprocesses, so a mutant only killed through that route still reports
+`NoCoverage` or `Survived` even though the fixture build genuinely reaches it.
 
 ## The package version
 
