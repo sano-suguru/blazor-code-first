@@ -80,13 +80,13 @@ dotnet test tests/BlazorCodeFirst.IntegrationTests/BlazorCodeFirst.IntegrationTe
 # The measurements published in DESIGN.md §7.1 (allocations per render)
 dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*'
 
-# The registry-broadcast cost behind #480 (per-view-part-edit recomputation, not yet published anywhere)
+# The measurements published in DESIGN.md §7.4 (registry-broadcast cost of a view-part edit)
 dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj -c Release \
   --filter FullyQualifiedName~RegistryBroadcastCostTests --logger "console;verbosity=detailed"
 ```
 
 Only the `BlazorCodeFirst.DiagnosticTests` command builds the successful Razor interop fixtures under
-`tests/msbuild-fixtures`, the ones that must build rather than fail. The two measurement commands
+`tests/msbuild-fixtures`, the ones that must build rather than fail. The three measurement commands
 that follow it in the block above do not, so a break in those fixtures surfaces from the diagnostic
 test project alone.
 
@@ -94,19 +94,28 @@ These deliberately omit `--no-build`, which reuses whatever was compiled last an
 so reports a pass for code that was never compiled. CI can supply it
 (`ci.yml` builds in the preceding step); a local edit-and-test loop cannot.
 
-Every figure in `DESIGN.md` §7.1 and §7.2 comes from the last two commands. Both
-compare against something, and both refuse to report a number unless the two
-sides render frame-for-frame equivalent output apart from sequence numbers. The
-§7.2 comparison asserts that equivalence in `VariantEquivalenceTests`, and the
-benchmark exits non-zero from `Program.Main` before BenchmarkDotNet starts. A
-number from a mismatched comparison would describe the mismatch, not the
-compilation strategy.
+Every figure in `DESIGN.md` §7.1 comes from the `dotnet run` benchmark command
+above, and every figure in §7.2 comes from the `DiffCostTests` command before
+it. Both compare against something, and both refuse to report a number unless
+the two sides render frame-for-frame equivalent output apart from sequence
+numbers. The §7.2 comparison asserts that equivalence in
+`VariantEquivalenceTests`, and the benchmark exits non-zero from
+`Program.Main` before BenchmarkDotNet starts. A number from a mismatched
+comparison would describe the mismatch, not the compilation strategy.
 
-No CI step runs either one. A published figure has to be reproducible on demand,
-which is a lower bar than a per-PR gate; gating would need a noise threshold and
-a failure policy that nothing has decided yet. The §7.2 assertions do ride the
-ordinary `dotnet test BlazorCodeFirst.slnx` run, because they are tests. That
-follows from where they live, and is not a gate on the numbers.
+§7.4's figure comes from the `RegistryBroadcastCostTests` command that follows
+them. It carries no such equivalence gate — the claim it verifies is
+structural (the `Cached` count in `ComponentModeling`'s tracked steps), not a
+frame-for-frame comparison, so there is nothing to render and compare.
+
+No CI step runs any of the three as a dedicated step. A published figure has to
+be reproducible on demand, which is a lower bar than a per-PR gate; gating
+would need a noise threshold and a failure policy that nothing has decided
+yet. The §7.2 assertions and §7.4's structural assertion do ride the ordinary
+`dotnet test BlazorCodeFirst.slnx` run, because they are tests (`RegistryBroadcastCostTests`
+lives in `BlazorCodeFirst.Compiler.Tests`, so the ordinary run covers it too).
+That follows from where they live, and is not a gate on the published wall-clock
+figures, which §7.1 and §7.4 both exclude.
 
 The benchmark project holds a second measurement set that is **not** published.
 `StaticFoldBenchmarks` compares folded markup frames against element frames to
