@@ -85,6 +85,32 @@ public sealed class OpaqueCallDiagnosticTests
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
+    /// <summary>
+    /// <c>content is null</c> forced false would construct a <c>ForEachTemplateNode</c> around the null
+    /// content anyway, sending a template with no root down into keyability resolution instead of
+    /// answering this splice as untranslatable and letting it recover as BCF1003 (#487).
+    /// </summary>
+    [Fact]
+    public void SpliceProjectionBody_WhenUntranslatable_ReportsBCF1003WithoutThrowing()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using System.Collections.Generic;
+            using System.Linq;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<int> _xs = new();
+                private readonly View _stored;
+
+                protected override View Body => Div[[.._xs.Select(x => _stored)]];
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void ViewReturningCall_WhenCalleeBuildsFromTheDesignTimeSurface_ReportsBCF3030AndNotBCF1003()
     {

@@ -445,6 +445,36 @@ public sealed class FrameDecorationGeneratorTests
         Assert.Contains(diagnostics, d => d.Id == "BCF3033");
     }
 
+    /// <summary>
+    /// The component surface's own <c>.Ref</c> arm, not <c>SecondRef_ReportsBCF3033</c>'s element one:
+    /// the two reach <c>ReportDuplicateFrameDecoration</c> through separate call sites, so a duplicate
+    /// here must independently return <see langword="null"/> rather than build <c>inner with { Ref = ...
+    /// }</c> around the second value (#487).
+    /// </summary>
+    [Fact]
+    public void SecondComponentRef_ReportsBCF3033AndDoesNotEmitTheSecondCapture()
+    {
+        var result = CompilationTestHost.RunGenerator("""
+            using BlazorCodeFirst;
+            using Microsoft.AspNetCore.Components;
+
+            public class Row : ComponentBase
+            {
+            }
+
+            public partial class C : BodyComponentBase
+            {
+                private Row? _a;
+                private Row? _b;
+                protected override View Body =>
+                    Html.Component<Row>().Ref(c => _a = c).Ref(c => _b = c);
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3033");
+        Assert.Empty(result.GeneratedSources);
+    }
+
     [Fact]
     public void FormName_OnElement_IsEmittedAfterTheAttributesAndConsumesNoSequence()
     {

@@ -732,6 +732,14 @@ internal static class RenderExpressionAnalyzer
                 callee.Name,
                 new EquatableArray<ViewPartInvocationArgument>(
                     [
+                        // Mutating this true away is a stryker survivor, measured equivalent rather than
+                        // assumed: flipping it and running BlazorCodeFirst.Compiler.Tests and
+                        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged.
+                        // ViewPartInvocationArgument.IsImplicitDefault has no reader anywhere in the
+                        // compiler outside its own constructors -- expansion never asks it, so its value
+                        // cannot affect emitted code, and equality between two arguments (which is what an
+                        // incremental cache hit turns on) is exercised by every existing generator test
+                        // regardless of which constant this site writes.
                         new ViewPartInvocationArgument(
                             0, 0, IsImplicitDefault: false, ExpressionTemplate.Create([itemHole])),
                     ]),
