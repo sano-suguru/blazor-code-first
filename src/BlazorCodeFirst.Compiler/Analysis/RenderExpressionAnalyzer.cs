@@ -949,6 +949,19 @@ internal static class RenderExpressionAnalyzer
             if (!TryBindTransplantedLambda(
                     valueExpression, context, out var contextParameterSymbol, out var contextBody))
             {
+                // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+                // hand-applying it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+                // left every test passing unchanged. A content argument reaches this branch only by resolving
+                // Template<TContext>'s Func<TContext, View> overload while failing TryBindTransplantedLambda's
+                // structural lambda check -- a method group or a delegate-typed member, both of which name a
+                // definite, already-resolved symbol. An unresolved reference tried in this position (a bare
+                // undeclared identifier, a field of an unresolved type) leaves Template's two overloads
+                // (View vs Func<TContext, View>) unable to settle on one candidate from an error-typed
+                // argument, so GetSymbolInfo never resolves the call to Template at all and the whole body
+                // falls through to BCF1003 before RenderExpressionAnalyzer's ComponentAttribute classification
+                // runs -- the same difficulty class #491 recorded for the neighboring
+                // TryGetFragmentContextTypeName pair. No construction found reaches this branch with anything
+                // for UnresolvedValueTypeScanner's fallback pass to observe.
                 context.RejectUnresolvedValueRecovery(invocation.Span);
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BCF3022, valueArg.GetLocation(), []));
@@ -1151,6 +1164,10 @@ internal static class RenderExpressionAnalyzer
         // Unreachable: a decoration takes an ElementView receiver, so anything that opens no element
         // frame is a CS1929 and never resolves to a decoration here. Kept so that if some route ever does
         // arrive, translation fails safely instead of decorating a node that cannot carry attributes.
+        //
+        // The Reject call below is a stryker survivor for the same reason: hand-applying its removal left
+        // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged, since no test can
+        // execute a block nothing routes into.
         if (inner is not ElementTemplateNode element)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
@@ -1246,6 +1263,11 @@ internal static class RenderExpressionAnalyzer
             // because the resolver below reads the name out of firstArg: requiring the index to be 0, and
             // not merely to exist, is what keeps a widened TryGetEventParameters from moving the name
             // somewhere this arm would go on reading past.
+            //
+            // The Reject call below is a stryker survivor for the same reason: every currently declared
+            // event method's KnownSymbols entry keeps the remark above's "exactly one of the two" true, so
+            // this condition has no live route to its true branch, and hand-applying the call's removal
+            // left both test projects unchanged.
             if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters)
                 || (shortcutName is not null) == (eventParameters.EventNameIndex == 0))
             {

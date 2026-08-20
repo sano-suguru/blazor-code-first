@@ -128,6 +128,25 @@ public sealed class EventArgumentTypeDiagnosticTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// The unresolved reference goes through a plain helper call rather than a bare value inside the
+    /// handler's lambda body, which would poison <c>FactoryArguments.Bind</c> for the whole invocation
+    /// before this guard is ever reached (the same difficulty <c>ComponentBind</c>'s cluster has not found
+    /// a way around, #487). Routed through a helper call, the handler argument is still an ordinary,
+    /// already-resolved <c>Action&lt;TArgs&gt;</c>-typed expression, not a deferred lambda body.
+    /// </summary>
+    [Fact]
+    public void HandlerArgumentTypeUnrelatedToTheEvent_WithUnresolvedTypeArgument_ReportsBCF3028AndNotBCF3015()
+    {
+        const string members = """
+            private static Action<KeyboardEventArgs> MakeHandler(string s) => (KeyboardEventArgs e) => { };
+            """;
+        var diagnostics = Run("""Button.On("onclick", MakeHandler(typeof(Probe).Name))["Go"]""", members);
+
+        Assert.Contains(diagnostics, static d => d.Id == "BCF3028");
+        Assert.DoesNotContain(diagnostics, static d => d.Id == "BCF3015");
+    }
+
     /// <summary>The argument-less overloads carry no type argument and are outside this rule.</summary>
     [Fact]
     public void UntypedHandler_IsNotReported()
