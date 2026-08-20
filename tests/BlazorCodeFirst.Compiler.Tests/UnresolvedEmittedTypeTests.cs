@@ -781,7 +781,10 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
+        // BCF1003 is what #451 reported this shape as; asserting its absence is the issue's own complaint
+        // ("left with only the generic BCF1003") stated as a test, not merely that BCF3011 was added beside it.
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     /// <summary>
@@ -812,6 +815,7 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
     }
 
     [Fact]
