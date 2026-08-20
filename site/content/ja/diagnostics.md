@@ -3,7 +3,7 @@ title: 診断
 description: このコンパイラが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。
 order: 100
 group: reference
-source-hash: 2fb99f58
+source-hash: d33b7f63
 ---
 
 このコンパイラが報告する診断のすべてと、その意味と、代わりに書くものです。
@@ -711,8 +711,9 @@ protected override View Body => Div[Slot];       // BCF3025: Body は角括弧�
 
 ### BCF3042
 
-Error. コンポーネント呼び出しに書いた `.Class`/`.Attr` の名前が、大文字小文字を区別せずに、その
-コンポーネントが宣言するパラメーターと一致しています。
+Error. コンポーネント呼び出しに書いた `.Class`/`.Attr`、または `Id`/`Type`/`Title`/`Role`/`Href`/
+`Src`/`Alt` のいずれかの名前が、大文字小文字を区別せずに、そのコンポーネントが宣言するパラメーターと
+一致しています。
 
 ```csharp
 Component<Card>().Attr("label", "hi")           // BCF3042: Card は [Parameter] Label を宣言

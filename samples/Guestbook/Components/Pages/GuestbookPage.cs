@@ -57,13 +57,13 @@ public sealed partial class GuestbookPage : BodyComponentBase
             Component<EditForm>()
                 .Param(f => f.Model, NewEntry)
                 .Param(f => f.FormName, "create")
-                .Param(f => f.OnValidSubmit, EventCallback.Factory.Create<EditContext>(this, HandleCreate))[
+                .Param(f => f.OnValidSubmit, HandleCreate)[
                     Component<DataAnnotationsValidator>(),
                     Component<ValidationSummary>(),
                     Label.For("name")["Name"],
-                    Component<InputText>().Attr("id", "name").Bind(c => c.Value, () => NewEntry.Name),
+                    Component<InputText>().Id("name").Bind(c => c.Value, () => NewEntry.Name),
                     Label.For("message")["Message"],
-                    Component<InputTextArea>().Attr("id", "message").Bind(c => c.Value, () => NewEntry.Message),
+                    Component<InputTextArea>().Id("message").Bind(c => c.Value, () => NewEntry.Message),
                     Button.Type("submit")["Sign the guestbook"]]],
 
         Section.Class("guestbook-search")[

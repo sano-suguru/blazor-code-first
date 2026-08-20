@@ -106,6 +106,10 @@ internal static class UnresolvedValueTypeScanner
             case SurfaceMethodKind.GenericTemplateIgnored:
             case SurfaceMethodKind.GenericTemplateContextual:
             case SurfaceMethodKind.ComponentBind:
+            // The four EventCallback-aware .Param overloads (#492): the handler is argument 1, the same
+            // position ScalarParam's value is at, so it joins ScalarParam's arm inside
+            // ScanComponentParameter rather than adding one of its own.
+            case SurfaceMethodKind.ComponentParamEventCallback:
                 ScanComponentParameter(method, kind, args, recoverOwnValue, context);
                 return;
 
@@ -121,6 +125,9 @@ internal static class UnresolvedValueTypeScanner
             // because its name/value argument split is identical on this receiver.
             case SurfaceMethodKind.ComponentClass:
             case SurfaceMethodKind.ComponentAttr:
+            // The component receiver of AttributeShortcut (#489): one value at argument 0, the name
+            // being the shortcut's own spelling, exactly like the element-side shortcut above.
+            case SurfaceMethodKind.ComponentAttributeShortcut:
             // The non-attribute frame decorations reach ScanDecoration's tail, which reports argument 0:
             // both carry their one value there and neither has a name argument, exactly as .Class does.
             // A capture action is a lambda rather than a value, and that changes nothing — the event arm
@@ -199,7 +206,11 @@ internal static class UnresolvedValueTypeScanner
                 ReportBindArguments(method, args, context);
                 return;
 
+            // The handler argument is scanned as an ordinary value the same way ScalarParam's value is:
+            // it is transplanted into generated code whole, exactly as ScalarParam's is, just wrapped in
+            // EventCallback.Factory.Create rather than cast through verbatim (#492).
             case SurfaceMethodKind.ScalarParam:
+            case SurfaceMethodKind.ComponentParamEventCallback:
                 ReportValue(args.At(1)?.Expression, context);
                 return;
 
@@ -1247,7 +1258,26 @@ internal static class UnresolvedValueTypeScanner
         IMethodSymbol left, IMethodSymbol right, KnownSymbols symbols)
     {
         var kind = symbols.ClassifySurfaceMethod(left);
-        if (kind != symbols.ClassifySurfaceMethod(right))
+        var otherKind = symbols.ClassifySurfaceMethod(right);
+
+        // ScalarParam and ComponentParamEventCallback (#492) are the one pair this scanner treats as
+        // interchangeable across a kind boundary. They reach different classifications — one casts its
+        // value through verbatim, the other wraps it in EventCallback.Factory.Create — but both reach
+        // ScanComponentParameter's ScalarParam case, which reads argument 1 through ReportValue without
+        // asking which of the two it is; that is the arm this method's own doc exists to check. The
+        // parameter-name comparison below would still refuse the pair ("value" vs "handler"), so it is
+        // skipped here in favor of checking what the shared arm actually depends on: two parameters,
+        // neither a params array.
+        if ((kind == SurfaceMethodKind.ScalarParam && otherKind == SurfaceMethodKind.ComponentParamEventCallback)
+            || (kind == SurfaceMethodKind.ComponentParamEventCallback && otherKind == SurfaceMethodKind.ScalarParam))
+        {
+            return left.Parameters.Length == 2
+                && right.Parameters.Length == 2
+                && !left.Parameters[1].IsParams
+                && !right.Parameters[1].IsParams;
+        }
+
+        if (kind != otherKind)
             return false;
 
         if (kind is SurfaceMethodKind.Bind or SurfaceMethodKind.ComponentBind)

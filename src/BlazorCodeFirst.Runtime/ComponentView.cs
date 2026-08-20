@@ -2,7 +2,7 @@ namespace BlazorCodeFirst;
 
 /// <summary>
 /// Inert design-time builder for a <see cref="Html.Component{TComponent}()"/> call. The source generator
-/// reads the <see cref="Param{TValue}"/> chain statically and emits <c>OpenComponent</c>/
+/// reads the <see cref="Param{TValue}(System.Func{TComponent, TValue}, TValue)"/> chain statically and emits <c>OpenComponent</c>/
 /// <c>AddComponentParameter</c> instructions; instances are never constructed or evaluated at runtime.
 /// </summary>
 /// <typeparam name="TComponent">The Blazor component type being configured.</typeparam>
@@ -36,13 +36,80 @@ public readonly struct ComponentView<TComponent>
     /// <param name="content">The BlazorCodeFirst content rendered as that parameter's fragment.</param>
     /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
     /// <remarks>
-    /// Chosen over the generic <see cref="Param{TValue}"/> whenever the value is a <see cref="View"/>,
+    /// Chosen over the generic <see cref="Param{TValue}(System.Func{TComponent, TValue}, TValue)"/> whenever the value is a <see cref="View"/>,
     /// because <c>RenderFragment?</c> converts to <see cref="View"/>. A real
     /// <c>RenderFragment</c> value still binds through the generic overload and is emitted verbatim.
     /// </remarks>
     public ComponentView<TComponent> Param(
         System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?> selector,
         View content) => this;
+
+    /// <summary>
+    /// Design-time syntax binding an <see cref="Microsoft.AspNetCore.Components.EventCallback"/>-typed
+    /// parameter to <paramref name="handler"/> (#492), mirroring what the element decoration <c>.On</c>
+    /// already does for an event handler: the generator wraps <paramref name="handler"/> in
+    /// <c>EventCallback.Factory.Create</c> rather than casting it through verbatim, which is what
+    /// <c>EventCallback.Factory.Create&lt;T&gt;(this, Handler)</c> otherwise has to be written by hand for.
+    /// </summary>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.OnClose</c>.</param>
+    /// <param name="handler">Runs when the child raises the callback.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Param(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback> selector,
+        System.Action handler) => this;
+
+    /// <summary>Design-time syntax binding an asynchronous handler; see the synchronous overload.</summary>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.OnClose</c>.</param>
+    /// <param name="handler">Runs when the child raises the callback.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Param(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback> selector,
+        System.Func<System.Threading.Tasks.Task> handler) => this;
+
+    /// <summary>
+    /// Design-time syntax binding an <c>EventCallback&lt;TArg&gt;</c>-typed parameter to
+    /// <paramref name="handler"/>; see the non-generic overload.
+    /// </summary>
+    /// <typeparam name="TArg">The callback's argument type, inferred from the selected parameter.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.OnPicked</c>.</param>
+    /// <param name="handler">Runs, with the raised argument, when the child raises the callback.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Param<TArg>(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>> selector,
+        System.Action<TArg> handler) => this;
+
+    /// <summary>Design-time syntax binding an asynchronous handler; see the synchronous overload.</summary>
+    /// <typeparam name="TArg">The callback's argument type, inferred from the selected parameter.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.OnPicked</c>.</param>
+    /// <param name="handler">Runs, with the raised argument, when the child raises the callback.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Param<TArg>(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>> selector,
+        System.Func<TArg, System.Threading.Tasks.Task> handler) => this;
+
+    /// <summary>
+    /// Design-time syntax binding an <c>EventCallback&lt;TArg&gt;</c>-typed parameter to a handler that
+    /// ignores the raised argument, e.g. Razor's own <c>OnValidSubmit="HandleCreate"</c> with a
+    /// parameterless <c>HandleCreate</c>; see the argument-receiving overload.
+    /// </summary>
+    /// <typeparam name="TArg">The callback's argument type; nothing in <paramref name="handler"/> names
+    /// it, so it is inferred from the selected parameter alone.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.OnValidSubmit</c>.</param>
+    /// <param name="handler">Runs when the child raises the callback; the raised argument is discarded.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Param<TArg>(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>> selector,
+        System.Action handler) => this;
+
+    /// <summary>Design-time syntax binding an asynchronous, argument-ignoring handler; see the synchronous overload.</summary>
+    /// <typeparam name="TArg">The callback's argument type; nothing in <paramref name="handler"/> names
+    /// it, so it is inferred from the selected parameter alone.</typeparam>
+    /// <param name="selector">Selects the target parameter property, e.g. <c>c =&gt; c.OnValidSubmit</c>.</param>
+    /// <param name="handler">Runs when the child raises the callback; the raised argument is discarded.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Param<TArg>(
+        System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>> selector,
+        System.Func<System.Threading.Tasks.Task> handler) => this;
 
     /// <summary>
     /// Design-time syntax binding a <c>RenderFragment&lt;TContext&gt;</c>-typed parameter to BlazorCodeFirst
@@ -53,7 +120,7 @@ public readonly struct ComponentView<TComponent>
     /// <param name="content">The BlazorCodeFirst content rendered for every context; the context is ignored.</param>
     /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
     /// <remarks>
-    /// A real <c>RenderFragment&lt;TContext&gt;</c> value remains a scalar <see cref="Param{TValue}"/> value.
+    /// A real <c>RenderFragment&lt;TContext&gt;</c> value remains a scalar <see cref="Param{TValue}(System.Func{TComponent, TValue}, TValue)"/> value.
     /// This method is inert and returns <c>this</c>.
     /// </remarks>
     public ComponentView<TComponent> Template<TContext>(
@@ -70,7 +137,7 @@ public readonly struct ComponentView<TComponent>
     /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
     /// <remarks>
     /// <paramref name="content"/> must be an inline expression lambda or BCF3022 is reported. A real
-    /// <c>RenderFragment&lt;TContext&gt;</c> value remains a scalar <see cref="Param{TValue}"/> value.
+    /// <c>RenderFragment&lt;TContext&gt;</c> value remains a scalar <see cref="Param{TValue}(System.Func{TComponent, TValue}, TValue)"/> value.
     /// This method is inert and returns <c>this</c>.
     /// </remarks>
     public ComponentView<TComponent> Template<TContext>(
@@ -203,7 +270,7 @@ public readonly struct ComponentView<TComponent>
     /// <c>Class</c> parameter of its own (#314). Sugar for <c>.Attr("class", value)</c> — unlike the
     /// element decoration <c>Decorations.Class(ElementView, string?)</c>, this does not fold: writing
     /// it twice, or beside <c>.Attr("class", …)</c>, is BCF3010. A name that collides with a declared
-    /// <c>[Parameter]</c>, case-insensitively, is BCF3042 instead — use <see cref="Param{TValue}"/> for
+    /// <c>[Parameter]</c>, case-insensitively, is BCF3042 instead — use <see cref="Param{TValue}(System.Func{TComponent, TValue}, TValue)"/> for
     /// that.
     /// </summary>
     /// <remarks>
@@ -250,6 +317,50 @@ public readonly struct ComponentView<TComponent>
     public ComponentView<TComponent> Attr(string name) => this;
 
     /// <summary>
+    /// Design-time syntax adding an <c>id</c> attribute to this component call; see <see cref="Class"/>'s
+    /// remarks for why this is a member rather than a <see cref="Decorations"/> extension (#489, mirroring
+    /// #314). Sugar for <c>.Attr("id", value)</c>: a name that collides with a declared <c>[Parameter]</c>,
+    /// case-insensitively, is BCF3042 the same way <see cref="Attr(string, string?)"/>'s is.
+    /// </summary>
+    /// <param name="value">The <c>id</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Id(string? value) => this;
+
+    /// <summary>Design-time syntax adding a <c>type</c> attribute to this component call; see <see cref="Id"/>.</summary>
+    /// <param name="value">The <c>type</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Type(string? value) => this;
+
+    /// <summary>Design-time syntax adding a <c>title</c> attribute to this component call; see <see cref="Id"/>.</summary>
+    /// <param name="value">The <c>title</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Title(string? value) => this;
+
+    /// <summary>Design-time syntax adding a <c>role</c> attribute to this component call; see <see cref="Id"/>.</summary>
+    /// <param name="value">The <c>role</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Role(string? value) => this;
+
+    /// <summary>Design-time syntax adding an <c>href</c> attribute to this component call; see <see cref="Id"/>.</summary>
+    /// <param name="value">The <c>href</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Href(
+        [System.Diagnostics.CodeAnalysis.StringSyntax(System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
+        string? value) => this;
+
+    /// <summary>Design-time syntax adding a <c>src</c> attribute to this component call; see <see cref="Id"/>.</summary>
+    /// <param name="value">The <c>src</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Src(
+        [System.Diagnostics.CodeAnalysis.StringSyntax(System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
+        string? value) => this;
+
+    /// <summary>Design-time syntax adding an <c>alt</c> attribute to this component call; see <see cref="Id"/>.</summary>
+    /// <param name="value">The <c>alt</c> value; any string expression.</param>
+    /// <returns>The same inert builder for chaining; never evaluated at runtime.</returns>
+    public ComponentView<TComponent> Alt(string? value) => this;
+
+    /// <summary>
     /// Design-time syntax binding <paramref name="children"/> to the component's <c>ChildContent</c>
     /// parameter, mirroring how Razor binds nested content.
     /// </summary>
@@ -264,7 +375,7 @@ public readonly struct ComponentView<TComponent>
     /// <c>Template</c> instead. Use
     /// <see cref="Param(System.Func{TComponent, Microsoft.AspNetCore.Components.RenderFragment?}, View)"/>
     /// for any other fragment-typed parameter. Because this returns <see cref="View"/>, a
-    /// <see cref="Param{TValue}"/> call must precede the brackets.
+    /// <see cref="Param{TValue}(System.Func{TComponent, TValue}, TValue)"/> call must precede the brackets.
     /// </remarks>
     public View this[params System.ReadOnlySpan<View> children] => default;
 

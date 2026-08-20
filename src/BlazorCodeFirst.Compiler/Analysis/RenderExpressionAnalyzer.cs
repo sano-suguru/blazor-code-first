@@ -339,11 +339,13 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.GenericTemplateIgnored
                 or SurfaceMethodKind.GenericTemplateContextual
                 or SurfaceMethodKind.ComponentBind
+                or SurfaceMethodKind.ComponentParamEventCallback
                 or SurfaceMethodKind.ComponentKey
                 or SurfaceMethodKind.ComponentRenderMode
                 or SurfaceMethodKind.ComponentRef
                 or SurfaceMethodKind.ComponentClass
-                or SurfaceMethodKind.ComponentAttr =>
+                or SurfaceMethodKind.ComponentAttr
+                or SurfaceMethodKind.ComponentAttributeShortcut =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
@@ -824,8 +826,12 @@ internal static class RenderExpressionAnalyzer
         // for a repeated attribute, BCF3042 for a name that collides with a declared parameter). They
         // route out here for the same reason as the frame-decoration block below: only the receiver
         // recursion above is shared.
-        if (kind is SurfaceMethodKind.ComponentClass or SurfaceMethodKind.ComponentAttr)
+        if (kind is SurfaceMethodKind.ComponentClass
+            or SurfaceMethodKind.ComponentAttr
+            or SurfaceMethodKind.ComponentAttributeShortcut)
+        {
             return ClassifyComponentAttribute(invocation, paramAccess, method, kind, inner, context);
+        }
 
         // Neither .Key nor .RenderMode selects a parameter, so both route out before everything below: the
         // selector, the settability rule, and BCF3007 are all about a parameter they do not have. They
@@ -901,6 +907,9 @@ internal static class RenderExpressionAnalyzer
 
         if (kind == SurfaceMethodKind.ComponentBind)
             return ClassifyComponentBind(invocation, method, inner, property, selector, args, valueArg, context);
+
+        if (kind == SurfaceMethodKind.ComponentParamEventCallback)
+            return ClassifyComponentParamEventCallback(method, inner, property, valueArg, context);
 
         var valueExpression = valueArg.Expression;
 
@@ -1045,6 +1054,12 @@ internal static class RenderExpressionAnalyzer
         if (kind == SurfaceMethodKind.ComponentClass)
         {
             attrName = "class";
+        }
+        else if (kind == SurfaceMethodKind.ComponentAttributeShortcut)
+        {
+            // The lookup cannot miss: the kind and the map entry are written by the same arm of
+            // KnownSymbols' member walk (#489, mirroring the element-side AttributeShortcut lookup).
+            attrName = context.KnownSymbols.ComponentAttributeShortcuts[KnownSymbols.Normalize(method)];
         }
         else if (!TryResolveDecorationName(invocation, firstArg, shortcutName: null, context, out attrName!))
         {
@@ -2604,32 +2619,58 @@ internal static class RenderExpressionAnalyzer
         bool setterIsAsynchronous,
         ViewPartBodyContext context)
     {
-        var segments = ImmutableArray.CreateBuilder<ExpressionSegment>();
-        segments.Add(new LiteralExpressionSegment($"{CreateCall}{valueTypeName}>(this, "));
-
         if (setter is null)
         {
-            // Create<T>(this, (Action<T>)(__value => <value> = __value))
-            segments.Add(new LiteralExpressionSegment(
-                $"(global::System.Action<{valueTypeName}>)(__value => "));
-            segments.AddRange(value.Segments.AsImmutableArray());
-            segments.Add(new LiteralExpressionSegment(" = __value)"));
-        }
-        else
-        {
-            // Create<T>(this, (Action<T>)(<setter>)) or, for an asynchronous setter,
-            // Create<T>(this, (Func<T, Task>)(<setter>)).
-            var setterType = setterIsAsynchronous
-                ? $"global::System.Func<{valueTypeName}, global::System.Threading.Tasks.Task>"
-                : $"global::System.Action<{valueTypeName}>";
-            segments.Add(new LiteralExpressionSegment($"({setterType})("));
-            segments.AddRange(ExpressionTemplateFactory.Create(setter, context).Segments.AsImmutableArray());
-            segments.Add(new LiteralExpressionSegment(")"));
+            // Create<T>(this, (Action<T>)(__value => <value> = __value)) — built by hand rather than
+            // through WrapInEventCallbackFactory: there is no written setter expression to transplant,
+            // only the getter's own segments with an assignment appended around them.
+            ImmutableArray<ExpressionSegment> invertedSegments =
+            [
+                new LiteralExpressionSegment($"{CreateCall}{valueTypeName}>(this, "),
+                new LiteralExpressionSegment($"(global::System.Action<{valueTypeName}>)(__value => "),
+                .. value.Segments.AsImmutableArray(),
+                new LiteralExpressionSegment(" = __value))"),
+            ];
+            return ExpressionTemplate.Create(invertedSegments);
         }
 
-        segments.Add(new LiteralExpressionSegment(")"));
-        return ExpressionTemplate.Create(segments.ToImmutable());
+        // Create<T>(this, (Action<T>)(<setter>)) or, for an asynchronous setter,
+        // Create<T>(this, (Func<T, Task>)(<setter>)).
+        var setterType = setterIsAsynchronous
+            ? $"global::System.Func<{valueTypeName}, global::System.Threading.Tasks.Task>"
+            : $"global::System.Action<{valueTypeName}>";
+        return ExpressionTemplate.Create(WrapInEventCallbackFactory(valueTypeName, setterType, setter, context));
     }
+
+    /// <summary>
+    /// The <c>EventCallback.Factory.Create[&lt;T&gt;](this, (CastType)(expr))</c> segment sequence a
+    /// component's EventCallback-typed parameter value is wrapped in — shared by <c>.Bind</c>'s
+    /// explicit-setter change callback above and every EventCallback-aware <c>.Param</c> overload below
+    /// (#492), so a change to the wrap shape (paren balancing, the <c>CreateCall</c> prefix, hole
+    /// preservation) is made once rather than in two places that would otherwise have to be kept in step.
+    /// </summary>
+    /// <remarks>
+    /// Composed from segments and never from <see cref="ExpressionTemplate.Literal"/> over
+    /// <c>ToCode()</c>, for the reason <see cref="BuildChangeCallback"/>'s own remarks give: inside a
+    /// <c>[ViewPart]</c> body <paramref name="expr"/> may still hold an unbound parameter hole, and
+    /// <c>ToCode()</c> throws on those.
+    /// </remarks>
+    /// <param name="valueTypeName">
+    /// The EventCallback's type argument, fully qualified, or <see langword="null"/> for the non-generic
+    /// <c>Create(this, ...)</c> overload.
+    /// </param>
+    /// <param name="castTypeName">The delegate type <paramref name="expr"/> is cast to before it is passed.</param>
+    private static ImmutableArray<ExpressionSegment> WrapInEventCallbackFactory(
+        string? valueTypeName, string castTypeName, ExpressionSyntax expr, ViewPartBodyContext context) =>
+        [
+            new LiteralExpressionSegment(
+                valueTypeName is null
+                    ? "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, "
+                    : $"{CreateCall}{valueTypeName}>(this, "),
+            new LiteralExpressionSegment($"({castTypeName})("),
+            .. ExpressionTemplateFactory.Create(expr, context).Segments.AsImmutableArray(),
+            new LiteralExpressionSegment("))"),
+        ];
 
     /// <summary>
     /// Builds the <c>{name}Expression</c> parameter's value: the getter lambda itself, whole, cast to the
@@ -2649,6 +2690,42 @@ internal static class RenderExpressionAnalyzer
         ];
 
         return ExpressionTemplate.Create(segments);
+    }
+
+    /// <summary>
+    /// <c>ComponentView&lt;TComponent&gt;.Param(selector, handler)</c> onto an <c>EventCallback</c>- or
+    /// <c>EventCallback&lt;TArg&gt;</c>-typed parameter (#492): wraps <paramref name="handlerArg"/> in
+    /// <c>EventCallback.Factory.Create</c>, the way <c>.On</c> and <c>.Bind</c>'s derived
+    /// <c>{name}Changed</c> already are, rather than casting it through verbatim the way
+    /// <see cref="SurfaceMethodKind.ScalarParam"/> does.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="ClassifyComponentBind"/>'s change callback, there is no "invert the getter" form
+    /// here — the author always writes the handler explicitly — so the cast type is read straight off
+    /// <paramref name="method"/>'s own declared parameter rather than rebuilt from the selected property's
+    /// type: the four overloads this reaches declare it concretely (<c>Action</c>, <c>Func&lt;Task&gt;</c>,
+    /// <c>Action&lt;TArg&gt;</c>, <c>Func&lt;TArg, Task&gt;</c>), so <c>method.Parameters[1].Type</c> is
+    /// already exactly the type to cast to.
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentParamEventCallback(
+        IMethodSymbol method,
+        ComponentTemplateNode inner,
+        IPropertySymbol property,
+        ArgumentSyntax handlerArg,
+        ViewPartBodyContext context)
+    {
+        // The selected parameter's own type carries EventCallback's type argument, if any — the same
+        // source ClassifyComponentBind reads it from, and for the same reason: it is the declared
+        // [Parameter], not the call site, that is authoritative about what the child actually receives.
+        string? valueTypeName = property.Type is INamedTypeSymbol { TypeArguments.Length: 1 } eventCallback
+            ? eventCallback.TypeArguments[0].ToDisplayString(FullyQualifiedTypeName)
+            : null;
+        var handlerTypeName = method.Parameters[1].Type.ToDisplayString(FullyQualifiedTypeName);
+
+        var value = ExpressionTemplate.Create(
+            WrapInEventCallbackFactory(valueTypeName, handlerTypeName, handlerArg.Expression, context));
+        var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
+        return inner with { Parameters = appended };
     }
 
     /// <summary>

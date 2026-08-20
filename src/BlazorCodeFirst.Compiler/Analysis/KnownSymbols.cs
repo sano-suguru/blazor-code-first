@@ -768,6 +768,13 @@ internal sealed class KnownSymbols
     public IReadOnlyDictionary<ISymbol, string> EventShortcuts { get; }
 
     /// <summary>
+    /// <c>ComponentView&lt;TComponent&gt;.Id</c>/<c>.Type</c>/<c>.Title</c>/<c>.Role</c>/<c>.Href</c>/
+    /// <c>.Src</c>/<c>.Alt</c> (#489) → attribute name. The component-side counterpart of
+    /// <see cref="AttributeShortcuts"/>, read the same way by <c>ClassifyComponentAttribute</c>.
+    /// </summary>
+    public IReadOnlyDictionary<ISymbol, string> ComponentAttributeShortcuts { get; }
+
+    /// <summary>
     /// The classification table <see cref="ClassifySurfaceMethod"/> answers from, keyed by
     /// <see cref="Normalize(IMethodSymbol)"/>, for <c>KnownSymbolsSyncTests</c> to hold against what the
     /// referenced runtime declares. Nothing in the compiler reads it directly; ask
@@ -923,7 +930,15 @@ internal sealed class KnownSymbols
                 : []);
 
         var funcWithArgumentType = compilation.GetTypeByMetadataName("System.Func`2");
+        // Read only inside the ComponentViewType member walk below, to recognize the six EventCallback
+        // .Param overloads (#492) — locals rather than properties, for the same reason funcWithArgumentType
+        // above is one: nothing outside that walk needs them.
+        var eventCallbackNonGenericType =
+            compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Components.EventCallback");
+        var actionType = compilation.GetTypeByMetadataName("System.Action");
+        var actionGenericType = compilation.GetTypeByMetadataName("System.Action`1");
         _surfaceMethods = new Dictionary<ISymbol, SurfaceMethodKind>(SymbolEqualityComparer.Default);
+        var componentAttributeShortcuts = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
 
         if (ComponentViewType is not null)
         {
@@ -951,13 +966,32 @@ internal sealed class KnownSymbols
                     continue;
                 }
 
+                // Id/Type/Title/Role/Href/Src/Alt (#489): the same seven names as the element-side
+                // AttributeShortcutNames table's first seven rows, reused rather than duplicated — this
+                // receiver only ever declares those seven, so nothing here can pick up one of #490's
+                // later, standard-derived rows by accident. Every shortcut has exactly one parameter
+                // (the value; unlike an extension method, there is no receiver to also count), the same
+                // arity guard the Decorations loop below applies to its own shortcuts.
+                if (method.Parameters.Length == 1
+                    && AttributeShortcutNames.TryGetValue(method.Name, out var componentAttrName))
+                {
+                    componentAttributeShortcuts[Normalize(method)] = componentAttrName;
+                    _surfaceMethods[Normalize(method)] = SurfaceMethodKind.ComponentAttributeShortcut;
+                    continue;
+                }
+
                 var kind = ClassifyComponentParameterDefinition(
                     method,
                     ComponentViewType,
                     ViewType,
                     RenderFragmentType,
                     RenderFragmentGenericType,
-                    funcWithArgumentType);
+                    funcWithArgumentType,
+                    EventCallbackType,
+                    eventCallbackNonGenericType,
+                    actionType,
+                    actionGenericType,
+                    FuncType);
                 if (kind != SurfaceMethodKind.None)
                     _surfaceMethods[Normalize(method)] = kind;
             }
@@ -1070,6 +1104,7 @@ internal sealed class KnownSymbols
         }
         AttributeShortcuts = attributeShortcuts;
         EventShortcuts = eventShortcuts;
+        ComponentAttributeShortcuts = componentAttributeShortcuts;
 
         var elementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
         foreach (var member in htmlType.GetMembers())
@@ -1819,7 +1854,12 @@ internal sealed class KnownSymbols
         INamedTypeSymbol? viewType,
         INamedTypeSymbol? renderFragmentType,
         INamedTypeSymbol? renderFragmentGenericType,
-        INamedTypeSymbol? funcWithArgumentType)
+        INamedTypeSymbol? funcWithArgumentType,
+        INamedTypeSymbol? eventCallbackType,
+        INamedTypeSymbol? eventCallbackNonGenericType,
+        INamedTypeSymbol? actionType,
+        INamedTypeSymbol? actionGenericType,
+        INamedTypeSymbol? funcType)
     {
         if (funcWithArgumentType is null
             || method.IsStatic
@@ -1857,6 +1897,47 @@ internal sealed class KnownSymbols
                 return SurfaceMethodKind.FragmentParam;
             }
 
+            // The non-generic EventCallback overload (#492): .Param(c => c.OnClose, Action) or
+            // .Param(c => c.OnClose, Func<Task>). Arity 0, like FragmentParam above, so the receiver's
+            // selected type is what tells them apart.
+            if (method.Arity == 0
+                && eventCallbackNonGenericType is not null
+                && SymbolEqualityComparer.Default.Equals(selectedType, eventCallbackNonGenericType)
+                && IsParameterlessHandler(method.Parameters[1].Type, actionType, funcType))
+            {
+                return SurfaceMethodKind.ComponentParamEventCallback;
+            }
+
+            // The two generic EventCallback<TArg> overloads (#492): .Param(c => c.OnPicked, Action<TArg>) /
+            // Func<TArg, Task> for a handler that receives the raised value, and .Param(c => c.OnValidSubmit,
+            // Action) / Func<Task> for one that ignores it — the shape EventCallbackFactory.Create<T> itself
+            // offers beside Action<T>/Func<T, Task>, and the one a parameterless handler like Razor's own
+            // OnValidSubmit="HandleCreate" needs. Both share arity 1 and the same selected-type check —
+            // there the selected type IS the method's own type parameter for ScalarParam above, while here
+            // it is EventCallback<TArg> wrapping it, so ScalarParam's check never matches either of these —
+            // and differ only in whether the handler's own type parameter is TArg or absent.
+            if (method.Arity == 1
+                && eventCallbackType is not null
+                && selectedType is INamedTypeSymbol { TypeArguments.Length: 1 } eventCallback
+                && SymbolEqualityComparer.Default.Equals(eventCallback.OriginalDefinition, eventCallbackType)
+                && SymbolEqualityComparer.Default.Equals(eventCallback.TypeArguments[0], method.TypeParameters[0])
+                && method.Parameters[1].Type is INamedTypeSymbol genericHandlerType
+                && ((actionGenericType is not null
+                        && genericHandlerType.TypeArguments.Length == 1
+                        && SymbolEqualityComparer.Default.Equals(
+                            genericHandlerType.OriginalDefinition, actionGenericType)
+                        && SymbolEqualityComparer.Default.Equals(
+                            genericHandlerType.TypeArguments[0], method.TypeParameters[0]))
+                    || (genericHandlerType.TypeArguments.Length == 2
+                        && SymbolEqualityComparer.Default.Equals(
+                            genericHandlerType.OriginalDefinition, funcWithArgumentType)
+                        && SymbolEqualityComparer.Default.Equals(
+                            genericHandlerType.TypeArguments[0], method.TypeParameters[0]))
+                    || IsParameterlessHandler(genericHandlerType, actionType, funcType)))
+            {
+                return SurfaceMethodKind.ComponentParamEventCallback;
+            }
+
             return SurfaceMethodKind.None;
         }
 
@@ -1886,6 +1967,19 @@ internal sealed class KnownSymbols
 
         return SurfaceMethodKind.None;
     }
+
+    /// <summary>
+    /// Whether <paramref name="handlerType"/> is a plain <c>Action</c> or <c>Func&lt;Task&gt;</c> — the
+    /// shape neither of the two EventCallback-aware <c>.Param</c> overload pairs' argument-ignoring member
+    /// wraps a raised value in (#492). Shared by the non-generic <c>EventCallback</c> overloads, whose
+    /// handler never carries a value, and the generic <c>EventCallback&lt;TArg&gt;</c> pair that ignores
+    /// the one it is offered.
+    /// </summary>
+    private static bool IsParameterlessHandler(
+        ITypeSymbol handlerType, INamedTypeSymbol? actionType, INamedTypeSymbol? funcType) =>
+        (actionType is not null && SymbolEqualityComparer.Default.Equals(handlerType, actionType))
+        || (funcType is not null
+            && SymbolEqualityComparer.Default.Equals(handlerType.OriginalDefinition, funcType));
 
     /// <summary>
     /// The <c>params ReadOnlySpan&lt;View&gt;</c> indexer declared on <paramref name="type"/>, which is how
