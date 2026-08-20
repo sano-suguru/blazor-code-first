@@ -210,7 +210,7 @@ public sealed class HtmlAttributeGeneratorTests
             {
                 private static System.Action MakeHandler(string s) => () => { };
                 protected override View Body =>
-                    Html.Button.OnClick(() => { }).On("onclick", MakeHandler(typeof(Probe).Name))["x"];
+                    Html.Button.OnClick(() => { }).On("onclick", MakeHandler(typeof(Unresolved).Name))["x"];
             }
             """;
         var diagnostics = CompilationTestHost.RunGenerator(source).Diagnostics;
