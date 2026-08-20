@@ -182,6 +182,33 @@ public sealed class LoweredHeaderLocalTests
         AssertRefusedForTheLocal(SiblingAttributeBody);
 
     /// <summary>
+    /// A sibling <c>ForEach</c>'s own source is a header of its own, pushed and popped independently: a
+    /// leaked pop of the first loop's header scope would leave it registered while the second loop's
+    /// content is read, wrongly admitting a reference that, once both loops lower to their own disjoint
+    /// <c>foreach</c> blocks, names a local from a scope the second block does not enclose (#487).
+    /// </summary>
+    [Fact]
+    public void ForEachSource_DeclaringALocalReadFromASiblingForEachContent_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Div[
+                ForEach(Items(Take(out var n)), i => i, i => Span["x"]),
+                ForEach(Items(0), j => j, j => Span[n.ToString()])
+            ]
+            """);
+
+    /// <summary>Same leak, on the spread spelling <see cref="SpliceSource_DeclaringALocalReadFromTheProjection_IsAccepted"/> accepts.</summary>
+    [Fact]
+    public void SpliceSource_DeclaringALocalReadFromASiblingProjection_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Div[[
+                ..Items(Take(out var n)).Select(i => Span["x"]),
+                ..Items(0).Select(j => Span[n.ToString()])
+            ]]
+            """);
+
+    /// <summary>
     /// BCF1002 names the position it is reported at. Appendix A describes it as the view part diagnostic, and
     /// it is also the report for a component's own design-time expression, so calling that expression a
     /// "ViewPart method" named the wrong thing (#361).

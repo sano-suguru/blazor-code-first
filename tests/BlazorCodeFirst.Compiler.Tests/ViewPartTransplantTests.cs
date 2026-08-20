@@ -16,6 +16,7 @@ public sealed class ViewPartTransplantTests
     /// </summary>
     private const string Host = """
         using System.Collections.Generic;
+        using System.Linq;
         using BlazorCodeFirst;
         using static BlazorCodeFirst.Html;
 
@@ -192,6 +193,45 @@ public sealed class ViewPartTransplantTests
             Regex.Matches(generated, "__bcf_local_[0-9]+_0").Select(m => m.Value).Distinct().Count());
         Assert.Contains("string __bcf_local_4_0 = __bcf_item_3.ToUpperInvariant();", generated);
         Assert.Contains("string __bcf_local_8_0 = __bcf_item_7.ToUpperInvariant();", generated);
+    }
+
+    /// <summary>
+    /// The item variable itself, not a locally-declared one, is the render variable under test here: each
+    /// sibling loop's own <c>ForEach</c> pushes and pops it independently, so a leaked pop in the first
+    /// loop's finally leaves the second loop's item at an elevated ordinal the part's own substitution
+    /// array, sized from the correctly-scoped depth, was never built wide enough to hold (#487).
+    /// </summary>
+    [Fact]
+    public void ViewPart_WhenTwoSiblingForEachContentsEachReadTheirOwnItem_PopsTheFirstBeforePushingTheSecond()
+    {
+        var result = Run(
+            """=> Div[Part()];""",
+            """
+            Part() => Div[
+                    ForEach(Inner, x => x, x => Span[x.ToUpperInvariant()]),
+                    ForEach(Inner, y => y, y => Span[y.ToUpperInvariant()])
+                ];
+            """);
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>Same leak, on <see cref="AnalyzeSplice"/>'s own push/pop pair rather than <c>ClassifyForEach</c>'s.</summary>
+    [Fact]
+    public void ViewPart_WhenTwoSiblingSpliceProjectionsEachReadTheirOwnItem_PopsTheFirstBeforePushingTheSecond()
+    {
+        var result = Run(
+            """=> Div[Part()];""",
+            """
+            Part() => Div[[
+                    ..Inner.Select(x => Span[x.ToUpperInvariant()]),
+                    ..Inner.Select(y => Span[y.ToUpperInvariant()])
+                ]];
+            """);
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     [Fact]
