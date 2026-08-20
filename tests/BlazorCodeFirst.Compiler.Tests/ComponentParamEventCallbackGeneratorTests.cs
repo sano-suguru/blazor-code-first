@@ -37,97 +37,55 @@ public sealed class ComponentParamEventCallbackGeneratorTests
         return result.GeneratedSources.Single().SourceText.ToString();
     }
 
-    [Fact]
-    public void NonGeneric_ActionHandler_WrapsInFactoryCreate()
-    {
-        var generated = GenerateBodyWith("""
-            private void HandleClose() { }
-            protected override View Body => Html.Component<Probe>().Param(c => c.OnClose, HandleClose);
-            """);
-
-        Assert.Contains(
-            "__builder.AddComponentParameter(1, \"OnClose\", "
+    // The six EventCallback-aware .Param overloads, by handler shape: non-generic Action/Func<Task> for
+    // OnClose (EventCallback), generic Action<TArg>/Func<TArg, Task> for OnPicked (EventCallback<string>),
+    // and OnPicked's two argument-ignoring overloads -- the Razor OnValidSubmit="HandleCreate" shape,
+    // where EventCallbackFactory.Create<T> itself offers a plain Action/Func<Task> beside Action<T>, and
+    // TArg is inferred from the selector alone.
+    [Theory]
+    [InlineData(
+        "private void HandleClose() { }",
+        "Html.Component<Probe>().Param(c => c.OnClose, HandleClose)",
+        "__builder.AddComponentParameter(1, \"OnClose\", "
             + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, "
-            + "(global::System.Action)(HandleClose)));",
-            generated);
-    }
-
-    [Fact]
-    public void NonGeneric_FuncTaskHandler_WrapsInFactoryCreate()
-    {
-        var generated = GenerateBodyWith("""
-            private System.Threading.Tasks.Task HandleCloseAsync() => System.Threading.Tasks.Task.CompletedTask;
-            protected override View Body => Html.Component<Probe>().Param(c => c.OnClose, HandleCloseAsync);
-            """);
-
-        Assert.Contains(
-            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, "
-            + "(global::System.Func<global::System.Threading.Tasks.Task>)(HandleCloseAsync)));",
-            generated);
-    }
-
-    [Fact]
-    public void Generic_ActionOfTArgHandler_WrapsInFactoryCreateWithTypeArgument()
-    {
-        var generated = GenerateBodyWith("""
-            private void HandlePicked(string value) { }
-            protected override View Body => Html.Component<Probe>().Param(c => c.OnPicked, HandlePicked);
-            """);
-
-        Assert.Contains(
-            "__builder.AddComponentParameter(1, \"OnPicked\", "
+            + "(global::System.Action)(HandleClose)));")]
+    [InlineData(
+        "private System.Threading.Tasks.Task HandleCloseAsync() => System.Threading.Tasks.Task.CompletedTask;",
+        "Html.Component<Probe>().Param(c => c.OnClose, HandleCloseAsync)",
+        "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, "
+            + "(global::System.Func<global::System.Threading.Tasks.Task>)(HandleCloseAsync)));")]
+    [InlineData(
+        "private void HandlePicked(string value) { }",
+        "Html.Component<Probe>().Param(c => c.OnPicked, HandlePicked)",
+        "__builder.AddComponentParameter(1, \"OnPicked\", "
             + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>(this, "
-            + "(global::System.Action<global::System.String>)(HandlePicked)));",
-            generated);
-    }
-
-    [Fact]
-    public void Generic_FuncOfTArgTaskHandler_WrapsInFactoryCreateWithTypeArgument()
-    {
-        var generated = GenerateBodyWith("""
-            private System.Threading.Tasks.Task HandlePickedAsync(string value) =>
-                System.Threading.Tasks.Task.CompletedTask;
-            protected override View Body => Html.Component<Probe>().Param(c => c.OnPicked, HandlePickedAsync);
-            """);
-
-        Assert.Contains(
-            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>(this, "
+            + "(global::System.Action<global::System.String>)(HandlePicked)));")]
+    [InlineData(
+        "private System.Threading.Tasks.Task HandlePickedAsync(string value) => "
+            + "System.Threading.Tasks.Task.CompletedTask;",
+        "Html.Component<Probe>().Param(c => c.OnPicked, HandlePickedAsync)",
+        "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>(this, "
             + "(global::System.Func<global::System.String, global::System.Threading.Tasks.Task>)"
-            + "(HandlePickedAsync)));",
-            generated);
-    }
-
-    [Fact]
-    public void Generic_ArgumentIgnoringActionHandler_WrapsInFactoryCreateWithTypeArgument()
-    {
-        // The Razor OnValidSubmit="HandleCreate" shape: a parameterless handler bound to an
-        // EventCallback<TArg>-typed parameter. EventCallbackFactory.Create<T> itself has this overload
-        // beside Action<T>, so .Param needs it too (#492) — TArg is inferred from the selector alone.
-        var generated = GenerateBodyWith("""
-            private void HandleSubmit() { }
-            protected override View Body => Html.Component<Probe>().Param(c => c.OnPicked, HandleSubmit);
-            """);
-
-        Assert.Contains(
-            "__builder.AddComponentParameter(1, \"OnPicked\", "
+            + "(HandlePickedAsync)));")]
+    [InlineData(
+        "private void HandleSubmit() { }",
+        "Html.Component<Probe>().Param(c => c.OnPicked, HandleSubmit)",
+        "__builder.AddComponentParameter(1, \"OnPicked\", "
             + "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>(this, "
-            + "(global::System.Action)(HandleSubmit)));",
-            generated);
-    }
-
-    [Fact]
-    public void Generic_ArgumentIgnoringFuncTaskHandler_WrapsInFactoryCreateWithTypeArgument()
+            + "(global::System.Action)(HandleSubmit)));")]
+    [InlineData(
+        "private System.Threading.Tasks.Task HandleSubmitAsync() => System.Threading.Tasks.Task.CompletedTask;",
+        "Html.Component<Probe>().Param(c => c.OnPicked, HandleSubmitAsync)",
+        "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>(this, "
+            + "(global::System.Func<global::System.Threading.Tasks.Task>)(HandleSubmitAsync)));")]
+    public void HandlerShape_WrapsInFactoryCreate(string handlerDeclaration, string invocation, string expected)
     {
-        var generated = GenerateBodyWith("""
-            private System.Threading.Tasks.Task HandleSubmitAsync() => System.Threading.Tasks.Task.CompletedTask;
-            protected override View Body =>
-                Html.Component<Probe>().Param(c => c.OnPicked, HandleSubmitAsync);
+        var generated = GenerateBodyWith($$"""
+            {{handlerDeclaration}}
+            protected override View Body => {{invocation}};
             """);
 
-        Assert.Contains(
-            "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create<global::System.String>(this, "
-            + "(global::System.Func<global::System.Threading.Tasks.Task>)(HandleSubmitAsync)));",
-            generated);
+        Assert.Contains(expected, generated);
     }
 
     [Fact]
