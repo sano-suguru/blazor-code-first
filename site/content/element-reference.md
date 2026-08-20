@@ -71,13 +71,7 @@ it and why.
 | --- | --- |
 | `.Attr(name, value)` | any attribute, by name |
 | `.Class(value)` | the class channel, which folds ([the class channel](./elements-and-decorations.md#the-class-channel)) |
-| `.Id(value)` | `id` |
-| `.Title(value)` | `title` |
 | `.Role(value)` | `role` |
-| `.Type(value)` | `type` |
-| `.Src(value)` | `src` |
-| `.Alt(value)` | `alt` |
-| `.Href(value)` | `href` |
 | `.On(name, handler)` | any event, by name |
 | `.OnClick(handler)` | `onclick` |
 | `.PreventDefault()` | the preceding event's `preventDefault` |
@@ -86,9 +80,40 @@ it and why.
 | `.Key(value)` | a diffing key, no markup ([control flow](./control-flow.md#foreach-and-its-key)) |
 | `.Ref(capture)` | an element reference, no markup |
 
-The named ones are shorthands, not a separate mechanism: `.Id("x")` and `.Attr("id", "x")` produce
-the same frame, and both count as the same channel
-([BCF3010](./diagnostics.md#bcf3010)).
+Every other decoration is a standard-derived attribute shortcut — one for each HTML Living Standard
+attribute whose name spells directly as a C# identifier, such as `.Id(value)` for `id` and
+`.HttpEquiv(value)` for `http-equiv`. There are 142. Each is shorthand rather than a separate
+mechanism: `.Id("x")` and `.Attr("id", "x")` produce the same frame, and both count as the same
+channel ([BCF3010](./diagnostics.md#bcf3010)).
+
+A shortcut takes `bool` where Blazor reads the attribute as conditional (`true` writes it empty,
+`false` omits it) and `string?` otherwise.
+
+### Boolean-valued
+
+`.Allowfullscreen`, `.Alpha`, `.Async`, `.Autofocus`, `.Autoplay`, `.Checked`, `.Controls`,
+`.Default`, `.Defer`, `.Disabled`, `.Formnovalidate`, `.Headingreset`, `.Inert`, `.Ismap`,
+`.Itemscope`, `.Loop`, `.Multiple`, `.Muted`, `.Nomodule`, `.Novalidate`, `.Open`, `.Playsinline`,
+`.Readonly`, `.Required`, `.Reversed`, `.Selected`, `.Shadowrootclonable`,
+`.Shadowrootcustomelementregistry`, `.Shadowrootdelegatesfocus`, `.Shadowrootserializable`
+
+### String-valued
+
+`.Abbr`, `.Accept`, `.AcceptCharset`, `.Accesskey`, `.Action`, `.Allow`, `.Alt`, `.As`,
+`.Autocapitalize`, `.Autocomplete`, `.Autocorrect`, `.Blocking`, `.Charset`, `.Cite`, `.Closedby`,
+`.Color`, `.Colorspace`, `.Cols`, `.Colspan`, `.Command`, `.Commandfor`, `.Content`,
+`.Contenteditable`, `.Coords`, `.Crossorigin`, `.Data`, `.Datetime`, `.Decoding`, `.Dir`, `.Dirname`,
+`.Download`, `.Draggable`, `.Enctype`, `.Enterkeyhint`, `.Fetchpriority`, `.For`, `.Form`,
+`.Formaction`, `.Formenctype`, `.Formmethod`, `.Formtarget`, `.Headers`, `.Headingoffset`, `.Height`,
+`.Hidden`, `.High`, `.Href`, `.Hreflang`, `.HttpEquiv`, `.Id`, `.Imagesizes`, `.Imagesrcset`,
+`.Inputmode`, `.Integrity`, `.Is`, `.Itemid`, `.Itemprop`, `.Itemref`, `.Itemtype`, `.Kind`, `.Label`,
+`.Lang`, `.List`, `.Loading`, `.Low`, `.Max`, `.Maxlength`, `.Media`, `.Method`, `.Min`, `.Minlength`,
+`.Name`, `.Nonce`, `.Optimum`, `.Pattern`, `.Ping`, `.Placeholder`, `.Popover`, `.Popovertarget`,
+`.Popovertargetaction`, `.Poster`, `.Preload`, `.Referrerpolicy`, `.Rel`, `.Rows`, `.Rowspan`,
+`.Sandbox`, `.Scope`, `.Shadowrootmode`, `.Shadowrootslotassignment`, `.Shape`, `.Size`, `.Sizes`,
+`.Slot`, `.Span`, `.Spellcheck`, `.Src`, `.Srcdoc`, `.Srclang`, `.Srcset`, `.Start`, `.Step`,
+`.Tabindex`, `.Target`, `.Title`, `.Translate`, `.Type`, `.Usemap`, `.Value`, `.Width`, `.Wrap`,
+`.Writingsuggestions`
 
 ## Constructs
 

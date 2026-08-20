@@ -3,7 +3,7 @@ title: 要素と装飾
 description: 書いた要素がそのまま出力される要素になる。ヘルパーへの属性の連結と、角括弧に置く子要素の書き方。
 order: 40
 group: write
-source-hash: 1b34b81d
+source-hash: eef8540a
 ---
 
 BlazorCodeFirst は HTML を直に写します。`Body` の式に書いた要素の名前が、そのまま出力される要素
@@ -139,8 +139,12 @@ protected override View Body =>
 <button class="btn btn-primary" title="Save the current document">Save</button>
 ```
 
-使える装飾は `.Class`、`.Id`、`.Href`、`.Src`、`.Alt`、`.Type`、`.Title`、`.Role`、`.OnClick` です。
-汎用の手段として `.Attr(name, value)` と `.On(eventName, handler)` もあります。
+使える装飾は `.Class`、`.Role`、`.OnClick`、汎用の手段である `.Attr(name, value)` と
+`.On(eventName, handler)`、そして142個の標準由来ショートカットです。HTML Living Standard の属性名が
+C# の識別子にそのまま綴れるものへ、1つずつ対応します。前段で使った `.Href`、`.Src`、`.Alt`、
+`.Type`、`.Title` もその一部です。全部の一覧は
+[要素リファレンス](./element-reference.md#要素に付ける装飾)にあり、`string?` を取るか Blazor の
+条件付き `bool` を取るかで分けています。
 
 `.On` には `on` を含んだ属性名をそのまま渡します（`.On("onmouseenter", …)`）。接頭辞をこちらで
 補うことはなく、`on` の無い名前は [BCF3019](./diagnostics.md#bcf3019) です。`.Attr` や `.On` に
