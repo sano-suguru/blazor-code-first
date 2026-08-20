@@ -8,10 +8,10 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// types so that expression analysis can compare symbols by identity rather than by name.
 /// </summary>
 /// <remarks>
-/// Resolved transiently from a single <see cref="Compilation"/> inside the syntax-provider transforms
-/// that consume it and never stored in the cached incremental pipeline, so its symbols are only ever
-/// compared within the compilation they came from, never across compilations. It therefore needs no
-/// value equality of its own.
+/// <see cref="TryCreate"/> keys its own small bounded cache on the <see cref="Compilation"/> instance
+/// itself (#514), so within one compilation every caller shares one build; it is still never stored in
+/// the cached incremental pipeline, and its symbols are only ever compared within the compilation they
+/// came from, never across compilations. It therefore needs no value equality of its own.
 /// </remarks>
 internal sealed class KnownSymbols
 {
@@ -2019,13 +2019,55 @@ internal sealed class KnownSymbols
     }
 
     /// <summary>
+    /// How many distinct <see cref="Compilation"/> instances <see cref="TryCreate"/> keeps a build for at
+    /// once, evicting the oldest once a new compilation would exceed it (#514). A <see cref="Compilation"/>
+    /// key is never explicitly removed on its own, since <c>KnownSymbols</c> holds symbols resolved from
+    /// it and so holds a reference back to it; without a cap that would pin every compilation a long-running
+    /// IDE session has ever produced. Sized to the same figure Roslyn's own equivalent
+    /// (<c>WellKnownTypeProvider</c>'s <c>BoundedCacheWithFactory</c>) uses for the same reason.
+    /// </summary>
+    private const int CacheCapacity = 5;
+
+    /// <summary>Exposes <see cref="CacheCapacity"/> to <c>KnownSymbolsCacheTests</c> without making the
+    /// figure itself part of the public contract callers reason about.</summary>
+    internal const int CacheCapacityForTests = CacheCapacity;
+
+    private static readonly object CacheLock = new();
+    private static readonly Queue<Compilation> CacheOrder = new();
+    private static readonly Dictionary<Compilation, KnownSymbols> Cache = [];
+
+    /// <summary>
     /// Resolves <c>BlazorCodeFirst.Html</c> from the given compilation and returns a populated instance,
     /// or <see langword="null"/> when the type cannot be found (e.g., the runtime assembly is not referenced).
     /// </summary>
+    /// <remarks>
+    /// Memoized per <paramref name="compilation"/> instance (#514): building one costs around 20
+    /// <c>GetTypeByMetadataName</c> calls plus three full <c>GetMembers()</c> walks, and this is called once
+    /// per candidate component and once per <c>[ViewPart]</c> method, all against the same compilation. The
+    /// null case is not cached — <c>ComponentModelFactory.Analyze</c> and the <c>[ViewPart]</c> transform
+    /// both call this only after already filtering to nodes their own cheaper checks expect to resolve, so a
+    /// null result is a defensive path that is not expected to run often enough to be worth a cache entry.
+    /// </remarks>
     public static KnownSymbols? TryCreate(Compilation compilation)
     {
-        var htmlType = compilation.GetTypeByMetadataName("BlazorCodeFirst.Html");
-        return htmlType is not null ? new KnownSymbols(htmlType, compilation) : null;
+        lock (CacheLock)
+        {
+            if (Cache.TryGetValue(compilation, out var cached))
+                return cached;
+
+            var htmlType = compilation.GetTypeByMetadataName("BlazorCodeFirst.Html");
+            if (htmlType is null)
+                return null;
+
+            var created = new KnownSymbols(htmlType, compilation);
+
+            if (CacheOrder.Count >= CacheCapacity)
+                Cache.Remove(CacheOrder.Dequeue());
+
+            CacheOrder.Enqueue(compilation);
+            Cache[compilation] = created;
+            return created;
+        }
     }
 
 }
