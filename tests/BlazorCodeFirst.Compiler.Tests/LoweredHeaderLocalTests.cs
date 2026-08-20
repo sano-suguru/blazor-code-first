@@ -209,6 +209,22 @@ public sealed class LoweredHeaderLocalTests
             """);
 
     /// <summary>
+    /// <c>ClassifyIf</c>'s own condition-header scope, popped independently of the <c>ForEach</c>/spread
+    /// header pops above: a leaked pop here would leave the first <c>If</c>'s condition-declared local
+    /// registered while a sibling that follows it is read, the same class of defect as the source-header
+    /// leaks above but on the <c>If</c> construct's own finally (#487).
+    /// </summary>
+    [Fact]
+    public void IfCondition_DeclaringALocalReadFromASiblingElement_StaysRefused() =>
+        AssertRefusedForTheLocal(
+            """
+            Div[
+                If(Take(out var n) == 0, () => Span["a"], () => Span["b"]),
+                Span[n.ToString()]
+            ]
+            """);
+
+    /// <summary>
     /// BCF1002 names the position it is reported at. Appendix A describes it as the view part diagnostic, and
     /// it is also the report for a component's own design-time expression, so calling that expression a
     /// "ViewPart method" named the wrong thing (#361).

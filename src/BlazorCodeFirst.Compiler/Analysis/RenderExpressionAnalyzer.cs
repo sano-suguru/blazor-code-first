@@ -151,6 +151,15 @@ internal static class RenderExpressionAnalyzer
             for (var index = declared.Length - 1; index >= 0; index--)
                 context.PopRenderVariable(declared[index]);
 
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. `statements` is always a lambda body -- the content of a
+            // ForEach, an If branch, or a [ViewPart] block body -- so a local it declares is scoped to
+            // that one lambda in the C# the author wrote. Unlike a ForEach/spread source, whose out-var
+            // scoping reaches sideways over the rest of the enclosing expression and lets a leaked pop
+            // there admit a sibling's reference (#487), a statement inside a lambda body has no such
+            // reach: no construction was found where a reference analyzed after this scope should have
+            // closed can legally bind to something declared inside it.
             if (opensTransplantedScope)
                 context.PopTransplantedScope();
         }
