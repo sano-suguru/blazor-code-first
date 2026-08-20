@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Guestbook/">
+    <Project Path="Guestbook/BlazorCodeFirst.Samples.Guestbook.csproj" />
+  </Folder>
   <Folder Name="/HeighwayDragon/">
     <Project Path="HeighwayDragon/BlazorCodeFirst.Samples.HeighwayDragon.csproj" />
   </Folder>
