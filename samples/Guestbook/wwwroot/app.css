@@ -1,0 +1,325 @@
+/* Hallmark · component: utility-view · genre: modern-minimal · theme: cobalt-inspired (scoped, no nav/hero/footer)
+ * states: default · hover · focus · active · disabled · error (loading/success n/a — static SSR, no client JS)
+ * contrast: pass (46-50)
+ */
+
+:root {
+    --color-paper: oklch(98.5% 0.004 250);
+    --color-paper-2: oklch(96% 0.006 250);
+    --color-rule: oklch(88% 0.008 250);
+    --color-neutral: oklch(56% 0.012 253);
+    --color-muted: oklch(42% 0.014 255);
+    --color-ink: oklch(24% 0.02 258);
+    --color-accent: oklch(58% 0.2 256);
+    --color-accent-ink: oklch(98.5% 0.004 250);
+    --color-focus: oklch(58% 0.2 256);
+    --color-danger: oklch(55% 0.19 25);
+    --color-danger-ink: oklch(98% 0.01 25);
+
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-md: 1.25rem;
+    --text-lg: 1.5625rem;
+    --text-2xl: 2.0736rem;
+
+    --space-3xs: 0.125rem;
+    --space-2xs: 0.25rem;
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2.5rem;
+    --space-2xl: 4rem;
+
+    --radius-sm: 6px;
+    --radius-md: 10px;
+
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-micro: 120ms;
+    --dur-short: 220ms;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    overflow-x: clip;
+}
+
+body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    margin: 0;
+    padding: var(--space-xl) var(--space-md);
+}
+
+.guestbook {
+    max-width: 40rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+}
+
+/* Header */
+
+.guestbook-header h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-2xl);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin: 0 0 var(--space-2xs);
+}
+
+.guestbook-header p {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    max-width: 60ch;
+    margin: 0;
+}
+
+/* Section shells: the create form and the search box read as one bordered
+   instrument, not a floating label over bare inputs. */
+
+.guestbook-form,
+.guestbook-search {
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-md);
+    background: var(--color-paper-2);
+    padding: var(--space-lg);
+}
+
+.guestbook-entries {
+    border-top: 1px solid var(--color-rule);
+    padding-top: var(--space-lg);
+}
+
+.guestbook-form h2,
+.guestbook-search h2,
+.guestbook-entries h2 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: var(--text-md);
+    letter-spacing: -0.01em;
+    margin: 0 0 var(--space-md);
+}
+
+/* Form fields — shared by the create form and the search input. Border
+   thickness never changes across states; only colour and the focus ring do,
+   so nothing shifts layout on interaction. */
+
+.guestbook-form label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--color-muted);
+    margin: var(--space-md) 0 var(--space-2xs);
+}
+
+.guestbook-form label:first-of-type {
+    margin-top: 0;
+}
+
+.guestbook-form input,
+.guestbook-form textarea,
+.live-search input {
+    display: block;
+    width: 100%;
+    font: inherit;
+    color: var(--color-ink);
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-sm);
+    transition:
+        border-color var(--dur-micro) var(--ease-out),
+        box-shadow var(--dur-micro) var(--ease-out);
+}
+
+.guestbook-form textarea {
+    min-height: 5rem;
+    resize: vertical;
+}
+
+.guestbook-form input:hover,
+.guestbook-form textarea:hover,
+.live-search input:hover {
+    border-color: var(--color-neutral);
+}
+
+.guestbook-form input.invalid,
+.guestbook-form textarea.invalid {
+    border-color: var(--color-danger);
+}
+
+.guestbook-form .validation-errors {
+    list-style: none;
+    margin: 0 0 var(--space-md);
+    padding: var(--space-sm);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklch, var(--color-danger) 8%, var(--color-paper));
+}
+
+.guestbook-form .validation-message {
+    color: var(--color-danger);
+    font-size: var(--text-sm);
+}
+
+.guestbook-form .validation-message + .validation-message {
+    margin-top: var(--space-3xs);
+}
+
+/* Buttons. The primary submit is solid accent; the per-row delete is a
+   quiet outline that only reads as danger on hover/focus, so a page full of
+   entries doesn't read as a page full of warnings. */
+
+.guestbook-form button[type="submit"] {
+    display: inline-block;
+    margin-top: var(--space-md);
+    font: inherit;
+    font-weight: 500;
+    color: var(--color-accent-ink);
+    background: var(--color-accent);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-md);
+    cursor: pointer;
+    transition:
+        transform var(--dur-micro) var(--ease-out),
+        background-color var(--dur-micro) var(--ease-out);
+}
+
+.guestbook-form button[type="submit"]:hover {
+    background: color-mix(in oklch, var(--color-accent) 88%, black);
+    transform: translateY(-1px);
+}
+
+.guestbook-form button[type="submit"]:active {
+    transform: translateY(0);
+}
+
+.guestbook-form button[type="submit"]:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.entry .delete {
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+    background: transparent;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    padding: var(--space-3xs) var(--space-sm);
+    cursor: pointer;
+    transition:
+        color var(--dur-micro) var(--ease-out),
+        border-color var(--dur-micro) var(--ease-out);
+}
+
+.entry .delete:hover {
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+/* Live search */
+
+.live-search input {
+    margin-bottom: var(--space-sm);
+}
+
+.live-search-result {
+    font-size: var(--text-sm);
+    padding: var(--space-2xs) 0;
+    margin: 0;
+    border-top: 1px solid var(--color-rule);
+}
+
+.live-search-result:first-of-type {
+    border-top: none;
+}
+
+/* Entries */
+
+.entry {
+    border-top: 1px solid var(--color-rule);
+    padding: var(--space-md) 0;
+}
+
+.entry:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.entry header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-2xs);
+}
+
+.entry strong {
+    font-family: var(--font-display);
+    font-weight: 600;
+}
+
+.entry time {
+    color: var(--color-neutral);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.entry p {
+    margin: 0 0 var(--space-sm);
+}
+
+.entry form {
+    margin: 0;
+}
+
+/* Focus, motion, and small screens */
+
+:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .guestbook-form button[type="submit"],
+    .guestbook-form input,
+    .guestbook-form textarea,
+    .live-search input,
+    .entry .delete {
+        transition: none;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: var(--space-lg) var(--space-sm);
+    }
+
+    .guestbook-form,
+    .guestbook-search {
+        padding: var(--space-md);
+    }
+
+    .entry header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3xs);
+    }
+}

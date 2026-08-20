@@ -785,6 +785,71 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// #451: the sibling above needs a SELECTED invocation in the value
+    /// (<c>Consume(typeof(Probe))</c>) for <c>ReportSelectedInvocationValues</c> to walk into.
+    /// <c>typeof(Probe).Name</c> alone is a member access, not an invocation, so that scanner finds
+    /// nothing to report even though the name is exactly as non-constant. BCF3011 recovers the name
+    /// half regardless of whether the value side has anything to report.
+    /// </summary>
+    [Fact]
+    public void AttrNonConstantNameUnselectedInvocationValueSibling_UnresolvedType_ReportsBCF3011()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr(GetName(), MissingMethod() + typeof(Probe).Name);
+
+                private static string GetName() => "data-x";
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        // BCF1003 is what #451 reported this shape as; asserting its absence is the issue's own complaint
+        // ("left with only the generic BCF1003") stated as a test, not merely that BCF3011 was added beside it.
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// The sibling above, reached from the <c>[ViewPart]</c> host instead of <c>Body</c> (#100's lesson:
+    /// a sweep wired through only one host silently degrades on the other).
+    /// </summary>
+    [Fact]
+    public void AttrNonConstantNameUnselectedInvocationValueSibling_InsideAViewPartBody_ReportsBCF3011()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Broken() => Div.Attr(GetName(), MissingMethod() + typeof(Probe).Name);
+
+                private static string GetName() => "data-x";
+
+                protected override View Body => Broken();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3011");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
     [Fact]
     public void ElementBindSetter_UnresolvedType_ReportsBCF3015()
     {
