@@ -274,6 +274,14 @@ the `ValueExpression` it supplies, are unaffected either way. See
 [generic fragment parameters](./components-and-reuse.md#generic-fragment-parameters) for the spelling
 that reads the `EditContext`, and for when a cached delegate through `.Param` is the better choice.
 
+Under static SSR — no interactive render mode on the page — the property holding `EditForm.Model`
+needs `[SupplyParameterFromForm]` on itself, not a plain field. Only a `[SupplyParameterFromForm]`
+property is repopulated from the posted form; anything else keeps whatever it held before the POST,
+typically `null`. Splitting the bound inputs into their own component does not avoid this either:
+`InputText`/`InputTextArea` derive the posted field's name from their own `ValueExpression`, so a
+child component's own parameter posts under a different name than the one the holding property
+expects back. `samples/Guestbook/Components/Pages/GuestbookPage.cs` shows the working shape.
+
 An explicit setter and an `async` setter are available here too, with the same meaning as on an
 element. `TValue` takes no culture and no format: the value goes to a parameter rather than to the
 DOM, so nothing formats or parses it on the way and there is no choice to write down.
