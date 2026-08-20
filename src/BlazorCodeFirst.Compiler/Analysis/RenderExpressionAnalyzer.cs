@@ -200,6 +200,12 @@ internal static class RenderExpressionAnalyzer
         foreach (var node in root.DescendantNodes(
             static child => child is not AnonymousFunctionExpressionSyntax))
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No test harness cancels this token, so the call is a
+            // responsiveness measure with nothing to be observed either throwing or not throwing --
+            // equivalent by construction of the token every test host hands this generator, not by any
+            // property of this walk's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
             if (ExpressionTemplateFactory.TryGetDeclaredLocalIdentifier(node, out _)
@@ -218,6 +224,12 @@ internal static class RenderExpressionAnalyzer
 
     private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
+        // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+        // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+        // left every test passing unchanged. No test harness cancels this token, so the call is a
+        // responsiveness measure with nothing to be observed either throwing or not throwing --
+        // equivalent by construction of the token every test host hands this generator, not by any
+        // property of this classification's own logic.
         context.CancellationToken.ThrowIfCancellationRequested();
 
         var expressionType = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken).Type;
@@ -1918,6 +1930,12 @@ internal static class RenderExpressionAnalyzer
 
         foreach (var reference in method.DeclaringSyntaxReferences)
         {
+            // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+            // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+            // left every test passing unchanged. No test harness cancels this token, so the call is a
+            // responsiveness measure with nothing to be observed either throwing or not throwing --
+            // equivalent by construction of the token every test host hands this generator, not by any
+            // property of this outer walk's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
             var declaration = reference.GetSyntax(context.CancellationToken);
@@ -1931,6 +1949,12 @@ internal static class RenderExpressionAnalyzer
 
             foreach (var node in declaration.DescendantNodes())
             {
+                // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
+                // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
+                // left every test passing unchanged. No test harness cancels this token, so the call is a
+                // responsiveness measure with nothing to be observed either throwing or not throwing --
+                // equivalent by construction of the token every test host hands this generator, not by any
+                // property of this inner walk's own logic.
                 context.CancellationToken.ThrowIfCancellationRequested();
 
                 if (node is not (InvocationExpressionSyntax or ElementAccessExpressionSyntax
