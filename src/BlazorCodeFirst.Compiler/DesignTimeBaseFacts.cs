@@ -18,8 +18,8 @@ internal static class DesignTimeBaseFacts
     /// <summary>
     /// Returns the base class found in <paramref name="symbol"/>'s base-type chain (<c>BodyComponentBase</c>
     /// or <c>ChromeLayoutBase</c>), or <see langword="null"/> when none is found. The single walk backing
-    /// both <see cref="InheritsFromDesignTimeBase"/> and <see cref="FindDesignTimeExpressionName"/>, and the
-    /// source of the base type's own name for diagnostic messages.
+    /// <see cref="FindDesignTimeExpressionName"/>, and the source of the base type's own name for
+    /// diagnostic messages.
     /// </summary>
     internal static INamedTypeSymbol? FindDesignTimeBase(INamedTypeSymbol symbol)
     {
@@ -31,9 +31,6 @@ internal static class DesignTimeBaseFacts
 
         return null;
     }
-
-    internal static bool InheritsFromDesignTimeBase(INamedTypeSymbol symbol) =>
-        FindDesignTimeBase(symbol) is not null;
 
     /// <summary>
     /// The name of the abstract <c>BlazorCodeFirst.View</c> property the base class declares, <c>Body</c>
