@@ -510,13 +510,14 @@ public sealed class BracketSurfaceDiagnosticTests
     [InlineData("""Fragment("a").Class("x")""")]
     [InlineData("""Raw("<b/>").Class("x")""")]
     [InlineData("""If(true, then: () => Span["y"]).Class("x")""")]
-    [InlineData("""Component<Card>().Href("/")""")]
+    [InlineData("""Component<Card>().Lang("en")""")]
     [InlineData("""Div["y"].Class("x")""")]
     public void DecoratingANonElement_ReportsBCF3008(string body)
     {
-        // Each of these receivers is a View or a ComponentView<T>. .Class/.Attr are declared as
-        // ComponentView<T> members too (#314), so a component receiver no longer proves this for
-        // every decoration — .Href is an attribute shortcut with no component-side counterpart.
+        // Each of these receivers is a View or a ComponentView<T>. .Class/.Attr and the seven
+        // Id/Type/Title/Role/Href/Src/Alt shortcuts are declared as ComponentView<T> members too
+        // (#314, #489), so a component receiver no longer proves this for every decoration — .Lang
+        // is one of #490's standard-derived shortcuts, which stayed element-only (#489's scope).
         AssertReportsBCF3008(RunResult(body));
     }
 

@@ -164,4 +164,24 @@ internal enum SurfaceMethodKind
     /// silently binding the parameter and bypassing <c>.Param</c>'s type checking.
     /// </summary>
     ComponentAttr,
+
+    /// <summary>
+    /// <c>ComponentView&lt;TComponent&gt;.Id</c>/<c>.Type</c>/<c>.Title</c>/<c>.Role</c>/<c>.Href</c>/
+    /// <c>.Src</c>/<c>.Alt</c> (#489) — the same seven names as the element-side
+    /// <see cref="AttributeShortcut"/>, declared as members for the reason <see cref="ComponentClass"/>
+    /// is. Each is sugar for <see cref="ComponentAttr"/> with the name fixed by which member was called,
+    /// read from <see cref="KnownSymbols.ComponentAttributeShortcuts"/>, and carries the same BCF3042
+    /// collision guard.
+    /// </summary>
+    ComponentAttributeShortcut,
+
+    /// <summary>
+    /// <c>ComponentView&lt;TComponent&gt;.Param(selector, handler)</c> for an <c>EventCallback</c>- or
+    /// <c>EventCallback&lt;TArg&gt;</c>-typed parameter (#492): the four overloads taking
+    /// <c>Action</c>/<c>Func&lt;Task&gt;</c>/<c>Action&lt;TArg&gt;</c>/<c>Func&lt;TArg, Task&gt;</c>,
+    /// which the generator wraps in <c>EventCallback.Factory.Create</c> the way <c>.On</c> and
+    /// <c>.Bind</c>'s derived <c>{name}Changed</c> already are — unlike <see cref="ScalarParam"/>, whose
+    /// value is cast and passed through verbatim.
+    /// </summary>
+    ComponentParamEventCallback,
 }

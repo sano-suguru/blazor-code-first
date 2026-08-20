@@ -343,7 +343,12 @@ public sealed class RenderMutationAnalyzer : DiagnosticAnalyzer
             // from the parameter list itself, which answers None for any arity but two. The selector
             // beside it names a parameter rather than carrying one, exactly as the component .Bind
             // selector does, so a mutation written there is reported.
-            SurfaceMethodKind.ScalarParam =>
+            //
+            // ComponentParamEventCallback's handler joins the same arm: all four EventCallback-aware
+            // .Param overloads (#492) also carry their deferred delegate at argument 1, and the generator
+            // wraps it in EventCallback.Factory.Create the same way .On's handler already is — a mutation
+            // there is deferred for the identical reason a ScalarParam value is.
+            SurfaceMethodKind.ScalarParam or SurfaceMethodKind.ComponentParamEventCallback =>
                 SymbolEqualityComparer.Default.Equals(
                     argument.Parameter, invocation.TargetMethod.Parameters[1]),
             // A capture action runs when the captured reference changes, which is after the frames are

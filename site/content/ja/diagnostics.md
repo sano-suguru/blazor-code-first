@@ -711,8 +711,9 @@ protected override View Body => Div[Slot];       // BCF3025: Body は角括弧�
 
 ### BCF3042
 
-Error. コンポーネント呼び出しに書いた `.Class`/`.Attr` の名前が、大文字小文字を区別せずに、その
-コンポーネントが宣言するパラメーターと一致しています。
+Error. コンポーネント呼び出しに書いた `.Class`/`.Attr`、または `Id`/`Type`/`Title`/`Role`/`Href`/
+`Src`/`Alt` のいずれかの名前が、大文字小文字を区別せずに、そのコンポーネントが宣言するパラメーターと
+一致しています。
 
 ```csharp
 Component<Card>().Attr("label", "hi")           // BCF3042: Card は [Parameter] Label を宣言

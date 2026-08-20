@@ -720,8 +720,8 @@ the caller was required to supply.
 
 ### BCF3042
 
-Error. `.Class`/`.Attr` on a component call names, case-insensitively, a parameter the component
-declares.
+Error. `.Class`/`.Attr`, or one of the `Id`/`Type`/`Title`/`Role`/`Href`/`Src`/`Alt` shortcuts, on a
+component call names, case-insensitively, a parameter the component declares.
 
 ```csharp
 Component<Card>().Attr("label", "hi")           // BCF3042: Card declares [Parameter] Label

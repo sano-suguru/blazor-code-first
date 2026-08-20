@@ -339,11 +339,13 @@ internal static class RenderExpressionAnalyzer
                 or SurfaceMethodKind.GenericTemplateIgnored
                 or SurfaceMethodKind.GenericTemplateContextual
                 or SurfaceMethodKind.ComponentBind
+                or SurfaceMethodKind.ComponentParamEventCallback
                 or SurfaceMethodKind.ComponentKey
                 or SurfaceMethodKind.ComponentRenderMode
                 or SurfaceMethodKind.ComponentRef
                 or SurfaceMethodKind.ComponentClass
-                or SurfaceMethodKind.ComponentAttr =>
+                or SurfaceMethodKind.ComponentAttr
+                or SurfaceMethodKind.ComponentAttributeShortcut =>
                 ClassifyComponentParameter(invocation, method, kind, context),
             SurfaceMethodKind.Class
                 or SurfaceMethodKind.AttributeShortcut
@@ -824,8 +826,12 @@ internal static class RenderExpressionAnalyzer
         // for a repeated attribute, BCF3042 for a name that collides with a declared parameter). They
         // route out here for the same reason as the frame-decoration block below: only the receiver
         // recursion above is shared.
-        if (kind is SurfaceMethodKind.ComponentClass or SurfaceMethodKind.ComponentAttr)
+        if (kind is SurfaceMethodKind.ComponentClass
+            or SurfaceMethodKind.ComponentAttr
+            or SurfaceMethodKind.ComponentAttributeShortcut)
+        {
             return ClassifyComponentAttribute(invocation, paramAccess, method, kind, inner, context);
+        }
 
         // Neither .Key nor .RenderMode selects a parameter, so both route out before everything below: the
         // selector, the settability rule, and BCF3007 are all about a parameter they do not have. They
@@ -901,6 +907,9 @@ internal static class RenderExpressionAnalyzer
 
         if (kind == SurfaceMethodKind.ComponentBind)
             return ClassifyComponentBind(invocation, method, inner, property, selector, args, valueArg, context);
+
+        if (kind == SurfaceMethodKind.ComponentParamEventCallback)
+            return ClassifyComponentParamEventCallback(method, inner, property, valueArg, context);
 
         var valueExpression = valueArg.Expression;
 
@@ -1032,6 +1041,12 @@ internal static class RenderExpressionAnalyzer
         if (kind == SurfaceMethodKind.ComponentClass)
         {
             attrName = "class";
+        }
+        else if (kind == SurfaceMethodKind.ComponentAttributeShortcut)
+        {
+            // The lookup cannot miss: the kind and the map entry are written by the same arm of
+            // KnownSymbols' member walk (#489, mirroring the element-side AttributeShortcut lookup).
+            attrName = context.KnownSymbols.ComponentAttributeShortcuts[KnownSymbols.Normalize(method)];
         }
         else if (!TryResolveDecorationName(invocation, firstArg, shortcutName: null, context, out attrName!))
         {
@@ -2627,6 +2642,52 @@ internal static class RenderExpressionAnalyzer
         ];
 
         return ExpressionTemplate.Create(segments);
+    }
+
+    /// <summary>
+    /// <c>ComponentView&lt;TComponent&gt;.Param(selector, handler)</c> onto an <c>EventCallback</c>- or
+    /// <c>EventCallback&lt;TArg&gt;</c>-typed parameter (#492): wraps <paramref name="handlerArg"/> in
+    /// <c>EventCallback.Factory.Create</c>, the way <c>.On</c> and <c>.Bind</c>'s derived
+    /// <c>{name}Changed</c> already are, rather than casting it through verbatim the way
+    /// <see cref="SurfaceMethodKind.ScalarParam"/> does.
+    /// </summary>
+    /// <remarks>
+    /// Unlike <see cref="ClassifyComponentBind"/>'s change callback, there is no "invert the getter" form
+    /// here — the author always writes the handler explicitly — so the cast type is read straight off
+    /// <paramref name="method"/>'s own declared parameter rather than rebuilt from the selected property's
+    /// type: the four overloads this reaches declare it concretely (<c>Action</c>, <c>Func&lt;Task&gt;</c>,
+    /// <c>Action&lt;TArg&gt;</c>, <c>Func&lt;TArg, Task&gt;</c>), so <c>method.Parameters[1].Type</c> is
+    /// already exactly the type to cast to.
+    /// </remarks>
+    private static ComponentTemplateNode? ClassifyComponentParamEventCallback(
+        IMethodSymbol method,
+        ComponentTemplateNode inner,
+        IPropertySymbol property,
+        ArgumentSyntax handlerArg,
+        ViewPartBodyContext context)
+    {
+        // The selected parameter's own type carries EventCallback's type argument, if any — the same
+        // source ClassifyComponentBind reads it from, and for the same reason: it is the declared
+        // [Parameter], not the call site, that is authoritative about what the child actually receives.
+        string? valueTypeName = property.Type is INamedTypeSymbol { TypeArguments.Length: 1 } eventCallback
+            ? eventCallback.TypeArguments[0].ToDisplayString(FullyQualifiedTypeName)
+            : null;
+        var handlerTypeName = method.Parameters[1].Type.ToDisplayString(FullyQualifiedTypeName);
+
+        ImmutableArray<ExpressionSegment> segments =
+        [
+            new LiteralExpressionSegment(
+                valueTypeName is null
+                    ? "global::Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, "
+                    : $"{CreateCall}{valueTypeName}>(this, "),
+            new LiteralExpressionSegment($"({handlerTypeName})("),
+            .. ExpressionTemplateFactory.Create(handlerArg.Expression, context).Segments.AsImmutableArray(),
+            new LiteralExpressionSegment("))"),
+        ];
+
+        var value = ExpressionTemplate.Create(segments);
+        var appended = inner.Parameters.AsImmutableArray().Add(new ComponentParameter(property.Name, value));
+        return inner with { Parameters = appended };
     }
 
     /// <summary>

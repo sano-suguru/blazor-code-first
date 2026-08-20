@@ -845,6 +845,37 @@ public sealed class RenderMutationAnalyzerTests
     }
 
     /// <summary>
+    /// The EventCallback-aware <c>.Param</c> overload (#492): the handler is a plain <c>Action</c>, not
+    /// the hand-written <c>EventCallback.Factory.Create</c> the tests above spell, so the exemption has
+    /// to come from <c>SurfaceMethodKind.ComponentParamEventCallback</c>'s own arm rather than from
+    /// <c>KnownSymbols.IsEventCallbackFactoryMethod</c>.
+    /// </summary>
+    [Fact]
+    public void Param_EventCallbackHandlerMutatingState_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private int _count;
+            protected override View Body =>
+                Html.Component<Probe>().Param(c => c.OnPicked, () => _count++);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>The generic overload's handler, which takes the raised value; see the non-generic test.</summary>
+    [Fact]
+    public void Param_GenericEventCallbackHandlerMutatingState_DoesNotReportBcf3001()
+    {
+        const string body = """
+            private string _label = "";
+            protected override View Body =>
+                Html.Component<Probe>().Param(c => c.OnPickedValue, v => _label = v);
+            """;
+
+        AssertNoDiagnostics(body);
+    }
+
+    /// <summary>
     /// The selector names a parameter rather than carrying a value, so it is not a deferred position —
     /// the same answer <c>Bind_ComponentSelectorMutatingState_ReportsBcf3001</c> gives one channel over.
     /// </summary>

@@ -148,6 +148,12 @@ static BlazorCodeFirst.Html.If(bool condition, System.Func<BlazorCodeFirst.View>
 static BlazorCodeFirst.Html.ForEach<T>(System.Collections.Generic.IEnumerable<T>! source, System.Func<T, object?>? key, System.Func<T, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.View
 static BlazorCodeFirst.Html.Component<TComponent>() -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback>! selector, System.Action! handler) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param(System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback>! selector, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param<TArg>(System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>>! selector, System.Action<TArg>! handler) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param<TArg>(System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>>! selector, System.Func<TArg, System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param<TArg>(System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>>! selector, System.Action! handler) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Param<TArg>(System.Func<TComponent, Microsoft.AspNetCore.Components.EventCallback<TArg>>! selector, System.Func<System.Threading.Tasks.Task!>! handler) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Template<TContext>(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?>! selector, BlazorCodeFirst.View content) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Template<TContext>(System.Func<TComponent, Microsoft.AspNetCore.Components.RenderFragment<TContext>?>! selector, System.Func<TContext, BlazorCodeFirst.View>! content) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ElementView
@@ -189,6 +195,13 @@ BlazorCodeFirst.ComponentView<TComponent>.Class(string? value) -> BlazorCodeFirs
 BlazorCodeFirst.ComponentView<TComponent>.Attr(string! name, string? value) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Attr(string! name, bool value) -> BlazorCodeFirst.ComponentView<TComponent>
 BlazorCodeFirst.ComponentView<TComponent>.Attr(string! name) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Id(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Type(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Title(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Role(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Href(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Src(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
+BlazorCodeFirst.ComponentView<TComponent>.Alt(string? value) -> BlazorCodeFirst.ComponentView<TComponent>
 static BlazorCodeFirst.Decorations.Abbr(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.Accept(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
 static BlazorCodeFirst.Decorations.AcceptCharset(this BlazorCodeFirst.ElementView element, string? value) -> BlazorCodeFirst.ElementView
