@@ -422,19 +422,15 @@ internal sealed class KnownSymbols
 
     private static bool IsAsciiLetter(char c) => c is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z');
 
-    /// <summary>Named attribute shortcut method name → attribute name.</summary>
-    /// <remarks>
-    /// The seven original entries (Href/Src/Alt/Id/Type/Title/Role) were hand-picked; every other entry
-    /// is derived by rule from the HTML Living Standard's <i>Index — Attributes</i>: a name qualifies when
-    /// it spells the attribute name it emits verbatim, its value is determinate as a single opaque string
-    /// or a boolean, and it emits exactly one attribute frame (ARCHITECTURE.md B.21 revisited, #490).
-    /// <c>class</c>/<c>style</c> are excluded (their own channel, #236/B.7, #321/B.22); <c>role</c> is not
-    /// in the standard's index (ARIA-sourced) and stays hand-picked; <c>data-*</c>/<c>aria-*</c> are
-    /// excluded (open namespace, #244/B.20). <c>KnownSymbolsSyncTests</c> pins agreement with
-    /// <c>Decorations</c>/<c>Decorations.Attributes.cs</c> in both directions.
-    /// </remarks>
+    /// <summary>Named attribute shortcut method name → attribute name, derived by rule from the HTML Living
+    /// Standard's <i>Index — Attributes</i> (ARCHITECTURE.md B.21 revisited, #490); <c>Role</c> is the one
+    /// hand-picked exception. The compiler owns this map; runtime declarations are kept in sync by
+    /// KnownSymbolsSyncTests.</summary>
     private static readonly Dictionary<string, string> AttributeShortcutNames = new(System.StringComparer.Ordinal)
     {
+        // Predate #490 (decided 2026-08-14, #321) and kept first for stability. Six of these seven also
+        // satisfy the rule below and are rule-derived like every other entry; only Role is not (it is
+        // ARIA-defined, not a row in the standard's own index) and is this table's one hand-picked entry.
         ["Href"] = "href",
         ["Src"] = "src",
         ["Alt"] = "alt",

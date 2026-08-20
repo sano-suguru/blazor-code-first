@@ -5,9 +5,12 @@ namespace BlazorCodeFirst;
 /// Standard <c>Index — Attributes</c> entry that spells its name verbatim, has a determinate
 /// string-or-boolean value shape, and emits exactly one attribute frame (ARCHITECTURE.md B.21
 /// revisited, #490). None of these restrict which element they may be written on -- the same
-/// choice <c>Href</c>/<c>Src</c>/<c>Alt</c> already made in <see cref="Decorations"/> -- so a
-/// name here is sugar over <see cref="Decorations.Attr(ElementView, string, string)"/> or its
-/// <see langword="bool"/> overload, never a new capability.
+/// choice this set already made for its own earliest six members (<c>Href</c>/<c>Src</c>/<c>Alt</c>/
+/// <c>Id</c>/<c>Type</c>/<c>Title</c>, hand-picked before #490 and rule-derived after it, same as
+/// every other member here) -- so a name here is sugar over
+/// <see cref="Decorations.Attr(ElementView, string, string)"/> or its <see langword="bool"/>
+/// overload, never a new capability. <c>Role</c> is the one entry that stays in
+/// <see cref="Decorations"/> itself: it is ARIA-defined, not a row in the standard's own index.
 /// </summary>
 public static partial class Decorations
 {
@@ -60,6 +63,12 @@ public static partial class Decorations
     /// attribute with an empty value, <see langword="false"/> omits it.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Alpha(this ElementView element, bool value) => element;
+
+    /// <summary>Design-time syntax setting the <c>alt</c> attribute.</summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Alt(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>as</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
@@ -365,6 +374,16 @@ public static partial class Decorations
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView High(this ElementView element, string? value) => element;
 
+    /// <summary>Design-time syntax setting the <c>href</c> attribute.</summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Href(
+        this ElementView element,
+        [System.Diagnostics.CodeAnalysis.StringSyntax(
+            System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
+        string? value) => element;
+
     /// <summary>Design-time syntax setting the <c>hreflang</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
@@ -376,6 +395,12 @@ public static partial class Decorations
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView HttpEquiv(this ElementView element, string? value) => element;
+
+    /// <summary>Design-time syntax setting the <c>id</c> attribute.</summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Id(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>imagesizes</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
@@ -779,6 +804,16 @@ public static partial class Decorations
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Spellcheck(this ElementView element, string? value) => element;
 
+    /// <summary>Design-time syntax setting the <c>src</c> attribute.</summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Src(
+        this ElementView element,
+        [System.Diagnostics.CodeAnalysis.StringSyntax(
+            System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
+        string? value) => element;
+
     /// <summary>Design-time syntax setting the <c>srcdoc</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
@@ -821,11 +856,23 @@ public static partial class Decorations
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Target(this ElementView element, string? value) => element;
 
+    /// <summary>Design-time syntax setting the <c>title</c> attribute.</summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Title(this ElementView element, string? value) => element;
+
     /// <summary>Design-time syntax setting the <c>translate</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView Translate(this ElementView element, string? value) => element;
+
+    /// <summary>Design-time syntax setting the <c>type</c> attribute.</summary>
+    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
+    /// <param name="value">The attribute value; any string expression.</param>
+    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
+    public static ElementView Type(this ElementView element, string? value) => element;
 
     /// <summary>Design-time syntax setting the <c>usemap</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>

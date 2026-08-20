@@ -28,51 +28,11 @@ public static partial class Decorations
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
     public static ElementView OnClick(this ElementView element, System.Action handler) => element;
 
-    /// <summary>Design-time syntax setting the <c>href</c> attribute.</summary>
-    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
-    /// <param name="value">The attribute value; any string expression.</param>
-    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Href(
-        this ElementView element,
-        [System.Diagnostics.CodeAnalysis.StringSyntax(
-            System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
-        string? value) => element;
-
-    /// <summary>Design-time syntax setting the <c>src</c> attribute.</summary>
-    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
-    /// <param name="value">The attribute value; any string expression.</param>
-    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Src(
-        this ElementView element,
-        [System.Diagnostics.CodeAnalysis.StringSyntax(
-            System.Diagnostics.CodeAnalysis.StringSyntaxAttribute.Uri)]
-        string? value) => element;
-
-    /// <summary>Design-time syntax setting the <c>alt</c> attribute.</summary>
-    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
-    /// <param name="value">The attribute value; any string expression.</param>
-    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Alt(this ElementView element, string? value) => element;
-
-    /// <summary>Design-time syntax setting the <c>id</c> attribute.</summary>
-    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
-    /// <param name="value">The attribute value; any string expression.</param>
-    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Id(this ElementView element, string? value) => element;
-
-    /// <summary>Design-time syntax setting the <c>type</c> attribute.</summary>
-    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
-    /// <param name="value">The attribute value; any string expression.</param>
-    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Type(this ElementView element, string? value) => element;
-
-    /// <summary>Design-time syntax setting the <c>title</c> attribute.</summary>
-    /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
-    /// <param name="value">The attribute value; any string expression.</param>
-    /// <returns>The same inert receiver; never evaluated at runtime.</returns>
-    public static ElementView Title(this ElementView element, string? value) => element;
-
-    /// <summary>Design-time syntax setting the <c>role</c> attribute.</summary>
+    /// <summary>
+    /// Design-time syntax setting the <c>role</c> attribute. Kept here rather than in
+    /// <c>Decorations.Attributes.cs</c>'s standard-derived set because <c>role</c> is ARIA-defined,
+    /// not a row in the HTML Living Standard's own attribute index (ARCHITECTURE.md B.21 revisited, #490).
+    /// </summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
     /// <param name="value">The attribute value; any string expression.</param>
     /// <returns>The same inert receiver; never evaluated at runtime.</returns>
