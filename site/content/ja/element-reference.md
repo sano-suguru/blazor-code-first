@@ -3,7 +3,7 @@ title: 要素リファレンス
 description: この API が宣言する要素ヘルパー、装飾、制御構文の一覧。空要素には印を付けている。
 order: 90
 group: reference
-source-hash: b6cf57b5
+source-hash: f5c912c9
 ---
 
 この API が宣言するものの一覧です。それぞれの意味は
@@ -70,13 +70,7 @@ source-hash: b6cf57b5
 | --- | --- |
 | `.Attr(name, value)` | 任意の属性を名前で |
 | `.Class(value)` | class のチャネル。畳まれる（[class のチャネル](./elements-and-decorations.md#class-のチャネル)） |
-| `.Id(value)` | `id` |
-| `.Title(value)` | `title` |
 | `.Role(value)` | `role` |
-| `.Type(value)` | `type` |
-| `.Src(value)` | `src` |
-| `.Alt(value)` | `alt` |
-| `.Href(value)` | `href` |
 | `.On(name, handler)` | 任意のイベントを名前で |
 | `.OnClick(handler)` | `onclick` |
 | `.PreventDefault()` | 直前のイベントの `preventDefault` |
@@ -85,9 +79,40 @@ source-hash: b6cf57b5
 | `.Key(value)` | 差分用のキー。マークアップには残らない（[制御構文](./control-flow.md#foreach-とそのキー)） |
 | `.Ref(capture)` | 要素参照。マークアップには残らない |
 
-名前の付いたものは略記であって、別の仕組みではありません。`.Id("x")` と `.Attr("id", "x")` は
-同じフレームを出し、どちらも同じチャネルを数えます
+ほかの装飾はすべて標準由来の属性ショートカットです。HTML Living Standard の属性名が C# の識別子に
+そのまま綴れるものへ、1つずつ対応します。`.Id(value)` は `id` を、`.HttpEquiv(value)` は
+`http-equiv` を書きます。142個あり、略記であって別の仕組みではありません。`.Id("x")` と
+`.Attr("id", "x")` は同じフレームを出し、どちらも同じチャネルを数えます
 （[BCF3010](./diagnostics.md#bcf3010)）。
+
+ショートカットが取る型は、Blazor が条件付き属性として読む属性なら `bool`（`true` で値の空な属性を
+書き、`false` で出しません）、それ以外は `string?` です。
+
+### 真偽値を取るもの
+
+`.Allowfullscreen`, `.Alpha`, `.Async`, `.Autofocus`, `.Autoplay`, `.Checked`, `.Controls`,
+`.Default`, `.Defer`, `.Disabled`, `.Formnovalidate`, `.Headingreset`, `.Inert`, `.Ismap`,
+`.Itemscope`, `.Loop`, `.Multiple`, `.Muted`, `.Nomodule`, `.Novalidate`, `.Open`, `.Playsinline`,
+`.Readonly`, `.Required`, `.Reversed`, `.Selected`, `.Shadowrootclonable`,
+`.Shadowrootcustomelementregistry`, `.Shadowrootdelegatesfocus`, `.Shadowrootserializable`
+
+### 文字列を取るもの
+
+`.Abbr`, `.Accept`, `.AcceptCharset`, `.Accesskey`, `.Action`, `.Allow`, `.Alt`, `.As`,
+`.Autocapitalize`, `.Autocomplete`, `.Autocorrect`, `.Blocking`, `.Charset`, `.Cite`, `.Closedby`,
+`.Color`, `.Colorspace`, `.Cols`, `.Colspan`, `.Command`, `.Commandfor`, `.Content`,
+`.Contenteditable`, `.Coords`, `.Crossorigin`, `.Data`, `.Datetime`, `.Decoding`, `.Dir`, `.Dirname`,
+`.Download`, `.Draggable`, `.Enctype`, `.Enterkeyhint`, `.Fetchpriority`, `.For`, `.Form`,
+`.Formaction`, `.Formenctype`, `.Formmethod`, `.Formtarget`, `.Headers`, `.Headingoffset`, `.Height`,
+`.Hidden`, `.High`, `.Href`, `.Hreflang`, `.HttpEquiv`, `.Id`, `.Imagesizes`, `.Imagesrcset`,
+`.Inputmode`, `.Integrity`, `.Is`, `.Itemid`, `.Itemprop`, `.Itemref`, `.Itemtype`, `.Kind`, `.Label`,
+`.Lang`, `.List`, `.Loading`, `.Low`, `.Max`, `.Maxlength`, `.Media`, `.Method`, `.Min`, `.Minlength`,
+`.Name`, `.Nonce`, `.Optimum`, `.Pattern`, `.Ping`, `.Placeholder`, `.Popover`, `.Popovertarget`,
+`.Popovertargetaction`, `.Poster`, `.Preload`, `.Referrerpolicy`, `.Rel`, `.Rows`, `.Rowspan`,
+`.Sandbox`, `.Scope`, `.Shadowrootmode`, `.Shadowrootslotassignment`, `.Shape`, `.Size`, `.Sizes`,
+`.Slot`, `.Span`, `.Spellcheck`, `.Src`, `.Srcdoc`, `.Srclang`, `.Srcset`, `.Start`, `.Step`,
+`.Tabindex`, `.Target`, `.Title`, `.Translate`, `.Type`, `.Usemap`, `.Value`, `.Width`, `.Wrap`,
+`.Writingsuggestions`
 
 ## 構文
 

@@ -146,8 +146,12 @@ protected override View Body =>
 <button class="btn btn-primary" title="Save the current document">Save</button>
 ```
 
-Available decorations are `.Class`, `.Id`, `.Href`, `.Src`, `.Alt`, `.Type`, `.Title`, `.Role`,
-`.OnClick`, and the general-purpose escape hatches `.Attr(name, value)` and `.On(eventName, handler)`.
+Available decorations are `.Class`, `.Role`, `.OnClick`, the general-purpose escape hatches
+`.Attr(name, value)` and `.On(eventName, handler)`, and 142 standard-derived shortcuts, among them
+`.Href`, `.Src`, `.Alt`, `.Type`, and `.Title` used above. Each standard-derived shortcut covers one
+HTML Living Standard attribute whose name spells directly as a C# identifier. [Element
+reference](./element-reference.md#decorations-on-an-element) lists all of them, split by whether
+they take `string?` or Blazor's conditional `bool`.
 
 `.On` takes the full attribute name including the `on` prefix (`.On("onmouseenter", …)`); nothing is
 prefixed for you, and a name without it reports [BCF3019](./diagnostics.md#bcf3019). The name given
@@ -181,7 +185,7 @@ under the formatting thread's culture rather than the one your component ran und
 yourself, where the culture is explicit:
 
 ```csharp
-Div.Attr("tabindex", index.ToString(CultureInfo.InvariantCulture))
+Div.Tabindex(index.ToString(CultureInfo.InvariantCulture))
 ```
 
 ### Handlers
@@ -190,7 +194,7 @@ A handler written as `Action` or `Func<Task>` receives nothing. To read the even
 parameter its type, and `.On` picks up the typed overload:
 
 ```csharp
-Input.Type("text").Attr("value", _name)
+Input.Type("text").Value(_name)
      .On("oninput", (ChangeEventArgs e) => _name = e.Value?.ToString() ?? "")
 ```
 
