@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using BlazorCodeFirst.Samples.HeighwayDragon;
 
 namespace BlazorCodeFirst.Samples.HeighwayDragon.Tests;
 

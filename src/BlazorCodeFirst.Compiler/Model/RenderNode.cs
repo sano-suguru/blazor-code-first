@@ -26,11 +26,14 @@ internal sealed record ExpansionNode(
 /// <see cref="LoopVariableName"/> is the generated iteration variable that content/key expressions
 /// were substituted onto.
 /// </summary>
+/// <param name="Source">The expression template producing the sequence iterated.</param>
 /// <param name="Key">
 /// The key expression applied to the content root with <c>SetKey</c>, or <see langword="null"/> when the
 /// author declined the key (#172). A declined key also lets the content root fold, because the fold check
 /// in <c>RenderViewEmitter.EmitNode</c> turns on a threaded key and nothing else.
 /// </param>
+/// <param name="Content">The loop body, with content/key expressions substituted onto <paramref name="LoopVariableName"/>.</param>
+/// <param name="LoopVariableName">The generated iteration variable name <paramref name="Content"/> and <paramref name="Key"/> were substituted onto.</param>
 internal sealed record ForEachNode(
     ExpressionTemplate Source,
     ExpressionTemplate? Key,
@@ -40,6 +43,8 @@ internal sealed record ForEachNode(
 /// <summary>A single statically-bound component parameter: its name and value expression template.</summary>
 /// <remarks>Shared by <see cref="ComponentTemplateNode"/> (holes intact) and <see cref="ComponentNode"/>
 /// (holes substituted). Symbol-free and value-equal.</remarks>
+/// <param name="Name">The component parameter's name.</param>
+/// <param name="Value">The expression template bound to the parameter.</param>
 /// <param name="ValueTypeName">
 /// The type <c>.Param</c> resolved its value to, fully qualified, or <see langword="null"/> where none can
 /// be written and for the parameters <c>.Bind</c> composes, which carry their own types already. The

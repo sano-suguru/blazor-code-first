@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-using BlazorCodeFirst.Build;
 using Microsoft.Build.Utilities;
 using Xunit;
 

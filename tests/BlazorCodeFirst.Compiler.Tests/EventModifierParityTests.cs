@@ -1,4 +1,3 @@
-using System;
 using BlazorCodeFirst.IntegrationTests.DiffCost;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;

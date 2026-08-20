@@ -1,5 +1,3 @@
-using BlazorCodeFirst;
-
 namespace BlazorCodeFirst.IntegrationTests.Components;
 
 public partial class SemanticShellComponent : BodyComponentBase

@@ -16,5 +16,10 @@
     <AnalysisLevel>latest-all</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- IDE0005 (unnecessary using) does not fire during build without this, regardless of its
+         .editorconfig severity (#105, https://github.com/dotnet/roslyn/issues/41640). It also turns
+         on CS1591 and its XML-doc-comment siblings repo-wide; .editorconfig suppresses those by
+         default and restores them only for src/, the code that ships in the package. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

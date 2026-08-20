@@ -91,11 +91,14 @@ internal sealed record ViewPartCallTemplateNode(
     public EquatableArray<ViewPartContentArgument> ContentArguments { get; init; }
 }
 
+/// <param name="Source">The expression template producing the sequence iterated.</param>
 /// <param name="Key">
 /// The key selector's transplanted body, or <see langword="null"/> when the author declined it by writing
 /// <c>null</c> (#172). A declined key emits no <c>SetKey</c>, is not asked about by BCF3002, and lifts
 /// BCF3003, which exists only because <c>SetKey</c> needs an element or component frame to attach to.
 /// </param>
+/// <param name="Content">The loop body template.</param>
+/// <param name="Location">The <c>ForEach</c> call's source location, blamed for BCF3002/BCF3003.</param>
 internal sealed record ForEachTemplateNode(
     ExpressionTemplate Source,
     ExpressionTemplate? Key,
@@ -206,6 +209,9 @@ internal sealed record AttributeTemplate(string Name, ExpressionTemplate Value);
 /// grounds that they would collide; Appendix B.5 records why that was withdrawn.
 /// </para>
 /// </remarks>
+/// <param name="AttributeName">The attribute carrying the current value.</param>
+/// <param name="EventName">The event writing the value back.</param>
+/// <param name="Value">The bound value expression, possibly still holding an unbound parameter hole in a <c>[ViewPart]</c> body.</param>
 /// <param name="ValueTypeName">
 /// The bound value's type, fully qualified with no special-type spellings. Read by the one setter shape
 /// whose binder needs a cast to name it.
@@ -346,6 +352,7 @@ internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderT
 /// this carries statements the author wrote.
 /// </para>
 /// </remarks>
+/// <param name="Statements">The block's statements, transplanted verbatim ahead of the returned expression.</param>
 /// <param name="LocalCount">
 /// How many locals this body declares as render variables, which is how many names expansion mints for it
 /// (#336). The statements are not the only source: a designation written in the returned expression binds
@@ -353,5 +360,6 @@ internal sealed record OpaqueViewTemplateNode(ExpressionTemplate Call) : RenderT
 /// Zero for a component's own expression, whose authored names stand as written. A count and not the
 /// names: the holes carry the ordinals, so the names exist only at expansion.
 /// </param>
+/// <param name="Content">The returned expression, classified as a node subtree.</param>
 internal sealed record TransplantedBlockTemplateNode(
     ExpressionTemplate Statements, RenderTemplateNode Content, int LocalCount) : RenderTemplateNode;

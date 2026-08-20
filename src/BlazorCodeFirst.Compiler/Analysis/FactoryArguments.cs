@@ -201,7 +201,8 @@ internal readonly struct FactoryArguments
     /// Unwraps the synthesized collection an expanded <c>params</c> bucket is modelled as, returning each
     /// child's own written expression, or <see langword="null"/> when the shape is unrecognized or an
     /// element's written expression cannot be recovered. A <c>params ReadOnlySpan&lt;View&gt;</c> is a
-    /// collection expression; a <c>params T[]</c> is an array creation. <see cref="Bind"/> propagates a
+    /// collection expression; a <c>params T[]</c> is an array creation.
+    /// <see cref="Bind(ImmutableArray{IArgumentOperation}, int, int)"/> propagates a
     /// <see langword="null"/> result to its own <see langword="null"/> return, so callers land on BCF1003
     /// rather than silently emitting a childless element.
     /// </summary>
@@ -305,7 +306,7 @@ internal readonly struct FactoryArguments
     /// which container holds a child's written expression, and because the syntax records what the author
     /// wrote whether or not the spread's operand bound. No input was found where the two keys disagree: a
     /// spread with an unbound operand was measured to make the entire element access an
-    /// <c>IInvalidOperation</c>, so <see cref="Bind"/> returns before any element is examined.
+    /// <c>IInvalidOperation</c>, so <see cref="Bind(ElementAccessExpressionSyntax, ViewPartBodyContext)"/> returns before any element is examined.
     /// </para>
     /// <para>
     /// The walk also stops at the containers of those containers, a

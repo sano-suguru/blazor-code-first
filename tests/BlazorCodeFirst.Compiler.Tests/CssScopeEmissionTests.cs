@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace BlazorCodeFirst.Compiler.Tests;
 
 public class CssScopeEmissionTests

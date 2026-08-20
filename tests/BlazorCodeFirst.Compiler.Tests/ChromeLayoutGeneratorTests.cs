@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Threading.Tasks;
 using BlazorCodeFirst.Compiler.Diagnostics;
 
 namespace BlazorCodeFirst.Compiler.Tests;

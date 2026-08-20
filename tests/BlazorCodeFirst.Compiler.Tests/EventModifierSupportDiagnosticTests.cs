@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Globalization;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 
 namespace BlazorCodeFirst.Compiler.Tests;

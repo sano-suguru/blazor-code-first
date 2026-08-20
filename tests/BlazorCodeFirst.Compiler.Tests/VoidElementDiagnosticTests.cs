@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Linq;
 using BlazorCodeFirst.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
 

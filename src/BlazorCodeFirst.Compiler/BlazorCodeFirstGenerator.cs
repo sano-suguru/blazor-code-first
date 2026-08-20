@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler.Analysis;
 using BlazorCodeFirst.Compiler.Diagnostics;
@@ -17,6 +16,7 @@ namespace BlazorCodeFirst.Compiler;
 [Generator(LanguageNames.CSharp)]
 public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
 {
+    /// <inheritdoc />
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Reads every .cs.css file's CssScope metadata (stamped by BlazorCodeFirst.Build's

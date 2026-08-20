@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -415,12 +414,14 @@ internal static class ExpressionTemplateFactory
             context.SemanticModel.GetSymbolInfo(name, context.CancellationToken).Symbol,
             context);
 
+    /// <param name="name">The identifier to check for an unresolved type.</param>
     /// <param name="alias">
     /// <paramref name="name"/>'s alias info, already read by the caller.
     /// </param>
     /// <param name="symbol">
     /// The symbol <paramref name="name"/> binds to, already read by the caller.
     /// </param>
+    /// <param name="context">The body context to report BCF3015 against.</param>
     private static bool TryReportUnresolvedType(
         SimpleNameSyntax name,
         IAliasSymbol? alias,

@@ -10,6 +10,18 @@ indent_style = space
 indent_size = 4
 dotnet_sort_system_directives_first = true
 csharp_style_namespace_declarations = file_scoped:warning
+dotnet_diagnostic.IDE0005.severity = warning
+
+# XML doc comments are not a repo-wide requirement; GenerateDocumentationFile is on everywhere
+# only so IDE0005 fires during build (it does not fire without it, see Directory.Build.props). Doc
+# coverage is restored to warning for the shipped src/ projects below (Runtime/Compiler/Build);
+# everywhere else -- above all tests/, where public visibility exists for xUnit discovery, not
+# as a real API surface -- would otherwise demand a comment on every test method for no reader.
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.CS1573.severity = none
+dotnet_diagnostic.CS1574.severity = none
+dotnet_diagnostic.CS1734.severity = none
+dotnet_diagnostic.CS0419.severity = none
 
 # CA1724: the 'Html' type intentionally shares a name with widely used HTML helper types
 # elsewhere in .NET, none of which this project targets or references. The short name is a
@@ -194,6 +206,15 @@ dotnet_diagnostic.CA1001.severity = none
 dotnet_diagnostic.BL0006.severity = none
 
 # Production code: banned-API usage (reflection / runtime expression compilation) is a
-# hard error, guarding the trimming/AOT-safe contract.
+# hard error, guarding the trimming/AOT-safe contract. Every project under src/ ships inside the
+# BlazorCodeFirst package one way or another (Runtime as the referenced lib, Compiler and Build as
+# the analyzer and MSBuild task payloads), so this is also where the [*.cs] doc-comment suppression
+# above is lifted: a missing or malformed XML doc comment here is a real gap in shipped API, not
+# repo-wide noise.
 [src/**/*.cs]
 dotnet_diagnostic.RS0030.severity = error
+dotnet_diagnostic.CS1591.severity = warning
+dotnet_diagnostic.CS1573.severity = warning
+dotnet_diagnostic.CS1574.severity = warning
+dotnet_diagnostic.CS1734.severity = warning
+dotnet_diagnostic.CS0419.severity = warning

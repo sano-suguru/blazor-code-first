@@ -1,4 +1,3 @@
-using BlazorCodeFirst.Site.DocGen;
 using Xunit;
 
 namespace BlazorCodeFirst.Site.DocGen.Tests;

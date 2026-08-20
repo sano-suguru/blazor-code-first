@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
 

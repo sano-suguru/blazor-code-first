@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Text;
 
@@ -92,6 +91,7 @@ internal sealed record ContentArgument(
 /// The expression text. Empty for a content entry, whose hole is a node position and not a value; nothing
 /// reads it there, and <see cref="ExpressionTemplate.Substitute"/> throws rather than emitting it.
 /// </param>
+/// <param name="Constant">The expression's compile-time constant, or <see langword="null"/> when it has none.</param>
 internal readonly record struct SubstitutedArgument(string Code, ConstantInfo? Constant)
 {
     /// <summary>

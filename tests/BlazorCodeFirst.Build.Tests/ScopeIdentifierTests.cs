@@ -1,4 +1,3 @@
-using BlazorCodeFirst.Build;
 using Xunit;
 
 namespace BlazorCodeFirst.Build.Tests;

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using BlazorCodeFirst.IntegrationTests.Components;
 using Bunit;
 using Microsoft.AspNetCore.Components;

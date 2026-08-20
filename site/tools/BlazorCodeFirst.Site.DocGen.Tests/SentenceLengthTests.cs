@@ -1,5 +1,4 @@
 using System.Globalization;
-using BlazorCodeFirst.Site.DocGen;
 using Xunit;
 
 namespace BlazorCodeFirst.Site.DocGen.Tests;

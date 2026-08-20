@@ -1,5 +1,3 @@
-using System;
-
 namespace BlazorCodeFirst.Build;
 
 /// <summary>
@@ -10,6 +8,12 @@ namespace BlazorCodeFirst.Build;
 /// </summary>
 public static class CssLexer
 {
+    /// <summary>
+    /// Returns the index past the string literal or comment starting at <paramref name="i"/>, or
+    /// <paramref name="i"/> itself if neither starts there.
+    /// </summary>
+    /// <param name="css">The CSS source being scanned.</param>
+    /// <param name="i">The index to check for a string literal or comment.</param>
     public static int SkipLiteral(string css, int i)
     {
         if (css is null)

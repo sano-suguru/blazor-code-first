@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Text;
 using BlazorCodeFirst.Compiler.Analysis;
@@ -61,14 +60,18 @@ internal static class ViewPartExpander
         return new ExpansionResult(node, diagnostics.ToImmutable());
     }
 
+    /// <param name="node">The template node being expanded.</param>
     /// <param name="substitution">
     /// The arguments bound to the enclosing view part's parameter holes, code plus constant; empty at the
     /// component's design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
     /// </param>
+    /// <param name="nextLogicalPreorderOrdinal">The next logical preorder ordinal to assign, advanced by one for this node before its subtree is visited.</param>
     /// <param name="activeMethodStack">
     /// The method keys currently being expanded along this path, used for cycle detection. Sibling calls
     /// to the same view part are not cycles because each branch receives an independent immutable stack.
     /// </param>
+    /// <param name="currentScope">The <c>.cs.css</c> scope currently in effect, threaded through view part calls.</param>
+    /// <param name="environment">The registry, inheritance keys, CSS scopes, and diagnostics shared across the whole expansion.</param>
     private static RenderNode? ExpandNode(
         RenderTemplateNode node,
         ImmutableArray<SubstitutedArgument> substitution,

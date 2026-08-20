@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using BlazorCodeFirst.Compiler.Analysis;
@@ -85,7 +84,7 @@ internal static class StaticMarkupSerializer
     /// separate counting pass would be a second implementation of that rule and free to disagree with this
     /// one. Returning the count rather than the string lets <c>RenderViewEmitter</c> learn it, discover the
     /// fold is not worth taking, and abandon the builder without paying for the copy
-    /// <see cref="StringBuilder.ToString"/> makes — which is what the discarded case always was.
+    /// <see cref="StringBuilder.ToString()"/> makes — which is what the discarded case always was.
     /// </remarks>
     public static int WriteTo(StringBuilder builder, ImmutableArray<RenderNode> run)
     {

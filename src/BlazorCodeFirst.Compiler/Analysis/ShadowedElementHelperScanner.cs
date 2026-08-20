@@ -1,4 +1,3 @@
-using System.Linq;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

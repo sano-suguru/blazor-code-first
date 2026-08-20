@@ -1,6 +1,4 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using BlazorCodeFirst.Compiler.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -1601,7 +1599,7 @@ internal static class UnresolvedValueTypeScanner
         /// reported a bare BCF1003 and never named the value that could not be moved into generated code
         /// (#75). Reached when the element access itself has no operation, an unbound spread beside the
         /// children is the measured route, since that makes the whole element access an invalid operation
-        /// and <see cref="FactoryArguments.Bind"/> returns before any element is examined.
+        /// and <see cref="FactoryArguments.Bind(ElementAccessExpressionSyntax, ViewPartBodyContext)"/> returns before any element is examined.
         /// </remarks>
         public static BoundArguments? TryBindFallback(
             BaseArgumentListSyntax argumentList,

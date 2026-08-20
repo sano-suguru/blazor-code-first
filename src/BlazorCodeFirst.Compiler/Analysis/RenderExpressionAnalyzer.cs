@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using BlazorCodeFirst.Compiler.Diagnostics;
@@ -2072,11 +2071,16 @@ internal static class RenderExpressionAnalyzer
     /// Offers <paramref name="value"/> to <paramref name="element"/>'s class channel, adding it when the
     /// channel admits it and reporting the refusal otherwise.
     /// </summary>
+    /// <param name="invocation">The <c>.Class</c>/<c>.Attr("class", …)</c> invocation, blamed when the channel refuses <paramref name="value"/>.</param>
+    /// <param name="decoAccess">The decoration's member access, blamed for a name already bound to the channel.</param>
+    /// <param name="element">The element <paramref name="value"/> would fold onto.</param>
     /// <param name="valueType">
     /// The type of the value parameter on the resolved overload, which is what the channel admits or
     /// refuses on. Passed rather than derived here, because the caller has already had to derive it to
     /// find the value argument at all.
     /// </param>
+    /// <param name="value">The decoration's value, normalized and appended to the channel when admitted.</param>
+    /// <param name="context">The body context BCF3023/BCF3024 are reported against.</param>
     /// <remarks>
     /// Both spellings that fold — <c>.Class</c> and <c>.Attr("class", …)</c> — arrive here, so every rule
     /// about the channel is asked once and the answer does not depend on which of them was used.
@@ -2116,7 +2120,6 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// <summary>
     /// Records a <c>.RenderMode</c> on <paramref name="component"/>, or reports why it cannot be recorded.
     /// </summary>
     /// <remarks>
@@ -2135,12 +2138,18 @@ internal static class RenderExpressionAnalyzer
     /// splitting on which branch the analyzer could fold.
     /// </para>
     /// <para>
-    /// BCF3034 reads the attribute off <typeparamref name="TComponent"/> taken from the constructed
+    /// BCF3034 reads the attribute off <c>TComponent</c> taken from the constructed
     /// <c>ComponentView&lt;TComponent&gt;</c>, the same place the component binding takes it from and for
     /// the same reason: it is the type the author wrote. Attributes ride in metadata, so a component from a
     /// referenced assembly answers as well as one declared in this compilation.
     /// </para>
     /// </remarks>
+    /// <param name="invocation">The <c>.RenderMode</c> invocation, blamed for BCF3033/BCF3034.</param>
+    /// <param name="paramAccess">The decoration's member access, passed through to <see cref="ReportDuplicateFrameDecoration"/>.</param>
+    /// <param name="method">The resolved <c>.RenderMode</c> overload, whose containing type supplies the constructed <c>TComponent</c>.</param>
+    /// <param name="component">The component the render mode would be recorded on.</param>
+    /// <param name="modeArg">The render mode argument syntax.</param>
+    /// <param name="context">The body context BCF3033/BCF3034 are reported against.</param>
     private static ComponentTemplateNode? ClassifyComponentRenderMode(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax paramAccess,
@@ -2454,11 +2463,17 @@ internal static class RenderExpressionAnalyzer
     /// Classifies <c>.Bind(selector, get)</c> and its explicit-setter forms onto <paramref name="inner"/>,
     /// appending the two or three component parameters the binding lowers to, or reports why it cannot be.
     /// </summary>
+    /// <param name="invocation">The <c>.Bind</c> invocation, blamed for BCF3020.</param>
+    /// <param name="method">The resolved <c>.Bind</c> overload, whose containing type supplies the constructed <c>TComponent</c>.</param>
+    /// <param name="inner">The component the binding would be recorded on.</param>
     /// <param name="property">The parameter the selector resolved to, already checked by the shared
     /// <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue for BCF3005, BCF3006 and BCF3007.</param>
+    /// <param name="selector">The property-selector lambda's body expression.</param>
+    /// <param name="args">The shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue's resolved arguments.</param>
     /// <param name="getterArg">The getter argument, already required non-<see langword="null"/> by the same
     /// shared prologue (as <c>valueArg</c>); passed through rather than re-derived from <paramref
     /// name="args"/>.</param>
+    /// <param name="context">The body context BCF3020 is reported against.</param>
     /// <remarks>
     /// <para>
     /// Where the element surface makes the author write both names, this one derives them:
@@ -2480,7 +2495,7 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// <para>
     /// The duplicate check the shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue runs (see the
-    /// caller) spans <c>{name}</c> and, via <see cref="HasBinding"/> just above, <c>{name}Changed</c> — but
+    /// caller) spans <c>{name}</c> and, via <see cref="HasBinding(ComponentTemplateNode, string)"/> just above, <c>{name}Changed</c> — but
     /// not <c>{name}Expression</c>. So
     /// <c>.Param(c =&gt; c.ValueExpression, …).Bind(c =&gt; c.Value, …)</c>, written in that order, does not
     /// become BCF3007: both calls append a <c>ValueExpression</c> parameter frame, and the later one silently
@@ -2660,6 +2675,8 @@ internal static class RenderExpressionAnalyzer
     /// <c>Create(this, ...)</c> overload.
     /// </param>
     /// <param name="castTypeName">The delegate type <paramref name="expr"/> is cast to before it is passed.</param>
+    /// <param name="expr">The setter or getter expression wrapped, still holding an unbound parameter hole in a <c>[ViewPart]</c> body.</param>
+    /// <param name="context">The body context <paramref name="expr"/>'s segments are built against.</param>
     private static ImmutableArray<ExpressionSegment> WrapInEventCallbackFactory(
         string? valueTypeName, string castTypeName, ExpressionSyntax expr, ViewPartBodyContext context) =>
         [
@@ -3195,6 +3212,9 @@ internal static class RenderExpressionAnalyzer
     }
 
 
+    /// <param name="invocation">The view part call whose arguments are classified.</param>
+    /// <param name="method">The resolved view part method the call's arguments are matched against.</param>
+    /// <param name="context">The body context each argument expression is analyzed against.</param>
     /// <param name="contentArguments">
     /// The call's <c>View</c>-typed arguments, its additional content slots (#34), classified as node subtrees
     /// rather than as expressions. Empty for a call that has none, which is every call to a part declared
@@ -3567,6 +3587,8 @@ internal static class RenderExpressionAnalyzer
     /// Resolves the name a decoration targets, reporting BCF3011 when a non-shortcut spelling names it with
     /// something that is not a constant.
     /// </summary>
+    /// <param name="invocation">The decoration call, blamed for BCF3011.</param>
+    /// <param name="firstArg">The name argument syntax, read when <paramref name="shortcutName"/> is <see langword="null"/>.</param>
     /// <param name="shortcutName">
     /// The name a named shortcut implies (<c>.Href</c> → <c>href</c>, <c>.OnClick</c> → <c>onclick</c>),
     /// or <see langword="null"/> for the generic <c>.Attr</c>/<c>.On</c> spellings that take the name as
@@ -3574,6 +3596,8 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="KnownSymbols.AttributeShortcuts"/> or <see cref="KnownSymbols.EventShortcuts"/>, whose
     /// values are never null.
     /// </param>
+    /// <param name="context">The body context BCF3011 is reported against.</param>
+    /// <param name="name">The resolved attribute/event name.</param>
     /// <remarks>
     /// The attribute channel and the event channel ask the same question here and must answer it the same
     /// way: the two ladders this replaces were an eighteen-line transcription of each other, so a change to
@@ -3735,6 +3759,8 @@ internal static class RenderExpressionAnalyzer
     /// <c>[Parameter]</c> of a fragment type, either the non-generic <c>RenderFragment</c> or a
     /// <c>RenderFragment&lt;TContext&gt;</c>. A false answer is what BCF3013 reports.
     /// </summary>
+    /// <param name="componentType">The component type searched for a <c>ChildContent</c> parameter.</param>
+    /// <param name="context">The body context, whose <see cref="KnownSymbols"/> resolve the fragment type checked against.</param>
     /// <param name="contextTypeName">
     /// The fragment's context type when it is generic, and <see langword="null"/> when it is not. The search
     /// has to prove the arity to accept the property at all, so it hands the answer back rather than leaving

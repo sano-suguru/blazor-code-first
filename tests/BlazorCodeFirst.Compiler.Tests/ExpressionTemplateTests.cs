@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using BlazorCodeFirst.Compiler;
 using BlazorCodeFirst.Compiler.Analysis;
 
 namespace BlazorCodeFirst.Compiler.Tests;

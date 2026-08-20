@@ -1,4 +1,3 @@
-using System;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -11,6 +10,10 @@ namespace BlazorCodeFirst.Build;
 /// </summary>
 public static class ScopeIdentifier
 {
+    /// <summary>Computes the <c>bcf-xxxxxxxx</c> scope identifier for one component's scoped CSS file.</summary>
+    /// <param name="projectDirectory">The consuming project's directory, the base <paramref name="cssFilePath"/> is made relative to.</param>
+    /// <param name="cssFilePath">The scoped CSS file's full path.</param>
+    /// <param name="assemblyName">The consuming project's assembly name, mixed into the hash input.</param>
     public static string Compute(string projectDirectory, string cssFilePath, string assemblyName)
     {
         // Not ArgumentNullException.ThrowIfNull: that static helper is .NET 6+ only, and this

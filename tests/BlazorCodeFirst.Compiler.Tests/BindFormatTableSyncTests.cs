@@ -1,8 +1,5 @@
-using System.Collections.Generic;
-using System.Linq;
 using BlazorCodeFirst.Compiler.Analysis;
 using Microsoft.CodeAnalysis;
-using Xunit;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 

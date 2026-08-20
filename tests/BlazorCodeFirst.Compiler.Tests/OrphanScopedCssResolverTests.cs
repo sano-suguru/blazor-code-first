@@ -1,5 +1,4 @@
 using BlazorCodeFirst.Compiler.Analysis;
-using Xunit;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
