@@ -662,7 +662,7 @@ public sealed class BracketSurfaceDiagnosticTests
     [Theory]
     [InlineData("""Div[_children, Other.Make().Class(1)]""")]
     [InlineData("""Div[_children, Fragment("a").Describe("x")]""")]
-    [InlineData("""Div[_children, Fragment("a").Wrap(1)]""")]
+    [InlineData("""Div[_children, Fragment("a").Frobnicate(1)]""")]
     [InlineData("""Div[_children, Other.MakeBin().Id(1)]""")]
     public void UnrelatedFailedExtension_IsNotBCF3008(string body)
     {
@@ -678,7 +678,7 @@ public sealed class BracketSurfaceDiagnosticTests
                     public static Box Make() => new();
                     public static string Class(this Box box, string value) => value;
                     public static string Describe(this View view, int value) => value.ToString();
-                    public static ElementView Wrap(this View content, string tag) => Html.Div;
+                    public static ElementView Frobnicate(this View content, string tag) => Html.Div;
 
                     public sealed class Bin;
                     public static Bin MakeBin() => new();
