@@ -110,13 +110,13 @@ public sealed partial class AnchorFilter : BodyComponentBase
             var matches = Matches(all);
             var shell = Docs.Shell(Entry.Lang);
             return Div.Class("anchor-filter")[
-                Label.Class("anchor-filter-label").Attr("for", InputId)[
+                Label.Class("anchor-filter-label").For(InputId)[
                     shell.AnchorFilterLabel],
                 Input
                     .Id(InputId)
                     .Type("search")
                     .Class("anchor-filter-input")
-                    .Attr("autocomplete", "off")
+                    .Autocomplete("off")
                     .Bind("value", "oninput", () => _filter),
                 Div.Class("visually-hidden").Attr("role", "status").Attr("aria-live", "polite")[
                     FormatCount(shell.AnchorFilterCount, matches.Length, all.Length)],
