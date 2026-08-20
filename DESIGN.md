@@ -436,7 +436,7 @@ When a **value** of `RenderFragment<TContext>` is already in hand, pass it direc
 
 ## 7. Performance characteristics
 
-The figures in §7.1 and §7.2 are measured values. The measurement procedure is recorded in `CONTRIBUTING.md` §Build and test, and every comparison mechanically verifies frame-sequence equivalence before measuring (it fails, producing no figure, if they are not equivalent). §7.3, and any spot in this chapter explicitly marked (predicted), are unmeasured.
+The figures in §7.1, §7.2, and §7.4 are measured values. The measurement procedure for each is recorded in `CONTRIBUTING.md` §Build and test. §7.1 and §7.2 mechanically verify frame-sequence equivalence before measuring (a comparison fails, producing no figure, if the two sides are not equivalent); §7.4 verifies a structural claim (the `Cached` count) instead. §7.3, and any spot in this chapter explicitly marked (predicted), are unmeasured.
 
 ### 7.1 Render cost and GC allocation
 
@@ -486,6 +486,14 @@ The number of rows discarded in the unkeyed case depends on a structural conditi
 ### 7.3 Wasm binary size
 
 Because every mechanism, including parameter binding, is reflection-free (zero runtime dependency on `System.Reflection` / `System.Linq.Expressions`), the IL trimmer can remove unused code. With `TrimMode=full` and `ILLinkTreatWarningsAsErrors=true` enabled, the design removes the design-time getters' (`Body` / `Chrome`) and any unreachable design-time API's MethodDef at the metadata level. Compared with an equivalent library that uses reflection-based binding, this is projected to cut the AOT-compiled Wasm payload by roughly 20-30% (predicted). Against a plain Razor configuration, it is nearly identical.
+
+### 7.4 Incremental generation cost of a view-part edit
+
+The `registry` (`ViewPartRegistry`) and `cssScopeRegistry` single-value providers are each `Combine`d onto `analyses` in `BlazorCodeFirstGenerator.modelResults`. Because Roslyn's `Combine` compares the combined tuple as a unit, a change to either provider's value re-runs `ComponentModelFactory.Expand` for every component in the compilation, not only the ones that call the changed view part.
+
+`RegistryBroadcastCostTests` measures this against a corpus of N components × 3 view parts. An offset-only edit to one view part file (a leading blank line, which shifts every `TemplateLocation` its `ForEach` body carries but changes no semantics) leaves zero `ComponentModeling` outputs `Cached` at N = 10 / 100 / 1000 — every one of the N components reports `Unchanged` (`EquatableArray` value equality keeps the generated source itself stable, but `Expand` still re-ran to reach that verdict).
+
+Wall-clock cost for this same edit, measured against a same-shape control edit to an unrelated component file, grows with N: sub-millisecond at N=10, and tens to low hundreds of milliseconds at N=1000. Point figures are not published here, for the same reason §7.1 excludes execution time — the delta's variance is large and machine-dependent. Reproduce it with the `RegistryBroadcastCostTests` command in `CONTRIBUTING.md` §Build and test.
 
 ---
 
