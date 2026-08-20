@@ -1299,7 +1299,12 @@ internal static class RenderExpressionAnalyzer
             // The Reject call below is a stryker survivor for the same reason: every currently declared
             // event method's KnownSymbols entry keeps the remark above's "exactly one of the two" true, so
             // this condition has no live route to its true branch, and hand-applying the call's removal
-            // left both test projects unchanged.
+            // left both test projects unchanged. Flipping the || to && is measured equivalent for the same
+            // reason rather than a second, independent finding: !TryGetEventParameters(method, ...) is
+            // itself always false for a method this arm's own `kind` check already proved is a declared
+            // event method, so both spellings reduce to the same right-hand comparison, which the same
+            // "exactly one of the two" invariant keeps false. Confirmed by hand-applying the flip and
+            // running both test projects unchanged.
             if (!KnownSymbols.TryGetEventParameters(method, out var eventParameters)
                 || (shortcutName is not null) == (eventParameters.EventNameIndex == 0))
             {
