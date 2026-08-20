@@ -3535,6 +3535,13 @@ internal static class RenderExpressionAnalyzer
                 if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, parameterAttribute))
                 {
                     hasParameterAttribute = true;
+
+                    // Mutating this break away is a stryker survivor, measured equivalent rather than
+                    // assumed: removing it and running BlazorCodeFirst.Compiler.Tests and
+                    // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. The outer for
+                    // loop's own condition already stops at the next iteration once hasParameterAttribute
+                    // is true, so this break only skips redundant re-checks of the same property's
+                    // remaining attributes -- nothing downstream can observe whether it ran.
                     break;
                 }
             }
