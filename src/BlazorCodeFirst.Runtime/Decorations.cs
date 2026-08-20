@@ -14,7 +14,7 @@ namespace BlazorCodeFirst;
 /// (<c>Div.Class("card")["text"]</c>), so the builder's own indexer is reserved for the children
 /// channel and decorations attach from the outside.
 /// </remarks>
-public static class Decorations
+public static partial class Decorations
 {
     /// <summary>Design-time syntax adding a CSS class to the owning element's <c>class</c> attribute.</summary>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
