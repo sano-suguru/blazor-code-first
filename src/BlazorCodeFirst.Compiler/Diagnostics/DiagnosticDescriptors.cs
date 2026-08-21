@@ -191,6 +191,23 @@ internal static class DiagnosticDescriptors
             "supported. Move the component to a top-level type.");
 
     /// <summary>
+    /// BCF1006: a <c>static ElementView</c> property referenced as an element tag alias (#173) is declared
+    /// in a referenced assembly, so its declaration syntax is not visible to resolve. Same-compilation-only
+    /// constraint, the same shape BCF1002 already applies to a <c>[ViewPart]</c> call site.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF1006 = new(
+        id: "BCF1006",
+        title: "Element tag alias is declared outside this compilation",
+        messageFormat: "'{0}' cannot be resolved as an element tag alias because its declaration is not in this compilation",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A static ElementView property used as an element tag alias must be declared in the current " +
+            "compilation: the generator resolves its tag by reading the declaration's own syntax, which a " +
+            "referenced assembly does not carry.");
+
+    /// <summary>
     /// BCF2001: A call the generator cannot expand statically. It becomes a dynamic region and the static
     /// diff optimization for that area is lost.
     /// </summary>
