@@ -13,7 +13,7 @@
        as well keeps the packed version and the assembly version in step; the SDK only computes it
        when it is unset. -->
   <PropertyGroup>
-    <BlazorCodeFirstPackageVersion>0.1.0-preview.1</BlazorCodeFirstPackageVersion>
+    <BlazorCodeFirstPackageVersion>0.1.0-preview.2</BlazorCodeFirstPackageVersion>
     <Version>$(BlazorCodeFirstPackageVersion)</Version>
   </PropertyGroup>
 
