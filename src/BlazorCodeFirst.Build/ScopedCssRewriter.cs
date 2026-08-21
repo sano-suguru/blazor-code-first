@@ -227,11 +227,11 @@ public static class ScopedCssRewriter
         while (i < preludeEnd && (char.IsLetterOrDigit(css[i]) || css[i] == '-'))
             i++;
 
-        i = SkipWhitespaceAndComments(css, i, preludeEnd);
+        i = SkipInsignificant(css, i, preludeEnd, stopAtQuote: true);
 
-        if (i < preludeEnd && css[i] is '"' or '\'')
+        if (i < preludeEnd && IsQuoteChar(css[i]))
         {
-            var closingQuote = FindStringEnd(css, i, preludeEnd, css[i]);
+            var closingQuote = FindStringEnd(css, i, preludeEnd);
             return closingQuote is { } q && q > i + 1 ? new TextSpan(i, q + 1) : null;
         }
 
@@ -243,12 +243,12 @@ public static class ScopedCssRewriter
     }
 
     private static string ExtractKeyframeName(string css, TextSpan range) =>
-        css[range.Start] is '"' or '\''
+        IsQuoteChar(css[range.Start])
             ? css.Substring(range.Start + 1, range.End - range.Start - 2)
             : css.Substring(range.Start, range.End - range.Start);
 
     private static int KeyframeNameSuffixInsertionPoint(string css, TextSpan range) =>
-        css[range.Start] is '"' or '\'' ? range.End - 1 : range.End;
+        IsQuoteChar(css[range.Start]) ? range.End - 1 : range.End;
 
     private static (int Line, int Column) LocateLineColumn(string css, int index)
     {
@@ -387,20 +387,13 @@ public static class ScopedCssRewriter
             // A <keyframes-name> value may be quoted (e.g. animation: "spin" 2s;), same as the
             // @keyframes declaration itself -- handled before the generic literal-skip below so
             // its content is matched against keyframeNames instead of skipped as opaque text.
-            if (c is '"' or '\'')
+            if (IsQuoteChar(c))
             {
-                var closingQuote = FindStringEnd(css, i, end, c);
-                if (closingQuote is { } q)
-                {
-                    if (q > i + 1 && keyframeNames.Contains(css.Substring(i + 1, q - i - 1)))
-                        edits.Add(new Edit(q, EditKind.InsertSuffix));
-                    i = q + 1;
-                }
-                else
-                {
-                    i = end;
-                }
+                var closingQuote = FindStringEnd(css, i, end);
+                if (closingQuote is { } q && q > i + 1 && keyframeNames.Contains(css.Substring(i + 1, q - i - 1)))
+                    edits.Add(new Edit(q, EditKind.InsertSuffix));
 
+                i = (closingQuote ?? end - 1) + 1;
                 continue;
             }
 
@@ -537,30 +530,15 @@ public static class ScopedCssRewriter
 
     // ---- Small shared scanning helpers -------------------------------------------------------
 
-    private static int SkipInsignificant(string css, int start, int end)
+    // `stopAtQuote` is for a caller that needs to recognize a quoted token (rather than treat it
+    // as opaque, skippable literal) -- it stops right before the quote instead of skipping the
+    // string it opens.
+    private static int SkipInsignificant(string css, int start, int end, bool stopAtQuote = false)
     {
         var i = start;
         while (i < end)
         {
-            var skipped = CssLexer.SkipLiteral(css, i);
-            if (skipped != i) { i = skipped; continue; }
-
-            if (char.IsWhiteSpace(css[i])) { i++; continue; }
-            break;
-        }
-
-        return i;
-    }
-
-    // Like SkipInsignificant, but stops at a quote instead of skipping the string it opens --
-    // callers that need to recognize a quoted token (rather than treat it as opaque, skippable
-    // literal) use this instead.
-    private static int SkipWhitespaceAndComments(string css, int start, int end)
-    {
-        var i = start;
-        while (i < end)
-        {
-            if (css[i] is '"' or '\'')
+            if (stopAtQuote && IsQuoteChar(css[i]))
                 break;
 
             var skipped = CssLexer.SkipLiteral(css, i);
@@ -573,21 +551,17 @@ public static class ScopedCssRewriter
         return i;
     }
 
-    // Mirrors CssLexer.SkipString's escape handling, but bounded by `end` and returning the
-    // closing quote's index (or null if unterminated within that bound) instead of one past it --
-    // callers need the closing quote's own position to insert a suffix immediately before it.
-    private static int? FindStringEnd(string css, int quoteIndex, int end, char quote)
+    // Delegates to CssLexer.SkipLiteral for the escape-aware string walk, converting its "one
+    // past the closing quote" result into the closing quote's own index bounded by `end` (or
+    // null if the string doesn't close within that bound) -- callers need that position to
+    // insert a suffix immediately before the quote.
+    private static int? FindStringEnd(string css, int quoteIndex, int end)
     {
-        var i = quoteIndex + 1;
-        while (i < end)
-        {
-            if (css[i] == '\\' && i + 1 < end) { i += 2; continue; }
-            if (css[i] == quote) return i;
-            i++;
-        }
-
-        return null;
+        var afterQuote = CssLexer.SkipLiteral(css, quoteIndex);
+        return afterQuote <= end ? afterQuote - 1 : null;
     }
+
+    private static bool IsQuoteChar(char c) => c is '"' or '\'';
 
     private static bool IsWhitespace(char c) => c is ' ' or '\t' or '\n' or '\r' or '\f';
 
