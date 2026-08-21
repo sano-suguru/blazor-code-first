@@ -43,7 +43,8 @@ internal static class ViewPartDefinitionFactory
 
         // The body's shape is read once, here, and the answer travels: reading it again inside the build
         // would walk the whole block a second time on every keystroke to reach the same two values.
-        var bodyAccepted = TryReadBody(declaration, out var bodyExpression, out var bodyStatements);
+        var bodyAccepted = TryReadBody(
+            declaration, out var bodyExpression, out var bodyIf, out var bodyStatements);
 
         var invalidReason = ValidateDeclaration(method, bodyAccepted, knownSymbols);
         if (invalidReason is not null)
@@ -54,6 +55,7 @@ internal static class ViewPartDefinitionFactory
             method,
             declaration,
             bodyExpression,
+            bodyIf,
             bodyStatements,
             knownSymbols!,
             cancellationToken,
@@ -176,10 +178,12 @@ internal static class ViewPartDefinitionFactory
     /// </summary>
     private static bool TryReadBody(
         MethodDeclarationSyntax declaration,
-        out ExpressionSyntax expression,
+        out ExpressionSyntax? expression,
+        out IfStatementSyntax? ifStatement,
         out ImmutableArray<StatementSyntax> statements)
     {
         statements = [];
+        ifStatement = null;
 
         if (declaration.ExpressionBody is { Expression: var expressionBody })
         {
@@ -195,7 +199,17 @@ internal static class ViewPartDefinitionFactory
             return true;
         }
 
-        expression = null!;
+        // `if (...) { ... } else { ... }` (ARCHITECTURE.md §5.3's Transplantable syntax).
+        if (declaration.Body is { } ifBlock
+            && RenderExpressionAnalyzer.TryReadTransplantableIf(ifBlock, out var ifLeading, out var ifStmt))
+        {
+            expression = null;
+            ifStatement = ifStmt;
+            statements = ifLeading;
+            return true;
+        }
+
+        expression = null;
         return false;
     }
 
@@ -203,7 +217,8 @@ internal static class ViewPartDefinitionFactory
         GeneratorAttributeSyntaxContext attributeContext,
         IMethodSymbol method,
         MethodDeclarationSyntax declaration,
-        ExpressionSyntax bodyExpression,
+        ExpressionSyntax? bodyExpression,
+        IfStatementSyntax? bodyIf,
         ImmutableArray<StatementSyntax> bodyStatements,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken,
@@ -256,8 +271,9 @@ internal static class ViewPartDefinitionFactory
             // The leading statements are counted too: a Slot named there is written into the expansion just
             // as one in the returned expression is, so leaving them out would let `var v = Slot;` pass as
             // "never named" and then place the content twice.
-            var slotReferences = CountSlotReferences(
-                bodyExpression, attributeContext.SemanticModel, knownSymbols, cancellationToken);
+            var slotReferences = bodyExpression is not null
+                ? CountSlotReferences(bodyExpression, attributeContext.SemanticModel, knownSymbols, cancellationToken)
+                : CountSlotReferences(bodyIf!, attributeContext.SemanticModel, knownSymbols, cancellationToken);
 
             foreach (var statement in bodyStatements)
             {
@@ -287,13 +303,17 @@ internal static class ViewPartDefinitionFactory
             cancellationToken,
             contentOrdinals.ToImmutable());
 
-        var body = RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, context);
+        var body = bodyExpression is not null
+            ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, context)
+            : RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf!, context);
         if (body is null)
         {
             // The same failure-path sweeps the component host runs, from the one list both share: report
             // the specific cause rather than falling through to the generic "not statically sequenceable"
-            // text. See FailurePathScanners.
-            FailurePathScanners.ReportAll(bodyExpression, context);
+            // text. See FailurePathScanners. On the native-`if` path the sweep runs over the condition
+            // only -- the arms are read by nested Analyze calls, each carrying its own
+            // UntranslatableLocation on failure, same as ComponentModelFactory's equivalent branch.
+            FailurePathScanners.ReportAll(bodyExpression ?? bodyIf!.Condition, context);
 
             // Prefer a specific recorded unsupported-reference diagnostic (for example a referenced local
             // that cannot exist in generated code) over the generic non-SSC message.
