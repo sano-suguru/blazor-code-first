@@ -8,17 +8,9 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// (backslash separators normalized to <c>/</c>, see <see cref="CssScopePath.NormalizeSeparators"/>),
 /// and the <c>bcf-xxxxxxxx</c> value <c>BlazorCodeFirst.Build</c> computed for it.
 /// </summary>
-internal readonly record struct CssScopeEntry
+internal readonly record struct CssScopeEntry(string CssFilePath, string Scope)
 {
-    public CssScopeEntry(string cssFilePath, string scope)
-    {
-        CssFilePath = CssScopePath.NormalizeSeparators(cssFilePath);
-        Scope = scope;
-    }
-
-    public string CssFilePath { get; }
-
-    public string Scope { get; }
+    public string CssFilePath { get; init; } = CssScopePath.NormalizeSeparators(CssFilePath);
 
     /// <summary>
     /// The matching <c>.cs</c> file's path: <see cref="CssFilePath"/> with the trailing <c>.css</c>
@@ -38,6 +30,10 @@ internal readonly record struct CssScopeEntry
 /// separator gap those comparers do not cover. Deliberately does not resolve relative-to-absolute (no
 /// <c>Path.GetFullPath</c>): a source generator's current directory is not a trustworthy base, so a
 /// relative/absolute mismatch between the two providers is left as documented residue in #524.
+/// <c>BlazorCodeFirst.Build</c>'s own <c>ScopeIdentifier.ToRelativePath</c> normalizes separators the
+/// same way for the same reason, but that helper is private to a different assembly (an MSBuild task
+/// host, not this analyzer's load context), so there is no shared project the two sides could pull a
+/// common helper from without adding a cross-assembly dependency neither side needs otherwise.
 /// </summary>
 internal static class CssScopePath
 {

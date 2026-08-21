@@ -24,20 +24,20 @@ public class CssScopePropagationTests
         Assert.Equal("bcf-abcd1234", div.CssScope);
     }
 
+    private const string CounterSource = """
+        using BlazorCodeFirst;
+
+        public partial class Counter : BodyComponentBase
+        {
+            protected override View Body => Html.Div.OnClick(() => { });
+        }
+        """;
+
     [Fact]
     public void HostElement_WithCssScopeFilePathUsingDifferentSeparatorsThanTheSourceFile_StillCarriesTheScope()
     {
-        const string source = """
-            using BlazorCodeFirst;
-
-            public partial class Counter : BodyComponentBase
-            {
-                protected override View Body => Html.Div.OnClick(() => { });
-            }
-            """;
-
         var model = ModelSingleScopedComponent(
-            [("App/Counter.cs", source)],
+            [("App/Counter.cs", CounterSource)],
             [(@"App\Counter.cs.css", "bcf-abcd1234")]);
 
         var div = Assert.IsType<ElementNode>(model.RootNode);
@@ -47,17 +47,8 @@ public class CssScopePropagationTests
     [Fact]
     public void MatchingCssScopeFile_WithDifferentPathSeparatorsThanTheSourceFile_IsNotReportedAsOrphaned()
     {
-        const string source = """
-            using BlazorCodeFirst;
-
-            public partial class Counter : BodyComponentBase
-            {
-                protected override View Body => Html.Div.OnClick(() => { });
-            }
-            """;
-
         var result = CompilationTestHost.RunGeneratorWithCssScopes(
-            [("App/Counter.cs", source)],
+            [("App/Counter.cs", CounterSource)],
             [(@"App\Counter.cs.css", "bcf-abcd1234")]);
 
         CompilationTestHost.AssertNoDiagnostics(result);
