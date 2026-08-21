@@ -5,9 +5,11 @@
     <WasmEnableThreads>true</WasmEnableThreads>
     <!-- [JSImport]/[JSExport] (DragonGlInterop.cs) require this; SYSLIB1074 otherwise. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Isolated for the same reason tests/BlazorCodeFirst.WasmPackageApp isolates its own restore:
-         BlazorCodeFirst is not published to nuget.org yet (#295), so this restores the locally
-         packed build via NuGet.config's local-blazorcodefirst source instead. -->
+    <!-- Isolated so `rm -rf artifacts/samples/packages` resets this restore completely, the same
+         reason tests/BlazorCodeFirst.WasmPackageApp isolates its own path. NuGet.config's
+         local-blazorcodefirst source lets an unreleased runtime change be tested here via a local
+         `dotnet pack`; CI restores the published BlazorCodeFirst from nuget.org instead, the way an
+         actual consumer would (#442). -->
     <RestorePackagesPath>$(MSBuildThisFileDirectory)../../artifacts/samples/packages</RestorePackagesPath>
   </PropertyGroup>
 
