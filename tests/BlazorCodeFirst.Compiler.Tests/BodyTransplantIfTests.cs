@@ -146,6 +146,45 @@ public sealed class BodyTransplantIfTests
     }
 
     [Fact]
+    public void Body_WhenElseBlockDeclaresALocalBeforeANestedIf_KeepsTheLocalAndReportsBcf2002Once()
+    {
+        // An explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed to `else if` sugar:
+        // the continuation is a TransplantedBlockNode wrapping a TransplantedIfNode, and emission must
+        // replay the leading statement on the way to the nested if, not skip straight to it.
+        const string Getter = """
+            {
+                    get
+                    {
+                        if (_a)
+                        {
+                            return Span["a"];
+                        }
+                        else
+                        {
+                            var y = "computed";
+                            if (_b)
+                            {
+                                return Span[y];
+                            }
+                            else
+                            {
+                                return Span["c"];
+                            }
+                        }
+                    }
+                }
+            """;
+        var result = Run(Getter);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF2002");
+        Assert.Contains("string y = \"computed\";", generated);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void Body_WhenArmDeclaresReservedName_ReportsBcf1004()
     {
         const string Getter = """

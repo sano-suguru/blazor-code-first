@@ -170,11 +170,14 @@ internal static class ViewPartDefinitionFactory
     }
 
     /// <summary>
-    /// The expression a view part body returns, and the statements written ahead of that return. Both body
-    /// forms reach here: <c>=&gt; e</c>, and the block a design-time expression getter and a <c>ForEach</c>
-    /// content lambda accept, which <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/>
-    /// reads (ARCHITECTURE.md §2.3 Transplantable). Returns <see langword="false"/> for a body outside
-    /// both, which earns BCF1002 at the declaration.
+    /// Either the expression a view part body returns, or the native `if` it ends in, and the statements
+    /// written ahead of it — exactly one of <paramref name="expression"/>/<paramref name="ifStatement"/>
+    /// is set on a <see langword="true"/> return. Three body forms reach here: <c>=&gt; e</c>; the block a
+    /// design-time expression getter and a <c>ForEach</c> content lambda also accept, read by
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/>; and a block ending in a native
+    /// `if`/`else`, read by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/> (both are
+    /// ARCHITECTURE.md §2.3 Transplantable). Returns <see langword="false"/> for a body outside all
+    /// three, which earns BCF1002 at the declaration.
     /// </summary>
     private static bool TryReadBody(
         MethodDeclarationSyntax declaration,
@@ -271,9 +274,8 @@ internal static class ViewPartDefinitionFactory
             // The leading statements are counted too: a Slot named there is written into the expansion just
             // as one in the returned expression is, so leaving them out would let `var v = Slot;` pass as
             // "never named" and then place the content twice.
-            var slotReferences = bodyExpression is not null
-                ? CountSlotReferences(bodyExpression, attributeContext.SemanticModel, knownSymbols, cancellationToken)
-                : CountSlotReferences(bodyIf!, attributeContext.SemanticModel, knownSymbols, cancellationToken);
+            var slotReferences = CountSlotReferences(
+                (SyntaxNode?)bodyExpression ?? bodyIf!, attributeContext.SemanticModel, knownSymbols, cancellationToken);
 
             foreach (var statement in bodyStatements)
             {

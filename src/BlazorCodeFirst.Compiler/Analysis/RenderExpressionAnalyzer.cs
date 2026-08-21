@@ -107,26 +107,67 @@ internal static class RenderExpressionAnalyzer
     public static RenderTemplateNode? Analyze(
         ImmutableArray<StatementSyntax> statements,
         ExpressionSyntax expression,
+        ViewPartBodyContext context) =>
+        AnalyzeTransplantedBody(statements, expression, context, () => Analyze(expression, context));
+
+    /// <summary>
+    /// Classifies a block whose last statement is a native `if` (ARCHITECTURE.md §5.3), wrapped in the
+    /// statements written before it. Shares <see cref="AnalyzeTransplantedBody"/>'s scope-opening shape
+    /// with <see cref="Analyze(ImmutableArray{StatementSyntax}, ExpressionSyntax, ViewPartBodyContext)"/>;
+    /// the two differ only in what follows the leading statements.
+    /// </summary>
+    public static RenderTemplateNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        IfStatementSyntax ifStatement,
         ViewPartBodyContext context)
     {
-        // On the definition side, every local this body declares becomes a render variable, so its
-        // declaration and its references carry one hole and expansion mints the name (#336). A component's
-        // own expression keeps the names the author wrote; ViewPartBodyContext.IsInlinedAtCallSites says
-        // why the two positions differ. The returned expression is read alongside the statements because a
-        // pattern designation binds into the same scope a declaration statement does, and expansion copies
-        // it to every call site just the same (#343).
+        var node = AnalyzeTransplantedBody(
+            statements, ifStatement.Condition, context, () => AnalyzeIf(ifStatement, context));
+        if (node is null)
+            return null;
+
+        // Reported once for the whole chain, at the outermost `if`'s condition: an `else if` recurses
+        // through AnalyzeIf, and an explicitly braced `else { var y = ...; if (...) { ... } }` recurses
+        // through AnalyzeTransplantedBody directly via AnalyzeArm (bypassing this public overload) rather
+        // than back through here, so neither shape reports a second time for the same reason
+        // (ARCHITECTURE.md §5.3's degradation applies to the region as a whole, not to each arm).
+        // Anchored to the condition rather than the whole `if` statement, which spans multiple lines and
+        // would leave no single-line anchor for a fixture test to pin against.
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF2002, ifStatement.Condition.GetLocation(), []));
+
+        return node;
+    }
+
+    /// <summary>
+    /// The scaffolding both <c>Analyze</c> overloads share: collect the leading statements' declared
+    /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
+    /// — either can hold a pattern designation that binds into the same scope a declaration statement
+    /// does, #343), open a render-variable scope over them, classify the tail via
+    /// <paramref name="classifyTail"/>, and wrap the result in a <see cref="TransplantedBlockTemplateNode"/>
+    /// only when there is something to wrap.
+    /// </summary>
+    /// <remarks>
+    /// On the definition side, every local this body declares becomes a render variable, so its
+    /// declaration and its references carry one hole and expansion mints the name (#336). A component's
+    /// own expression keeps the names the author wrote; ViewPartBodyContext.IsInlinedAtCallSites says
+    /// why the two positions differ.
+    /// <para>
+    /// Only statements are transplanted; the tail's own declarations travel with the tail, so there is no
+    /// span to open when there are none. One flag rather than the same test at the push and again at the
+    /// pop: a scope left open is read by every local reference in the rest of the body.
+    /// </para>
+    /// </remarks>
+    private static RenderTemplateNode? AnalyzeTransplantedBody(
+        ImmutableArray<StatementSyntax> statements,
+        ExpressionSyntax localsAnchor,
+        ViewPartBodyContext context,
+        Func<RenderTemplateNode?> classifyTail)
+    {
         var declared = context.IsInlinedAtCallSites
-            ? CollectDeclaredLocals(statements, expression, context)
+            ? CollectDeclaredLocals(statements, localsAnchor, context)
             : [];
 
-        // An expression that declares nothing, written without statements, is the same body written as one
-        // expression and needs neither the scope nor the wrapping node.
-        if (statements.IsEmpty && declared.IsEmpty)
-            return Analyze(expression, context);
-
-        // Only statements are transplanted; an expression's own declarations travel with the expression, so
-        // there is no span to open when there are none. One flag rather than the same test at the push and
-        // again at the pop: a scope left open is read by every local reference in the rest of the body.
         var opensTransplantedScope = !statements.IsEmpty;
         if (opensTransplantedScope)
             context.PushTransplantedScope(SpanOf(statements));
@@ -136,14 +177,16 @@ internal static class RenderExpressionAnalyzer
 
         try
         {
-            var content = Analyze(expression, context);
+            var node = classifyTail();
 
-            return content is null
+            return node is null
                 ? null
-                : new TransplantedBlockTemplateNode(
-                    ExpressionTemplateFactory.CreateForStatements(statements, context),
-                    content,
-                    declared.Length);
+                : statements.IsEmpty && declared.IsEmpty
+                    ? node
+                    : new TransplantedBlockTemplateNode(
+                        ExpressionTemplateFactory.CreateForStatements(statements, context),
+                        node,
+                        declared.Length);
         }
         finally
         {
@@ -159,60 +202,6 @@ internal static class RenderExpressionAnalyzer
             // there admit a sibling's reference (#487), a statement inside a lambda body has no such
             // reach: no construction was found where a reference analyzed after this scope should have
             // closed can legally bind to something declared inside it.
-            if (opensTransplantedScope)
-                context.PopTransplantedScope();
-        }
-    }
-
-    /// <summary>
-    /// Classifies a block whose last statement is a native `if` (ARCHITECTURE.md §5.3), wrapped in the
-    /// statements written before it. Mirrors
-    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, ExpressionSyntax, ViewPartBodyContext)"/>'s
-    /// scope-opening shape exactly; the two differ only in what follows the leading statements.
-    /// </summary>
-    public static RenderTemplateNode? Analyze(
-        ImmutableArray<StatementSyntax> statements,
-        IfStatementSyntax ifStatement,
-        ViewPartBodyContext context)
-    {
-        var declared = context.IsInlinedAtCallSites
-            ? CollectDeclaredLocals(statements, ifStatement.Condition, context)
-            : [];
-
-        var opensTransplantedScope = !statements.IsEmpty;
-        if (opensTransplantedScope)
-            context.PushTransplantedScope(SpanOf(statements));
-
-        foreach (var symbol in declared)
-            context.PushRenderVariable(symbol);
-
-        try
-        {
-            var node = AnalyzeIf(ifStatement, context);
-
-            if (node is null)
-                return null;
-
-            // Reported once for the whole chain, at the outermost `if`'s condition: an `else if` recurses
-            // through AnalyzeIf, and a second report per link would say the same thing again for no new
-            // reason (ARCHITECTURE.md §5.3's degradation applies to the region as a whole, not to each
-            // arm). Anchored to the condition rather than the whole `if` statement, which spans multiple
-            // lines and would leave no single-line anchor for a fixture test to pin against.
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF2002, ifStatement.Condition.GetLocation(), []));
-
-            return statements.IsEmpty && declared.IsEmpty
-                ? node
-                : new TransplantedBlockTemplateNode(
-                    ExpressionTemplateFactory.CreateForStatements(statements, context),
-                    node,
-                    declared.Length);
-        }
-        finally
-        {
-            for (var index = declared.Length - 1; index >= 0; index--)
-                context.PopRenderVariable(declared[index]);
-
             if (opensTransplantedScope)
                 context.PopTransplantedScope();
         }
@@ -254,13 +243,17 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// Reads one `if`/`else` arm's block: either the existing single-trailing-return shape, or a
     /// further nested `if` (an explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed
-    /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly).
+    /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly). The nested-`if` case goes
+    /// through <see cref="AnalyzeTransplantedBody"/> directly, not the public
+    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, IfStatementSyntax, ViewPartBodyContext)"/>
+    /// overload, so this continuation of the same chain does not report BCF2002 a second time.
     /// </summary>
     private static RenderTemplateNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
         TryReadTransplantableBlock(block, out var exprStatements, out var returned)
             ? Analyze(exprStatements, returned, context)
             : TryReadTransplantableIf(block, out var ifStatements, out var nestedIf)
-                ? Analyze(ifStatements, nestedIf, context)
+                ? AnalyzeTransplantedBody(
+                    ifStatements, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context))
                 : null;
 
     /// <summary>

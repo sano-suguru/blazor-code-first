@@ -374,18 +374,21 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Classifies the elected design-time expression declaration. Three getter spellings reduce to a
-    /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
-    /// getter's expression body (<c>get =&gt; e</c>), and a getter block, which
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and whose leading statements
-    /// it returns in <paramref name="statements"/>. An auto property (no getter body and no
-    /// <c>partial</c> modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns
-    /// BCF1004. A partial property with no implementation part (<c>partial</c> modifier and no getter
-    /// body) is <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names
-    /// the property itself. A block that reader refuses is also
+    /// Classifies the elected design-time expression declaration. Four getter spellings reach a
+    /// translatable shape, exactly one of <paramref name="expression"/>/<paramref name="ifStatement"/>
+    /// set on success: the property's own expression body (<c>=&gt; e</c>), the getter's expression body
+    /// (<c>get =&gt; e</c>), a getter block ending in a single `return`, which
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and whose leading
+    /// statements it returns in <paramref name="statements"/>, and a getter block ending in a native
+    /// `if`/`else`, read the same way by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>.
+    /// An auto property (no getter body and no <c>partial</c> modifier) is
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial property with
+    /// no implementation part (<c>partial</c> modifier and no getter body) is
+    /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
+    /// property itself. A block that reader refuses is also
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// <para>
-    /// The three stay equivalent under the reserved names as well: each asks
+    /// All four stay equivalent under the reserved names as well: each asks
     /// <see cref="RenderExpressionAnalyzer.DeclaresReservedName"/> over what it transplants, so a name the
     /// generator cannot rename earns BCF1004 in whichever spelling declared it (#389).
     /// </para>

@@ -426,13 +426,33 @@ internal static class RenderViewEmitter
             writer.AppendLine("else");
             writer.AppendLine("{");
             writer.Indent++;
-            if (UnwrapArm(node.Otherwise) is TransplantedIfNode nestedIf)
-                EmitTransplantedIfArms(writer, nestedIf, armSeq);
-            else
-                EmitTransplantedArm(writer, node.Otherwise, armSeq);
+            EmitTransplantedElse(writer, node.Otherwise, armSeq);
             writer.Indent--;
             writer.AppendLine("}");
         }
+    }
+
+    /// <summary>
+    /// Emits an `else` arm: its leading statements, if any (an explicitly braced
+    /// <c>else { var y = ...; if (...) { ... } }</c> is a <see cref="TransplantedBlockNode"/> wrapping
+    /// the continuation), then either continues the chain (a further `if`/`else if`, with no nested
+    /// region — the whole chain shares <see cref="EmitTransplantedIf"/>'s one region) or emits ordinary
+    /// content. Statements are written on the way down so a local an arm declares before its own nested
+    /// `if` is never dropped, unlike peeking straight through to the nested node without replaying them.
+    /// </summary>
+    private static void EmitTransplantedElse(IndentedWriter writer, RenderNode arm, int armSeq)
+    {
+        if (arm is TransplantedBlockNode block)
+        {
+            writer.AppendLine(block.Statements.ToCode());
+            EmitTransplantedElse(writer, block.Content, armSeq);
+            return;
+        }
+
+        if (arm is TransplantedIfNode nestedIf)
+            EmitTransplantedIfArms(writer, nestedIf, armSeq);
+        else
+            EmitTransplantedArm(writer, arm, armSeq);
     }
 
     /// <summary>
@@ -462,10 +482,6 @@ internal static class RenderViewEmitter
         writer.Indent--;
         writer.AppendLine("});");
     }
-
-    /// <summary>Strips a <see cref="TransplantedBlockNode"/> wrapper to see whether a nested `if` is under it.</summary>
-    private static RenderNode UnwrapArm(RenderNode arm) =>
-        arm is TransplantedBlockNode block ? UnwrapArm(block.Content) : arm;
 
     private static int EmitForEach(IndentedWriter writer, ForEachNode node, int seq)
     {
