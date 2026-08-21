@@ -86,7 +86,7 @@ public sealed class OpaqueCallDiagnosticTests
     }
 
     /// <summary>
-    /// <c>content is null</c> forced false would construct a <c>ForEachTemplateNode</c> around the null
+    /// <c>content is null</c> forced false would construct a <c>ForEachNode</c> around the null
     /// content anyway, sending a template with no root down into keyability resolution instead of
     /// answering this splice as untranslatable and letting it recover as BCF1003 (#487).
     /// </summary>

@@ -65,7 +65,7 @@ internal sealed record ViewPartAccessRequirement(
 internal sealed record ViewPartDefinition(
     EquatableArray<ViewPartParameter> Parameters,
     EquatableArray<ViewPartAccessRequirement> AccessRequirements,
-    RenderTemplateNode Body,
+    RenderNode Body,
     bool HasSlot = false)
 {
     /// <summary>

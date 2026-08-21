@@ -118,20 +118,20 @@ public sealed class EquatableArrayTests
     {
         // Slots ride the incremental pipeline inside EquatableArray, so they must compare structurally.
         // A reference-equality slip here silently recomputes every component with child content.
-        var left = new ComponentTemplateNode(
+        var left = new ComponentNode(
             "global::X.C",
             EquatableArray<ComponentParameter>.Empty,
             new[]
             {
-                new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\""))),
+                new ComponentSlotNode("ChildContent", new TextContentNode(ExpressionTemplate.Literal("\"x\""))),
             }.ToImmutableArray());
 
-        var right = new ComponentTemplateNode(
+        var right = new ComponentNode(
             "global::X.C",
             EquatableArray<ComponentParameter>.Empty,
             new[]
             {
-                new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\""))),
+                new ComponentSlotNode("ChildContent", new TextContentNode(ExpressionTemplate.Literal("\"x\""))),
             }.ToImmutableArray());
 
         Assert.Equal(left, right);
@@ -141,16 +141,16 @@ public sealed class EquatableArrayTests
     [Fact]
     public void ComponentSlot_WithDifferentContent_IsNotEqual()
     {
-        var left = new ComponentTemplateNode(
+        var left = new ComponentNode(
             "global::X.C",
             EquatableArray<ComponentParameter>.Empty,
-            new[] { new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\""))) }
+            new[] { new ComponentSlotNode("ChildContent", new TextContentNode(ExpressionTemplate.Literal("\"x\""))) }
                 .ToImmutableArray());
 
-        var right = new ComponentTemplateNode(
+        var right = new ComponentNode(
             "global::X.C",
             EquatableArray<ComponentParameter>.Empty,
-            new[] { new ComponentSlot("ChildContent", new TextContentTemplateNode(ExpressionTemplate.Literal("\"y\""))) }
+            new[] { new ComponentSlotNode("ChildContent", new TextContentNode(ExpressionTemplate.Literal("\"y\""))) }
                 .ToImmutableArray());
 
         Assert.NotEqual(left, right);
@@ -159,10 +159,10 @@ public sealed class EquatableArrayTests
     [Fact]
     public void GenericSlot_PrimitiveFieldsParticipateInValueEquality()
     {
-        static ComponentSlot Build(string contextTypeName) =>
-            new ComponentSlot(
+        static ComponentSlotNode Build(string contextTypeName) =>
+            new ComponentSlotNode(
                 "RowTemplate",
-                new TextContentTemplateNode(ExpressionTemplate.Literal("\"x\"")))
+                new TextContentNode(ExpressionTemplate.Literal("\"x\"")))
             {
                 Kind = ComponentSlotKind.GenericContextIgnored,
                 ContextTypeName = contextTypeName,

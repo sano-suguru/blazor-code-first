@@ -88,7 +88,7 @@ public sealed class VoidElementDiagnosticTests
     public void DecoratedVoidElement_WithChildren_ReportsBCF3016()
     {
         // The receiver is a decoration chain rather than the bare helper, so the tag arrives on an
-        // ElementTemplateNode built by the decoration arm. Same check, one path further out.
+        // ElementNode built by the decoration arm. Same check, one path further out.
         var diagnostics = Run("""Img.Src("/a.png").Alt("a")["child"]""");
 
         Assert.Contains(diagnostics, static d => d.Id == "BCF3016");

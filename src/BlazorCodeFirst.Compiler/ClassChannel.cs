@@ -33,8 +33,8 @@ internal enum ClassChannelAdmission
 
 /// <summary>
 /// The one attribute name that does not occupy a name once. <c>.Class</c> and <c>.Attr("class", …)</c>
-/// both route here rather than to <see cref="ElementTemplateNode.Attributes"/>, and however many of them
-/// an element carries, <see cref="ElementTemplateNode.Classes"/> emits a single space-joined frame. That
+/// both route here rather than to <see cref="ElementNode.Attributes"/>, and however many of them
+/// an element carries, <see cref="ElementNode.Classes"/> emits a single space-joined frame. That
 /// is why <c>class</c> is the exception BCF3010 names, and why it is not an exception to anything else:
 /// the channel is what repeats, not the attribute.
 /// </summary>
@@ -123,7 +123,7 @@ internal static class ClassChannel
     /// naming the shapes it refuses would answer <see cref="ClassChannelAdmission.Admitted"/> for the
     /// next one added (#193).
     /// </remarks>
-    internal static ClassChannelAdmission Admit(ElementTemplateNode element, ITypeSymbol valueType) =>
+    internal static ClassChannelAdmission Admit(ElementNode element, ITypeSymbol valueType) =>
         !JoinsAsText(valueType) ? ClassChannelAdmission.ValueDoesNotJoin
         : IsBound(element) ? ClassChannelAdmission.NameAlreadyBound
         : ClassChannelAdmission.Admitted;
@@ -134,7 +134,7 @@ internal static class ClassChannel
     /// the whole channel rather than with a particular decoration, and it is only by asking from both
     /// sides that the report stops depending on which of the two was written first.
     /// </summary>
-    internal static bool IsFolded(ElementTemplateNode element) => element.Classes.Length > 0;
+    internal static bool IsFolded(ElementNode element) => element.Classes.Length > 0;
 
     /// <summary>
     /// Whether <paramref name="term"/> contributes to the channel's value. A constant
@@ -348,12 +348,12 @@ internal static class ClassChannel
     /// </summary>
     /// <remarks>
     /// Only the bindings are read. Neither of the other two channels can hold this name — both folding
-    /// spellings route here instead of to <see cref="ElementTemplateNode.Attributes"/>, and an event name
+    /// spellings route here instead of to <see cref="ElementNode.Attributes"/>, and an event name
     /// that does not start with <c>on</c> is BCF3019 — so asking the bindings directly is the same answer
     /// a sweep of all three would give, without depending on either of those rules being enforced
     /// somewhere else.
     /// </remarks>
-    private static bool IsBound(ElementTemplateNode element)
+    private static bool IsBound(ElementNode element)
     {
         foreach (var bind in element.Bindings)
         {

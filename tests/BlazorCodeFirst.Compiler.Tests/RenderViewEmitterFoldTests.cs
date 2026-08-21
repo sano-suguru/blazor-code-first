@@ -129,7 +129,8 @@ public sealed class RenderViewEmitterFoldTests
             Dynamic("_items"),
             Dynamic("item.Id"),
             Element("div", StaticSpan("a")),
-            "item"));
+            Location: null,
+            LoopVariableName: "item"));
 
         Assert.Contains("""__builder.OpenElement(1, "div");""", emitted);
         Assert.Contains("__builder.SetKey(item.Id);", emitted);

@@ -77,7 +77,7 @@ internal sealed record RuntimeFormattedConstant : ConstantInfo;
 /// </para>
 /// </remarks>
 internal sealed record ContentArgument(
-    RenderTemplateNode Template,
+    RenderNode Template,
     ImmutableArray<SubstitutedArgument> Substitution,
     ImmutableArray<string> ActiveMethodStack,
     string? CssScope);
@@ -308,14 +308,14 @@ internal sealed record ExpressionTemplate
         var argument = arguments[hole.ParameterOrdinal];
 
         // A content ordinal reached through an *expression* hole means the analyzer classified a View-typed
-        // reference as a value, which it must not: a content hole becomes a ContentHoleTemplateNode and is
+        // reference as a value, which it must not: a content hole becomes a ContentHoleNode and is
         // substituted by ViewPartExpander, never here. Throwing keeps the empty Code from being emitted as
         // silently valid-looking generated source.
         if (argument.Content is not null)
         {
             throw new InvalidOperationException(
                 $"Parameter ordinal {hole.ParameterOrdinal} is bound to caller content, which has no "
-                    + "expression text. A content hole must be a ContentHoleTemplateNode.");
+                    + "expression text. A content hole must be a ContentHoleNode.");
         }
 
         return argument;

@@ -43,41 +43,54 @@ internal readonly record struct ContentRoot(ContentRootKind Kind, bool IsKeyed);
 internal static class KeyabilityResolver
 {
     /// <summary>
-    /// Resolves the root of <paramref name="node"/>, following view part calls transitively: the frame kind
-    /// and whether that frame is already keyed.
+    /// Resolves the root of <paramref name="node"/>, following view part calls and expanded view part
+    /// bodies transitively: the frame kind and whether that frame is already keyed. Used both by the
+    /// reachability-independent template walk (<see cref="CollectForEachContentDiagnostics"/>, where
+    /// <paramref name="node"/> may still hold <see cref="ContentHoleNode"/>/<see cref="ViewPartCallNode"/>)
+    /// and by <see cref="Generation.ViewPartExpander"/>'s post-expansion re-check (where it never does,
+    /// having already been replaced or inlined — this function's <see cref="ExpansionNode"/> case plays the
+    /// same "keep going into the call's body" role <see cref="ResolveCall"/> plays before expansion).
     /// </summary>
-    public static ContentRoot ResolveRoot(RenderTemplateNode node, ViewPartRegistry registry) =>
-        ResolveRoot(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
+    public static ContentRoot ResolveRoot(RenderNode node, ViewPartRegistry registry) =>
+        ResolveRoot(node, registry, activeKeys: null, content: null);
 
-    /// <param name="node">The template whose root is being resolved.</param>
+    /// <param name="node">The node whose root is being resolved.</param>
     /// <param name="registry">The view part registry, followed transitively when the root is a view part call.</param>
-    /// <param name="activeKeys">The method keys already on the call stack, guarding against a cyclic view part call.</param>
+    /// <param name="activeKeys">
+    /// The method keys already on the call stack, guarding against a cyclic view part call, or
+    /// <see langword="null"/> when none has been entered yet. Allocated lazily by
+    /// <see cref="ResolveCall"/> on first use rather than up front: a post-expansion tree (walked from
+    /// <see cref="Generation.ViewPartExpander"/>) never contains a <see cref="ViewPartCallNode"/>, so that
+    /// walk never needs this set at all.
+    /// </param>
     /// <param name="content">
     /// The content the enclosing call supplied, by callee ordinal, or <see langword="null"/> when this walk has
     /// no call above it — which is the registry pass over a definition nobody calls.
     /// </param>
     private static ContentRoot ResolveRoot(
-        RenderTemplateNode node,
+        RenderNode node,
         ViewPartRegistry registry,
-        HashSet<string> activeKeys,
-        IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
+        HashSet<string>? activeKeys,
+        IReadOnlyDictionary<int, RenderNode>? content) =>
         node switch
         {
-            ComponentTemplateNode component =>
+            ComponentNode component =>
                 new ContentRoot(ContentRootKind.Element, component.Key is not null),
-            ElementTemplateNode element =>
+            ElementNode element =>
                 new ContentRoot(ContentRootKind.Element, element.Key is not null),
-            IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
-                or FragmentTemplateNode or RawMarkupTemplateNode
-                or RenderFragmentContentTemplateNode
-                or OpaqueViewTemplateNode or TransplantedIfTemplateNode
+            IfNode or ForEachNode or TextContentNode
+                or FragmentNode or RawMarkupNode
+                or RenderFragmentContentNode
+                or OpaqueViewNode or TransplantedIfNode
                     => new ContentRoot(ContentRootKind.Region, IsKeyed: false),
-            TransplantedBlockTemplateNode transplanted =>
+            TransplantedBlockNode transplanted =>
                 ResolveRoot(transplanted.Content, registry, activeKeys, content),
-            ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
-            ViewPartCallTemplateNode call => ResolveCall(call, registry, activeKeys),
+            ExpansionNode expansion =>
+                ResolveRoot(expansion.Body, registry, activeKeys, content),
+            ContentHoleNode hole => ResolveHole(hole, registry, activeKeys, content),
+            ViewPartCallNode call => ResolveCall(call, registry, activeKeys),
             _ => throw new System.NotSupportedException(
-                $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a ResolveRoot case for it."),
+                $"Unknown RenderNode type '{node.GetType().Name}'; add a ResolveRoot case for it."),
         };
 
     /// <summary>
@@ -95,19 +108,23 @@ internal static class KeyabilityResolver
     /// </para>
     /// </remarks>
     private static ContentRoot ResolveHole(
-        ContentHoleTemplateNode hole,
+        ContentHoleNode hole,
         ViewPartRegistry registry,
-        HashSet<string> activeKeys,
-        IReadOnlyDictionary<int, RenderTemplateNode>? content) =>
+        HashSet<string>? activeKeys,
+        IReadOnlyDictionary<int, RenderNode>? content) =>
         content is not null && content.TryGetValue(hole.ParameterOrdinal, out var supplied)
             ? ResolveRoot(supplied, registry, activeKeys, content: null)
             : new ContentRoot(ContentRootKind.Region, IsKeyed: false);
 
     private static ContentRoot ResolveCall(
-        ViewPartCallTemplateNode call,
+        ViewPartCallNode call,
         ViewPartRegistry registry,
-        HashSet<string> activeKeys)
+        HashSet<string>? activeKeys)
     {
+        // Allocated here, on first actual use, rather than by every ResolveRoot caller: a walk that never
+        // reaches a ViewPartCallNode (every post-expansion walk, and most template walks) never pays for it.
+        activeKeys ??= new HashSet<string>(System.StringComparer.Ordinal);
+
         // A cycle cannot be resolved to a concrete root; treat as unresolved and let expansion's BCF1002
         // (call-dependent) report the cycle.
         if (!activeKeys.Add(call.MethodKey))
@@ -121,10 +138,10 @@ internal static class KeyabilityResolver
             // The callee's body is resolved with this call's content in hand, so a hole in it answers with what
             // was actually passed. The supplied subtree is then resolved with no content of its own: it was
             // written in the caller's scope, where this call's ordinals mean nothing.
-            IReadOnlyDictionary<int, RenderTemplateNode>? content = null;
+            IReadOnlyDictionary<int, RenderNode>? content = null;
             if (call.ContentArguments.Length > 0)
             {
-                var byOrdinal = new Dictionary<int, RenderTemplateNode>(call.ContentArguments.Length);
+                var byOrdinal = new Dictionary<int, RenderNode>(call.ContentArguments.Length);
                 foreach (var contentArgument in call.ContentArguments.AsImmutableArray())
                     byOrdinal[contentArgument.ParameterOrdinal] = contentArgument.Content;
                 content = byOrdinal;
@@ -139,105 +156,70 @@ internal static class KeyabilityResolver
     }
 
     /// <summary>
+    /// Enumerates <paramref name="node"/>'s immediate child nodes, phase-agnostically. The one exhaustive
+    /// child walk every traversal over this hierarchy goes through — <see cref="CollectForEachContentDiagnostics"/>
+    /// is currently its only caller.
+    /// </summary>
+    public static ImmutableArray<RenderNode> Children(RenderNode node) => node switch
+    {
+        IfNode n => n.Otherwise is null ? [n.Then] : [n.Then, n.Otherwise],
+        TransplantedIfNode n => n.Otherwise is null ? [n.Then] : [n.Then, n.Otherwise],
+        ExpansionNode n => [n.Body],
+        ForEachNode n => [n.Content],
+        ComponentNode n => [.. n.Slots.AsImmutableArray().Select(static s => s.Content)],
+        ElementNode n => n.Children.AsImmutableArray(),
+        TextContentNode => [],
+        FragmentNode n => n.Children.AsImmutableArray(),
+        RawMarkupNode => [],
+        RenderFragmentContentNode => [],
+        OpaqueViewNode => [],
+        TransplantedBlockNode n => [n.Content],
+        ContentHoleNode => [],
+        ViewPartCallNode n => [.. n.ContentArguments.AsImmutableArray().Select(static a => a.Content)],
+        _ => throw new System.NotSupportedException(
+            $"Unknown RenderNode type '{node.GetType().Name}'; add a Children case for it."),
+    };
+
+    /// <summary>
     /// Walks <paramref name="node"/> and appends, for every <em>keyed</em> ForEach, a BCF3003 when its
     /// content root resolves to <see cref="ContentRootKind.Region"/> and a BCF3032 when that root already
     /// carries a key of its own. Unresolved content is skipped (BCF1002 covers it at expansion), and a
     /// ForEach whose key was declined is skipped because it attaches no key at all (#172).
     /// </summary>
     public static void CollectForEachContentDiagnostics(
-        RenderTemplateNode node,
+        RenderNode node,
         ViewPartRegistry registry,
         ImmutableArray<DiagnosticInfo>.Builder sink)
     {
-        switch (node)
+        if (node is ForEachNode { Key: not null } forEach)
         {
-            case ForEachTemplateNode forEach:
-                // Only a keyed loop asks anything of its content root. A declined key emits no SetKey, so
-                // a Fragment, a Raw or a bare If roots the content legitimately (#172), and so does a root
-                // that keys itself. The walk into the content continues either way: a keyed ForEach nested
-                // inside declined content is still keyed.
-                if (forEach.Key is not null)
-                {
-                    var root = ResolveRoot(forEach.Content, registry);
+            // Populated by construction; this walk only ever reaches a pre-expansion tree (registry pass
+            // over a ViewPartDefinition.Body, or a component's own un-expanded Body), where Location is
+            // never cleared. A null here means this method was called on an expanded tree, which is a bug
+            // in the caller, not a case to recover from silently.
+            var location = forEach.Location
+                ?? throw new System.InvalidOperationException(
+                    "CollectForEachContentDiagnostics reached a ForEachNode with no Location; this walk "
+                        + "is pre-expansion only, and Location is cleared only after expansion.");
 
-                    // Exclusive by construction, not by ordering: a region root has nowhere to write a
-                    // .Key, so IsKeyed cannot hold where Kind is Region.
-                    if (root.Kind == ContentRootKind.Region)
-                    {
-                        sink.Add(DiagnosticInfo.Create(
-                            DiagnosticDescriptors.BCF3003,
-                            forEach.Location.ToLocation(),
-                            []));
-                    }
-                    else if (root.IsKeyed)
-                    {
-                        sink.Add(DiagnosticInfo.Create(
-                            DiagnosticDescriptors.BCF3032,
-                            forEach.Location.ToLocation(),
-                            []));
-                    }
-                }
+            var root = ResolveRoot(forEach.Content, registry);
 
-                CollectForEachContentDiagnostics(forEach.Content, registry, sink);
-                break;
-
-            case ElementTemplateNode element:
-                foreach (var child in element.Children.AsImmutableArray())
-                    CollectForEachContentDiagnostics(child, registry, sink);
-                break;
-
-            case IfTemplateNode ifNode:
-                CollectForEachContentDiagnostics(ifNode.Then, registry, sink);
-                if (ifNode.Otherwise is not null)
-                    CollectForEachContentDiagnostics(ifNode.Otherwise, registry, sink);
-                break;
-
-            case TransplantedIfTemplateNode transplantedIf:
-                CollectForEachContentDiagnostics(transplantedIf.Then, registry, sink);
-                if (transplantedIf.Otherwise is not null)
-                    CollectForEachContentDiagnostics(transplantedIf.Otherwise, registry, sink);
-                break;
-
-            case FragmentTemplateNode fragment:
-                foreach (var child in fragment.Children.AsImmutableArray())
-                    CollectForEachContentDiagnostics(child, registry, sink);
-                break;
-
-            case ComponentTemplateNode component:
-                foreach (var slot in component.Slots.AsImmutableArray())
-                    CollectForEachContentDiagnostics(slot.Content, registry, sink);
-                break;
-
-            case TransplantedBlockTemplateNode transplanted:
-                CollectForEachContentDiagnostics(transplanted.Content, registry, sink);
-                break;
-
-            case ViewPartCallTemplateNode call:
-                // The call's own body is walked once from the registry pass
-                // (CollectViewPartForEachDiagnostics) and deliberately not re-walked here. What is walked
-                // here is the content the *call site* supplies, in brackets or as a View argument: both are
-                // subtrees written at this site, so a ForEach inside one belongs to this walk and would
-                // otherwise never be visited.
-                foreach (var contentArgument in call.ContentArguments.AsImmutableArray())
-                    CollectForEachContentDiagnostics(contentArgument.Content, registry, sink);
-                break;
-
-            // No nested template children to walk. Listed as cases rather than left to fall through, so the
-            // default arm below can exist: this is the third exhaustive dispatch over the hierarchy, and the
-            // other two (ResolveRoot above, ViewPartExpander.ExpandNode) both throw on an unknown node.
-            // A node type added without a case here would mean a BCF3003 that never fires, which is invisible.
-            case TextContentTemplateNode:
-            case ContentHoleTemplateNode:
-            case RawMarkupTemplateNode:
-            case RenderFragmentContentTemplateNode:
-            case OpaqueViewTemplateNode:
-                break;
-
-            default:
-                throw new System.NotSupportedException(
-                    $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add a "
-                        + $"{nameof(CollectForEachContentDiagnostics)} case for it.");
+            // Exclusive by construction, not by ordering: a region root has nowhere to write a
+            // .Key, so IsKeyed cannot hold where Kind is Region.
+            if (root.Kind == ContentRootKind.Region)
+            {
+                sink.Add(DiagnosticInfo.Create(DiagnosticDescriptors.BCF3003, location.ToLocation(), []));
+            }
+            else if (root.IsKeyed)
+            {
+                sink.Add(DiagnosticInfo.Create(DiagnosticDescriptors.BCF3032, location.ToLocation(), []));
+            }
         }
+
+        // Only a keyed loop asks anything of its content root (checked above); the walk into the content
+        // continues either way, since a keyed ForEach nested inside declined content is still keyed.
+        foreach (var child in Children(node))
+            CollectForEachContentDiagnostics(child, registry, sink);
     }
 
     /// <summary>

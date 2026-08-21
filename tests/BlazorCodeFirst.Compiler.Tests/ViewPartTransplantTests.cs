@@ -485,7 +485,7 @@ public sealed class ViewPartTransplantTests
 
         // Both expansions' minted local names must differ -- confirms ExpandNode's existing per-call-site
         // ordinal-based renaming (ViewPartExpander.cs) reaches the leading statements of a
-        // TransplantedIfTemplateNode-wrapped body the same way it already does for a plain trailing
+        // TransplantedIfNode-wrapped body the same way it already does for a plain trailing
         // return.
         var mintedNames = Regex.Matches(generated, "__bcf_local_\\d+_0")
             .Select(m => m.Value)

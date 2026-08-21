@@ -11,9 +11,9 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
 /// Classifies a view part definition body expression into the statically sequenceable
-/// <see cref="RenderTemplateNode"/> hierarchy. Dynamic argument text is normalized through
+/// <see cref="RenderNode"/> hierarchy. Dynamic argument text is normalized through
 /// <see cref="ExpressionTemplateFactory"/> so parameter references become holes and imports/containing
-/// type context are preserved. Nested <c>[ViewPart]</c> calls become <see cref="ViewPartCallTemplateNode"/>.
+/// type context are preserved. Nested <c>[ViewPart]</c> calls become <see cref="ViewPartCallNode"/>.
 /// Returns <see langword="null"/> when the expression cannot be statically analyzed.
 /// </summary>
 internal static class RenderExpressionAnalyzer
@@ -83,7 +83,7 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="Classify"/>, so the innermost failure is the one recorded and BCF1003 can name the
     /// construct the author actually wrote instead of the whole design-time expression.
     /// </summary>
-    public static RenderTemplateNode? Analyze(ExpressionSyntax expression, ViewPartBodyContext context)
+    public static RenderNode? Analyze(ExpressionSyntax expression, ViewPartBodyContext context)
     {
         var node = Classify(expression, context);
         if (node is null)
@@ -104,7 +104,7 @@ internal static class RenderExpressionAnalyzer
     /// expression, so a local declared in one and read in the other is the same name in both, and the
     /// scope opens here rather than at either caller so the wrap and the scope cannot be separated.
     /// </remarks>
-    public static RenderTemplateNode? Analyze(
+    public static RenderNode? Analyze(
         ImmutableArray<StatementSyntax> statements,
         ExpressionSyntax expression,
         ViewPartBodyContext context) =>
@@ -116,7 +116,7 @@ internal static class RenderExpressionAnalyzer
     /// with <see cref="Analyze(ImmutableArray{StatementSyntax}, ExpressionSyntax, ViewPartBodyContext)"/>;
     /// the two differ only in what follows the leading statements.
     /// </summary>
-    public static RenderTemplateNode? Analyze(
+    public static RenderNode? Analyze(
         ImmutableArray<StatementSyntax> statements,
         IfStatementSyntax ifStatement,
         ViewPartBodyContext context)
@@ -144,7 +144,7 @@ internal static class RenderExpressionAnalyzer
     /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
     /// — either can hold a pattern designation that binds into the same scope a declaration statement
     /// does, #343), open a render-variable scope over them, classify the tail via
-    /// <paramref name="classifyTail"/>, and wrap the result in a <see cref="TransplantedBlockTemplateNode"/>
+    /// <paramref name="classifyTail"/>, and wrap the result in a <see cref="TransplantedBlockNode"/>
     /// only when there is something to wrap.
     /// </summary>
     /// <remarks>
@@ -158,11 +158,11 @@ internal static class RenderExpressionAnalyzer
     /// pop: a scope left open is read by every local reference in the rest of the body.
     /// </para>
     /// </remarks>
-    private static RenderTemplateNode? AnalyzeTransplantedBody(
+    private static RenderNode? AnalyzeTransplantedBody(
         ImmutableArray<StatementSyntax> statements,
         ExpressionSyntax localsAnchor,
         ViewPartBodyContext context,
-        Func<RenderTemplateNode?> classifyTail)
+        Func<RenderNode?> classifyTail)
     {
         var declared = context.IsInlinedAtCallSites
             ? CollectDeclaredLocals(statements, localsAnchor, context)
@@ -183,7 +183,7 @@ internal static class RenderExpressionAnalyzer
                 ? null
                 : statements.IsEmpty && declared.IsEmpty
                     ? node
-                    : new TransplantedBlockTemplateNode(
+                    : new TransplantedBlockNode(
                         ExpressionTemplateFactory.CreateForStatements(statements, context),
                         node,
                         declared.Length);
@@ -212,7 +212,7 @@ internal static class RenderExpressionAnalyzer
     /// `else` clause's statement being directly an <see cref="IfStatementSyntax"/>, with no enclosing
     /// block — so no separate leading-statement slot exists at that position by construction).
     /// </summary>
-    private static TransplantedIfTemplateNode? AnalyzeIf(
+    private static TransplantedIfNode? AnalyzeIf(
         IfStatementSyntax ifStatement, ViewPartBodyContext context)
     {
         if (ifStatement.Statement is not BlockSyntax thenBlock)
@@ -223,7 +223,7 @@ internal static class RenderExpressionAnalyzer
         if (AnalyzeArm(thenBlock, context) is not { } then)
             return null;
 
-        RenderTemplateNode? otherwise = null;
+        RenderNode? otherwise = null;
         if (ifStatement.Else is { Statement: var elseStatement })
         {
             otherwise = elseStatement switch
@@ -237,7 +237,7 @@ internal static class RenderExpressionAnalyzer
                 return null;
         }
 
-        return new TransplantedIfTemplateNode(condition, then, otherwise);
+        return new TransplantedIfNode(condition, then, otherwise);
     }
 
     /// <summary>
@@ -248,7 +248,7 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="Analyze(ImmutableArray{StatementSyntax}, IfStatementSyntax, ViewPartBodyContext)"/>
     /// overload, so this continuation of the same chain does not report BCF2002 a second time.
     /// </summary>
-    private static RenderTemplateNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
+    private static RenderNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
         TryReadTransplantableBlock(block, out var exprStatements, out var returned)
             ? Analyze(exprStatements, returned, context)
             : TryReadTransplantableIf(block, out var ifStatements, out var nestedIf)
@@ -322,7 +322,7 @@ internal static class RenderExpressionAnalyzer
         TextSpan.FromBounds(
             statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
 
-    private static RenderTemplateNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
+    private static RenderNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
         // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
         // removing it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
@@ -338,7 +338,7 @@ internal static class RenderExpressionAnalyzer
         // becomes a bare text node. The pre-conversion Type is String even though it converts to View.
         if (expressionType is { SpecialType: SpecialType.System_String })
         {
-            return new TextContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
+            return new TextContentNode(ExpressionTemplateFactory.Create(expression, context));
         }
 
         // Same shape for an externally supplied RenderFragment: the pre-conversion Type is RenderFragment
@@ -348,7 +348,7 @@ internal static class RenderExpressionAnalyzer
         if (context.KnownSymbols.RenderFragmentType is { } renderFragmentType &&
             SymbolEqualityComparer.Default.Equals(expressionType, renderFragmentType))
         {
-            return new RenderFragmentContentTemplateNode(ExpressionTemplateFactory.Create(expression, context));
+            return new RenderFragmentContentNode(ExpressionTemplateFactory.Create(expression, context));
         }
 
         // Prefilter on syntax kind before asking for a symbol, so a literal, a field reference or a lambda
@@ -378,7 +378,7 @@ internal static class RenderExpressionAnalyzer
                 if (symbols.ElementTags.TryGetValue(normalized, out var propertyTag)
                     || symbols.SvgElementTags.TryGetValue(normalized, out propertyTag))
                 {
-                    return new ElementTemplateNode(propertyTag);
+                    return new ElementNode(propertyTag);
                 }
 
                 if (symbols.IsSlot(resolvedProperty))
@@ -406,7 +406,7 @@ internal static class RenderExpressionAnalyzer
         if (symbol is IParameterSymbol
             && context.ResolveHole(symbol, out var contentOrdinal) == BodyHoleKind.Content)
         {
-            return new ContentHoleTemplateNode(contentOrdinal);
+            return new ContentHoleNode(contentOrdinal);
         }
 
         // The method arm still requires an invocation. The early return this replaced also filtered method
@@ -481,7 +481,7 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="Classify"/> as an element access and not an invocation, so this arm only has to resolve
     /// the tag.
     /// </summary>
-    private static ElementTemplateNode? ClassifyElementFactory(
+    private static ElementNode? ClassifyElementFactory(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args
@@ -498,7 +498,7 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        return new ElementTemplateNode(tagValue);
+        return new ElementNode(tagValue);
     }
 
     /// <summary>
@@ -508,7 +508,7 @@ internal static class RenderExpressionAnalyzer
     /// BCF3009 check, so an alias is validated by the same single copy of that logic a call written
     /// directly at the use site goes through.
     /// </summary>
-    private static ElementTemplateNode? ClassifyElementTagAlias(
+    private static ElementNode? ClassifyElementTagAlias(
         ExpressionSyntax expression, IPropertySymbol property, ViewPartBodyContext context)
     {
         if (property.DeclaringSyntaxReferences.IsEmpty)
@@ -591,7 +591,7 @@ internal static class RenderExpressionAnalyzer
         return null;
     }
 
-    private static IfTemplateNode? ClassifyIf(
+    private static IfNode? ClassifyIf(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args)
@@ -623,7 +623,7 @@ internal static class RenderExpressionAnalyzer
             // Presence is now "an argument bound to the otherwise parameter", not "a third syntactic
             // argument", so If(cond, then: t) and If(cond, otherwise: o, then: t) both read correctly.
             // An explicitly passed null literal still means "no else branch".
-            RenderTemplateNode? otherwiseNode = null;
+            RenderNode? otherwiseNode = null;
             if (args.At(2) is { } otherwiseArg &&
                 otherwiseArg.Expression is not LiteralExpressionSyntax
                 { Token.RawKind: (int)SyntaxKind.NullKeyword })
@@ -637,7 +637,7 @@ internal static class RenderExpressionAnalyzer
                     return null;
             }
 
-            return new IfTemplateNode(
+            return new IfNode(
                 ExpressionTemplateFactory.Create(conditionArg.Expression, context),
                 thenNode,
                 otherwiseNode);
@@ -684,7 +684,7 @@ internal static class RenderExpressionAnalyzer
         return true;
     }
 
-    private static ForEachTemplateNode? ClassifyForEach(
+    private static ForEachNode? ClassifyForEach(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args)
@@ -758,7 +758,7 @@ internal static class RenderExpressionAnalyzer
                     []));
             }
 
-            return new ForEachTemplateNode(
+            return new ForEachNode(
                 source,
                 key,
                 content,
@@ -790,7 +790,7 @@ internal static class RenderExpressionAnalyzer
     /// built <c>View</c> carries no fragment and would render nothing in silence (Appendix B).
     /// </para>
     /// </remarks>
-    private static ForEachTemplateNode? AnalyzeSplice(
+    private static ForEachNode? AnalyzeSplice(
         ExpressionSyntax expression, ViewPartBodyContext context)
     {
         // The syntactic match runs first, so a spread of anything but a Select is rejected without a
@@ -823,7 +823,7 @@ internal static class RenderExpressionAnalyzer
             var content = Analyze(body, context);
             return content is null
                 ? null
-                : new ForEachTemplateNode(
+                : new ForEachNode(
                     source,
                     Key: null,
                     content,
@@ -918,7 +918,7 @@ internal static class RenderExpressionAnalyzer
     /// anything else is Opaque, whose fragment opens no keyable frame and so reaches BCF3003 through
     /// <see cref="KeyabilityResolver"/>.
     /// </remarks>
-    private static RenderTemplateNode? BuildMethodGroupContent(
+    private static RenderNode? BuildMethodGroupContent(
         IMethodSymbol callee,
         ExpressionSyntax contentExpression,
         int itemOrdinal,
@@ -928,7 +928,7 @@ internal static class RenderExpressionAnalyzer
 
         return ClassifyCallee(callee, contentExpression.GetLocation(), context) switch
         {
-            NonSurfaceCallKind.ViewPart => new ViewPartCallTemplateNode(
+            NonSurfaceCallKind.ViewPart => new ViewPartCallNode(
                 MethodKey.Create(callee),
                 callee.Name,
                 new EquatableArray<ViewPartInvocationArgument>(
@@ -954,7 +954,7 @@ internal static class RenderExpressionAnalyzer
             // containing type, an instance callee written with an implicit `this` left bare because the
             // generated RenderView carries that same `this`, and a member accessed through a receiver left
             // as written — and it records what the expansion site has to be able to reach for all of them.
-            NonSurfaceCallKind.Opaque => new OpaqueViewTemplateNode(ExpressionTemplate.Create(
+            NonSurfaceCallKind.Opaque => new OpaqueViewNode(ExpressionTemplate.Create(
                 [
                     .. ExpressionTemplateFactory.Create(contentExpression, context)
                         .Segments.AsImmutableArray(),
@@ -967,7 +967,7 @@ internal static class RenderExpressionAnalyzer
         };
     }
 
-    private static ComponentTemplateNode? ClassifyComponentFactory(IMethodSymbol method)
+    private static ComponentNode? ClassifyComponentFactory(IMethodSymbol method)
     {
         // An unresolved type argument cannot be emitted: the display string of an unresolved type is
         // the written name with no qualification, and the generated file has no using directives, so
@@ -981,12 +981,12 @@ internal static class RenderExpressionAnalyzer
         // Base case: Html.Component<T>() with no children and no .Param yet. Children and parameters
         // both arrive on the ComponentView<T> this returns, through its indexer and .Param, so this
         // arm never sees either.
-        return new ComponentTemplateNode(
+        return new ComponentNode(
             method.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             EquatableArray<ComponentParameter>.Empty);
     }
 
-    private static RawMarkupTemplateNode? ClassifyRaw(
+    private static RawMarkupNode? ClassifyRaw(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args ||
@@ -995,11 +995,11 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
-        return new RawMarkupTemplateNode(
+        return new RawMarkupNode(
             ExpressionTemplateFactory.Create(markupArg.Expression, context));
     }
 
-    private static FragmentTemplateNode? ClassifyFragment(
+    private static FragmentNode? ClassifyFragment(
         InvocationExpressionSyntax invocation, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args)
@@ -1012,14 +1012,14 @@ internal static class RenderExpressionAnalyzer
         if (children is null)
             return null;
 
-        return new FragmentTemplateNode(children.Value);
+        return new FragmentNode(children.Value);
     }
 
     /// <summary>
     /// A <c>.Param</c>, <c>.Template</c> or <c>.Bind</c> written on a component, <paramref name="kind"/>
     /// saying which.
     /// </summary>
-    private static ComponentTemplateNode? ClassifyComponentParameter(
+    private static ComponentNode? ClassifyComponentParameter(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SurfaceMethodKind kind,
@@ -1033,7 +1033,7 @@ internal static class RenderExpressionAnalyzer
         // everything up to the selected property: they take the same selector in the same position
         // and answer to the same three rules about it.
         if (invocation.Expression is not MemberAccessExpressionSyntax paramAccess
-            || Analyze(paramAccess.Expression, context) is not ComponentTemplateNode inner)
+            || Analyze(paramAccess.Expression, context) is not ComponentNode inner)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             return null;
@@ -1262,12 +1262,12 @@ internal static class RenderExpressionAnalyzer
     /// is rejected, pointing at <c>.Param</c>, rather than silently binding it — measured: Blazor's
     /// own parameter matching is case-insensitive).
     /// </summary>
-    private static ComponentTemplateNode? ClassifyComponentAttribute(
+    private static ComponentNode? ClassifyComponentAttribute(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax paramAccess,
         IMethodSymbol method,
         SurfaceMethodKind kind,
-        ComponentTemplateNode inner,
+        ComponentNode inner,
         ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(invocation, context) is not { } args
@@ -1393,7 +1393,7 @@ internal static class RenderExpressionAnalyzer
     /// A decoration written onto an element: the class fold, an attribute shortcut, the generic
     /// <c>.Attr</c>, an event shortcut, <c>.On</c>, or <c>.Bind</c>.
     /// </summary>
-    private static ElementTemplateNode? ClassifyDecoration(
+    private static ElementNode? ClassifyDecoration(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
         SurfaceMethodKind kind,
@@ -1417,7 +1417,7 @@ internal static class RenderExpressionAnalyzer
         // The Reject call below is a stryker survivor for the same reason: hand-applying its removal left
         // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests unchanged, since no test can
         // execute a block nothing routes into.
-        if (inner is not ElementTemplateNode element)
+        if (inner is not ElementNode element)
         {
             context.RejectUnresolvedValueRecovery(invocation.Span);
             return null;
@@ -1760,12 +1760,12 @@ internal static class RenderExpressionAnalyzer
     /// sequence number, while an unwritten modifier stays <see langword="null"/> and emits nothing (#368).
     /// </para>
     /// </remarks>
-    private static ElementTemplateNode? ClassifyEventModifier(
+    private static ElementNode? ClassifyEventModifier(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
         IMethodSymbol method,
         SurfaceMethodKind kind,
-        ElementTemplateNode element,
+        ElementNode element,
         FactoryArguments args,
         ViewPartBodyContext context)
     {
@@ -2082,11 +2082,11 @@ internal static class RenderExpressionAnalyzer
     /// guessing at the author's intent. The other arity failures, zero and two, are reported at the
     /// declaration by <c>ViewPartDefinitionFactory</c>, which is where the count is a property of.
     /// </remarks>
-    private static ContentHoleTemplateNode? ClassifySlot(
+    private static ContentHoleNode? ClassifySlot(
         ExpressionSyntax expression, IPropertySymbol slotProperty, ViewPartBodyContext context)
     {
         if (context.ResolveHole(slotProperty, out var slotOrdinal) == BodyHoleKind.Content)
-            return new ContentHoleTemplateNode(slotOrdinal);
+            return new ContentHoleNode(slotOrdinal);
 
         context.Diagnostics.Add(DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF3025,
@@ -2102,7 +2102,7 @@ internal static class RenderExpressionAnalyzer
     /// BCF2001 recording the optimization that costs. The attribute sits on a user method rather than on a
     /// symbol resolved out of the runtime, so it cannot be part of the classification and is tested here.
     /// </summary>
-    private static RenderTemplateNode? ClassifyNonSurfaceCall(
+    private static RenderNode? ClassifyNonSurfaceCall(
         InvocationExpressionSyntax invocation, IMethodSymbol method, ViewPartBodyContext context)
     {
         switch (ClassifyCallee(method, invocation.GetLocation(), context))
@@ -2113,7 +2113,7 @@ internal static class RenderExpressionAnalyzer
                 if (arguments is null)
                     return null;
 
-                return new ViewPartCallTemplateNode(
+                return new ViewPartCallNode(
                     MethodKey.Create(method),
                     method.Name,
                     arguments.Value,
@@ -2123,7 +2123,7 @@ internal static class RenderExpressionAnalyzer
                 };
 
             case NonSurfaceCallKind.Opaque:
-                return new OpaqueViewTemplateNode(
+                return new OpaqueViewNode(
                     ExpressionTemplateFactory.Create(invocation, context));
 
             default:
@@ -2343,10 +2343,10 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="ClassifyBind"/>, so the bind arm alone would report only the chains where the binding
     /// came last.
     /// </remarks>
-    private static ElementTemplateNode? FoldIntoClassChannel(
+    private static ElementNode? FoldIntoClassChannel(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
-        ElementTemplateNode element,
+        ElementNode element,
         ITypeSymbol valueType,
         AttributeValueSource value,
         ViewPartBodyContext context)
@@ -2403,11 +2403,11 @@ internal static class RenderExpressionAnalyzer
     /// <param name="component">The component the render mode would be recorded on.</param>
     /// <param name="modeArg">The render mode argument syntax.</param>
     /// <param name="context">The body context BCF3033/BCF3034 are reported against.</param>
-    private static ComponentTemplateNode? ClassifyComponentRenderMode(
+    private static ComponentNode? ClassifyComponentRenderMode(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax paramAccess,
         IMethodSymbol method,
-        ComponentTemplateNode component,
+        ComponentNode component,
         ArgumentSyntax modeArg,
         ViewPartBodyContext context)
     {
@@ -2582,11 +2582,11 @@ internal static class RenderExpressionAnalyzer
     /// by BCF3019 — so it buys no check of its own.
     /// </para>
     /// </remarks>
-    private static ElementTemplateNode? ClassifyBind(
+    private static ElementNode? ClassifyBind(
         InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax decoAccess,
         IMethodSymbol method,
-        ElementTemplateNode element,
+        ElementNode element,
         FactoryArguments args,
         ArgumentSyntax attributeArg,
         ViewPartBodyContext context)
@@ -2757,7 +2757,7 @@ internal static class RenderExpressionAnalyzer
     /// </para>
     /// <para>
     /// The duplicate check the shared <c>.Param</c> / <c>.Template</c> / <c>.Bind</c> prologue runs (see the
-    /// caller) spans <c>{name}</c> and, via <see cref="HasBinding(ComponentTemplateNode, string)"/> just above, <c>{name}Changed</c> — but
+    /// caller) spans <c>{name}</c> and, via <see cref="HasBinding(ComponentNode, string)"/> just above, <c>{name}Changed</c> — but
     /// not <c>{name}Expression</c>. So
     /// <c>.Param(c =&gt; c.ValueExpression, …).Bind(c =&gt; c.Value, …)</c>, written in that order, does not
     /// become BCF3007: both calls append a <c>ValueExpression</c> parameter frame, and the later one silently
@@ -2770,10 +2770,10 @@ internal static class RenderExpressionAnalyzer
     /// to guard against.
     /// </para>
     /// </remarks>
-    private static ComponentTemplateNode? ClassifyComponentBind(
+    private static ComponentNode? ClassifyComponentBind(
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
-        ComponentTemplateNode inner,
+        ComponentNode inner,
         IPropertySymbol property,
         ExpressionSyntax selector,
         FactoryArguments args,
@@ -2997,9 +2997,9 @@ internal static class RenderExpressionAnalyzer
     /// <c>Action&lt;TArg&gt;</c>, <c>Func&lt;TArg, Task&gt;</c>), so <c>method.Parameters[1].Type</c> is
     /// already exactly the type to cast to.
     /// </remarks>
-    private static ComponentTemplateNode? ClassifyComponentParamEventCallback(
+    private static ComponentNode? ClassifyComponentParamEventCallback(
         IMethodSymbol method,
-        ComponentTemplateNode inner,
+        ComponentNode inner,
         IPropertySymbol property,
         ArgumentSyntax handlerArg,
         ViewPartBodyContext context)
@@ -3113,7 +3113,7 @@ internal static class RenderExpressionAnalyzer
     /// <see langword="true"/> for a null <c>x</c>, so an unguarded comparison would classify any unrelated
     /// indexer, <c>_dict["k"]</c>, as an element.
     /// </remarks>
-    private static RenderTemplateNode? ClassifyIndexer(
+    private static RenderNode? ClassifyIndexer(
         ElementAccessExpressionSyntax elementAccess,
         IPropertySymbol indexer,
         ViewPartBodyContext context)
@@ -3138,7 +3138,7 @@ internal static class RenderExpressionAnalyzer
     /// own symbol gives the arity, so the call site names the ordinal rather than leaving two transports for
     /// the expander to reconcile.
     /// <para>
-    /// Several children are grouped in a <see cref="FragmentTemplateNode"/> and a single one is kept as
+    /// Several children are grouped in a <see cref="FragmentNode"/> and a single one is kept as
     /// itself, the rule <see cref="TryAppendChildContentSlot"/> already applies to the analogous case, so
     /// wrapping a part around one child emits exactly the frames writing that child inline would.
     /// </para>
@@ -3148,10 +3148,10 @@ internal static class RenderExpressionAnalyzer
     /// property that makes <c>Div["text"].Class("card")</c> a CS1929 rather than a second supported style.
     /// </para>
     /// </remarks>
-    private static ViewPartCallTemplateNode? ClassifyViewPartContentIndexer(
+    private static ViewPartCallNode? ClassifyViewPartContentIndexer(
         ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
-        if (Analyze(elementAccess.Expression, context) is not ViewPartCallTemplateNode call)
+        if (Analyze(elementAccess.Expression, context) is not ViewPartCallNode call)
             return null;
 
         // The callee's arity, which is the slot's ordinal. Taken from the receiver's own resolved symbol; the
@@ -3166,9 +3166,9 @@ internal static class RenderExpressionAnalyzer
         if (children is null)
             return null;
 
-        RenderTemplateNode content = children.Value.Length == 1
+        RenderNode content = children.Value.Length == 1
             ? children.Value[0]
-            : new FragmentTemplateNode(children.Value);
+            : new FragmentNode(children.Value);
 
         return call with
         {
@@ -3202,12 +3202,12 @@ internal static class RenderExpressionAnalyzer
     /// case: the element access is not an invocation, so there is nothing the scanner could match.
     /// </para>
     /// </remarks>
-    private static ElementTemplateNode? ClassifyElementIndexer(
+    private static ElementNode? ClassifyElementIndexer(
         ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
         // The receiver carries the tag and the decoration chain, so it is classified by the same arms that
         // handle the childless and decorated forms rather than by a second copy of their rules.
-        if (Analyze(elementAccess.Expression, context) is not ElementTemplateNode element)
+        if (Analyze(elementAccess.Expression, context) is not ElementNode element)
             return null;
 
         var children = TryAnalyzeBracketChildren(elementAccess, context);
@@ -3253,12 +3253,12 @@ internal static class RenderExpressionAnalyzer
     /// covers a fragment <c>.Param</c> beside children.
     /// </para>
     /// </remarks>
-    private static ComponentTemplateNode? ClassifyComponentIndexer(
+    private static ComponentNode? ClassifyComponentIndexer(
         ElementAccessExpressionSyntax elementAccess,
         IPropertySymbol indexer,
         ViewPartBodyContext context)
     {
-        if (Analyze(elementAccess.Expression, context) is not ComponentTemplateNode component)
+        if (Analyze(elementAccess.Expression, context) is not ComponentNode component)
             return null;
 
         // The node carries only the type's display name, so the symbol BCF3013 and the ChildContent lookup
@@ -3310,12 +3310,12 @@ internal static class RenderExpressionAnalyzer
     /// naming separately from the indexer's argument handling.
     /// </remarks>
     private static bool TryAppendChildContentSlot(
-        ComponentTemplateNode component,
-        ImmutableArray<RenderTemplateNode> children,
+        ComponentNode component,
+        ImmutableArray<RenderNode> children,
         ITypeSymbol componentType,
         Location location,
         ViewPartBodyContext context,
-        out ComponentTemplateNode result)
+        out ComponentNode result)
     {
         result = component;
         if (children.Length == 0)
@@ -3333,16 +3333,16 @@ internal static class RenderExpressionAnalyzer
         // All children share the single ChildContent fragment; a Fragment node groups them without emitting
         // a wrapper element, matching how Razor lowers multiple nested children.
         // Mutating this condition away is a stryker survivor, measured equivalent rather than assumed:
-        // forcing the false branch, so a single child is wrapped in a FragmentTemplateNode instead of
+        // forcing the false branch, so a single child is wrapped in a FragmentNode instead of
         // used directly, and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
         // left every test passing unchanged, including a direct byte-for-byte compare of generated output
-        // for Component<Card>()[Div["x"]] against the unmutated code. FragmentTemplateNode's own remit --
+        // for Component<Card>()[Div["x"]] against the unmutated code. FragmentNode's own remit --
         // grouping several children without a wrapper element -- degenerates to identical output for
         // exactly one child, so the special case this ternary exists for is an optimization (skip
-        // allocating a FragmentTemplateNode and its array) rather than a behavioral branch.
-        RenderTemplateNode content = children.Length == 1
+        // allocating a FragmentNode and its array) rather than a behavioral branch.
+        RenderNode content = children.Length == 1
             ? children[0]
-            : new FragmentTemplateNode(children);
+            : new FragmentNode(children);
 
         // Appended, not assigned: a .Param on another fragment parameter (c => c.Footer) has already put a
         // slot on the receiver, and it is not a duplicate of this one. Appending is also the only order
@@ -3365,7 +3365,7 @@ internal static class RenderExpressionAnalyzer
     /// Whether <paramref name="node"/> already binds <paramref name="name"/> in either channel. Blazor
     /// applies the last write, so a duplicate across channels is as dead as one within a channel.
     /// </summary>
-    private static bool HasBinding(ComponentTemplateNode node, string name)
+    private static bool HasBinding(ComponentNode node, string name)
     {
         foreach (var parameter in node.Parameters.AsImmutableArray())
         {
@@ -3384,13 +3384,13 @@ internal static class RenderExpressionAnalyzer
 
     /// <summary>
     /// Whether <paramref name="node"/> already carries an <c>.Attr</c>/<c>.Class</c> decoration named
-    /// <paramref name="name"/>. A separate name space from <see cref="HasBinding(ComponentTemplateNode, string)"/>'s
+    /// <paramref name="name"/>. A separate name space from <see cref="HasBinding(ComponentNode, string)"/>'s
     /// <c>Parameters</c>/<c>Slots</c> check: an HTML attribute name and a Blazor parameter name are
     /// different targets on a component, and a name that collides across the two is rejected earlier,
     /// at classification time, as BCF3042 — this check only guards against the same attribute name
     /// being written twice.
     /// </summary>
-    private static bool HasAttributeBinding(ComponentTemplateNode node, string name) =>
+    private static bool HasAttributeBinding(ComponentNode node, string name) =>
         AttributesContainName(node.Attributes, name);
 
     /// <summary>Whether <paramref name="attributes"/> already carries one named <paramref name="name"/>.</summary>
@@ -3411,7 +3411,7 @@ internal static class RenderExpressionAnalyzer
     /// <c>AddAttribute</c> frames, and Blazor resolves each name to a single value no matter which
     /// channel produced it, so <c>.Attr("onclick", …)</c> next to <c>.OnClick(…)</c> is the same dead
     /// duplicate as two <c>.OnClick</c>. The folding spellings of <c>class</c> never reach this check —
-    /// both <c>.Class</c> and <c>.Attr("class", …)</c> route to <see cref="ElementTemplateNode.Classes"/>
+    /// both <c>.Class</c> and <c>.Attr("class", …)</c> route to <see cref="ElementNode.Classes"/>
     /// first, which is how the one repeatable attribute stays legal — so this is never asked about that
     /// name at all. What collides there is the channel rather than the name, and
     /// <see cref="ClassChannel"/> answers it from both sides as BCF3024.
@@ -3422,7 +3422,7 @@ internal static class RenderExpressionAnalyzer
     /// report alike.
     /// </para>
     /// </summary>
-    private static bool HasBinding(ElementTemplateNode node, string name)
+    private static bool HasBinding(ElementNode node, string name)
     {
         if (AttributesContainName(node.Attributes, name))
             return true;
@@ -3455,7 +3455,7 @@ internal static class RenderExpressionAnalyzer
     /// left unanalyzable and lands on BCF1003 rather than being mis-split. That rule held in three copies
     /// before this was extracted, where it could be changed in one arm and missed in the others.
     /// </remarks>
-    private static ImmutableArray<RenderTemplateNode>? TryAnalyzeBracketChildren(
+    private static ImmutableArray<RenderNode>? TryAnalyzeBracketChildren(
         ElementAccessExpressionSyntax elementAccess, ViewPartBodyContext context)
     {
         if (FactoryArguments.Bind(elementAccess, context) is not { } args || args.HasUnanalyzableParamsArgument)
@@ -3464,10 +3464,10 @@ internal static class RenderExpressionAnalyzer
         return AnalyzeChildren(args.ParamsElements, context);
     }
 
-    private static ImmutableArray<RenderTemplateNode>? AnalyzeChildren(
+    private static ImmutableArray<RenderNode>? AnalyzeChildren(
         ImmutableArray<ChildExpression> children, ViewPartBodyContext context)
     {
-        var nodes = ImmutableArray.CreateBuilder<RenderTemplateNode>(children.Length);
+        var nodes = ImmutableArray.CreateBuilder<RenderNode>(children.Length);
         foreach (var child in children)
         {
             // A spread is one expression standing for zero or more children, so it is not analyzed as a
@@ -4005,17 +4005,17 @@ internal static class RenderExpressionAnalyzer
     /// Returns <paramref name="inner"/> with one more slot appended, preserving source order. The three slot
     /// arms differ only in the kind and context type they pass here.
     /// </summary>
-    private static ComponentTemplateNode AppendSlot(
-        ComponentTemplateNode inner,
+    private static ComponentNode AppendSlot(
+        ComponentNode inner,
         string name,
-        RenderTemplateNode content,
+        RenderNode content,
         ComponentSlotKind kind = ComponentSlotKind.NonGeneric,
         string? contextTypeName = null) =>
         // A `with` for the reason AppendParameter gives: the channels this call does not touch survive it.
         inner with
         {
             Slots = inner.Slots.AsImmutableArray().Add(
-                new ComponentSlot(name, content) { Kind = kind, ContextTypeName = contextTypeName }),
+                new ComponentSlotNode(name, content) { Kind = kind, ContextTypeName = contextTypeName }),
         };
 
     /// <summary>

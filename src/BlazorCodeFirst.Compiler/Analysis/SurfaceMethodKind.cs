@@ -96,7 +96,7 @@ internal enum SurfaceMethodKind
     /// <summary>
     /// <c>ComponentView&lt;T&gt;.Key(object?)</c>. The same channel as <see cref="Key"/> on the same
     /// <c>SetKey</c>, and a member of its own because the receiver decides which node the classification
-    /// arm has to reach for: an <c>ElementTemplateNode</c> there, a <c>ComponentTemplateNode</c> here.
+    /// arm has to reach for: an <c>ElementNode</c> there, a <c>ComponentNode</c> here.
     /// </summary>
     ComponentKey,
 

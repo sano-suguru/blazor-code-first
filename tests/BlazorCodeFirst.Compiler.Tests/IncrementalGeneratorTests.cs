@@ -668,8 +668,8 @@ public sealed class IncrementalGeneratorTests
     }
 
     /// <summary>
-    /// Proves that the <c>Component&lt;T&gt;()</c> interop model (<see cref="ComponentNode"/>,
-    /// <see cref="ComponentTemplateNode"/>, and their <c>EquatableArray&lt;ComponentParameter&gt;</c>
+    /// Proves that the <c>Component&lt;T&gt;()</c> interop model (<see cref="ComponentNode"/>
+    /// and its <c>EquatableArray&lt;ComponentParameter&gt;</c>
     /// parameter lists) is value-equal across identical reruns, so the host's
     /// <c>ComponentModeling</c> output is cached rather than recomputed as a distinct-but-equal value.
     /// </summary>
@@ -757,7 +757,7 @@ public sealed class IncrementalGeneratorTests
 
     /// <summary>
     /// A component with slot children must be reused across identical reruns. This guards the nested node
-    /// tree inside <c>EquatableArray</c> on the slot channel path (ComponentNode.Children, ComponentSlot):
+    /// tree inside <c>EquatableArray</c> on the slot channel path (ComponentNode.Children, ComponentSlotNode):
     /// if any layer of that tree compared by reference instead of structurally, every component with child
     /// content would recompute as Modified on every generator run, and that would be invisible to every
     /// other test in the suite.

@@ -9,7 +9,7 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The channels are fields on <c>ElementTemplateNode</c> and <c>ComponentTemplateNode</c>
+/// The channels are fields on <c>ElementNode</c> and <c>ComponentNode</c>
 /// (<c>ARCHITECTURE.md</c> §2.7(E)), and each one has to be threaded by hand through
 /// <c>ViewPartExpander.ExpandNode</c> and <c>StaticMarkupSerializer.IsFoldableElement</c>. Both sites fail
 /// silently if a channel is missed: the expander drops it from every node with no diagnostic, and the fold
@@ -46,28 +46,28 @@ public sealed class FrameDecorationChannelCoverageTests
     private static ExpressionTemplate Marker(string code) => ExpressionTemplate.Literal(code);
 
     public static TheoryData<string> ElementChannelNames() =>
-        new([.. Channels<ElementTemplateNode>().Select(static p => p.Name)]);
+        new([.. Channels<ElementNode>().Select(static p => p.Name)]);
 
     public static TheoryData<string> ComponentChannelNames() =>
-        new([.. Channels<ComponentTemplateNode>().Select(static p => p.Name)]);
+        new([.. Channels<ComponentNode>().Select(static p => p.Name)]);
 
     [Fact]
     public void TheChannelsAreDiscovered_SoTheGuardsBelowAreNotVacuous()
     {
         Assert.Equal(
             ["AttributesSplat", "FormName", "Key", "Ref"],
-            Channels<ElementTemplateNode>().Select(static p => p.Name));
+            Channels<ElementNode>().Select(static p => p.Name));
         Assert.Equal(
             ["Key", "Ref", "RenderMode"],
-            Channels<ComponentTemplateNode>().Select(static p => p.Name));
+            Channels<ComponentNode>().Select(static p => p.Name));
     }
 
     [Theory]
     [MemberData(nameof(ElementChannelNames))]
     public void EveryElementChannel_SurvivesExpansion(string channel)
     {
-        var node = new ElementTemplateNode("div");
-        Channels<ElementTemplateNode>().Single(p => p.Name == channel)
+        var node = new ElementNode("div");
+        Channels<ElementNode>().Single(p => p.Name == channel)
             .SetValue(node, Marker("__marker"));
 
         var expanded = Assert.IsType<ElementNode>(Expand(node));
@@ -79,8 +79,8 @@ public sealed class FrameDecorationChannelCoverageTests
     [MemberData(nameof(ComponentChannelNames))]
     public void EveryComponentChannel_SurvivesExpansion(string channel)
     {
-        var node = new ComponentTemplateNode("global::T.Card", default);
-        Channels<ComponentTemplateNode>().Single(p => p.Name == channel)
+        var node = new ComponentNode("global::T.Card", default);
+        Channels<ComponentNode>().Single(p => p.Name == channel)
             .SetValue(node, Marker("__marker"));
 
         var expanded = Assert.IsType<ComponentNode>(Expand(node));
@@ -110,7 +110,7 @@ public sealed class FrameDecorationChannelCoverageTests
             $"an element carrying '{channel}' folded into markup, which drops the channel from the output");
     }
 
-    private static RenderNode Expand(RenderTemplateNode node)
+    private static RenderNode Expand(RenderNode node)
     {
         var result = Generation.ViewPartExpander.Expand(
             node, Analysis.ViewPartRegistry.Empty, [], Analysis.CssScopeRegistry.Empty, hostCssScope: null);
