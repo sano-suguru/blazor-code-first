@@ -639,7 +639,9 @@ internal static class RenderExpressionAnalyzer
             // the scope could never have covered it.
             var content = contentShape.Callee is { } callee
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
-                : Analyze(contentShape.Statements, contentShape.LambdaBody!, context);
+                : contentShape.LambdaBody is { } lambdaBody
+                    ? Analyze(contentShape.Statements, lambdaBody, context)
+                    : Analyze(contentShape.Statements, contentShape.LambdaIf!, context);
             if (content is null)
                 return null;
 
@@ -740,6 +742,7 @@ internal static class RenderExpressionAnalyzer
         IMethodSymbol? Callee,
         ISymbol? LambdaParameter,
         ExpressionSyntax? LambdaBody,
+        IfStatementSyntax? LambdaIf,
         ImmutableArray<StatementSyntax> Statements);
 
     /// <summary>
@@ -765,7 +768,7 @@ internal static class RenderExpressionAnalyzer
                 return false;
             }
 
-            shape = new ForEachContent(callee, null, null, []);
+            shape = new ForEachContent(callee, null, null, null, []);
             return true;
         }
 
@@ -783,18 +786,25 @@ internal static class RenderExpressionAnalyzer
             if (DeclaresReservedName(expressionBody))
                 return false;
 
-            shape = new ForEachContent(null, parameterSymbol, expressionBody, []);
+            shape = new ForEachContent(null, parameterSymbol, expressionBody, null, []);
             return true;
         }
 
-        if (bodyNode is not BlockSyntax block
-            || !TryReadTransplantableBlock(block, out var statements, out var returned))
+        if (bodyNode is BlockSyntax block
+            && TryReadTransplantableBlock(block, out var statements, out var returned))
         {
-            return false;
+            shape = new ForEachContent(null, parameterSymbol, returned, null, statements);
+            return true;
         }
 
-        shape = new ForEachContent(null, parameterSymbol, returned, statements);
-        return true;
+        if (bodyNode is BlockSyntax ifBlock
+            && TryReadTransplantableIf(ifBlock, out var ifStatements, out var ifStatement))
+        {
+            shape = new ForEachContent(null, parameterSymbol, null, ifStatement, ifStatements);
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
