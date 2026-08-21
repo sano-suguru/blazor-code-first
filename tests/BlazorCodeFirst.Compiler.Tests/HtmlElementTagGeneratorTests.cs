@@ -202,4 +202,73 @@ public sealed class HtmlElementTagGeneratorTests
         // the point of this test is the *absence* of a new diagnostic, not a specific old one, so no
         // generated-source assertion here.
     }
+
+    /// <summary>
+    /// The regression guard for "an element tag alias is same-compilation only" (#173), the same shape
+    /// <see cref="ComponentUnresolvedTypeTests.Component_FromMetadataReference_ReportsNoBCF3012"/> pins for
+    /// a component type, mirrored onto BCF1006's Error rather than a component's silent success.
+    /// </summary>
+    [Fact]
+    public void ElementTagAlias_FromMetadataReference_ReportsBCF1006()
+    {
+        const string library = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace Lib;
+            public static class Aliases
+            {
+                public static ElementView MyCard => Element("my-card");
+            }
+            """;
+
+        var reference = CompilationTestHost.CompileToMetadataReference(library, "LibAssembly");
+
+        const string host = """
+            using BlazorCodeFirst;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Lib.Aliases.MyCard["x"];
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation([("Host.cs", host)], reference);
+        var result = CompilationTestHost.RunGenerator(compilation);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1006");
+    }
+
+    /// <summary>
+    /// A same-compilation alias declared in a different file from its use site takes the semantic-model
+    /// rebasing path (<c>ViewPartBodyContext.WithSemanticModel</c>) rather than the common same-file path.
+    /// A non-tag-name literal there must still reach BCF3009 through the rebased context's own
+    /// diagnostics, not one that gets built and discarded.
+    /// </summary>
+    [Fact]
+    public void ElementTagAlias_DeclaredInAnotherFile_WithInvalidTag_ReportsBCF3009()
+    {
+        const string aliasFile = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public static class Aliases
+            {
+                public static ElementView Bad => Element("not a tag!");
+            }
+            """;
+
+        const string hostFile = """
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body => Aliases.Bad["x"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("Aliases.cs", aliasFile), ("Host.cs", hostFile));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3009");
+    }
 }

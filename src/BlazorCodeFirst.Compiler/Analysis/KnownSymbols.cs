@@ -1212,6 +1212,14 @@ internal sealed class KnownSymbols
         ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType);
 
     /// <summary>
+    /// Whether <paramref name="type"/> is <c>ElementView</c>, the return type an element tag alias
+    /// property must declare (#173) and every curated element helper (<see cref="ElementTags"/>) already
+    /// does.
+    /// </summary>
+    public bool IsElementViewType(ITypeSymbol type) =>
+        ElementViewType is { } elementViewType && SymbolEqualityComparer.Default.Equals(type, elementViewType);
+
+    /// <summary>
     /// Whether <paramref name="method"/> is declared to take caller content, which is exactly whether it
     /// returns <c>SlotView</c> (#176).
     /// </summary>
