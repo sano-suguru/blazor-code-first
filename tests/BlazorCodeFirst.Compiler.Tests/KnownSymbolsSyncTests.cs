@@ -293,6 +293,44 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotEmpty(SurfaceMethodsOfKind(symbols, SurfaceMethodKind.On));
     }
 
+    /// <summary>The number of attribute shortcuts <c>KnownSymbols</c> owns the table for: the seven
+    /// hand-picked names plus the 136 standard-derived ones (#490, <c>ARCHITECTURE.md</c> 付録B.21
+    /// revisited).</summary>
+    private const int AttributeShortcutCount = 143;
+
+    /// <summary>
+    /// Every attribute shortcut's value is its method name spelled verbatim (#490, #244): lowercased, with
+    /// a hyphen inserted before each internal capital. This is the direction
+    /// <see cref="DecorationMaps_CoverAttributeAndEventShortcuts"/> does not cover — that test asserts only
+    /// the seven hand-picked names' values, so a wrong value on any of the 136 standard-derived rows (a
+    /// transposed pair, a truncation) has nothing else in this file to notice it.
+    /// </summary>
+    /// <remarks>
+    /// The rule is a fact about the whole table, not a second hand transcription of it: <c>AcceptCharset</c>
+    /// and <c>HttpEquiv</c> are the table's only two internally-capitalized names, and the standard spells
+    /// both with a hyphen at exactly that seam (<c>accept-charset</c>, <c>http-equiv</c>); every other name
+    /// is one word and needs no hyphen. Asserted through the resolved <see cref="KnownSymbols.AttributeShortcuts"/>
+    /// rather than the private table, so a mutated value is read exactly where the compiler itself reads it.
+    /// </remarks>
+    [Fact]
+    public void AttributeShortcuts_SpellTheAttributeNameVerbatim()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.Equal(AttributeShortcutCount, symbols.AttributeShortcuts.Count);
+
+        foreach (var entry in symbols.AttributeShortcuts)
+        {
+            var name = entry.Key.Name;
+            var expected = string.Concat(name.Select(
+                (c, index) => index > 0 && char.IsUpper(c)
+                    ? "-" + char.ToLowerInvariant(c)
+                    : char.ToLowerInvariant(c).ToString()));
+
+            Assert.Equal(expected, entry.Value);
+        }
+    }
+
     /// <summary>
     /// Every registered shortcut is (receiver, one value). The values check above asserts over
     /// <c>AttributeShortcuts.Values</c>/<c>EventShortcuts.Values</c> alone, so an extra overload mapping
@@ -717,8 +755,15 @@ public sealed class KnownSymbolsSyncTests
         Assert.True(contentIndexerParameter.IsParams);
     }
 
+    /// <summary>
+    /// Every structural shape <c>ClassifyComponentParameterDefinition</c> recognizes, including the six
+    /// <c>EventCallback</c>-taking <c>.Param</c> overloads (#492) as one kind
+    /// (<see cref="SurfaceMethodKind.ComponentParamEventCallback"/>). Widened from four kinds to five: the
+    /// original version filtered to four and left the fifth unchecked, so a member the classifier
+    /// misrouted into or out of that kind was invisible here.
+    /// </summary>
     [Fact]
-    public void ComponentParameterMethods_AllFourStructuralShapesAreResolvedSeparately()
+    public void ComponentParameterMethods_AllFiveStructuralShapesAreResolvedSeparately()
     {
         var (symbols, _) = ResolveHtml();
         Assert.NotNull(symbols.ComponentViewType);
@@ -729,7 +774,8 @@ public sealed class KnownSymbolsSyncTests
             .Where(static kind => kind is SurfaceMethodKind.ScalarParam
                 or SurfaceMethodKind.FragmentParam
                 or SurfaceMethodKind.GenericTemplateIgnored
-                or SurfaceMethodKind.GenericTemplateContextual)
+                or SurfaceMethodKind.GenericTemplateContextual
+                or SurfaceMethodKind.ComponentParamEventCallback)
             .OrderBy(static kind => kind)
             .ToArray();
 
@@ -739,6 +785,12 @@ public sealed class KnownSymbolsSyncTests
                 SurfaceMethodKind.FragmentParam,
                 SurfaceMethodKind.GenericTemplateIgnored,
                 SurfaceMethodKind.GenericTemplateContextual,
+                SurfaceMethodKind.ComponentParamEventCallback,
+                SurfaceMethodKind.ComponentParamEventCallback,
+                SurfaceMethodKind.ComponentParamEventCallback,
+                SurfaceMethodKind.ComponentParamEventCallback,
+                SurfaceMethodKind.ComponentParamEventCallback,
+                SurfaceMethodKind.ComponentParamEventCallback,
             ],
             kinds);
     }
@@ -783,6 +835,39 @@ public sealed class KnownSymbolsSyncTests
         Assert.True(KnownSymbols.IsCuratedTag("div"));
         Assert.False(KnownSymbols.IsCuratedTag("DIV"));
         Assert.False(KnownSymbols.IsCuratedTag("marquee"));
+    }
+
+    /// <summary>
+    /// The boundary characters of the three admitted ranges (<c>a-z</c>, <c>A-Z</c>, <c>0-9</c>), in both
+    /// the first-character position (which only admits letters, through <c>IsAsciiLetter</c>) and a later
+    /// position (which also admits digits, <c>-</c>, <c>_</c>, <c>.</c>). No caller of
+    /// <see cref="KnownSymbols.IsValidTagName"/> writes tag names at these exact edges, so nothing else
+    /// exercises them.
+    /// </summary>
+    [Theory]
+    [InlineData("a", true)]
+    [InlineData("z", true)]
+    [InlineData("A", true)]
+    [InlineData("Z", true)]
+    [InlineData("`", false)] // one below 'a'
+    [InlineData("{", false)] // one above 'z'
+    [InlineData("@", false)] // one below 'A'
+    [InlineData("[", false)] // one above 'Z'
+    [InlineData("aa", true)]
+    [InlineData("az", true)]
+    [InlineData("aA", true)]
+    [InlineData("aZ", true)]
+    [InlineData("a0", true)]
+    [InlineData("a9", true)]
+    [InlineData("a`", false)] // one below 'a'
+    [InlineData("a{", false)] // one above 'z'
+    [InlineData("a@", false)] // one below 'A'
+    [InlineData("a[", false)] // one above 'Z'
+    [InlineData("a/", false)] // one below '0'
+    [InlineData("a:", false)] // one above '9'
+    public void IsValidTagName_AdmitsExactlyTheBoundaryCharacters(string tag, bool expected)
+    {
+        Assert.Equal(expected, KnownSymbols.IsValidTagName(tag));
     }
 
     /// <summary>
@@ -851,6 +936,91 @@ public sealed class KnownSymbolsSyncTests
         }
 
         Assert.Empty(unrecognized);
+    }
+
+    /// <summary>
+    /// <see cref="KnownSymbols.IsDesignTimeApiReference"/> requires both halves of its conjunction: an
+    /// inert-typed expression naming a design-time API member. Its own remarks name the case either half
+    /// alone would wrongly admit — "a <c>[ViewPart]</c> used as a value is a surface member reached at a
+    /// type that is not [inert]" — which this pins directly: a <c>[ViewPart]</c> method is a design-time
+    /// API member (<see cref="IsDesignTimeApiMember"/> answers <see langword="true"/> for it through
+    /// <see cref="KnownSymbols.IsViewPart"/>), but reading it at a non-inert type must still answer
+    /// <see langword="false"/>.
+    /// </summary>
+    [Fact]
+    public void IsDesignTimeApiReference_RejectsAViewPartMemberReadAtANonInertType()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Html.Div["ok"];
+
+                [ViewPart]
+                private static View Part() => Html.Div["part"];
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var symbols = KnownSymbols.TryCreate(compilation);
+        Assert.NotNull(symbols);
+
+        var host = compilation.GetTypeByMetadataName("Host");
+        Assert.NotNull(host);
+        var part = host!.GetMembers("Part").OfType<IMethodSymbol>().Single();
+
+        Assert.True(symbols!.IsDesignTimeApiMember(part));
+
+        var nonInertType = compilation.GetSpecialType(SpecialType.System_Int32);
+        Assert.False(symbols.IsDesignTimeApiReference(nonInertType, part));
+    }
+
+    /// <summary>
+    /// <see cref="KnownSymbols.TryGetEventParameters"/> rejects a shape carrying two <see langword="string"/>
+    /// parameters ahead of the handler: the event name may appear at most once, and a second string is not
+    /// a shape this compiler was written against. No decoration the runtime declares carries two, so
+    /// nothing else exercises this rejection.
+    /// </summary>
+    [Fact]
+    public void TryGetEventParameters_RejectsASecondStringParameter()
+    {
+        const string source = """
+            public static class Shapes
+            {
+                public static void TwoNames(string a, string b, System.Action handler) { }
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var shapes = compilation.GetTypeByMetadataName("Shapes");
+        Assert.NotNull(shapes);
+        var method = shapes!.GetMembers("TwoNames").OfType<IMethodSymbol>().Single();
+
+        Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
+    }
+
+    /// <summary>
+    /// <see cref="KnownSymbols.TryGetEventParameters"/> answers <see langword="false"/> for a method with
+    /// no delegate-typed parameter at all: there is no handler argument to report, so nothing here is a
+    /// shape this compiler recognizes.
+    /// </summary>
+    [Fact]
+    public void TryGetEventParameters_RejectsAMethodWithNoDelegateParameter()
+    {
+        const string source = """
+            public static class Shapes
+            {
+                public static void NoHandler(string a) { }
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var shapes = compilation.GetTypeByMetadataName("Shapes");
+        Assert.NotNull(shapes);
+        var method = shapes!.GetMembers("NoHandler").OfType<IMethodSymbol>().Single();
+
+        Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
     }
 
     [Fact]
