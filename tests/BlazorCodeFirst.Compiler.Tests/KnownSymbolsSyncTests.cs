@@ -803,7 +803,8 @@ public sealed class KnownSymbolsSyncTests
     /// <c>ElementView.Key(…)</c> or <c>ComponentView&lt;T&gt;.Ref(…)</c> returning an inert type would pass
     /// BCF3029's type test and fail its member test, so the chain walk would step over it and anchor the
     /// report on an inner helper instead of the whole expression — contradicting Appendix A's stated
-    /// <c>位置は最も外側の設計時式の全体</c> in the direction where nothing throws and no test looks.
+    /// "the position is the whole of the outermost design-time expression" in the direction where
+    /// nothing throws and no test looks.
     /// </para>
     /// <para>
     /// Conversion operators are excluded rather than classified. They are how an inert value reaches a

@@ -69,7 +69,7 @@ internal sealed record RuntimeFormattedConstant : ConstantInfo;
 /// <see cref="ActiveMethodStack"/> is the load-bearing one: expanding under the callee's stack instead
 /// reports <c>A(A(P["z"]))</c> as a recursion cycle, which it is not. <see cref="CssScope"/> is the same
 /// idea applied to scoped CSS: the content is markup the caller wrote, so it must expand under the
-/// caller's own file scope, not the callee's (design doc §ViewPart展開でのスコープ伝播).
+/// caller's own file scope, not the callee's (ARCHITECTURE.md §2.7(F)).
 /// </para>
 /// <para>
 /// Transient expansion state, never part of the cached incremental model, so the

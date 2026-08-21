@@ -667,8 +667,8 @@ internal static class RenderViewEmitter
         // AddElementReferenceCapture (Ref) are not Attribute frames, so an AddAttribute call placed
         // after either would risk Blazor's AssertCanAddAttribute (which requires the immediately
         // preceding frame to be Element/Component/Attribute). Written as the bare one-argument
-        // AddAttribute overload, matching Razor's own scope-attribute emission (design doc
-        // §ジェネレーター): the frame carries no value, it is a presence-only attribute.
+        // AddAttribute overload, matching Razor's own scope-attribute emission (ARCHITECTURE.md
+        // §2.7(F)): the frame carries no value, it is a presence-only attribute.
         if (node.CssScope is { } cssScope)
         {
             var scopeLiteral = Literal(cssScope);
