@@ -1083,6 +1083,22 @@ internal static class RenderExpressionAnalyzer
             };
         }
 
+        // The generic parameter-binding path below admits exactly the six kinds named here. Written
+        // out so a kind that should have been routed through one of the two `if` blocks above, but
+        // was left out of their condition, fails loudly instead of falling through and being
+        // misclassified as a plain parameter binding -- the failure mode #309/#310/#311 already hit
+        // once in UnresolvedValueTypeScanner, fixed there with the same kind of guard.
+        if (kind is not (SurfaceMethodKind.ScalarParam
+            or SurfaceMethodKind.FragmentParam
+            or SurfaceMethodKind.GenericTemplateIgnored
+            or SurfaceMethodKind.GenericTemplateContextual
+            or SurfaceMethodKind.ComponentBind
+            or SurfaceMethodKind.ComponentParamEventCallback))
+        {
+            throw new System.NotSupportedException(
+                $"'{kind}' reached the generic component parameter route without an arm.");
+        }
+
         // Parameter 1 is .Param's value and .Bind's getter; both are required, so one check serves.
         var paramArgs = FactoryArguments.Bind(invocation, context);
         if (paramArgs is not { } args ||
