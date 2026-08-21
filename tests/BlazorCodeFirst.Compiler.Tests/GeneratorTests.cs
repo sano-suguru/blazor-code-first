@@ -197,6 +197,77 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void Generator_SvgVocabulary_EmitsStaticExpansionOnTheSameTermsAsHtml()
+    {
+        // Svg.* is recognized and statically expanded on the same terms Html.* is (#319 / #534): no
+        // runtime call to the property survives, camelCase tags (clipPath) pass through unaltered, and
+        // Root — the one irregular helper name — emits the root svg element.
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Svg;
+
+            public partial class Icon : BodyComponentBase
+            {
+                protected override View Body =>
+                    Root[
+                        ClipPath[
+                            Circle]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("__builder.OpenElement(0, \"svg\")", generated);
+        Assert.Contains("__builder.OpenElement(1, \"clipPath\")", generated);
+        Assert.Contains("__builder.OpenElement(2, \"circle\")", generated);
+
+        Assert.DoesNotContain(".Root", generated);
+        Assert.DoesNotContain("get_Root", generated);
+        Assert.DoesNotContain(".Circle", generated);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Generator_QualifiedHtmlAndSvgSameNamedHelpers_EmitTheirOwnDistinctTags()
+    {
+        // Html and Svg share several helper names (A, Audio, Canvas, Iframe, Video); qualification is
+        // how #319's comment resolves the collision, and each qualified spelling must still resolve to
+        // its own tag rather than either colliding or falling through to BCF1003. The Html.A child is
+        // interpolated (not a string literal) so §2.7(D) static-markup folding cannot merge it into a
+        // sibling's markup and hide its own OpenElement call from this assertion.
+        const string source = """
+            using BlazorCodeFirst;
+
+            public partial class Mixed : BodyComponentBase
+            {
+                private readonly string _label = "html link";
+
+                protected override View Body =>
+                    BlazorCodeFirst.Html.Div[
+                        BlazorCodeFirst.Html.A[$"{_label}"],
+                        BlazorCodeFirst.Svg.Root[
+                            BlazorCodeFirst.Svg.A[
+                                BlazorCodeFirst.Svg.Circle]]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Matches(new Regex("OpenElement\\(\\d+, \"div\"\\)"), generated);
+        Assert.Matches(new Regex("OpenElement\\(\\d+, \"a\"\\)"), generated);
+        Assert.Matches(new Regex("OpenElement\\(\\d+, \"svg\"\\)"), generated);
+        Assert.Matches(new Regex("OpenElement\\(\\d+, \"circle\"\\)"), generated);
+
+        // Two distinct helpers named A resolve to two OpenElement("a") calls, not one collapsed spelling.
+        Assert.Equal(2, Regex.Count(generated, "OpenElement\\(\\d+, \"a\"\\)"));
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void Generator_DivCounter_EmitsExactSource()
     {
         // Golden test: locks the full generated-source shape, indentation, blank lines, brace
