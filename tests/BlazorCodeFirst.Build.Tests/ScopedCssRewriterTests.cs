@@ -109,6 +109,12 @@ public class ScopedCssRewriterTests
             "\n    .first[TestScope]  .second ::deep .third { color:red; }\n");
 
     [Fact]
+    public void DoesNotTreatPseudoElementsStartingWithDeepAsTheDeepCombinator() =>
+        AssertRewrite(
+            "\n    a::deepwater { color: red; }\n",
+            "\n    a[TestScope]::deepwater { color: red; }\n");
+
+    [Fact]
     public void RespectsDeepCombinatorWithSpacesAndComments() =>
         AssertRewrite(
             "\n    .a .b /* comment ::deep 1 */  ::deep  /* comment ::deep 2 */  .c /* ::deep */ .d { color: red; }\n    ::deep * { color: blue; } /* Leading deep combinator */\n    another ::deep { color: green }  /* Trailing deep combinator */\n",

@@ -419,7 +419,8 @@ public static class ScopedCssRewriter
 
             var c = css[i];
 
-            if (depth == 0 && c == ':' && i + 6 <= end && string.CompareOrdinal(css, i, "::deep", 0, 6) == 0)
+            if (depth == 0 && c == ':' && i + 6 <= end && string.CompareOrdinal(css, i, "::deep", 0, 6) == 0
+                && (i + 6 == end || !IsIdentifierChar(css[i + 6])))
             {
                 var insertionPoint = pseudoBoundary ?? (contentEnd > start ? contentEnd : i);
                 edits.Add(new Edit(insertionPoint, EditKind.InsertScope));
