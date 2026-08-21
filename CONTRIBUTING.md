@@ -628,6 +628,10 @@ measurement commands no CI step runs, and anything checked by hand or against a 
 site deploy included, since `site-verified` reports the verification and not the deploy. A command
 listed there and never run reads exactly like one that was.
 
+Merge with `gh pr merge --merge` (or GitHub's "Create a merge commit"), never `--squash` or
+`--rebase`: every PR here is merged that way, and it keeps the branch's own commits reachable from
+`main` instead of minting new SHAs nothing else recognizes.
+
 ## Conventions the code must uphold
 
 - Sequence numbers are source syntax positions, never runtime generation order

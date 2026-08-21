@@ -282,8 +282,9 @@ internal static class RenderExpressionAnalyzer
                 // element are unavoidable and this is the one that carries no children. Asked first because it
                 // is the overwhelmingly common answer -- every Div, Span and P in every body arrives here --
                 // and the two arms are disjoint: an element helper returns ElementView and Slot is View.
-                if (symbols.ElementTags.TryGetValue(
-                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag))
+                var normalized = KnownSymbols.Normalize(resolvedProperty);
+                if (symbols.ElementTags.TryGetValue(normalized, out var propertyTag)
+                    || symbols.SvgElementTags.TryGetValue(normalized, out propertyTag))
                 {
                     return new ElementTemplateNode(propertyTag);
                 }

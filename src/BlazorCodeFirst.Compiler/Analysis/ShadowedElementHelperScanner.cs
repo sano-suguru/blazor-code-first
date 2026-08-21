@@ -89,8 +89,11 @@ internal static class ShadowedElementHelperScanner
             // First because it is the only conjunct that asks nothing of the semantic model. #68 planned to
             // reuse it as its own prefilter and did not need to: BCF3029 keys on resolved symbols
             // throughout, where a name test would have been the cheap half of a syntax-wide sweep it does
-            // not run.
-            if (!KnownSymbols.IsCuratedHelperName(name))
+            // not run. Both curated vocabularies are checked (#319 / #534): a name spelled like an Svg
+            // helper is just as reachable through `using static Svg;` as an Html one.
+            var isHtmlName = KnownSymbols.IsCuratedHelperName(name);
+            var isSvgName = KnownSymbols.IsCuratedSvgHelperName(name);
+            if (!isHtmlName && !isSvgName)
                 continue;
 
             var shadowing = Shadowing(
@@ -109,7 +112,7 @@ internal static class ShadowedElementHelperScanner
                 continue;
 
             context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3027, receiver.GetLocation(), [name, Describe(shadowing)]));
+                DiagnosticDescriptors.BCF3027, receiver.GetLocation(), [name, Describe(shadowing), Fix(name, isHtmlName, isSvgName)]));
             return;
         }
     }
@@ -150,4 +153,26 @@ internal static class ShadowedElementHelperScanner
         IMethodSymbol => "method",
         _ => "member",
     };
+
+    /// <summary>
+    /// The qualified spelling(s) BCF3027 suggests as the fix, for <paramref name="name"/> curated in
+    /// <c>Html</c> (<paramref name="isHtmlName"/>), <c>Svg</c> (<paramref name="isSvgName"/>), or both
+    /// (#319 / #534).
+    /// </summary>
+    /// <remarks>
+    /// Both, not a guess at one: <c>Html</c> and <c>Svg</c> curate several identical names (<c>A</c>,
+    /// <c>Audio</c>, <c>Canvas</c>, <c>Iframe</c>, <c>Video</c>), and a declaration that shadows the name
+    /// shadows both equally — C# simple-name lookup binds the nearer declaration before it ever consults
+    /// either `using static` import, so which vocabulary the author meant is not recoverable from this
+    /// shape. The dual case embeds its own closing and opening single quotes, since the descriptor's
+    /// <c>messageFormat</c> wraps this return value in one quoted pair (<c>write '{2}' to name</c>) and has
+    /// no second slot for a two-suggestion message.
+    /// </remarks>
+    private static string Fix(string name, bool isHtmlName, bool isSvgName) =>
+        (isHtmlName, isSvgName) switch
+        {
+            (true, true) => $"Html.{name}' or 'Svg.{name}",
+            (true, false) => $"Html.{name}",
+            _ => $"Svg.{name}",
+        };
 }

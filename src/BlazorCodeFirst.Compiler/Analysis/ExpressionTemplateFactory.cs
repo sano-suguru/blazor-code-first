@@ -803,12 +803,7 @@ internal static class ExpressionTemplateFactory
         InvocationExpressionSyntax invocation,
         ViewPartBodyContext context)
     {
-        var generic = invocation.Expression switch
-        {
-            GenericNameSyntax direct => direct,
-            MemberAccessExpressionSyntax { Name: GenericNameSyntax member } => member,
-            _ => null,
-        };
+        var generic = TypeSymbolFacts.TryGetInvokedGenericName(invocation);
 
         if (generic is null)
             return false;

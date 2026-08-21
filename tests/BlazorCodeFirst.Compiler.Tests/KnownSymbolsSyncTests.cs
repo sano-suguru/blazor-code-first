@@ -281,6 +281,121 @@ public sealed class KnownSymbolsSyncTests
         Assert.Equal(CuratedTagCount, symbols.ElementTags.Count);
     }
 
+    /// <summary>The number of <c>Svg</c> element helpers (#319 / #534): SVG2's 69-element index, with no
+    /// exclusions.</summary>
+    internal const int SvgTagCount = 69;
+
+    /// <summary>
+    /// Every <c>Svg</c> element helper name, transcribed independently of <c>KnownSymbols.SvgTags</c> from
+    /// SVG2's own element index (<c>https://www.w3.org/TR/SVG2/eltindex.html</c>), the same change of
+    /// question <see cref="ExpectedCuratedNames"/> buys for the <c>Html</c> side. Ordinal-sorted.
+    /// </summary>
+    private static readonly string[] ExpectedSvgNames =
+    [
+        "A", "Animate", "AnimateMotion", "AnimateTransform", "Audio",
+        "Canvas", "Circle", "ClipPath",
+        "Defs", "Desc", "Discard",
+        "Ellipse",
+        "FeBlend", "FeColorMatrix", "FeComponentTransfer", "FeComposite", "FeConvolveMatrix",
+        "FeDiffuseLighting", "FeDisplacementMap", "FeDistantLight", "FeDropShadow", "FeFlood",
+        "FeFuncA", "FeFuncB", "FeFuncG", "FeFuncR", "FeGaussianBlur", "FeImage", "FeMerge", "FeMergeNode",
+        "FeMorphology", "FeOffset", "FePointLight", "FeSpecularLighting", "FeSpotLight", "FeTile",
+        "FeTurbulence", "Filter", "ForeignObject",
+        "G",
+        "Iframe", "Image",
+        "Line", "LinearGradient",
+        "Marker", "Mask", "Metadata", "Mpath",
+        "Path", "Pattern", "Polygon", "Polyline",
+        "RadialGradient", "Rect", "Root",
+        "Script", "Set", "Stop", "Style", "Switch", "Symbol",
+        "Text", "TextPath", "Title", "Tspan",
+        "Unknown", "Use",
+        "Video", "View",
+    ];
+
+    [Fact]
+    public void SvgElementTags_AreExactlyTheSvg2ElementIndex()
+    {
+        var (symbols, _) = ResolveSvg();
+
+        var actual = symbols.SvgElementTags.Keys
+            .Select(static key => key.Name)
+            .OrderBy(static name => name, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(ExpectedSvgNames, actual);
+    }
+
+    /// <summary>
+    /// Every <c>Svg</c> tag is its helper name with the first letter lowercased, the same bijection
+    /// <see cref="EveryCuratedTag_IsItsHelperNameWithALowercasedFirstLetter"/> holds for <c>Html</c> —
+    /// except <c>Root</c>, the one irregular spot the naming rule cannot reach (<c>Svg.Svg</c> is
+    /// CS0542).
+    /// </summary>
+    [Fact]
+    public void EveryCuratedSvgTag_IsItsHelperNameWithALowercasedFirstLetter_ExceptRoot()
+    {
+        var (symbols, _) = ResolveSvg();
+
+        foreach (var entry in symbols.SvgElementTags)
+        {
+            var name = entry.Key.Name;
+            if (name == "Root")
+            {
+                Assert.Equal("svg", entry.Value);
+                continue;
+            }
+
+            Assert.Equal(char.ToLowerInvariant(name[0]) + name[1..], entry.Value);
+        }
+    }
+
+    [Fact]
+    public void SvgElementTags_CoverEverySvgHelper()
+    {
+        var (symbols, svg) = ResolveSvg();
+        var tagged = symbols.SvgElementTags.Keys
+            .Select(static key => key.Name).ToHashSet(System.StringComparer.Ordinal);
+
+        foreach (var member in svg.GetMembers())
+        {
+            if (member is IPropertySymbol { IsIndexer: false } property)
+                Assert.Contains(property.Name, tagged); // every Svg property is a curated tag
+        }
+
+        // The count is what makes deleting a curated helper from the runtime a failure, for the same
+        // reason ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural's count is.
+        Assert.Equal(SvgTagCount, symbols.SvgElementTags.Count);
+    }
+
+    /// <summary>
+    /// The static <c>SvgTags</c> table's own tag values, independent of any compilation or resolved
+    /// runtime, agree with <see cref="ExpectedSvgNames"/> — the <c>Svg</c>-side counterpart of
+    /// <see cref="CuratedElementTags_AreExactlyTheCuratedTableValues"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is the one direction <see cref="SvgElementTags_CoverEverySvgHelper"/> cannot cover: that test
+    /// resolves against the runtime's declared <c>Svg</c> members, so a stale extra row added to the
+    /// static <c>SvgTags</c> table with no matching runtime property would leave the resolved instance
+    /// table at 69 and every other Svg test green. Reading <see cref="KnownSymbols.CuratedSvgElementTags"/>
+    /// directly closes that gap.
+    /// </remarks>
+    [Fact]
+    public void CuratedSvgElementTags_AreExactlyTheSvgTagsTableValues()
+    {
+        var expected = ExpectedSvgNames
+            .Select(static name => name == "Root" ? "svg" : char.ToLowerInvariant(name[0]) + name[1..])
+            .OrderBy(static tag => tag, System.StringComparer.Ordinal)
+            .ToArray();
+
+        var actual = KnownSymbols.CuratedSvgElementTags
+            .OrderBy(static tag => tag, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(SvgTagCount, actual.Length);
+        Assert.Equal(expected, actual);
+    }
+
     [Fact]
     public void DecorationMaps_CoverAttributeAndEventShortcuts()
     {
@@ -884,7 +999,8 @@ public sealed class KnownSymbolsSyncTests
     /// <c>ElementView.Key(…)</c> or <c>ComponentView&lt;T&gt;.Ref(…)</c> returning an inert type would pass
     /// BCF3029's type test and fail its member test, so the chain walk would step over it and anchor the
     /// report on an inner helper instead of the whole expression — contradicting Appendix A's stated
-    /// <c>位置は最も外側の設計時式の全体</c> in the direction where nothing throws and no test looks.
+    /// "the position is the whole of the outermost design-time expression" in the direction where
+    /// nothing throws and no test looks.
     /// </para>
     /// <para>
     /// Conversion operators are excluded rather than classified. They are how an inert value reaches a
@@ -1015,5 +1131,15 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotNull(symbols);
         var html = compilation.GetTypeByMetadataName("BlazorCodeFirst.Html")!;
         return (symbols!, html);
+    }
+
+    private static (KnownSymbols, INamedTypeSymbol) ResolveSvg()
+    {
+        var compilation = CompilationTestHost.CreateCompilation("");
+        var symbols = KnownSymbols.TryCreate(compilation);
+        Assert.NotNull(symbols);
+        var svg = compilation.GetTypeByMetadataName("BlazorCodeFirst.Svg")!;
+        Assert.NotNull(svg);
+        return (symbols!, svg);
     }
 }
