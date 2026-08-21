@@ -227,24 +227,23 @@ internal static class ClassChannel
         var code = new StringBuilder($"private static string? {JoinHelperName}({parameters}) =>");
 
         // "all names but index N", for every N, without re-scanning and re-joining the full array on
-        // each pass (#529): each prefix/suffix extends the previous one by a single name instead.
-        var prefixes = new string[arity];
-        for (var i = 1; i < arity; i++)
-            prefixes[i] = i == 1 ? names[0] : $"{prefixes[i - 1]}, {names[i - 1]}";
-
+        // each pass (#529): the suffix for each N is precomputed once, and the prefix carries forward
+        // from the previous N rather than being rebuilt from scratch.
         var suffixes = new string[arity];
         for (var i = arity - 2; i >= 0; i--)
             suffixes[i] = i == arity - 2 ? names[arity - 1] : $"{names[i + 1]}, {suffixes[i + 1]}";
 
+        string? prefix = null;
         for (var dropped = 0; dropped < arity; dropped++)
         {
-            var prefix = dropped == 0 ? null : prefixes[dropped];
             var suffix = dropped == arity - 1 ? null : suffixes[dropped];
             var rest = prefix is null ? suffix : suffix is null ? prefix : $"{prefix}, {suffix}";
 
             // Below two, what is left is a term rather than a call: there is no join of one.
             var withoutIt = arity == 2 ? rest : $"{JoinHelperName}({rest})";
             code.Append($" {names[dropped]} is null ? {withoutIt} :");
+
+            prefix = prefix is null ? names[dropped] : $"{prefix}, {names[dropped]}";
         }
 
         var joined = string.Join($", {SeparatorLiteral}, ", names);
