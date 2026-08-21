@@ -238,8 +238,13 @@
     --z-modal: 400;
     --z-toast: 500;
 
-    /* --- Measure ------------------------------------------------------------ */
-    --measure: 66ch;
+    /* --- Measure ------------------------------------------------------------
+       em, not ch: `ch` is the advance width of the current font's "0" glyph, so a reading column
+       sized with it resizes the instant font-display: swap replaces the fallback stack with Geist
+       -- not a sub-pixel glyph-metrics nudge but every consumer's max-width recomputing at once
+       (#481). em tracks font-size the same way ch does, without depending on which face is painted;
+       43.75em reproduces 66ch's width at Geist's real metrics (700px at the 16px base size).       */
+    --measure: 43.75em;
     --shell-max: 76rem;
     --rail-width: 16rem;
     /* The banner's own height, so anything else that sticks can dock beneath it rather than
