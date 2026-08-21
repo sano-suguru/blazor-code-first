@@ -39,7 +39,7 @@ internal static class ViewPartExpander
         ImmutableArray<DiagnosticInfo>.Builder Diagnostics);
 
     internal static ExpansionResult Expand(
-        RenderTemplateNode root,
+        RenderNode root,
         ViewPartRegistry registry,
         ImmutableArray<string> generatedTypeInheritanceKeys,
         CssScopeRegistry cssScopes,
@@ -60,7 +60,7 @@ internal static class ViewPartExpander
         return new ExpansionResult(node, diagnostics.ToImmutable());
     }
 
-    /// <param name="node">The template node being expanded.</param>
+    /// <param name="node">The node being expanded.</param>
     /// <param name="substitution">
     /// The arguments bound to the enclosing view part's parameter holes, code plus constant; empty at the
     /// component's design-time expression root (<c>Body</c> or <c>Chrome</c>), where no holes exist.
@@ -73,7 +73,7 @@ internal static class ViewPartExpander
     /// <param name="currentScope">The <c>.cs.css</c> scope currently in effect, threaded through view part calls.</param>
     /// <param name="environment">The registry, inheritance keys, CSS scopes, and diagnostics shared across the whole expansion.</param>
     private static RenderNode? ExpandNode(
-        RenderTemplateNode node,
+        RenderNode node,
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
@@ -85,7 +85,7 @@ internal static class ViewPartExpander
 
         switch (node)
         {
-            case IfTemplateNode ifNode:
+            case IfNode ifNode:
                 return ExpandBranches(
                     ifNode.Then,
                     ifNode.Otherwise,
@@ -94,9 +94,9 @@ internal static class ViewPartExpander
                     activeMethodStack,
                     currentScope,
                     environment,
-                    (then, otherwise) => new IfNode(ifNode.Condition.Substitute(substitution), then, otherwise));
+                    (then, otherwise) => new IfNode(ifNode.ConditionExpression.Substitute(substitution), then, otherwise));
 
-            case TransplantedIfTemplateNode transplantedIf:
+            case TransplantedIfNode transplantedIf:
                 return ExpandBranches(
                     transplantedIf.Then,
                     transplantedIf.Otherwise,
@@ -108,7 +108,7 @@ internal static class ViewPartExpander
                     (then, otherwise) => new TransplantedIfNode(
                         transplantedIf.Condition.Substitute(substitution), then, otherwise));
 
-            case ForEachTemplateNode forEach:
+            case ForEachNode forEach:
                 {
                     // The preorder `ordinal` (assigned at the top of ExpandNode) names a loop variable
                     // unique across the whole component. Source is bound in the outer scope; key/content
@@ -129,18 +129,23 @@ internal static class ViewPartExpander
                         return null;
 
                     // The key is applied to the content's root element/component frame. Region-rooted
-                    // content (a bare If/ForEach, or a view part whose expanded body is region-rooted)
-                    // has no keyable frame. BCF3003 is reported by KeyabilityResolver (reachability-
-                    // independent, deduped per definition/component); suppress emission here so no SetKey
-                    // lands on a region. A declined key attaches nothing, so the gate has nothing to
-                    // protect and every root is admitted (#172).
-                    if (key is not null && !IsKeyableRoot(content))
-                        return null;
+                    // content, or a root already carrying its own key, has nowhere a second SetKey can
+                    // land. BCF3003/BCF3032 report this at the template layer; suppress emission here so
+                    // nothing lands on a frame that cannot take it. A declined key attaches nothing, so
+                    // every root is admitted (#172).
+                    if (key is not null)
+                    {
+                        var root = Analysis.KeyabilityResolver.ResolveRoot(content, environment.Registry);
+                        if (root.Kind != Analysis.ContentRootKind.Element || root.IsKeyed)
+                            return null;
+                    }
 
-                    return new ForEachNode(source, key, content, loopVariableName);
+                    // Location is a template-phase field (BCF3002/BCF3003 blame it); an expanded node
+                    // carries no absolute TextSpan (see RenderNode's remarks).
+                    return new ForEachNode(source, key, content, Location: null, LoopVariableName: loopVariableName);
                 }
 
-            case ComponentTemplateNode component:
+            case ComponentNode component:
                 {
                     var parameters = ImmutableArray.CreateBuilder<ComponentParameter>(component.Parameters.Length);
                     // A `with`: expansion substitutes holes in the value and changes nothing else, and a
@@ -193,10 +198,10 @@ internal static class ViewPartExpander
                     };
                 }
 
-            case TextContentTemplateNode text:
+            case TextContentNode text:
                 return new TextContentNode(text.Content.Substitute(substitution));
 
-            case ElementTemplateNode element:
+            case ElementNode element:
                 {
                     if (ExpandChildren(
                             element.Children, substitution, ref nextLogicalPreorderOrdinal,
@@ -256,16 +261,16 @@ internal static class ViewPartExpander
                     };
                 }
 
-            case RawMarkupTemplateNode raw:
+            case RawMarkupNode raw:
                 return new RawMarkupNode(raw.Content.Substitute(substitution));
 
-            case RenderFragmentContentTemplateNode fragmentContent:
+            case RenderFragmentContentNode fragmentContent:
                 return new RenderFragmentContentNode(fragmentContent.Content.Substitute(substitution));
 
-            case OpaqueViewTemplateNode opaque:
+            case OpaqueViewNode opaque:
                 return new OpaqueViewNode(opaque.Call.Substitute(substitution));
 
-            case TransplantedBlockTemplateNode transplanted:
+            case TransplantedBlockNode transplanted:
                 {
                     // One minted name per authored local the block declares, appended in the order analysis
                     // pushed them, so the ordinals the holes carry index this array (#336). The preorder
@@ -295,10 +300,10 @@ internal static class ViewPartExpander
 
                     return statements.Segments.Length == 0
                         ? content
-                        : new TransplantedBlockNode(statements, content);
+                        : new TransplantedBlockNode(statements, content, transplanted.LocalCount);
                 }
 
-            case FragmentTemplateNode fragment:
+            case FragmentNode fragment:
                 {
                     if (ExpandChildren(
                             fragment.Children, substitution, ref nextLogicalPreorderOrdinal,
@@ -310,7 +315,7 @@ internal static class ViewPartExpander
                     return new FragmentNode(children);
                 }
 
-            case ViewPartCallTemplateNode call:
+            case ViewPartCallNode call:
                 return ExpandCall(
                     call,
                     ordinal,
@@ -320,7 +325,7 @@ internal static class ViewPartExpander
                     currentScope,
                     environment);
 
-            case ContentHoleTemplateNode hole:
+            case ContentHoleNode hole:
                 {
                     // Lazy substitution: the caller's subtree is expanded here, where the callee names the
                     // hole, rather than at the call site. That is what makes zero, one, and many references
@@ -352,21 +357,26 @@ internal static class ViewPartExpander
                         environment);
                 }
 
+            case ExpansionNode:
+                throw new NotSupportedException(
+                    "An ExpansionNode reached ExpandNode; it is a render-phase-only node produced by "
+                        + "this method and never a valid input to it.");
+
             default:
                 throw new NotSupportedException(
-                    $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
+                    $"Unknown RenderNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
         }
     }
 
     /// <summary>
-    /// Expands a two-branch node's <c>then</c>/<c>otherwise</c>, shared by <see cref="IfTemplateNode"/>
-    /// and <see cref="TransplantedIfTemplateNode"/>: the two differ only in which condition-carrying node
+    /// Expands a two-branch node's <c>then</c>/<c>otherwise</c>, shared by <see cref="IfNode"/>
+    /// and <see cref="TransplantedIfNode"/>: the two differ only in which condition-carrying node
     /// type <paramref name="build"/> constructs from the expanded branches, not in how the branches
     /// themselves expand.
     /// </summary>
     private static RenderNode? ExpandBranches(
-        RenderTemplateNode then,
-        RenderTemplateNode? otherwise,
+        RenderNode then,
+        RenderNode? otherwise,
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
@@ -393,10 +403,10 @@ internal static class ViewPartExpander
     }
 
     /// <summary>Expands each of a node's children in order, or null if any one fails. Shared by
-    /// <see cref="ElementTemplateNode"/> and <see cref="FragmentTemplateNode"/>, the two shapes that
+    /// <see cref="ElementNode"/> and <see cref="FragmentNode"/>, the two shapes that
     /// carry a bare children list.</summary>
     private static ImmutableArray<RenderNode>? ExpandChildren(
-        EquatableArray<RenderTemplateNode> children,
+        EquatableArray<RenderNode> children,
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
         ImmutableArray<string> activeMethodStack,
@@ -417,7 +427,7 @@ internal static class ViewPartExpander
     }
 
     private static ExpansionNode? ExpandCall(
-        ViewPartCallTemplateNode call,
+        ViewPartCallNode call,
         int callPreorderOrdinal,
         ImmutableArray<SubstitutedArgument> substitution,
         ref int nextLogicalPreorderOrdinal,
@@ -620,27 +630,6 @@ internal static class ViewPartExpander
         return builder.ToString();
     }
 
-    /// <summary>
-    /// Determines whether an expanded content node's root frame is a single element or component (and so
-    /// can carry a <c>SetKey</c>). <see cref="ExpansionNode"/> is transparent, its view part body's root
-    /// is the real frame, so it is unwrapped. Element/component-rooted nodes (<see cref="ComponentNode"/>,
-    /// <see cref="ElementNode"/>) are keyable; region-rooted nodes (<see cref="IfNode"/>,
-    /// <see cref="ForEachNode"/>, <see cref="TextContentNode"/>) and wrapper-less nodes
-    /// (<see cref="FragmentNode"/>, <see cref="RawMarkupNode"/>, <see cref="RenderFragmentContentNode"/>)
-    /// are not.
-    /// </summary>
-    private static bool IsKeyableRoot(RenderNode node) => node switch
-    {
-        ExpansionNode expansion => IsKeyableRoot(expansion.Body),
-        TransplantedBlockNode transplanted => IsKeyableRoot(transplanted.Content),
-        // A root that keys itself is not keyable by the loop: the second SetKey would overwrite the first.
-        // BCF3032 refuses that pair at the template layer, so reaching here with one means the two layers
-        // have drifted, and this is the layer whose default is to answer no.
-        ComponentNode component => component.Key is null,
-        ElementNode element => element.Key is null,
-        _ => false,
-    };
-
     private static EquatableArray<ExpressionTemplate> SubstituteClasses(
         EquatableArray<ExpressionTemplate> classes, ImmutableArray<SubstitutedArgument> substitution)
     {
@@ -669,7 +658,7 @@ internal static class ViewPartExpander
     private static string CreateLocalName(int callPreorderOrdinal, int parameterOrdinal) =>
         $"__bcf_arg_{callPreorderOrdinal}_{parameterOrdinal}";
 
-    private static DiagnosticInfo CreateDiagnostic(ViewPartCallTemplateNode call, string reason) =>
+    private static DiagnosticInfo CreateDiagnostic(ViewPartCallNode call, string reason) =>
         DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF1002,
             call.Location.ToLocation(),

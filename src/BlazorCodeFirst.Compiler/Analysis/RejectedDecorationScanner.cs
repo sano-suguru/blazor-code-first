@@ -62,7 +62,7 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// A sweep on the failure path rather than a check inside <see cref="RenderExpressionAnalyzer"/>, for the
 /// same reason as its two neighbours: the analyzer never reaches its decoration arm for this shape. The
 /// invocation binds to no decoration at all, so <c>Classify</c>'s method arm returns null before the
-/// decoration branch, which is why that branch's <c>ElementTemplateNode</c> guard is now unreachable and
+/// decoration branch, which is why that branch's <c>ElementNode</c> guard is now unreachable and
 /// carries no report of its own.
 /// </para>
 /// </remarks>

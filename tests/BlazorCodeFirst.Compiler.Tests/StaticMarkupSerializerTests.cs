@@ -441,7 +441,7 @@ public sealed class StaticMarkupSerializerTests
     [Fact]
     public void ForEach_IsNotFoldable() =>
         Assert.False(StaticMarkupSerializer.IsFoldable(new ForEachNode(
-            Dynamic("_items"), Dynamic("i => i.Id"), Element("div"), "item")));
+            Dynamic("_items"), Dynamic("i => i.Id"), Element("div"), null, "item")));
 
     [Fact]
     public void RenderFragmentContent_IsNotFoldable() =>

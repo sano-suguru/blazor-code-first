@@ -154,7 +154,7 @@ public sealed class ViewPartDefinitionTests
             }
             """;
 
-        var call = (ViewPartCallTemplateNode)AnalyzeBody(source, "Caller")!;
+        var call = (ViewPartCallNode)AnalyzeBody(source, "Caller")!;
         var arguments = call.Arguments;
 
         Assert.Equal(3, arguments.Length);
@@ -279,7 +279,7 @@ public sealed class ViewPartDefinitionTests
         Assert.Equal("\"name\" + __p0", code);
     }
 
-    private static RenderTemplateNode? AnalyzeBody(string source, string methodName)
+    private static RenderNode? AnalyzeBody(string source, string methodName)
     {
         var compilation = CompilationTestHost.CreateCompilation(source);
         var tree = compilation.SyntaxTrees.Single();

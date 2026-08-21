@@ -128,7 +128,7 @@ public sealed class ComponentSlotDiagnosticTests
     /// <summary>
     /// The receiver-recursion guard at the top of <c>ClassifyComponentParameter</c>: a chained
     /// <c>.Param</c> whose receiver is itself an already-rejected <c>.Param</c> call (here, a duplicate
-    /// <c>Title</c> binding, BCF3007) never resolves to a <see cref="ComponentTemplateNode"/>, so this
+    /// <c>Title</c> binding, BCF3007) never resolves to a <see cref="ComponentNode"/>, so this
     /// call's own value never reaches generated code either. That value carries an unresolved reference,
     /// which the failure scanner must not go on to report — the same contract every other rejection in
     /// this file keeps.

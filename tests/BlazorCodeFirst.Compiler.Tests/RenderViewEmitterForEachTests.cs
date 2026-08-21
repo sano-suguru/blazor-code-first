@@ -14,6 +14,7 @@ public sealed class RenderViewEmitterForEachTests
             Source: ExpressionTemplate.Literal("_items"),
             Key: ExpressionTemplate.Literal("__bcf_item_0.Id"),
             Content: Span(ExpressionTemplate.Literal("__bcf_item_0.Title")),
+            Location: null,
             LoopVariableName: "__bcf_item_0");
 
         var model = new ComponentModel(
@@ -44,6 +45,7 @@ public sealed class RenderViewEmitterForEachTests
             Source: ExpressionTemplate.Literal("_items"),
             Key: ExpressionTemplate.Literal("__bcf_item_0.Id"),
             Content: Span(ExpressionTemplate.Literal("__bcf_item_0.Title")),
+            Location: null,
             LoopVariableName: "__bcf_item_0");
 
         var model = new ComponentModel(

@@ -101,11 +101,11 @@ public sealed class RenderViewEmitterSequenceTests
                 "ul",
                 new ForEachNode(
                     Code("_items"), Code("item"),
-                    Element("li", new TextContentNode(Code("item"))), "item"),
+                    Element("li", new TextContentNode(Code("item"))), null, "item"),
                 Span("\"after\"")),
             ["foreach-content-nested-element"] = Element(
                 "ul",
-                new ForEachNode(Code("_items"), Code("item"), Element("li", Span("item")), "item"),
+                new ForEachNode(Code("_items"), Code("item"), Element("li", Span("item")), null, "item"),
                 Span("\"after\"")),
 
             // --- components: slots continue the flat counter --------------------------------------
@@ -135,7 +135,7 @@ public sealed class RenderViewEmitterSequenceTests
                         "ChildContent",
                         Element("ul", new ForEachNode(
                             Code("_items"), Code("item"),
-                            Element("li", new TextContentNode(Code("item"))), "item"))))),
+                            Element("li", new TextContentNode(Code("item"))), null, "item"))))),
                 Span("\"after\"")),
             ["component-mixed-scalar-and-slot-kinds"] = new ComponentNode(
                 "global::T.Card",
@@ -177,7 +177,7 @@ public sealed class RenderViewEmitterSequenceTests
                 StaticSpan("after")),
             ["folded-inside-foreach-content"] = Element(
                 "div",
-                new ForEachNode(Code("_items"), Code("item.Id"), Element("li", StaticSpan("x")), "item"),
+                new ForEachNode(Code("_items"), Code("item.Id"), Element("li", StaticSpan("x")), null, "item"),
                 StaticSpan("after")),
             ["folded-component-slot-with-sibling"] = Element(
                 "div",

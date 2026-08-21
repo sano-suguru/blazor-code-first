@@ -66,7 +66,7 @@ internal sealed record ComponentAnalysis(
     string FilePath,
     string DesignTimeExpressionName,
     EquatableArray<string> InheritanceKeys,
-    RenderTemplateNode? Template,
+    RenderNode? Template,
     EquatableArray<DiagnosticInfo> BodyDiagnostics,
     TemplateLocation? FailureLocation)
 {
