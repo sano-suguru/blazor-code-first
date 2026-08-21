@@ -87,7 +87,7 @@ public static class ScopedCssRewriter
             if (css[i] == '@')
             {
                 var keyword = ReadAtKeyword(css, i);
-                if (string.Equals(keyword, "keyframes", StringComparison.OrdinalIgnoreCase))
+                if (IsKeyframesKeyword(keyword))
                 {
                     var nameRange = FindIdentifierAfterAtKeyword(css, i, css.Length);
                     if (nameRange is { } range && range.End > range.Start)
@@ -136,7 +136,7 @@ public static class ScopedCssRewriter
                 {
                     var keyword = ReadAtKeyword(css, trimmedPreludeStart);
 
-                    if (string.Equals(keyword, "keyframes", StringComparison.OrdinalIgnoreCase))
+                    if (IsKeyframesKeyword(keyword))
                     {
                         var nameRange = FindIdentifierAfterAtKeyword(css, trimmedPreludeStart, preludeEnd);
                         if (nameRange is { } range && range.End > range.Start)
@@ -206,10 +206,6 @@ public static class ScopedCssRewriter
         return trimmedStart < preludeEnd && css[trimmedStart] == '@';
     }
 
-    // Browsers treat a vendor-prefixed at-rule keyword as the same rule as its bare form, so a
-    // recognized prefix is stripped before the keyword is returned for comparison.
-    private static readonly string[] VendorPrefixes = ["-webkit-", "-moz-", "-o-", "-ms-"];
-
     private static string ReadAtKeyword(string css, int atIndex)
     {
         var i = atIndex + 1;
@@ -217,15 +213,23 @@ public static class ScopedCssRewriter
         while (i < css.Length && (char.IsLetterOrDigit(css[i]) || css[i] == '-'))
             i++;
 
-        return StripVendorPrefix(css.Substring(start, i - start));
+        return css.Substring(start, i - start);
     }
 
-    // Also applied to the "animation"/"animation-name" property comparison in
-    // ScanDeclarationsForAnimationNames, since a vendor-prefixed @keyframes block is written
-    // together with the equally-prefixed property (e.g. @-webkit-keyframes pairs with
-    // -webkit-animation), never the bare property.
+    // Browsers treat a vendor-prefixed @keyframes as the same rule as its bare form, so the
+    // keyword comparison strips a recognized prefix first. Scoped to the keyframes check alone
+    // -- @import (the only other ReadAtKeyword comparison) has no vendor-prefixed form to
+    // normalize.
+    private static readonly string[] VendorPrefixes = ["-webkit-", "-moz-", "-o-", "-ms-"];
+
+    private static bool IsKeyframesKeyword(string keyword) =>
+        string.Equals(StripVendorPrefix(keyword), "keyframes", StringComparison.OrdinalIgnoreCase);
+
     private static string StripVendorPrefix(string identifier)
     {
+        if (identifier.Length == 0 || identifier[0] != '-')
+            return identifier;
+
         foreach (var prefix in VendorPrefixes)
         {
             if (identifier.Length > prefix.Length && identifier.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -366,6 +370,9 @@ public static class ScopedCssRewriter
             while (propertyEnd > propertyStart && char.IsWhiteSpace(css[propertyEnd - 1]))
                 propertyEnd--;
 
+            // A vendor-prefixed @keyframes block is written together with the equally-prefixed
+            // property (e.g. @-webkit-keyframes pairs with -webkit-animation), never the bare
+            // property, so the same prefix stripping applies here.
             var propertyName = StripVendorPrefix(css.Substring(propertyStart, propertyEnd - propertyStart));
             if (!string.Equals(propertyName, "animation", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(propertyName, "animation-name", StringComparison.OrdinalIgnoreCase))
