@@ -69,11 +69,11 @@ The declarative expression written in `Body` is compiled by the Source Generator
 | Target | Position | Features provided |
 | ---------- | ------------------ | -------------------------------------------------------------------------------------------------------- |
 | net10.0    | Baseline (required) | The full core engine. LTS (3-year support), a low adoption barrier for enterprise users |
-| net11.0    | Opt-in (recommended) | The closed-world `ViewNode` definition via C# 15's union types and the `closed` hierarchy; a lighter event pipeline via Runtime Async |
+| net11.0    | Opt-in (recommended) | The closed-world `ViewNode` definition via C# 15's `closed` hierarchy; a lighter event pipeline via Runtime Async |
 
-This library's core technology (Source Generator member generation into a partial class) is a mature, standard feature, and depends on no particular bleeding-edge language feature. On net11.0 (planned GA November 2026, STS, 24-month support), C# 15's union types and the `closed` hierarchy let the set of UI nodes be defined as a closed discriminated union, with visitor exhaustiveness verified at compile time. The corresponding API is provided conditionally, behind `#if NET11_0_OR_GREATER`.
+This library's core technology (Source Generator member generation into a partial class) is a mature, standard feature, and depends on no particular bleeding-edge language feature. On net11.0 (planned GA November 2026, STS, 24-month support), C# 15's `closed` modifier lets the set of UI nodes be defined as a closed discriminated union (a `closed record` base with a `sealed record` per node shape), with visitor exhaustiveness verified at compile time. The corresponding API is provided conditionally, behind `#if NET11_0_OR_GREATER`. C# 15 also adds a separate `union` feature (composing a closed set of existing, otherwise-unrelated types into one value); it does not fit `ViewNode`'s per-case fields and this design does not use it.
 
-> Note: as of this writing (.NET 11 Preview 5), union types leave some features unimplemented, so the net11.0-targeted API is formalized only after GA.
+> Note: confirmed against .NET 11 Preview 6 (ARCHITECTURE.md §6): the `closed` hierarchy shape compiles and exhaustiveness-checks today. The net11.0-targeted API is still formalized only after GA, pending further preview changes.
 
 ---
 

@@ -18,7 +18,7 @@ Language and runtime features this specification depends on:
 | ------------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
 | Source Generator member generation into a partial class | Every supported version (a mature, standard feature) | Generating `RenderView` (§2)          |
 | IL trimming / Native AOT                                 | .NET 10                                 | Removing the inert API and unused code (§5)   |
-| Union types / `closed` hierarchies                       | C# 15 / .NET 11 (conditional)           | `ViewNode`'s closed-world definition (§6)     |
+| `closed` hierarchies                                     | C# 15 / .NET 11 (conditional)           | `ViewNode`'s closed-world definition (§6)     |
 | Runtime Async                                            | .NET 11 (conditional)                   | Lightening the event pipeline (§4.3)          |
 
 That the core mechanism does not depend on any particular bleeding-edge language feature is a deliberate property of this design. Alternative architectures considered and rejected (an Interceptor-based approach, a runtime ref-struct-tree approach) and why are recorded in Appendix B.
@@ -615,24 +615,24 @@ What BlazorCodeFirst's trimming/AOT-compatibility contract covers extends as far
 
 ## 6. .NET 11 conditional formal definition: the closed-world `ViewNode` (reference specification)
 
-On the net11.0 target, C# 15's union types and the `closed` modifier are used to define the Source Generator's internal representation — the set of UI nodes — as a closed discriminated union:
+On the net11.0 target, C# 15's `closed` modifier is used to define the Source Generator's internal representation — the set of UI nodes — as a closed discriminated union: a `closed record` base with a `sealed record` per node shape.
 
 ```csharp
 #if NET11_0_OR_GREATER
-public closed union ViewNode
+public closed record ViewNode
 {
-    TextNode(string Content, StyleSet Style);
-    StackNode(Axis Axis, int Spacing, ViewNode[] Children);
-    ButtonNode(string Label, ActionRef Handler, ButtonStyle Style);
-    RegionNode(int Seq, KeyRef? Key, ViewNode Body);
-    ComponentNode(TypeRef ComponentType, ParameterBag Parameters);
+    public sealed record TextNode(string Content, StyleSet Style) : ViewNode;
+    public sealed record StackNode(Axis Axis, int Spacing, ViewNode[] Children) : ViewNode;
+    public sealed record ButtonNode(string Label, ActionRef Handler, ButtonStyle Style) : ViewNode;
+    public sealed record RegionNode(int Seq, KeyRef? Key, ViewNode Body) : ViewNode;
+    public sealed record ComponentNode(TypeRef ComponentType, ParameterBag Parameters) : ViewNode;
 }
 #endif
 ```
 
-Closing the world lets the exhaustiveness of the compiler's internal visitors (frame emission, dependency analysis, diagnostics) be verified at compile time — a missed case becomes a compile error — and lets the type system guarantee `FrameWidth`'s (§2.2) totality.
+Closing the world lets the exhaustiveness of the compiler's internal visitors (frame emission, dependency analysis, diagnostics) be verified at compile time — a missed case becomes a compile error under this repository's `TreatWarningsAsErrors` (`Directory.Build.props`) — and lets the type system guarantee `FrameWidth`'s (§2.2) totality. `closed` is implicitly abstract; it cannot be combined with an explicit `abstract` modifier.
 
-> Note: as of the .NET 11 preview, union types leave some features (member providers, and so on) unimplemented, and this chapter is a reference specification to be formalized after GA. On the net10.0 target, the equivalent structure is approximated with a `sealed` class hierarchy plus an exhaustiveness analyzer.
+> Note: confirmed against .NET 11 Preview 6 (built with `LangVersion=preview`; issue #117): this shape compiles, and a `switch` omitting a case raises CS8509. `System.Runtime.CompilerServices.ClosedAttribute` now ships in-box, so no project-side declaration is needed. An earlier draft of this sketch combined `closed` with C# 15's separate `union` feature; that combination does not compile (`closed` is not a valid modifier on `union`), and `union` — composing a closed set of existing, unrelated types — does not fit `ViewNode`'s per-case fields regardless. On the net10.0 target, the equivalent structure is approximated with a `sealed` class hierarchy plus an exhaustiveness analyzer.
 
 ---
 
@@ -649,7 +649,7 @@ Closing the world lets the exhaustiveness of the compiler's internal visitors (f
 | Render time                 | Baseline                          | Equivalent (not published)                                     | Measured, but `DESIGN.md` §7.1 does not publish a figure because the variance is machine-dependent |
 | AOT / Wasm compatibility    | Compatible                        | Fully compatible (zero reflection dependency, UI-description code is trimmed away) | 20-30% reduction versus a reflection-based configuration (predicted) |
 | Hot Reload                  | Already integrated into tooling   | The EnC standard path (method-body swap + `MetadataUpdateHandler`) | Post-edit semantics are identical to Razor's (§2.6) |
-| Supported TFMs              | —                                  | net10.0 (baseline) / net11.0 (union-type internal representation, etc.) | Multi-targeting that prioritizes LTS |
+| Supported TFMs              | —                                  | net10.0 (baseline) / net11.0 (`closed`-hierarchy internal representation, etc.) | Multi-targeting that prioritizes LTS |
 
 ---
 
