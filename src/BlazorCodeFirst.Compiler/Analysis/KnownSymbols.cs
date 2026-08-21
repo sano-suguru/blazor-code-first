@@ -716,6 +716,30 @@ internal sealed class KnownSymbols
     public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
 
     /// <summary>
+    /// Whether <paramref name="property"/> is a curated element helper against <paramref name="curatedTags"/>:
+    /// its type is <paramref name="elementViewType"/> and its name is one of that table's keys. The shared
+    /// match <see cref="ElementTags"/> and <see cref="SvgElementTags"/> are each built with, once per
+    /// curated vocabulary's own table (#319 / #534).
+    /// </summary>
+    private static bool TryGetCuratedElementTag(
+        IPropertySymbol property,
+        INamedTypeSymbol? elementViewType,
+        Dictionary<string, string> curatedTags,
+        out string tag)
+    {
+        if (elementViewType is not null
+            && SymbolEqualityComparer.Default.Equals(property.Type, elementViewType)
+            && curatedTags.TryGetValue(property.Name, out var propertyTag))
+        {
+            tag = propertyTag;
+            return true;
+        }
+
+        tag = "";
+        return false;
+    }
+
+    /// <summary>
     /// Whether <paramref name="method"/> carries an extension method's receiver at ordinal 0, as the
     /// <c>1</c> or <c>0</c> to subtract from a parameter ordinal or from a parameter count.
     /// </summary>
@@ -1230,9 +1254,7 @@ internal sealed class KnownSymbols
             // that merely shares a curated name is not an element helper.
             if (member is IPropertySymbol { IsIndexer: false } elementProperty)
             {
-                if (ElementViewType is not null
-                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementViewType)
-                    && CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                if (TryGetCuratedElementTag(elementProperty, ElementViewType, CuratedTags, out var propertyTag))
                 {
                     elementTags[Normalize(elementProperty)] = propertyTag;
                 }
@@ -1297,9 +1319,7 @@ internal sealed class KnownSymbols
             foreach (var member in svgType.GetMembers())
             {
                 if (member is IPropertySymbol { IsIndexer: false } elementProperty
-                    && ElementViewType is not null
-                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementViewType)
-                    && SvgTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                    && TryGetCuratedElementTag(elementProperty, ElementViewType, SvgTags, out var propertyTag))
                 {
                     svgElementTags[Normalize(elementProperty)] = propertyTag;
                 }
@@ -1495,8 +1515,11 @@ internal sealed class KnownSymbols
     /// silently answers <see langword="false"/> for every helper. Stated here for the same reason
     /// <see cref="IsSlot"/> is.
     /// </remarks>
-    public bool IsElementHelper(IPropertySymbol property) =>
-        ElementTags.ContainsKey(Normalize(property)) || SvgElementTags.ContainsKey(Normalize(property));
+    public bool IsElementHelper(IPropertySymbol property)
+    {
+        var normalized = Normalize(property);
+        return ElementTags.ContainsKey(normalized) || SvgElementTags.ContainsKey(normalized);
+    }
 
     /// <summary>
     /// Which of the three <c>params ReadOnlySpan&lt;View&gt;</c> child lists <paramref name="property"/> is,
