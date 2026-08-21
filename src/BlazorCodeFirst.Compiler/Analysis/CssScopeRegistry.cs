@@ -4,11 +4,22 @@ using System.Diagnostics.CodeAnalysis;
 namespace BlazorCodeFirst.Compiler.Analysis;
 
 /// <summary>
-/// One <c>.cs.css</c> file's stamped scope: its full path exactly as <c>AdditionalText.Path</c>
-/// reports it, and the <c>bcf-xxxxxxxx</c> value <c>BlazorCodeFirst.Build</c> computed for it.
+/// One <c>.cs.css</c> file's stamped scope: its full path as <c>AdditionalText.Path</c> reports it
+/// (backslash separators normalized to <c>/</c>, see <see cref="CssScopePath.NormalizeSeparators"/>),
+/// and the <c>bcf-xxxxxxxx</c> value <c>BlazorCodeFirst.Build</c> computed for it.
 /// </summary>
-internal readonly record struct CssScopeEntry(string CssFilePath, string Scope)
+internal readonly record struct CssScopeEntry
 {
+    public CssScopeEntry(string cssFilePath, string scope)
+    {
+        CssFilePath = CssScopePath.NormalizeSeparators(cssFilePath);
+        Scope = scope;
+    }
+
+    public string CssFilePath { get; }
+
+    public string Scope { get; }
+
     /// <summary>
     /// The matching <c>.cs</c> file's path: <see cref="CssFilePath"/> with the trailing <c>.css</c>
     /// removed. The one place this convention is computed — <see cref="CssScopeRegistry"/>'s lookup
@@ -17,6 +28,20 @@ internal readonly record struct CssScopeEntry(string CssFilePath, string Scope)
     /// stored field, so it takes no part in this record struct's generated equality.
     /// </summary>
     public string ComponentFilePath => CssFilePath.Substring(0, CssFilePath.Length - ".css".Length);
+}
+
+/// <summary>
+/// Normalizes a path before it enters a CSS-scope lookup key or query, so a path-separator
+/// difference between the two independently-sourced providers behind a <c>.cs.css</c> file's scope
+/// (<c>AdditionalText.Path</c> and <c>SyntaxTree.FilePath</c>, see #524) does not silently miss.
+/// Case is already handled by the <c>OrdinalIgnoreCase</c> comparers at each lookup; this closes the
+/// separator gap those comparers do not cover. Deliberately does not resolve relative-to-absolute (no
+/// <c>Path.GetFullPath</c>): a source generator's current directory is not a trustworthy base, so a
+/// relative/absolute mismatch between the two providers is left as documented residue in #524.
+/// </summary>
+internal static class CssScopePath
+{
+    public static string NormalizeSeparators(string path) => path.Replace('\\', '/');
 }
 
 /// <summary>

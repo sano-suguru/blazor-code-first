@@ -1,3 +1,4 @@
+using BlazorCodeFirst.Compiler.Analysis;
 using BlazorCodeFirst.Compiler.Diagnostics;
 
 namespace BlazorCodeFirst.Compiler;
@@ -27,10 +28,13 @@ namespace BlazorCodeFirst.Compiler;
 /// </param>
 /// <param name="Namespace">The component's namespace, or <see langword="null"/> for one declared in the global namespace.</param>
 /// <param name="FilePath">
-/// The declaring syntax tree's file path (<c>classDeclaration.SyntaxTree.FilePath</c>), symbol-free.
+/// The declaring syntax tree's file path (<c>classDeclaration.SyntaxTree.FilePath</c>), symbol-free,
+/// with backslash separators normalized to <c>/</c> (<see cref="CssScopePath.NormalizeSeparators"/>).
 /// Scope is a file-unit concept (ARCHITECTURE.md §2.7(F)): this is what
 /// <see cref="ComponentModelFactory.Expand"/> looks up in the <c>CssScopeRegistry</c> to find this
-/// component's own <c>.cs.css</c> scope, and what a later BCF3041 orphan check compares against.
+/// component's own <c>.cs.css</c> scope, and what a later BCF3041 orphan check compares against —
+/// both against a path sourced independently from <c>AdditionalText.Path</c>, so the separator
+/// normalization here is required for that comparison to agree (#524).
 /// </param>
 /// <param name="DesignTimeExpressionName">
 /// The name of the design-time expression this component declares, <c>Body</c> on a component,
@@ -64,4 +68,7 @@ internal sealed record ComponentAnalysis(
     EquatableArray<string> InheritanceKeys,
     RenderTemplateNode? Template,
     EquatableArray<DiagnosticInfo> BodyDiagnostics,
-    TemplateLocation? FailureLocation);
+    TemplateLocation? FailureLocation)
+{
+    public string FilePath { get; init; } = CssScopePath.NormalizeSeparators(FilePath);
+}

@@ -85,10 +85,13 @@ internal sealed record ViewPartDefinition(
 /// <param name="MethodKey">The declaring method's symbol-free key, what the registry is keyed on.</param>
 /// <param name="DisplayName">The method's display name, read by every diagnostic that names this view part.</param>
 /// <param name="FilePath">
-/// The declaring method's syntax tree file path, symbol-free. Present regardless of validity (even
-/// when <see cref="Definition"/> is <see langword="null"/>): a file that attempts a <c>[ViewPart]</c>
-/// declaration is not an orphaned <c>.cs.css</c> file just because the declaration itself is invalid,
-/// and expansion (<c>ViewPartExpander.ExpandCall</c>) reads this to resolve the callee's own scope.
+/// The declaring method's syntax tree file path, symbol-free, with backslash separators normalized to
+/// <c>/</c> (<see cref="CssScopePath.NormalizeSeparators"/>) so it agrees with the independently-sourced
+/// <c>AdditionalText.Path</c> a CSS-scope lookup compares it against (#524). Present regardless of
+/// validity (even when <see cref="Definition"/> is <see langword="null"/>): a file that attempts a
+/// <c>[ViewPart]</c> declaration is not an orphaned <c>.cs.css</c> file just because the declaration
+/// itself is invalid, and expansion (<c>ViewPartExpander.ExpandCall</c>) reads this to resolve the
+/// callee's own scope.
 /// </param>
 /// <param name="Definition">The valid definition, or <see langword="null"/> when the declaration was rejected.</param>
 /// <param name="DeclarationDiagnosticReported">Whether the invalid declaration already reported its own diagnostic.</param>
@@ -97,4 +100,7 @@ internal sealed record ViewPartDefinitionEntry(
     string DisplayName,
     string FilePath,
     ViewPartDefinition? Definition,
-    bool DeclarationDiagnosticReported);
+    bool DeclarationDiagnosticReported)
+{
+    public string FilePath { get; init; } = CssScopePath.NormalizeSeparators(FilePath);
+}
