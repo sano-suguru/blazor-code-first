@@ -43,6 +43,18 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// and none exists. If one is ever needed, give it its own entry point with the reason written down,
 /// quietly reintroducing per-host lists puts back the failure mode this type removes.
 /// </para>
+/// <para>
+/// <see cref="UnresolvedComponentTypeScanner"/>, <see cref="RejectedDecorationScanner"/> and
+/// <see cref="ShadowedElementHelperScanner"/> each used to run their own
+/// <c>root.DescendantNodesAndSelf()</c>, three walks of the same tree for one failed expression.
+/// <see cref="ReportAll"/> now walks <c>root</c> once, sorts what it finds into an
+/// invocation bucket and an element-access bucket, and hands each scanner the bucket its own question
+/// is about (#528). <see cref="UnresolvedValueTypeScanner"/> is excluded from the bucketing: its
+/// <c>Report</c> follows the render tree's shape rather than a blind descent, so there was no
+/// duplicated full walk to remove there. A scanner's <c>Report</c> signature is what
+/// <c>FailurePathScannerWiringTests</c> keys on, not what it walks, so this changes nothing that guard
+/// depends on beyond the parameter type it accepts.
+/// </para>
 /// </remarks>
 internal static class FailurePathScanners
 {
@@ -55,9 +67,27 @@ internal static class FailurePathScanners
     /// </remarks>
     public static void ReportAll(ExpressionSyntax root, ViewPartBodyContext context)
     {
-        UnresolvedComponentTypeScanner.Report(root, context);
+        List<InvocationExpressionSyntax> invocations = [];
+        List<ElementAccessExpressionSyntax> elementAccesses = [];
+
+        foreach (var node in root.DescendantNodesAndSelf())
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+
+            switch (node)
+            {
+                case InvocationExpressionSyntax invocation:
+                    invocations.Add(invocation);
+                    break;
+                case ElementAccessExpressionSyntax access:
+                    elementAccesses.Add(access);
+                    break;
+            }
+        }
+
+        UnresolvedComponentTypeScanner.Report(invocations, context);
         UnresolvedValueTypeScanner.Report(root, context);
-        RejectedDecorationScanner.Report(root, context);
-        ShadowedElementHelperScanner.Report(root, context);
+        RejectedDecorationScanner.Report(invocations, context);
+        ShadowedElementHelperScanner.Report(elementAccesses, context);
     }
 }

@@ -116,23 +116,25 @@ public sealed class FailurePathScannerWiringTests
     }
 
     /// <summary>
-    /// Whether <paramref name="method"/> is <c>public static void Report(ExpressionSyntax, ViewPartBodyContext)</c>.
+    /// Whether <paramref name="method"/> is <c>public static void Report(_, ViewPartBodyContext)</c>.
     /// </summary>
     /// <remarks>
     /// Matched on the written syntax, not on resolved symbols, because this guard's whole point is to see
-    /// a scanner before any test exercises it. The parameter types are compared as written; every scanner
-    /// in this repository spells them unqualified.
+    /// a scanner before any test exercises it. The first parameter is deliberately unconstrained: since
+    /// #528 it is <c>ExpressionSyntax</c> for a scanner <see cref="FailurePathScanners.ReportAll"/> hands
+    /// the whole root, or an <c>IReadOnlyList&lt;T&gt;</c> for one it hands a pre-filtered bucket (an
+    /// invocation or an element-access list) instead of walking the tree itself. What every scanner shares,
+    /// and what this guard still requires, is the trailing <c>ViewPartBodyContext</c>, spelled unqualified
+    /// as every scanner in this repository writes it.
     /// </remarks>
     private static bool IsFailurePathReport(MethodDeclarationSyntax method) =>
         method.Identifier.ValueText == "Report"
         && method.Modifiers.Any(SyntaxKind.PublicKeyword)
         && method.Modifiers.Any(SyntaxKind.StaticKeyword)
         && method.ReturnType is PredefinedTypeSyntax { Keyword.RawKind: (int)SyntaxKind.VoidKeyword }
-        && method.ParameterList.Parameters is
-        [
-        { Type: IdentifierNameSyntax { Identifier.ValueText: "ExpressionSyntax" } },
-        { Type: IdentifierNameSyntax { Identifier.ValueText: "ViewPartBodyContext" } },
-        ];
+        && method.ParameterList.Parameters.Count == 2
+        && method.ParameterList.Parameters[1].Type
+            is IdentifierNameSyntax { Identifier.ValueText: "ViewPartBodyContext" };
 
     /// <summary>
     /// Every <c>Something.Report(…)</c> written inside <c>FailurePathScanners.ReportAll</c>'s method body,

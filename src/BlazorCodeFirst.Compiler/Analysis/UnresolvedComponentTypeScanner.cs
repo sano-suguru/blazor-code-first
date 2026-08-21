@@ -20,15 +20,15 @@ internal static class UnresolvedComponentTypeScanner
 {
     /// <summary>
     /// Records BCF3012 into <paramref name="context"/> for every unresolved <c>Component&lt;T&gt;()</c>
-    /// type argument under <paramref name="root"/>, in syntactic order, once per invocation.
+    /// type argument among <paramref name="invocations"/>, in syntactic order, once per invocation.
     /// </summary>
-    public static void Report(ExpressionSyntax root, ViewPartBodyContext context)
+    public static void Report(IReadOnlyList<InvocationExpressionSyntax> invocations, ViewPartBodyContext context)
     {
         var componentMethod = context.KnownSymbols.HtmlComponent;
         if (componentMethod is null)
             return;
 
-        foreach (var invocation in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+        foreach (var invocation in invocations)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
