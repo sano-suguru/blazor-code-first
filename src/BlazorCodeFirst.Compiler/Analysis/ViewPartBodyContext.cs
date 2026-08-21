@@ -270,11 +270,8 @@ internal sealed class ViewPartBodyContext
     /// </summary>
     public void AddAccessRequirement(ViewPartAccessRequirement requirement)
     {
-        foreach (var existing in AccessRequirements)
-        {
-            if (existing == requirement)
-                return;
-        }
+        if (AccessRequirements.Contains(requirement))
+            return;
 
         AccessRequirements.Add(requirement);
     }
