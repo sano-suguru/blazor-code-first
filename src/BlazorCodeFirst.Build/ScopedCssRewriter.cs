@@ -92,7 +92,7 @@ public static class ScopedCssRewriter
                     var nameRange = FindIdentifierAfterAtKeyword(css, i, css.Length);
                     if (nameRange is { } range && range.End > range.Start)
                     {
-                        names.Add(css.Substring(range.Start, range.End - range.Start));
+                        names.Add(ExtractKeyframeName(css, range));
                         i = range.End;
                         continue;
                     }
@@ -140,7 +140,7 @@ public static class ScopedCssRewriter
                     {
                         var nameRange = FindIdentifierAfterAtKeyword(css, trimmedPreludeStart, preludeEnd);
                         if (nameRange is { } range && range.End > range.Start)
-                            edits.Add(new Edit(range.End, EditKind.InsertSuffix));
+                            edits.Add(new Edit(KeyframeNameSuffixInsertionPoint(css, range), EditKind.InsertSuffix));
 
                         // The body is intentionally not descended into: keyframe selectors
                         // (from/to/N%) never get [scope], and animation-name declarations don't
@@ -239,13 +239,24 @@ public static class ScopedCssRewriter
         return identifier;
     }
 
+    // A <keyframes-name> is either a bare <custom-ident> or a quoted <string> (CSS Animations
+    // Level 1, the @keyframes rule's grammar). For the quoted form the returned span covers the
+    // whole literal including its quotes -- ExtractKeyframeName and
+    // KeyframeNameSuffixInsertionPoint below know how to read the name out of, and where to
+    // insert a suffix into, either form.
     private static TextSpan? FindIdentifierAfterAtKeyword(string css, int atIndex, int preludeEnd)
     {
         var i = atIndex + 1;
         while (i < preludeEnd && (char.IsLetterOrDigit(css[i]) || css[i] == '-'))
             i++;
 
-        i = SkipInsignificant(css, i, preludeEnd);
+        i = SkipInsignificant(css, i, preludeEnd, stopAtQuote: true);
+
+        if (i < preludeEnd && IsQuoteChar(css[i]))
+        {
+            var closingQuote = FindStringEnd(css, i, preludeEnd);
+            return closingQuote is { } q && q > i + 1 ? new TextSpan(i, q + 1) : null;
+        }
 
         var nameStart = i;
         while (i < preludeEnd && IsIdentifierChar(css[i]))
@@ -253,6 +264,14 @@ public static class ScopedCssRewriter
 
         return i == nameStart ? null : new TextSpan(nameStart, i);
     }
+
+    private static string ExtractKeyframeName(string css, TextSpan range) =>
+        IsQuoteChar(css[range.Start])
+            ? css.Substring(range.Start + 1, range.End - range.Start - 2)
+            : css.Substring(range.Start, range.End - range.Start);
+
+    private static int KeyframeNameSuffixInsertionPoint(string css, TextSpan range) =>
+        IsQuoteChar(css[range.Start]) ? range.End - 1 : range.End;
 
     private static (int Line, int Column) LocateLineColumn(string css, int index)
     {
@@ -389,10 +408,24 @@ public static class ScopedCssRewriter
 
         while (i < end)
         {
+            var c = css[i];
+
+            // A <keyframes-name> value may be quoted (e.g. animation: "spin" 2s;), same as the
+            // @keyframes declaration itself -- handled before the generic literal-skip below so
+            // its content is matched against keyframeNames instead of skipped as opaque text.
+            if (IsQuoteChar(c))
+            {
+                var closingQuote = FindStringEnd(css, i, end);
+                if (closingQuote is { } q && q > i + 1 && keyframeNames.Contains(css.Substring(i + 1, q - i - 1)))
+                    edits.Add(new Edit(q, EditKind.InsertSuffix));
+
+                i = (closingQuote ?? end - 1) + 1;
+                continue;
+            }
+
             var skipped = CssLexer.SkipLiteral(css, i);
             if (skipped != i) { i = skipped; continue; }
 
-            var c = css[i];
             if (char.IsLetter(c) || c == '-' || c == '_')
             {
                 var identStart = i;
@@ -523,11 +556,17 @@ public static class ScopedCssRewriter
 
     // ---- Small shared scanning helpers -------------------------------------------------------
 
-    private static int SkipInsignificant(string css, int start, int end)
+    // `stopAtQuote` is for a caller that needs to recognize a quoted token (rather than treat it
+    // as opaque, skippable literal) -- it stops right before the quote instead of skipping the
+    // string it opens.
+    private static int SkipInsignificant(string css, int start, int end, bool stopAtQuote = false)
     {
         var i = start;
         while (i < end)
         {
+            if (stopAtQuote && IsQuoteChar(css[i]))
+                break;
+
             var skipped = CssLexer.SkipLiteral(css, i);
             if (skipped != i) { i = skipped; continue; }
 
@@ -537,6 +576,18 @@ public static class ScopedCssRewriter
 
         return i;
     }
+
+    // Delegates to CssLexer.SkipLiteral for the escape-aware string walk, converting its "one
+    // past the closing quote" result into the closing quote's own index bounded by `end` (or
+    // null if the string doesn't close within that bound) -- callers need that position to
+    // insert a suffix immediately before the quote.
+    private static int? FindStringEnd(string css, int quoteIndex, int end)
+    {
+        var afterQuote = CssLexer.SkipLiteral(css, quoteIndex);
+        return afterQuote <= end ? afterQuote - 1 : null;
+    }
+
+    private static bool IsQuoteChar(char c) => c is '"' or '\'';
 
     private static bool IsWhitespace(char c) => c is ' ' or '\t' or '\n' or '\r' or '\f';
 

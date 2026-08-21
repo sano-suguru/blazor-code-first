@@ -176,4 +176,22 @@ public class ScopedCssRewriterTests
         AssertRewrite(
             "\n    .myclass { animation: fade 1s infinite; -webkit-animation: fade 1s infinite; -webkit-animation-name: fade; }\n    @-webkit-keyframes fade { from{opacity:0} to{opacity:1} }\n",
             "\n    .myclass[TestScope] { animation: fade-TestScope 1s infinite; -webkit-animation: fade-TestScope 1s infinite; -webkit-animation-name: fade-TestScope; }\n    @-webkit-keyframes fade-TestScope { from{opacity:0} to{opacity:1} }\n");
+
+    [Fact]
+    public void AddsScopeToQuotedKeyframeNames() =>
+        AssertRewrite(
+            "\n    @keyframes \"spin\" { /* whatever */ }\n",
+            "\n    @keyframes \"spin-TestScope\" { /* whatever */ }\n");
+
+    [Fact]
+    public void RewritesQuotedAnimationNamesWhenMatchingQuotedKeyframes() =>
+        AssertRewrite(
+            "\n    .myclass { animation: \"spin\" 2s linear; }\n    @keyframes \"spin\" { }\n",
+            "\n    .myclass[TestScope] { animation: \"spin-TestScope\" 2s linear; }\n    @keyframes \"spin-TestScope\" { }\n");
+
+    [Fact]
+    public void MatchesAQuotedKeyframesNameAgainstABareAnimationNameValue() =>
+        AssertRewrite(
+            "\n    .myclass { animation-name: spin; }\n    @keyframes \"spin\" { }\n",
+            "\n    .myclass[TestScope] { animation-name: spin-TestScope; }\n    @keyframes \"spin-TestScope\" { }\n");
 }
