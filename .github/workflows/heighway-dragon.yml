@@ -1,0 +1,104 @@
+name: heighway-dragon
+
+# Not a required check (#442): this deploys a sample, not the repository's product, and its own
+# `deploy` step depends on Cloudflare being reachable and the account token being valid. Tying a
+# merge gate to that would let a Cloudflare outage or an expired token block unrelated pull
+# requests. Production-only, unlike site.yml's plan/publish/deploy split: this sample has no
+# preview audience to justify a `versions upload --preview-alias` branch, so `paths:` filters the
+# trigger directly instead of a `plan` job deciding it, and there is no aggregator job standing in
+# for a required check that does not exist here.
+on:
+  push:
+    branches: [main]
+    paths:
+      - samples/HeighwayDragon/**
+      - .github/workflows/heighway-dragon.yml
+      # The three inputs the sample's restore/build depends on without samples/HeighwayDragon/**
+      # itself changing: the package version this workflow's nuget.org restore pins to, the
+      # central version management that resolves it, and the SDK setup-dotnet installs.
+      - eng/Versions.props
+      - Directory.Packages.props
+      - global.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heighway-dragon-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # workflow_dispatch can be run from any branch, and unlike site.yml this workflow has no
+    # preview target to route a non-main dispatch to -- `command` is unconditionally `deploy`. This
+    # guard is what keeps "production-push-only" true for a manual run too, so the escape hatch
+    # this trigger exists for (redeploying without a new commit) can only ever redeploy main.
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # samples/HeighwayDragon/NuGet.config lists a local-blazorcodefirst source alongside
+      # nuget.org, and restore treats a source whose directory does not exist as an error (NU1301)
+      # rather than as an empty source to fall through past -- verified locally: a clean checkout
+      # has no artifacts/package, and restore fails outright without this. An EMPTY existing
+      # directory has no packages to offer, so restore moves on to nuget.org and gets the
+      # published BlazorCodeFirst there, pinned by eng/Versions.props' BlazorCodeFirstPackageVersion,
+      # the same way an actual consumer of the package would restore it (#442).
+      - name: Create the (empty) local package source restore expects
+        run: mkdir -p artifacts/package
+
+      - name: Publish (static, WASM threads)
+        run: dotnet publish samples/HeighwayDragon/BlazorCodeFirst.Samples.HeighwayDragon.csproj -c Release
+
+      # WasmEnableThreads (the csproj) makes the .NET heap a SharedArrayBuffer, which a browser
+      # only grants a cross-origin-isolated page -- these two response headers are what turn that
+      # on. wwwroot/_headers is an ordinary asset, so if it (or these two lines) were ever lost from
+      # the publish output, nothing else here would fail: the deploy would still succeed and the
+      # workflow would still report green, and the app would only fail at runtime with no
+      # SharedArrayBuffer. Asserted here, before the deploy that would otherwise ship that
+      # silently (#442).
+      - name: Verify the published _headers carries the COOP/COEP pair WasmEnableThreads needs
+        run: |
+          set -euo pipefail
+          . eng/ci-assert.sh
+          P=samples/HeighwayDragon/bin/Release/net10.0/publish/wwwroot
+          assert_grep '^  Cross-Origin-Opener-Policy: same-origin$' "$P/_headers" \
+            "the published _headers is missing the Cross-Origin-Opener-Policy rule WasmEnableThreads needs"
+          assert_grep '^  Cross-Origin-Embedder-Policy: require-corp$' "$P/_headers" \
+            "the published _headers is missing the Cross-Origin-Embedder-Policy rule WasmEnableThreads needs"
+
+      # wrangler-action runs `npm i wrangler@4` in its workingDirectory whenever it does not
+      # already find wrangler there, and that writes package.json and package-lock.json. At the
+      # default working directory -- the repository root -- neither file is tracked and neither is
+      # ignored, so the tree-clean check below would fail if this ran there. Moving the install off
+      # the repository root, and pinning its prefix with a written package.json rather than leaving
+      # `npm i` to resolve one by walking up from the checkout, mirrors site.yml's deploy job
+      # exactly.
+      - name: Prepare the wrangler install root
+        run: |
+          set -euo pipefail
+          mkdir -p .wrangler-ci
+          printf '%s\n' '{ "private": true }' > .wrangler-ci/package.json
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: .wrangler-ci
+          command: deploy --config ${{ github.workspace }}/samples/HeighwayDragon/wrangler.jsonc
+
+      # Last, so this is a canary for wrangler-action itself writing somewhere other than the root
+      # prepared for it (#282 on site.yml's own deploy job was exactly that regression) and not
+      # only for the publish step above. This job is not a required check, so nothing downstream
+      # depends on the tree being clean; it is cheap (one existing script) and would otherwise leave
+      # that class of regression to surface as one warning line in a long green log.
+      - name: Verify the job left the working tree clean
+        run: bash eng/verify-tree-clean.sh
