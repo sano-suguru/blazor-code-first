@@ -304,11 +304,8 @@ internal sealed class ViewPartBodyContext
     /// </remarks>
     public void ReportUnsupportedReference(Location location, string reason)
     {
-        foreach (var existing in Diagnostics)
-        {
-            if (existing.Id == DiagnosticDescriptors.BCF1002.Id)
-                return;
-        }
+        if (Diagnostics.Any(existing => existing.Id == DiagnosticDescriptors.BCF1002.Id))
+            return;
 
         var subject = IsInlinedAtCallSites
             ? DiagnosticDescriptors.ViewPartSubject(MethodDisplayName)
@@ -323,14 +320,12 @@ internal sealed class ViewPartBodyContext
     public void ReportUnresolvedType(Location location, string typeName)
     {
         var path = location.GetLineSpan().Path ?? string.Empty;
-        foreach (var existing in Diagnostics)
-        {
-            if (existing.Id == DiagnosticDescriptors.BCF3015.Id
+        if (Diagnostics.Any(existing =>
+                existing.Id == DiagnosticDescriptors.BCF3015.Id
                 && existing.FilePath == path
-                && existing.Span == location.SourceSpan)
-            {
-                return;
-            }
+                && existing.Span == location.SourceSpan))
+        {
+            return;
         }
 
         Diagnostics.Add(DiagnosticInfo.Create(
