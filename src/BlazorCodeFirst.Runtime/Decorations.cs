@@ -527,9 +527,9 @@ public static partial class Decorations
     /// <see cref="Key(ElementView, object?)"/> and <see cref="Ref"/>. A literal empty string or a literal
     /// <see langword="null"/>, though, is rejected at compile time (BCF3039): the framework throws at run
     /// time for either (measured), so a constant known to always throw is caught before it ships. Writing
-    /// this on an element whose tag is not the compile-time constant <c>"form"</c> is BCF3040:
-    /// <c>onsubmit</c> never fires natively outside a <c>&lt;form&gt;</c>, so the registration would
-    /// always be dead.
+    /// this on an element whose compile-time constant tag is not <c>"form"</c>, in any letter case, is
+    /// BCF3040: <c>onsubmit</c> never fires natively outside a <c>&lt;form&gt;</c>, so the registration
+    /// would always be dead.
     /// </para>
     /// </remarks>
     /// <include file="Decorations.doc.xml" path="doc/fragment[@id='element']/param"/>
