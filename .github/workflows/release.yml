@@ -126,13 +126,18 @@ jobs:
   #
   # Before the first run, two things have to exist and neither can be created from a pull request:
   #   - the `nuget.org` environment, with a required reviewer
-  #   - the NUGET_API_KEY secret, from an nuget.org key scoped to "Push new packages and package
-  #     versions" for the BlazorCodeFirst glob
+  #   - a Trusted Publishing policy on nuget.org (owner nossa) scoped to "Push new packages and
+  #     package versions" for the BlazorCodeFirst glob, naming this repo, this workflow file, and
+  #     the `nuget.org` environment. No long-lived secret: NuGet/login exchanges this job's OIDC
+  #     token for a single-use API key that expires in about an hour.
   nuget-push:
     needs: [build, github-release]
     runs-on: ubuntu-latest
 
     environment: nuget.org
+
+    permissions:
+      id-token: write
 
     steps:
       # Checked out only for global.json, so the push runs on the SDK the repository pins rather than
@@ -148,10 +153,19 @@ jobs:
           name: package
           path: artifacts/package
 
+      - uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: nossa
+
       # No --skip-duplicate: a version already on nuget.org means this release was cut twice, and
       # that is worth failing on rather than passing over quietly.
+      #
+      # The key arrives through env rather than through ${{ }} interpolation into the script body,
+      # matching the tag-name handling above: an expression's value is never trusted into a shell
+      # script directly, regardless of which step produced it.
       - env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           dotnet nuget push 'artifacts/package/*.nupkg' \
             --source https://api.nuget.org/v3/index.json \

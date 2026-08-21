@@ -325,8 +325,10 @@ creates the GitHub Release. The third pushes to nuget.org and is the only irreve
 sits behind a GitHub Environment named `nuget.org` that waits for a reviewer.
 
 Two things must exist before the first release, and neither can be created from a pull request: that
-environment with a required reviewer, and a `NUGET_API_KEY` secret from an nuget.org key scoped to
-*Push new packages and package versions* for the `BlazorCodeFirst` glob.
+environment with a required reviewer, and a nuget.org Trusted Publishing policy scoped to
+*Push new packages and package versions* for the `BlazorCodeFirst` glob, naming this repository,
+`release.yml`, and the `nuget.org` environment. The `nuget-push` job exchanges its GitHub OIDC token
+for a single-use nuget.org API key through `NuGet/login`; no long-lived secret is stored.
 
 ## Code style
 
