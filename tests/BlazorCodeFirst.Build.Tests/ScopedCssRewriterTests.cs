@@ -165,4 +165,22 @@ public class ScopedCssRewriterTests
         AssertRewrite(
             "\n    .myclass1 { animation-name: my-animation , different-animation }\n    .myclass2 { animation: 4s linear 0s alternate my-animation infinite, different-animation 0s }\n    @keyframes my-animation { }\n    @keyframes different-animation { }\n",
             "\n    .myclass1[TestScope] { animation-name: my-animation-TestScope , different-animation-TestScope }\n    .myclass2[TestScope] { animation: 4s linear 0s alternate my-animation-TestScope infinite, different-animation-TestScope 0s }\n    @keyframes my-animation-TestScope { }\n    @keyframes different-animation-TestScope { }\n");
+
+    [Fact]
+    public void AddsScopeToQuotedKeyframeNames() =>
+        AssertRewrite(
+            "\n    @keyframes \"spin\" { /* whatever */ }\n",
+            "\n    @keyframes \"spin-TestScope\" { /* whatever */ }\n");
+
+    [Fact]
+    public void RewritesQuotedAnimationNamesWhenMatchingQuotedKeyframes() =>
+        AssertRewrite(
+            "\n    .myclass { animation: \"spin\" 2s linear; }\n    @keyframes \"spin\" { }\n",
+            "\n    .myclass[TestScope] { animation: \"spin-TestScope\" 2s linear; }\n    @keyframes \"spin-TestScope\" { }\n");
+
+    [Fact]
+    public void MatchesAQuotedKeyframesNameAgainstABareAnimationNameValue() =>
+        AssertRewrite(
+            "\n    .myclass { animation-name: spin; }\n    @keyframes \"spin\" { }\n",
+            "\n    .myclass[TestScope] { animation-name: spin-TestScope; }\n    @keyframes \"spin-TestScope\" { }\n");
 }
