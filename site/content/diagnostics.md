@@ -631,13 +631,13 @@ protected override View Body
 }
 ```
 
-A native `if`/`else` written as the last statement of a `Body`/`Chrome` getter, a `ForEach` content
-lambda, or a `[ViewPart]` body is transplanted whole into a region whose boundary sequence is fixed
-to syntactic position — the same shape `If()` uses. Unlike `If()`, each arm's content renders through
-a freshly synthesized `RenderFragment` rather than a statically assigned sequence range, because only
-one arm ever executes and no static width can be reserved for content that might not run.
-Correctness is unaffected; the frames for whichever arm runs are rebuilt rather than diffed against a
-static template.
+A native `if`/`else` can be written as the last statement of a `Body`/`Chrome` getter, a `ForEach`
+content lambda, or a `[ViewPart]` body. It is transplanted whole into a region whose boundary
+sequence is fixed to syntactic position — the same shape `If()` uses. Unlike `If()`, each arm's
+content renders through a freshly synthesized `RenderFragment` rather than a statically assigned
+sequence range. Only one arm ever executes, so no static width can be reserved for content that
+might not run. Correctness is unaffected; the frames for whichever arm runs are rebuilt rather than
+diffed against a static template.
 
 Reported once per `if`/`else` chain, at the outermost `if`, regardless of how many `else if` links
 the chain holds. `switch` and `foreach` are not yet accepted at this position and remain
