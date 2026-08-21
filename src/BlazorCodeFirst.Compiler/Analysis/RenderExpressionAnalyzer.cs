@@ -165,6 +165,96 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// Classifies a block whose last statement is a native `if` (ARCHITECTURE.md §5.3), wrapped in the
+    /// statements written before it. Mirrors
+    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, ExpressionSyntax, ViewPartBodyContext)"/>'s
+    /// scope-opening shape exactly; the two differ only in what follows the leading statements.
+    /// </summary>
+    public static RenderTemplateNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        IfStatementSyntax ifStatement,
+        ViewPartBodyContext context)
+    {
+        var declared = context.IsInlinedAtCallSites
+            ? CollectDeclaredLocals(statements, ifStatement.Condition, context)
+            : [];
+
+        var opensTransplantedScope = !statements.IsEmpty;
+        if (opensTransplantedScope)
+            context.PushTransplantedScope(SpanOf(statements));
+
+        foreach (var symbol in declared)
+            context.PushRenderVariable(symbol);
+
+        try
+        {
+            var node = AnalyzeIf(ifStatement, context);
+
+            return node is null
+                ? null
+                : statements.IsEmpty && declared.IsEmpty
+                    ? node
+                    : new TransplantedBlockTemplateNode(
+                        ExpressionTemplateFactory.CreateForStatements(statements, context),
+                        node,
+                        declared.Length);
+        }
+        finally
+        {
+            for (var index = declared.Length - 1; index >= 0; index--)
+                context.PopRenderVariable(declared[index]);
+
+            if (opensTransplantedScope)
+                context.PopTransplantedScope();
+        }
+    }
+
+    /// <summary>
+    /// Reads one `if`/`else`, recursing into a nested `if` for an `else if` (which Roslyn parses as the
+    /// `else` clause's statement being directly an <see cref="IfStatementSyntax"/>, with no enclosing
+    /// block — so no separate leading-statement slot exists at that position by construction).
+    /// </summary>
+    private static TransplantedIfTemplateNode? AnalyzeIf(
+        IfStatementSyntax ifStatement, ViewPartBodyContext context)
+    {
+        if (ifStatement.Statement is not BlockSyntax thenBlock)
+            return null;
+
+        var condition = ExpressionTemplateFactory.Create(ifStatement.Condition, context);
+
+        if (AnalyzeArm(thenBlock, context) is not { } then)
+            return null;
+
+        RenderTemplateNode? otherwise = null;
+        if (ifStatement.Else is { Statement: var elseStatement })
+        {
+            otherwise = elseStatement switch
+            {
+                IfStatementSyntax nestedIf => AnalyzeIf(nestedIf, context),
+                BlockSyntax elseBlock => AnalyzeArm(elseBlock, context),
+                _ => null,
+            };
+
+            if (otherwise is null)
+                return null;
+        }
+
+        return new TransplantedIfTemplateNode(condition, then, otherwise);
+    }
+
+    /// <summary>
+    /// Reads one `if`/`else` arm's block: either the existing single-trailing-return shape, or a
+    /// further nested `if` (an explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed
+    /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly).
+    /// </summary>
+    private static RenderTemplateNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
+        TryReadTransplantableBlock(block, out var exprStatements, out var returned)
+            ? Analyze(exprStatements, returned, context)
+            : TryReadTransplantableIf(block, out var ifStatements, out var nestedIf)
+                ? Analyze(ifStatements, nestedIf, context)
+                : null;
+
+    /// <summary>
     /// The locals this body declares into the scope it lands in — the leading statements', then the
     /// returned expression's — in written order, which is the order expansion appends their names in, so
     /// the ordinals assigned here index the substitution the expander carries.
@@ -3460,25 +3550,81 @@ internal static class RenderExpressionAnalyzer
             return true;
         }
 
+        if (!TryReadLeadingStatements(block, count, out var leading))
+            return false;
+
+        if (DeclaresReservedName(block))
+            return false;
+
+        statements = leading;
+        returned = last;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads every statement of <paramref name="block"/> except the last, requiring each to be a local
+    /// declaration or an expression statement. Shared by <see cref="TryReadTransplantableBlock"/> and
+    /// <see cref="TryReadTransplantableIf"/>, which differ only in what they require the last statement
+    /// to be.
+    /// </summary>
+    /// <remarks>
+    /// The original nodes, not a rebuilt list: <c>SyntaxFactory.List</c> re-parents its members into a new
+    /// list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
+    /// <c>MoveToImmutable</c> rather than <c>ToImmutable</c>: the loop below either fills every slot or
+    /// returns, so the builder is exactly full and its array can be handed over without a copy.
+    /// </remarks>
+    private static bool TryReadLeadingStatements(
+        BlockSyntax block, int count, out ImmutableArray<StatementSyntax> statements)
+    {
         var leading = ImmutableArray.CreateBuilder<StatementSyntax>(count - 1);
         for (var index = 0; index < count - 1; index++)
         {
             var statement = block.Statements[index];
             if (statement is not (LocalDeclarationStatementSyntax or ExpressionStatementSyntax))
+            {
+                statements = [];
                 return false;
+            }
 
             leading.Add(statement);
         }
 
-        if (DeclaresReservedName(block))
+        statements = leading.MoveToImmutable();
+        return true;
+    }
+
+    /// <summary>
+    /// Reads a block whose last statement is a native `if` (ARCHITECTURE.md §5.3's Transplantable
+    /// syntax — distinct from <see cref="TryReadTransplantableBlock"/>'s narrower, already-shipped
+    /// "leading statements + one trailing return" shape, which keeps full static width). The `if`'s own
+    /// `then`/`else` are not read here; <see cref="AnalyzeIf"/> reads them, so both this function and the
+    /// getter/content/view-part-body call sites stay simple bool tests.
+    /// </summary>
+    public static bool TryReadTransplantableIf(
+        BlockSyntax block,
+        out ImmutableArray<StatementSyntax> statements,
+        out IfStatementSyntax ifStatement)
+    {
+        statements = [];
+        ifStatement = null!;
+
+        var count = block.Statements.Count;
+        if (count == 0
+            || block.Statements[count - 1] is not IfStatementSyntax { Statement: BlockSyntax } last)
+        {
+            return false;
+        }
+
+        if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
             return false;
 
-        // The original nodes, not a rebuilt list: SyntaxFactory.List re-parents its members into a new
-        // list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
-        // MoveToImmutable rather than ToImmutable: the loop above either filled every reserved slot or
-        // returned, so the builder is exactly full and its array can be handed over without a copy.
-        statements = leading.MoveToImmutable();
-        returned = last;
+        // One scan over the whole `if`, including every nested arm: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda (an authored event handler keeps its own scope,
+        // #413), so this single call already covers `then`, every `else if`, and the final `else`.
+        if (DeclaresReservedName(last))
+            return false;
+
+        ifStatement = last;
         return true;
     }
 

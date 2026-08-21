@@ -114,6 +114,36 @@ internal static class ViewPartExpander
                     return new IfNode(ifNode.Condition.Substitute(substitution), thenNode, otherwiseNode);
                 }
 
+            case TransplantedIfTemplateNode transplantedIf:
+                {
+                    var thenNode = ExpandNode(
+                        transplantedIf.Then,
+                        substitution,
+                        ref nextLogicalPreorderOrdinal,
+                        activeMethodStack,
+                        currentScope,
+                        environment);
+                    if (thenNode is null)
+                        return null;
+
+                    RenderNode? otherwiseNode = null;
+                    if (transplantedIf.Otherwise is not null)
+                    {
+                        otherwiseNode = ExpandNode(
+                            transplantedIf.Otherwise,
+                            substitution,
+                            ref nextLogicalPreorderOrdinal,
+                            activeMethodStack,
+                            currentScope,
+                            environment);
+                        if (otherwiseNode is null)
+                            return null;
+                    }
+
+                    return new TransplantedIfNode(
+                        transplantedIf.Condition.Substitute(substitution), thenNode, otherwiseNode);
+                }
+
             case ForEachTemplateNode forEach:
                 {
                     // The preorder `ordinal` (assigned at the top of ExpandNode) names a loop variable
