@@ -519,17 +519,7 @@ public static class ScopedCssRewriter
 
     // ---- Edit list application ----------------------------------------------------------------
 
-    private readonly struct TextSpan
-    {
-        public TextSpan(int start, int end)
-        {
-            Start = start;
-            End = end;
-        }
-
-        public int Start { get; }
-        public int End { get; }
-    }
+    private readonly record struct TextSpan(int Start, int End);
 
     private enum EditKind
     {
@@ -538,17 +528,7 @@ public static class ScopedCssRewriter
         DeleteDeep,
     }
 
-    private readonly struct Edit
-    {
-        public Edit(int position, EditKind kind)
-        {
-            Position = position;
-            Kind = kind;
-        }
-
-        public int Position { get; }
-        public EditKind Kind { get; }
-    }
+    private readonly record struct Edit(int Position, EditKind Kind);
 
     private static string ApplyEdits(string css, string scope, List<Edit> edits)
     {
