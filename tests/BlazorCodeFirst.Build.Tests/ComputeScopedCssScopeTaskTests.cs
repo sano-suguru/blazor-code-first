@@ -6,6 +6,25 @@ namespace BlazorCodeFirst.Build.Tests;
 public class ComputeScopedCssScopeTaskTests
 {
     [Fact]
+    public void Execute_uses_full_path_as_item_identity_even_when_input_is_relative()
+    {
+        var task = new ComputeScopedCssScopeTask
+        {
+            BuildEngine = new StubBuildEngine(),
+            ProjectDirectory = "/repo/App",
+            AssemblyName = "App",
+            ScopedCssInputs = [new TaskItem("Counter.cs.css")],
+        };
+
+        var succeeded = task.Execute();
+
+        Assert.True(succeeded);
+        var result = Assert.Single(task.ScopedCssWithScope);
+        Assert.True(Path.IsPathRooted(result.ItemSpec));
+        Assert.Equal(result.GetMetadata("FullPath"), result.ItemSpec);
+    }
+
+    [Fact]
     public void Execute_stamps_CssScope_metadata_on_every_input()
     {
         var task = new ComputeScopedCssScopeTask
