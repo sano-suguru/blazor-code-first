@@ -288,9 +288,20 @@ internal static class RenderExpressionAnalyzer
                     return new ElementTemplateNode(propertyTag);
                 }
 
-                return symbols.IsSlot(resolvedProperty)
-                    ? ClassifySlot(expression, symbols.SlotProperty!, context)
-                    : null;
+                if (symbols.IsSlot(resolvedProperty))
+                {
+                    return ClassifySlot(expression, symbols.SlotProperty!, context);
+                }
+
+                // Not curated, not Slot: a user-declared static ElementView property may still be an
+                // element tag alias (#173). Gated on the return type before paying for syntax resolution,
+                // so an unrelated static ElementView-typed property that is neither shape still falls
+                // through at the same cost as before this feature existed.
+                return resolvedProperty.IsStatic
+                    && symbols.ElementViewType is { } elementViewType
+                    && SymbolEqualityComparer.Default.Equals(resolvedProperty.Type, elementViewType)
+                        ? ClassifyElementTagAlias(resolvedProperty, context)
+                        : null;
             }
 
             return expression is ElementAccessExpressionSyntax elementAccess
@@ -397,6 +408,77 @@ internal static class RenderExpressionAnalyzer
         }
 
         return new ElementTemplateNode(tagValue);
+    }
+
+    /// <summary>
+    /// Resolves a non-curated <c>static ElementView</c> property as an element tag alias (#173): a
+    /// property declared in this compilation whose body is exactly one <c>Element("literal")</c> call.
+    /// Reuses <see cref="ClassifyElementFactory"/> rather than re-implementing its argument binding and
+    /// BCF3009 check, so an alias is validated by the same single copy of that logic a call written
+    /// directly at the use site goes through.
+    /// </summary>
+    private static ElementTemplateNode? ClassifyElementTagAlias(
+        IPropertySymbol property, ViewPartBodyContext context)
+    {
+        if (property.DeclaringSyntaxReferences.IsEmpty)
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF1006,
+                property.Locations.FirstOrDefault() ?? Location.None,
+                [property.Name]));
+            return null;
+        }
+
+        if (FindAliasBody(property, context.CancellationToken) is not { } body)
+        {
+            return null;
+        }
+
+        // A declaration beside the call site shares context.SemanticModel's tree and can use it as-is;
+        // one declared elsewhere in the same compilation needs its own tree's model, the same rebasing
+        // ComputeBodyBuildsFromDesignTimeSurface already does for a cross-file [ViewPart] callee.
+        var model = body.SyntaxTree == context.SemanticModel.SyntaxTree
+            ? context.SemanticModel
+            : context.SemanticModel.Compilation.GetSemanticModel(body.SyntaxTree);
+
+        if (model.GetSymbolInfo(body, context.CancellationToken).Symbol is not IMethodSymbol method
+            || context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.Element)
+        {
+            return null;
+        }
+
+        var aliasContext = ReferenceEquals(model, context.SemanticModel)
+            ? context
+            : new ViewPartBodyContext(
+                model,
+                context.ContainingType,
+                context.MethodDisplayName,
+                context.KnownSymbols,
+                ImmutableDictionary<ISymbol, int>.Empty,
+                context.IsInlinedAtCallSites,
+                context.CancellationToken);
+
+        return ClassifyElementFactory(body, aliasContext);
+    }
+
+    /// <summary>
+    /// The first of <paramref name="property"/>'s declaring syntax references whose expression-bodied
+    /// getter is a single invocation, or <see langword="null"/> if none is (an auto-property, a block
+    /// body, or every part of a partial property lacking one).
+    /// </summary>
+    private static InvocationExpressionSyntax? FindAliasBody(
+        IPropertySymbol property, CancellationToken cancellationToken)
+    {
+        foreach (var reference in property.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax(cancellationToken) is PropertyDeclarationSyntax
+                { ExpressionBody.Expression: InvocationExpressionSyntax candidate })
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static IfTemplateNode? ClassifyIf(
