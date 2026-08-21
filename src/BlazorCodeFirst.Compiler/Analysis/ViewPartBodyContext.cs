@@ -270,11 +270,8 @@ internal sealed class ViewPartBodyContext
     /// </summary>
     public void AddAccessRequirement(ViewPartAccessRequirement requirement)
     {
-        foreach (var existing in AccessRequirements)
-        {
-            if (existing == requirement)
-                return;
-        }
+        if (AccessRequirements.Contains(requirement))
+            return;
 
         AccessRequirements.Add(requirement);
     }
@@ -304,11 +301,8 @@ internal sealed class ViewPartBodyContext
     /// </remarks>
     public void ReportUnsupportedReference(Location location, string reason)
     {
-        foreach (var existing in Diagnostics)
-        {
-            if (existing.Id == DiagnosticDescriptors.BCF1002.Id)
-                return;
-        }
+        if (Diagnostics.Any(existing => existing.Id == DiagnosticDescriptors.BCF1002.Id))
+            return;
 
         var subject = IsInlinedAtCallSites
             ? DiagnosticDescriptors.ViewPartSubject(MethodDisplayName)
@@ -323,14 +317,12 @@ internal sealed class ViewPartBodyContext
     public void ReportUnresolvedType(Location location, string typeName)
     {
         var path = location.GetLineSpan().Path ?? string.Empty;
-        foreach (var existing in Diagnostics)
-        {
-            if (existing.Id == DiagnosticDescriptors.BCF3015.Id
+        if (Diagnostics.Any(existing =>
+                existing.Id == DiagnosticDescriptors.BCF3015.Id
                 && existing.FilePath == path
-                && existing.Span == location.SourceSpan)
-            {
-                return;
-            }
+                && existing.Span == location.SourceSpan))
+        {
+            return;
         }
 
         Diagnostics.Add(DiagnosticInfo.Create(
