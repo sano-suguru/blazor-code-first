@@ -21,9 +21,8 @@ public readonly record struct CssRewriteError(string FilePath, int Line, int Col
 /// Rewrites a <c>.cs.css</c> file's selectors, <c>@keyframes</c> names, and animation-name
 /// declarations to carry a scope attribute, mirroring dotnet/sdk's <c>RewriteCss.cs</c>
 /// (src/StaticWebAssetsSdk/Tasks/ScopedCss/RewriteCss.cs) but implemented on a hand-rolled,
-/// position-tracking scanner instead of Microsoft.Css.Parser's AST (see
-/// docs/superpowers/specs/2026-08-18-scoped-css-design.md, "スパイクで確定した事実 7." for why an
-/// off-the-shelf parser -- specifically ExCSS -- cannot support this).
+/// position-tracking scanner instead of Microsoft.Css.Parser's AST (ARCHITECTURE.md Appendix
+/// B.24 records why an off-the-shelf parser -- specifically ExCSS -- cannot support this).
 ///
 /// The rewrite runs in two passes over the original text. Pass 1 collects every
 /// <c>@keyframes</c> identifier in the document, because an <c>animation</c>/<c>animation-name</c>
