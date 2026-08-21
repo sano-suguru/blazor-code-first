@@ -49,7 +49,7 @@ public sealed class BodyTransplantIfTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
-        // BCF2002 is added in Task 6 -- not asserted here yet.
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF2002");
 
         Assert.Contains("__builder.OpenRegion(0);", generated);
         Assert.Contains("if (_flag)", generated);
@@ -129,6 +129,9 @@ public sealed class BodyTransplantIfTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
+
+        // Reported once for the whole chain, at the outermost `if` -- not once per `else if` link.
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF2002");
 
         // Exactly one region for the whole chain -- an `else if` must not open a second, nested one.
         Assert.Single(

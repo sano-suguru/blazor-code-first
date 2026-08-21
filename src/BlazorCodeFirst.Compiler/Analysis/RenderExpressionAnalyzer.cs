@@ -190,14 +190,23 @@ internal static class RenderExpressionAnalyzer
         {
             var node = AnalyzeIf(ifStatement, context);
 
-            return node is null
-                ? null
-                : statements.IsEmpty && declared.IsEmpty
-                    ? node
-                    : new TransplantedBlockTemplateNode(
-                        ExpressionTemplateFactory.CreateForStatements(statements, context),
-                        node,
-                        declared.Length);
+            if (node is null)
+                return null;
+
+            // Reported once for the whole chain, at the outermost `if`'s condition: an `else if` recurses
+            // through AnalyzeIf, and a second report per link would say the same thing again for no new
+            // reason (ARCHITECTURE.md §5.3's degradation applies to the region as a whole, not to each
+            // arm). Anchored to the condition rather than the whole `if` statement, which spans multiple
+            // lines and would leave no single-line anchor for a fixture test to pin against.
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF2002, ifStatement.Condition.GetLocation(), []));
+
+            return statements.IsEmpty && declared.IsEmpty
+                ? node
+                : new TransplantedBlockTemplateNode(
+                    ExpressionTemplateFactory.CreateForStatements(statements, context),
+                    node,
+                    declared.Length);
         }
         finally
         {

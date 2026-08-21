@@ -222,6 +222,33 @@ internal static class DiagnosticDescriptors
                 + "that area are rebuilt rather than diffed against a static template.");
 
     /// <summary>
+    /// BCF2002: A native `if`/`else` transplanted into a Body/Chrome getter, a ForEach content lambda, or
+    /// a [ViewPart] body degrades to a dynamic region; each arm's content is drawn through a runtime
+    /// fragment and loses its static diff optimization.
+    /// </summary>
+    /// <remarks>
+    /// Info, not a warning, for the same reason as BCF2001: the chain is correct and renders correctly,
+    /// only the static-diff optimization is lost. Reported once per `if`/`else` chain, at its outermost
+    /// `if`, regardless of how many `else if` links it holds.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF2002 = new(
+        id: "BCF2002",
+        title: "Native if/else degrades to a dynamic region",
+        messageFormat:
+            "This native 'if' cannot be statically assigned, so each arm renders through a runtime "
+                + "fragment and loses its static diff optimization",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description:
+            "A native `if`/`else` transplanted whole is wrapped in a region whose boundary sequence is "
+                + "fixed to syntactic position, same as If()'s own region. Unlike If(), each arm's content "
+                + "is drawn through a freshly synthesized RenderFragment rather than given its own static "
+                + "sequence range, because only one arm ever runs and no static width can be assigned to "
+                + "content that might not execute. Correctness is unaffected; the frames for whichever arm "
+                + "runs are rebuilt rather than diffed against a static template.");
+
+    /// <summary>
     /// BCF3004: A <c>ForEach</c> key is not an inline expression lambda, or its content is a shape the
     /// generator neither sequences statically nor transplants.
     /// </summary>
