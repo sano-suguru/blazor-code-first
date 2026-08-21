@@ -39,7 +39,7 @@ public sealed class ComputeScopedCssScopeTask : Microsoft.Build.Utilities.Task
             var fullPath = input.GetMetadata("FullPath");
             var scope = ScopeIdentifier.Compute(ProjectDirectory, fullPath, AssemblyName);
 
-            var withScope = new TaskItem(input);
+            var withScope = new TaskItem(input) { ItemSpec = fullPath };
             withScope.SetMetadata("CssScope", scope);
             result[i] = withScope;
         }

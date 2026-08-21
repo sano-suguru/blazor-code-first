@@ -70,7 +70,8 @@ internal static class KeyabilityResolver
             IfTemplateNode or ForEachTemplateNode or TextContentTemplateNode
                 or FragmentTemplateNode or RawMarkupTemplateNode
                 or RenderFragmentContentTemplateNode
-                or OpaqueViewTemplateNode => new ContentRoot(ContentRootKind.Region, IsKeyed: false),
+                or OpaqueViewTemplateNode or TransplantedIfTemplateNode
+                    => new ContentRoot(ContentRootKind.Region, IsKeyed: false),
             TransplantedBlockTemplateNode transplanted =>
                 ResolveRoot(transplanted.Content, registry, activeKeys, content),
             ContentHoleTemplateNode hole => ResolveHole(hole, registry, activeKeys, content),
@@ -189,6 +190,12 @@ internal static class KeyabilityResolver
                 CollectForEachContentDiagnostics(ifNode.Then, registry, sink);
                 if (ifNode.Otherwise is not null)
                     CollectForEachContentDiagnostics(ifNode.Otherwise, registry, sink);
+                break;
+
+            case TransplantedIfTemplateNode transplantedIf:
+                CollectForEachContentDiagnostics(transplantedIf.Then, registry, sink);
+                if (transplantedIf.Otherwise is not null)
+                    CollectForEachContentDiagnostics(transplantedIf.Otherwise, registry, sink);
                 break;
 
             case FragmentTemplateNode fragment:

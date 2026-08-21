@@ -15,6 +15,23 @@ public sealed class ForEachTransplantTests
         }
         """;
 
+    /// <summary>
+    /// A component whose <c>ForEach</c> content is <c>$CONTENT$</c>, with no key: a native `if`'s
+    /// content is region-rooted and cannot carry a key (BCF3003, the same rule <c>If()</c>'s content
+    /// already answers to), so this host declines the key entirely rather than writing one.
+    /// </summary>
+    private const string NoKeyHost = """
+        using BlazorCodeFirst;
+        using System.Collections.Generic;
+
+        public partial class C : BodyComponentBase
+        {
+            private readonly List<string> _items = new() { "a", "b" };
+
+            protected override View Body => Html.ForEach(_items, null, $CONTENT$);
+        }
+        """;
+
     private const string BlockContent = """
         x =>
                 {
@@ -24,6 +41,20 @@ public sealed class ForEachTransplantTests
         """;
 
     private const string ExpressionContent = "x => Html.Span[x.ToUpperInvariant()]";
+
+    private const string BlockIfContent = """
+        x =>
+                {
+                    if (x == "a")
+                    {
+                        return Html.Span[x];
+                    }
+                    else
+                    {
+                        return Html.Span["-"];
+                    }
+                }
+        """;
 
     /// <summary>A component whose <c>ForEach</c> key is <c>$KEY$</c>.</summary>
     private const string KeyHost = """
@@ -40,6 +71,9 @@ public sealed class ForEachTransplantTests
 
     private static GeneratorRunResult Run(string content) =>
         CompilationTestHost.RunGenerator(Host.Replace("$CONTENT$", content));
+
+    private static GeneratorRunResult RunNoKey(string content) =>
+        CompilationTestHost.RunGenerator(NoKeyHost.Replace("$CONTENT$", content));
 
     private static GeneratorRunResult RunKey(string key) =>
         CompilationTestHost.RunGenerator(KeyHost.Replace("$KEY$", key));
@@ -59,6 +93,22 @@ public sealed class ForEachTransplantTests
 
         // The key still lands on the content root, past the statements.
         Assert.Contains("__builder.SetKey(__bcf_item_0);", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ForEachContent_WhenBlockEndsInNativeIfElse_TransplantsIntoARegion()
+    {
+        var result = RunNoKey(BlockIfContent);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF3003" or "BCF3004");
+
+        // The iteration variable is substituted into the condition the same way it already is into a
+        // transplanted statement (the test above's assertion on `label`).
+        Assert.Contains("__bcf_item_0 == \"a\"", generated);
+        Assert.DoesNotContain("FragmentOf", generated);
+
         CompilationTestHost.AssertOutputCompiles(result);
     }
 

@@ -11,6 +11,10 @@ internal abstract record RenderNode;
 /// <summary>Represents an <c>If(condition, then, otherwise)</c> call with an optional else branch.</summary>
 internal sealed record IfNode(ExpressionTemplate ConditionExpression, RenderNode Then, RenderNode? Otherwise) : RenderNode;
 
+/// <summary>Expanded counterpart of <see cref="TransplantedIfTemplateNode"/>.</summary>
+internal sealed record TransplantedIfNode(
+    ExpressionTemplate Condition, RenderNode Then, RenderNode? Otherwise) : RenderNode;
+
 internal sealed record LocalBinding(
     string TypeName,
     string Name,

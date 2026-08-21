@@ -86,33 +86,27 @@ internal static class ViewPartExpander
         switch (node)
         {
             case IfTemplateNode ifNode:
-                {
-                    var thenNode = ExpandNode(
-                        ifNode.Then,
-                        substitution,
-                        ref nextLogicalPreorderOrdinal,
-                        activeMethodStack,
-                        currentScope,
-                        environment);
-                    if (thenNode is null)
-                        return null;
+                return ExpandBranches(
+                    ifNode.Then,
+                    ifNode.Otherwise,
+                    substitution,
+                    ref nextLogicalPreorderOrdinal,
+                    activeMethodStack,
+                    currentScope,
+                    environment,
+                    (then, otherwise) => new IfNode(ifNode.Condition.Substitute(substitution), then, otherwise));
 
-                    RenderNode? otherwiseNode = null;
-                    if (ifNode.Otherwise is not null)
-                    {
-                        otherwiseNode = ExpandNode(
-                            ifNode.Otherwise,
-                            substitution,
-                            ref nextLogicalPreorderOrdinal,
-                            activeMethodStack,
-                            currentScope,
-                            environment);
-                        if (otherwiseNode is null)
-                            return null;
-                    }
-
-                    return new IfNode(ifNode.Condition.Substitute(substitution), thenNode, otherwiseNode);
-                }
+            case TransplantedIfTemplateNode transplantedIf:
+                return ExpandBranches(
+                    transplantedIf.Then,
+                    transplantedIf.Otherwise,
+                    substitution,
+                    ref nextLogicalPreorderOrdinal,
+                    activeMethodStack,
+                    currentScope,
+                    environment,
+                    (then, otherwise) => new TransplantedIfNode(
+                        transplantedIf.Condition.Substitute(substitution), then, otherwise));
 
             case ForEachTemplateNode forEach:
                 {
@@ -362,6 +356,40 @@ internal static class ViewPartExpander
                 throw new NotSupportedException(
                     $"Unknown RenderTemplateNode type '{node.GetType().Name}'; add an ExpandNode case for it.");
         }
+    }
+
+    /// <summary>
+    /// Expands a two-branch node's <c>then</c>/<c>otherwise</c>, shared by <see cref="IfTemplateNode"/>
+    /// and <see cref="TransplantedIfTemplateNode"/>: the two differ only in which condition-carrying node
+    /// type <paramref name="build"/> constructs from the expanded branches, not in how the branches
+    /// themselves expand.
+    /// </summary>
+    private static RenderNode? ExpandBranches(
+        RenderTemplateNode then,
+        RenderTemplateNode? otherwise,
+        ImmutableArray<SubstitutedArgument> substitution,
+        ref int nextLogicalPreorderOrdinal,
+        ImmutableArray<string> activeMethodStack,
+        string? currentScope,
+        ExpansionEnvironment environment,
+        Func<RenderNode, RenderNode?, RenderNode> build)
+    {
+        var thenNode = ExpandNode(
+            then, substitution, ref nextLogicalPreorderOrdinal, activeMethodStack, currentScope, environment);
+        if (thenNode is null)
+            return null;
+
+        RenderNode? otherwiseNode = null;
+        if (otherwise is not null)
+        {
+            otherwiseNode = ExpandNode(
+                otherwise, substitution, ref nextLogicalPreorderOrdinal, activeMethodStack, currentScope,
+                environment);
+            if (otherwiseNode is null)
+                return null;
+        }
+
+        return build(thenNode, otherwiseNode);
     }
 
     /// <summary>Expands each of a node's children in order, or null if any one fails. Shared by

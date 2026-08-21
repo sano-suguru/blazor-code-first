@@ -107,26 +107,67 @@ internal static class RenderExpressionAnalyzer
     public static RenderTemplateNode? Analyze(
         ImmutableArray<StatementSyntax> statements,
         ExpressionSyntax expression,
+        ViewPartBodyContext context) =>
+        AnalyzeTransplantedBody(statements, expression, context, () => Analyze(expression, context));
+
+    /// <summary>
+    /// Classifies a block whose last statement is a native `if` (ARCHITECTURE.md §5.3), wrapped in the
+    /// statements written before it. Shares <see cref="AnalyzeTransplantedBody"/>'s scope-opening shape
+    /// with <see cref="Analyze(ImmutableArray{StatementSyntax}, ExpressionSyntax, ViewPartBodyContext)"/>;
+    /// the two differ only in what follows the leading statements.
+    /// </summary>
+    public static RenderTemplateNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        IfStatementSyntax ifStatement,
         ViewPartBodyContext context)
     {
-        // On the definition side, every local this body declares becomes a render variable, so its
-        // declaration and its references carry one hole and expansion mints the name (#336). A component's
-        // own expression keeps the names the author wrote; ViewPartBodyContext.IsInlinedAtCallSites says
-        // why the two positions differ. The returned expression is read alongside the statements because a
-        // pattern designation binds into the same scope a declaration statement does, and expansion copies
-        // it to every call site just the same (#343).
+        var node = AnalyzeTransplantedBody(
+            statements, ifStatement.Condition, context, () => AnalyzeIf(ifStatement, context));
+        if (node is null)
+            return null;
+
+        // Reported once for the whole chain, at the outermost `if`'s condition: an `else if` recurses
+        // through AnalyzeIf, and an explicitly braced `else { var y = ...; if (...) { ... } }` recurses
+        // through AnalyzeTransplantedBody directly via AnalyzeArm (bypassing this public overload) rather
+        // than back through here, so neither shape reports a second time for the same reason
+        // (ARCHITECTURE.md §5.3's degradation applies to the region as a whole, not to each arm).
+        // Anchored to the condition rather than the whole `if` statement, which spans multiple lines and
+        // would leave no single-line anchor for a fixture test to pin against.
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF2002, ifStatement.Condition.GetLocation(), []));
+
+        return node;
+    }
+
+    /// <summary>
+    /// The scaffolding both <c>Analyze</c> overloads share: collect the leading statements' declared
+    /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
+    /// — either can hold a pattern designation that binds into the same scope a declaration statement
+    /// does, #343), open a render-variable scope over them, classify the tail via
+    /// <paramref name="classifyTail"/>, and wrap the result in a <see cref="TransplantedBlockTemplateNode"/>
+    /// only when there is something to wrap.
+    /// </summary>
+    /// <remarks>
+    /// On the definition side, every local this body declares becomes a render variable, so its
+    /// declaration and its references carry one hole and expansion mints the name (#336). A component's
+    /// own expression keeps the names the author wrote; ViewPartBodyContext.IsInlinedAtCallSites says
+    /// why the two positions differ.
+    /// <para>
+    /// Only statements are transplanted; the tail's own declarations travel with the tail, so there is no
+    /// span to open when there are none. One flag rather than the same test at the push and again at the
+    /// pop: a scope left open is read by every local reference in the rest of the body.
+    /// </para>
+    /// </remarks>
+    private static RenderTemplateNode? AnalyzeTransplantedBody(
+        ImmutableArray<StatementSyntax> statements,
+        ExpressionSyntax localsAnchor,
+        ViewPartBodyContext context,
+        Func<RenderTemplateNode?> classifyTail)
+    {
         var declared = context.IsInlinedAtCallSites
-            ? CollectDeclaredLocals(statements, expression, context)
+            ? CollectDeclaredLocals(statements, localsAnchor, context)
             : [];
 
-        // An expression that declares nothing, written without statements, is the same body written as one
-        // expression and needs neither the scope nor the wrapping node.
-        if (statements.IsEmpty && declared.IsEmpty)
-            return Analyze(expression, context);
-
-        // Only statements are transplanted; an expression's own declarations travel with the expression, so
-        // there is no span to open when there are none. One flag rather than the same test at the push and
-        // again at the pop: a scope left open is read by every local reference in the rest of the body.
         var opensTransplantedScope = !statements.IsEmpty;
         if (opensTransplantedScope)
             context.PushTransplantedScope(SpanOf(statements));
@@ -136,14 +177,16 @@ internal static class RenderExpressionAnalyzer
 
         try
         {
-            var content = Analyze(expression, context);
+            var node = classifyTail();
 
-            return content is null
+            return node is null
                 ? null
-                : new TransplantedBlockTemplateNode(
-                    ExpressionTemplateFactory.CreateForStatements(statements, context),
-                    content,
-                    declared.Length);
+                : statements.IsEmpty && declared.IsEmpty
+                    ? node
+                    : new TransplantedBlockTemplateNode(
+                        ExpressionTemplateFactory.CreateForStatements(statements, context),
+                        node,
+                        declared.Length);
         }
         finally
         {
@@ -163,6 +206,55 @@ internal static class RenderExpressionAnalyzer
                 context.PopTransplantedScope();
         }
     }
+
+    /// <summary>
+    /// Reads one `if`/`else`, recursing into a nested `if` for an `else if` (which Roslyn parses as the
+    /// `else` clause's statement being directly an <see cref="IfStatementSyntax"/>, with no enclosing
+    /// block — so no separate leading-statement slot exists at that position by construction).
+    /// </summary>
+    private static TransplantedIfTemplateNode? AnalyzeIf(
+        IfStatementSyntax ifStatement, ViewPartBodyContext context)
+    {
+        if (ifStatement.Statement is not BlockSyntax thenBlock)
+            return null;
+
+        var condition = ExpressionTemplateFactory.Create(ifStatement.Condition, context);
+
+        if (AnalyzeArm(thenBlock, context) is not { } then)
+            return null;
+
+        RenderTemplateNode? otherwise = null;
+        if (ifStatement.Else is { Statement: var elseStatement })
+        {
+            otherwise = elseStatement switch
+            {
+                IfStatementSyntax nestedIf => AnalyzeIf(nestedIf, context),
+                BlockSyntax elseBlock => AnalyzeArm(elseBlock, context),
+                _ => null,
+            };
+
+            if (otherwise is null)
+                return null;
+        }
+
+        return new TransplantedIfTemplateNode(condition, then, otherwise);
+    }
+
+    /// <summary>
+    /// Reads one `if`/`else` arm's block: either the existing single-trailing-return shape, or a
+    /// further nested `if` (an explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed
+    /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly). The nested-`if` case goes
+    /// through <see cref="AnalyzeTransplantedBody"/> directly, not the public
+    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, IfStatementSyntax, ViewPartBodyContext)"/>
+    /// overload, so this continuation of the same chain does not report BCF2002 a second time.
+    /// </summary>
+    private static RenderTemplateNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
+        TryReadTransplantableBlock(block, out var exprStatements, out var returned)
+            ? Analyze(exprStatements, returned, context)
+            : TryReadTransplantableIf(block, out var ifStatements, out var nestedIf)
+                ? AnalyzeTransplantedBody(
+                    ifStatements, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context))
+                : null;
 
     /// <summary>
     /// The locals this body declares into the scope it lands in — the leading statements', then the
@@ -282,14 +374,24 @@ internal static class RenderExpressionAnalyzer
                 // element are unavoidable and this is the one that carries no children. Asked first because it
                 // is the overwhelmingly common answer -- every Div, Span and P in every body arrives here --
                 // and the two arms are disjoint: an element helper returns ElementView and Slot is View.
-                if (symbols.ElementTags.TryGetValue(
-                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag))
+                var normalized = KnownSymbols.Normalize(resolvedProperty);
+                if (symbols.ElementTags.TryGetValue(normalized, out var propertyTag)
+                    || symbols.SvgElementTags.TryGetValue(normalized, out propertyTag))
                 {
                     return new ElementTemplateNode(propertyTag);
                 }
 
-                return symbols.IsSlot(resolvedProperty)
-                    ? ClassifySlot(expression, symbols.SlotProperty!, context)
+                if (symbols.IsSlot(resolvedProperty))
+                {
+                    return ClassifySlot(expression, symbols.SlotProperty!, context);
+                }
+
+                // Not curated, not Slot: a user-declared static ElementView property may still be an
+                // element tag alias (#173). Gated on the return type before paying for syntax resolution,
+                // so an unrelated static ElementView-typed property that is neither shape still falls
+                // through at the same cost as before this feature existed.
+                return resolvedProperty.IsStatic && symbols.IsElementViewType(resolvedProperty.Type)
+                    ? ClassifyElementTagAlias(expression, resolvedProperty, context)
                     : null;
             }
 
@@ -397,6 +499,96 @@ internal static class RenderExpressionAnalyzer
         }
 
         return new ElementTemplateNode(tagValue);
+    }
+
+    /// <summary>
+    /// Resolves a non-curated <c>static ElementView</c> property as an element tag alias (#173): a
+    /// property declared in this compilation whose body is exactly one <c>Element("literal")</c> call.
+    /// Reuses <see cref="ClassifyElementFactory"/> rather than re-implementing its argument binding and
+    /// BCF3009 check, so an alias is validated by the same single copy of that logic a call written
+    /// directly at the use site goes through.
+    /// </summary>
+    private static ElementTemplateNode? ClassifyElementTagAlias(
+        ExpressionSyntax expression, IPropertySymbol property, ViewPartBodyContext context)
+    {
+        if (property.DeclaringSyntaxReferences.IsEmpty)
+        {
+            // Reported at the use site, not at property.Locations (a metadata symbol's location, not a
+            // position in the author's own source): the same choice ViewPartExpander.CreateDiagnostic
+            // makes for the analogous cross-assembly [ViewPart] call-site BCF1002.
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF1006,
+                expression.GetLocation(),
+                [property.Name]));
+            return null;
+        }
+
+        if (FindAliasBody(property, context.CancellationToken) is not { } body)
+        {
+            return null;
+        }
+
+        // A declaration beside the call site shares context.SemanticModel's tree and can use it as-is;
+        // one declared elsewhere in the same compilation needs its own tree's model, the same rebasing
+        // ComputeBodyBuildsFromDesignTimeSurface already does for a cross-file [ViewPart] callee.
+        var model = GetSemanticModelFor(body.SyntaxTree, context);
+
+        if (model.GetSymbolInfo(body, context.CancellationToken).Symbol is not IMethodSymbol method
+            || context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.Element)
+        {
+            return null;
+        }
+
+        // Shares this context's own Diagnostics/AccessRequirements builders rather than starting fresh
+        // ones (WithSemanticModel), so a BCF3009 that ClassifyElementFactory reports against a cross-file
+        // alias declaration lands where this method's own caller reads it back, instead of into a
+        // throwaway collection nothing merges.
+        return ClassifyElementFactory(body, context.WithSemanticModel(model));
+    }
+
+    /// <summary>
+    /// The semantic model that can bind <paramref name="tree"/>: <paramref name="context"/>'s own model
+    /// when it already covers that tree, or a freshly built one otherwise. Shared by
+    /// <see cref="ClassifyElementTagAlias"/> and <see cref="ComputeBodyBuildsFromDesignTimeSurface"/>,
+    /// which each rebase onto a same-compilation declaration's own tree for the same reason: Roslyn throws
+    /// if a node is bound against a model built for a different tree. A model built here starts with
+    /// empty bound-node caches.
+    /// </summary>
+    /// <remarks>
+    /// Forcing the condition true, or flipping <c>==</c> to <c>!=</c>, are both real kills: either sends a
+    /// cross-file declaration's nodes through <paramref name="context"/>'s own model, built for a
+    /// different <see cref="SyntaxTree"/>, and Roslyn throws on that mismatch --
+    /// <c>OpaqueCallDiagnosticTests.ViewReturningCall_WhenCalleeIsDeclaredInAnotherFile_ReportsBCF3030</c>
+    /// pins the cross-file case red under each. Forcing the condition false is measured equivalent rather
+    /// than assumed: hand-applying it and running <c>BlazorCodeFirst.Compiler.Tests</c> and
+    /// <c>BlazorCodeFirst.DiagnosticTests</c> left every test passing unchanged, including that same-tree
+    /// case -- <see cref="Compilation.GetSemanticModel(SyntaxTree, bool)"/> answers identically for a tree
+    /// it is already the model of, just without the reused bound-node cache, so the same-file path only
+    /// gets slower, not wrong.
+    /// </remarks>
+    private static SemanticModel GetSemanticModelFor(SyntaxTree tree, ViewPartBodyContext context) =>
+        tree == context.SemanticModel.SyntaxTree
+            ? context.SemanticModel
+            : context.SemanticModel.Compilation.GetSemanticModel(tree);
+
+    /// <summary>
+    /// The first of <paramref name="property"/>'s declaring syntax references whose expression-bodied
+    /// getter is a single invocation, or <see langword="null"/> if none is (an auto-property, a block
+    /// body, or every part of a partial property lacking one).
+    /// </summary>
+    private static InvocationExpressionSyntax? FindAliasBody(
+        IPropertySymbol property, CancellationToken cancellationToken)
+    {
+        foreach (var reference in property.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax(cancellationToken) is PropertyDeclarationSyntax
+                { ExpressionBody.Expression: InvocationExpressionSyntax candidate })
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static IfTemplateNode? ClassifyIf(
@@ -549,7 +741,9 @@ internal static class RenderExpressionAnalyzer
             // the scope could never have covered it.
             var content = contentShape.Callee is { } callee
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
-                : Analyze(contentShape.Statements, contentShape.LambdaBody!, context);
+                : contentShape.LambdaBody is { } lambdaBody
+                    ? Analyze(contentShape.Statements, lambdaBody, context)
+                    : Analyze(contentShape.Statements, contentShape.LambdaIf!, context);
             if (content is null)
                 return null;
 
@@ -650,6 +844,7 @@ internal static class RenderExpressionAnalyzer
         IMethodSymbol? Callee,
         ISymbol? LambdaParameter,
         ExpressionSyntax? LambdaBody,
+        IfStatementSyntax? LambdaIf,
         ImmutableArray<StatementSyntax> Statements);
 
     /// <summary>
@@ -675,7 +870,7 @@ internal static class RenderExpressionAnalyzer
                 return false;
             }
 
-            shape = new ForEachContent(callee, null, null, []);
+            shape = new ForEachContent(callee, null, null, null, []);
             return true;
         }
 
@@ -693,18 +888,25 @@ internal static class RenderExpressionAnalyzer
             if (DeclaresReservedName(expressionBody))
                 return false;
 
-            shape = new ForEachContent(null, parameterSymbol, expressionBody, []);
+            shape = new ForEachContent(null, parameterSymbol, expressionBody, null, []);
             return true;
         }
 
-        if (bodyNode is not BlockSyntax block
-            || !TryReadTransplantableBlock(block, out var statements, out var returned))
+        if (bodyNode is BlockSyntax block
+            && TryReadTransplantableBlock(block, out var statements, out var returned))
         {
-            return false;
+            shape = new ForEachContent(null, parameterSymbol, returned, null, statements);
+            return true;
         }
 
-        shape = new ForEachContent(null, parameterSymbol, returned, statements);
-        return true;
+        if (bodyNode is BlockSyntax ifBlock
+            && TryReadTransplantableIf(ifBlock, out var ifStatements, out var ifStatement))
+        {
+            shape = new ForEachContent(null, parameterSymbol, null, ifStatement, ifStatements);
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -2033,20 +2235,9 @@ internal static class RenderExpressionAnalyzer
 
             // The context's own model when the callee shares the body's tree, which is the common case of a
             // helper beside the component. A model built here starts with empty bound-node caches, and the
-            // walk below is about to force a bind of every candidate in the declaration.
-            //
-            // Forcing the condition true, or flipping == to !=, are both real kills: either sends a
-            // cross-file callee's nodes through context.SemanticModel, a model built for a different
-            // SyntaxTree, and Roslyn throws on that mismatch --
-            // OpaqueCallDiagnosticTests.ViewReturningCall_WhenCalleeIsDeclaredInAnotherFile_ReportsBCF3030
-            // pins the cross-file case red under each. Forcing the condition false is measured equivalent
-            // rather than assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
-            // BlazorCodeFirst.DiagnosticTests left every test passing unchanged, including that same-tree
-            // case -- GetSemanticModel answers identically for a tree it is already the model of, just
-            // without the reused bound-node cache, so the same-file path only gets slower, not wrong.
-            var model = declaration.SyntaxTree == context.SemanticModel.SyntaxTree
-                ? context.SemanticModel
-                : context.SemanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
+            // walk below is about to force a bind of every candidate in the declaration. See
+            // GetSemanticModelFor for the measured reason its condition is written this way.
+            var model = GetSemanticModelFor(declaration.SyntaxTree, context);
 
             foreach (var node in declaration.DescendantNodes())
             {
@@ -3460,25 +3651,81 @@ internal static class RenderExpressionAnalyzer
             return true;
         }
 
+        if (!TryReadLeadingStatements(block, count, out var leading))
+            return false;
+
+        if (DeclaresReservedName(block))
+            return false;
+
+        statements = leading;
+        returned = last;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads every statement of <paramref name="block"/> except the last, requiring each to be a local
+    /// declaration or an expression statement. Shared by <see cref="TryReadTransplantableBlock"/> and
+    /// <see cref="TryReadTransplantableIf"/>, which differ only in what they require the last statement
+    /// to be.
+    /// </summary>
+    /// <remarks>
+    /// The original nodes, not a rebuilt list: <c>SyntaxFactory.List</c> re-parents its members into a new
+    /// list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
+    /// <c>MoveToImmutable</c> rather than <c>ToImmutable</c>: the loop below either fills every slot or
+    /// returns, so the builder is exactly full and its array can be handed over without a copy.
+    /// </remarks>
+    private static bool TryReadLeadingStatements(
+        BlockSyntax block, int count, out ImmutableArray<StatementSyntax> statements)
+    {
         var leading = ImmutableArray.CreateBuilder<StatementSyntax>(count - 1);
         for (var index = 0; index < count - 1; index++)
         {
             var statement = block.Statements[index];
             if (statement is not (LocalDeclarationStatementSyntax or ExpressionStatementSyntax))
+            {
+                statements = [];
                 return false;
+            }
 
             leading.Add(statement);
         }
 
-        if (DeclaresReservedName(block))
+        statements = leading.MoveToImmutable();
+        return true;
+    }
+
+    /// <summary>
+    /// Reads a block whose last statement is a native `if` (ARCHITECTURE.md §5.3's Transplantable
+    /// syntax — distinct from <see cref="TryReadTransplantableBlock"/>'s narrower, already-shipped
+    /// "leading statements + one trailing return" shape, which keeps full static width). The `if`'s own
+    /// `then`/`else` are not read here; <see cref="AnalyzeIf"/> reads them, so both this function and the
+    /// getter/content/view-part-body call sites stay simple bool tests.
+    /// </summary>
+    public static bool TryReadTransplantableIf(
+        BlockSyntax block,
+        out ImmutableArray<StatementSyntax> statements,
+        out IfStatementSyntax ifStatement)
+    {
+        statements = [];
+        ifStatement = null!;
+
+        var count = block.Statements.Count;
+        if (count == 0
+            || block.Statements[count - 1] is not IfStatementSyntax { Statement: BlockSyntax } last)
+        {
+            return false;
+        }
+
+        if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
             return false;
 
-        // The original nodes, not a rebuilt list: SyntaxFactory.List re-parents its members into a new
-        // list, and a re-parented node is no longer inside the syntax tree the semantic model answers for.
-        // MoveToImmutable rather than ToImmutable: the loop above either filled every reserved slot or
-        // returned, so the builder is exactly full and its array can be handed over without a copy.
-        statements = leading.MoveToImmutable();
-        returned = last;
+        // One scan over the whole `if`, including every nested arm: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda (an authored event handler keeps its own scope,
+        // #413), so this single call already covers `then`, every `else if`, and the final `else`.
+        if (DeclaresReservedName(last))
+            return false;
+
+        ifStatement = last;
         return true;
     }
 

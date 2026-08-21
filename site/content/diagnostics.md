@@ -249,6 +249,32 @@ The spelling half is a translation break. A tag no element can be named renders 
 things: prerendering writes it into markup where the HTML parser reinterprets it, while interactive
 rendering hands it to `createElement`, which rejects it and ends the circuit.
 
+### BCF1006
+
+Error. A `static ElementView` property used as an element tag alias is declared in a referenced
+assembly.
+
+```csharp
+// In a referenced project or NuGet package:
+public static ElementView MyCard => Element("my-card");
+
+// In this compilation:
+MyCard["content"]     // BCF1006
+```
+
+The generator resolves an alias by reading its own declaration's syntax — `Element("my-card")` — to
+find the tag. IL carries no body, so a declaration reached through a referenced assembly has nothing
+to read. Declare the alias in the current compilation instead:
+
+```csharp
+static ElementView MyCard => Element("my-card");
+
+MyCard["content"]     // fine
+```
+
+A `[ViewPart]` reaches the same wall for the same reason ([BCF1002](#bcf1002)): both features read
+their own source, not the target's, so both stop at the compilation boundary.
+
 ### BCF3016
 
 Error. Children were written on a void element.
@@ -574,14 +600,48 @@ Wrap the content in a container element. A `ForEach` that declines its key with 
 Error. The `ForEach` key or content has a shape the generator cannot sequence.
 
 The key body is copied into the `SetKey` call, so it has to be an expression. The content is given
-one static sequence space that every iteration reuses, which a second return or a native control
-statement would each need their own copy of.
+one static sequence space that every iteration reuses, which a second return or a native `switch`
+would each need their own copy of.
 
-Content accepts an expression lambda, a block with one trailing `return`, and a single-parameter
-`View`-returning method group.
+Content accepts an expression lambda, a block with one trailing `return`, a block ending in a native
+`if`/`else` ([BCF2002](#bcf2002)), and a single-parameter `View`-returning method group. `switch` and
+`foreach` are not accepted.
 
 The key body and the content body follow the same reserved-name rule [BCF1004](#bcf1004) states
 for its getter.
+
+### BCF2002
+
+Info. A native `if`/`else` degrades to a dynamic region.
+
+```csharp
+protected override View Body
+{
+    get
+    {
+        if (_flag)                 // BCF2002: correct, but not statically assigned
+        {
+            return Span["yes"];
+        }
+        else
+        {
+            return Span["no"];
+        }
+    }
+}
+```
+
+A native `if`/`else` can be written as the last statement of a `Body`/`Chrome` getter, a `ForEach`
+content lambda, or a `[ViewPart]` body. It is transplanted whole into a region whose boundary
+sequence is fixed to syntactic position — the same shape `If()` uses. Unlike `If()`, each arm's
+content renders through a freshly synthesized `RenderFragment` rather than a statically assigned
+sequence range. Only one arm ever executes, so no static width can be reserved for content that
+might not run. Correctness is unaffected; the frames for whichever arm runs are rebuilt rather than
+diffed against a static template.
+
+Reported once per `if`/`else` chain, at the outermost `if`, regardless of how many `else if` links
+the chain holds. `switch` and `foreach` are not yet accepted at this position and remain
+[BCF1004](#bcf1004)/[BCF3004](#bcf3004)/BCF1002.
 
 ### BCF3032
 

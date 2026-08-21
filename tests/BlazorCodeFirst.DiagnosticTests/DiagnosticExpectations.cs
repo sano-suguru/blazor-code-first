@@ -59,6 +59,7 @@ public static class DiagnosticExpectations
         new("BCF1005", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1001Bcf1005.cs", "Body"),
         // SARIF names the Info level "note".
         new("BCF2001", FixtureKind.GeneratorViaProjectReference, "note", "Bcf2001Bcf3030.cs", "Wrap()"),
+        new("BCF2002", FixtureKind.GeneratorViaProjectReference, "note", "Bcf2002.cs", "_flag"),
         new("BCF3001", FixtureKind.AnalyzerViaProjectReference, "error", "Mutating.cs", "_count++"),
         new("BCF3002", FixtureKind.GeneratorViaProjectReference, "warning", "Bcf3002Bcf3003Bcf3004.cs", "item => 0"),
         new(
@@ -355,6 +356,15 @@ public static class DiagnosticExpectations
             "tests/msbuild-fixtures/ScopedCss.Orphan, in the same style as the other scoped-CSS-only " +
             "assertions (bundle scope prefix, generated attribute) already tested outside the " +
             "DiagnosticExpectations.All harness."),
+        (
+            "BCF1006",
+            "Only fires when the aliased property's declaration is in a referenced assembly with no visible " +
+            "source, which the flat GeneratorDelivery.* fixtures cannot produce (they reference only Runtime " +
+            "and Compiler-as-analyzer). Covered in-process instead by " +
+            "HtmlElementTagAliasGeneratorTests.ElementTagAlias_FromMetadataReference_ReportsBCF1006, using " +
+            "CompilationTestHost.CompileToMetadataReference/CreateCompilation the same way " +
+            "ComponentUnresolvedTypeTests.Component_FromMetadataReference_ReportsNoBCF3012 already does for the " +
+            "equivalent same-compilation-only check on a component type."),
     ];
 
     /// <summary>

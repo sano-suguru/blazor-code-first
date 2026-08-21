@@ -126,4 +126,149 @@ public sealed class HtmlElementTagGeneratorTests
         Assert.Contains($"__builder.OpenElement(0, \"{tag}\")", generated);
         CompilationTestHost.AssertOutputCompiles(result);
     }
+
+    [Fact]
+    public void ElementTagAlias_PlainStaticProperty_ResolvesToItsTag()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                private string _x => "x";
+
+                static ElementView MyCard => Element("my-card");
+
+                protected override View Body => MyCard[Span[_x]];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3009");
+        Assert.Contains("__builder.OpenElement(0, \"my-card\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ElementTagAlias_ComposesWithAttrChainAtTheCallSite()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                static ElementView MyCard => Element("my-card");
+
+                protected override View Body => MyCard.Attr("variant", "wide")["x"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+        // Every operand here is constant, so this folds into markup (#140) the same way
+        // Div.Class("card")["x"] would -- proof the alias composes into the existing fold, not just
+        // the OpenElement path.
+        Assert.Contains("__builder.AddMarkupContent(0, \"<my-card variant=\\\"wide\\\">x</my-card>\")", generated);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ElementTagAlias_WithNonElementBody_FallsThroughWithNoNewDiagnostic()
+    {
+        // Body is a curated helper reference, not a bare Element("literal") call: out of the tag-only
+        // scope this feature accepts (spec, "対象外"). Must not silently start resolving as an alias.
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                static ElementView NotAnAlias => Div;
+
+                protected override View Body => NotAnAlias["x"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1006");
+        // Whatever this produced before this feature existed (BCF1003, most likely) is unaffected --
+        // the point of this test is the *absence* of a new diagnostic, not a specific old one, so no
+        // generated-source assertion here.
+    }
+
+    /// <summary>
+    /// The regression guard for "an element tag alias is same-compilation only" (#173), the same shape
+    /// <see cref="ComponentUnresolvedTypeTests.Component_FromMetadataReference_ReportsNoBCF3012"/> pins for
+    /// a component type, mirrored onto BCF1006's Error rather than a component's silent success.
+    /// </summary>
+    [Fact]
+    public void ElementTagAlias_FromMetadataReference_ReportsBCF1006()
+    {
+        const string library = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace Lib;
+            public static class Aliases
+            {
+                public static ElementView MyCard => Element("my-card");
+            }
+            """;
+
+        var reference = CompilationTestHost.CompileToMetadataReference(library, "LibAssembly");
+
+        const string host = """
+            using BlazorCodeFirst;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Lib.Aliases.MyCard["x"];
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation([("Host.cs", host)], reference);
+        var result = CompilationTestHost.RunGenerator(compilation);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1006");
+    }
+
+    /// <summary>
+    /// A same-compilation alias declared in a different file from its use site takes the semantic-model
+    /// rebasing path (<c>ViewPartBodyContext.WithSemanticModel</c>) rather than the common same-file path.
+    /// A non-tag-name literal there must still reach BCF3009 through the rebased context's own
+    /// diagnostics, not one that gets built and discarded.
+    /// </summary>
+    [Fact]
+    public void ElementTagAlias_DeclaredInAnotherFile_WithInvalidTag_ReportsBCF3009()
+    {
+        const string aliasFile = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public static class Aliases
+            {
+                public static ElementView Bad => Element("not a tag!");
+            }
+            """;
+
+        const string hostFile = """
+            using BlazorCodeFirst;
+
+            public partial class C : BodyComponentBase
+            {
+                protected override View Body => Aliases.Bad["x"];
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(
+            ("Aliases.cs", aliasFile), ("Host.cs", hostFile));
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3009");
+    }
 }

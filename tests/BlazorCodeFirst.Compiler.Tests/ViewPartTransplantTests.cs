@@ -50,6 +50,35 @@ public sealed class ViewPartTransplantTests
             });
         """;
 
+    private const string IfElsePart = """
+        Part(bool flag)
+            {
+                if (flag)
+                {
+                    return Span["yes"];
+                }
+                else
+                {
+                    return Span["no"];
+                }
+            }
+        """;
+
+    private const string LeadingLocalIfElsePart = """
+        Part(bool flag)
+            {
+                var label = flag ? "yes" : "no";
+                if (flag)
+                {
+                    return Span[label];
+                }
+                else
+                {
+                    return Span[label];
+                }
+            }
+        """;
+
     private static GeneratorRunResult Run(string body, string part) =>
         CompilationTestHost.RunGenerator(Host.Replace("$BODY$", body).Replace("$PART$", part));
 
@@ -432,5 +461,36 @@ public sealed class ViewPartTransplantTests
             """);
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3025");
+    }
+
+    [Fact]
+    public void ViewPart_WhenBodyEndsInNativeIfElse_ExpandsWithoutBcf1002()
+    {
+        var result = Run("""=> Div[Part(true)];""", IfElsePart);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        Assert.DoesNotContain("FragmentOf", generated);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ViewPart_WhenCalledTwiceWithLeadingLocalBeforeNativeIf_RenamesEachExpansionIndependently()
+    {
+        var result = Run("""=> Fragment(Part(true), Part(false));""", LeadingLocalIfElsePart);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        CompilationTestHost.AssertOutputCompiles(result);
+
+        // Both expansions' minted local names must differ -- confirms ExpandNode's existing per-call-site
+        // ordinal-based renaming (ViewPartExpander.cs) reaches the leading statements of a
+        // TransplantedIfTemplateNode-wrapped body the same way it already does for a plain trailing
+        // return.
+        var mintedNames = Regex.Matches(generated, "__bcf_local_\\d+_0")
+            .Select(m => m.Value)
+            .Distinct()
+            .ToArray();
+        Assert.Equal(2, mintedNames.Length);
     }
 }

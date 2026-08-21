@@ -191,6 +191,23 @@ internal static class DiagnosticDescriptors
             "supported. Move the component to a top-level type.");
 
     /// <summary>
+    /// BCF1006: a <c>static ElementView</c> property referenced as an element tag alias (#173) is declared
+    /// in a referenced assembly, so its declaration syntax is not visible to resolve. Same-compilation-only
+    /// constraint, the same shape BCF1002 already applies to a <c>[ViewPart]</c> call site.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF1006 = new(
+        id: "BCF1006",
+        title: "Element tag alias is declared outside this compilation",
+        messageFormat: "'{0}' cannot be resolved as an element tag alias because its declaration is not in this compilation",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A static ElementView property used as an element tag alias must be declared in the current " +
+            "compilation: the generator resolves its tag by reading the declaration's own syntax, which a " +
+            "referenced assembly does not carry.");
+
+    /// <summary>
     /// BCF2001: A call the generator cannot expand statically. It becomes a dynamic region and the static
     /// diff optimization for that area is lost.
     /// </summary>
@@ -220,6 +237,33 @@ internal static class DiagnosticDescriptors
                 + "RenderFragment the returned View carries, inside a region that keeps its sequence "
                 + "numbers away from the rest of the component. Correctness is unaffected; the frames for "
                 + "that area are rebuilt rather than diffed against a static template.");
+
+    /// <summary>
+    /// BCF2002: A native `if`/`else` transplanted into a Body/Chrome getter, a ForEach content lambda, or
+    /// a [ViewPart] body degrades to a dynamic region; each arm's content is drawn through a runtime
+    /// fragment and loses its static diff optimization.
+    /// </summary>
+    /// <remarks>
+    /// Info, not a warning, for the same reason as BCF2001: the chain is correct and renders correctly,
+    /// only the static-diff optimization is lost. Reported once per `if`/`else` chain, at its outermost
+    /// `if`, regardless of how many `else if` links it holds.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF2002 = new(
+        id: "BCF2002",
+        title: "Native if/else degrades to a dynamic region",
+        messageFormat:
+            "This native 'if' cannot be statically assigned, so each arm renders through a runtime "
+                + "fragment and loses its static diff optimization",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description:
+            "A native `if`/`else` transplanted whole is wrapped in a region whose boundary sequence is "
+                + "fixed to syntactic position, same as If()'s own region. Unlike If(), each arm's content "
+                + "is drawn through a freshly synthesized RenderFragment rather than given its own static "
+                + "sequence range, because only one arm ever runs and no static width can be assigned to "
+                + "content that might not execute. Correctness is unaffected; the frames for whichever arm "
+                + "runs are rebuilt rather than diffed against a static template.");
 
     /// <summary>
     /// BCF3004: A <c>ForEach</c> key is not an inline expression lambda, or its content is a shape the
@@ -785,7 +829,8 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF3027: an element written as a simple name that a declaration closer than
-    /// <c>BlazorCodeFirst.Html</c> took — a member, a type, a namespace, or a method.
+    /// <c>BlazorCodeFirst.Html</c> or <c>BlazorCodeFirst.Svg</c> took — a member, a type, a namespace, or a
+    /// method.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -798,24 +843,32 @@ internal static class DiagnosticDescriptors
     /// <para>
     /// One id for the four, with what took the name carried in the message the way BCF3028 carries its two
     /// shapes. To an author they are one mistake, a simple name that reached something nearer than
-    /// <c>Html</c>, and <c>Html.<em>Name</em></c> is the fix for all of them; splitting them would split by
-    /// how far C# got in binding the expression, which is a distinction the author never made. #127 covered
-    /// the member alone on the premise that CS0119 reaches the type case, and #266 measured that premise
-    /// and found it false.
+    /// <c>Html</c> or <c>Svg</c>, and qualifying the element is the fix for all of them; splitting them
+    /// would split by how far C# got in binding the expression, which is a distinction the author never
+    /// made. #127 covered the member alone on the premise that CS0119 reaches the type case, and #266
+    /// measured that premise and found it false.
+    /// </para>
+    /// <para>
+    /// The fix text is computed rather than a fixed "Html.{0}" (#319 / #534): a name curated in only one
+    /// vocabulary gets that vocabulary's qualified spelling, and a name curated in both (<c>A</c>,
+    /// <c>Audio</c>, <c>Canvas</c>, <c>Iframe</c>, <c>Video</c>) gets both, since the shadowed lookup alone
+    /// cannot say which one the author meant — the shadowing declaration wins over every static import
+    /// equally, regardless of how many bring the name into scope.
     /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3027 = new(
         id: "BCF3027",
         title: "Element helper is shadowed by a declaration of your own",
-        messageFormat: "'{0}' here is a {1} declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
+        messageFormat: "'{0}' here is a {1}, not the element helper of that name; write '{2}' to name the element",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "'using static BlazorCodeFirst.Html;' brings every curated element helper into simple-name " +
-            "scope, and a member, type, namespace, or method declared closer wins that lookup. The " +
-            "element expression then indexes that declaration, or fails to bind against it, instead of " +
-            "opening an element. Qualify the element as Html.<Name> to name it past the declaration.");
+            "'using static BlazorCodeFirst.Html;' (or '...Svg;') brings every curated element helper into " +
+            "simple-name scope, and a member, type, namespace, or method declared closer wins that lookup. " +
+            "The element expression then indexes that declaration, or fails to bind against it, instead of " +
+            "opening an element. Qualify the element (Html.<Name> or Svg.<Name>) to name it past the " +
+            "declaration.");
 
     /// <summary>
     /// BCF3028: an event handler whose argument type is not one the named event can deliver — either it
