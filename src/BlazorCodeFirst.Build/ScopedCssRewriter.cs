@@ -206,6 +206,10 @@ public static class ScopedCssRewriter
         return trimmedStart < preludeEnd && css[trimmedStart] == '@';
     }
 
+    // Browsers treat a vendor-prefixed at-rule keyword as the same rule as its bare form, so a
+    // recognized prefix is stripped before the keyword is returned for comparison.
+    private static readonly string[] VendorPrefixes = ["-webkit-", "-moz-", "-o-", "-ms-"];
+
     private static string ReadAtKeyword(string css, int atIndex)
     {
         var i = atIndex + 1;
@@ -213,7 +217,22 @@ public static class ScopedCssRewriter
         while (i < css.Length && (char.IsLetterOrDigit(css[i]) || css[i] == '-'))
             i++;
 
-        return css.Substring(start, i - start);
+        return StripVendorPrefix(css.Substring(start, i - start));
+    }
+
+    // Also applied to the "animation"/"animation-name" property comparison in
+    // ScanDeclarationsForAnimationNames, since a vendor-prefixed @keyframes block is written
+    // together with the equally-prefixed property (e.g. @-webkit-keyframes pairs with
+    // -webkit-animation), never the bare property.
+    private static string StripVendorPrefix(string identifier)
+    {
+        foreach (var prefix in VendorPrefixes)
+        {
+            if (identifier.Length > prefix.Length && identifier.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return identifier.Substring(prefix.Length);
+        }
+
+        return identifier;
     }
 
     private static TextSpan? FindIdentifierAfterAtKeyword(string css, int atIndex, int preludeEnd)
@@ -347,7 +366,7 @@ public static class ScopedCssRewriter
             while (propertyEnd > propertyStart && char.IsWhiteSpace(css[propertyEnd - 1]))
                 propertyEnd--;
 
-            var propertyName = css.Substring(propertyStart, propertyEnd - propertyStart);
+            var propertyName = StripVendorPrefix(css.Substring(propertyStart, propertyEnd - propertyStart));
             if (!string.Equals(propertyName, "animation", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(propertyName, "animation-name", StringComparison.OrdinalIgnoreCase))
                 continue;
