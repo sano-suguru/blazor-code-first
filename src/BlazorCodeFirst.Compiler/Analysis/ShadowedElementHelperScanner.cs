@@ -45,18 +45,20 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// hand-mixed pair of versions.
 /// </para>
 /// <para>
-/// Its own scanner rather than a second walk inside <see cref="RejectedDecorationScanner"/>: that type
-/// shares one walk between BCF3008 and BCF3026 because those two classify the <em>same</em> node, an
+/// Its own scanner rather than folded into <see cref="RejectedDecorationScanner"/>: that type shares its
+/// invocation bucket between BCF3008 and BCF3026 because those two classify the <em>same</em> node, an
 /// invocation in a decoration's position, on complementary conditions. This one classifies element accesses,
 /// a disjoint syntax shape, and folding it in would give that type two unrelated questions to answer rather
-/// than one question with two answers.
+/// than one question with two answers. The two buckets — invocations and element accesses — still come from
+/// one traversal of <c>root</c>, sorted by <see cref="FailurePathScanners.ReportAll"/> before either scanner
+/// runs (#528); the type boundary is about what each scanner asks, not about who walks the tree.
 /// </para>
 /// </remarks>
 internal static class ShadowedElementHelperScanner
 {
     /// <summary>
-    /// Records at most one BCF3027 into <paramref name="context"/> for the whole of <paramref name="root"/>,
-    /// at the shadowed receiver identifier.
+    /// Records at most one BCF3027 into <paramref name="context"/> for the whole of
+    /// <paramref name="elementAccesses"/>, at the shadowed receiver identifier.
     /// </summary>
     /// <remarks>
     /// One report per body, like its two neighbours, and the first in source order rather than the innermost:
@@ -65,7 +67,8 @@ internal static class ShadowedElementHelperScanner
     /// and no additional location is attached for the shadowing declaration — no descriptor in
     /// <c>DiagnosticDescriptors</c> uses one, and this is not the diagnostic to change that convention on.
     /// </remarks>
-    public static void Report(ExpressionSyntax root, ViewPartBodyContext context)
+    public static void Report(
+        IReadOnlyList<ElementAccessExpressionSyntax> elementAccesses, ViewPartBodyContext context)
     {
         // With no resolved helper table there is nothing that could have been shadowed, and every conjunct
         // below would degrade the wrong way: an empty ElementTags makes the identity test fail for every
@@ -75,7 +78,7 @@ internal static class ShadowedElementHelperScanner
         if (symbols.ElementTags.Count == 0)
             return;
 
-        foreach (var access in root.DescendantNodesAndSelf().OfType<ElementAccessExpressionSyntax>())
+        foreach (var access in elementAccesses)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 

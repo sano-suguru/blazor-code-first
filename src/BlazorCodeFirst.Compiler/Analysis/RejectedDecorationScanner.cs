@@ -54,7 +54,9 @@ namespace BlazorCodeFirst.Compiler.Analysis;
 /// symbols at all, and BCF3028 reads its type argument off exactly those, so that shape cannot reach the
 /// third branch however the chain is ordered. Sharing the walk rather than adding a second scanner to
 /// <see cref="FailurePathScanners"/> keeps the host enumeration that type's remarks warn about from
-/// growing, and keeps a failed body paying one descendant traversal.
+/// growing. The traversal itself is <see cref="FailurePathScanners.ReportAll"/>'s: it descends
+/// <c>root</c> once and hands this scanner the invocation list already filtered, rather than each
+/// bucketed scanner descending on its own (#528).
 /// </para>
 /// <para>
 /// A sweep on the failure path rather than a check inside <see cref="RenderExpressionAnalyzer"/>, for the
@@ -68,8 +70,8 @@ internal static class RejectedDecorationScanner
 {
     /// <summary>
     /// Records at most one BCF3008, one BCF3026 and one BCF3028 into <paramref name="context"/> for the whole
-    /// of <paramref name="root"/>. The first two report at the member name of the innermost invocation that
-    /// matched them, the third at the handler argument of the first invocation that matched it.
+    /// of <paramref name="invocations"/>. The first two report at the member name of the innermost invocation
+    /// that matched them, the third at the handler argument of the first invocation that matched it.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -89,7 +91,7 @@ internal static class RejectedDecorationScanner
     /// not make the decorations around it wrong.
     /// </para>
     /// </remarks>
-    public static void Report(ExpressionSyntax root, ViewPartBodyContext context)
+    public static void Report(IReadOnlyList<InvocationExpressionSyntax> invocations, ViewPartBodyContext context)
     {
         // Every required clause below is a comparison against one of these three, so with the bracket surface
         // absent from the referenced runtime there is nothing to compare and nothing to report. The one
@@ -103,7 +105,7 @@ internal static class RejectedDecorationScanner
         InvocationExpressionSyntax? unknown = null;
         (ArgumentSyntax Handler, ITypeSymbol Declared)? mistyped = null;
 
-        foreach (var invocation in root.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
+        foreach (var invocation in invocations)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
 
