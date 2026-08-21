@@ -59,6 +59,7 @@ public static class DiagnosticExpectations
         new("BCF1005", FixtureKind.GeneratorViaProjectReference, "error", "Bcf1001Bcf1005.cs", "Body"),
         // SARIF names the Info level "note".
         new("BCF2001", FixtureKind.GeneratorViaProjectReference, "note", "Bcf2001Bcf3030.cs", "Wrap()"),
+        new("BCF2002", FixtureKind.GeneratorViaProjectReference, "note", "Bcf2002.cs", "_flag"),
         new("BCF3001", FixtureKind.AnalyzerViaProjectReference, "error", "Mutating.cs", "_count++"),
         new("BCF3002", FixtureKind.GeneratorViaProjectReference, "warning", "Bcf3002Bcf3003Bcf3004.cs", "item => 0"),
         new(

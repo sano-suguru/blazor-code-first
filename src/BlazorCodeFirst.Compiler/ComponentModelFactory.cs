@@ -110,7 +110,7 @@ internal static class ComponentModelFactory
         }
 
         var shape = FindDesignTimeExpression(
-            elected, out var bodyExpression, out var bodyStatements, out var getterLocation);
+            elected, out var bodyExpression, out var bodyIf, out var bodyStatements, out var getterLocation);
 
         if (shape == DesignTimeExpressionShape.NoDeclaration)
             return null;
@@ -135,7 +135,7 @@ internal static class ComponentModelFactory
         if (knownSymbols is null)
             return null;
 
-        if (bodyExpression is null)
+        if (bodyExpression is null && bodyIf is null)
             return null;
 
         // Reuse the view-part-definition analyzer so component bodies and view part bodies share a
@@ -151,24 +151,30 @@ internal static class ComponentModelFactory
             isInlinedAtCallSites: false,
             cancellationToken);
 
-        var template = RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, bodyContext);
+        var template = bodyExpression is not null
+            ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, bodyContext)
+            : RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf!, bodyContext);
 
         // Translation failed. Sweep the whole expression for the specific cause, an unresolved
         // Component<T>() type argument, a value-position type reference, a misplaced decoration, so the
         // author is told it instead of BCF1003's "not statically analyzable". Only on the failure path, so
         // a healthy body pays nothing. BCF1003 is then suppressed automatically by Expand's error dedup.
         // FailurePathScanners owns the sweep list; both hosts run the same one by construction.
+        // On the native-`if` path the sweep runs over the condition only, not the arms -- the arms are
+        // read by nested Analyze calls, and a failure inside one already carries its own
+        // UntranslatableLocation from that call, so the fallback location below still lands correctly.
         TemplateLocation? failureLocation = null;
         if (template is null)
         {
-            FailurePathScanners.ReportAll(bodyExpression, bodyContext);
+            var failureRoot = bodyExpression ?? bodyIf!.Condition;
+            FailurePathScanners.ReportAll(failureRoot, bodyContext);
 
             // Carry the innermost expression that failed to classify across the symbol-free boundary so
             // Expand can locate BCF1003. The analyzer records it on every failed classification, and the
             // outermost call is this one, so a failure always leaves something behind; the coalesce is a
             // guard against a future path that produces a null template without going through Analyze.
             failureLocation = TemplateLocation.From(
-                bodyContext.UntranslatableLocation ?? bodyExpression.GetLocation());
+                bodyContext.UntranslatableLocation ?? failureRoot.GetLocation());
         }
 
         // Capture the inheritance chain (self first, then base types) as symbol-free keys so the expander
@@ -368,18 +374,21 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Classifies the elected design-time expression declaration. Three getter spellings reduce to a
-    /// single expression and are equivalent: the property's own expression body (<c>=&gt; e</c>), the
-    /// getter's expression body (<c>get =&gt; e</c>), and a getter block, which
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and whose leading statements
-    /// it returns in <paramref name="statements"/>. An auto property (no getter body and no
-    /// <c>partial</c> modifier) is <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns
-    /// BCF1004. A partial property with no implementation part (<c>partial</c> modifier and no getter
-    /// body) is <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names
-    /// the property itself. A block that reader refuses is also
+    /// Classifies the elected design-time expression declaration. Four getter spellings reach a
+    /// translatable shape, exactly one of <paramref name="expression"/>/<paramref name="ifStatement"/>
+    /// set on success: the property's own expression body (<c>=&gt; e</c>), the getter's expression body
+    /// (<c>get =&gt; e</c>), a getter block ending in a single `return`, which
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and whose leading
+    /// statements it returns in <paramref name="statements"/>, and a getter block ending in a native
+    /// `if`/`else`, read the same way by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>.
+    /// An auto property (no getter body and no <c>partial</c> modifier) is
+    /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial property with
+    /// no implementation part (<c>partial</c> modifier and no getter body) is
+    /// <see cref="DesignTimeExpressionShape.NoDeclaration"/> and is left to CS9248, which names the
+    /// property itself. A block that reader refuses is also
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// <para>
-    /// The three stay equivalent under the reserved names as well: each asks
+    /// All four stay equivalent under the reserved names as well: each asks
     /// <see cref="RenderExpressionAnalyzer.DeclaresReservedName"/> over what it transplants, so a name the
     /// generator cannot rename earns BCF1004 in whichever spelling declared it (#389).
     /// </para>
@@ -387,10 +396,12 @@ internal static class ComponentModelFactory
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,
         out ExpressionSyntax? expression,
+        out IfStatementSyntax? ifStatement,
         out ImmutableArray<StatementSyntax> statements,
         out Location? location)
     {
         expression = null;
+        ifStatement = null;
         statements = [];
         location = null;
 
@@ -448,6 +459,15 @@ internal static class ComponentModelFactory
         {
             expression = returned;
             statements = leading;
+            return DesignTimeExpressionShape.Translatable;
+        }
+
+        // `get { ...; if (...) { ... } else { ... } }` (ARCHITECTURE.md §5.3's Transplantable syntax).
+        if (getter.Body is { } ifBody
+            && RenderExpressionAnalyzer.TryReadTransplantableIf(ifBody, out var ifLeading, out var ifStmt))
+        {
+            ifStatement = ifStmt;
+            statements = ifLeading;
             return DesignTimeExpressionShape.Translatable;
         }
 

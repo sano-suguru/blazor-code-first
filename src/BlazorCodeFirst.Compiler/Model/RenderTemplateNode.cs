@@ -71,6 +71,19 @@ internal sealed record IfTemplateNode(
     RenderTemplateNode Then,
     RenderTemplateNode? Otherwise) : RenderTemplateNode;
 
+/// <summary>
+/// A native `if`/`else` statement transplanted whole (ARCHITECTURE.md §5.3), as opposed to
+/// <see cref="IfTemplateNode"/>'s `If()` combinator. Same shape as <see cref="IfTemplateNode"/>
+/// deliberately: what differs is emission, not structure — see <c>EmitTransplantedIf</c>.
+/// <see cref="Then"/>/<see cref="Otherwise"/> may themselves be a
+/// <see cref="TransplantedBlockTemplateNode"/> (an arm with leading statements) wrapping either an
+/// ordinary content node or a further nested <see cref="TransplantedIfTemplateNode"/> (an `else if`).
+/// </summary>
+internal sealed record TransplantedIfTemplateNode(
+    ExpressionTemplate Condition,
+    RenderTemplateNode Then,
+    RenderTemplateNode? Otherwise) : RenderTemplateNode;
+
 internal sealed record ViewPartCallTemplateNode(
     string MethodKey,
     string DisplayName,
