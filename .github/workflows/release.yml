@@ -160,7 +160,13 @@ jobs:
 
       # No --skip-duplicate: a version already on nuget.org means this release was cut twice, and
       # that is worth failing on rather than passing over quietly.
-      - run: |
+      #
+      # The key arrives through env rather than through ${{ }} interpolation into the script body,
+      # matching the tag-name handling above: an expression's value is never trusted into a shell
+      # script directly, regardless of which step produced it.
+      - env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
           dotnet nuget push 'artifacts/package/*.nupkg' \
             --source https://api.nuget.org/v3/index.json \
-            --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}"
+            --api-key "$NUGET_API_KEY"
