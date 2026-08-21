@@ -76,18 +76,13 @@ internal static class UnresolvedComponentTypeScanner
         && SymbolEqualityComparer.Default.Equals(method.OriginalDefinition, parameterless);
 
     /// <summary>
-    /// The written type-argument syntax of a <c>Component&lt;T&gt;()</c> invocation: the generic name is
-    /// the invocation's own expression for the unqualified spelling, or the <c>.Name</c> of a member
-    /// access for <c>Html.Component&lt;T&gt;()</c>. Returns <see langword="null"/> for any other shape.
+    /// The written type-argument syntax of a <c>Component&lt;T&gt;()</c> invocation. Returns
+    /// <see langword="null"/> when the invocation is not a generic call, or names more than one
+    /// type argument.
     /// </summary>
     private static TypeSyntax? FindTypeArgumentSyntax(InvocationExpressionSyntax invocation)
     {
-        var generic = invocation.Expression switch
-        {
-            GenericNameSyntax direct => direct,
-            MemberAccessExpressionSyntax { Name: GenericNameSyntax qualified } => qualified,
-            _ => null,
-        };
+        var generic = TypeSymbolFacts.TryGetInvokedGenericName(invocation);
 
         // A list pattern on a SeparatedSyntaxList needs System.Index.GetOffset, unavailable on
         // netstandard2.0 (CS0656); check Count and index explicitly.

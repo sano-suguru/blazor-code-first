@@ -1,9 +1,24 @@
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace BlazorCodeFirst.Compiler.Analysis;
 
 internal static class TypeSymbolFacts
 {
+    /// <summary>
+    /// The written <c>GenericNameSyntax</c> of a generic-method invocation: the invocation's own
+    /// expression for the unqualified spelling (<c>Component&lt;T&gt;()</c>), or the <c>.Name</c> of a
+    /// member access for a qualified call (<c>Html.Component&lt;T&gt;()</c>). Returns
+    /// <see langword="null"/> for any other invoked-expression shape.
+    /// </summary>
+    public static GenericNameSyntax? TryGetInvokedGenericName(InvocationExpressionSyntax invocation) =>
+        invocation.Expression switch
+        {
+            GenericNameSyntax direct => direct,
+            MemberAccessExpressionSyntax { Name: GenericNameSyntax member } => member,
+            _ => null,
+        };
+
     public static bool ContainsUnresolvedType(ITypeSymbol type)
     {
         switch (type)
