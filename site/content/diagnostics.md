@@ -249,6 +249,32 @@ The spelling half is a translation break. A tag no element can be named renders 
 things: prerendering writes it into markup where the HTML parser reinterprets it, while interactive
 rendering hands it to `createElement`, which rejects it and ends the circuit.
 
+### BCF1006
+
+Error. A `static ElementView` property used as an element tag alias is declared in a referenced
+assembly.
+
+```csharp
+// In a referenced project or NuGet package:
+public static ElementView MyCard => Element("my-card");
+
+// In this compilation:
+MyCard["content"]     // BCF1006
+```
+
+The generator resolves an alias by reading its own declaration's syntax — `Element("my-card")` — to
+find the tag. IL carries no body, so a declaration reached through a referenced assembly has nothing
+to read. Declare the alias in the current compilation instead:
+
+```csharp
+static ElementView MyCard => Element("my-card");
+
+MyCard["content"]     // fine
+```
+
+A `[ViewPart]` reaches the same wall for the same reason ([BCF1002](#bcf1002)): both features read
+their own source, not the target's, so both stop at the compilation boundary.
+
 ### BCF3016
 
 Error. Children were written on a void element.

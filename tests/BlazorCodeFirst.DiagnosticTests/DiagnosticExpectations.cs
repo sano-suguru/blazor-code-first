@@ -355,6 +355,15 @@ public static class DiagnosticExpectations
             "tests/msbuild-fixtures/ScopedCss.Orphan, in the same style as the other scoped-CSS-only " +
             "assertions (bundle scope prefix, generated attribute) already tested outside the " +
             "DiagnosticExpectations.All harness."),
+        (
+            "BCF1006",
+            "Only fires when the aliased property's declaration is in a referenced assembly with no visible " +
+            "source, which the flat GeneratorDelivery.* fixtures cannot produce (they reference only Runtime " +
+            "and Compiler-as-analyzer). Covered in-process instead by " +
+            "HtmlElementTagAliasGeneratorTests.ElementTagAlias_FromMetadataReference_ReportsBCF1006, using " +
+            "CompilationTestHost.CompileToMetadataReference/CreateCompilation the same way " +
+            "ComponentUnresolvedTypeTests.Component_FromMetadataReference_ReportsNoBCF3012 already does for the " +
+            "equivalent same-compilation-only check on a component type."),
     ];
 
     /// <summary>

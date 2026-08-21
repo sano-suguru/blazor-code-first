@@ -74,6 +74,40 @@ internal sealed class ViewPartBodyContext
         Diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
     }
 
+    /// <summary>
+    /// Rebases <paramref name="source"/> onto <paramref name="semanticModel"/>, sharing its
+    /// <see cref="Diagnostics"/> and <see cref="AccessRequirements"/> builders rather than starting fresh
+    /// ones: a rebased context exists only because a callee's declaration lives on a different
+    /// <see cref="Microsoft.CodeAnalysis.SyntaxTree"/>, not because it should report into a diagnostic
+    /// collection nobody reads back. A caller resolving a same-compilation cross-file reference (an
+    /// element tag alias, #173) needs exactly this: any diagnostic reported against the rebased model
+    /// (BCF3009, for instance) must land in the same collection the caller returns.
+    /// </summary>
+    private ViewPartBodyContext(ViewPartBodyContext source, SemanticModel semanticModel)
+    {
+        IsInlinedAtCallSites = source.IsInlinedAtCallSites;
+        SemanticModel = semanticModel;
+        ContainingType = source.ContainingType;
+        MethodDisplayName = source.MethodDisplayName;
+        KnownSymbols = source.KnownSymbols;
+        _parameterOrdinals = source._parameterOrdinals;
+        _contentOrdinals = source._contentOrdinals;
+        CancellationToken = source.CancellationToken;
+        AccessRequirements = source.AccessRequirements;
+        Diagnostics = source.Diagnostics;
+    }
+
+    /// <summary>
+    /// This context, or a rebased copy sharing its diagnostic and access-requirement builders when
+    /// <paramref name="semanticModel"/> is for a different tree than <see cref="SemanticModel"/> is
+    /// already. Avoids allocating when the caller's own model already covers the target syntax, the
+    /// common case of a declaration beside its use site.
+    /// </summary>
+    public ViewPartBodyContext WithSemanticModel(SemanticModel semanticModel) =>
+        ReferenceEquals(semanticModel, SemanticModel)
+            ? this
+            : new ViewPartBodyContext(this, semanticModel);
+
     public SemanticModel SemanticModel { get; }
 
     /// <summary>
