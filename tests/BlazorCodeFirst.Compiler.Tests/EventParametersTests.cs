@@ -30,6 +30,14 @@ public sealed class EventParametersTests
             // A delegate written ahead of the event's name rather than after it.
             public static ElementView HandlerFirst(
                 this ElementView element, System.Action handler, string e) => element;
+
+            // A second string ahead of the delegate: the event name may appear at most once.
+            public static ElementView TwoNames(
+                this ElementView element, string a, string b, System.Action handler) => element;
+
+            // No delegate anywhere in the parameter list, and only the one string — unlike .Attr's two,
+            // so the shape scan runs to its own end rather than exiting early on a repeated name.
+            public static ElementView NameOnly(this ElementView element, string a) => element;
         }
 
         public class Host
@@ -166,6 +174,29 @@ public sealed class EventParametersTests
     public void ADecorationWithNoDelegate_HasNoAnswer()
     {
         var (method, _) = Resolve("""Html.Div.Attr("data-n", "1")""", "Attr");
+
+        Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
+    }
+
+    /// <summary>A second string ahead of the delegate is not a shape this compiler was written against:
+    /// the event name may appear at most once. No decoration the runtime declares carries two.</summary>
+    [Fact]
+    public void ASecondStringParameter_HasNoAnswer()
+    {
+        var (method, _) = Resolve("""Html.Div.TwoNames("a", "b", () => _n++)""", "TwoNames");
+
+        Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
+    }
+
+    /// <summary>
+    /// A single string and no delegate at all: unlike <see cref="ADecorationWithNoDelegate_HasNoAnswer"/>'s
+    /// <c>.Attr</c>, which is rejected the moment its second string repeats the name, this shape has
+    /// nothing left to scan and falls through the loop's own end.
+    /// </summary>
+    [Fact]
+    public void AStringWithNoDelegateAtAll_HasNoAnswer()
+    {
+        var (method, _) = Resolve("""Html.Div.NameOnly("a")""", "NameOnly");
 
         Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
     }

@@ -281,6 +281,121 @@ public sealed class KnownSymbolsSyncTests
         Assert.Equal(CuratedTagCount, symbols.ElementTags.Count);
     }
 
+    /// <summary>The number of <c>Svg</c> element helpers (#319 / #534): SVG2's 69-element index, with no
+    /// exclusions.</summary>
+    internal const int SvgTagCount = 69;
+
+    /// <summary>
+    /// Every <c>Svg</c> element helper name, transcribed independently of <c>KnownSymbols.SvgTags</c> from
+    /// SVG2's own element index (<c>https://www.w3.org/TR/SVG2/eltindex.html</c>), the same change of
+    /// question <see cref="ExpectedCuratedNames"/> buys for the <c>Html</c> side. Ordinal-sorted.
+    /// </summary>
+    private static readonly string[] ExpectedSvgNames =
+    [
+        "A", "Animate", "AnimateMotion", "AnimateTransform", "Audio",
+        "Canvas", "Circle", "ClipPath",
+        "Defs", "Desc", "Discard",
+        "Ellipse",
+        "FeBlend", "FeColorMatrix", "FeComponentTransfer", "FeComposite", "FeConvolveMatrix",
+        "FeDiffuseLighting", "FeDisplacementMap", "FeDistantLight", "FeDropShadow", "FeFlood",
+        "FeFuncA", "FeFuncB", "FeFuncG", "FeFuncR", "FeGaussianBlur", "FeImage", "FeMerge", "FeMergeNode",
+        "FeMorphology", "FeOffset", "FePointLight", "FeSpecularLighting", "FeSpotLight", "FeTile",
+        "FeTurbulence", "Filter", "ForeignObject",
+        "G",
+        "Iframe", "Image",
+        "Line", "LinearGradient",
+        "Marker", "Mask", "Metadata", "Mpath",
+        "Path", "Pattern", "Polygon", "Polyline",
+        "RadialGradient", "Rect", "Root",
+        "Script", "Set", "Stop", "Style", "Switch", "Symbol",
+        "Text", "TextPath", "Title", "Tspan",
+        "Unknown", "Use",
+        "Video", "View",
+    ];
+
+    [Fact]
+    public void SvgElementTags_AreExactlyTheSvg2ElementIndex()
+    {
+        var (symbols, _) = ResolveSvg();
+
+        var actual = symbols.SvgElementTags.Keys
+            .Select(static key => key.Name)
+            .OrderBy(static name => name, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(ExpectedSvgNames, actual);
+    }
+
+    /// <summary>
+    /// Every <c>Svg</c> tag is its helper name with the first letter lowercased, the same bijection
+    /// <see cref="EveryCuratedTag_IsItsHelperNameWithALowercasedFirstLetter"/> holds for <c>Html</c> —
+    /// except <c>Root</c>, the one irregular spot the naming rule cannot reach (<c>Svg.Svg</c> is
+    /// CS0542).
+    /// </summary>
+    [Fact]
+    public void EveryCuratedSvgTag_IsItsHelperNameWithALowercasedFirstLetter_ExceptRoot()
+    {
+        var (symbols, _) = ResolveSvg();
+
+        foreach (var entry in symbols.SvgElementTags)
+        {
+            var name = entry.Key.Name;
+            if (name == "Root")
+            {
+                Assert.Equal("svg", entry.Value);
+                continue;
+            }
+
+            Assert.Equal(char.ToLowerInvariant(name[0]) + name[1..], entry.Value);
+        }
+    }
+
+    [Fact]
+    public void SvgElementTags_CoverEverySvgHelper()
+    {
+        var (symbols, svg) = ResolveSvg();
+        var tagged = symbols.SvgElementTags.Keys
+            .Select(static key => key.Name).ToHashSet(System.StringComparer.Ordinal);
+
+        foreach (var member in svg.GetMembers())
+        {
+            if (member is IPropertySymbol { IsIndexer: false } property)
+                Assert.Contains(property.Name, tagged); // every Svg property is a curated tag
+        }
+
+        // The count is what makes deleting a curated helper from the runtime a failure, for the same
+        // reason ElementTags_CoverEveryCuratedHtmlHelper_AndNothingStructural's count is.
+        Assert.Equal(SvgTagCount, symbols.SvgElementTags.Count);
+    }
+
+    /// <summary>
+    /// The static <c>SvgTags</c> table's own tag values, independent of any compilation or resolved
+    /// runtime, agree with <see cref="ExpectedSvgNames"/> — the <c>Svg</c>-side counterpart of
+    /// <see cref="CuratedElementTags_AreExactlyTheCuratedTableValues"/>.
+    /// </summary>
+    /// <remarks>
+    /// This is the one direction <see cref="SvgElementTags_CoverEverySvgHelper"/> cannot cover: that test
+    /// resolves against the runtime's declared <c>Svg</c> members, so a stale extra row added to the
+    /// static <c>SvgTags</c> table with no matching runtime property would leave the resolved instance
+    /// table at 69 and every other Svg test green. Reading <see cref="KnownSymbols.CuratedSvgElementTags"/>
+    /// directly closes that gap.
+    /// </remarks>
+    [Fact]
+    public void CuratedSvgElementTags_AreExactlyTheSvgTagsTableValues()
+    {
+        var expected = ExpectedSvgNames
+            .Select(static name => name == "Root" ? "svg" : char.ToLowerInvariant(name[0]) + name[1..])
+            .OrderBy(static tag => tag, System.StringComparer.Ordinal)
+            .ToArray();
+
+        var actual = KnownSymbols.CuratedSvgElementTags
+            .OrderBy(static tag => tag, System.StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(SvgTagCount, actual.Length);
+        Assert.Equal(expected, actual);
+    }
+
     [Fact]
     public void DecorationMaps_CoverAttributeAndEventShortcuts()
     {
@@ -291,6 +406,42 @@ public sealed class KnownSymbolsSyncTests
         Assert.Contains("onclick", symbols.EventShortcuts.Values);
         Assert.NotEmpty(SurfaceMethodsOfKind(symbols, SurfaceMethodKind.Attr));
         Assert.NotEmpty(SurfaceMethodsOfKind(symbols, SurfaceMethodKind.On));
+    }
+
+    /// <summary>The number of attribute shortcuts <c>KnownSymbols</c> owns the table for: the seven
+    /// hand-picked names plus the 136 standard-derived ones (#490, <c>ARCHITECTURE.md</c> 付録B.21
+    /// revisited).</summary>
+    private const int AttributeShortcutCount = 143;
+
+    /// <summary>
+    /// Every attribute shortcut's value is its method name spelled verbatim (#490, #244): lowercased, with
+    /// a hyphen inserted before each internal capital. This is the direction
+    /// <see cref="DecorationMaps_CoverAttributeAndEventShortcuts"/> does not cover — that test asserts only
+    /// the seven hand-picked names' values, so a wrong value on any of the 136 standard-derived rows (a
+    /// transposed pair, a truncation) has nothing else in this file to notice it.
+    /// </summary>
+    /// <remarks>
+    /// The rule is a fact about the whole table, not a second hand transcription of it: <c>AcceptCharset</c>
+    /// and <c>HttpEquiv</c> are the table's only two internally-capitalized names, and the standard spells
+    /// both with a hyphen at exactly that seam (<c>accept-charset</c>, <c>http-equiv</c>); every other name
+    /// is one word and needs no hyphen. Asserted through the resolved <see cref="KnownSymbols.AttributeShortcuts"/>
+    /// rather than the private table, so a mutated value is read exactly where the compiler itself reads it.
+    /// </remarks>
+    [Fact]
+    public void AttributeShortcuts_SpellTheAttributeNameVerbatim()
+    {
+        var (symbols, _) = ResolveHtml();
+
+        Assert.Equal(AttributeShortcutCount, symbols.AttributeShortcuts.Count);
+
+        foreach (var entry in symbols.AttributeShortcuts)
+        {
+            var name = entry.Key.Name;
+            var expected = string.Concat(name.Select(
+                (c, index) => (index > 0 && char.IsUpper(c) ? "-" : "") + char.ToLowerInvariant(c)));
+
+            Assert.Equal(expected, entry.Value);
+        }
     }
 
     /// <summary>
@@ -717,8 +868,15 @@ public sealed class KnownSymbolsSyncTests
         Assert.True(contentIndexerParameter.IsParams);
     }
 
+    /// <summary>
+    /// Every structural shape <c>ClassifyComponentParameterDefinition</c> recognizes, including the six
+    /// <c>EventCallback</c>-taking <c>.Param</c> overloads (#492) as one kind
+    /// (<see cref="SurfaceMethodKind.ComponentParamEventCallback"/>). Widened from four kinds to five: the
+    /// original version filtered to four and left the fifth unchecked, so a member the classifier
+    /// misrouted into or out of that kind was invisible here.
+    /// </summary>
     [Fact]
-    public void ComponentParameterMethods_AllFourStructuralShapesAreResolvedSeparately()
+    public void ComponentParameterMethods_AllFiveStructuralShapesAreResolvedSeparately()
     {
         var (symbols, _) = ResolveHtml();
         Assert.NotNull(symbols.ComponentViewType);
@@ -741,6 +899,11 @@ public sealed class KnownSymbolsSyncTests
                 SurfaceMethodKind.GenericTemplateContextual,
             ],
             kinds);
+
+        // The fifth kind, asserted by count rather than folded into the array above: it is the one kind
+        // with more than one member (all six EventCallback-taking .Param overloads land on it), so a count
+        // says what the array's one-member-per-row shape cannot without repeating the same value six times.
+        Assert.Equal(6, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.ComponentParamEventCallback).Count);
     }
 
     /// <summary>
@@ -786,6 +949,39 @@ public sealed class KnownSymbolsSyncTests
     }
 
     /// <summary>
+    /// The boundary characters of the three admitted ranges (<c>a-z</c>, <c>A-Z</c>, <c>0-9</c>), in both
+    /// the first-character position (which only admits letters, through <c>IsAsciiLetter</c>) and a later
+    /// position (which also admits digits, <c>-</c>, <c>_</c>, <c>.</c>). No caller of
+    /// <see cref="KnownSymbols.IsValidTagName"/> writes tag names at these exact edges, so nothing else
+    /// exercises them.
+    /// </summary>
+    [Theory]
+    [InlineData("a", true)]
+    [InlineData("z", true)]
+    [InlineData("A", true)]
+    [InlineData("Z", true)]
+    [InlineData("`", false)] // one below 'a'
+    [InlineData("{", false)] // one above 'z'
+    [InlineData("@", false)] // one below 'A'
+    [InlineData("[", false)] // one above 'Z'
+    [InlineData("aa", true)]
+    [InlineData("az", true)]
+    [InlineData("aA", true)]
+    [InlineData("aZ", true)]
+    [InlineData("a0", true)]
+    [InlineData("a9", true)]
+    [InlineData("a`", false)] // one below 'a'
+    [InlineData("a{", false)] // one above 'z'
+    [InlineData("a@", false)] // one below 'A'
+    [InlineData("a[", false)] // one above 'Z'
+    [InlineData("a/", false)] // one below '0'
+    [InlineData("a:", false)] // one above '9'
+    public void IsValidTagName_AdmitsExactlyTheBoundaryCharacters(string tag, bool expected)
+    {
+        Assert.Equal(expected, KnownSymbols.IsValidTagName(tag));
+    }
+
+    /// <summary>
     /// Every member the inert types declare is one <c>KnownSymbols.IsDesignTimeApiMember</c> recognizes, or a
     /// conversion operator, which is not a member an author writes.
     /// </summary>
@@ -803,7 +999,8 @@ public sealed class KnownSymbolsSyncTests
     /// <c>ElementView.Key(…)</c> or <c>ComponentView&lt;T&gt;.Ref(…)</c> returning an inert type would pass
     /// BCF3029's type test and fail its member test, so the chain walk would step over it and anchor the
     /// report on an inner helper instead of the whole expression — contradicting Appendix A's stated
-    /// <c>位置は最も外側の設計時式の全体</c> in the direction where nothing throws and no test looks.
+    /// "the position is the whole of the outermost design-time expression" in the direction where
+    /// nothing throws and no test looks.
     /// </para>
     /// <para>
     /// Conversion operators are excluded rather than classified. They are how an inert value reaches a
@@ -853,6 +1050,44 @@ public sealed class KnownSymbolsSyncTests
         Assert.Empty(unrecognized);
     }
 
+    /// <summary>
+    /// <see cref="KnownSymbols.IsDesignTimeApiReference"/> requires both halves of its conjunction: an
+    /// inert-typed expression naming a design-time API member. Its own remarks name the case either half
+    /// alone would wrongly admit — "a <c>[ViewPart]</c> used as a value is a surface member reached at a
+    /// type that is not [inert]" — which this pins directly: a <c>[ViewPart]</c> method is a design-time
+    /// API member (<see cref="IsDesignTimeApiMember"/> answers <see langword="true"/> for it through
+    /// <see cref="KnownSymbols.IsViewPart"/>), but reading it at a non-inert type must still answer
+    /// <see langword="false"/>.
+    /// </summary>
+    [Fact]
+    public void IsDesignTimeApiReference_RejectsAViewPartMemberReadAtANonInertType()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Html.Div["ok"];
+
+                [ViewPart]
+                private static View Part() => Html.Div["part"];
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var symbols = KnownSymbols.TryCreate(compilation);
+        Assert.NotNull(symbols);
+
+        var host = compilation.GetTypeByMetadataName("Host");
+        Assert.NotNull(host);
+        var part = host!.GetMembers("Part").OfType<IMethodSymbol>().Single();
+
+        Assert.True(symbols!.IsDesignTimeApiMember(part));
+
+        var nonInertType = compilation.GetSpecialType(SpecialType.System_Int32);
+        Assert.False(symbols.IsDesignTimeApiReference(nonInertType, part));
+    }
+
     [Fact]
     public void EnumerableSelect_ResolvesTheProjectionOverloadAndNotTheIndexedOne()
     {
@@ -896,5 +1131,15 @@ public sealed class KnownSymbolsSyncTests
         Assert.NotNull(symbols);
         var html = compilation.GetTypeByMetadataName("BlazorCodeFirst.Html")!;
         return (symbols!, html);
+    }
+
+    private static (KnownSymbols, INamedTypeSymbol) ResolveSvg()
+    {
+        var compilation = CompilationTestHost.CreateCompilation("");
+        var symbols = KnownSymbols.TryCreate(compilation);
+        Assert.NotNull(symbols);
+        var svg = compilation.GetTypeByMetadataName("BlazorCodeFirst.Svg")!;
+        Assert.NotNull(svg);
+        return (symbols!, svg);
     }
 }

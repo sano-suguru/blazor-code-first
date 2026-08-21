@@ -24,6 +24,36 @@ public class CssScopePropagationTests
         Assert.Equal("bcf-abcd1234", div.CssScope);
     }
 
+    private const string CounterSource = """
+        using BlazorCodeFirst;
+
+        public partial class Counter : BodyComponentBase
+        {
+            protected override View Body => Html.Div.OnClick(() => { });
+        }
+        """;
+
+    [Fact]
+    public void HostElement_WithCssScopeFilePathUsingDifferentSeparatorsThanTheSourceFile_StillCarriesTheScope()
+    {
+        var model = ModelSingleScopedComponent(
+            [("App/Counter.cs", CounterSource)],
+            [(@"App\Counter.cs.css", "bcf-abcd1234")]);
+
+        var div = Assert.IsType<ElementNode>(model.RootNode);
+        Assert.Equal("bcf-abcd1234", div.CssScope);
+    }
+
+    [Fact]
+    public void MatchingCssScopeFile_WithDifferentPathSeparatorsThanTheSourceFile_IsNotReportedAsOrphaned()
+    {
+        var result = CompilationTestHost.RunGeneratorWithCssScopes(
+            [("App/Counter.cs", CounterSource)],
+            [(@"App\Counter.cs.css", "bcf-abcd1234")]);
+
+        CompilationTestHost.AssertNoDiagnostics(result);
+    }
+
     [Fact]
     public void HostElement_WithNoMatchingCssScopeFile_CarriesNoScope()
     {

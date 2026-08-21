@@ -374,14 +374,24 @@ internal static class RenderExpressionAnalyzer
                 // element are unavoidable and this is the one that carries no children. Asked first because it
                 // is the overwhelmingly common answer -- every Div, Span and P in every body arrives here --
                 // and the two arms are disjoint: an element helper returns ElementView and Slot is View.
-                if (symbols.ElementTags.TryGetValue(
-                        KnownSymbols.Normalize(resolvedProperty), out var propertyTag))
+                var normalized = KnownSymbols.Normalize(resolvedProperty);
+                if (symbols.ElementTags.TryGetValue(normalized, out var propertyTag)
+                    || symbols.SvgElementTags.TryGetValue(normalized, out propertyTag))
                 {
                     return new ElementTemplateNode(propertyTag);
                 }
 
-                return symbols.IsSlot(resolvedProperty)
-                    ? ClassifySlot(expression, symbols.SlotProperty!, context)
+                if (symbols.IsSlot(resolvedProperty))
+                {
+                    return ClassifySlot(expression, symbols.SlotProperty!, context);
+                }
+
+                // Not curated, not Slot: a user-declared static ElementView property may still be an
+                // element tag alias (#173). Gated on the return type before paying for syntax resolution,
+                // so an unrelated static ElementView-typed property that is neither shape still falls
+                // through at the same cost as before this feature existed.
+                return resolvedProperty.IsStatic && symbols.IsElementViewType(resolvedProperty.Type)
+                    ? ClassifyElementTagAlias(expression, resolvedProperty, context)
                     : null;
             }
 
@@ -489,6 +499,96 @@ internal static class RenderExpressionAnalyzer
         }
 
         return new ElementTemplateNode(tagValue);
+    }
+
+    /// <summary>
+    /// Resolves a non-curated <c>static ElementView</c> property as an element tag alias (#173): a
+    /// property declared in this compilation whose body is exactly one <c>Element("literal")</c> call.
+    /// Reuses <see cref="ClassifyElementFactory"/> rather than re-implementing its argument binding and
+    /// BCF3009 check, so an alias is validated by the same single copy of that logic a call written
+    /// directly at the use site goes through.
+    /// </summary>
+    private static ElementTemplateNode? ClassifyElementTagAlias(
+        ExpressionSyntax expression, IPropertySymbol property, ViewPartBodyContext context)
+    {
+        if (property.DeclaringSyntaxReferences.IsEmpty)
+        {
+            // Reported at the use site, not at property.Locations (a metadata symbol's location, not a
+            // position in the author's own source): the same choice ViewPartExpander.CreateDiagnostic
+            // makes for the analogous cross-assembly [ViewPart] call-site BCF1002.
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF1006,
+                expression.GetLocation(),
+                [property.Name]));
+            return null;
+        }
+
+        if (FindAliasBody(property, context.CancellationToken) is not { } body)
+        {
+            return null;
+        }
+
+        // A declaration beside the call site shares context.SemanticModel's tree and can use it as-is;
+        // one declared elsewhere in the same compilation needs its own tree's model, the same rebasing
+        // ComputeBodyBuildsFromDesignTimeSurface already does for a cross-file [ViewPart] callee.
+        var model = GetSemanticModelFor(body.SyntaxTree, context);
+
+        if (model.GetSymbolInfo(body, context.CancellationToken).Symbol is not IMethodSymbol method
+            || context.KnownSymbols.ClassifySurfaceMethod(method) != SurfaceMethodKind.Element)
+        {
+            return null;
+        }
+
+        // Shares this context's own Diagnostics/AccessRequirements builders rather than starting fresh
+        // ones (WithSemanticModel), so a BCF3009 that ClassifyElementFactory reports against a cross-file
+        // alias declaration lands where this method's own caller reads it back, instead of into a
+        // throwaway collection nothing merges.
+        return ClassifyElementFactory(body, context.WithSemanticModel(model));
+    }
+
+    /// <summary>
+    /// The semantic model that can bind <paramref name="tree"/>: <paramref name="context"/>'s own model
+    /// when it already covers that tree, or a freshly built one otherwise. Shared by
+    /// <see cref="ClassifyElementTagAlias"/> and <see cref="ComputeBodyBuildsFromDesignTimeSurface"/>,
+    /// which each rebase onto a same-compilation declaration's own tree for the same reason: Roslyn throws
+    /// if a node is bound against a model built for a different tree. A model built here starts with
+    /// empty bound-node caches.
+    /// </summary>
+    /// <remarks>
+    /// Forcing the condition true, or flipping <c>==</c> to <c>!=</c>, are both real kills: either sends a
+    /// cross-file declaration's nodes through <paramref name="context"/>'s own model, built for a
+    /// different <see cref="SyntaxTree"/>, and Roslyn throws on that mismatch --
+    /// <c>OpaqueCallDiagnosticTests.ViewReturningCall_WhenCalleeIsDeclaredInAnotherFile_ReportsBCF3030</c>
+    /// pins the cross-file case red under each. Forcing the condition false is measured equivalent rather
+    /// than assumed: hand-applying it and running <c>BlazorCodeFirst.Compiler.Tests</c> and
+    /// <c>BlazorCodeFirst.DiagnosticTests</c> left every test passing unchanged, including that same-tree
+    /// case -- <see cref="Compilation.GetSemanticModel(SyntaxTree, bool)"/> answers identically for a tree
+    /// it is already the model of, just without the reused bound-node cache, so the same-file path only
+    /// gets slower, not wrong.
+    /// </remarks>
+    private static SemanticModel GetSemanticModelFor(SyntaxTree tree, ViewPartBodyContext context) =>
+        tree == context.SemanticModel.SyntaxTree
+            ? context.SemanticModel
+            : context.SemanticModel.Compilation.GetSemanticModel(tree);
+
+    /// <summary>
+    /// The first of <paramref name="property"/>'s declaring syntax references whose expression-bodied
+    /// getter is a single invocation, or <see langword="null"/> if none is (an auto-property, a block
+    /// body, or every part of a partial property lacking one).
+    /// </summary>
+    private static InvocationExpressionSyntax? FindAliasBody(
+        IPropertySymbol property, CancellationToken cancellationToken)
+    {
+        foreach (var reference in property.DeclaringSyntaxReferences)
+        {
+            if (reference.GetSyntax(cancellationToken) is PropertyDeclarationSyntax
+                { ExpressionBody.Expression: InvocationExpressionSyntax candidate })
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static IfTemplateNode? ClassifyIf(
@@ -2135,20 +2235,9 @@ internal static class RenderExpressionAnalyzer
 
             // The context's own model when the callee shares the body's tree, which is the common case of a
             // helper beside the component. A model built here starts with empty bound-node caches, and the
-            // walk below is about to force a bind of every candidate in the declaration.
-            //
-            // Forcing the condition true, or flipping == to !=, are both real kills: either sends a
-            // cross-file callee's nodes through context.SemanticModel, a model built for a different
-            // SyntaxTree, and Roslyn throws on that mismatch --
-            // OpaqueCallDiagnosticTests.ViewReturningCall_WhenCalleeIsDeclaredInAnotherFile_ReportsBCF3030
-            // pins the cross-file case red under each. Forcing the condition false is measured equivalent
-            // rather than assumed: hand-applying it and running BlazorCodeFirst.Compiler.Tests and
-            // BlazorCodeFirst.DiagnosticTests left every test passing unchanged, including that same-tree
-            // case -- GetSemanticModel answers identically for a tree it is already the model of, just
-            // without the reused bound-node cache, so the same-file path only gets slower, not wrong.
-            var model = declaration.SyntaxTree == context.SemanticModel.SyntaxTree
-                ? context.SemanticModel
-                : context.SemanticModel.Compilation.GetSemanticModel(declaration.SyntaxTree);
+            // walk below is about to force a bind of every candidate in the declaration. See
+            // GetSemanticModelFor for the measured reason its condition is written this way.
+            var model = GetSemanticModelFor(declaration.SyntaxTree, context);
 
             foreach (var node in declaration.DescendantNodes())
             {

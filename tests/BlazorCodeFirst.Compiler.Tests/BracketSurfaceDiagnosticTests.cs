@@ -831,6 +831,73 @@ public sealed class BracketSurfaceDiagnosticTests
         var message = report.GetMessage(CultureInfo.InvariantCulture);
         Assert.Contains("Data", message, StringComparison.Ordinal);
         Assert.Contains("is a member", message, StringComparison.Ordinal);
+        Assert.Contains("'Html.Data'", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The same shadowing shape, reached through <c>using static Svg;</c> instead of <c>Html</c> (#319 /
+    /// #534).
+    /// </summary>
+    /// <remarks>
+    /// The scanner's syntactic prefilter reads <c>KnownSymbols.IsCuratedHelperName</c> and
+    /// <c>IsCuratedSvgHelperName</c> as one condition; without the second, a member named <c>Circle</c>
+    /// would be spelled like an <c>Svg</c> helper without matching either conjunct, and this shape would
+    /// fall through to the same BCF1003 <see cref="UnshadowedElementHelper_IsNotBCF3027"/> guards against
+    /// — silently, since nothing would distinguish "not shadowed" from "the prefilter never saw it."
+    /// </remarks>
+    [Fact]
+    public void MemberShadowingAnSvgElementHelper_ReportsBCF3027_AtTheShadowedReceiver()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Svg;
+
+                namespace T;
+
+                public partial class Host : BodyComponentBase
+                {
+                    private string Circle => "";
+
+                    protected override View Body => Root[Circle["r"]];
+                }
+                """));
+
+        var report = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3027");
+        Assert.Equal(DiagnosticSeverity.Error, report.Severity);
+        var message = report.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("Circle", message, StringComparison.Ordinal);
+        Assert.Contains("is a member", message, StringComparison.Ordinal);
+        Assert.Contains("'Svg.Circle'", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A name curated in both <c>Html</c> and <c>Svg</c> (<c>Audio</c>) suggests both qualified spellings,
+    /// since a declaration this near shadows both equally and neither the scanner nor the author's own
+    /// lookup can say which vocabulary was meant (#319 / #534).
+    /// </summary>
+    [Fact]
+    public void MemberShadowingANameCuratedInBothVocabularies_SuggestsBothQualifiedSpellings()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Host.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+                using static BlazorCodeFirst.Svg;
+
+                namespace T;
+
+                public partial class Host : BodyComponentBase
+                {
+                    private string Audio => "";
+
+                    protected override View Body => Div[Audio["x"]];
+                }
+                """));
+
+        var report = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3027");
+        var message = report.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("'Html.Audio' or 'Svg.Audio'", message, StringComparison.Ordinal);
     }
 
     /// <summary>

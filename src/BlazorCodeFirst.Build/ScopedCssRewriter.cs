@@ -21,9 +21,8 @@ public readonly record struct CssRewriteError(string FilePath, int Line, int Col
 /// Rewrites a <c>.cs.css</c> file's selectors, <c>@keyframes</c> names, and animation-name
 /// declarations to carry a scope attribute, mirroring dotnet/sdk's <c>RewriteCss.cs</c>
 /// (src/StaticWebAssetsSdk/Tasks/ScopedCss/RewriteCss.cs) but implemented on a hand-rolled,
-/// position-tracking scanner instead of Microsoft.Css.Parser's AST (see
-/// docs/superpowers/specs/2026-08-18-scoped-css-design.md, "スパイクで確定した事実 7." for why an
-/// off-the-shelf parser -- specifically ExCSS -- cannot support this).
+/// position-tracking scanner instead of Microsoft.Css.Parser's AST (ARCHITECTURE.md Appendix
+/// B.24 records why an off-the-shelf parser -- specifically ExCSS -- cannot support this).
 ///
 /// The rewrite runs in two passes over the original text. Pass 1 collects every
 /// <c>@keyframes</c> identifier in the document, because an <c>animation</c>/<c>animation-name</c>
@@ -519,17 +518,7 @@ public static class ScopedCssRewriter
 
     // ---- Edit list application ----------------------------------------------------------------
 
-    private readonly struct TextSpan
-    {
-        public TextSpan(int start, int end)
-        {
-            Start = start;
-            End = end;
-        }
-
-        public int Start { get; }
-        public int End { get; }
-    }
+    private readonly record struct TextSpan(int Start, int End);
 
     private enum EditKind
     {
@@ -538,17 +527,7 @@ public static class ScopedCssRewriter
         DeleteDeep,
     }
 
-    private readonly struct Edit
-    {
-        public Edit(int position, EditKind kind)
-        {
-            Position = position;
-            Kind = kind;
-        }
-
-        public int Position { get; }
-        public EditKind Kind { get; }
-    }
+    private readonly record struct Edit(int Position, EditKind Kind);
 
     private static string ApplyEdits(string css, string scope, List<Edit> edits)
     {
