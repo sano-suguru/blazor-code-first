@@ -785,7 +785,8 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF3027: an element written as a simple name that a declaration closer than
-    /// <c>BlazorCodeFirst.Html</c> took — a member, a type, a namespace, or a method.
+    /// <c>BlazorCodeFirst.Html</c> or <c>BlazorCodeFirst.Svg</c> took — a member, a type, a namespace, or a
+    /// method.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -798,24 +799,32 @@ internal static class DiagnosticDescriptors
     /// <para>
     /// One id for the four, with what took the name carried in the message the way BCF3028 carries its two
     /// shapes. To an author they are one mistake, a simple name that reached something nearer than
-    /// <c>Html</c>, and <c>Html.<em>Name</em></c> is the fix for all of them; splitting them would split by
-    /// how far C# got in binding the expression, which is a distinction the author never made. #127 covered
-    /// the member alone on the premise that CS0119 reaches the type case, and #266 measured that premise
-    /// and found it false.
+    /// <c>Html</c> or <c>Svg</c>, and qualifying the element is the fix for all of them; splitting them
+    /// would split by how far C# got in binding the expression, which is a distinction the author never
+    /// made. #127 covered the member alone on the premise that CS0119 reaches the type case, and #266
+    /// measured that premise and found it false.
+    /// </para>
+    /// <para>
+    /// The fix text is computed rather than a fixed "Html.{0}" (#319 / #534): a name curated in only one
+    /// vocabulary gets that vocabulary's qualified spelling, and a name curated in both (<c>A</c>,
+    /// <c>Audio</c>, <c>Canvas</c>, <c>Iframe</c>, <c>Video</c>) gets both, since the shadowed lookup alone
+    /// cannot say which one the author meant — the shadowing declaration wins over every static import
+    /// equally, regardless of how many bring the name into scope.
     /// </para>
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3027 = new(
         id: "BCF3027",
         title: "Element helper is shadowed by a declaration of your own",
-        messageFormat: "'{0}' here is a {1} declared outside BlazorCodeFirst.Html, not the element helper of that name; write 'Html.{0}' to name the element",
+        messageFormat: "'{0}' here is a {1}, not the element helper of that name; write '{2}' to name the element",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "'using static BlazorCodeFirst.Html;' brings every curated element helper into simple-name " +
-            "scope, and a member, type, namespace, or method declared closer wins that lookup. The " +
-            "element expression then indexes that declaration, or fails to bind against it, instead of " +
-            "opening an element. Qualify the element as Html.<Name> to name it past the declaration.");
+            "'using static BlazorCodeFirst.Html;' (or '...Svg;') brings every curated element helper into " +
+            "simple-name scope, and a member, type, namespace, or method declared closer wins that lookup. " +
+            "The element expression then indexes that declaration, or fails to bind against it, instead of " +
+            "opening an element. Qualify the element (Html.<Name> or Svg.<Name>) to name it past the " +
+            "declaration.");
 
     /// <summary>
     /// BCF3028: an event handler whose argument type is not one the named event can deliver — either it

@@ -310,6 +310,92 @@ internal sealed class KnownSymbols
         ["Summary"] = "summary",
     };
 
+    /// <summary>Authoritative <c>Svg</c> element helper name → tag table (#319 / #534), independent of
+    /// <see cref="CuratedTags"/>. Runtime helper declarations are kept in sync by
+    /// <c>KnownSymbolsSyncTests</c>.</summary>
+    /// <remarks>
+    /// Transcribed from SVG2's own element index (<c>https://www.w3.org/TR/SVG2/eltindex.html</c>, 69
+    /// elements). The naming rule is <see cref="CuratedTags"/>'s own — capitalize only the tag's first
+    /// letter — but unlike <see cref="CuratedTags"/> the rest of a tag's casing is preserved rather than
+    /// asserted lowercase, since SVG tag names are not all-lowercase (<c>clipPath</c>,
+    /// <c>linearGradient</c>, <c>feGaussianBlur</c>, ...). <c>["Root"] = "svg"</c> is the one entry that
+    /// breaks the rule's bijection: <c>Svg.Svg</c> is CS0542 (member name equals enclosing type name), so
+    /// the root element alone takes an irregular name.
+    /// </remarks>
+    private static readonly Dictionary<string, string> SvgTags = new(System.StringComparer.Ordinal)
+    {
+        ["Root"] = "svg",
+
+        ["A"] = "a",
+        ["Animate"] = "animate",
+        ["AnimateMotion"] = "animateMotion",
+        ["AnimateTransform"] = "animateTransform",
+        ["Audio"] = "audio",
+        ["Canvas"] = "canvas",
+        ["Circle"] = "circle",
+        ["ClipPath"] = "clipPath",
+        ["Defs"] = "defs",
+        ["Desc"] = "desc",
+        ["Discard"] = "discard",
+        ["Ellipse"] = "ellipse",
+        ["FeBlend"] = "feBlend",
+        ["FeColorMatrix"] = "feColorMatrix",
+        ["FeComponentTransfer"] = "feComponentTransfer",
+        ["FeComposite"] = "feComposite",
+        ["FeConvolveMatrix"] = "feConvolveMatrix",
+        ["FeDiffuseLighting"] = "feDiffuseLighting",
+        ["FeDisplacementMap"] = "feDisplacementMap",
+        ["FeDistantLight"] = "feDistantLight",
+        ["FeDropShadow"] = "feDropShadow",
+        ["FeFlood"] = "feFlood",
+        ["FeFuncA"] = "feFuncA",
+        ["FeFuncB"] = "feFuncB",
+        ["FeFuncG"] = "feFuncG",
+        ["FeFuncR"] = "feFuncR",
+        ["FeGaussianBlur"] = "feGaussianBlur",
+        ["FeImage"] = "feImage",
+        ["FeMerge"] = "feMerge",
+        ["FeMergeNode"] = "feMergeNode",
+        ["FeMorphology"] = "feMorphology",
+        ["FeOffset"] = "feOffset",
+        ["FePointLight"] = "fePointLight",
+        ["FeSpecularLighting"] = "feSpecularLighting",
+        ["FeSpotLight"] = "feSpotLight",
+        ["FeTile"] = "feTile",
+        ["FeTurbulence"] = "feTurbulence",
+        ["Filter"] = "filter",
+        ["ForeignObject"] = "foreignObject",
+        ["G"] = "g",
+        ["Iframe"] = "iframe",
+        ["Image"] = "image",
+        ["Line"] = "line",
+        ["LinearGradient"] = "linearGradient",
+        ["Marker"] = "marker",
+        ["Mask"] = "mask",
+        ["Metadata"] = "metadata",
+        ["Mpath"] = "mpath",
+        ["Path"] = "path",
+        ["Pattern"] = "pattern",
+        ["Polygon"] = "polygon",
+        ["Polyline"] = "polyline",
+        ["RadialGradient"] = "radialGradient",
+        ["Rect"] = "rect",
+        ["Script"] = "script",
+        ["Set"] = "set",
+        ["Stop"] = "stop",
+        ["Style"] = "style",
+        ["Switch"] = "switch",
+        ["Symbol"] = "symbol",
+        ["Text"] = "text",
+        ["TextPath"] = "textPath",
+        ["Title"] = "title",
+        ["Tspan"] = "tspan",
+        ["Unknown"] = "unknown",
+        ["Use"] = "use",
+        ["Video"] = "video",
+        ["View"] = "view",
+    };
+
     /// <summary>
     /// The curated tags as a set, derived from <see cref="CuratedTags"/>. Declared after that table
     /// because static field initializers run in declaration order; moving this above it yields an empty
@@ -346,6 +432,22 @@ internal sealed class KnownSymbols
     /// decides whether the name actually reached the helper.
     /// </remarks>
     public static bool IsCuratedHelperName(string name) => CuratedTags.ContainsKey(name);
+
+    /// <summary>
+    /// Whether <paramref name="name"/> is spelled like one of the <c>Svg</c> element helpers, the key side
+    /// of <see cref="SvgTags"/>.
+    /// </summary>
+    /// <remarks>
+    /// The <c>Svg</c>-side counterpart of <see cref="IsCuratedHelperName"/>, read by
+    /// <c>ShadowedElementHelperScanner</c> as the second half of its syntactic prefilter: <c>Html</c>
+    /// and <c>Svg</c> share several tag names (<c>a</c>, <c>audio</c>, <c>canvas</c>, <c>iframe</c>,
+    /// <c>video</c>), so a shadowed <c>Circle</c> or a shadowed <c>Audio</c> reached through
+    /// <c>using static Svg;</c> both need reporting, not only the <c>Html</c> spelling.
+    /// </remarks>
+    public static bool IsCuratedSvgHelperName(string name) => SvgTags.ContainsKey(name);
+
+    /// <summary>The <see cref="SvgTags"/> tags, for <c>KnownSymbolsSyncTests</c>.</summary>
+    public static IReadOnlyCollection<string> CuratedSvgElementTags => SvgTags.Values;
 
     /// <summary>
     /// The HTML Living Standard's void elements, the tags that have no closing tag and therefore cannot
@@ -614,6 +716,30 @@ internal sealed class KnownSymbols
     public static ISymbol Normalize(IPropertySymbol property) => property.OriginalDefinition;
 
     /// <summary>
+    /// Whether <paramref name="property"/> is a curated element helper against <paramref name="curatedTags"/>:
+    /// its type is <paramref name="elementViewType"/> and its name is one of that table's keys. The shared
+    /// match <see cref="ElementTags"/> and <see cref="SvgElementTags"/> are each built with, once per
+    /// curated vocabulary's own table (#319 / #534).
+    /// </summary>
+    private static bool TryGetCuratedElementTag(
+        IPropertySymbol property,
+        INamedTypeSymbol? elementViewType,
+        Dictionary<string, string> curatedTags,
+        out string tag)
+    {
+        if (elementViewType is not null
+            && SymbolEqualityComparer.Default.Equals(property.Type, elementViewType)
+            && curatedTags.TryGetValue(property.Name, out var propertyTag))
+        {
+            tag = propertyTag;
+            return true;
+        }
+
+        tag = "";
+        return false;
+    }
+
+    /// <summary>
     /// Whether <paramref name="method"/> carries an extension method's receiver at ordinal 0, as the
     /// <c>1</c> or <c>0</c> to subtract from a parameter ordinal or from a parameter count.
     /// </summary>
@@ -759,6 +885,21 @@ internal sealed class KnownSymbols
     /// <see cref="SymbolEqualityComparer"/>; every key is an <see cref="IPropertySymbol"/>.
     /// </summary>
     public IReadOnlyDictionary<ISymbol, string> ElementTags { get; }
+
+    /// <summary>
+    /// Curated <c>Svg</c> element helper property → tag name (#319 / #534), keyed the way
+    /// <see cref="ElementTags"/> is keyed.
+    /// </summary>
+    /// <remarks>
+    /// A separate dictionary rather than a merge into <see cref="ElementTags"/>: <c>Html</c> and
+    /// <c>Svg</c> declare several same-named helpers (<c>A</c>, <c>Audio</c>, <c>Canvas</c>,
+    /// <c>Iframe</c>, <c>Video</c>) resolving to different tags, and every test that pins
+    /// <see cref="ElementTags"/> to <see cref="CuratedTags"/> — count, bijection, and the exclusion
+    /// guard's tag-value check — is written against the <c>Html</c> set alone. Keeping the two
+    /// tables apart leaves those assertions untouched; <c>RenderExpressionAnalyzer</c> and
+    /// <c>ShadowedElementHelperScanner</c> read both, one after the other.
+    /// </remarks>
+    public IReadOnlyDictionary<ISymbol, string> SvgElementTags { get; }
 
     /// <summary>Named attribute shortcut decoration method → attribute name.</summary>
     public IReadOnlyDictionary<ISymbol, string> AttributeShortcuts { get; }
@@ -1113,9 +1254,7 @@ internal sealed class KnownSymbols
             // that merely shares a curated name is not an element helper.
             if (member is IPropertySymbol { IsIndexer: false } elementProperty)
             {
-                if (ElementViewType is not null
-                    && SymbolEqualityComparer.Default.Equals(elementProperty.Type, ElementViewType)
-                    && CuratedTags.TryGetValue(elementProperty.Name, out var propertyTag))
+                if (TryGetCuratedElementTag(elementProperty, ElementViewType, CuratedTags, out var propertyTag))
                 {
                     elementTags[Normalize(elementProperty)] = propertyTag;
                 }
@@ -1169,6 +1308,24 @@ internal sealed class KnownSymbols
             _surfaceMethods[Normalize(method)] = kind;
         }
         ElementTags = elementTags;
+
+        // Absent against a runtime that predates #319 / #534, the same degrade every other type resolved
+        // out of htmlType.ContainingAssembly uses: SvgElementTags is then empty and every Svg.* call falls
+        // through to the ordinary unresolved-member path.
+        var svgType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.Svg");
+        var svgElementTags = new Dictionary<ISymbol, string>(SymbolEqualityComparer.Default);
+        if (svgType is not null)
+        {
+            foreach (var member in svgType.GetMembers())
+            {
+                if (member is IPropertySymbol { IsIndexer: false } elementProperty
+                    && TryGetCuratedElementTag(elementProperty, ElementViewType, SvgTags, out var propertyTag))
+                {
+                    svgElementTags[Normalize(elementProperty)] = propertyTag;
+                }
+            }
+        }
+        SvgElementTags = svgElementTags;
     }
 
     /// <summary>
@@ -1349,14 +1506,20 @@ internal sealed class KnownSymbols
 
     /// <summary>
     /// Whether <paramref name="property"/> is one of the curated element helpers resolved out of the
-    /// referenced runtime, keyed the way <see cref="ElementTags"/> is keyed.
+    /// referenced runtime, keyed the way <see cref="ElementTags"/> is keyed. Checks
+    /// <see cref="SvgElementTags"/> too, so a <c>Svg</c> helper is recognized on the same terms as
+    /// an <c>Html</c> one (#319 / #534).
     /// </summary>
     /// <remarks>
     /// The normalization is a rule rather than an obvious fact, and a caller that forgets it compiles and
     /// silently answers <see langword="false"/> for every helper. Stated here for the same reason
     /// <see cref="IsSlot"/> is.
     /// </remarks>
-    public bool IsElementHelper(IPropertySymbol property) => ElementTags.ContainsKey(Normalize(property));
+    public bool IsElementHelper(IPropertySymbol property)
+    {
+        var normalized = Normalize(property);
+        return ElementTags.ContainsKey(normalized) || SvgElementTags.ContainsKey(normalized);
+    }
 
     /// <summary>
     /// Which of the three <c>params ReadOnlySpan&lt;View&gt;</c> child lists <paramref name="property"/> is,
@@ -2042,7 +2205,7 @@ internal sealed class KnownSymbols
     /// </summary>
     /// <remarks>
     /// Memoized per <paramref name="compilation"/> instance (#514): building one costs around 20
-    /// <c>GetTypeByMetadataName</c> calls plus three full <c>GetMembers()</c> walks, and this is called once
+    /// <c>GetTypeByMetadataName</c> calls plus four full <c>GetMembers()</c> walks, and this is called once
     /// per candidate component and once per <c>[ViewPart]</c> method, all against the same compilation. The
     /// null case is not cached — <c>ComponentModelFactory.Analyze</c> and the <c>[ViewPart]</c> transform
     /// both call this only after already filtering to nodes their own cheaper checks expect to resolve, so a
