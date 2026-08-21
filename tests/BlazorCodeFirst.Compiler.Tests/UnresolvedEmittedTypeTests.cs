@@ -357,6 +357,61 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void IndexerResolvedButNotTheSurfacesOwnBesideUnselectedInvocation_ReportsBCF3015()
+    {
+        // A resolved indexer that is not the design-time surface's own (Dictionary's, here) is the
+        // arm ReportSelectedInvocationValues exists for: this indexer's own arguments are source
+        // expressions in their own right and must not be silenced just because the sweep reached them
+        // by walking through a sibling that failed to resolve.
+        const string source = """
+            using System;
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                private readonly Dictionary<string, object> _dict = new();
+
+                protected override View Body =>
+                    Div.Attr("x", MissingMethod() + _dict[typeof(Probe).Name]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        AssertSingleBCF3015(result, source);
+    }
+
+    [Fact]
+    public void IndexerItselfUnresolvedBesideUnselectedInvocation_DoesNotReportBCF3015()
+    {
+        // The complementary case to the resolved indexer above: an indexer that itself fails to
+        // resolve (_undefined has no declaration) has no argument-list this arm should read at all --
+        // ReportValue's own IsInsideUnselectedInvocation already suppresses a name found this way.
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body =>
+                    Div.Attr("x", MissingMethod() + _undefined[typeof(Probe).Name]);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    [Fact]
     public void NonElementDecorationValue_UnresolvedType_RemainsBCF3008Only()
     {
         // Decorations now bind ElementView, not View (Decorations.cs), so decorating Raw(...)'s View
@@ -1946,6 +2001,43 @@ public sealed class UnresolvedEmittedTypeTests
 
                 [ViewPart]
                 private static View Label(int count) => Span[count.ToString()];
+
+                protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
+    }
+
+    /// <summary>
+    /// One written argument against two <c>[ViewPart]</c> overloads of different declared arity, both
+    /// filled under <c>FillsEveryParameter</c> because the second parameter of the longer overload is
+    /// optional: <c>AreInterchangeableOverloads</c>' own parameter-count check is what has to refuse the
+    /// pair before its loop ever indexes the shorter declaration past its own length. Disabling that
+    /// check (forcing it past the length mismatch instead of refusing) does not merely wrongly accept the
+    /// group: it walks the loop against the longer declaration's length and reads an index the shorter
+    /// one does not have.
+    /// </summary>
+    [Fact]
+    public void ViewPartOverloadsWithDifferingParameterCounts_DoesNotReportBCF3015()
+    {
+        const string source = """
+            using System;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Label(string value) => Span[value];
+
+                [ViewPart]
+                private static View Label(string value, string extra = "x") => Span[value + extra];
 
                 protected override View Body => Label(MissingMethod() + typeof(Probe).Name);
             }

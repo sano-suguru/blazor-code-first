@@ -581,6 +581,15 @@ internal static class UnresolvedValueTypeScanner
             // property of this scanner's own logic.
             context.CancellationToken.ThrowIfCancellationRequested();
 
+            // Removing this skip is a stryker survivor, measured equivalent rather than assumed:
+            // hand-applying the removal and running BlazorCodeFirst.Compiler.Tests with a probe
+            // (Div.Attr("x", nameof(Div) + MissingMethod())) left the diagnostics unchanged. Reading why:
+            // GetSymbolInfo answers a null Symbol for a nameof(...) invocation regardless of whether its
+            // argument resolves, since nameof binds specially rather than as an ordinary call, and a
+            // nameof(...) is never a surface call either. IsInsideUnselectedInvocation's own invocation
+            // arm below already climbs ancestors independently and re-suppresses any name nested inside
+            // one on those same two grounds, so this check can only ever agree with what that one already
+            // answers for a nameof's own argument names.
             if (IsInsideNameofConstant(name, context))
                 continue;
 
@@ -655,6 +664,14 @@ internal static class UnresolvedValueTypeScanner
     // Do not walk arbitrary error invocations here: those have no selected symbol and are not emitted.
     private static void ReportSelectedInvocationValues(ExpressionSyntax? expression, ViewPartBodyContext context)
     {
+        // Removing this guard is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the removal and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Reading why: both callers
+        // (ReportEventArguments' handler, ScanDecoration's Attr value) read this from BoundArguments.At
+        // on a parameter TrySelectCandidate/FillsEveryParameter already required to carry a written
+        // argument before selecting the method at all -- a non-optional, non-params parameter with no
+        // argument bound fails FillsEveryParameter, and recognized.Method stays null, so neither caller
+        // is ever reached with that parameter unfilled. A null expression here has no constructible input.
         if (expression is null)
             return;
 
@@ -680,6 +697,15 @@ internal static class UnresolvedValueTypeScanner
                             invocation, context.CancellationToken).Symbol is IMethodSymbol
                         && !IsSurfaceCall(invocation, context) =>
                     invocation.ArgumentList.Arguments,
+                // The parallel widening to || here is measured equivalent, unlike the invocation arm's own
+                // open half above: hand-applying it and running BlazorCodeFirst.Compiler.Tests, including
+                // ProbeUnresolvedIndexerBesideUnselectedInvocation which constructs the case this arm
+                // normally never reaches (an unresolved elementAccess, Symbol null) beside an unselected
+                // invocation, left every test passing unchanged. The newly matched case is re-suppressed
+                // the same way the invocation arm's understood half is: ReportValue's own
+                // IsInsideUnselectedInvocation carries an ElementAccessExpressionSyntax arm of its own
+                // (Symbol is null && no recognized indexer) that re-derives the identical verdict
+                // independently of how this arm reached the name.
                 ElementAccessExpressionSyntax elementAccess
                     when context.SemanticModel.GetSymbolInfo(
                             elementAccess, context.CancellationToken).Symbol is IPropertySymbol
@@ -724,9 +750,23 @@ internal static class UnresolvedValueTypeScanner
     private static void ReportNonConstantAttrName(
         InvocationExpressionSyntax invocation, ExpressionSyntax? name, ViewPartBodyContext context)
     {
+        // Removing this guard is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the removal and running BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Reading why: the sole caller
+        // reads this from BoundArguments.At(0), the .Attr/.ComponentAttr name parameter, which every
+        // declared overload requires -- the same FillsEveryParameter guarantee ReportSelectedInvocationValues'
+        // own null guard above rests on -- so a null name has no constructible input.
         if (name is null)
             return;
 
+        // Removing this call is a stryker survivor, measured equivalent rather than assumed: hand-applying
+        // the removal and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests left
+        // every test passing unchanged. Reading why: ShouldRecoverUnresolvedValue, the only reader of what
+        // this registers, has exactly one call site in this file (ScanRenderExpression's own
+        // recoverOwnValue, above), and it reads invocation.Span for this same invocation before the walk
+        // ever reaches this arm -- rejecting the span here can only be observed by a later read of the
+        // identical span, and none exists: Report runs once per root, this invocation node cannot recur in
+        // the tree, and no other scanner FailurePathScanners.ReportAll runs consults this state at all.
         context.RejectUnresolvedValueRecovery(invocation.Span);
         context.Diagnostics.Add(DiagnosticInfo.Create(DiagnosticDescriptors.BCF3011, name.GetLocation(), []));
     }
@@ -831,6 +871,14 @@ internal static class UnresolvedValueTypeScanner
         // for a zero-length bound-argument list. Reverting the mutant by hand and running both
         // BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests confirmed no test tells
         // the two apart.
+        // Flipping this to return true is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the flip and running BlazorCodeFirst.Compiler.Tests left every test passing
+        // unchanged. Reading why: parameterCount is negative only when offset exceeds parameters.Length,
+        // and offset is 0 for BindIndexerArguments' indexer caller and KnownSymbols.ReceiverOffset(method)
+        // -- 0 or 1 -- for the invocation caller. A ReceiverOffset of 1 answers only for an unreduced
+        // extension method, whose own declared parameter list therefore already carries the receiver as
+        // parameters[0], so parameters.Length is at least 1 whenever offset is. parameterCount can
+        // therefore never go negative through either caller, and this branch's own condition never holds.
         if (parameterCount < 0)
             return false;
 
@@ -1266,6 +1314,26 @@ internal static class UnresolvedValueTypeScanner
         // parameter-name comparison below would still refuse the pair ("value" vs "handler"), so it is
         // skipped here in favor of checking what the shared arm actually depends on: two parameters,
         // neither a params array.
+        // Seven stryker survivors sit on this special case (both && joining the two SurfaceMethodKind
+        // checks widened to ||, either equality flipped to !=, and each && in the four-way return widened
+        // to ||) and are measured, not proven, equivalent: hand-applying each alone and running
+        // BlazorCodeFirst.Compiler.Tests, including a probe built the way the sibling
+        // ScalarParamValueSiblingOfUnselectedInvocation test above is (a typed-but-inapplicable value,
+        // Component<Real>().Param(r => r.Kind, typeof(Probe)) against a string? selector), left every
+        // test passing unchanged for every mutant tried. That probe never reached this arm at all --
+        // TrySelectCandidate's own candidates stayed too few to compare -- so the finding is that no
+        // multi-candidate call pairing a ScalarParam overload against a ComponentParamEventCallback one
+        // has been constructed, not that the pair provably cannot occur. Two considerations bound how far
+        // it can reach if one is: the runtime declares no implicit conversion from Action/Func<Task> to
+        // EventCallback -- ComponentParamEventCallback's own doc names that absence as the reason the
+        // generator wraps the handler in EventCallback.Factory.Create instead of casting it through --
+        // so an ordinary, non-poisoned handler expression is never simultaneously applicable to both
+        // overloads; and TrySelectCandidate's candidates come from the whole "Param"-named group sharing
+        // one arity, which also carries FragmentParam's RenderFragment-selector overloads, whose own kind
+        // mismatch (line below) refuses the group before this special case's own correctness could be
+        // observed through a real diagnostic. Left as an open question for whoever next reads this file's
+        // #492 area, the same register ReportSelectedInvocationValues' own open half (its InvocationExpressionSyntax
+        // arm's || widening, above in this file) is held to.
         if ((kind == SurfaceMethodKind.ScalarParam && otherKind == SurfaceMethodKind.ComponentParamEventCallback)
             || (kind == SurfaceMethodKind.ComponentParamEventCallback && otherKind == SurfaceMethodKind.ScalarParam))
         {
@@ -1405,6 +1473,14 @@ internal static class UnresolvedValueTypeScanner
             || name.Identifier.ValueText != known.Name)
             return false;
 
+        // Flipping this to false is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the flip and running BlazorCodeFirst.Compiler.Tests left every test passing
+        // unchanged, for the same reason the parallel flag inside Recognize's own LookupSymbols call is
+        // equivalent: the loop below only returns true for a symbol that normalizes equal to known
+        // (Html.ForEach, which is not an extension method), so whatever the flag adds to or removes from
+        // LookupSymbols' result is, at most, a differently-named or differently-declared method the
+        // equality check was always going to reject. Html.ForEach's own presence in that result never
+        // depends on the flag, since it is found as an ordinary static member either way.
         foreach (var symbol in context.SemanticModel.LookupSymbols(
                      invocation.Expression.SpanStart,
                      name: known.Name,
@@ -1474,6 +1550,15 @@ internal static class UnresolvedValueTypeScanner
         IMethodSymbol method,
         ViewPartBodyContext context)
     {
+        // Flipping this to return true is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying the flip and running BlazorCodeFirst.Compiler.Tests (including a probe with
+        // an unqualified, using-static-imported call to a decoration method,
+        // Attr(Div, "x", MissingMethod() + typeof(Probe).Name), the shape that reaches this branch's
+        // true condition) and BlazorCodeFirst.DiagnosticTests left every test passing unchanged, for the
+        // same reason the two mutants below are: BoundArguments' fallback binder always applies
+        // KnownSymbols.ReceiverOffset unconditionally, never consulting this method's answer, so the
+        // caller's own bind already fails before either this guard or the two branches below are ever
+        // read for their answer's sake.
         if (invocation.Expression is not MemberAccessExpressionSyntax access)
             return false;
 
@@ -1650,6 +1735,17 @@ internal static class UnresolvedValueTypeScanner
                 var parameter = parameters[index + offset];
                 if (parameter.IsParams)
                 {
+                    // The four stryker survivors on this named-argument arm (the || guard widened to &&
+                    // or negated outright, hasUnanalyzableParams set to false instead of true, and the
+                    // sibling else-if's own return null removed) are measured equivalent on
+                    // BlazorCodeFirst.Compiler.Tests, though not proven the way the ones above are:
+                    // no input naming this params parameter explicitly (Div[children: expr]) while also
+                    // failing FactoryArguments.Bind for the element access -- the precondition for
+                    // TryBindFallback to run at all -- has been constructed with an observable outcome.
+                    // The declared indexer's sole parameter is `params ReadOnlySpan<View> children`, and a
+                    // probe naming it (Element(tag: MissingMethod() + "x")[children: Div]) still bound
+                    // through FactoryArguments and never reached this arm, so whether the syntax this arm
+                    // exists for is reachable through this scanner's own binder at all is itself open.
                     if (argument.NameColon is not null)
                     {
                         if (hasUnanalyzableParams || paramsElements.Count != 0)
