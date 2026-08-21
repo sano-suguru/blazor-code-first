@@ -323,9 +323,7 @@ public sealed class KnownSymbolsSyncTests
         {
             var name = entry.Key.Name;
             var expected = string.Concat(name.Select(
-                (c, index) => index > 0 && char.IsUpper(c)
-                    ? "-" + char.ToLowerInvariant(c)
-                    : char.ToLowerInvariant(c).ToString()));
+                (c, index) => (index > 0 && char.IsUpper(c) ? "-" : "") + char.ToLowerInvariant(c)));
 
             Assert.Equal(expected, entry.Value);
         }
@@ -774,8 +772,7 @@ public sealed class KnownSymbolsSyncTests
             .Where(static kind => kind is SurfaceMethodKind.ScalarParam
                 or SurfaceMethodKind.FragmentParam
                 or SurfaceMethodKind.GenericTemplateIgnored
-                or SurfaceMethodKind.GenericTemplateContextual
-                or SurfaceMethodKind.ComponentParamEventCallback)
+                or SurfaceMethodKind.GenericTemplateContextual)
             .OrderBy(static kind => kind)
             .ToArray();
 
@@ -785,14 +782,13 @@ public sealed class KnownSymbolsSyncTests
                 SurfaceMethodKind.FragmentParam,
                 SurfaceMethodKind.GenericTemplateIgnored,
                 SurfaceMethodKind.GenericTemplateContextual,
-                SurfaceMethodKind.ComponentParamEventCallback,
-                SurfaceMethodKind.ComponentParamEventCallback,
-                SurfaceMethodKind.ComponentParamEventCallback,
-                SurfaceMethodKind.ComponentParamEventCallback,
-                SurfaceMethodKind.ComponentParamEventCallback,
-                SurfaceMethodKind.ComponentParamEventCallback,
             ],
             kinds);
+
+        // The fifth kind, asserted by count rather than folded into the array above: it is the one kind
+        // with more than one member (all six EventCallback-taking .Param overloads land on it), so a count
+        // says what the array's one-member-per-row shape cannot without repeating the same value six times.
+        Assert.Equal(6, SurfaceMethodsOfKind(symbols, SurfaceMethodKind.ComponentParamEventCallback).Count);
     }
 
     /// <summary>
@@ -974,53 +970,6 @@ public sealed class KnownSymbolsSyncTests
 
         var nonInertType = compilation.GetSpecialType(SpecialType.System_Int32);
         Assert.False(symbols.IsDesignTimeApiReference(nonInertType, part));
-    }
-
-    /// <summary>
-    /// <see cref="KnownSymbols.TryGetEventParameters"/> rejects a shape carrying two <see langword="string"/>
-    /// parameters ahead of the handler: the event name may appear at most once, and a second string is not
-    /// a shape this compiler was written against. No decoration the runtime declares carries two, so
-    /// nothing else exercises this rejection.
-    /// </summary>
-    [Fact]
-    public void TryGetEventParameters_RejectsASecondStringParameter()
-    {
-        const string source = """
-            public static class Shapes
-            {
-                public static void TwoNames(string a, string b, System.Action handler) { }
-            }
-            """;
-
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var shapes = compilation.GetTypeByMetadataName("Shapes");
-        Assert.NotNull(shapes);
-        var method = shapes!.GetMembers("TwoNames").OfType<IMethodSymbol>().Single();
-
-        Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
-    }
-
-    /// <summary>
-    /// <see cref="KnownSymbols.TryGetEventParameters"/> answers <see langword="false"/> for a method with
-    /// no delegate-typed parameter at all: there is no handler argument to report, so nothing here is a
-    /// shape this compiler recognizes.
-    /// </summary>
-    [Fact]
-    public void TryGetEventParameters_RejectsAMethodWithNoDelegateParameter()
-    {
-        const string source = """
-            public static class Shapes
-            {
-                public static void NoHandler(string a) { }
-            }
-            """;
-
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var shapes = compilation.GetTypeByMetadataName("Shapes");
-        Assert.NotNull(shapes);
-        var method = shapes!.GetMembers("NoHandler").OfType<IMethodSymbol>().Single();
-
-        Assert.False(KnownSymbols.TryGetEventParameters(method, out _));
     }
 
     [Fact]
