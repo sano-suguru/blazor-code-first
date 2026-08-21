@@ -357,7 +357,7 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
-    public void UnrecognizedIndexerBesideUnselectedInvocation_UnresolvedType_ReportsBCF3015()
+    public void IndexerResolvedButNotTheSurfacesOwnBesideUnselectedInvocation_ReportsBCF3015()
     {
         // A resolved indexer that is not the design-time surface's own (Dictionary's, here) is the
         // arm ReportSelectedInvocationValues exists for: this indexer's own arguments are source
@@ -382,11 +382,11 @@ public sealed class UnresolvedEmittedTypeTests
 
         var result = CompilationTestHost.RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+        AssertSingleBCF3015(result, source);
     }
 
     [Fact]
-    public void UnresolvedIndexerBesideUnselectedInvocation_DoesNotReportBCF3015()
+    public void IndexerItselfUnresolvedBesideUnselectedInvocation_DoesNotReportBCF3015()
     {
         // The complementary case to the resolved indexer above: an indexer that itself fails to
         // resolve (_undefined has no declaration) has no argument-list this arm should read at all --
@@ -409,30 +409,6 @@ public sealed class UnresolvedEmittedTypeTests
 
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
         Assert.Contains(result.Diagnostics, static d => d.Id == "BCF1003");
-    }
-
-    [Fact]
-    public void UnqualifiedStaticDecorationCallProbe()
-    {
-        const string source = """
-            using System;
-            using BlazorCodeFirst;
-            using static BlazorCodeFirst.Html;
-            using static BlazorCodeFirst.Decorations;
-
-            namespace T;
-
-            public partial class Host : BodyComponentBase
-            {
-                protected override View Body =>
-                    Attr(Div, "x", MissingMethod() + typeof(Probe).Name);
-            }
-            """;
-
-        var result = CompilationTestHost.RunGenerator(source);
-
-        foreach (var d in result.Diagnostics)
-            System.Console.WriteLine($"{d.Id}: {d.GetMessage()}");
     }
 
     [Fact]
