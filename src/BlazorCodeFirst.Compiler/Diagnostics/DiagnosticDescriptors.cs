@@ -1196,10 +1196,10 @@ internal static class DiagnosticDescriptors
     /// Stricter than Razor, which silently discards a convention-discovered orphan <c>.razor.css</c>
     /// and only errors (BLAZOR102) for an explicitly written <c>ScopedCssInput</c>. BCF has no
     /// explicit-input escape hatch — the <c>.cs.css</c>/<c>.cs</c> pairing is convention-only — so
-    /// silently discarding it would let a typo in the file name go unnoticed (design doc §診断). A
+    /// silently discarding it would let a typo in the file name go unnoticed. A
     /// file that declares only <c>[ViewPart]</c> methods (no component) is not orphaned: its scope
-    /// still reaches rendered elements through expansion at every call site (design doc §ViewPart
-    /// 展開でのスコープ伝播), so the check counts a <c>[ViewPart]</c>-declaring file as a match too,
+    /// still reaches rendered elements through expansion at every call site (ARCHITECTURE.md
+    /// §2.7(F)), so the check counts a <c>[ViewPart]</c>-declaring file as a match too,
     /// not just a component-declaring one.
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3041 = new(
