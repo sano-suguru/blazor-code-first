@@ -625,6 +625,18 @@ public sealed class FrameDecorationGeneratorTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    [Fact]
+    public void FormName_OnAnUppercaseSpelledFormElement_DoesNotReportBCF3040()
+    {
+        // "FORM" and "form" render the same element (KnownSymbols.IsValidTagName's remarks), so a
+        // tag comparison written to reject non-form elements must not reject this spelling too (#523).
+        var result = CompilationTestHost.RunGenerator(Body(
+            """Html.Element("FORM").FormName("save")["x"]"""));
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3040");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     private static string Body(string body) => $$"""
         using BlazorCodeFirst;
 

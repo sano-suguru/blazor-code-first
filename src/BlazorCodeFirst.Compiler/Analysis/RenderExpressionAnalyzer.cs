@@ -1247,7 +1247,7 @@ internal static class RenderExpressionAnalyzer
             if (ReportDuplicateFrameDecoration(invocation, decoAccess, element.FormName, context))
                 return null;
 
-            if (element.Tag != "form")
+            if (!element.Tag.Equals("form", System.StringComparison.OrdinalIgnoreCase))
             {
                 context.Diagnostics.Add(DiagnosticInfo.Create(
                     DiagnosticDescriptors.BCF3040, decoAccess.Name.GetLocation(), [element.Tag]));
