@@ -448,6 +448,23 @@ public sealed class StaticMarkupSerializerTests
         Assert.False(StaticMarkupSerializer.IsFoldable(
             new RenderFragmentContentNode(Dynamic("ChildContent"))));
 
+    [Fact]
+    public void IsFoldable_ContentHoleNode_IsFalse()
+    {
+        // A ContentHoleNode is template-phase only and never reaches this serializer in a correctly
+        // expanded tree. If it somehow does, IsFoldable must refuse it rather than fold it into markup
+        // and silently drop the hole.
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ContentHoleNode(0)));
+    }
+
+    [Fact]
+    public void WriteTo_ContentHoleNode_Throws()
+    {
+        var builder = new StringBuilder();
+        Assert.Throws<System.NotSupportedException>(
+            () => StaticMarkupSerializer.WriteTo(builder, [new ContentHoleNode(0)]));
+    }
+
     // --- serialization ------------------------------------------------------------------------
 
     private static (string Markup, int Absorbed) Write(params RenderNode[] run)
