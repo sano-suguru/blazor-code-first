@@ -52,11 +52,17 @@ internal static class KeyabilityResolver
     /// same "keep going into the call's body" role <see cref="ResolveCall"/> plays before expansion).
     /// </summary>
     public static ContentRoot ResolveRoot(RenderNode node, ViewPartRegistry registry) =>
-        ResolveRoot(node, registry, new HashSet<string>(System.StringComparer.Ordinal), content: null);
+        ResolveRoot(node, registry, activeKeys: null, content: null);
 
     /// <param name="node">The node whose root is being resolved.</param>
     /// <param name="registry">The view part registry, followed transitively when the root is a view part call.</param>
-    /// <param name="activeKeys">The method keys already on the call stack, guarding against a cyclic view part call.</param>
+    /// <param name="activeKeys">
+    /// The method keys already on the call stack, guarding against a cyclic view part call, or
+    /// <see langword="null"/> when none has been entered yet. Allocated lazily by
+    /// <see cref="ResolveCall"/> on first use rather than up front: a post-expansion tree (walked from
+    /// <see cref="Generation.ViewPartExpander"/>) never contains a <see cref="ViewPartCallNode"/>, so that
+    /// walk never needs this set at all.
+    /// </param>
     /// <param name="content">
     /// The content the enclosing call supplied, by callee ordinal, or <see langword="null"/> when this walk has
     /// no call above it — which is the registry pass over a definition nobody calls.
@@ -64,7 +70,7 @@ internal static class KeyabilityResolver
     private static ContentRoot ResolveRoot(
         RenderNode node,
         ViewPartRegistry registry,
-        HashSet<string> activeKeys,
+        HashSet<string>? activeKeys,
         IReadOnlyDictionary<int, RenderNode>? content) =>
         node switch
         {
@@ -104,7 +110,7 @@ internal static class KeyabilityResolver
     private static ContentRoot ResolveHole(
         ContentHoleNode hole,
         ViewPartRegistry registry,
-        HashSet<string> activeKeys,
+        HashSet<string>? activeKeys,
         IReadOnlyDictionary<int, RenderNode>? content) =>
         content is not null && content.TryGetValue(hole.ParameterOrdinal, out var supplied)
             ? ResolveRoot(supplied, registry, activeKeys, content: null)
@@ -113,8 +119,12 @@ internal static class KeyabilityResolver
     private static ContentRoot ResolveCall(
         ViewPartCallNode call,
         ViewPartRegistry registry,
-        HashSet<string> activeKeys)
+        HashSet<string>? activeKeys)
     {
+        // Allocated here, on first actual use, rather than by every ResolveRoot caller: a walk that never
+        // reaches a ViewPartCallNode (every post-expansion walk, and most template walks) never pays for it.
+        activeKeys ??= new HashSet<string>(System.StringComparer.Ordinal);
+
         // A cycle cannot be resolved to a concrete root; treat as unresolved and let expansion's BCF1002
         // (call-dependent) report the cycle.
         if (!activeKeys.Add(call.MethodKey))
@@ -150,13 +160,13 @@ internal static class KeyabilityResolver
     /// child walk every traversal over this hierarchy goes through — <see cref="CollectForEachContentDiagnostics"/>
     /// is currently its only caller.
     /// </summary>
-    public static IEnumerable<RenderNode> Children(RenderNode node) => node switch
+    public static ImmutableArray<RenderNode> Children(RenderNode node) => node switch
     {
         IfNode n => n.Otherwise is null ? [n.Then] : [n.Then, n.Otherwise],
         TransplantedIfNode n => n.Otherwise is null ? [n.Then] : [n.Then, n.Otherwise],
         ExpansionNode n => [n.Body],
         ForEachNode n => [n.Content],
-        ComponentNode n => n.Slots.AsImmutableArray().Select(static s => s.Content),
+        ComponentNode n => [.. n.Slots.AsImmutableArray().Select(static s => s.Content)],
         ElementNode n => n.Children.AsImmutableArray(),
         TextContentNode => [],
         FragmentNode n => n.Children.AsImmutableArray(),
@@ -165,7 +175,7 @@ internal static class KeyabilityResolver
         OpaqueViewNode => [],
         TransplantedBlockNode n => [n.Content],
         ContentHoleNode => [],
-        ViewPartCallNode n => n.ContentArguments.AsImmutableArray().Select(static a => a.Content),
+        ViewPartCallNode n => [.. n.ContentArguments.AsImmutableArray().Select(static a => a.Content)],
         _ => throw new System.NotSupportedException(
             $"Unknown RenderNode type '{node.GetType().Name}'; add a Children case for it."),
     };
@@ -183,26 +193,26 @@ internal static class KeyabilityResolver
     {
         if (node is ForEachNode { Key: not null } forEach)
         {
+            // Populated by construction; this walk only ever reaches a pre-expansion tree (registry pass
+            // over a ViewPartDefinition.Body, or a component's own un-expanded Body), where Location is
+            // never cleared. A null here means this method was called on an expanded tree, which is a bug
+            // in the caller, not a case to recover from silently.
+            var location = forEach.Location
+                ?? throw new System.InvalidOperationException(
+                    "CollectForEachContentDiagnostics reached a ForEachNode with no Location; this walk "
+                        + "is pre-expansion only, and Location is cleared only after expansion.");
+
             var root = ResolveRoot(forEach.Content, registry);
 
             // Exclusive by construction, not by ordering: a region root has nowhere to write a
             // .Key, so IsKeyed cannot hold where Kind is Region.
             if (root.Kind == ContentRootKind.Region)
             {
-                sink.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3003,
-                    // Populated by construction; CollectForEachContentDiagnostics only ever walks a
-                    // pre-expansion tree (registry pass over a ViewPartDefinition.Body, or a component's
-                    // own un-expanded Body), where Location is never cleared.
-                    forEach.Location!.Value.ToLocation(),
-                    []));
+                sink.Add(DiagnosticInfo.Create(DiagnosticDescriptors.BCF3003, location.ToLocation(), []));
             }
             else if (root.IsKeyed)
             {
-                sink.Add(DiagnosticInfo.Create(
-                    DiagnosticDescriptors.BCF3032,
-                    forEach.Location!.Value.ToLocation(),
-                    []));
+                sink.Add(DiagnosticInfo.Create(DiagnosticDescriptors.BCF3032, location.ToLocation(), []));
             }
         }
 

@@ -668,8 +668,8 @@ public sealed class IncrementalGeneratorTests
     }
 
     /// <summary>
-    /// Proves that the <c>Component&lt;T&gt;()</c> interop model (<see cref="ComponentNode"/>,
-    /// <see cref="ComponentNode"/>, and their <c>EquatableArray&lt;ComponentParameter&gt;</c>
+    /// Proves that the <c>Component&lt;T&gt;()</c> interop model (<see cref="ComponentNode"/>
+    /// and its <c>EquatableArray&lt;ComponentParameter&gt;</c>
     /// parameter lists) is value-equal across identical reruns, so the host's
     /// <c>ComponentModeling</c> output is cached rather than recomputed as a distinct-but-equal value.
     /// </summary>
