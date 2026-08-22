@@ -500,7 +500,7 @@ public sealed class ViewPartTransplantTests
     [InlineData("0")]
     [InlineData("9")]
     [InlineData("12")]
-    public void ViewPart_WhenLeadingLocalNamesTheGeneratedContextPattern_RenamesIt(string digits)
+    public void ViewPart_WhenALambdaParameterNamesTheGeneratedContextPattern_RenamesIt(string digits)
     {
         var result = Run(
             """=> Div[Part()];""",
@@ -519,7 +519,7 @@ public sealed class ViewPartTransplantTests
     /// <c>AuthoredContextNameHygiene</c> exists to rename around, so it survives as written.
     /// </summary>
     [Fact]
-    public void ViewPart_WhenLeadingLocalNameHasANonDigitSuffix_IsNotRenamed()
+    public void ViewPart_WhenALambdaParameterNameHasANonDigitSuffix_IsNotRenamed()
     {
         var result = Run(
             """=> Div[Part()];""",
