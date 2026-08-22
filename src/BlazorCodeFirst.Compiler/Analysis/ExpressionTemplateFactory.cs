@@ -456,6 +456,17 @@ internal static class ExpressionTemplateFactory
         if (FindTypeOnlySyntax(name) is not { } typeSyntax)
             return null;
 
+        // Swapping which side of the ?? runs first is a stryker survivor, measured equivalent rather than
+        // assumed: hand-applying the swap and running BlazorCodeFirst.Compiler.Tests, including probes
+        // built the way ObjectCreationExpressionType_UnresolvedType_ReportsBCF3015's own "new Missing()"
+        // row is (a bare unresolved constructor call) and a namespace-qualified variant
+        // ("new System.MissingConcreteType()"), left every test passing unchanged with identical
+        // diagnostics and identical spliced code in both orders. Reading why: when the right operand is
+        // non-null (typeSyntax.Parent is the creation being constructed), GetTypeInfo(name) and
+        // GetTypeInfo(creation) answer from the same failed bind and so carry the same (error) type either
+        // way; when it is null (every other FindTypeOnlySyntax position — a cast, a pattern, an is/as
+        // right-hand side — none of which is a creation), the swap only reorders `a ?? null` against
+        // `null ?? a`, which return the same `a` regardless of order.
         return context.SemanticModel.GetTypeInfo(name, context.CancellationToken).Type
             ?? (typeSyntax.Parent is ObjectCreationExpressionSyntax creation
                 ? context.SemanticModel.GetTypeInfo(creation, context.CancellationToken).Type
@@ -484,6 +495,17 @@ internal static class ExpressionTemplateFactory
                         || binary.IsKind(SyntaxKind.AsExpression)) => current,
             DeclarationPatternSyntax declarationPattern when declarationPattern.Type == current => current,
             RecursivePatternSyntax recursivePattern when recursivePattern.Type == current => current,
+            // Flipping this to != is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it at all (its own report is NoCoverage), and
+            // reading why shows none can. A bare name only parses as a TypePatternSyntax when Roslyn's own
+            // pattern grammar successfully binds it as a type; an unresolvable name is reinterpreted as a
+            // ConstantPatternSyntax instead (confirmed by hand: 'new object() is System.Missing' parses as
+            // the classic BinaryExpressionSyntax is-expression above, not this arm, and a bare 'Missing' in
+            // a pattern position binds as ConstantPatternSyntax). A name that DOES reach this arm is
+            // therefore always already resolved, which GetReferencedType's own symbol-based branch above
+            // (`symbol is ITypeSymbol symbolType`) already returns before ever calling this method — so no
+            // name reported by TryReportUnresolvedType (which requires an unresolved type) can be the one
+            // this arm is asked to classify.
             TypePatternSyntax typePattern when typePattern.Type == current => current,
             TupleElementSyntax element when element.Type == current => current,
             ParameterSyntax parameter when parameter.Type == current => current,
@@ -508,10 +530,39 @@ internal static class ExpressionTemplateFactory
     private static bool OwnsName(NameSyntax parent, NameSyntax child) =>
         parent switch
         {
+            // Flipping the Left half to != is a stryker survivor, measured equivalent rather than assumed:
+            // hand-applying it and running the full BlazorCodeFirst.Compiler.Tests suite, plus a probe
+            // built around a global-qualified reference with a genuinely unresolvable middle component
+            // ('typeof(global::System.MissingNamespace.Deeper)'), left every test passing unchanged.
+            // Reading why: IsGlobalQualifiedTypeReference's own second loop re-descends through every
+            // QualifiedNameSyntax.Left independently of OwnsName, starting from wherever the first loop's
+            // ascent stopped. Stopping that ascent one step early through a false Left comparison still
+            // leaves `current` inside the same qualified-name spine, so the second loop's unconditional
+            // `.Left` walk reaches the identical alias-qualified root either way; only diverting `current`
+            // to a node outside that spine would change the final answer, and a false OwnsName result
+            // never does that — it only ever halts the climb, never redirects it.
             QualifiedNameSyntax qualified =>
                 qualified.Left == child || qualified.Right == child,
+            // Flipping the Alias half to != is a stryker survivor, measured equivalent rather than assumed:
+            // hand-applying it and running the full suite left every test passing unchanged. Reading why:
+            // this branch is asked about `child` == the alias identifier itself (e.g. the 'global' token
+            // in 'global::T') only when `child` is where the first loop's ascent *starts*, since ascent
+            // only ever moves to a larger enclosing node afterward, never back down to an alias's own
+            // sub-node. That starting `child` is `name` itself, but 'global' — a contextual keyword with no
+            // value or type of its own — never carries a non-null GetTypeInfo, so GetReferencedType returns
+            // null and TryReportUnresolvedType's own `type is null` guard returns before ever constructing
+            // this call. This branch cannot observe a `child` that is the case it is being asked to widen.
             AliasQualifiedNameSyntax alias =>
                 alias.Alias == child || alias.Name == child,
+            // Flipping this to true is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and reading
+            // why shows none can. The only caller passes `current.Parent` as `parent`, so `parent` is
+            // already known to structurally contain `current` as a direct child before this method is ever
+            // asked. NameSyntax has exactly four shapes: QualifiedNameSyntax and AliasQualifiedNameSyntax
+            // are handled above; IdentifierNameSyntax has no NameSyntax child at all, and GenericNameSyntax's
+            // only NameSyntax-shaped descendants sit inside its TypeArgumentListSyntax, one level below a
+            // direct child. Neither can be the `parent` that put `current` here, so this arm is asked about
+            // a combination the caller cannot construct.
             _ => false,
         };
 
@@ -521,6 +572,17 @@ internal static class ExpressionTemplateFactory
         TextSpan span,
         ExpressionSegment segment)
     {
+        // Dropping this call is a stryker survivor, measured equivalent rather than assumed: hand-applying
+        // the removal and running the full BlazorCodeFirst.Compiler.Tests suite and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Reading why: every span this
+        // helper's eight callers record is either a leaf token (a declaration, an identifier, a generic
+        // name's own IdentifierSpan deliberately excluding its type arguments) that nothing else can be
+        // nested inside, or the wide namespace-qualified-type span TryQualifyNamespaceQualifiedType builds
+        // — which covers only names DescendantNodesAndSelf's pre-order walk has already visited (the
+        // qualifying left side, visited before the right-side name that triggers the wide replacement),
+        // never one still to come. IsNestedInReplaced's callers all check a *later* node's span against
+        // spans recorded so far, so a span this helper stops recording is never the one protecting the
+        // still-unvisited work that check exists for.
         replacements.Add(new Replacement(span, [segment]));
         replacedSpans.Add(span);
     }

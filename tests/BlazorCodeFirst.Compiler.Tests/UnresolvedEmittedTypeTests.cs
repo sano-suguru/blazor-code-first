@@ -115,6 +115,42 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void TransplantedLocalDeclarationType_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Part()
+                {
+                    Probe x = default;
+                    return Span["x"];
+                }
+
+                protected override View Body => Part();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void LambdaParameterType_UnresolvedType_ReportsBCF3015()
+    {
+        var result = AnalyzeValueExpression("(System.Func<object, object>)((Probe x) => x)");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Equal("Probe", SourceText.From(result.Source).ToString(diagnostic.Span));
+    }
+
+    [Fact]
     public void OutOfPositionNamedThenUnresolvedPositional_RemainsLanguageAndBCF1003Owned()
     {
         const string source = """
@@ -1695,10 +1731,13 @@ public sealed class UnresolvedEmittedTypeTests
     [InlineData("typeof((Missing, int))")]
     [InlineData("default(Missing)")]
     [InlineData("new Missing()")]
+    [InlineData("(Missing)new object()")]
+    [InlineData("new Missing[1]")]
     [InlineData("new object() is Missing")]
     [InlineData("new object() as Missing")]
     [InlineData("new object() is Missing value")]
     [InlineData("new object() switch { Missing value => value, _ => null }")]
+    [InlineData("new object() is System.Missing")]
     [InlineData("new object() is Missing { }")]
     [InlineData("sizeof(Missing)")]
     [InlineData("stackalloc Missing[1]")]
@@ -1735,6 +1774,10 @@ public sealed class UnresolvedEmittedTypeTests
     [Theory]
     [InlineData("ActuallyMissingValue")]
     [InlineData("MissingMethod(1)")]
+    // The unresolved name sits on the left of an is-expression, not its type operand (the right): only the
+    // kind-and-side conjunction in FindTypeOnlySyntax's BinaryExpressionSyntax arm keeps this a value-side
+    // failure rather than misreading the left operand as the arm's own type position.
+    [InlineData("ActuallyMissingValue is int")]
     public void UnresolvedValueOrOverloadFailure_DoesNotReportBCF3015(string expression)
     {
         var result = AnalyzeValueExpression(expression);
@@ -1760,6 +1803,12 @@ public sealed class UnresolvedEmittedTypeTests
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
         Assert.Equal("Probe", SourceText.From(result.Source).ToString(diagnostic.Span));
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
+
+        // The invocation whose own explicit type argument was just reported is handled by that report
+        // alone: ReportUnresolvedExtensionTypeArguments' true return records its span so the normalization
+        // below never also rewrites it into a qualified static call, which would otherwise still name the
+        // unresolved 'Probe' but now inside emitted-looking code a reader could mistake for accepted.
+        Assert.Contains("new object[] { 1 }.Cast<Probe>()", result.Template.Substitute([]).ToCode());
     }
 
     [Fact]
@@ -2378,6 +2427,70 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3012");
         Assert.Empty(result.GeneratedSources);
         Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
+    }
+
+    /// <summary>
+    /// A type named through a <c>using</c> alias to a resolved type is not an unresolved reference merely
+    /// because it carries alias info: <c>GetReferencedType</c> reads the alias's own target rather than
+    /// treating every aliased name as suspect, and that target being a resolved type is what
+    /// <c>TryReportUnresolvedType</c>'s guard has to still recognize as "nothing to report" once an alias
+    /// is present.
+    /// </summary>
+    [Fact]
+    public void AliasedTypeReference_TargetResolves_DoesNotReportUnresolvedType()
+    {
+        const string source = """
+            using Widget = System.String;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() => typeof(Widget).Name;
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var tree = compilation.SyntaxTrees.Single();
+        var model = compilation.GetSemanticModel(tree);
+        var root = tree.GetRoot();
+        var host = root.DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "Host");
+        var method = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
+        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
+        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
+        var context = new ViewPartBodyContext(
+            model,
+            containingType,
+            method.Identifier.ValueText,
+            knownSymbols,
+            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
+            default);
+        var syntax = method.ExpressionBody!.Expression;
+
+        ExpressionTemplateFactory.Create(syntax, context);
+
+        Assert.DoesNotContain(context.Diagnostics.ToImmutable(), static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// The global-qualification exemption reaches through every level of a multi-segment path, not only a
+    /// one-segment 'global::Type': IsGlobalQualifiedTypeReference's climb from a middle or leaf segment has
+    /// to keep recognizing the alias root through however many QualifiedNameSyntax levels sit above it.
+    /// </summary>
+    [Fact]
+    public void DeepGlobalQualifiedChain_UnresolvedMiddleSegment_IsPreserved()
+    {
+        var result = AnalyzeValueExpression("typeof(global::System.MissingNamespace.Deeper)");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
