@@ -456,6 +456,17 @@ internal static class ExpressionTemplateFactory
         if (FindTypeOnlySyntax(name) is not { } typeSyntax)
             return null;
 
+        // Swapping which side of the ?? runs first is a stryker survivor, measured equivalent rather than
+        // assumed: hand-applying the swap and running BlazorCodeFirst.Compiler.Tests, including probes
+        // built the way ObjectCreationExpressionType_UnresolvedType_ReportsBCF3015's own "new Missing()"
+        // row is (a bare unresolved constructor call) and a namespace-qualified variant
+        // ("new System.MissingConcreteType()"), left every test passing unchanged with identical
+        // diagnostics and identical spliced code in both orders. Reading why: when the right operand is
+        // non-null (typeSyntax.Parent is the creation being constructed), GetTypeInfo(name) and
+        // GetTypeInfo(creation) answer from the same failed bind and so carry the same (error) type either
+        // way; when it is null (every other FindTypeOnlySyntax position — a cast, a pattern, an is/as
+        // right-hand side — none of which is a creation), the swap only reorders `a ?? null` against
+        // `null ?? a`, which return the same `a` regardless of order.
         return context.SemanticModel.GetTypeInfo(name, context.CancellationToken).Type
             ?? (typeSyntax.Parent is ObjectCreationExpressionSyntax creation
                 ? context.SemanticModel.GetTypeInfo(creation, context.CancellationToken).Type
@@ -484,6 +495,17 @@ internal static class ExpressionTemplateFactory
                         || binary.IsKind(SyntaxKind.AsExpression)) => current,
             DeclarationPatternSyntax declarationPattern when declarationPattern.Type == current => current,
             RecursivePatternSyntax recursivePattern when recursivePattern.Type == current => current,
+            // Flipping this to != is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it at all (its own report is NoCoverage), and
+            // reading why shows none can. A bare name only parses as a TypePatternSyntax when Roslyn's own
+            // pattern grammar successfully binds it as a type; an unresolvable name is reinterpreted as a
+            // ConstantPatternSyntax instead (confirmed by hand: 'new object() is System.Missing' parses as
+            // the classic BinaryExpressionSyntax is-expression above, not this arm, and a bare 'Missing' in
+            // a pattern position binds as ConstantPatternSyntax). A name that DOES reach this arm is
+            // therefore always already resolved, which GetReferencedType's own symbol-based branch above
+            // (`symbol is ITypeSymbol symbolType`) already returns before ever calling this method — so no
+            // name reported by TryReportUnresolvedType (which requires an unresolved type) can be the one
+            // this arm is asked to classify.
             TypePatternSyntax typePattern when typePattern.Type == current => current,
             TupleElementSyntax element when element.Type == current => current,
             ParameterSyntax parameter when parameter.Type == current => current,
@@ -508,10 +530,39 @@ internal static class ExpressionTemplateFactory
     private static bool OwnsName(NameSyntax parent, NameSyntax child) =>
         parent switch
         {
+            // Flipping the Left half to != is a stryker survivor, measured equivalent rather than assumed:
+            // hand-applying it and running the full BlazorCodeFirst.Compiler.Tests suite, plus a probe
+            // built around a global-qualified reference with a genuinely unresolvable middle component
+            // ('typeof(global::System.MissingNamespace.Deeper)'), left every test passing unchanged.
+            // Reading why: IsGlobalQualifiedTypeReference's own second loop re-descends through every
+            // QualifiedNameSyntax.Left independently of OwnsName, starting from wherever the first loop's
+            // ascent stopped. Stopping that ascent one step early through a false Left comparison still
+            // leaves `current` inside the same qualified-name spine, so the second loop's unconditional
+            // `.Left` walk reaches the identical alias-qualified root either way; only diverting `current`
+            // to a node outside that spine would change the final answer, and a false OwnsName result
+            // never does that — it only ever halts the climb, never redirects it.
             QualifiedNameSyntax qualified =>
                 qualified.Left == child || qualified.Right == child,
+            // Flipping the Alias half to != is a stryker survivor, measured equivalent rather than assumed:
+            // hand-applying it and running the full suite left every test passing unchanged. Reading why:
+            // this branch is asked about `child` == the alias identifier itself (e.g. the 'global' token
+            // in 'global::T') only when `child` is where the first loop's ascent *starts*, since ascent
+            // only ever moves to a larger enclosing node afterward, never back down to an alias's own
+            // sub-node. That starting `child` is `name` itself, but 'global' — a contextual keyword with no
+            // value or type of its own — never carries a non-null GetTypeInfo, so GetReferencedType returns
+            // null and TryReportUnresolvedType's own `type is null` guard returns before ever constructing
+            // this call. This branch cannot observe a `child` that is the case it is being asked to widen.
             AliasQualifiedNameSyntax alias =>
                 alias.Alias == child || alias.Name == child,
+            // Flipping this to true is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and reading
+            // why shows none can. The only caller passes `current.Parent` as `parent`, so `parent` is
+            // already known to structurally contain `current` as a direct child before this method is ever
+            // asked. NameSyntax has exactly four shapes: QualifiedNameSyntax and AliasQualifiedNameSyntax
+            // are handled above; IdentifierNameSyntax has no NameSyntax child at all, and GenericNameSyntax's
+            // only NameSyntax-shaped descendants sit inside its TypeArgumentListSyntax, one level below a
+            // direct child. Neither can be the `parent` that put `current` here, so this arm is asked about
+            // a combination the caller cannot construct.
             _ => false,
         };
 
@@ -521,6 +572,17 @@ internal static class ExpressionTemplateFactory
         TextSpan span,
         ExpressionSegment segment)
     {
+        // Dropping this call is a stryker survivor, measured equivalent rather than assumed: hand-applying
+        // the removal and running the full BlazorCodeFirst.Compiler.Tests suite and
+        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged. Reading why: every span this
+        // helper's eight callers record is either a leaf token (a declaration, an identifier, a generic
+        // name's own IdentifierSpan deliberately excluding its type arguments) that nothing else can be
+        // nested inside, or the wide namespace-qualified-type span TryQualifyNamespaceQualifiedType builds
+        // — which covers only names DescendantNodesAndSelf's pre-order walk has already visited (the
+        // qualifying left side, visited before the right-side name that triggers the wide replacement),
+        // never one still to come. IsNestedInReplaced's callers all check a *later* node's span against
+        // spans recorded so far, so a span this helper stops recording is never the one protecting the
+        // still-unvisited work that check exists for.
         replacements.Add(new Replacement(span, [segment]));
         replacedSpans.Add(span);
     }
@@ -645,6 +707,11 @@ internal static class ExpressionTemplateFactory
         ViewPartBodyContext context,
         out string reason)
     {
+        // Changing this initial value is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying it and running the full suite left every test passing unchanged. Reading why:
+        // every `false` return below leaves `reason` unread by its caller (IsUnsupportedSourceLocalReference
+        // reports nothing on a `false` result), and the one `true` return overwrites it first with the
+        // actual message. No return path reads this initial value.
         reason = string.Empty;
 
         var kindLabel = symbol switch
@@ -652,6 +719,19 @@ internal static class ExpressionTemplateFactory
             IMethodSymbol { MethodKind: MethodKind.LocalFunction } => "local function",
             ILocalSymbol => "local",
             IRangeVariableSymbol => "range variable",
+            // Emptying this string is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and reading
+            // why shows none can, for a reason the local-function and range-variable arms above do not
+            // share. Both of those can be captured into an extension-call argument, which this file
+            // re-analyzes under that argument's own narrower root — a root the enclosing declaration falls
+            // outside of, which is exactly how RangeVariableAsExtensionArgument_ReportsBCF1002 and
+            // LocalFunctionAsExtensionArgument_ReportsBCF1002 reach this method's `true` return. A label has
+            // no expression form at all — its one reference site, `goto`, is itself a statement, never an
+            // argument — so a label reference can only ever sit in the same CreateForStatements-processed
+            // statement, the same lambda block, or the same transplanted scope as its own declaration. Every
+            // path that reaches this method already holds a `root` or a transplanted-scope span covering
+            // that whole unit, so the declaration is always found and this arm's `true` return is never
+            // taken for a label.
             ILabelSymbol => "label",
             _ => null,
         };
@@ -697,6 +777,11 @@ internal static class ExpressionTemplateFactory
         // The requirement is keyed on the type that declares the referenced member so expansion checks
         // that type, not the view part's own containing type, against the component's inheritance
         // chain. A private/protected member always has a containing type; guard defensively regardless.
+        // Changing this fallback's text is an unreached stryker mutant, reasoned rather than measured: no
+        // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and the comment
+        // right above already names why: `kind` is non-null here only for Private, Protected, or
+        // ProtectedAndInternal accessibility, and every symbol Roslyn can assign one of those to is a
+        // member — a member always has a containing type.
         var requiredContainingTypeKey = symbol.ContainingType is { } containingType
             ? containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
             : string.Empty;
@@ -752,6 +837,13 @@ internal static class ExpressionTemplateFactory
                 qualifiedNode = memberAccess;
                 leftSide = memberAccess.Expression;
                 break;
+            // Flipping this to true is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and the same
+            // reasoning that makes the leftSide check below measured-equivalent applies here too. This
+            // early `false` return, like that one, is reached only when `symbol` is an INamedTypeSymbol, so
+            // the caller's fallback on `false` — RecordMemberAccessRequirement — always no-ops on it
+            // (it only acts on IFieldSymbol, IPropertySymbol, IMethodSymbol, or IEventSymbol). Returning
+            // `true` instead would skip that same no-op call.
             default:
                 return false;
         }
@@ -759,20 +851,53 @@ internal static class ExpressionTemplateFactory
         // Only a namespace-qualified left needs whole-path rewriting. A type-qualified left (an enclosing
         // type naming a nested type) is already handled by qualifying that left identifier on its own, and
         // a value receiver is a genuine member access that keeps its unqualified text.
+        // Flipping this to true is a stryker survivor, measured equivalent rather than assumed: hand-
+        // applying the flip and running the full BlazorCodeFirst.Compiler.Tests suite left every test
+        // passing unchanged. Reading why: this line is reached only when `symbol` is an INamedTypeSymbol
+        // (the guard above already refused any other kind), so the caller's fallback on a `false` return —
+        // RecordMemberAccessRequirement — is asked about a type symbol every time. That method only ever
+        // acts on IFieldSymbol, IPropertySymbol, IMethodSymbol, or IEventSymbol; a type symbol is a no-op
+        // there regardless. Returning `true` instead skips that same no-op call, which changes nothing
+        // observable: neither branch records a requirement or adds a replacement for a name that reaches
+        // this specific check.
         if (context.SemanticModel.GetSymbolInfo(leftSide, context.CancellationToken).Symbol
             is not INamespaceSymbol)
         {
             return false;
         }
 
+        // Dropping this call is a stryker survivor, measured equivalent rather than assumed: hand-applying
+        // the removal and running the full suite left every test passing unchanged. Reading why: this
+        // whole path (leftSide resolves to an INamespaceSymbol) only ever reaches a type declared directly
+        // in a namespace — the sibling branch above already owns a type-qualified left (an enclosing type
+        // naming a nested type), which is the only way `typeSymbol` here could otherwise be non-public. A
+        // namespace-scoped type's DeclaredAccessibility is Public or Internal, and RecordAccessRequirement's
+        // own kind switch maps both to `null`, recording nothing for either. The call is reached, but never
+        // with a symbol it would act on.
         RecordAccessRequirement(typeSymbol, context);
 
         // Replace from the start of the whole path through the type identifier token; a generic name's
         // trailing type-argument list stays in place so its arguments are qualified independently.
         var span = TextSpan.FromBounds(qualifiedNode.SpanStart, IdentifierSpan(name).End);
+        // Forcing this ternary to its true branch is a stryker survivor, measured equivalent rather than
+        // assumed: hand-applying it and running the full suite left every test passing unchanged. Reading
+        // why: QualifiedNameWithoutTypeArguments and FullyQualifiedFormat differ only in how a type
+        // argument list renders, and the false branch is taken only when `name` is not a GenericNameSyntax
+        // — a plain identifier, which can only name a type Roslyn resolved with no type arguments at all.
+        // With nothing for WithGenericsOptions(None) to hide, the two formats produce identical text for
+        // that symbol, the same reason id=368's sibling reasoning holds elsewhere in this file's own
+        // generic-name qualification (line 332).
         var qualifiedText = name is GenericNameSyntax
             ? typeSymbol.ToDisplayString(QualifiedNameWithoutTypeArguments)
             : typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        // Flipping this to false is a stryker survivor, measured equivalent rather than assumed: hand-
+        // applying it and running the full suite left every test passing unchanged. Reading why: the
+        // replacement was already added, on the line above, regardless of what this method returns — a
+        // `false` return only makes IsMemberAccessName's caller fall through to
+        // RecordMemberAccessRequirement, and `symbol` here is the INamedTypeSymbol this whole method
+        // requires from its opening guard, which that call always no-ops on (it only acts on
+        // IFieldSymbol, IPropertySymbol, IMethodSymbol, or IEventSymbol). Both branches end in the same
+        // `continue`, over the same already-spliced text.
         AddReplacement(replacements, replacedSpans, span, new LiteralExpressionSegment(qualifiedText));
         return true;
     }
@@ -885,6 +1010,20 @@ internal static class ExpressionTemplateFactory
         builder.Add(new LiteralExpressionSegment(")"));
 
         // The declaring type and the method itself must be accessible from the expansion site.
+        // Dropping this call is a stryker survivor, measured equivalent in every case this file's test
+        // suite can currently construct, though not proven the way RecordAccessRequirement(method, ...)
+        // just below is: hand-applying the removal and running the full BlazorCodeFirst.Compiler.Tests
+        // suite left every test passing unchanged. Reading why: an extension method's declaring type has
+        // to be a type its own extension methods can be found through, and every extension class this
+        // scanner's own instance-syntax resolution can reach in a ViewPart or design-time expression body
+        // is one this compiler's RenderExpressionAnalyzer classification recognizes only when it is a
+        // top-level (non-nested) class — never private, since only a nested class can be. A nested static
+        // class carrying the extension method (the one shape that would give this call a private or
+        // protected `method.ContainingType` to act on) was tried directly and left the ViewPart's own body
+        // refused as "not a statically sequenceable expression" before this normalization ever runs, for a
+        // reason unrelated to this mutation. No probe built within the currently-supported surface reaches
+        // a non-public extension-method containing type, so whether this call ever fires for one is an
+        // open question rather than a proven equivalence.
         RecordAccessRequirement(method.ContainingType, context);
         RecordAccessRequirement(method, context);
 
@@ -915,6 +1054,13 @@ internal static class ExpressionTemplateFactory
     /// </summary>
     private static string ReceiverRefKindPrefix(IMethodSymbol method)
     {
+        // Changing this fallback's text is an unreached stryker mutant, reasoned rather than measured: no
+        // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and reading why
+        // shows none can. This method's one caller (TryCreateExtensionMethodCall) is reached only once
+        // CreateCore's own caller has already matched `method.MethodKind: MethodKind.ReducedExtension`, and
+        // Roslyn only assigns that kind to a method obtained by reducing an unreduced extension method
+        // against a receiver — ReducedFrom is that unreduced original, always non-null with the receiver as
+        // its first declared parameter, for every ReducedExtension symbol Roslyn can produce.
         if (method.ReducedFrom is not { Parameters.Length: > 0 } original)
             return string.Empty;
 
@@ -934,6 +1080,14 @@ internal static class ExpressionTemplateFactory
     private static string LeadingArgumentText(ArgumentSyntax argument)
     {
         var offset = argument.Expression.SpanStart - argument.SpanStart;
+        // Forcing this ternary to its true branch, and widening the guard to offset >= 0, are both stryker
+        // survivors, measured equivalent rather than assumed: hand-applying each and running
+        // ExtensionCallRewrite_TwoTypeArgumentsAndANamedArgument_ProducesExactCode (which exercises both a
+        // plain positional argument, offset 0, and a named one, offset > 0) left it passing unchanged for
+        // both mutants. Reading why: offset can never be negative — Expression is a child of argument, so
+        // its span cannot start before argument's own — so the branch these mutations force is exactly the
+        // one already reachable, taken with the one input (offset == 0) where the guard's own truth value
+        // flips: Substring(0, 0) returns "", the same value string.Empty already carries.
         return offset > 0 ? argument.ToString().Substring(0, offset) : string.Empty;
     }
 
@@ -1008,6 +1162,15 @@ internal static class ExpressionTemplateFactory
 
     private static bool IsInsideNameof(SyntaxNode node)
     {
+        // Flipping this to `current is null` — which turns the loop's body unreachable, since node.Parent is
+        // non-null for anything this file walks — is a stryker survivor, measured equivalent rather than
+        // assumed: hand-applying it and running the full suite (BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests) left every test passing unchanged. Reading why: this method's
+        // whole reason to exist is defensive redundancy against the first pass's own nameof collapse (see
+        // TryCreateNameofConstant) — every nameof(...) is a compile-time constant unconditionally, so the
+        // first pass always collapses it and records its span, and IsNestedInReplaced already refuses to
+        // reprocess anything inside that span before this method's own caller is ever reached. No input
+        // exists where a name is genuinely inside an uncollapsed nameof for this loop to still be needed.
         for (var current = node.Parent; current is not null; current = current.Parent)
         {
             if (current is InvocationExpressionSyntax
@@ -1017,6 +1180,8 @@ internal static class ExpressionTemplateFactory
                 }
                 && arguments.Span.Contains(node.Span))
             {
+                // Flipping this to false is an unreached stryker mutant for the same reason the loop
+                // condition above is: nothing reaches this line with the loop's body live.
                 return true;
             }
         }

@@ -281,6 +281,13 @@ public sealed class ViewPartDefinitionTests
 
     private static RenderNode? AnalyzeBody(string source, string methodName)
     {
+        var (context, method) = AnalyzeMethod(source, methodName);
+        return RenderExpressionAnalyzer.Analyze(method.ExpressionBody!.Expression, context);
+    }
+
+    private static (ViewPartBodyContext Context, MethodDeclarationSyntax Method) AnalyzeMethod(
+        string source, string methodName)
+    {
         var compilation = CompilationTestHost.CreateCompilation(source);
         var tree = compilation.SyntaxTrees.Single();
         var model = compilation.GetSemanticModel(tree);
@@ -306,6 +313,44 @@ public sealed class ViewPartDefinitionTests
             isInlinedAtCallSites: false,
             default);
 
-        return RenderExpressionAnalyzer.Analyze(method.ExpressionBody!.Expression, context);
+        return (context, method);
+    }
+
+    /// <summary>
+    /// <see cref="ExpressionTemplateFactory.CreateForStatements"/> writes its separator only between
+    /// statements, not before the first or after the last: dropping it, or widening its guard to also fire
+    /// on the first statement, are stryker survivors this pins down directly at the segment level, where
+    /// the emitted source-text comparison every other test in this file makes is too coarse to feel a
+    /// missing or misplaced newline between two syntactically self-contained statements.
+    /// </summary>
+    [Fact]
+    public void CreateForStatements_TwoStatements_JoinsThemWithExactlyOneSeparator()
+    {
+        var source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Counter : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Greeting()
+                {
+                    var a = 1;
+                    var b = 2;
+                    return Span[(a + b).ToString()];
+                }
+
+                protected override View Body => Span["Body"];
+            }
+            """;
+
+        var (context, method) = AnalyzeMethod(source, "Greeting");
+        var block = method.Body!;
+        var statements = ImmutableArray.Create(block.Statements[0], block.Statements[1]);
+
+        var template = ExpressionTemplateFactory.CreateForStatements(statements, context);
+        var code = template.Substitute([]).ToCode();
+
+        Assert.Equal("int a = 1;\nint b = 2;", code);
     }
 }
