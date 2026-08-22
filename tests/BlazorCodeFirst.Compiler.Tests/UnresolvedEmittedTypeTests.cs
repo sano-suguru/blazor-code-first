@@ -2745,6 +2745,40 @@ public sealed class UnresolvedEmittedTypeTests
             result.Template.Substitute([]).ToCode());
     }
 
+    /// <summary>
+    /// The extension method's own declaring type and the method itself must each be accessible from the
+    /// expansion site, the same requirement an ordinary unqualified static-member reference carries: a
+    /// private extension method normalized into a static call still has to satisfy that check, or an
+    /// inlined caller could end up with a static call to a method it cannot see.
+    /// </summary>
+    [Fact]
+    public void PrivateExtensionMethod_ReportsBCF1002()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public static class Widget
+            {
+                private static string Loud(this string self) => self.ToUpperInvariant();
+
+                [ViewPart]
+                public static View Label(string value) => Span.Attr("title", value.Loud());
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => Widget.Label("x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("Loud", diagnostic.GetMessage());
+        Assert.Contains("not accessible", diagnostic.GetMessage());
+    }
+
     /// <summary>As the null-conditional case above, for an inferred type argument that cannot be named.</summary>
     [Fact]
     public void ExtensionCallWithUnnameableInferredTypeArgument_ReportsBCF1002AndLeavesTextUnmodified()

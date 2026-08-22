@@ -1010,6 +1010,20 @@ internal static class ExpressionTemplateFactory
         builder.Add(new LiteralExpressionSegment(")"));
 
         // The declaring type and the method itself must be accessible from the expansion site.
+        // Dropping this call is a stryker survivor, measured equivalent in every case this file's test
+        // suite can currently construct, though not proven the way RecordAccessRequirement(method, ...)
+        // just below is: hand-applying the removal and running the full BlazorCodeFirst.Compiler.Tests
+        // suite left every test passing unchanged. Reading why: an extension method's declaring type has
+        // to be a type its own extension methods can be found through, and every extension class this
+        // scanner's own instance-syntax resolution can reach in a ViewPart or design-time expression body
+        // is one this compiler's RenderExpressionAnalyzer classification recognizes only when it is a
+        // top-level (non-nested) class — never private, since only a nested class can be. A nested static
+        // class carrying the extension method (the one shape that would give this call a private or
+        // protected `method.ContainingType` to act on) was tried directly and left the ViewPart's own body
+        // refused as "not a statically sequenceable expression" before this normalization ever runs, for a
+        // reason unrelated to this mutation. No probe built within the currently-supported surface reaches
+        // a non-public extension-method containing type, so whether this call ever fires for one is an
+        // open question rather than a proven equivalence.
         RecordAccessRequirement(method.ContainingType, context);
         RecordAccessRequirement(method, context);
 
