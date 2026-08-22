@@ -1990,6 +1990,22 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Contains("new object[] { 1 }.Cast<Probe>()", result.Template.Substitute([]).ToCode());
     }
 
+    /// <summary>
+    /// The complement of the survivor above: when every explicit type argument resolves,
+    /// <c>ReportUnresolvedExtensionTypeArguments</c> must answer false so normalization still rewrites the
+    /// call into its qualified static form, rather than leaving a perfectly good call unrewritten.
+    /// </summary>
+    [Fact]
+    public void ExtensionResolvedExplicitTypeArgument_StillNormalizesToQualifiedCall()
+    {
+        var result = AnalyzeValueExpression("new object[] { 1 }.Cast<object>().FirstOrDefault()");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(
+            "global::System.Linq.Enumerable.Cast<object>(new object[] { 1 })",
+            result.Template.Substitute([]).ToCode());
+    }
+
     [Fact]
     public void SameContextAndLocation_ExtensionUnresolvedTypeArgumentReportsBCF3015Once()
     {
@@ -2707,6 +2723,37 @@ public sealed class UnresolvedEmittedTypeTests
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
         Assert.Contains("local function", diagnostic.ToDiagnostic().GetMessage());
         Assert.Equal("Local", SourceText.From(result.Source).ToString(diagnostic.Span));
+    }
+
+    /// <summary>
+    /// A null-conditional extension call is refused (a static rewrite would change its short-circuit
+    /// semantics) rather than silently rewritten, and the refused invocation's own text must survive
+    /// unmodified: <c>TryCreateExtensionMethodCall</c>'s <c>segments</c> out parameter stays the empty array
+    /// set at the top of the method on this path, so its caller's <c>false</c> return has to actually gate
+    /// whether that empty array gets spliced in.
+    /// </summary>
+    [Fact]
+    public void NullConditionalExtensionCall_ReportsBCF1002AndLeavesTextUnmodified()
+    {
+        var result = AnalyzeValueExpression(
+            "((System.Collections.Generic.List<int>)null)?.FirstOrDefault()");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("cannot be normalized to a static call", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal(
+            "((global::System.Collections.Generic.List<int>)null)?.FirstOrDefault()",
+            result.Template.Substitute([]).ToCode());
+    }
+
+    /// <summary>As the null-conditional case above, for an inferred type argument that cannot be named.</summary>
+    [Fact]
+    public void ExtensionCallWithUnnameableInferredTypeArgument_ReportsBCF1002AndLeavesTextUnmodified()
+    {
+        var result = AnalyzeValueExpression("new TValue[0].FirstOrDefault()");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("cannot be named", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal("new TValue[0].FirstOrDefault()", result.Template.Substitute([]).ToCode());
     }
 
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
