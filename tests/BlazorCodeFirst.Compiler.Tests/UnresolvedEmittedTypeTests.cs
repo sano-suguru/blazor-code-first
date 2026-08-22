@@ -1824,33 +1824,11 @@ public sealed class UnresolvedEmittedTypeTests
             }
             """;
 
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var tree = compilation.SyntaxTrees.Single();
-        var model = compilation.GetSemanticModel(tree);
-        var root = tree.GetRoot();
-        var host = root.DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "Host");
-        var method = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
-        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
-        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var context = new ViewPartBodyContext(
-            model,
-            containingType,
-            method.Identifier.ValueText,
-            knownSymbols,
-            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
-            isInlinedAtCallSites: false,
-            default);
-        var syntax = method.ExpressionBody!.Expression;
-
-        var template = ExpressionTemplateFactory.Create(syntax, context);
+        var result = AnalyzeSource(source);
 
         Assert.Equal(
             "global::T.Extensions.Combine<int, object>(\"hello\", 1, label: \"z\")",
-            template.Substitute([]).ToCode());
+            result.Template.Substitute([]).ToCode());
     }
 
     /// <summary>
@@ -1886,33 +1864,11 @@ public sealed class UnresolvedEmittedTypeTests
             }
             """;
 
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var tree = compilation.SyntaxTrees.Single();
-        var model = compilation.GetSemanticModel(tree);
-        var root = tree.GetRoot();
-        var host = root.DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "Host");
-        var method = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
-        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
-        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var context = new ViewPartBodyContext(
-            model,
-            containingType,
-            method.Identifier.ValueText,
-            knownSymbols,
-            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
-            isInlinedAtCallSites: false,
-            default);
-        var syntax = method.ExpressionBody!.Expression;
-
-        var template = ExpressionTemplateFactory.Create(syntax, context);
+        var result = AnalyzeSource(source);
 
         Assert.Equal(
             "global::T.Extensions.GetValue(ref global::T.Host.Field)",
-            template.Substitute([]).ToCode());
+            result.Template.Substitute([]).ToCode());
     }
 
     /// <summary>As the <c>ref</c> case above, for the sibling <c>in</c> ref kind.</summary>
@@ -1944,33 +1900,11 @@ public sealed class UnresolvedEmittedTypeTests
             }
             """;
 
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var tree = compilation.SyntaxTrees.Single();
-        var model = compilation.GetSemanticModel(tree);
-        var root = tree.GetRoot();
-        var host = root.DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "Host");
-        var method = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
-        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
-        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var context = new ViewPartBodyContext(
-            model,
-            containingType,
-            method.Identifier.ValueText,
-            knownSymbols,
-            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
-            isInlinedAtCallSites: false,
-            default);
-        var syntax = method.ExpressionBody!.Expression;
-
-        var template = ExpressionTemplateFactory.Create(syntax, context);
+        var result = AnalyzeSource(source);
 
         Assert.Equal(
             "global::T.Extensions.GetValue(in global::T.Host.Field)",
-            template.Substitute([]).ToCode());
+            result.Template.Substitute([]).ToCode());
     }
 
     [Fact]
@@ -2648,31 +2582,9 @@ public sealed class UnresolvedEmittedTypeTests
             }
             """;
 
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var tree = compilation.SyntaxTrees.Single();
-        var model = compilation.GetSemanticModel(tree);
-        var root = tree.GetRoot();
-        var host = root.DescendantNodes()
-            .OfType<ClassDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "Host");
-        var method = root.DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
-        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
-        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var context = new ViewPartBodyContext(
-            model,
-            containingType,
-            method.Identifier.ValueText,
-            knownSymbols,
-            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
-            isInlinedAtCallSites: false,
-            default);
-        var syntax = method.ExpressionBody!.Expression;
+        var result = AnalyzeSource(source);
 
-        ExpressionTemplateFactory.Create(syntax, context);
-
-        Assert.DoesNotContain(context.Diagnostics.ToImmutable(), static d => d.Id == "BCF3015");
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
     /// <summary>
@@ -2853,6 +2765,11 @@ public sealed class UnresolvedEmittedTypeTests
             }
             """;
 
+        return AnalyzeSource(source);
+    }
+
+    private static ExpressionAnalysis AnalyzeSource(string source)
+    {
         var compilation = CompilationTestHost.CreateCompilation(source);
         var tree = compilation.SyntaxTrees.Single();
         var model = compilation.GetSemanticModel(tree);

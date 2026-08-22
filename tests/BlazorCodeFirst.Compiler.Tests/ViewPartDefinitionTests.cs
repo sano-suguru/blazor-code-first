@@ -281,6 +281,13 @@ public sealed class ViewPartDefinitionTests
 
     private static RenderNode? AnalyzeBody(string source, string methodName)
     {
+        var (context, method) = AnalyzeMethod(source, methodName);
+        return RenderExpressionAnalyzer.Analyze(method.ExpressionBody!.Expression, context);
+    }
+
+    private static (ViewPartBodyContext Context, MethodDeclarationSyntax Method) AnalyzeMethod(
+        string source, string methodName)
+    {
         var compilation = CompilationTestHost.CreateCompilation(source);
         var tree = compilation.SyntaxTrees.Single();
         var model = compilation.GetSemanticModel(tree);
@@ -306,7 +313,7 @@ public sealed class ViewPartDefinitionTests
             isInlinedAtCallSites: false,
             default);
 
-        return RenderExpressionAnalyzer.Analyze(method.ExpressionBody!.Expression, context);
+        return (context, method);
     }
 
     /// <summary>
@@ -337,32 +344,9 @@ public sealed class ViewPartDefinitionTests
             }
             """;
 
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var tree = compilation.SyntaxTrees.Single();
-        var model = compilation.GetSemanticModel(tree);
-
-        var method = tree.GetRoot()
-            .DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .Single(static m => m.Identifier.Text == "Greeting");
-        var methodSymbol = model.GetDeclaredSymbol(method)!;
+        var (context, method) = AnalyzeMethod(source, "Greeting");
         var block = method.Body!;
         var statements = ImmutableArray.Create(block.Statements[0], block.Statements[1]);
-
-        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var ordinals = methodSymbol.Parameters.ToImmutableDictionary(
-            static p => (ISymbol)p,
-            static p => p.Ordinal,
-            SymbolEqualityComparer.Default);
-
-        var context = new ViewPartBodyContext(
-            model,
-            methodSymbol.ContainingType,
-            methodSymbol.Name,
-            knownSymbols,
-            ordinals,
-            isInlinedAtCallSites: false,
-            default);
 
         var template = ExpressionTemplateFactory.CreateForStatements(statements, context);
         var code = template.Substitute([]).ToCode();
