@@ -777,6 +777,11 @@ internal static class ExpressionTemplateFactory
         // The requirement is keyed on the type that declares the referenced member so expansion checks
         // that type, not the view part's own containing type, against the component's inheritance
         // chain. A private/protected member always has a containing type; guard defensively regardless.
+        // Changing this fallback's text is an unreached stryker mutant, reasoned rather than measured: no
+        // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and the comment
+        // right above already names why: `kind` is non-null here only for Private, Protected, or
+        // ProtectedAndInternal accessibility, and every symbol Roslyn can assign one of those to is a
+        // member — a member always has a containing type.
         var requiredContainingTypeKey = symbol.ContainingType is { } containingType
             ? containingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
             : string.Empty;
@@ -832,6 +837,13 @@ internal static class ExpressionTemplateFactory
                 qualifiedNode = memberAccess;
                 leftSide = memberAccess.Expression;
                 break;
+            // Flipping this to true is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and the same
+            // reasoning that makes the leftSide check below measured-equivalent applies here too. This
+            // early `false` return, like that one, is reached only when `symbol` is an INamedTypeSymbol, so
+            // the caller's fallback on `false` — RecordMemberAccessRequirement — always no-ops on it
+            // (it only acts on IFieldSymbol, IPropertySymbol, IMethodSymbol, or IEventSymbol). Returning
+            // `true` instead would skip that same no-op call.
             default:
                 return false;
         }
@@ -839,20 +851,53 @@ internal static class ExpressionTemplateFactory
         // Only a namespace-qualified left needs whole-path rewriting. A type-qualified left (an enclosing
         // type naming a nested type) is already handled by qualifying that left identifier on its own, and
         // a value receiver is a genuine member access that keeps its unqualified text.
+        // Flipping this to true is a stryker survivor, measured equivalent rather than assumed: hand-
+        // applying the flip and running the full BlazorCodeFirst.Compiler.Tests suite left every test
+        // passing unchanged. Reading why: this line is reached only when `symbol` is an INamedTypeSymbol
+        // (the guard above already refused any other kind), so the caller's fallback on a `false` return —
+        // RecordMemberAccessRequirement — is asked about a type symbol every time. That method only ever
+        // acts on IFieldSymbol, IPropertySymbol, IMethodSymbol, or IEventSymbol; a type symbol is a no-op
+        // there regardless. Returning `true` instead skips that same no-op call, which changes nothing
+        // observable: neither branch records a requirement or adds a replacement for a name that reaches
+        // this specific check.
         if (context.SemanticModel.GetSymbolInfo(leftSide, context.CancellationToken).Symbol
             is not INamespaceSymbol)
         {
             return false;
         }
 
+        // Dropping this call is a stryker survivor, measured equivalent rather than assumed: hand-applying
+        // the removal and running the full suite left every test passing unchanged. Reading why: this
+        // whole path (leftSide resolves to an INamespaceSymbol) only ever reaches a type declared directly
+        // in a namespace — the sibling branch above already owns a type-qualified left (an enclosing type
+        // naming a nested type), which is the only way `typeSymbol` here could otherwise be non-public. A
+        // namespace-scoped type's DeclaredAccessibility is Public or Internal, and RecordAccessRequirement's
+        // own kind switch maps both to `null`, recording nothing for either. The call is reached, but never
+        // with a symbol it would act on.
         RecordAccessRequirement(typeSymbol, context);
 
         // Replace from the start of the whole path through the type identifier token; a generic name's
         // trailing type-argument list stays in place so its arguments are qualified independently.
         var span = TextSpan.FromBounds(qualifiedNode.SpanStart, IdentifierSpan(name).End);
+        // Forcing this ternary to its true branch is a stryker survivor, measured equivalent rather than
+        // assumed: hand-applying it and running the full suite left every test passing unchanged. Reading
+        // why: QualifiedNameWithoutTypeArguments and FullyQualifiedFormat differ only in how a type
+        // argument list renders, and the false branch is taken only when `name` is not a GenericNameSyntax
+        // — a plain identifier, which can only name a type Roslyn resolved with no type arguments at all.
+        // With nothing for WithGenericsOptions(None) to hide, the two formats produce identical text for
+        // that symbol, the same reason id=368's sibling reasoning holds elsewhere in this file's own
+        // generic-name qualification (line 332).
         var qualifiedText = name is GenericNameSyntax
             ? typeSymbol.ToDisplayString(QualifiedNameWithoutTypeArguments)
             : typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        // Flipping this to false is a stryker survivor, measured equivalent rather than assumed: hand-
+        // applying it and running the full suite left every test passing unchanged. Reading why: the
+        // replacement was already added, on the line above, regardless of what this method returns — a
+        // `false` return only makes IsMemberAccessName's caller fall through to
+        // RecordMemberAccessRequirement, and `symbol` here is the INamedTypeSymbol this whole method
+        // requires from its opening guard, which that call always no-ops on (it only acts on
+        // IFieldSymbol, IPropertySymbol, IMethodSymbol, or IEventSymbol). Both branches end in the same
+        // `continue`, over the same already-spliced text.
         AddReplacement(replacements, replacedSpans, span, new LiteralExpressionSegment(qualifiedText));
         return true;
     }
