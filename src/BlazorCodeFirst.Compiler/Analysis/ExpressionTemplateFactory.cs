@@ -707,6 +707,11 @@ internal static class ExpressionTemplateFactory
         ViewPartBodyContext context,
         out string reason)
     {
+        // Changing this initial value is a stryker survivor, measured equivalent rather than assumed:
+        // hand-applying it and running the full suite left every test passing unchanged. Reading why:
+        // every `false` return below leaves `reason` unread by its caller (IsUnsupportedSourceLocalReference
+        // reports nothing on a `false` result), and the one `true` return overwrites it first with the
+        // actual message. No return path reads this initial value.
         reason = string.Empty;
 
         var kindLabel = symbol switch
@@ -714,6 +719,19 @@ internal static class ExpressionTemplateFactory
             IMethodSymbol { MethodKind: MethodKind.LocalFunction } => "local function",
             ILocalSymbol => "local",
             IRangeVariableSymbol => "range variable",
+            // Emptying this string is an unreached stryker mutant, reasoned rather than measured: no
+            // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and reading
+            // why shows none can, for a reason the local-function and range-variable arms above do not
+            // share. Both of those can be captured into an extension-call argument, which this file
+            // re-analyzes under that argument's own narrower root — a root the enclosing declaration falls
+            // outside of, which is exactly how RangeVariableAsExtensionArgument_ReportsBCF1002 and
+            // LocalFunctionAsExtensionArgument_ReportsBCF1002 reach this method's `true` return. A label has
+            // no expression form at all — its one reference site, `goto`, is itself a statement, never an
+            // argument — so a label reference can only ever sit in the same CreateForStatements-processed
+            // statement, the same lambda block, or the same transplanted scope as its own declaration. Every
+            // path that reaches this method already holds a `root` or a transplanted-scope span covering
+            // that whole unit, so the declaration is always found and this arm's `true` return is never
+            // taken for a label.
             ILabelSymbol => "label",
             _ => null,
         };
@@ -977,6 +995,13 @@ internal static class ExpressionTemplateFactory
     /// </summary>
     private static string ReceiverRefKindPrefix(IMethodSymbol method)
     {
+        // Changing this fallback's text is an unreached stryker mutant, reasoned rather than measured: no
+        // BlazorCodeFirst.Compiler.Tests probe reaches it (its own report is NoCoverage), and reading why
+        // shows none can. This method's one caller (TryCreateExtensionMethodCall) is reached only once
+        // CreateCore's own caller has already matched `method.MethodKind: MethodKind.ReducedExtension`, and
+        // Roslyn only assigns that kind to a method obtained by reducing an unreduced extension method
+        // against a receiver — ReducedFrom is that unreduced original, always non-null with the receiver as
+        // its first declared parameter, for every ReducedExtension symbol Roslyn can produce.
         if (method.ReducedFrom is not { Parameters.Length: > 0 } original)
             return string.Empty;
 
@@ -996,6 +1021,14 @@ internal static class ExpressionTemplateFactory
     private static string LeadingArgumentText(ArgumentSyntax argument)
     {
         var offset = argument.Expression.SpanStart - argument.SpanStart;
+        // Forcing this ternary to its true branch, and widening the guard to offset >= 0, are both stryker
+        // survivors, measured equivalent rather than assumed: hand-applying each and running
+        // ExtensionCallRewrite_TwoTypeArgumentsAndANamedArgument_ProducesExactCode (which exercises both a
+        // plain positional argument, offset 0, and a named one, offset > 0) left it passing unchanged for
+        // both mutants. Reading why: offset can never be negative — Expression is a child of argument, so
+        // its span cannot start before argument's own — so the branch these mutations force is exactly the
+        // one already reachable, taken with the one input (offset == 0) where the guard's own truth value
+        // flips: Substring(0, 0) returns "", the same value string.Empty already carries.
         return offset > 0 ? argument.ToString().Substring(0, offset) : string.Empty;
     }
 

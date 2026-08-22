@@ -1794,6 +1794,185 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// One extension call exercising every text-shaping detail of the static-call rewrite together: two
+    /// explicit type arguments (the comma between them, and around them), a by-value receiver (no
+    /// <c>ref </c>/<c>in </c> prefix), a plain positional argument, and a named argument (its <c>label: </c>
+    /// leading text preserved ahead of its value).
+    /// </summary>
+    [Fact]
+    public void ExtensionCallRewrite_TwoTypeArgumentsAndANamedArgument_ProducesExactCode()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public static class Extensions
+            {
+                public static string Combine<TFirst, TSecond>(
+                    this string receiver, int number, string label = "x")
+                    => receiver;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() =>
+                    "hello".Combine<int, object>(1, label: "z");
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var tree = compilation.SyntaxTrees.Single();
+        var model = compilation.GetSemanticModel(tree);
+        var root = tree.GetRoot();
+        var host = root.DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "Host");
+        var method = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
+        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
+        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
+        var context = new ViewPartBodyContext(
+            model,
+            containingType,
+            method.Identifier.ValueText,
+            knownSymbols,
+            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
+            default);
+        var syntax = method.ExpressionBody!.Expression;
+
+        var template = ExpressionTemplateFactory.Create(syntax, context);
+
+        Assert.Equal(
+            "global::T.Extensions.Combine<int, object>(\"hello\", 1, label: \"z\")",
+            template.Substitute([]).ToCode());
+    }
+
+    /// <summary>
+    /// An extension method whose <c>this</c> parameter is <c>ref</c> must pass its reduced receiver with an
+    /// explicit <c>ref</c> keyword in the rewritten static call, or the receiver would be silently copied
+    /// instead of mutated through.
+    /// </summary>
+    [Fact]
+    public void RefExtensionCallRewrite_PrefixesTheReceiverWithRef()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public struct MyStruct
+            {
+                public int Value;
+            }
+
+            public static class Extensions
+            {
+                public static int GetValue(this ref MyStruct self) => self.Value;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                private static MyStruct Field;
+
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() => Field.GetValue();
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var tree = compilation.SyntaxTrees.Single();
+        var model = compilation.GetSemanticModel(tree);
+        var root = tree.GetRoot();
+        var host = root.DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "Host");
+        var method = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
+        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
+        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
+        var context = new ViewPartBodyContext(
+            model,
+            containingType,
+            method.Identifier.ValueText,
+            knownSymbols,
+            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
+            default);
+        var syntax = method.ExpressionBody!.Expression;
+
+        var template = ExpressionTemplateFactory.Create(syntax, context);
+
+        Assert.Equal(
+            "global::T.Extensions.GetValue(ref global::T.Host.Field)",
+            template.Substitute([]).ToCode());
+    }
+
+    /// <summary>As the <c>ref</c> case above, for the sibling <c>in</c> ref kind.</summary>
+    [Fact]
+    public void InExtensionCallRewrite_PrefixesTheReceiverWithIn()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public struct MyStruct
+            {
+                public int Value;
+            }
+
+            public static class Extensions
+            {
+                public static int GetValue(this in MyStruct self) => self.Value;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                private static MyStruct Field;
+
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() => Field.GetValue();
+            }
+            """;
+
+        var compilation = CompilationTestHost.CreateCompilation(source);
+        var tree = compilation.SyntaxTrees.Single();
+        var model = compilation.GetSemanticModel(tree);
+        var root = tree.GetRoot();
+        var host = root.DescendantNodes()
+            .OfType<ClassDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "Host");
+        var method = root.DescendantNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Single(static declaration => declaration.Identifier.ValueText == "ProbeExpression");
+        var containingType = (INamedTypeSymbol)model.GetDeclaredSymbol(host)!;
+        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
+        var context = new ViewPartBodyContext(
+            model,
+            containingType,
+            method.Identifier.ValueText,
+            knownSymbols,
+            ImmutableDictionary.Create<ISymbol, int>(SymbolEqualityComparer.Default),
+            isInlinedAtCallSites: false,
+            default);
+        var syntax = method.ExpressionBody!.Expression;
+
+        var template = ExpressionTemplateFactory.Create(syntax, context);
+
+        Assert.Equal(
+            "global::T.Extensions.GetValue(in global::T.Host.Field)",
+            template.Substitute([]).ToCode());
+    }
+
     [Fact]
     public void ExtensionExplicitUnresolvedTypeArgument_ReportsBCF3015()
     {
@@ -2491,6 +2670,43 @@ public sealed class UnresolvedEmittedTypeTests
         var result = AnalyzeValueExpression("typeof(global::System.MissingNamespace.Deeper)");
 
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// A range variable passed as an extension-call argument is re-analyzed under that argument's own
+    /// narrower root, which does not contain the <c>from</c> clause that declares it: the range variable
+    /// cannot travel with a sub-template this small, so the reference is refused rather than emitted broken.
+    /// </summary>
+    [Fact]
+    public void RangeVariableAsExtensionArgument_ReportsBCF1002()
+    {
+        var result = AnalyzeValueExpression(
+            "(from x in new object[] { 1 } select new object[] { 1 }.Contains(x)).FirstOrDefault()");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("range variable", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal("x", SourceText.From(result.Source).ToString(diagnostic.Span));
+    }
+
+    /// <summary>
+    /// As the range-variable case above, for a local function: passed as an extension-call argument, it is
+    /// re-analyzed under that argument's own root, which does not contain its declaring statement.
+    /// </summary>
+    [Fact]
+    public void LocalFunctionAsExtensionArgument_ReportsBCF1002()
+    {
+        var result = AnalyzeValueExpression(
+            """
+            new object[0].Select(y =>
+            {
+                int Local() => y;
+                return new object[0].Contains(Local());
+            }).FirstOrDefault()
+            """);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("local function", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal("Local", SourceText.From(result.Source).ToString(diagnostic.Span));
     }
 
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
