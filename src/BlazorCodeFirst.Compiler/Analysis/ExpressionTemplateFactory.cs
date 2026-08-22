@@ -1162,6 +1162,15 @@ internal static class ExpressionTemplateFactory
 
     private static bool IsInsideNameof(SyntaxNode node)
     {
+        // Flipping this to `current is null` — which turns the loop's body unreachable, since node.Parent is
+        // non-null for anything this file walks — is a stryker survivor, measured equivalent rather than
+        // assumed: hand-applying it and running the full suite (BlazorCodeFirst.Compiler.Tests and
+        // BlazorCodeFirst.DiagnosticTests) left every test passing unchanged. Reading why: this method's
+        // whole reason to exist is defensive redundancy against the first pass's own nameof collapse (see
+        // TryCreateNameofConstant) — every nameof(...) is a compile-time constant unconditionally, so the
+        // first pass always collapses it and records its span, and IsNestedInReplaced already refuses to
+        // reprocess anything inside that span before this method's own caller is ever reached. No input
+        // exists where a name is genuinely inside an uncollapsed nameof for this loop to still be needed.
         for (var current = node.Parent; current is not null; current = current.Parent)
         {
             if (current is InvocationExpressionSyntax
@@ -1171,6 +1180,8 @@ internal static class ExpressionTemplateFactory
                 }
                 && arguments.Span.Contains(node.Span))
             {
+                // Flipping this to false is an unreached stryker mutant for the same reason the loop
+                // condition above is: nothing reaches this line with the loop's body live.
                 return true;
             }
         }

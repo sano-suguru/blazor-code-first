@@ -2790,6 +2790,40 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Equal("new TValue[0].FirstOrDefault()", result.Template.Substitute([]).ToCode());
     }
 
+    /// <summary>
+    /// A member named on the right of a null-conditional access (<c>w?.Secret</c>) is a member-access name
+    /// exactly as a plain <c>w.Secret</c> would be: <c>IsMemberAccessName</c>'s <c>MemberBindingExpressionSyntax</c>
+    /// arm has to recognize it too, or a private member reached this way would lose its call-site
+    /// accessibility check.
+    /// </summary>
+    [Fact]
+    public void NullConditionalPrivateMember_ReportsBCF1002()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Widget : BodyComponentBase
+            {
+                private string? Secret => "s";
+
+                [ViewPart]
+                public static View Label(Widget? w) => Span.Attr("title", w?.Secret ?? "x");
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => Widget.Label(null);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("Secret", diagnostic.GetMessage());
+        Assert.Contains("not accessible", diagnostic.GetMessage());
+    }
+
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
     {
         var source = $$"""

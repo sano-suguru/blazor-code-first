@@ -493,4 +493,42 @@ public sealed class ViewPartTransplantTests
             .ToArray();
         Assert.Equal(2, mintedNames.Length);
     }
+
+    [Theory]
+    // The shortest and longest single-digit suffixes: the two boundary characters
+    // IsGeneratedContextName's own digit-range check has to admit.
+    [InlineData("0")]
+    [InlineData("9")]
+    [InlineData("12")]
+    public void ViewPart_WhenLeadingLocalNamesTheGeneratedContextPattern_RenamesIt(string digits)
+    {
+        var result = Run(
+            """=> Div[Part()];""",
+            $$"""
+            Part() => Span[Inner.Select(__bcf_context_{{digits}} => __bcf_context_{{digits}}.ToUpperInvariant()).First()];
+            """);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.DoesNotContain($"__bcf_context_{digits}", generated);
+        Assert.Contains("__bcf_authored_context_0", generated);
+    }
+
+    /// <summary>
+    /// A trailing character that is not a digit keeps the name outside the pattern
+    /// <c>AuthoredContextNameHygiene</c> exists to rename around, so it survives as written.
+    /// </summary>
+    [Fact]
+    public void ViewPart_WhenLeadingLocalNameHasANonDigitSuffix_IsNotRenamed()
+    {
+        var result = Run(
+            """=> Div[Part()];""",
+            """
+            Part() => Span[Inner.Select(__bcf_context_x => __bcf_context_x.ToUpperInvariant()).First()];
+            """);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        CompilationTestHost.AssertOutputCompiles(result);
+        Assert.Contains("__bcf_context_x", generated);
+    }
 }
