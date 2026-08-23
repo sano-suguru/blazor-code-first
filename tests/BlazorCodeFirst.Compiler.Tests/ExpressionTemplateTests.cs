@@ -158,6 +158,17 @@ public sealed class ExpressionTemplateTests
             ExpressionTemplate.Create(segments, constant: null));
     }
 
+    [Theory]
+    [InlineData(true, "true")]
+    [InlineData(false, "false")]
+    public void ForBooleanConstant_EmitsTheMatchingLiteral(bool value, string expectedCode)
+    {
+        var template = ExpressionTemplateFactory.ForBooleanConstant(value);
+
+        Assert.Equal(new BooleanConstant(value), template.Constant);
+        Assert.Equal(expectedCode, template.Substitute([]).ToCode());
+    }
+
     /// <summary>
     /// An event's modifiers take part in its equality, and an unwritten modifier is distinct from a
     /// written <see langword="false"/>.

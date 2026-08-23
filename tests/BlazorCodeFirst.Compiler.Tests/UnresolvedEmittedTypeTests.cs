@@ -115,6 +115,42 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     [Fact]
+    public void TransplantedLocalDeclarationType_UnresolvedType_ReportsBCF3015()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                [ViewPart]
+                private static View Part()
+                {
+                    Probe x = default;
+                    return Span["x"];
+                }
+
+                protected override View Body => Part();
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        Assert.Contains(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    [Fact]
+    public void LambdaParameterType_UnresolvedType_ReportsBCF3015()
+    {
+        var result = AnalyzeValueExpression("(System.Func<object, object>)((Probe x) => x)");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Equal("Probe", SourceText.From(result.Source).ToString(diagnostic.Span));
+    }
+
+    [Fact]
     public void OutOfPositionNamedThenUnresolvedPositional_RemainsLanguageAndBCF1003Owned()
     {
         const string source = """
@@ -1695,10 +1731,13 @@ public sealed class UnresolvedEmittedTypeTests
     [InlineData("typeof((Missing, int))")]
     [InlineData("default(Missing)")]
     [InlineData("new Missing()")]
+    [InlineData("(Missing)new object()")]
+    [InlineData("new Missing[1]")]
     [InlineData("new object() is Missing")]
     [InlineData("new object() as Missing")]
     [InlineData("new object() is Missing value")]
     [InlineData("new object() switch { Missing value => value, _ => null }")]
+    [InlineData("new object() is System.Missing")]
     [InlineData("new object() is Missing { }")]
     [InlineData("sizeof(Missing)")]
     [InlineData("stackalloc Missing[1]")]
@@ -1735,6 +1774,10 @@ public sealed class UnresolvedEmittedTypeTests
     [Theory]
     [InlineData("ActuallyMissingValue")]
     [InlineData("MissingMethod(1)")]
+    // The unresolved name sits on the left of an is-expression, not its type operand (the right): only the
+    // kind-and-side conjunction in FindTypeOnlySyntax's BinaryExpressionSyntax arm keeps this a value-side
+    // failure rather than misreading the left operand as the arm's own type position.
+    [InlineData("ActuallyMissingValue is int")]
     public void UnresolvedValueOrOverloadFailure_DoesNotReportBCF3015(string expression)
     {
         var result = AnalyzeValueExpression(expression);
@@ -1751,6 +1794,119 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
     }
 
+    /// <summary>
+    /// One extension call exercising every text-shaping detail of the static-call rewrite together: two
+    /// explicit type arguments (the comma between them, and around them), a by-value receiver (no
+    /// <c>ref </c>/<c>in </c> prefix), a plain positional argument, and a named argument (its <c>label: </c>
+    /// leading text preserved ahead of its value).
+    /// </summary>
+    [Fact]
+    public void ExtensionCallRewrite_TwoTypeArgumentsAndANamedArgument_ProducesExactCode()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public static class Extensions
+            {
+                public static string Combine<TFirst, TSecond>(
+                    this string receiver, int number, string label = "x")
+                    => receiver;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() =>
+                    "hello".Combine<int, object>(1, label: "z");
+            }
+            """;
+
+        var result = AnalyzeSource(source);
+
+        Assert.Equal(
+            "global::T.Extensions.Combine<int, object>(\"hello\", 1, label: \"z\")",
+            result.Template.Substitute([]).ToCode());
+    }
+
+    /// <summary>
+    /// An extension method whose <c>this</c> parameter is <c>ref</c> must pass its reduced receiver with an
+    /// explicit <c>ref</c> keyword in the rewritten static call, or the receiver would be silently copied
+    /// instead of mutated through.
+    /// </summary>
+    [Fact]
+    public void RefExtensionCallRewrite_PrefixesTheReceiverWithRef()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public struct MyStruct
+            {
+                public int Value;
+            }
+
+            public static class Extensions
+            {
+                public static int GetValue(this ref MyStruct self) => self.Value;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                private static MyStruct Field;
+
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() => Field.GetValue();
+            }
+            """;
+
+        var result = AnalyzeSource(source);
+
+        Assert.Equal(
+            "global::T.Extensions.GetValue(ref global::T.Host.Field)",
+            result.Template.Substitute([]).ToCode());
+    }
+
+    /// <summary>As the <c>ref</c> case above, for the sibling <c>in</c> ref kind.</summary>
+    [Fact]
+    public void InExtensionCallRewrite_PrefixesTheReceiverWithIn()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public struct MyStruct
+            {
+                public int Value;
+            }
+
+            public static class Extensions
+            {
+                public static int GetValue(this in MyStruct self) => self.Value;
+            }
+
+            public partial class Host : BodyComponentBase
+            {
+                private static MyStruct Field;
+
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() => Field.GetValue();
+            }
+            """;
+
+        var result = AnalyzeSource(source);
+
+        Assert.Equal(
+            "global::T.Extensions.GetValue(in global::T.Host.Field)",
+            result.Template.Substitute([]).ToCode());
+    }
+
     [Fact]
     public void ExtensionExplicitUnresolvedTypeArgument_ReportsBCF3015()
     {
@@ -1760,6 +1916,28 @@ public sealed class UnresolvedEmittedTypeTests
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF3015");
         Assert.Equal("Probe", SourceText.From(result.Source).ToString(diagnostic.Span));
         Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF1002");
+
+        // The invocation whose own explicit type argument was just reported is handled by that report
+        // alone: ReportUnresolvedExtensionTypeArguments' true return records its span so the normalization
+        // below never also rewrites it into a qualified static call, which would otherwise still name the
+        // unresolved 'Probe' but now inside emitted-looking code a reader could mistake for accepted.
+        Assert.Contains("new object[] { 1 }.Cast<Probe>()", result.Template.Substitute([]).ToCode());
+    }
+
+    /// <summary>
+    /// The complement of the survivor above: when every explicit type argument resolves,
+    /// <c>ReportUnresolvedExtensionTypeArguments</c> must answer false so normalization still rewrites the
+    /// call into its qualified static form, rather than leaving a perfectly good call unrewritten.
+    /// </summary>
+    [Fact]
+    public void ExtensionResolvedExplicitTypeArgument_StillNormalizesToQualifiedCall()
+    {
+        var result = AnalyzeValueExpression("new object[] { 1 }.Cast<object>().FirstOrDefault()");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+        Assert.Contains(
+            "global::System.Linq.Enumerable.Cast<object>(new object[] { 1 })",
+            result.Template.Substitute([]).ToCode());
     }
 
     [Fact]
@@ -2380,6 +2558,184 @@ public sealed class UnresolvedEmittedTypeTests
         Assert.Equal("Probe", SourceText.From(source).ToString(diagnostic.Location.SourceSpan));
     }
 
+    /// <summary>
+    /// A type named through a <c>using</c> alias to a resolved type is not an unresolved reference merely
+    /// because it carries alias info: <c>GetReferencedType</c> reads the alias's own target rather than
+    /// treating every aliased name as suspect, and that target being a resolved type is what
+    /// <c>TryReportUnresolvedType</c>'s guard has to still recognize as "nothing to report" once an alias
+    /// is present.
+    /// </summary>
+    [Fact]
+    public void AliasedTypeReference_TargetResolves_DoesNotReportUnresolvedType()
+    {
+        const string source = """
+            using Widget = System.String;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace T;
+
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Div["ok"];
+                private object? ProbeExpression() => typeof(Widget).Name;
+            }
+            """;
+
+        var result = AnalyzeSource(source);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// The global-qualification exemption reaches through every level of a multi-segment path, not only a
+    /// one-segment 'global::Type': IsGlobalQualifiedTypeReference's climb from a middle or leaf segment has
+    /// to keep recognizing the alias root through however many QualifiedNameSyntax levels sit above it.
+    /// </summary>
+    [Fact]
+    public void DeepGlobalQualifiedChain_UnresolvedMiddleSegment_IsPreserved()
+    {
+        var result = AnalyzeValueExpression("typeof(global::System.MissingNamespace.Deeper)");
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id == "BCF3015");
+    }
+
+    /// <summary>
+    /// A range variable passed as an extension-call argument is re-analyzed under that argument's own
+    /// narrower root, which does not contain the <c>from</c> clause that declares it: the range variable
+    /// cannot travel with a sub-template this small, so the reference is refused rather than emitted broken.
+    /// </summary>
+    [Fact]
+    public void RangeVariableAsExtensionArgument_ReportsBCF1002()
+    {
+        var result = AnalyzeValueExpression(
+            "(from x in new object[] { 1 } select new object[] { 1 }.Contains(x)).FirstOrDefault()");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("range variable", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal("x", SourceText.From(result.Source).ToString(diagnostic.Span));
+    }
+
+    /// <summary>
+    /// As the range-variable case above, for a local function: passed as an extension-call argument, it is
+    /// re-analyzed under that argument's own root, which does not contain its declaring statement.
+    /// </summary>
+    [Fact]
+    public void LocalFunctionAsExtensionArgument_ReportsBCF1002()
+    {
+        var result = AnalyzeValueExpression(
+            """
+            new object[0].Select(y =>
+            {
+                int Local() => y;
+                return new object[0].Contains(Local());
+            }).FirstOrDefault()
+            """);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("local function", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal("Local", SourceText.From(result.Source).ToString(diagnostic.Span));
+    }
+
+    /// <summary>
+    /// A null-conditional extension call is refused (a static rewrite would change its short-circuit
+    /// semantics) rather than silently rewritten, and the refused invocation's own text must survive
+    /// unmodified: <c>TryCreateExtensionMethodCall</c>'s <c>segments</c> out parameter stays the empty array
+    /// set at the top of the method on this path, so its caller's <c>false</c> return has to actually gate
+    /// whether that empty array gets spliced in.
+    /// </summary>
+    [Fact]
+    public void NullConditionalExtensionCall_ReportsBCF1002AndLeavesTextUnmodified()
+    {
+        var result = AnalyzeValueExpression(
+            "((System.Collections.Generic.List<int>)null)?.FirstOrDefault()");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("cannot be normalized to a static call", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal(
+            "((global::System.Collections.Generic.List<int>)null)?.FirstOrDefault()",
+            result.Template.Substitute([]).ToCode());
+    }
+
+    /// <summary>
+    /// The extension method's own declaring type and the method itself must each be accessible from the
+    /// expansion site, the same requirement an ordinary unqualified static-member reference carries: a
+    /// private extension method normalized into a static call still has to satisfy that check, or an
+    /// inlined caller could end up with a static call to a method it cannot see.
+    /// </summary>
+    [Fact]
+    public void PrivateExtensionMethod_ReportsBCF1002()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public static class Widget
+            {
+                private static string Loud(this string self) => self.ToUpperInvariant();
+
+                [ViewPart]
+                public static View Label(string value) => Span.Attr("title", value.Loud());
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => Widget.Label("x");
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("Loud", diagnostic.GetMessage());
+        Assert.Contains("not accessible", diagnostic.GetMessage());
+    }
+
+    /// <summary>As the null-conditional case above, for an inferred type argument that cannot be named.</summary>
+    [Fact]
+    public void ExtensionCallWithUnnameableInferredTypeArgument_ReportsBCF1002AndLeavesTextUnmodified()
+    {
+        var result = AnalyzeValueExpression("new TValue[0].FirstOrDefault()");
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("cannot be named", diagnostic.ToDiagnostic().GetMessage());
+        Assert.Equal("new TValue[0].FirstOrDefault()", result.Template.Substitute([]).ToCode());
+    }
+
+    /// <summary>
+    /// A member named on the right of a null-conditional access (<c>w?.Secret</c>) is a member-access name
+    /// exactly as a plain <c>w.Secret</c> would be: <c>IsMemberAccessName</c>'s <c>MemberBindingExpressionSyntax</c>
+    /// arm has to recognize it too, or a private member reached this way would lose its call-site
+    /// accessibility check.
+    /// </summary>
+    [Fact]
+    public void NullConditionalPrivateMember_ReportsBCF1002()
+    {
+        const string source = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class Widget : BodyComponentBase
+            {
+                private string? Secret => "s";
+
+                [ViewPart]
+                public static View Label(Widget? w) => Span.Attr("title", w?.Secret ?? "x");
+            }
+
+            public partial class Counter : BodyComponentBase
+            {
+                protected override View Body => Widget.Label(null);
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains("Secret", diagnostic.GetMessage());
+        Assert.Contains("not accessible", diagnostic.GetMessage());
+    }
+
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
     {
         var source = $$"""
@@ -2409,6 +2765,11 @@ public sealed class UnresolvedEmittedTypeTests
             }
             """;
 
+        return AnalyzeSource(source);
+    }
+
+    private static ExpressionAnalysis AnalyzeSource(string source)
+    {
         var compilation = CompilationTestHost.CreateCompilation(source);
         var tree = compilation.SyntaxTrees.Single();
         var model = compilation.GetSemanticModel(tree);

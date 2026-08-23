@@ -2377,6 +2377,44 @@ public sealed class GeneratorTests
         Assert.Empty(result.GeneratedSources);
     }
 
+    /// <summary>
+    /// The field sibling of the method reference above: <c>RecordMemberAccessRequirement</c> gates on the
+    /// symbol's own kind, not on any particular one of the four it accepts, so a private field named
+    /// through qualified access needs the same call-site check a private method does.
+    /// </summary>
+    [Fact]
+    public void Generator_PrivateFieldMemberAccessReferenceFromUnrelatedComponent_ReportsBCF1002AtCall()
+    {
+        var result = CompilationTestHost.RunGenerator(
+            ("Widgets.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                public static class Widgets
+                {
+                    private static readonly string Secret = "s";
+
+                    [ViewPart]
+                    public static View Label(string value) => Span[Widgets.Secret + value];
+                }
+                """),
+            ("Counter.cs", """
+                using BlazorCodeFirst;
+                using static BlazorCodeFirst.Html;
+
+                public partial class Counter : BodyComponentBase
+                {
+                    protected override View Body => Widgets.Label("x");
+                }
+                """));
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        var message = diagnostic.GetMessage(CultureInfo.InvariantCulture);
+        Assert.Contains("Secret", message);
+        Assert.Contains("not accessible", message);
+        Assert.Empty(result.GeneratedSources);
+    }
+
     [Fact]
     public void Generator_ProtectedMemberAccessReferenceFromUnrelatedComponent_ReportsBCF1002AtCall()
     {
