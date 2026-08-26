@@ -243,33 +243,10 @@ public sealed class ViewPartDefinitionTests
             }
             """;
 
-        var compilation = CompilationTestHost.CreateCompilation(source);
-        var tree = compilation.SyntaxTrees.Single();
-        var model = compilation.GetSemanticModel(tree);
-
-        var method = tree.GetRoot()
-            .DescendantNodes()
-            .OfType<MethodDeclarationSyntax>()
-            .Single(static m => m.Identifier.Text == "Greeting");
-        var methodSymbol = model.GetDeclaredSymbol(method)!;
+        var (context, method) = AnalyzeMethod(source, "Greeting");
 
         var elementAccess = (ElementAccessExpressionSyntax)method.ExpressionBody!.Expression;
         var argument = elementAccess.ArgumentList.Arguments[0].Expression;
-
-        var knownSymbols = KnownSymbols.TryCreate(compilation)!;
-        var ordinals = methodSymbol.Parameters.ToImmutableDictionary(
-            static p => (ISymbol)p,
-            static p => p.Ordinal,
-            SymbolEqualityComparer.Default);
-
-        var context = new ViewPartBodyContext(
-            model,
-            methodSymbol.ContainingType,
-            methodSymbol.Name,
-            knownSymbols,
-            ordinals,
-            isInlinedAtCallSites: false,
-            default);
 
         var template = ExpressionTemplateFactory.Create(argument, context);
         var code = template.Substitute([new SubstitutedArgument("__p0", Constant: null)]).ToCode();

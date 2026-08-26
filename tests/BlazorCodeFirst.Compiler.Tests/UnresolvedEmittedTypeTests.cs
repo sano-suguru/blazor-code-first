@@ -1832,14 +1832,16 @@ public sealed class UnresolvedEmittedTypeTests
     }
 
     /// <summary>
-    /// An extension method whose <c>this</c> parameter is <c>ref</c> must pass its reduced receiver with an
-    /// explicit <c>ref</c> keyword in the rewritten static call, or the receiver would be silently copied
-    /// instead of mutated through.
+    /// An extension method whose <c>this</c> parameter is <c>ref</c> or <c>in</c> must pass its reduced
+    /// receiver with that same keyword in the rewritten static call, or the receiver would be silently
+    /// copied instead of passed by reference.
     /// </summary>
-    [Fact]
-    public void RefExtensionCallRewrite_PrefixesTheReceiverWithRef()
+    [Theory]
+    [InlineData("ref")]
+    [InlineData("in")]
+    public void RefOrInExtensionCallRewrite_PrefixesTheReceiverWithTheRefKind(string refKind)
     {
-        const string source = """
+        var source = $$"""
             using BlazorCodeFirst;
             using static BlazorCodeFirst.Html;
 
@@ -1852,7 +1854,7 @@ public sealed class UnresolvedEmittedTypeTests
 
             public static class Extensions
             {
-                public static int GetValue(this ref MyStruct self) => self.Value;
+                public static int GetValue(this {{refKind}} MyStruct self) => self.Value;
             }
 
             public partial class Host : BodyComponentBase
@@ -1867,43 +1869,7 @@ public sealed class UnresolvedEmittedTypeTests
         var result = AnalyzeSource(source);
 
         Assert.Equal(
-            "global::T.Extensions.GetValue(ref global::T.Host.Field)",
-            result.Template.Substitute([]).ToCode());
-    }
-
-    /// <summary>As the <c>ref</c> case above, for the sibling <c>in</c> ref kind.</summary>
-    [Fact]
-    public void InExtensionCallRewrite_PrefixesTheReceiverWithIn()
-    {
-        const string source = """
-            using BlazorCodeFirst;
-            using static BlazorCodeFirst.Html;
-
-            namespace T;
-
-            public struct MyStruct
-            {
-                public int Value;
-            }
-
-            public static class Extensions
-            {
-                public static int GetValue(this in MyStruct self) => self.Value;
-            }
-
-            public partial class Host : BodyComponentBase
-            {
-                private static MyStruct Field;
-
-                protected override View Body => Div["ok"];
-                private object? ProbeExpression() => Field.GetValue();
-            }
-            """;
-
-        var result = AnalyzeSource(source);
-
-        Assert.Equal(
-            "global::T.Extensions.GetValue(in global::T.Host.Field)",
+            $"global::T.Extensions.GetValue({refKind} global::T.Host.Field)",
             result.Template.Substitute([]).ToCode());
     }
 
@@ -2687,8 +2653,9 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
-        Assert.Contains("Loud", diagnostic.GetMessage());
-        Assert.Contains("not accessible", diagnostic.GetMessage());
+        var message = diagnostic.GetMessage();
+        Assert.Contains("Loud", message);
+        Assert.Contains("not accessible", message);
     }
 
     /// <summary>As the null-conditional case above, for an inferred type argument that cannot be named.</summary>
@@ -2732,8 +2699,9 @@ public sealed class UnresolvedEmittedTypeTests
         var result = CompilationTestHost.RunGenerator(source);
 
         var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
-        Assert.Contains("Secret", diagnostic.GetMessage());
-        Assert.Contains("not accessible", diagnostic.GetMessage());
+        var message = diagnostic.GetMessage();
+        Assert.Contains("Secret", message);
+        Assert.Contains("not accessible", message);
     }
 
     private static ExpressionAnalysis AnalyzeValueExpression(string expression)
