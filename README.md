@@ -62,8 +62,9 @@ which lineage this follows, and why.
 A `Body` is a typed C# expression. The compiler checks names and types, and refactorings propagate
 through it like any other code. That is C# type checking, not validation of the HTML you wrote. The
 analyzers catch what the type system cannot see, such as a component that forgets `partial`, state
-mutated inside `Body`, or a duplicate attribute. Each is reported as a `BCF****` diagnostic during
-the build.
+mutated inside `Body`, or children given to a void element (`<img>`, `<br>`) — a mismatch that would
+otherwise render one DOM on the server and a different one once interactive. Each is reported as a
+`BCF****` diagnostic during the build.
 
 ## Installation
 
