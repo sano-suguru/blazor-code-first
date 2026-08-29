@@ -3,7 +3,7 @@ title: はじめに
 description: ランタイムとソースジェネレーターを導入し、BodyComponentBase から派生したコンポーネントを描画するまで。
 order: 10
 group: start
-source-hash: 06cbf180
+source-hash: a6c205e2
 ---
 
 BlazorCodeFirst を使うと、Blazor の UI を通常の C# として書けます。
@@ -115,6 +115,12 @@ protected override View Body
 | [BCF1004](./diagnostics.md#bcf1004) | ゲッターが1つの返り値の式に収まらない |
 | [BCF1002](./diagnostics.md#bcf1002) | 生成ファイルから見えないローカル変数を式が参照している |
 | [BCF1003](./diagnostics.md#bcf1003) | ジェネレーターが読まない構文を式が使っている |
+
+この5つは、ジェネレーターがそもそも読めない構文を拒否するものです。同じ規則は、構文としては
+読めても、プリレンダリングとインタラクティブで別々の DOM になる形も検出します。
+[BCF3016](./diagnostics.md#bcf3016) は void 要素への子ノードを拒否します。プリレンダリングは
+閉じタグを出力するため HTML パーサーが子ノードを兄弟要素として押し出す一方、インタラクティブな
+描画ではその経路を一切通らないためです。
 
 1つのクラスが `partial` の欠落とゲッターの問題を同時に持つことはありますが、報告されるのは一度
 に1つです。`partial` の検査が先に実行されるので、まず BCF1001 だけが出ます。修飾子を足すと、次に
