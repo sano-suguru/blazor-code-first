@@ -116,6 +116,11 @@ the [reference](./diagnostics.md), and these five are the ones reported most oft
 | [BCF1002](./diagnostics.md#bcf1002) | the expression names a local the generated file cannot see |
 | [BCF1003](./diagnostics.md#bcf1003) | the expression uses a construct the generator does not read |
 
+These five reject a shape the generator cannot read at all. The same rule also catches shapes that
+read fine but would render two different DOMs: [BCF3016](./diagnostics.md#bcf3016) rejects children
+on a void element, because prerendering closes the tag and the HTML parser pushes them out to
+siblings, while interactive rendering never opens that path.
+
 A class can carry two faults at once, a missing `partial` and an untranslatable getter, and only one
 is reported at a time. The `partial` check runs first, so BCF1001 is reported alone; adding the
 modifier is what surfaces BCF1004.
