@@ -214,7 +214,7 @@ public partial class TaskListPage : BodyComponentBase
   ```
 
   A spread mixes with sibling children (`Ul[[Li["first"], .. proj, Li["last"]]]`). Only `<source>.Select(<inline expression lambda>)` folds; any other spread is BCF1003. The reason for this boundary is in `ARCHITECTURE.md`'s Appendix B.12.
-- Using a native `if` directly inside `Body`, as the last statement of a block-bodied getter, is also possible. The Source Generator transplants that syntax whole into the generated code and wraps it in a dynamic region (§5.3). `foreach` and `switch` are not yet accepted at this position.
+- Using a native `if` or `switch` directly inside `Body`, as the last statement of a block-bodied getter, is also possible. The Source Generator transplants that syntax whole into the generated code and wraps it in a dynamic region (§5.3). `foreach` is not yet accepted at this position.
 
 ### 4.3 Splitting and reusing components
 
@@ -328,11 +328,11 @@ Static sequence assignment cannot hold for arbitrary C# code, so the scope of th
 
 SSC's interior holds two things, both subject to full static assignment: direct writing of an element helper/decoration/combinator inside a `Body` or `[ViewPart]` method, and a direct call to `Component<T>()`, `Fragment`, or `Raw` (including an inline lambda). Outside SSC, one of two treatments applies.
 
-Transplantable syntax (a native `if`/`else`; `foreach` and `switch` remain future work) is transplanted whole into the generated code, and wrapped in a region (`OpenRegion` / `CloseRegion`) whose boundary carries a static sequence. Because a region isolates its sequence space, its internal dynamism never propagates out into the surrounding diffing.
+Transplantable syntax (a native `if`/`else` or `switch`; `foreach` remains future work) is transplanted whole into the generated code, and wrapped in a region (`OpenRegion` / `CloseRegion`) whose boundary carries a static sequence. Because a region isolates its sequence space, its internal dynamism never propagates out into the surrounding diffing.
 
 An unanalyzable call is evaluated at run time, and the `RenderFragment` its returned `View` wraps is drawn inside a region. Only this path allocates on the heap normally. The only spelling that puts a fragment into a `View`, though, is an implicit conversion from `RenderFragment`, and a `View` built from the design-time API is empty at run time — so a `View`-returning method with no `[ViewPart]` is stopped by BCF3030, as long as its source declaration is in the current compilation. What remains on this path is a body that never uses the design-time API, and a call whose declaration cannot be read (`ARCHITECTURE.md`'s Appendix A, Appendix B.11).
 
-In every case, correctness is preserved, and what is lost is only static optimization for that region. The generator notifies the loss of an optimization opportunity via the informational diagnostic BCF2001, or, for a native `if`/`else`, BCF2002.
+In every case, correctness is preserved, and what is lost is only static optimization for that region. The generator notifies the loss of an optimization opportunity via the informational diagnostic BCF2001, or, for a native `if`/`else` or `switch`, BCF2002.
 
 In the current implementation, the analyzer detects a state mutation inside a `Body` body (a direct write — assignment, compound assignment, increment/decrement — to an instance field/property) as the error diagnostic BCF3001. `Body` must be a pure state-to-UI projection, with state transitions left to event handlers. A `Button`'s onClick lambda (a deferred event handler), though, is excluded, since it runs only after rendering. Complete detection of an arbitrary unanalyzable path, such as a side effect reached through a method call, is not guaranteed. Applying this to a `[ViewPart]` body is a candidate for future extension, and is not part of this initial implementation's guaranteed scope.
 
