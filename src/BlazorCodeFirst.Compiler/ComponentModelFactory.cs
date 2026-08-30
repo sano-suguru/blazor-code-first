@@ -110,7 +110,8 @@ internal static class ComponentModelFactory
         }
 
         var shape = FindDesignTimeExpression(
-            elected, out var bodyExpression, out var bodyIf, out var bodyStatements, out var getterLocation);
+            elected, out var bodyExpression, out var bodyIf, out var bodySwitch, out var bodyStatements,
+            out var getterLocation);
 
         if (shape == DesignTimeExpressionShape.NoDeclaration)
             return null;
@@ -135,7 +136,7 @@ internal static class ComponentModelFactory
         if (knownSymbols is null)
             return null;
 
-        if (bodyExpression is null && bodyIf is null)
+        if (bodyExpression is null && bodyIf is null && bodySwitch is null)
             return null;
 
         // Reuse the view-part-definition analyzer so component bodies and view part bodies share a
@@ -153,7 +154,9 @@ internal static class ComponentModelFactory
 
         var template = bodyExpression is not null
             ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, bodyContext)
-            : RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf!, bodyContext);
+            : bodyIf is not null
+                ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf, bodyContext)
+                : RenderExpressionAnalyzer.Analyze(bodyStatements, bodySwitch!, bodyContext);
 
         // Translation failed. Sweep the whole expression for the specific cause, an unresolved
         // Component<T>() type argument, a value-position type reference, a misplaced decoration, so the
@@ -166,7 +169,7 @@ internal static class ComponentModelFactory
         TemplateLocation? failureLocation = null;
         if (template is null)
         {
-            var failureRoot = bodyExpression ?? bodyIf!.Condition;
+            var failureRoot = bodyExpression ?? bodyIf?.Condition ?? bodySwitch!.Expression;
             FailurePathScanners.ReportAll(failureRoot, bodyContext);
 
             // Carry the innermost expression that failed to classify across the symbol-free boundary so
@@ -374,13 +377,16 @@ internal static class ComponentModelFactory
     }
 
     /// <summary>
-    /// Classifies the elected design-time expression declaration. Four getter spellings reach a
-    /// translatable shape, exactly one of <paramref name="expression"/>/<paramref name="ifStatement"/>
-    /// set on success: the property's own expression body (<c>=&gt; e</c>), the getter's expression body
-    /// (<c>get =&gt; e</c>), a getter block ending in a single `return`, which
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and whose leading
-    /// statements it returns in <paramref name="statements"/>, and a getter block ending in a native
-    /// `if`/`else`, read the same way by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>.
+    /// Classifies the elected design-time expression declaration. Five getter spellings reach a
+    /// translatable shape, exactly one of <paramref name="expression"/>/<paramref name="ifStatement"/>/
+    /// <paramref name="switchStatement"/> set on success: the property's own expression body
+    /// (<c>=&gt; e</c>), the getter's expression body (<c>get =&gt; e</c>), a getter block ending in a
+    /// single `return`, which <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and
+    /// whose leading statements it returns in <paramref name="statements"/>, a getter block ending in a
+    /// native `if`/`else`, read the same way by
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>, and a getter block ending in a
+    /// native `switch`, read the same way by
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableSwitch"/>.
     /// An auto property (no getter body and no <c>partial</c> modifier) is
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial property with
     /// no implementation part (<c>partial</c> modifier and no getter body) is
@@ -388,7 +394,7 @@ internal static class ComponentModelFactory
     /// property itself. A block that reader refuses is also
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004.
     /// <para>
-    /// All four stay equivalent under the reserved names as well: each asks
+    /// All five stay equivalent under the reserved names as well: each asks
     /// <see cref="RenderExpressionAnalyzer.DeclaresReservedName"/> over what it transplants, so a name the
     /// generator cannot rename earns BCF1004 in whichever spelling declared it (#389).
     /// </para>
@@ -397,11 +403,13 @@ internal static class ComponentModelFactory
         PropertyDeclarationSyntax prop,
         out ExpressionSyntax? expression,
         out IfStatementSyntax? ifStatement,
+        out SwitchStatementSyntax? switchStatement,
         out ImmutableArray<StatementSyntax> statements,
         out Location? location)
     {
         expression = null;
         ifStatement = null;
+        switchStatement = null;
         statements = [];
         location = null;
 
@@ -468,6 +476,16 @@ internal static class ComponentModelFactory
         {
             ifStatement = ifStmt;
             statements = ifLeading;
+            return DesignTimeExpressionShape.Translatable;
+        }
+
+        // `get { ...; switch (...) { ... } }` (ARCHITECTURE.md §5.3's Transplantable syntax).
+        if (getter.Body is { } switchBody
+            && RenderExpressionAnalyzer.TryReadTransplantableSwitch(
+                switchBody, out var switchLeading, out var switchStmt))
+        {
+            switchStatement = switchStmt;
+            statements = switchLeading;
             return DesignTimeExpressionShape.Translatable;
         }
 

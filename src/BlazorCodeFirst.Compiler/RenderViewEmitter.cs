@@ -191,6 +191,8 @@ internal static class RenderViewEmitter
         {
             IfNode ifNode => EmitIf(writer, ifNode, startSeq),
             TransplantedIfNode transplantedIf => EmitTransplantedIf(writer, transplantedIf, startSeq),
+            TransplantedSwitchNode transplantedSwitch =>
+                EmitTransplantedSwitch(writer, transplantedSwitch, startSeq),
             ExpansionNode expansion => EmitExpansion(writer, expansion, startSeq, key),
             ForEachNode forEach => EmitForEach(writer, forEach, startSeq),
             ComponentNode component => EmitComponent(writer, component, startSeq, key),
@@ -426,45 +428,27 @@ internal static class RenderViewEmitter
             writer.AppendLine("else");
             writer.AppendLine("{");
             writer.Indent++;
-            EmitTransplantedElse(writer, node.Otherwise, armSeq);
+            EmitTransplantedArm(writer, node.Otherwise, armSeq);
             writer.Indent--;
             writer.AppendLine("}");
         }
     }
 
     /// <summary>
-    /// Emits an `else` arm: its leading statements, if any (an explicitly braced
-    /// <c>else { var y = ...; if (...) { ... } }</c> is a <see cref="TransplantedBlockNode"/> wrapping
-    /// the continuation), then either continues the chain (a further `if`/`else if`, with no nested
-    /// region — the whole chain shares <see cref="EmitTransplantedIf"/>'s one region) or emits ordinary
-    /// content. Statements are written on the way down so a local an arm declares before its own nested
-    /// `if` is never dropped, unlike peeking straight through to the nested node without replaying them.
-    /// </summary>
-    private static void EmitTransplantedElse(IndentedWriter writer, RenderNode arm, int armSeq)
-    {
-        if (arm is TransplantedBlockNode block)
-        {
-            writer.AppendLine(block.Statements.ToCode());
-            EmitTransplantedElse(writer, block.Content, armSeq);
-            return;
-        }
-
-        if (arm is TransplantedIfNode nestedIf)
-            EmitTransplantedIfArms(writer, nestedIf, armSeq);
-        else
-            EmitTransplantedArm(writer, arm, armSeq);
-    }
-
-    /// <summary>
-    /// Emits one arm: its leading statements verbatim (if any — an arm may be a
-    /// <see cref="TransplantedBlockNode"/> wrapping them), then its content as a freshly synthesized
-    /// `RenderFragment` lambda. NOT <c>ViewRuntime.FragmentOf</c>: that path only works for a
-    /// <c>View</c> that already wraps a real, author-written fragment. An SSC expression's <c>View</c>
-    /// (e.g. <c>Div["x"]</c>) is always its default value at run time and carries no fragment
-    /// (ARCHITECTURE.md's BCF2001/BCF3030 premise) — wrapping it in <c>FragmentOf</c> would silently
-    /// render nothing. The lambda's parameter is named <c>__builder</c>, shadowing the outer one: every
-    /// <c>EmitXxx</c> method writes that literal name, so a different parameter name would make the
-    /// content land in the wrong (outer) builder instead of the fragment's own.
+    /// Emits one arm (an `if`'s `then`/`else`, or a `switch` section's content): its leading statements
+    /// verbatim, if any (an arm may be a <see cref="TransplantedBlockNode"/> wrapping them), then either
+    /// continues the chain (a further nested <see cref="TransplantedIfNode"/> or
+    /// <see cref="TransplantedSwitchNode"/>, with no nested region — the whole construct shares
+    /// <see cref="EmitTransplantedIf"/>'s or <see cref="EmitTransplantedSwitch"/>'s one region) or emits
+    /// ordinary content as a freshly synthesized `RenderFragment` lambda. NOT <c>ViewRuntime.FragmentOf</c>:
+    /// that path only works for a <c>View</c> that already wraps a real, author-written fragment. An SSC
+    /// expression's <c>View</c> (e.g. <c>Div["x"]</c>) is always its default value at run time and carries
+    /// no fragment (ARCHITECTURE.md's BCF2001/BCF3030 premise) — wrapping it in <c>FragmentOf</c> would
+    /// silently render nothing. The lambda's parameter is named <c>__builder</c>, shadowing the outer one:
+    /// every <c>EmitXxx</c> method writes that literal name, so a different parameter name would make the
+    /// content land in the wrong (outer) builder instead of the fragment's own. Statements are written on
+    /// the way down so a local an arm declares before its own nested `if`/`switch` is never dropped, unlike
+    /// peeking straight through to the nested node without replaying them.
     /// </summary>
     private static void EmitTransplantedArm(IndentedWriter writer, RenderNode arm, int seq)
     {
@@ -475,12 +459,68 @@ internal static class RenderViewEmitter
             return;
         }
 
+        if (arm is TransplantedIfNode nestedIf)
+        {
+            EmitTransplantedIfArms(writer, nestedIf, seq);
+            return;
+        }
+
+        if (arm is TransplantedSwitchNode nestedSwitch)
+        {
+            EmitTransplantedSwitchArms(writer, nestedSwitch, seq);
+            return;
+        }
+
         writer.AppendLine($"__builder.AddContent({seq}, ({RtbType} __builder) =>");
         writer.AppendLine("{");
         writer.Indent++;
         EmitNode(writer, arm, 0);
         writer.Indent--;
         writer.AppendLine("});");
+    }
+
+    /// <summary>
+    /// Emits a native `switch` transplanted whole (ARCHITECTURE.md §5.3), the same treatment as
+    /// <see cref="EmitTransplantedIf"/> for one more C# branch construct: one region whose boundary
+    /// sequence is fixed to syntactic position, and every section's content lands at the SAME sequence
+    /// number (<paramref name="seq"/> + 1) rather than a disjoint per-section range — only one section
+    /// ever runs, so there is no collision, and each section's content is drawn through its own
+    /// synthesized <c>RenderFragment</c> (<see cref="EmitTransplantedArm"/>). A section's own `return` was
+    /// read into that fragment rather than transplanted, so an explicit `break` closes each section here —
+    /// without it, falling out of the synthesized-fragment statement into the next `case` would be
+    /// fallthrough, which C# rejects.
+    /// </summary>
+    private static int EmitTransplantedSwitch(IndentedWriter writer, TransplantedSwitchNode node, int seq)
+    {
+        writer.AppendLine($"__builder.OpenRegion({seq});");
+        EmitTransplantedSwitchArms(writer, node, seq + 1);
+        writer.AppendLine("__builder.CloseRegion();");
+        return seq + 2;
+    }
+
+    /// <summary>
+    /// Emits the `switch` itself. No `OpenRegion`/`CloseRegion` here — the single call in
+    /// <see cref="EmitTransplantedSwitch"/> owns the one region the whole construct shares; recursing into
+    /// a nested <see cref="TransplantedSwitchNode"/> or <see cref="TransplantedIfNode"/> (a section ending
+    /// in one) must not open a second one.
+    /// </summary>
+    private static void EmitTransplantedSwitchArms(IndentedWriter writer, TransplantedSwitchNode node, int armSeq)
+    {
+        writer.AppendLine($"switch ({node.Discriminant.ToCode()})");
+        writer.AppendLine("{");
+        writer.Indent++;
+        foreach (var section in node.Sections)
+        {
+            foreach (var label in section.Labels)
+                writer.AppendLine(label.ToCode());
+
+            writer.Indent++;
+            EmitTransplantedArm(writer, section.Content, armSeq);
+            writer.AppendLine("break;");
+            writer.Indent--;
+        }
+        writer.Indent--;
+        writer.AppendLine("}");
     }
 
     private static int EmitForEach(IndentedWriter writer, ForEachNode node, int seq)

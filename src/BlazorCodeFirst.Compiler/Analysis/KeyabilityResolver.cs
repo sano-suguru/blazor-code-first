@@ -81,7 +81,7 @@ internal static class KeyabilityResolver
             IfNode or ForEachNode or TextContentNode
                 or FragmentNode or RawMarkupNode
                 or RenderFragmentContentNode
-                or OpaqueViewNode or TransplantedIfNode
+                or OpaqueViewNode or TransplantedIfNode or TransplantedSwitchNode
                     => new ContentRoot(ContentRootKind.Region, IsKeyed: false),
             TransplantedBlockNode transplanted =>
                 ResolveRoot(transplanted.Content, registry, activeKeys, content),
@@ -164,6 +164,7 @@ internal static class KeyabilityResolver
     {
         IfNode n => n.Otherwise is null ? [n.Then] : [n.Then, n.Otherwise],
         TransplantedIfNode n => n.Otherwise is null ? [n.Then] : [n.Then, n.Otherwise],
+        TransplantedSwitchNode n => [.. n.Sections.AsImmutableArray().Select(static s => s.Content)],
         ExpansionNode n => [n.Body],
         ForEachNode n => [n.Content],
         ComponentNode n => [.. n.Slots.AsImmutableArray().Select(static s => s.Content)],

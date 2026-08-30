@@ -146,6 +146,51 @@ public sealed class BodyTransplantIfTests
     }
 
     [Fact]
+    public void Body_WhenThenBlockEndsInNestedIf_KeepsBranchingAndReportsBcf2002Once()
+    {
+        // The `then`-side counterpart of Body_WhenElseBlockDeclaresALocalBeforeANestedIf_KeepsTheLocalAndReportsBcf2002Once:
+        // AnalyzeArm accepts a nested `if` in EITHER arm, so emission must keep both in the same region --
+        // EmitTransplantedIfArms routes `then` through EmitTransplantedArm directly (never through the
+        // `else`-only special case), so this pins that EmitTransplantedArm itself, not just EmitTransplantedElse,
+        // recognizes a nested TransplantedIfNode and continues the shared region instead of opening a new one.
+        const string Getter = """
+            {
+                    get
+                    {
+                        if (_a)
+                        {
+                            if (_b)
+                            {
+                                return Span["a-b"];
+                            }
+                            else
+                            {
+                                return Span["a-not-b"];
+                            }
+                        }
+                        else
+                        {
+                            return Span["not-a"];
+                        }
+                    }
+                }
+            """;
+        var result = Run(Getter);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
+
+        // Reported once for the whole outer `if`, even though its `then` arm itself degrades again.
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF2002");
+
+        // Exactly one region for the whole construct: the nested if shares the outer one's boundary.
+        Assert.Single(
+            System.Text.RegularExpressions.Regex.Matches(generated, "__builder\\.OpenRegion\\("));
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void Body_WhenElseBlockDeclaresALocalBeforeANestedIf_KeepsTheLocalAndReportsBcf2002Once()
     {
         // An explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed to `else if` sugar:
@@ -180,6 +225,48 @@ public sealed class BodyTransplantIfTests
         Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
         Assert.Single(result.Diagnostics, d => d.Id == "BCF2002");
         Assert.Contains("string y = \"computed\";", generated);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void Body_WhenElseBlockEndsInNestedSwitch_KeepsBranchingAndReportsBcf2002Once()
+    {
+        // The `switch` counterpart of Body_WhenElseBlockDeclaresALocalBeforeANestedIf_KeepsTheLocalAndReportsBcf2002Once:
+        // an explicitly braced `else { switch (...) { ... } }`, read the same way AnalyzeArm reads a
+        // nested `if`.
+        const string Getter = """
+            {
+                    get
+                    {
+                        if (_flag)
+                        {
+                            return Span["yes"];
+                        }
+                        else
+                        {
+                            switch (_a)
+                            {
+                                case true:
+                                    return Span["a"];
+                                default:
+                                    return Span["not-a"];
+                            }
+                        }
+                    }
+                }
+            """;
+        var result = Run(Getter);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF1004");
+
+        // Reported once for the whole `if`, even though its `else` arm itself degrades again.
+        Assert.Single(result.Diagnostics, d => d.Id == "BCF2002");
+
+        // Exactly one region for the whole construct: the nested switch shares the `if`'s one region.
+        Assert.Single(
+            System.Text.RegularExpressions.Regex.Matches(generated, "__builder\\.OpenRegion\\("));
 
         CompilationTestHost.AssertOutputCompiles(result);
     }
