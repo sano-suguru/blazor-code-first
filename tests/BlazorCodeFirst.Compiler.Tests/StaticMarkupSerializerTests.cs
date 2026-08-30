@@ -53,6 +53,10 @@ public sealed class StaticMarkupSerializerTests
     public void ConstantTextContent_IsFoldable() =>
         Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a"))));
 
+    [Fact]
+    public void EmptyTextContent_IsFoldable() =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const(""))));
+
     /// <summary>
     /// A valid surrogate pair (an astral-plane character, here U+1F600) must round-trip and therefore
     /// fold. This is the positive counterpart to <see cref="TextWithLoneSurrogate_IsNotFoldable"/>: a
@@ -252,6 +256,53 @@ public sealed class StaticMarkupSerializerTests
         Assert.False(StaticMarkupSerializer.IsFoldable(Element(tag)));
 
     /// <summary>
+    /// Children on a void element are BCF3016 and so never reach here from real source, but the predicate
+    /// checks anyway rather than resting on that (see the remark on the check itself). Constructed
+    /// directly, bypassing the diagnostic, to exercise the defense on its own.
+    /// </summary>
+    [Fact]
+    public void VoidElementWithChildren_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(
+            Element("br", new TextContentNode(Const("x")))));
+
+    /// <summary>
+    /// The custom-element-name first character must admit exactly 'a'-'z', pinned at both ends: a tag one
+    /// character below 'a' or above 'z' is refused, and one outside the ASCII letters entirely (a digit)
+    /// is refused for the same reason. None of these are curated or void, so <see cref="IsFoldable"/>
+    /// turns entirely on whether the custom-element-name check admits the first character.
+    /// </summary>
+    [Theory]
+    [InlineData("a-x")]
+    [InlineData("z-x")]
+    public void CustomElementNameAtTheAsciiLetterBoundary_IsFoldable(string tag) =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(Element(tag)));
+
+    [Theory]
+    [InlineData("`-x")]  // one character below 'a'
+    [InlineData("{-x")]  // one character above 'z'
+    [InlineData("9-x")]  // outside the ASCII letters entirely
+    public void CustomElementNameOutsideTheAsciiLetterBoundary_IsNotFoldable(string tag) =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(Element(tag)));
+
+    /// <summary>
+    /// A custom element name's characters after the first admit lowercase letters, digits, underscore and
+    /// period, pinned at the upper end of each of the two ranges (the lower end, 'a' and '0', is already
+    /// exercised by an ordinary tag such as "my-widget"). An uppercase letter belongs to none of those
+    /// classes and so must be refused, unlike an attribute name's characters
+    /// (<see cref="AttributeNameSubsequentCharacterAtTheClassBoundary_IsFoldable"/>).
+    /// </summary>
+    [Theory]
+    [InlineData("x-z")]
+    [InlineData("x-0")]
+    [InlineData("x-9")]
+    public void CustomElementNameSubsequentCharacterAtTheClassBoundary_IsFoldable(string tag) =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(Element(tag)));
+
+    [Fact]
+    public void CustomElementNameSubsequentCharacterOutsideTheAllowedClasses_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(Element("x-A")));
+
+    /// <summary>
     /// Curated, so the allow-list lets these through, but their HTML text interpretation differs from an
     /// ordinary element: pre and textarea lose a newline immediately after the open tag, textarea is
     /// RCDATA so a child element would become literal text, and iframe is parsed as generic raw text so
@@ -299,6 +350,55 @@ public sealed class StaticMarkupSerializerTests
     [InlineData(":x")]
     [InlineData("x9")]
     public void SafeAttributeName_IsFoldable(string name) =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate(name, Const("x"))),
+            default,
+            default)));
+
+    /// <summary>
+    /// The valid-start check admits exactly 'a'-'z' and 'A'-'Z', pinned at all four ends: a character one
+    /// below 'a', one above 'z', one below 'A' or one above 'Z' is refused.
+    /// </summary>
+    [Theory]
+    [InlineData("a")]
+    [InlineData("z")]
+    [InlineData("A")]
+    [InlineData("Z")]
+    public void AttributeNameFirstCharacterAtTheAsciiLetterBoundary_IsFoldable(string name) =>
+        Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate(name, Const("x"))),
+            default,
+            default)));
+
+    [Theory]
+    [InlineData("`")]  // one character below 'a'
+    [InlineData("{")]  // one character above 'z'
+    [InlineData("@")]  // one character below 'A'
+    [InlineData("[")]  // one character above 'Z'
+    public void AttributeNameFirstCharacterOutsideTheAsciiLetterBoundary_IsNotFoldable(string name) =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new ElementNode(
+            "div",
+            default,
+            ImmutableArray.Create(new AttributeTemplate(name, Const("x"))),
+            default,
+            default)));
+
+    /// <summary>
+    /// The subsequent-character check admits 'a'-'z', 'A'-'Z' and '0'-'9' beside a first character that
+    /// already exercises the lower end of each range, so this pins the upper end of each: 'z', both ends
+    /// of 'A'-'Z' (since the first-character theory above only reaches the class through the first
+    /// position), and '0'.
+    /// </summary>
+    [Theory]
+    [InlineData("xz")]
+    [InlineData("xA")]
+    [InlineData("xZ")]
+    [InlineData("x0")]
+    public void AttributeNameSubsequentCharacterAtTheClassBoundary_IsFoldable(string name) =>
         Assert.True(StaticMarkupSerializer.IsFoldable(new ElementNode(
             "div",
             default,
@@ -382,6 +482,27 @@ public sealed class StaticMarkupSerializerTests
         Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\ud800b"))));
 
     /// <summary>
+    /// The complement of the case above: a high surrogate with nothing at all after it, rather than one
+    /// followed by a non-surrogate. This is the boundary the length check at the start of the pair-lookup
+    /// guards — a value ending in a high surrogate would otherwise index one past the end of the string
+    /// once the round-trip check tries to read its (non-existent) partner. Kept as its own <see
+    /// cref="Fact"/> for the same VSTest marshaling reason as <see cref="TextWithLoneSurrogate_IsNotFoldable"/>.
+    /// </summary>
+    [Fact]
+    public void TextEndingInAHighSurrogate_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\ud800"))));
+
+    /// <summary>
+    /// A low surrogate with no preceding high surrogate is refused on its own code path, distinct from
+    /// <see cref="TextWithLoneSurrogate_IsNotFoldable"/>'s unpaired high surrogate: the high-surrogate
+    /// branch above never runs for this character, so this exercises the standalone low-surrogate check
+    /// that follows it.
+    /// </summary>
+    [Fact]
+    public void TextWithLoneLowSurrogate_IsNotFoldable() =>
+        Assert.False(StaticMarkupSerializer.IsFoldable(new TextContentNode(Const("a\udc00b"))));
+
+    /// <summary>
     /// A value that begins with U+FEFF is refused, and the rule is positional rather than about the
     /// character: the browser strips a byte order mark in first position when it decodes each frame
     /// string of the render batch and keeps it anywhere else. Unfolded, the value is its own frame
@@ -461,8 +582,11 @@ public sealed class StaticMarkupSerializerTests
     public void WriteTo_ContentHoleNode_Throws()
     {
         var builder = new StringBuilder();
-        Assert.Throws<System.NotSupportedException>(
+        var ex = Assert.Throws<System.NotSupportedException>(
             () => StaticMarkupSerializer.WriteTo(builder, [new ContentHoleNode(0)]));
+
+        Assert.Contains("ContentHoleNode", ex.Message);
+        Assert.Contains("is not foldable", ex.Message);
     }
 
     // --- serialization ------------------------------------------------------------------------
@@ -688,9 +812,14 @@ public sealed class StaticMarkupSerializerTests
             new TextContentNode(Const("b"))))).Absorbed);
 
     [Fact]
-    public void Write_ThrowsOnANodeThatIsNotFoldable() =>
-        Assert.Throws<System.NotSupportedException>(
+    public void Write_ThrowsOnANodeThatIsNotFoldable()
+    {
+        var ex = Assert.Throws<System.NotSupportedException>(
             () => Write(new TextContentNode(Dynamic("Title"))));
+
+        Assert.Contains("TextContentNode", ex.Message);
+        Assert.Contains("carries no constant string", ex.Message);
+    }
 
     /// <summary>
     /// The attribute channel keeps the same exhaustiveness contract as the node switch: a value the
@@ -699,10 +828,31 @@ public sealed class StaticMarkupSerializerTests
     /// element around it folds.
     /// </summary>
     [Fact]
-    public void Write_ThrowsOnAnAttributeValueThatCannotBeSerialized() =>
-        Assert.Throws<System.NotSupportedException>(() => Write(new ElementNode(
+    public void Write_ThrowsOnAnAttributeValueThatCannotBeSerialized()
+    {
+        var ex = Assert.Throws<System.NotSupportedException>(() => Write(new ElementNode(
             "div",
             default,
             ImmutableArray.Create(new AttributeTemplate("data-v", ConstRuntimeFormatted("3.5"))),
             default, default)));
+
+        Assert.Contains("data-v", ex.Message);
+        Assert.Contains("the caller must partition on IsFoldable first", ex.Message);
+    }
+
+    /// <summary>
+    /// The scoped-CSS attribute is written as a bare token, matching what AddAttribute(seq,
+    /// "bcf-xxxxxxxx") writes on the frame path (RenderViewEmitter), and counts a frame for the same
+    /// reason every other branch here does: the frame path emits one more Attribute frame on a scoped
+    /// element than an unscoped one.
+    /// </summary>
+    [Fact]
+    public void Write_ElementWithCssScope_AppendsItAsABareAttribute() =>
+        Assert.Equal(
+            "<div bcf-abcd1234></div>",
+            Write(new ElementNode("div") { CssScope = "bcf-abcd1234" }).Markup);
+
+    [Fact]
+    public void Write_CountsOneFrameForTheCssScopeAttribute() =>
+        Assert.Equal(2, Write(new ElementNode("div") { CssScope = "bcf-abcd1234" }).Absorbed);
 }

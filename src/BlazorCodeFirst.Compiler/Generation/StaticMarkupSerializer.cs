@@ -496,7 +496,22 @@ internal static class StaticMarkupSerializer
                 if (index + 1 >= value.Length || !char.IsLowSurrogate(value[index + 1]))
                     return false;
 
+                // Flipping this to index-- is a stryker survivor that Stryker itself reports as Timeout
+                // rather than Survived or Killed: hand-applying it and running
+                // TextWithAstralCharacter_IsFoldable (the only test that walks a valid surrogate pair)
+                // hangs the process (confirmed with a bounded timeout, exit code 124) rather than failing
+                // an assertion, because the loop revisits the same high surrogate forever instead of
+                // advancing past its paired low surrogate. The existing test already reaches this line;
+                // no new test is needed.
                 index++;
+
+                // Dropping this is a stryker survivor, measured equivalent rather than assumed:
+                // hand-applying the removal and running the full BlazorCodeFirst.Compiler.Tests suite left
+                // every test passing unchanged. Reading why: this is the last statement in the loop body,
+                // so falling off the end of it has the same control-flow effect as continuing — and the
+                // one statement between here and the closing brace, `if (char.IsLowSurrogate(c)) return
+                // false;`, can never fire on this path because `c` was just confirmed to be a high
+                // surrogate, and a char cannot be both.
                 continue;
             }
 
