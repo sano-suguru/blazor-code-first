@@ -317,15 +317,16 @@ internal static class RenderExpressionAnalyzer
     /// (unlike an `if`/`else` arm, which is always a <see cref="BlockSyntax"/>), so this reads
     /// <see cref="SwitchSectionSyntax.Statements"/> directly rather than delegating to
     /// <see cref="TryReadTransplantableBlock"/>/<see cref="TryReadTransplantableIf"/>, which both require
-    /// one. <see cref="DeclaresReservedName(SyntaxNode)"/> is called once on the whole section (labels
-    /// included), the same single-scan shape <see cref="TryReadTransplantableIf"/> uses for an `if`.
+    /// one. No <see cref="DeclaresReservedName(SyntaxNode)"/> call is needed here: every caller reaches
+    /// this section only after <see cref="TryReadTransplantableSwitch"/> already scanned the whole
+    /// `switch` statement the section belongs to, and that scan descends into every section already.
     /// </summary>
     private static RenderNode? AnalyzeSwitchSection(SwitchSectionSyntax section, ViewPartBodyContext context)
     {
         var statements = section.Statements;
         var count = statements.Count;
 
-        if (count == 0 || DeclaresReservedName(section))
+        if (count == 0)
             return null;
 
         if (!TryReadLeadingStatements(statements, count, out var leading))
