@@ -853,6 +853,68 @@ public sealed class IncrementalGeneratorTests
                 $"Expected contextual generic-template model reuse but got {output.Reason}"));
     }
 
+    /// <summary>
+    /// <see cref="ContainsContextualSlot"/> must descend into a <see cref="TransplantedSwitchNode"/> section
+    /// the same way it descends into an <see cref="IfNode"/> branch, or this helper silently answers `false`
+    /// for a contextual slot the transplant path put out of reach.
+    /// </summary>
+    [Fact]
+    public void IncrementalGenerator_OnIdenticalRerun_CachesGenericTemplateContextualSlotModel_InsideTransplantedSwitch()
+    {
+        const string target = """
+            using Microsoft.AspNetCore.Components;
+            namespace T;
+            public class Target : ComponentBase
+            {
+                [Parameter] public RenderFragment<int>? RowTemplate { get; set; }
+            }
+            """;
+        const string host = """
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+            namespace T;
+            public partial class Host : BodyComponentBase
+            {
+                protected override View Body => Build(1);
+
+                [ViewPart]
+                private static View Build(int mode)
+                {
+                    switch (mode)
+                    {
+                        case 1:
+                            return Component<Target>().Template(
+                                c => c.RowTemplate,
+                                context => Span[context.ToString()]);
+                        default:
+                            return Span["other"];
+                    }
+                }
+            }
+            """;
+
+        var compilation = CreateCompilation(
+            ParseTree(target, "Target.cs"),
+            ParseTree(host, "Host.cs"));
+        GeneratorDriver driver = CreateDriver();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+
+        var contextualOutputs = driver.GetRunResult().Results[0].TrackedSteps["ComponentModeling"]
+            .SelectMany(static step => step.Outputs)
+            .Where(static output =>
+                output.Value is ComponentModelResult { Model.RootNode: { } root }
+                && ContainsContextualSlot(root))
+            .ToImmutableArray();
+
+        Assert.NotEmpty(contextualOutputs);
+        Assert.All(contextualOutputs, output =>
+            Assert.True(
+                output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+                $"Expected contextual generic-template model reuse but got {output.Reason}"));
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
@@ -881,6 +943,12 @@ public sealed class IncrementalGeneratorTests
             IfNode conditional => ContainsContextualSlot(conditional.Then)
                 || conditional.Otherwise is not null
                 && ContainsContextualSlot(conditional.Otherwise),
+            TransplantedIfNode transplantedIf => ContainsContextualSlot(transplantedIf.Then)
+                || transplantedIf.Otherwise is not null
+                && ContainsContextualSlot(transplantedIf.Otherwise),
+            TransplantedSwitchNode transplantedSwitch => transplantedSwitch.Sections.Any(
+                section => ContainsContextualSlot(section.Content)),
+            TransplantedBlockNode block => ContainsContextualSlot(block.Content),
             ForEachNode forEach => ContainsContextualSlot(forEach.Content),
             ExpansionNode expansion => ContainsContextualSlot(expansion.Body),
             _ => false,

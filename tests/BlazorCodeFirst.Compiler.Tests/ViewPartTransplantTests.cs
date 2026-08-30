@@ -79,6 +79,47 @@ public sealed class ViewPartTransplantTests
             }
         """;
 
+    private const string SwitchPart = """
+        Part(int mode)
+            {
+                switch (mode)
+                {
+                    case 1:
+                        return Span["one"];
+                    default:
+                        return Span["other"];
+                }
+            }
+        """;
+
+    /// <summary>A part whose `case` label's `when` clause reads the part's own parameter (<c>mode</c>).</summary>
+    private const string SwitchPartWithWhenClauseReferencingParameter = """
+        Part(int mode)
+            {
+                switch (mode)
+                {
+                    case var m when m == mode:
+                        return Span["match"];
+                    default:
+                        return Span["other"];
+                }
+            }
+        """;
+
+    private const string LeadingLocalSwitchPart = """
+        Part(int mode)
+            {
+                var label = mode == 1 ? "one" : "other";
+                switch (mode)
+                {
+                    case 1:
+                        return Span[label];
+                    default:
+                        return Span[label];
+                }
+            }
+        """;
+
     private static GeneratorRunResult Run(string body, string part) =>
         CompilationTestHost.RunGenerator(Host.Replace("$BODY$", body).Replace("$PART$", part));
 
@@ -487,6 +528,51 @@ public sealed class ViewPartTransplantTests
         // ordinal-based renaming (ViewPartExpander.cs) reaches the leading statements of a
         // TransplantedIfNode-wrapped body the same way it already does for a plain trailing
         // return.
+        var mintedNames = Regex.Matches(generated, "__bcf_local_\\d+_0")
+            .Select(m => m.Value)
+            .Distinct()
+            .ToArray();
+        Assert.Equal(2, mintedNames.Length);
+    }
+
+    [Fact]
+    public void ViewPart_WhenBodyEndsInNativeSwitch_ExpandsWithoutBcf1002()
+    {
+        var result = Run("""=> Div[Part(1)];""", SwitchPart);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        Assert.DoesNotContain("FragmentOf", generated);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ViewPart_WhenSwitchCaseLabelReferencesTheDeclarationsParameter_SubstitutesInsideTheLabel()
+    {
+        // A case label is transplanted verbatim as an ExpressionTemplate (AnalyzeSwitch's
+        // CreateForSwitchLabel), the same as any other transplanted syntax, so it needs the same hole
+        // substitution at each call site's expansion (ViewPartExpander's TransplantedSwitchNode case) that
+        // the discriminant already gets. Since `mode` is renamed to `__bcf_arg_N_0` per call, a label
+        // referencing it that is not substituted would emit the author's own parameter name into a scope
+        // where nothing binds it -- CS0103.
+        var result = Run("""=> Div[Part(1)];""", SwitchPartWithWhenClauseReferencingParameter);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ViewPart_WhenCalledTwiceWithLeadingLocalBeforeNativeSwitch_RenamesEachExpansionIndependently()
+    {
+        var result = Run("""=> Fragment(Part(1), Part(2));""", LeadingLocalSwitchPart);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        CompilationTestHost.AssertOutputCompiles(result);
+
+        // Both expansions' minted local names must differ -- confirms ExpandNode's TransplantedSwitchNode
+        // case renames the leading statements of each section the same way it already does for
+        // TransplantedIfNode's arms.
         var mintedNames = Regex.Matches(generated, "__bcf_local_\\d+_0")
             .Select(m => m.Value)
             .Distinct()

@@ -53,6 +53,20 @@ internal static class ExpressionTemplateFactory
         CreateCore(expression, context, AuthoredContextNameHygiene.Create(expression, context));
 
     /// <summary>
+    /// A native `switch` section's label (ARCHITECTURE.md §2.3's third Transplantable shape), normalized
+    /// under the same rule as any other transplanted syntax. A label is not an <see cref="ExpressionSyntax"/>
+    /// (it may carry a pattern and a `when` clause), but <see cref="CreateCore"/> walks any
+    /// <see cref="SyntaxNode"/>'s descendants, so this is the same two-line shape as <see cref="Create"/>
+    /// above -- a label that reads an enclosing scope's identifier (a `when` clause referencing a
+    /// <c>ForEach</c> iteration variable, a <c>[ViewPart]</c> parameter, or a leading local) needs the same
+    /// hole substitution a discriminant or a condition gets, or the identifier the author wrote would land
+    /// in generated code where nothing binds it.
+    /// </summary>
+    public static ExpressionTemplate CreateForSwitchLabel(
+        SwitchLabelSyntax label, ViewPartBodyContext context) =>
+        CreateCore(label, context, AuthoredContextNameHygiene.Create(label, context));
+
+    /// <summary>
     /// The statements transplanted ahead of the content they lead into, as one template. Every position
     /// that accepts a transplantable block reaches here: a <c>ForEach</c> content lambda, a design-time
     /// expression getter, and a <c>[ViewPart]</c> body.

@@ -600,19 +600,19 @@ Wrap the content in a container element. A `ForEach` that declines its key with 
 Error. The `ForEach` key or content has a shape the generator cannot sequence.
 
 The key body is copied into the `SetKey` call, so it has to be an expression. The content is given
-one static sequence space that every iteration reuses, which a second return or a native `switch`
+one static sequence space that every iteration reuses, which a second return or a native `foreach`
 would each need their own copy of.
 
 Content accepts an expression lambda, a block with one trailing `return`, a block ending in a native
-`if`/`else` ([BCF2002](#bcf2002)), and a single-parameter `View`-returning method group. `switch` and
-`foreach` are not accepted.
+`if`/`else` ([BCF2002](#bcf2002)), a block ending in a native `switch` ([BCF2002](#bcf2002)), and a
+single-parameter `View`-returning method group. `foreach` is not accepted.
 
 The key body and the content body follow the same reserved-name rule [BCF1004](#bcf1004) states
 for its getter.
 
 ### BCF2002
 
-Info. A native `if`/`else` degrades to a dynamic region.
+Info. A native `if`/`else` or `switch` degrades to a dynamic region.
 
 ```csharp
 protected override View Body
@@ -631,17 +631,19 @@ protected override View Body
 }
 ```
 
-A native `if`/`else` can be written as the last statement of a `Body`/`Chrome` getter, a `ForEach`
-content lambda, or a `[ViewPart]` body. It is transplanted whole into a region whose boundary
-sequence is fixed to syntactic position — the same shape `If()` uses. Unlike `If()`, each arm's
-content renders through a freshly synthesized `RenderFragment` rather than a statically assigned
-sequence range. Only one arm ever executes, so no static width can be reserved for content that
-might not run. Correctness is unaffected; the frames for whichever arm runs are rebuilt rather than
-diffed against a static template.
+A native `if`/`else` or `switch` can be written as the last statement of a `Body`/`Chrome` getter, a
+`ForEach` content lambda, or a `[ViewPart]` body. It is transplanted whole into a region whose
+boundary sequence is fixed to syntactic position — the same shape `If()` uses. Unlike `If()`, each
+arm's or section's content renders through a freshly synthesized `RenderFragment` rather than a
+statically assigned sequence range. Only one arm or section ever executes, so no static width can be
+reserved for content that might not run. Correctness is unaffected; the frames for whichever one runs
+are rebuilt rather than diffed against a static template.
 
-Reported once per `if`/`else` chain, at the outermost `if`, regardless of how many `else if` links
-the chain holds. `switch` and `foreach` are not yet accepted at this position and remain
-[BCF1004](#bcf1004)/[BCF3004](#bcf3004)/BCF1002.
+Reported once per `if`/`else` chain or `switch`, at the outermost `if` or at the `switch`'s
+discriminant, regardless of how many `else if` links or `case` sections it holds. A `switch` section's
+own `return` is what closes it; each section still needs an explicit `break` in the generated code so
+control does not fall through into the next one. `foreach` is not yet accepted at this position and
+remains [BCF1004](#bcf1004)/[BCF3004](#bcf3004)/BCF1002.
 
 ### BCF3032
 

@@ -45,6 +45,18 @@ public sealed class RenderingTests : BunitContext
     }
 
     [Fact]
+    public void NativeSwitchComponent_WhenToggleButtonClicked_RemovesPrefixAndPreservesMarkupOrder()
+    {
+        var cut = Render<NativeSwitchComponent>();
+
+        cut.MarkupMatches("<div><span>Prefix</span><span>Always</span><button>Toggle</button></div>");
+
+        cut.Find("button").Click();
+
+        cut.MarkupMatches("<div><span>Always</span><button>Toggle</button></div>");
+    }
+
+    [Fact]
     public void ViewPartCounterComponent_WhenRenderedAndIncremented_EvaluatesArgumentsOncePerRender()
     {
         var cut = Render<ViewPartCounterComponent>();

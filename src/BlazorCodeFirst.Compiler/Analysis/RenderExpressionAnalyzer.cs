@@ -140,6 +140,27 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// Classifies a block whose last statement is a native `switch` (ARCHITECTURE.md §5.3), wrapped in the
+    /// statements written before it. Mirrors the `if` overload above: same scope-opening shape, same
+    /// single BCF2002 report for the whole construct.
+    /// </summary>
+    public static RenderNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        SwitchStatementSyntax switchStatement,
+        ViewPartBodyContext context)
+    {
+        var node = AnalyzeTransplantedBody(
+            statements, switchStatement.Expression, context, () => AnalyzeSwitch(switchStatement, context));
+        if (node is null)
+            return null;
+
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF2002, switchStatement.Expression.GetLocation(), []));
+
+        return node;
+    }
+
+    /// <summary>
     /// The scaffolding both <c>Analyze</c> overloads share: collect the leading statements' declared
     /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
     /// — either can hold a pattern designation that binds into the same scope a declaration statement
@@ -243,9 +264,10 @@ internal static class RenderExpressionAnalyzer
     /// <summary>
     /// Reads one `if`/`else` arm's block: either the existing single-trailing-return shape, or a
     /// further nested `if` (an explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed
-    /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly). The nested-`if` case goes
-    /// through <see cref="AnalyzeTransplantedBody"/> directly, not the public
-    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, IfStatementSyntax, ViewPartBodyContext)"/>
+    /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly), or a further nested `switch`.
+    /// The nested-`if`/`switch` case goes through <see cref="AnalyzeTransplantedBody"/> directly, not the
+    /// public <see cref="Analyze(ImmutableArray{StatementSyntax}, IfStatementSyntax, ViewPartBodyContext)"/>/
+    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, SwitchStatementSyntax, ViewPartBodyContext)"/>
     /// overload, so this continuation of the same chain does not report BCF2002 a second time.
     /// </summary>
     private static RenderNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
@@ -254,7 +276,73 @@ internal static class RenderExpressionAnalyzer
             : TryReadTransplantableIf(block, out var ifStatements, out var nestedIf)
                 ? AnalyzeTransplantedBody(
                     ifStatements, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context))
-                : null;
+                : TryReadTransplantableSwitch(block, out var switchStatements, out var nestedSwitch)
+                    ? AnalyzeTransplantedBody(
+                        switchStatements, nestedSwitch.Expression, context,
+                        () => AnalyzeSwitch(nestedSwitch, context))
+                    : null;
+
+    /// <summary>
+    /// Reads one `switch`, in the same shape <see cref="AnalyzeIf"/> reads one `if`/`else`: a discriminant
+    /// expression and a list of sections, each classified by <see cref="AnalyzeSwitchSection"/>. A section
+    /// whose content is not one of the accepted shapes fails the whole switch, the same all-or-nothing rule
+    /// <see cref="AnalyzeIf"/> applies to its arms.
+    /// </summary>
+    private static TransplantedSwitchNode? AnalyzeSwitch(
+        SwitchStatementSyntax switchStatement, ViewPartBodyContext context)
+    {
+        var discriminant = ExpressionTemplateFactory.Create(switchStatement.Expression, context);
+
+        var sections = ImmutableArray.CreateBuilder<TransplantedSwitchSection>(switchStatement.Sections.Count);
+        foreach (var section in switchStatement.Sections)
+        {
+            if (AnalyzeSwitchSection(section, context) is not { } content)
+                return null;
+
+            var labels = ImmutableArray.CreateBuilder<ExpressionTemplate>(section.Labels.Count);
+            foreach (var label in section.Labels)
+                labels.Add(ExpressionTemplateFactory.CreateForSwitchLabel(label, context));
+
+            sections.Add(new TransplantedSwitchSection(
+                new EquatableArray<ExpressionTemplate>(labels.MoveToImmutable()), content));
+        }
+
+        return new TransplantedSwitchNode(discriminant, new EquatableArray<TransplantedSwitchSection>(
+            sections.MoveToImmutable()));
+    }
+
+    /// <summary>
+    /// Reads one switch section's statements: either the existing single-trailing-return shape, a
+    /// further nested `if`, or a further nested `switch`. A section has no wrapping block by C# grammar
+    /// (unlike an `if`/`else` arm, which is always a <see cref="BlockSyntax"/>), so this reads
+    /// <see cref="SwitchSectionSyntax.Statements"/> directly rather than delegating to
+    /// <see cref="TryReadTransplantableBlock"/>/<see cref="TryReadTransplantableIf"/>, which both require
+    /// one. No <see cref="DeclaresReservedName(SyntaxNode)"/> call is needed here: every caller reaches
+    /// this section only after <see cref="TryReadTransplantableSwitch"/> already scanned the whole
+    /// `switch` statement the section belongs to, and that scan descends into every section already.
+    /// </summary>
+    private static RenderNode? AnalyzeSwitchSection(SwitchSectionSyntax section, ViewPartBodyContext context)
+    {
+        var statements = section.Statements;
+        var count = statements.Count;
+
+        if (count == 0)
+            return null;
+
+        if (!TryReadLeadingStatements(statements, count, out var leading))
+            return null;
+
+        return statements[count - 1] switch
+        {
+            ReturnStatementSyntax { Expression: { } returned } => Analyze(leading, returned, context),
+            IfStatementSyntax { Statement: BlockSyntax } nestedIf =>
+                AnalyzeTransplantedBody(leading, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context)),
+            SwitchStatementSyntax nestedSwitch =>
+                AnalyzeTransplantedBody(
+                    leading, nestedSwitch.Expression, context, () => AnalyzeSwitch(nestedSwitch, context)),
+            _ => null,
+        };
+    }
 
     /// <summary>
     /// The locals this body declares into the scope it lands in — the leading statements', then the
@@ -743,7 +831,9 @@ internal static class RenderExpressionAnalyzer
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
                 : contentShape.LambdaBody is { } lambdaBody
                     ? Analyze(contentShape.Statements, lambdaBody, context)
-                    : Analyze(contentShape.Statements, contentShape.LambdaIf!, context);
+                    : contentShape.LambdaIf is { } lambdaIf
+                        ? Analyze(contentShape.Statements, lambdaIf, context)
+                        : Analyze(contentShape.Statements, contentShape.LambdaSwitch!, context);
             if (content is null)
                 return null;
 
@@ -845,6 +935,7 @@ internal static class RenderExpressionAnalyzer
         ISymbol? LambdaParameter,
         ExpressionSyntax? LambdaBody,
         IfStatementSyntax? LambdaIf,
+        SwitchStatementSyntax? LambdaSwitch,
         ImmutableArray<StatementSyntax> Statements);
 
     /// <summary>
@@ -870,7 +961,7 @@ internal static class RenderExpressionAnalyzer
                 return false;
             }
 
-            shape = new ForEachContent(callee, null, null, null, []);
+            shape = new ForEachContent(callee, null, null, null, null, []);
             return true;
         }
 
@@ -888,21 +979,28 @@ internal static class RenderExpressionAnalyzer
             if (DeclaresReservedName(expressionBody))
                 return false;
 
-            shape = new ForEachContent(null, parameterSymbol, expressionBody, null, []);
+            shape = new ForEachContent(null, parameterSymbol, expressionBody, null, null, []);
             return true;
         }
 
         if (bodyNode is BlockSyntax block
             && TryReadTransplantableBlock(block, out var statements, out var returned))
         {
-            shape = new ForEachContent(null, parameterSymbol, returned, null, statements);
+            shape = new ForEachContent(null, parameterSymbol, returned, null, null, statements);
             return true;
         }
 
         if (bodyNode is BlockSyntax ifBlock
             && TryReadTransplantableIf(ifBlock, out var ifStatements, out var ifStatement))
         {
-            shape = new ForEachContent(null, parameterSymbol, null, ifStatement, ifStatements);
+            shape = new ForEachContent(null, parameterSymbol, null, ifStatement, null, ifStatements);
+            return true;
+        }
+
+        if (bodyNode is BlockSyntax switchBlock
+            && TryReadTransplantableSwitch(switchBlock, out var switchStatements, out var switchStatement))
+        {
+            shape = new ForEachContent(null, parameterSymbol, null, null, switchStatement, switchStatements);
             return true;
         }
 
@@ -3691,12 +3789,21 @@ internal static class RenderExpressionAnalyzer
     /// returns, so the builder is exactly full and its array can be handed over without a copy.
     /// </remarks>
     private static bool TryReadLeadingStatements(
-        BlockSyntax block, int count, out ImmutableArray<StatementSyntax> statements)
+        BlockSyntax block, int count, out ImmutableArray<StatementSyntax> statements) =>
+        TryReadLeadingStatements(block.Statements, count, out statements);
+
+    /// <summary>
+    /// Same reading as the <see cref="BlockSyntax"/> overload, but over a switch section's statement list
+    /// directly: a section has no wrapping block by grammar (<see cref="AnalyzeSwitchSection"/>), so there
+    /// is no <see cref="BlockSyntax"/> to hand this the usual way.
+    /// </summary>
+    private static bool TryReadLeadingStatements(
+        SyntaxList<StatementSyntax> statementList, int count, out ImmutableArray<StatementSyntax> statements)
     {
         var leading = ImmutableArray.CreateBuilder<StatementSyntax>(count - 1);
         for (var index = 0; index < count - 1; index++)
         {
-            var statement = block.Statements[index];
+            var statement = statementList[index];
             if (statement is not (LocalDeclarationStatementSyntax or ExpressionStatementSyntax))
             {
                 statements = [];
@@ -3742,6 +3849,37 @@ internal static class RenderExpressionAnalyzer
             return false;
 
         ifStatement = last;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads a block whose last statement is a native `switch` (ARCHITECTURE.md §5.3's Transplantable
+    /// syntax), the same degradation as <see cref="TryReadTransplantableIf"/> for one more C# branch
+    /// construct. Each section's own statements are not read here; <see cref="AnalyzeSwitchSection"/>
+    /// reads them, so both this function and the getter/content/view-part-body call sites stay simple
+    /// bool tests.
+    /// </summary>
+    public static bool TryReadTransplantableSwitch(
+        BlockSyntax block,
+        out ImmutableArray<StatementSyntax> statements,
+        out SwitchStatementSyntax switchStatement)
+    {
+        statements = [];
+        switchStatement = null!;
+
+        var count = block.Statements.Count;
+        if (count == 0 || block.Statements[count - 1] is not SwitchStatementSyntax last)
+            return false;
+
+        if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
+            return false;
+
+        // One scan over the whole `switch`, including every section: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf's same call.
+        if (DeclaresReservedName(last))
+            return false;
+
+        switchStatement = last;
         return true;
     }
 

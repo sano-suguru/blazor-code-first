@@ -108,6 +108,34 @@ internal static class ViewPartExpander
                     (then, otherwise) => new TransplantedIfNode(
                         transplantedIf.Condition.Substitute(substitution), then, otherwise));
 
+            case TransplantedSwitchNode transplantedSwitch:
+                {
+                    var sections = ImmutableArray.CreateBuilder<TransplantedSwitchSection>(
+                        transplantedSwitch.Sections.Length);
+                    foreach (var section in transplantedSwitch.Sections)
+                    {
+                        var content = ExpandNode(
+                            section.Content, substitution, ref nextLogicalPreorderOrdinal,
+                            activeMethodStack, currentScope, environment);
+                        if (content is null)
+                            return null;
+
+                        var labels = ImmutableArray.CreateBuilder<ExpressionTemplate>(section.Labels.Length);
+                        foreach (var label in section.Labels)
+                            labels.Add(label.Substitute(substitution));
+
+                        sections.Add(section with
+                        {
+                            Labels = new EquatableArray<ExpressionTemplate>(labels.MoveToImmutable()),
+                            Content = content,
+                        });
+                    }
+
+                    return new TransplantedSwitchNode(
+                        transplantedSwitch.Discriminant.Substitute(substitution),
+                        new EquatableArray<TransplantedSwitchSection>(sections.MoveToImmutable()));
+                }
+
             case ForEachNode forEach:
                 {
                     // The preorder `ordinal` (assigned at the top of ExpandNode) names a loop variable

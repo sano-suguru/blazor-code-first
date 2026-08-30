@@ -98,6 +98,22 @@ internal sealed record IfNode(ExpressionTemplate ConditionExpression, RenderNode
 internal sealed record TransplantedIfNode(
     ExpressionTemplate Condition, RenderNode Then, RenderNode? Otherwise) : RenderNode;
 
+/// <summary>One section (one or more case labels, or <c>default</c>) of a <see cref="TransplantedSwitchNode"/>.
+/// <see cref="Labels"/> is each label normalized the same way a discriminant or a condition is
+/// (<see cref="Analysis.ExpressionTemplateFactory.CreateForSwitchLabel"/>): a label can carry a pattern
+/// designation or a `when` clause, and either can reference an enclosing scope's identifier the same way a
+/// leading statement can, so it needs the same hole substitution.</summary>
+internal sealed record TransplantedSwitchSection(
+    EquatableArray<ExpressionTemplate> Labels, RenderNode Content);
+
+/// <summary>
+/// A native `switch` statement transplanted whole (ARCHITECTURE.md §5.3), analogous to <see cref="TransplantedIfNode"/>:
+/// exactly one section ever runs, so every section's content shares the same sequence number rather than a
+/// disjoint per-section range. See <c>EmitTransplantedSwitch</c>.
+/// </summary>
+internal sealed record TransplantedSwitchNode(
+    ExpressionTemplate Discriminant, EquatableArray<TransplantedSwitchSection> Sections) : RenderNode;
+
 internal sealed record LocalBinding(
     string TypeName,
     string Name,
