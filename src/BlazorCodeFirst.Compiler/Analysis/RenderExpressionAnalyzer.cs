@@ -317,61 +317,30 @@ internal static class RenderExpressionAnalyzer
     /// (unlike an `if`/`else` arm, which is always a <see cref="BlockSyntax"/>), so this reads
     /// <see cref="SwitchSectionSyntax.Statements"/> directly rather than delegating to
     /// <see cref="TryReadTransplantableBlock"/>/<see cref="TryReadTransplantableIf"/>, which both require
-    /// one.
+    /// one. <see cref="DeclaresReservedName(SyntaxNode)"/> is called once on the whole section (labels
+    /// included), the same single-scan shape <see cref="TryReadTransplantableIf"/> uses for an `if`.
     /// </summary>
     private static RenderNode? AnalyzeSwitchSection(SwitchSectionSyntax section, ViewPartBodyContext context)
     {
         var statements = section.Statements;
         var count = statements.Count;
 
-        if (count > 0 && statements[count - 1] is ReturnStatementSyntax { Expression: { } returned })
+        if (count == 0 || DeclaresReservedName(section))
+            return null;
+
+        if (!TryReadLeadingStatements(statements, count, out var leading))
+            return null;
+
+        return statements[count - 1] switch
         {
-            if (!TryReadLeadingStatements(statements, count, out var leading))
-                return null;
-
-            if (AnyDeclaresReservedName(statements))
-                return null;
-
-            return Analyze(leading, returned, context);
-        }
-
-        if (count > 0 && statements[count - 1] is IfStatementSyntax { Statement: BlockSyntax } nestedIf)
-        {
-            if (!TryReadLeadingStatements(statements, count, out var ifLeading))
-                return null;
-
-            if (AnyDeclaresReservedName(statements))
-                return null;
-
-            return AnalyzeTransplantedBody(
-                ifLeading, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context));
-        }
-
-        if (count > 0 && statements[count - 1] is SwitchStatementSyntax nestedSwitch)
-        {
-            if (!TryReadLeadingStatements(statements, count, out var switchLeading))
-                return null;
-
-            if (AnyDeclaresReservedName(statements))
-                return null;
-
-            return AnalyzeTransplantedBody(
-                switchLeading, nestedSwitch.Expression, context, () => AnalyzeSwitch(nestedSwitch, context));
-        }
-
-        return null;
-    }
-
-    /// <summary>Whether any statement in <paramref name="statements"/> declares a reserved name (§5.3).</summary>
-    private static bool AnyDeclaresReservedName(SyntaxList<StatementSyntax> statements)
-    {
-        foreach (var statement in statements)
-        {
-            if (DeclaresReservedName(statement))
-                return true;
-        }
-
-        return false;
+            ReturnStatementSyntax { Expression: { } returned } => Analyze(leading, returned, context),
+            IfStatementSyntax { Statement: BlockSyntax } nestedIf =>
+                AnalyzeTransplantedBody(leading, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context)),
+            SwitchStatementSyntax nestedSwitch =>
+                AnalyzeTransplantedBody(
+                    leading, nestedSwitch.Expression, context, () => AnalyzeSwitch(nestedSwitch, context)),
+            _ => null,
+        };
     }
 
     /// <summary>

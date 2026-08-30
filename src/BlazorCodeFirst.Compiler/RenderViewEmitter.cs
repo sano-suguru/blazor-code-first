@@ -401,13 +401,8 @@ internal static class RenderViewEmitter
     /// content is drawn through a freshly synthesized <c>RenderFragment</c> rather than statically
     /// assigned (the static optimization DESIGN.md §5.3 says this path loses).
     /// </summary>
-    private static int EmitTransplantedIf(IndentedWriter writer, TransplantedIfNode node, int seq)
-    {
-        writer.AppendLine($"__builder.OpenRegion({seq});");
-        EmitTransplantedIfArms(writer, node, seq + 1);
-        writer.AppendLine("__builder.CloseRegion();");
-        return seq + 2;
-    }
+    private static int EmitTransplantedIf(IndentedWriter writer, TransplantedIfNode node, int seq) =>
+        EmitTransplantedRegion(writer, seq, armSeq => EmitTransplantedIfArms(writer, node, armSeq));
 
     /// <summary>
     /// Emits the `if`/`else if`/`else` chain itself. No `OpenRegion`/`CloseRegion` here — the single
@@ -490,10 +485,19 @@ internal static class RenderViewEmitter
     /// without it, falling out of the synthesized-fragment statement into the next `case` would be
     /// fallthrough, which C# rejects.
     /// </summary>
-    private static int EmitTransplantedSwitch(IndentedWriter writer, TransplantedSwitchNode node, int seq)
+    private static int EmitTransplantedSwitch(IndentedWriter writer, TransplantedSwitchNode node, int seq) =>
+        EmitTransplantedRegion(writer, seq, armSeq => EmitTransplantedSwitchArms(writer, node, armSeq));
+
+    /// <summary>
+    /// The one region an `if`/`else` chain or a `switch` shares across all its arms/sections
+    /// (<see cref="EmitTransplantedIf"/>, <see cref="EmitTransplantedSwitch"/>): open at
+    /// <paramref name="seq"/>, let <paramref name="emitArms"/> write the construct at <paramref name="seq"/>
+    /// + 1, close, and hand back the next free sequence number.
+    /// </summary>
+    private static int EmitTransplantedRegion(IndentedWriter writer, int seq, Action<int> emitArms)
     {
         writer.AppendLine($"__builder.OpenRegion({seq});");
-        EmitTransplantedSwitchArms(writer, node, seq + 1);
+        emitArms(seq + 1);
         writer.AppendLine("__builder.CloseRegion();");
         return seq + 2;
     }
