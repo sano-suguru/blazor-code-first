@@ -56,6 +56,32 @@ public sealed class ForEachTransplantTests
                 }
         """;
 
+    private const string BlockSwitchContent = """
+        x =>
+                {
+                    switch (x)
+                    {
+                        case "a":
+                            return Html.Span[x];
+                        default:
+                            return Html.Span["-"];
+                    }
+                }
+        """;
+
+    private const string SwitchWhenClauseReferencingItemContent = """
+        x =>
+                {
+                    switch (x)
+                    {
+                        case var v when v == x:
+                            return Html.Span[x];
+                        default:
+                            return Html.Span["-"];
+                    }
+                }
+        """;
+
     /// <summary>A component whose <c>ForEach</c> key is <c>$KEY$</c>.</summary>
     private const string KeyHost = """
         using BlazorCodeFirst;
@@ -109,6 +135,50 @@ public sealed class ForEachTransplantTests
         Assert.Contains("__bcf_item_0 == \"a\"", generated);
         Assert.DoesNotContain("FragmentOf", generated);
 
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ForEachContent_WhenBlockEndsInNativeSwitch_TransplantsIntoARegion()
+    {
+        var result = RunNoKey(BlockSwitchContent);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF3003" or "BCF3004");
+
+        // The iteration variable is substituted into the discriminant the same way it already is into a
+        // transplanted statement/`if` condition.
+        Assert.Contains("switch (__bcf_item_0)", generated);
+        Assert.Contains("case \"a\":", generated);
+        Assert.DoesNotContain("FragmentOf", generated);
+
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ForEachContent_WhenKeyedAndBlockEndsInNativeSwitch_ReportsBcf3003()
+    {
+        // A native `switch`'s content is region-rooted (KeyabilityResolver.ResolveRoot classifies
+        // TransplantedSwitchNode the same way as TransplantedIfNode), so a keyed ForEach with switch
+        // content has nowhere for SetKey to land -- the same rule a keyed ForEach with `if` content
+        // already answers to. Run (not RunNoKey): this host writes a real key (`x => x`).
+        var result = Run(BlockSwitchContent);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3003");
+    }
+
+    [Fact]
+    public void ForEachContent_WhenSwitchCaseLabelReferencesTheIterationVariable_SubstitutesInsideTheLabel()
+    {
+        // A case label is transplanted verbatim as source text (AnalyzeSwitch), not run through
+        // ExpressionTemplateFactory the way a discriminant or a condition is. A `when` clause referencing
+        // the lambda parameter (`x`) therefore risks emitting the author's own name into a scope where
+        // only the generator's iteration variable (`__bcf_item_0`) exists -- CS0103 if the label's
+        // reference is not substituted the same way the discriminant's is.
+        var result = RunNoKey(SwitchWhenClauseReferencingItemContent);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1003" or "BCF3003" or "BCF3004");
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
