@@ -3842,10 +3842,11 @@ internal static class RenderExpressionAnalyzer
         if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
             return false;
 
-        // One scan over the whole `if`, including every nested arm: DeclaresReservedName walks all
+        // One scan over the whole block, not just the trailing `if`: DeclaresReservedName walks all
         // descendant nodes except into a nested lambda (an authored event handler keeps its own scope,
-        // #413), so this single call already covers `then`, every `else if`, and the final `else`.
-        if (DeclaresReservedName(last))
+        // #413), so this single call covers every leading statement (#570) together with `then`, every
+        // `else if`, and the final `else` -- the same shape TryReadTransplantableBlock scans at `:3771`.
+        if (DeclaresReservedName(block))
             return false;
 
         ifStatement = last;
@@ -3874,9 +3875,10 @@ internal static class RenderExpressionAnalyzer
         if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
             return false;
 
-        // One scan over the whole `switch`, including every section: DeclaresReservedName walks all
-        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf's same call.
-        if (DeclaresReservedName(last))
+        // One scan over the whole block, not just the trailing `switch`: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf's same call,
+        // and covering every leading statement (#570) together with every section.
+        if (DeclaresReservedName(block))
             return false;
 
         switchStatement = last;

@@ -293,4 +293,67 @@ public sealed class BodyTransplantIfTests
         var result = Run(Getter);
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
     }
+
+    [Fact]
+    public void Body_WhenAStatementBeforeTheIfDeclaresReservedName_ReportsBcf1004()
+    {
+        // The reserved name is declared BEFORE the `if`, not inside either arm (#570). The leading
+        // statement TryReadLeadingStatements gathers must be scanned the same way the trailing `if`
+        // itself is, or this is accepted with only BCF2002 and the generated file redeclares `__builder`.
+        const string Getter = """
+            {
+                    get
+                    {
+                        var __builder = 1;
+                        if (_flag)
+                        {
+                            return Span[__builder.ToString()];
+                        }
+                        else
+                        {
+                            return Span["no"];
+                        }
+                    }
+                }
+            """;
+        var result = Run(Getter);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
+    }
+
+    [Fact]
+    public void Body_WhenANestedArmsLeadingStatementDeclaresReservedName_AlreadyReportsBcf1004()
+    {
+        // A leading statement before a NESTED `if` (inside an explicitly braced `else` arm, AnalyzeArm's
+        // own TryReadTransplantableIf call) is a syntactic descendant of the outer `if` statement that
+        // the top-level TryReadTransplantableIf call already scans, so this was never affected by #570:
+        // DeclaresReservedName(last) at the top level walks into it via DescendantNodes regardless of
+        // whether `last` there is the outer if statement's trailing form or the whole block. Pinned here
+        // so the #570 fix (last -> block in TryReadTransplantableIf/Switch) is not mistaken for the thing
+        // that makes this particular shape work -- it already did, before and after.
+        const string Getter = """
+            {
+                    get
+                    {
+                        if (_flag)
+                        {
+                            return Span["yes"];
+                        }
+                        else
+                        {
+                            var __builder = 1;
+                            if (_a)
+                            {
+                                return Span[__builder.ToString()];
+                            }
+                            else
+                            {
+                                return Span["no"];
+                            }
+                        }
+                    }
+                }
+            """;
+        var result = Run(Getter);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
+    }
 }

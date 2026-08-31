@@ -58,12 +58,20 @@ public sealed class LambdaUnwrapPositionTests
     ];
 
     /// <summary>
-    /// What a position answers the reserved names with. <c>TryReadTransplantableBlock</c> and
-    /// <c>TryBindTransplantedLambda</c> count because each runs the scan over what it accepts, which is how
-    /// the block-bodied <c>ForEach</c> content and the three lambda-reading positions ask.
+    /// What a position answers the reserved names with. <c>TryReadTransplantableBlock</c>,
+    /// <c>TryReadTransplantableIf</c>, <c>TryReadTransplantableSwitch</c>, and
+    /// <c>TryBindTransplantedLambda</c> count because each runs the scan over what it accepts, which is
+    /// how the block-bodied <c>ForEach</c> content (all three Transplantable shapes, #570) and the three
+    /// lambda-reading positions ask.
     /// </summary>
     private static readonly string[] Scans =
-        ["DeclaresReservedName", "TryBindTransplantedLambda", "TryReadTransplantableBlock"];
+    [
+        "DeclaresReservedName",
+        "TryBindTransplantedLambda",
+        "TryReadTransplantableBlock",
+        "TryReadTransplantableIf",
+        "TryReadTransplantableSwitch",
+    ];
 
     /// <summary>
     /// Every position that unwraps a lambda, how many it unwraps, and whether the body it takes is

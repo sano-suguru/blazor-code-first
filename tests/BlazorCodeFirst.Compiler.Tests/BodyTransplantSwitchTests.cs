@@ -230,6 +230,30 @@ public sealed class BodyTransplantSwitchTests
     }
 
     [Fact]
+    public void Body_WhenAStatementBeforeTheSwitchDeclaresReservedName_ReportsBcf1004()
+    {
+        // The reserved name is declared BEFORE the `switch`, not inside any section (#570). Mirrors
+        // Body_WhenAStatementBeforeTheIfDeclaresReservedName_ReportsBcf1004 in BodyTransplantIfTests.
+        const string Getter = """
+            {
+                    get
+                    {
+                        var __builder = 1;
+                        switch (_mode)
+                        {
+                            case 1:
+                                return Span[__builder.ToString()];
+                            default:
+                                return Span["other"];
+                        }
+                    }
+                }
+            """;
+        var result = Run(Getter);
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
+    }
+
+    [Fact]
     public void Body_WhenMultipleCaseLabelsShareOneSection_EmitsBothLabelsForOneSharedBlock()
     {
         const string Getter = """
