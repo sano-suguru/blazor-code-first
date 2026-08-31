@@ -242,7 +242,7 @@ internal static class RenderExpressionAnalyzer
         // The condition is transplanted into the generated `if` header, which scopes over both branches,
         // so a pattern designator the author declared there (`if (x is string s)`) is legal in either one
         // (#361, #569). Registered as a scope for the same reason the lowered `If`'s condition is
-        // (ClassifyIf, `:704`): each branch is normalized against a root of its own, and without this the
+        // (ClassifyIf, `:761`): each branch is normalized against a root of its own, and without this the
         // declaration looks to that root like one from an enclosing scope. An `else if` recurses through
         // this same method while the scope is still open, so its own condition nests inside it correctly
         // (a stack, not a single value, per ViewPartBodyContext.PushTransplantedScope's remarks).
@@ -3902,7 +3902,7 @@ internal static class RenderExpressionAnalyzer
         // One scan over the whole block, not just the trailing `if`: DeclaresReservedName walks all
         // descendant nodes except into a nested lambda (an authored event handler keeps its own scope,
         // #413), so this single call covers every leading statement (#570) together with `then`, every
-        // `else if`, and the final `else` -- the same shape TryReadTransplantableBlock scans at `:3771`.
+        // `else if`, and the final `else` -- the same shape TryReadTransplantableBlock scans at `:3828`.
         if (DeclaresReservedName(block))
             return false;
 
