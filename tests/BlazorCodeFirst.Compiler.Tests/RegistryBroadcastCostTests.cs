@@ -24,9 +24,12 @@ public sealed class RegistryBroadcastCostTests(ITestOutputHelper output)
     /// shifts every <c>TemplateLocation</c> offset in that file but changes no semantics) leaves no
     /// <c>ComponentModeling</c> output Cached, regardless of how many of the N components actually call
     /// the edited view part. Cached is the only reason that would mean Expand did not re-run for that
-    /// component, so "zero Cached" is exactly the over-invalidation #480 describes; it does not claim
-    /// every component reports Unchanged, since the few callers of the edited view part legitimately
-    /// report Modified.
+    /// component, so "zero Cached" is exactly the over-invalidation #480 describes. In this corpus every
+    /// output — including the callers of the edited view part — actually reports Unchanged rather than
+    /// Modified: the offset shift moves only a diagnostic location, which does not enter the emitted
+    /// component model's value equality. This test does not assert on which reason each component
+    /// reports, only that none report Cached; a corpus where the offset did flow into the rendered
+    /// output would report Modified for those callers instead.
     /// </summary>
     [Theory]
     [MemberData(nameof(ComponentCountCases))]
