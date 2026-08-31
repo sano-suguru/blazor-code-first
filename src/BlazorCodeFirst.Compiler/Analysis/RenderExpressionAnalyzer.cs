@@ -318,30 +318,43 @@ internal static class RenderExpressionAnalyzer
                 ImmutableArray.CreateBuilder<TransplantedSwitchSection>(switchStatement.Sections.Count);
             foreach (var section in switchStatement.Sections)
             {
-                // A `case` label's own pattern designator (`case string s:`) is a C# local scoped to that
-                // one section, not the whole `switch` -- pushed and popped per section, narrower than the
-                // discriminant's scope above it (#569). Section.Labels is never empty by grammar.
-                context.PushTransplantedScope(SpanOfLabels(section));
-                try
-                {
-                    if (AnalyzeSwitchSection(section, context) is not { } content)
-                        return null;
+                if (BuildSwitchSection(section, context) is not { } built)
+                    return null;
 
-                    var labels = ImmutableArray.CreateBuilder<ExpressionTemplate>(section.Labels.Count);
-                    foreach (var label in section.Labels)
-                        labels.Add(ExpressionTemplateFactory.CreateForSwitchLabel(label, context));
-
-                    sections.Add(new TransplantedSwitchSection(
-                        new EquatableArray<ExpressionTemplate>(labels.MoveToImmutable()), content));
-                }
-                finally
-                {
-                    context.PopTransplantedScope();
-                }
+                sections.Add(built);
             }
 
             return new TransplantedSwitchNode(discriminant, new EquatableArray<TransplantedSwitchSection>(
                 sections.MoveToImmutable()));
+        }
+        finally
+        {
+            context.PopTransplantedScope();
+        }
+    }
+
+    /// <summary>
+    /// Reads one `switch` section's labels within their own scope: a `case` label's own pattern
+    /// designator (`case string s:`) is a C# local scoped to that one section, not the whole `switch` --
+    /// pushed and popped per section, narrower than the discriminant's scope <see cref="AnalyzeSwitch"/>
+    /// opens around it (#569). Delegates the section's content to <see cref="AnalyzeSwitchSection"/>.
+    /// </summary>
+    private static TransplantedSwitchSection? BuildSwitchSection(
+        SwitchSectionSyntax section, ViewPartBodyContext context)
+    {
+        // Section.Labels is never empty by grammar.
+        context.PushTransplantedScope(SpanOfLabels(section));
+        try
+        {
+            if (AnalyzeSwitchSection(section, context) is not { } content)
+                return null;
+
+            var labels = ImmutableArray.CreateBuilder<ExpressionTemplate>(section.Labels.Count);
+            foreach (var label in section.Labels)
+                labels.Add(ExpressionTemplateFactory.CreateForSwitchLabel(label, context));
+
+            return new TransplantedSwitchSection(
+                new EquatableArray<ExpressionTemplate>(labels.MoveToImmutable()), content);
         }
         finally
         {
