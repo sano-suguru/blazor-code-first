@@ -4,11 +4,12 @@ using Microsoft.CodeAnalysis;
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
-/// A local declared in the header of a lowered construct and read from the body it encloses: the
-/// <c>If</c> condition, and the source of a <c>ForEach</c> or of the <c>Select</c> a spliced child list
-/// is sugar for (#361). ARCHITECTURE.md §2.3 states the rule and why nothing wider is admitted; the
-/// refused shapes are here beside the accepted ones because a rule this narrow is only meaningful with
-/// its boundary pinned.
+/// A local declared in the header of a lowered or native construct and read from the body it encloses:
+/// the lowered <c>If</c> call's condition, a native `if`'s condition, a native `switch`'s discriminant
+/// and each `case` label's own designator (#569), and the source of a <c>ForEach</c> or of the
+/// <c>Select</c> a spliced child list is sugar for (#361). ARCHITECTURE.md §2.3 states the rule and why
+/// nothing wider is admitted; the refused shapes are here beside the accepted ones because a rule this
+/// narrow is only meaningful with its boundary pinned.
 /// </summary>
 public sealed class LoweredHeaderLocalTests
 {
@@ -64,6 +65,129 @@ public sealed class LoweredHeaderLocalTests
         CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
         return Assert.Single(result.GeneratedSources).SourceText.ToString();
     }
+
+    /// <summary>
+    /// A block-bodied getter, for the native `if`/`switch` shapes <see cref="Host"/> cannot hold: its own
+    /// <c>Body</c> is expression-bodied (`=> $BODY$;`), which admits the lowered `If(...)` call every test
+    /// above uses but not a statement-form native construct (ARCHITECTURE.md §5.3).
+    /// </summary>
+    private const string NativeHost = """
+        using BlazorCodeFirst;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            private object _obj = "x";
+
+            protected override View Body
+            $GETTER$
+        }
+        """;
+
+    private static GeneratorRunResult RunNative(string getter) =>
+        CompilationTestHost.RunGenerator(NativeHost.Replace("$GETTER$", getter));
+
+    /// <summary>As <see cref="AssertAccepted"/>, but for a native `if`/`switch` getter: BCF1004, not
+    /// BCF1002, is what a design-time expression's own unsupported reference reports.</summary>
+    private static void AssertNativeAccepted(string getter)
+    {
+        var result = RunNative(getter);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1002" or "BCF1003" or "BCF1004");
+        CompilationTestHost.AssertOutputCompiles(result);
+        CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
+    }
+
+    /// <summary>
+    /// The condition is transplanted into the generated `if` header, scoping over both branches the same
+    /// way a lowered `If`'s condition does (#361, #569): a pattern designator declared there is legal in
+    /// the `then` branch's own returned expression.
+    /// </summary>
+    [Fact]
+    public void NativeIfCondition_DeclaringAPatternDesignatorReadFromTheThenBranch_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        if (_obj is string s)
+                        {
+                            return Span[s];
+                        }
+                        else
+                        {
+                            return Span["other"];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>Same header scope, read from the `else` branch via an `is not` negation.</summary>
+    [Fact]
+    public void NativeIfCondition_DeclaringAPatternDesignatorReadFromTheElseBranch_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        if (_obj is not string s)
+                        {
+                            return Span["other"];
+                        }
+                        else
+                        {
+                            return Span[s];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>
+    /// A `case` label's pattern designator is a C# local scoped to its own switch section (§2.3): legal in
+    /// that section's own returned expression, the shape #569 names.
+    /// </summary>
+    [Fact]
+    public void NativeSwitchLabel_DeclaringAPatternDesignatorReadFromItsOwnSection_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        switch (_obj)
+                        {
+                            case string s:
+                                return Span[s];
+                            default:
+                                return Span["other"];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>
+    /// A pattern designator declared in the discriminant is legal from any section (Q6): C# scopes it to
+    /// the whole `switch`. The `throw` on the pattern's false branch is what makes `t` definitely assigned
+    /// wherever the switch dispatches -- an ordinary `is`-in-a-ternary discriminant does not compile
+    /// (verified empirically: the plain ternary form is CS0165, since a value can reach the switch without
+    /// the pattern ever matching).
+    /// </summary>
+    [Fact]
+    public void NativeSwitchDiscriminant_DeclaringAPatternDesignatorReadFromASection_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        switch (_obj is string t ? true : throw new System.InvalidOperationException())
+                        {
+                            case true:
+                                return Span[t];
+                            default:
+                                return Span["other"];
+                        }
+                    }
+                }
+            """);
 
     /// <summary>
     /// Asserts the refusal is the one this file is about. The id alone would read green for any other

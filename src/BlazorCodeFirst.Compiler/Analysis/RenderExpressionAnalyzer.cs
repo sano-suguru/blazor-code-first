@@ -239,26 +239,41 @@ internal static class RenderExpressionAnalyzer
         if (ifStatement.Statement is not BlockSyntax thenBlock)
             return null;
 
-        var condition = ExpressionTemplateFactory.Create(ifStatement.Condition, context);
-
-        if (AnalyzeArm(thenBlock, context) is not { } then)
-            return null;
-
-        RenderNode? otherwise = null;
-        if (ifStatement.Else is { Statement: var elseStatement })
+        // The condition is transplanted into the generated `if` header, which scopes over both branches,
+        // so a pattern designator the author declared there (`if (x is string s)`) is legal in either one
+        // (#361, #569). Registered as a scope for the same reason the lowered `If`'s condition is in
+        // ClassifyIf: each branch is normalized against a root of its own, and without this the
+        // declaration looks to that root like one from an enclosing scope. An `else if` recurses through
+        // this same method while the scope is still open, so its own condition nests inside it correctly
+        // (a stack, not a single value, per ViewPartBodyContext.PushTransplantedScope's remarks).
+        context.PushTransplantedScope(ifStatement.Condition.Span);
+        try
         {
-            otherwise = elseStatement switch
-            {
-                IfStatementSyntax nestedIf => AnalyzeIf(nestedIf, context),
-                BlockSyntax elseBlock => AnalyzeArm(elseBlock, context),
-                _ => null,
-            };
+            var condition = ExpressionTemplateFactory.Create(ifStatement.Condition, context);
 
-            if (otherwise is null)
+            if (AnalyzeArm(thenBlock, context) is not { } then)
                 return null;
-        }
 
-        return new TransplantedIfNode(condition, then, otherwise);
+            RenderNode? otherwise = null;
+            if (ifStatement.Else is { Statement: var elseStatement })
+            {
+                otherwise = elseStatement switch
+                {
+                    IfStatementSyntax nestedIf => AnalyzeIf(nestedIf, context),
+                    BlockSyntax elseBlock => AnalyzeArm(elseBlock, context),
+                    _ => null,
+                };
+
+                if (otherwise is null)
+                    return null;
+            }
+
+            return new TransplantedIfNode(condition, then, otherwise);
+        }
+        finally
+        {
+            context.PopTransplantedScope();
+        }
     }
 
     /// <summary>
@@ -291,10 +306,45 @@ internal static class RenderExpressionAnalyzer
     private static TransplantedSwitchNode? AnalyzeSwitch(
         SwitchStatementSyntax switchStatement, ViewPartBodyContext context)
     {
-        var discriminant = ExpressionTemplateFactory.Create(switchStatement.Expression, context);
+        // The discriminant is transplanted into the generated `switch` header, scoping over every section
+        // the same way the `if` condition scopes over both branches (AnalyzeIf): a pattern designator
+        // declared there (`switch (x is string s ? ... : ...)`) is legal from any section (#569, Q6).
+        context.PushTransplantedScope(switchStatement.Expression.Span);
+        try
+        {
+            var discriminant = ExpressionTemplateFactory.Create(switchStatement.Expression, context);
 
-        var sections = ImmutableArray.CreateBuilder<TransplantedSwitchSection>(switchStatement.Sections.Count);
-        foreach (var section in switchStatement.Sections)
+            var sections =
+                ImmutableArray.CreateBuilder<TransplantedSwitchSection>(switchStatement.Sections.Count);
+            foreach (var section in switchStatement.Sections)
+            {
+                if (BuildSwitchSection(section, context) is not { } built)
+                    return null;
+
+                sections.Add(built);
+            }
+
+            return new TransplantedSwitchNode(discriminant, new EquatableArray<TransplantedSwitchSection>(
+                sections.MoveToImmutable()));
+        }
+        finally
+        {
+            context.PopTransplantedScope();
+        }
+    }
+
+    /// <summary>
+    /// Reads one `switch` section's labels within their own scope: a `case` label's own pattern
+    /// designator (`case string s:`) is a C# local scoped to that one section, not the whole `switch` --
+    /// pushed and popped per section, narrower than the discriminant's scope <see cref="AnalyzeSwitch"/>
+    /// opens around it (#569). Delegates the section's content to <see cref="AnalyzeSwitchSection"/>.
+    /// </summary>
+    private static TransplantedSwitchSection? BuildSwitchSection(
+        SwitchSectionSyntax section, ViewPartBodyContext context)
+    {
+        // Section.Labels is never empty by grammar.
+        context.PushTransplantedScope(SpanOfLabels(section));
+        try
         {
             if (AnalyzeSwitchSection(section, context) is not { } content)
                 return null;
@@ -303,12 +353,13 @@ internal static class RenderExpressionAnalyzer
             foreach (var label in section.Labels)
                 labels.Add(ExpressionTemplateFactory.CreateForSwitchLabel(label, context));
 
-            sections.Add(new TransplantedSwitchSection(
-                new EquatableArray<ExpressionTemplate>(labels.MoveToImmutable()), content));
+            return new TransplantedSwitchSection(
+                new EquatableArray<ExpressionTemplate>(labels.MoveToImmutable()), content);
         }
-
-        return new TransplantedSwitchNode(discriminant, new EquatableArray<TransplantedSwitchSection>(
-            sections.MoveToImmutable()));
+        finally
+        {
+            context.PopTransplantedScope();
+        }
     }
 
     /// <summary>
@@ -409,6 +460,12 @@ internal static class RenderExpressionAnalyzer
     private static TextSpan SpanOf(ImmutableArray<StatementSyntax> statements) =>
         TextSpan.FromBounds(
             statements[0].FullSpan.Start, statements[statements.Length - 1].FullSpan.End);
+
+    /// <summary>The span covering every label of <paramref name="section"/>, which C# grammar guarantees
+    /// is non-empty.</summary>
+    private static TextSpan SpanOfLabels(SwitchSectionSyntax section) =>
+        TextSpan.FromBounds(
+            section.Labels[0].Span.Start, section.Labels[section.Labels.Count - 1].Span.End);
 
     private static RenderNode? Classify(ExpressionSyntax expression, ViewPartBodyContext context)
     {
@@ -3842,10 +3899,11 @@ internal static class RenderExpressionAnalyzer
         if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
             return false;
 
-        // One scan over the whole `if`, including every nested arm: DeclaresReservedName walks all
+        // One scan over the whole block, not just the trailing `if`: DeclaresReservedName walks all
         // descendant nodes except into a nested lambda (an authored event handler keeps its own scope,
-        // #413), so this single call already covers `then`, every `else if`, and the final `else`.
-        if (DeclaresReservedName(last))
+        // #413), so this single call covers every leading statement (#570) together with `then`, every
+        // `else if`, and the final `else` -- the same shape TryReadTransplantableBlock scans.
+        if (DeclaresReservedName(block))
             return false;
 
         ifStatement = last;
@@ -3874,9 +3932,10 @@ internal static class RenderExpressionAnalyzer
         if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
             return false;
 
-        // One scan over the whole `switch`, including every section: DeclaresReservedName walks all
-        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf's same call.
-        if (DeclaresReservedName(last))
+        // One scan over the whole block, not just the trailing `switch`: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf's same call,
+        // and covering every leading statement (#570) together with every section.
+        if (DeclaresReservedName(block))
             return false;
 
         switchStatement = last;
