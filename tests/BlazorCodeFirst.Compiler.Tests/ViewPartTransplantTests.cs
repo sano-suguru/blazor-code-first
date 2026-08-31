@@ -151,6 +151,24 @@ public sealed class ViewPartTransplantTests
             }
         """;
 
+    /// <summary>A part whose `switch` discriminant declares a pattern designator read from a section's
+    /// own returned expression (#569, Q6). The `throw` on the pattern's false branch is what makes `t`
+    /// definitely assigned wherever the switch dispatches -- an ordinary `is`-in-a-ternary discriminant
+    /// does not compile (verified empirically: CS0165, since a value can reach the switch without the
+    /// pattern ever matching).</summary>
+    private const string SwitchDiscriminantPatternDesignatorPart = """
+        Part(object obj)
+            {
+                switch (obj is string t ? true : throw new System.InvalidOperationException())
+                {
+                    case true:
+                        return Span[t];
+                    default:
+                        return Span["other"];
+                }
+            }
+        """;
+
     private static GeneratorRunResult Run(string body, string part) =>
         CompilationTestHost.RunGenerator(Host.Replace("$BODY$", body).Replace("$PART$", part));
 
@@ -612,8 +630,9 @@ public sealed class ViewPartTransplantTests
     }
 
     /// <summary>
-    /// In ViewPart mode a native `if`'s condition is also collected as a render variable
-    /// (<c>AnalyzeIf</c>'s <c>localsAnchor</c>, threaded through <c>AnalyzeTransplantedBody</c>'s
+    /// In ViewPart mode a native `if`'s condition is also collected as a render variable (the top-level
+    /// <c>Analyze(statements, IfStatementSyntax, ...)</c> overload's own <c>localsAnchor</c> is
+    /// <c>ifStatement.Condition</c>, threaded through <c>AnalyzeTransplantedBody</c>'s
     /// <c>CollectDeclaredLocals</c>), so the designator's declaration and its reference are both hole-ified
     /// under a minted name -- the same treatment a leading statement's local gets, not the author's own
     /// spelling. Safe either way (the `if` is its own C# scope per call site), but this is the actual
@@ -650,6 +669,28 @@ public sealed class ViewPartTransplantTests
 
         Assert.Contains("case string s:", generated, StringComparison.Ordinal);
         Assert.Contains("__builder.AddContent(1, s);", generated, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Like the `if` condition, not like a `case` label: the discriminant is anchored by
+    /// <c>CollectDeclaredLocals</c> too (the top-level <c>Analyze(statements, SwitchStatementSyntax, ...)</c>
+    /// overload's own <c>localsAnchor</c> is <c>switchStatement.Expression</c>), so its designator is
+    /// hole-ified in ViewPart mode the same way the `if` condition's is.
+    /// </summary>
+    [Fact]
+    public void ViewPart_WhenSwitchDiscriminantDeclaresAPatternDesignatorReadFromASection_IsAccepted()
+    {
+        var result = Run("""=> Div[Part("x")];""", SwitchDiscriminantPatternDesignatorPart);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        CompilationTestHost.AssertOutputCompiles(result);
+
+        Assert.Contains(
+            "switch (__bcf_arg_1_0 is string __bcf_local_2_0 ? true : throw",
+            generated,
+            StringComparison.Ordinal);
+        Assert.Contains("__builder.AddContent(1, __bcf_local_2_0);", generated, StringComparison.Ordinal);
     }
 
     [Theory]
