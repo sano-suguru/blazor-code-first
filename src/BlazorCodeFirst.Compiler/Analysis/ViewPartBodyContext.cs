@@ -216,10 +216,13 @@ internal sealed class ViewPartBodyContext
     /// Needed because the enclosing construct becomes several templates, each normalized against its own
     /// root. Without this, a local declared in one and read in another looks like a local from an
     /// enclosing scope, which <c>ExpressionTemplateFactory</c> rejects with BCF1002 because such a local
-    /// cannot exist in generated component code. Two shapes register here, the statements of a
-    /// transplanted block and the header expression of a lowered construct, and ARCHITECTURE.md §2.3 says
-    /// which positions those are and why nothing wider is admitted. They share one list because the check
-    /// asks one question of both: does the declaration land in a generated scope enclosing this reference.
+    /// cannot exist in generated component code. Several shapes register here: the statements of a
+    /// transplanted block, the header expression of a lowered construct, and the header of a native
+    /// construct that lowers to the same generated shape -- an `if`'s condition (<c>AnalyzeIf</c>), a
+    /// `switch`'s discriminant (<c>AnalyzeSwitch</c>), and, narrower still, one `case` label's own
+    /// designator over just that section (#569). ARCHITECTURE.md §2.3 says which positions those are and
+    /// why nothing wider is admitted. They share one list because the check asks one question of all of
+    /// them: does the declaration land in a generated scope enclosing this reference.
     /// <para>
     /// A span and not the node, because containment is all any caller asks. A stack and not a single
     /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block

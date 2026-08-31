@@ -66,6 +66,129 @@ public sealed class LoweredHeaderLocalTests
     }
 
     /// <summary>
+    /// A block-bodied getter, for the native `if`/`switch` shapes <see cref="Host"/> cannot hold: its own
+    /// <c>Body</c> is expression-bodied (`=> $BODY$;`), which admits the lowered `If(...)` call every test
+    /// above uses but not a statement-form native construct (ARCHITECTURE.md §5.3).
+    /// </summary>
+    private const string NativeHost = """
+        using BlazorCodeFirst;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            private object _obj = "x";
+
+            protected override View Body
+            $GETTER$
+        }
+        """;
+
+    private static GeneratorRunResult RunNative(string getter) =>
+        CompilationTestHost.RunGenerator(NativeHost.Replace("$GETTER$", getter));
+
+    /// <summary>As <see cref="AssertAccepted"/>, but for a native `if`/`switch` getter: BCF1004, not
+    /// BCF1002, is what a design-time expression's own unsupported reference reports.</summary>
+    private static void AssertNativeAccepted(string getter)
+    {
+        var result = RunNative(getter);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1002" or "BCF1003" or "BCF1004");
+        CompilationTestHost.AssertOutputCompiles(result);
+        CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
+    }
+
+    /// <summary>
+    /// The condition is transplanted into the generated `if` header, scoping over both branches the same
+    /// way a lowered `If`'s condition does (#361, #569): a pattern designator declared there is legal in
+    /// the `then` branch's own returned expression.
+    /// </summary>
+    [Fact]
+    public void NativeIfCondition_DeclaringAPatternDesignatorReadFromTheThenBranch_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        if (_obj is string s)
+                        {
+                            return Span[s];
+                        }
+                        else
+                        {
+                            return Span["other"];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>Same header scope, read from the `else` branch via an `is not` negation.</summary>
+    [Fact]
+    public void NativeIfCondition_DeclaringAPatternDesignatorReadFromTheElseBranch_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        if (_obj is not string s)
+                        {
+                            return Span["other"];
+                        }
+                        else
+                        {
+                            return Span[s];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>
+    /// A `case` label's pattern designator is a C# local scoped to its own switch section (§2.3): legal in
+    /// that section's own returned expression, the shape #569 names.
+    /// </summary>
+    [Fact]
+    public void NativeSwitchLabel_DeclaringAPatternDesignatorReadFromItsOwnSection_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        switch (_obj)
+                        {
+                            case string s:
+                                return Span[s];
+                            default:
+                                return Span["other"];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>
+    /// A pattern designator declared in the discriminant is legal from any section (Q6): C# scopes it to
+    /// the whole `switch`. The `throw` on the pattern's false branch is what makes `t` definitely assigned
+    /// wherever the switch dispatches -- an ordinary `is`-in-a-ternary discriminant does not compile
+    /// (verified empirically: the plain ternary form is CS0165, since a value can reach the switch without
+    /// the pattern ever matching).
+    /// </summary>
+    [Fact]
+    public void NativeSwitchDiscriminant_DeclaringAPatternDesignatorReadFromASection_IsAccepted() =>
+        AssertNativeAccepted(
+            """
+            {
+                    get
+                    {
+                        switch (_obj is string t ? true : throw new System.InvalidOperationException())
+                        {
+                            case true:
+                                return Span[t];
+                            default:
+                                return Span["other"];
+                        }
+                    }
+                }
+            """);
+
+    /// <summary>
     /// Asserts the refusal is the one this file is about. The id alone would read green for any other
     /// BCF1002 the same source could earn, so the reason has to name the local.
     /// </summary>
