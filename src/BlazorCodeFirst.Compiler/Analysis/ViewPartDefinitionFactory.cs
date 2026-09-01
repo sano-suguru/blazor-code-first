@@ -44,9 +44,16 @@ internal static class ViewPartDefinitionFactory
         // The body's shape is read once, here, and the answer travels: reading it again inside the build
         // would walk the whole block a second time on every keystroke to reach the same two values.
         var bodyAccepted = TryReadBody(
-            declaration, out var bodyExpression, out var bodyIf, out var bodySwitch, out var bodyStatements);
+            declaration,
+            out var bodyExpression,
+            out var bodyIf,
+            out var bodySwitch,
+            out var bodyForEach,
+            out var bodyStatements,
+            out var bodyForEachStatements,
+            out var bodyYielded);
 
-        var invalidReason = ValidateDeclaration(method, bodyAccepted, knownSymbols);
+        var invalidReason = ValidateDeclaration(method, bodyAccepted, bodyForEach is not null, knownSymbols);
         if (invalidReason is not null)
             return Invalid(methodKey, displayName, declaration, invalidReason);
 
@@ -57,7 +64,10 @@ internal static class ViewPartDefinitionFactory
             bodyExpression,
             bodyIf,
             bodySwitch,
+            bodyForEach,
             bodyStatements,
+            bodyForEachStatements,
+            bodyYielded,
             knownSymbols!,
             cancellationToken,
             out var bodyDiagnostics);
@@ -81,6 +91,7 @@ internal static class ViewPartDefinitionFactory
     private static string? ValidateDeclaration(
         IMethodSymbol method,
         bool bodyAccepted,
+        bool isIteratorBody,
         KnownSymbols? knownSymbols)
     {
         // A view part is never an extension member (DESIGN.md §4.3, #203). Rejected ahead of the static
@@ -110,19 +121,50 @@ internal static class ViewPartDefinitionFactory
         }
 
         if (!bodyAccepted)
-            return "must reach one return, with only local declarations and expression statements ahead of it";
+        {
+            return "must reach one return, or one foreach yielding one child per iteration, with only "
+                + "local declarations and expression statements ahead of it";
+        }
 
         var viewType = knownSymbols?.ViewType;
         if (viewType is null)
             return "must return BlazorCodeFirst.View";
 
-        // Two return types, and the choice is the whole of how a part declares whether it takes content
-        // (#176). View is the part that does not, and is called bare; SlotView is the part that does, and
-        // is called with brackets. Nothing else is a view part.
-        var takesContent = knownSymbols!.TakesContent(method);
+        // A body outside the foreach-yielding shape can still legally return
+        // IEnumerable<View> -- the language does not forbid it -- so the mismatch has to be named here
+        // rather than left to fall through to the View/SlotView check below, which would otherwise accept
+        // that return type on the strength of takesContent alone.
+        var isViewSequenceReturn = knownSymbols!.IsViewSequenceType(method.ReturnType);
+        bool takesContent;
 
-        if (!takesContent && !SymbolEqualityComparer.Default.Equals(method.ReturnType, viewType))
-            return "must return BlazorCodeFirst.View, or BlazorCodeFirst.SlotView to take content";
+        if (isIteratorBody)
+        {
+            if (!isViewSequenceReturn)
+            {
+                return "a foreach-yielding body must return "
+                    + "System.Collections.Generic.IEnumerable<BlazorCodeFirst.View>";
+            }
+
+            // An iterator part's return type already says it produces a sequence; SlotView's bracket
+            // syntax is how a single-View part declares it takes content, and a sequence part is never
+            // called that way.
+            takesContent = false;
+        }
+        else if (isViewSequenceReturn)
+        {
+            return "returning System.Collections.Generic.IEnumerable<BlazorCodeFirst.View> requires a "
+                + "body that is a foreach yielding one child per iteration";
+        }
+        else
+        {
+            // Two return types, and the choice is the whole of how a part declares whether it takes
+            // content (#176). View is the part that does not, and is called bare; SlotView is the part
+            // that does, and is called with brackets. Nothing else is a view part.
+            takesContent = knownSymbols.TakesContent(method);
+
+            if (!takesContent && !SymbolEqualityComparer.Default.Equals(method.ReturnType, viewType))
+                return "must return BlazorCodeFirst.View, or BlazorCodeFirst.SlotView to take content";
+        }
 
         foreach (var parameter in method.Parameters)
         {
@@ -171,28 +213,37 @@ internal static class ViewPartDefinitionFactory
     }
 
     /// <summary>
-    /// Either the expression a view part body returns, the native `if` it ends in, or the native `switch`
-    /// it ends in, and the statements written ahead of it — exactly one of
-    /// <paramref name="expression"/>/<paramref name="ifStatement"/>/<paramref name="switchStatement"/> is
-    /// set on a <see langword="true"/> return. Four body forms reach here: <c>=&gt; e</c>; the block a
+    /// Either the expression a view part body returns, the native `if` it ends in, the native `switch` it
+    /// ends in, or the native `foreach` it ends in, and the statements written ahead of it — exactly one
+    /// of
+    /// <paramref name="expression"/>/<paramref name="ifStatement"/>/<paramref name="switchStatement"/>/<paramref name="forEachStatement"/>
+    /// is set on a <see langword="true"/> return. Five body forms reach here: <c>=&gt; e</c>; the block a
     /// design-time expression getter and a <c>ForEach</c> content lambda also accept, read by
     /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/>; a block ending in a native
-    /// `if`/`else`, read by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>; and a block
-    /// ending in a native `switch`, read by
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableSwitch"/> (all three are ARCHITECTURE.md
-    /// §2.3 Transplantable). Returns <see langword="false"/> for a body outside all four, which earns
-    /// BCF1002 at the declaration.
+    /// `if`/`else`, read by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>; a block ending
+    /// in a native `switch`, read by <see cref="RenderExpressionAnalyzer.TryReadTransplantableSwitch"/>
+    /// (both ARCHITECTURE.md §2.3 Transplantable); and a block ending in a native `foreach` whose own last
+    /// statement is exactly one `yield return`, read by
+    /// <see cref="RenderExpressionAnalyzer.TryReadIteratorForEach"/> (the one shape `if`/`switch` cannot
+    /// cover, since a getter cannot be an iterator). Returns <see langword="false"/> for a body outside
+    /// all five, which earns BCF1002 at the declaration.
     /// </summary>
     private static bool TryReadBody(
         MethodDeclarationSyntax declaration,
         out ExpressionSyntax? expression,
         out IfStatementSyntax? ifStatement,
         out SwitchStatementSyntax? switchStatement,
-        out ImmutableArray<StatementSyntax> statements)
+        out ForEachStatementSyntax? forEachStatement,
+        out ImmutableArray<StatementSyntax> statements,
+        out ImmutableArray<StatementSyntax> forEachBodyStatements,
+        out ExpressionSyntax? yieldedExpression)
     {
         statements = [];
         ifStatement = null;
         switchStatement = null;
+        forEachStatement = null;
+        forEachBodyStatements = [];
+        yieldedExpression = null;
 
         if (declaration.ExpressionBody is { Expression: var expressionBody })
         {
@@ -229,6 +280,24 @@ internal static class ViewPartDefinitionFactory
             return true;
         }
 
+        // `foreach (...) { ...; yield return e; }` (ARCHITECTURE.md §5.3's Transplantable syntax,
+        // extended to the one shape `if`/`switch` cannot cover).
+        if (declaration.Body is { } forEachBlock
+            && RenderExpressionAnalyzer.TryReadIteratorForEach(
+                forEachBlock,
+                out var forEachLeading,
+                out var forEachStmt,
+                out var forEachBody,
+                out var yielded))
+        {
+            expression = null;
+            forEachStatement = forEachStmt;
+            statements = forEachLeading;
+            forEachBodyStatements = forEachBody;
+            yieldedExpression = yielded;
+            return true;
+        }
+
         expression = null;
         return false;
     }
@@ -240,7 +309,10 @@ internal static class ViewPartDefinitionFactory
         ExpressionSyntax? bodyExpression,
         IfStatementSyntax? bodyIf,
         SwitchStatementSyntax? bodySwitch,
+        ForEachStatementSyntax? bodyForEach,
         ImmutableArray<StatementSyntax> bodyStatements,
+        ImmutableArray<StatementSyntax> bodyForEachStatements,
+        ExpressionSyntax? bodyYielded,
         KnownSymbols knownSymbols,
         CancellationToken cancellationToken,
         out ImmutableArray<DiagnosticInfo> diagnostics)
@@ -293,7 +365,7 @@ internal static class ViewPartDefinitionFactory
             // as one in the returned expression is, so leaving them out would let `var v = Slot;` pass as
             // "never named" and then place the content twice.
             var slotReferences = CountSlotReferences(
-                (SyntaxNode?)bodyExpression ?? (SyntaxNode?)bodyIf ?? bodySwitch!,
+                (SyntaxNode?)bodyExpression ?? (SyntaxNode?)bodyIf ?? (SyntaxNode?)bodySwitch ?? bodyForEach!,
                 attributeContext.SemanticModel, knownSymbols, cancellationToken);
 
             foreach (var statement in bodyStatements)
@@ -328,16 +400,21 @@ internal static class ViewPartDefinitionFactory
             ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, context)
             : bodyIf is not null
                 ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf, context)
-                : RenderExpressionAnalyzer.Analyze(bodyStatements, bodySwitch!, context);
+                : bodySwitch is not null
+                    ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodySwitch, context)
+                    : RenderExpressionAnalyzer.Analyze(
+                        bodyStatements, bodyForEach!, bodyForEachStatements, bodyYielded!, context);
         if (body is null)
         {
             // The same failure-path sweeps the component host runs, from the one list both share: report
             // the specific cause rather than falling through to the generic "not statically sequenceable"
-            // text. See FailurePathScanners. On the native-`if`/`switch` path the sweep runs over the
-            // condition/discriminant only -- the arms/sections are read by nested Analyze calls, each
-            // carrying its own UntranslatableLocation on failure, same as ComponentModelFactory's
-            // equivalent branch.
-            FailurePathScanners.ReportAll(bodyExpression ?? bodyIf?.Condition ?? bodySwitch!.Expression, context);
+            // text. See FailurePathScanners. On the native-`if`/`switch`/`foreach` path the sweep runs
+            // over the condition/discriminant/source only -- the arms/sections/yielded expression are
+            // read by nested Analyze calls, each carrying its own UntranslatableLocation on failure, same
+            // as ComponentModelFactory's equivalent branch.
+            FailurePathScanners.ReportAll(
+                bodyExpression ?? bodyIf?.Condition ?? bodySwitch?.Expression ?? bodyForEach!.Expression,
+                context);
 
             // Prefer a specific recorded unsupported-reference diagnostic (for example a referenced local
             // that cannot exist in generated code) over the generic non-SSC message.

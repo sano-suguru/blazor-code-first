@@ -25,6 +25,25 @@ public sealed class ViewPartDefinitionTests
     [InlineData("[ViewPart] private static View Helper(out int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
     [InlineData("[ViewPart] private static View Helper(in int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
     [InlineData("[ViewPart] private static View Helper(ref readonly int value) => Span[\"x\"];", "by-reference parameters are unsupported")]
+    // An iterator body (foreach ending in exactly one yield return) requires the sequence return type;
+    // View is the single-child return type and does not accept it.
+    [InlineData(
+        "[ViewPart] private static View Helper(System.Collections.Generic.IEnumerable<int> items) "
+            + "{ foreach (var x in items) { yield return Span[x.ToString()]; } }",
+        "must return System.Collections.Generic.IEnumerable")]
+    // The sequence return type is legal C# on an ordinary expression-bodied method too, but only an
+    // iterator body may pair with it (#316): the language does not forbid the mismatch, so it is named
+    // here.
+    [InlineData(
+        "private static readonly System.Collections.Generic.IEnumerable<BlazorCodeFirst.View> _views = "
+            + "System.Array.Empty<BlazorCodeFirst.View>(); "
+            + "[ViewPart] private static System.Collections.Generic.IEnumerable<BlazorCodeFirst.View> Helper() => _views;",
+        "requires a body that is a foreach")]
+    // Same mismatch, an ordinary block body ending in `return` rather than an expression body.
+    [InlineData(
+        "[ViewPart] private static System.Collections.Generic.IEnumerable<BlazorCodeFirst.View> Helper() "
+            + "{ var x = System.Array.Empty<BlazorCodeFirst.View>(); return x; }",
+        "requires a body that is a foreach")]
     public void ViewPartDefinition_UnsupportedDeclaration_ReportsBCF1002(string declaration, string message)
     {
         var source = $$"""

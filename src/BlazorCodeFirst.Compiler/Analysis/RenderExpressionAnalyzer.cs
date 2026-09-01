@@ -161,6 +161,34 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// Classifies a block whose last statement is a native `foreach` ending, in its own last statement, in
+    /// exactly one `yield return` (ARCHITECTURE.md §5.3's Transplantable syntax, extended to the one shape
+    /// `if`/`switch` cannot cover -- see <see cref="TryReadIteratorForEach"/>'s remarks), wrapped in the
+    /// statements written before it. Shares <see cref="AnalyzeTransplantedBody"/>'s scope-opening shape
+    /// with the `if`/`switch` overloads above: the loop's own source expression is the anchor, the same
+    /// role the `if`'s condition and the `switch`'s discriminant play there (a local the source declares,
+    /// through an out-variable or a pattern designation, is visible across the whole body).
+    /// </summary>
+    /// <remarks>
+    /// Unlike the `if`/`switch` overloads, this one does not report BCF2002. That diagnostic warns that a
+    /// construct *could* have been written as a call-site combinator instead; a `[ViewPart]` iterator has
+    /// no such alternative spelling available to it -- `ForEach`'s content lambda cannot be an iterator
+    /// (CS1621) and a getter cannot be one either (CS1624) -- so there is nothing to prefer it over and
+    /// nothing to warn about (#316).
+    /// </remarks>
+    public static RenderNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        ForEachStatementSyntax forEachStatement,
+        ImmutableArray<StatementSyntax> bodyStatements,
+        ExpressionSyntax yielded,
+        ViewPartBodyContext context) =>
+        AnalyzeTransplantedBody(
+            statements,
+            forEachStatement.Expression,
+            context,
+            () => ClassifyIteratorForEach(forEachStatement, bodyStatements, yielded, context));
+
+    /// <summary>
     /// The scaffolding both <c>Analyze</c> overloads share: collect the leading statements' declared
     /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
     /// — either can hold a pattern designation that binds into the same scope a declaration statement
@@ -910,6 +938,76 @@ internal static class RenderExpressionAnalyzer
                 key,
                 content,
                 TemplateLocation.From(invocation.GetLocation()));
+        }
+        finally
+        {
+            context.PopTransplantedScope();
+            context.PopRenderVariable(itemSymbols);
+        }
+    }
+
+    /// <summary>
+    /// Classifies a native `foreach` ending in `yield return` (<see cref="TryReadIteratorForEach"/>'s
+    /// shape) into the same <see cref="ForEachNode"/> the <c>ForEach</c> combinator builds, with
+    /// <c>Key</c> always <see langword="null"/>: a native iteration has no sibling key argument to bind,
+    /// so it always folds the way a declined key does (#172).
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <see cref="ClassifyForEach"/>'s push/pop discipline for the one iteration variable a
+    /// `foreach` header declares, rather than the up-to-two symbols <c>ForEach</c>'s key and content
+    /// lambdas can each separately bind.
+    /// </remarks>
+    private static ForEachNode? ClassifyIteratorForEach(
+        ForEachStatementSyntax statement,
+        ImmutableArray<StatementSyntax> bodyStatements,
+        ExpressionSyntax yielded,
+        ViewPartBodyContext context)
+    {
+        // The source references the enclosing scope (fields, view part params, outer items), never this
+        // item, so it is normalized before the iteration variable is registered as a render variable
+        // (#569) -- the same ordering ClassifyForEach keeps for its own source argument.
+        var source = ExpressionTemplateFactory.Create(statement.Expression, context);
+
+        // A `foreach (Type identifier in ...)` header, unlike an expression, cannot fail to bind its
+        // declared identifier to a symbol within its own tree -- there is no unresolved-reference or
+        // error-recovery path for it. Confirmed empirically against this project's Roslyn version:
+        // SemanticModel.GetDeclaredSymbol(ForEachStatementSyntax) returns the loop variable's ILocalSymbol
+        // directly, with no fallback overload needed.
+        if (context.SemanticModel.GetDeclaredSymbol(statement, context.CancellationToken) is not { } itemSymbol)
+            return null;
+
+        ISymbol[] itemSymbols = [itemSymbol];
+        context.PushRenderVariable(itemSymbols);
+
+        // The whole `foreach` statement -- header and body both -- rather than just the source
+        // expression's span, which is all ClassifyForEach's analogous call needs: ForEach's iteration
+        // variable is a lambda parameter, reached through ResolveHole and never tested against
+        // IsUnsupportedSourceLocalReference in the first place (that check only classifies a local, a
+        // local function, a range variable, or a label -- never a parameter). This foreach's own
+        // itemSymbol is an ILocalSymbol, confirmed above, so IsUnsupportedSourceLocalReference does test
+        // it, and that check runs before ResolveHole ever sees the symbol -- registering it as a render
+        // variable alone is not enough. What it asks is whether the symbol's declaring syntax falls inside
+        // a pushed transplanted scope, and that declaring syntax, confirmed empirically, is the entire
+        // ForEachStatementSyntax rather than the bare Identifier token: a `foreach` binds its variable with
+        // no narrower declarator or designation syntax the way a local declaration or an `is`/`out var`
+        // pattern does, so only a span covering the whole statement contains it. The whole-statement span
+        // also still covers a local the source expression itself declares (an `out var` there, or a
+        // pattern designator), which is what ClassifyForEach's narrower push exists for (#361).
+        context.PushTransplantedScope(statement.Span);
+
+        try
+        {
+            // The 3-argument overload -- the same one the design-time expression getter's own leading-
+            // statements shape uses -- wraps bodyStatements around yielded, opening its own nested
+            // TransplantedBlockNode when there is something to wrap.
+            var content = Analyze(bodyStatements, yielded, context);
+            return content is null
+                ? null
+                : new ForEachNode(
+                    source,
+                    Key: null,
+                    content,
+                    TemplateLocation.From(statement.GetLocation()));
         }
         finally
         {

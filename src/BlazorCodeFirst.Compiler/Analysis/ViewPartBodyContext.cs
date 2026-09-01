@@ -220,9 +220,13 @@ internal sealed class ViewPartBodyContext
     /// transplanted block, the header expression of a lowered construct, and the header of a native
     /// construct that lowers to the same generated shape -- an `if`'s condition (<c>AnalyzeIf</c>), a
     /// `switch`'s discriminant (<c>AnalyzeSwitch</c>), and, narrower still, one `case` label's own
-    /// designator over just that section (#569). ARCHITECTURE.md §2.3 says which positions those are and
-    /// why nothing wider is admitted. They share one list because the check asks one question of all of
-    /// them: does the declaration land in a generated scope enclosing this reference.
+    /// designator over just that section (#569). A native `foreach`'s iteration variable is declared with
+    /// no narrower header syntax of its own to anchor a span on -- its one
+    /// <c>ISymbol.DeclaringSyntaxReferences</c> entry is the whole <c>ForEachStatementSyntax</c> -- so
+    /// <c>ClassifyIteratorForEach</c> registers the whole statement rather than just its source expression
+    /// (#316). ARCHITECTURE.md §2.3 says which positions those are and why nothing wider is admitted. They
+    /// share one list because the check asks one question of all of them: does the declaration land in a
+    /// generated scope enclosing this reference.
     /// <para>
     /// A span and not the node, because containment is all any caller asks. A stack and not a single
     /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block
