@@ -18,6 +18,9 @@ internal sealed class KnownSymbols
     /// <summary>Resolved symbol for <c>BlazorCodeFirst.View</c>, or <see langword="null"/> if unavailable.</summary>
     public INamedTypeSymbol? ViewType { get; }
 
+    /// <summary>Resolved symbol for <c>System.Collections.Generic.IEnumerable&lt;BlazorCodeFirst.View&gt;</c>, or <see langword="null"/> if unavailable.</summary>
+    public INamedTypeSymbol? ViewSequenceType { get; }
+
     /// <summary>Resolved symbol for <c>BlazorCodeFirst.ViewPartAttribute</c>, or <see langword="null"/> if unavailable.</summary>
     public INamedTypeSymbol? ViewPartAttributeType { get; }
 
@@ -997,6 +1000,10 @@ internal sealed class KnownSymbols
     private KnownSymbols(INamedTypeSymbol htmlType, Compilation compilation)
     {
         ViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.View");
+        var enumerableType = compilation.GetTypeByMetadataName("System.Collections.Generic.IEnumerable`1");
+        ViewSequenceType = ViewType is not null && enumerableType is not null
+            ? enumerableType.Construct(ViewType)
+            : null;
         ViewPartAttributeType =
             htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ViewPartAttribute");
         ComponentViewType = htmlType.ContainingAssembly.GetTypeByMetadataName("BlazorCodeFirst.ComponentView`1");
@@ -1367,6 +1374,12 @@ internal sealed class KnownSymbols
     /// </summary>
     public bool IsContentType(ITypeSymbol type) =>
         ViewType is { } viewType && SymbolEqualityComparer.Default.Equals(type, viewType);
+
+    /// <summary>
+    /// Whether <paramref name="type"/> is exactly <c>IEnumerable&lt;View&gt;</c>.
+    /// </summary>
+    public bool IsViewSequenceType(ITypeSymbol type) =>
+        ViewSequenceType is { } viewSequenceType && SymbolEqualityComparer.Default.Equals(type, viewSequenceType);
 
     /// <summary>
     /// Whether <paramref name="type"/> is <c>ElementView</c>, the return type an element tag alias
