@@ -3,7 +3,7 @@ title: Razor からの移行
 description: Razor 構文からこの API への対応表と、置き換えでは済まず、コンポーネントの形そのものが変わる4箇所。
 order: 30
 group: start
-source-hash: 1579a416
+source-hash: 756bedb3
 ---
 
 このページには、Razor の書き方をこの API へ置き換える対応表と、その置き換えでは済まず、
@@ -29,7 +29,7 @@ source-hash: 1579a416
 | `@onclick="Save"` | `.OnClick(() => Save())` |
 | `@bind="_name"` | `.Bind("value", "oninput", () => _name)` |
 | `@if (x) { … } else { … }` | `If(x, () => …, () => …)` |
-| `@foreach (var r in rows) { … }` | `ForEach(rows, key: r => r.Id, content: r => …)` |
+| `@foreach (var r in rows) { … }` | `ForEach(rows, key: r => r.Id, content: r => …)`、または `[ViewPart]` イテレータをスプレッドで差し込む（[制御構文](./control-flow.md#viewpart-でイテレートする)） |
 | `@key="r.Id"` | `ForEach` の `key` 引数、または `.Key(…)` |
 | `@ref="_el"` | `.Ref(…)` |
 | `<Card Title="x" />` | `Component<Card>().Param(c => c.Title, "x")` |
@@ -51,8 +51,9 @@ Razor では、属性を開始タグのどこに書いてもよく、子はそ�
 ### ゲッターが返すのは1つの式
 
 `.razor` ファイルは、文を書けるテンプレートです。`Body` が返すのは1つの式で、その手前にローカル
-変数を置けます。2つ目の `return` と C# の `if` 文は、それぞれ専用のシーケンス空間を必要とする
-ため、どちらも受け付けません（[BCF1004](./diagnostics.md#bcf1004)）。
+変数を置けます。2つ目の `return` は専用のシーケンス空間を必要とするため受け付けません。C# 本来の
+`if`/`switch` ならゲッターの末尾に置けますが、その分だけ縮退します
+（[BCF1004](./diagnostics.md#bcf1004)、[BCF2002](./diagnostics.md#bcf2002)）。
 
 `If` と `ForEach` が C# のキーワードではなく構文として用意されているのも、同じ理由です。分岐の
 あるテンプレートを書き直す前に[制御構文](./control-flow.md)を読んでください。

@@ -200,7 +200,8 @@ public sealed class InertSurfaceAnalyzer : DiagnosticAnalyzer
     /// Whether this expression is read by a design-time expression after all: either it is part of a larger
     /// one, which is what gets reported instead, or the innermost declaration enclosing it returns an inert
     /// type, which is what <c>Body</c>, <c>Chrome</c>, a <c>[ViewPart]</c> body, and a content lambda all
-    /// have in common.
+    /// have in common — including an iterator <c>[ViewPart]</c>, whose return type is the sequence
+    /// <c>IEnumerable&lt;View&gt;</c> rather than one of the scalar inert types (#316).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -253,8 +254,13 @@ public sealed class InertSurfaceAnalyzer : DiagnosticAnalyzer
         // No lambda enclosed it, so the declaration the operation is analyzed under is the innermost one.
         // Roslyn hands that over as a symbol, which covers a method, a local function, a constructor, and a
         // property or indexer accessor — a getter's return type being the property's type, which is how
-        // Body and Chrome answer here.
+        // Body and Chrome answer here. A lambda cannot be an iterator (cannot `yield`), so the sequence
+        // arm only needs to sit beside the scalar one here, not in the lambda/local-function arms above:
+        // an iterator [ViewPart] (#316) returns IEnumerable<View> rather than one of the scalar inert
+        // types, and its yielded expression's outermost design-time reference climbs to no enclosing
+        // design-time expression and no lambda, landing here.
         return containingSymbol is IMethodSymbol method
-            && knownSymbols.IsInertDesignTimeType(method.ReturnType);
+            && (knownSymbols.IsInertDesignTimeType(method.ReturnType)
+                || (knownSymbols.IsViewSequenceType(method.ReturnType) && knownSymbols.IsViewPart(method)));
     }
 }

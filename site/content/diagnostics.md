@@ -101,11 +101,16 @@ protected override View Body
 }
 ```
 
-A second return and native control flow each need a sequence space of their own, and an auto
-property declares no getter body at all. A local declared `__builder` or prefixed `__bcf_` cannot
-be declared here either: the generator reserves both spellings everywhere a transplanted local can
-land. Rename the local. If the body genuinely cannot be written in this shape, override
-`RenderView` by hand: the design-time expression is then unused, and nothing is reported.
+A second return needs a sequence space of its own, so it is not accepted, and neither is an auto
+property, which declares no getter body at all. A native `if`/`else` or `switch` may end the getter
+instead — see [BCF2002](#bcf2002) — but a native `foreach` cannot: a property getter cannot be a C#
+iterator block, so `yield return` is invalid there no matter what this diagnostic says. The
+equivalent shape is accepted only on a `[ViewPart]` method, as an iterator (see
+[control flow](./control-flow.md#iterating-with-a-viewpart)), since a method, unlike a getter, can be
+one. A local declared `__builder` or prefixed `__bcf_` cannot be declared here either: the generator
+reserves both spellings everywhere a transplanted local can land. Rename the local. If the body
+genuinely cannot be written in this shape, override `RenderView` by hand: the design-time expression
+is then unused, and nothing is reported.
 
 BCF1004 reports the declaration, which is what separates it from BCF1003. A class can carry a
 missing `partial` and an untranslatable getter at once, and only one is reported at a time: BCF1001
@@ -600,12 +605,16 @@ Wrap the content in a container element. A `ForEach` that declines its key with 
 Error. The `ForEach` key or content has a shape the generator cannot sequence.
 
 The key body is copied into the `SetKey` call, so it has to be an expression. The content is given
-one static sequence space that every iteration reuses, which a second return or a native `foreach`
-would each need their own copy of.
+one static sequence space that every iteration reuses, which a second return would need its own
+copy of.
 
 Content accepts an expression lambda, a block with one trailing `return`, a block ending in a native
 `if`/`else` ([BCF2002](#bcf2002)), a block ending in a native `switch` ([BCF2002](#bcf2002)), and a
-single-parameter `View`-returning method group. `foreach` is not accepted.
+single-parameter `View`-returning method group. A native `foreach` is not accepted here either, but
+for a different reason: `content` is always a lambda, and a lambda cannot be a C# iterator block, so
+`yield return` inside one is invalid before this diagnostic is reached. The equivalent shape is
+accepted only on a `[ViewPart]` method, as an iterator
+([control flow](./control-flow.md#iterating-with-a-viewpart)).
 
 The key body and the content body follow the same reserved-name rule [BCF1004](#bcf1004) states
 for its getter.
@@ -642,8 +651,15 @@ are rebuilt rather than diffed against a static template.
 Reported once per `if`/`else` chain or `switch`, at the outermost `if` or at the `switch`'s
 discriminant, regardless of how many `else if` links or `case` sections it holds. A `switch` section's
 own `return` is what closes it; each section still needs an explicit `break` in the generated code so
-control does not fall through into the next one. `foreach` is not yet accepted at this position and
-remains [BCF1004](#bcf1004)/[BCF3004](#bcf3004)/BCF1002.
+control does not fall through into the next one.
+
+`foreach` is never reported here, in any position. At the getter and `ForEach` content positions
+([BCF1004](#bcf1004)/[BCF3004](#bcf3004)) it stays rejected — not by this diagnostic's own logic, but
+because a property getter and a lambda cannot be C# iterator blocks, so `yield return` is invalid
+there regardless. On a `[ViewPart]` method it is accepted instead, as an iterator
+([control flow](./control-flow.md#iterating-with-a-viewpart)) — but it does not degrade the way
+`if`/`switch` do: its content is one static sequence range every iteration reuses, the same as
+`ForEach`'s own content, so it never loses static assignment and this diagnostic never applies to it.
 
 ### BCF3032
 

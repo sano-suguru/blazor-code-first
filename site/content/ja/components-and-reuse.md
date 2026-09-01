@@ -3,7 +3,7 @@ title: コンポーネントと再利用
 description: コンポーネントから別のコンポーネントを呼ぶ方法、Razor コンポーネントとの双方向の相互運用、ViewPart の用途。
 order: 60
 group: write
-source-hash: 023a662d
+source-hash: 417b557e
 ---
 
 再利用の単位はコンポーネントです。BlazorCodeFirst のコンポーネントから別のコンポーネントを呼ぶ
@@ -417,8 +417,10 @@ private static SlotView Framed(string title) =>
 
 - 静的である
 - ジェネリックでなく、ジェネリックでない型で宣言されている
-- 返り値の式1つに収まる。その手前にはローカル宣言と式文を置ける。`Body` のゲッターと同じ形
-- `View` を返す。内容を取るなら `SlotView`
+- 返り値の式1つに収まる。その手前にはローカル宣言と式文を置ける。`Body` のゲッターと同じ形。
+  または、繰り返し1回につき子を1つ yield する `foreach` で終わる形
+  （[`[ViewPart]` でイテレートする](./control-flow.md#viewpart-でイテレートする)を参照）
+- `View` を返す。内容を取るなら `SlotView`。その `foreach` で終わる形なら `IEnumerable<View>`
 
 引数は、通常の値渡しの引数である必要があります。型は、生成コードから名前を書けるものに限り
 ます。`params`、参照渡しの引数、`ElementView` の引数は、どれも拒否します。子を持たない要素を

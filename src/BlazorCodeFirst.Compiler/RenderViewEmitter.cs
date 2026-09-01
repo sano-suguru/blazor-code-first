@@ -532,7 +532,11 @@ internal static class RenderViewEmitter
         // seq is consumed by OpenRegion. The content template occupies [seq+1, seq+1+W(content)) and
         // those sequence numbers are re-emitted every iteration; SetKey carries per-item identity.
         writer.AppendLine($"__builder.OpenRegion({seq});");
-        writer.AppendLine($"foreach (var {node.LoopVariableName} in {node.Source.ToCode()})");
+        // An explicit iteration-variable type the author wrote on a native `foreach` header is preserved
+        // rather than re-inferred: the source's element type may be wider than what the author declared,
+        // and `var` here would silently substitute that wider type (#316).
+        var loopVariableType = node.LoopVariableTypeName ?? "var";
+        writer.AppendLine($"foreach ({loopVariableType} {node.LoopVariableName} in {node.Source.ToCode()})");
         writer.AppendLine("{");
         writer.Indent++;
         // The key is threaded into the content's root element/component so SetKey is emitted

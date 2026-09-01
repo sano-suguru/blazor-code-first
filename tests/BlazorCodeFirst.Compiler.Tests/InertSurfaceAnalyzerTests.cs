@@ -194,6 +194,32 @@ public sealed class InertSurfaceAnalyzerTests
         }
         """;
 
+    /// <summary>
+    /// The unattributed twin of <c>IteratorViewPartDeclarationSource</c> below (#316): the same
+    /// <c>IEnumerable&lt;View&gt;</c>-returning shape without <c>[ViewPart]</c>. Global Constraint 5 gives an
+    /// unattributed sequence-returning method no legitimate spread — spreading it falls through to BCF1003 —
+    /// so its yield is dead code and must still report. This is what proves the sequence arm of condition 1's
+    /// fallback requires <c>[ViewPart]</c> rather than the return type alone.
+    /// </summary>
+    private const string UnattributedSequenceReturningMethodSource = """
+        using System.Collections.Generic;
+        using BlazorCodeFirst;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            protected override View Body => Div["ok"];
+
+            private static IEnumerable<View> Rows(IReadOnlyList<string> items)
+            {
+                foreach (var item in items)
+                {
+                    yield return Li[item];
+                }
+            }
+        }
+        """;
+
     /// <summary>Passed to an ordinary runtime method, which receives the empty marker.</summary>
     private const string PassedToARuntimeMethodSource = """
         using BlazorCodeFirst;
@@ -258,6 +284,34 @@ public sealed class InertSurfaceAnalyzerTests
                 Div.Class("panel")[H2[title], Slot];
 
             protected override View Body => Panel("ok")[P["body"]];
+        }
+        """;
+
+    /// <summary>
+    /// The iterator <c>[ViewPart]</c> shape (#316): its declaration returns <c>IEnumerable&lt;View&gt;</c>,
+    /// the sequence type, rather than one of the scalar inert types (<c>View</c> / <c>ElementView</c> /
+    /// <c>SlotView</c> / <c>ComponentView&lt;T&gt;</c>) condition 1 otherwise checks the declaration against.
+    /// Its yielded expression's outermost design-time reference climbs to no enclosing design-time
+    /// expression and no lambda (a lambda cannot be an iterator), landing on the method-return-type
+    /// fallback, so this is what proves that fallback also recognizes the sequence type.
+    /// </summary>
+    private const string IteratorViewPartDeclarationSource = """
+        using System.Collections.Generic;
+        using BlazorCodeFirst;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            [ViewPart]
+            private static IEnumerable<View> Rows(IReadOnlyList<string> items)
+            {
+                foreach (var item in items)
+                {
+                    yield return Li[item];
+                }
+            }
+
+            protected override View Body => Ul[[.. Rows(new[] { "a", "b" })]];
         }
         """;
 
@@ -408,6 +462,7 @@ public sealed class InertSurfaceAnalyzerTests
         ViewPartCallInVoidMethodSource,
         ChainInsideAnEventHandlerLambdaSource,
         StoredInObjectFieldSource,
+        UnattributedSequenceReturningMethodSource,
         PassedToARuntimeMethodSource);
 
     public static TheoryData<string> SourcesThatDoNotReportBCF3029 { get; } = new(
@@ -415,6 +470,7 @@ public sealed class InertSurfaceAnalyzerTests
         ChromeSource,
         ViewPartDeclarationSource,
         ContentTakingViewPartDeclarationSource,
+        IteratorViewPartDeclarationSource,
         ForEachContentLambdaSource,
         StoredInInertFieldSource,
         InertFieldInitializerSource,

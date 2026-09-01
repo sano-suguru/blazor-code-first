@@ -161,6 +161,34 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// Classifies a block whose last statement is a native `foreach` ending, in its own last statement, in
+    /// exactly one `yield return` (ARCHITECTURE.md §5.3's Transplantable syntax, extended to the one shape
+    /// `if`/`switch` cannot cover -- see <see cref="TryReadIteratorForEach"/>'s remarks), wrapped in the
+    /// statements written before it. Shares <see cref="AnalyzeTransplantedBody"/>'s scope-opening shape
+    /// with the `if`/`switch` overloads above: the loop's own source expression is the anchor, the same
+    /// role the `if`'s condition and the `switch`'s discriminant play there (a local the source declares,
+    /// through an out-variable or a pattern designation, is visible across the whole body).
+    /// </summary>
+    /// <remarks>
+    /// Unlike the `if`/`switch` overloads, this one does not report BCF2002. That diagnostic warns that a
+    /// construct *could* have been written as a call-site combinator instead; a `[ViewPart]` iterator has
+    /// no such alternative spelling available to it -- `ForEach`'s content lambda cannot be an iterator
+    /// (CS1621) and a getter cannot be one either (CS1624) -- so there is nothing to prefer it over and
+    /// nothing to warn about (#316).
+    /// </remarks>
+    public static RenderNode? Analyze(
+        ImmutableArray<StatementSyntax> statements,
+        ForEachStatementSyntax forEachStatement,
+        ImmutableArray<StatementSyntax> bodyStatements,
+        ExpressionSyntax yielded,
+        ViewPartBodyContext context) =>
+        AnalyzeTransplantedBody(
+            statements,
+            forEachStatement.Expression,
+            context,
+            () => ClassifyIteratorForEach(forEachStatement, bodyStatements, yielded, context));
+
+    /// <summary>
     /// The scaffolding both <c>Analyze</c> overloads share: collect the leading statements' declared
     /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
     /// — either can hold a pattern designation that binds into the same scope a declaration statement
@@ -909,7 +937,11 @@ internal static class RenderExpressionAnalyzer
                 source,
                 key,
                 content,
-                TemplateLocation.From(invocation.GetLocation()));
+                TemplateLocation.From(invocation.GetLocation()),
+                LoopVariableName: null,
+                // ForEach's own iteration variable is a content/key lambda parameter, never a native
+                // `foreach` header, so there is no explicit-type spelling to preserve here.
+                LoopVariableTypeName: null);
         }
         finally
         {
@@ -919,15 +951,110 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// A spliced child list, <c>.. source.Select(item =&gt; …)</c>, folded to the <c>ForEach</c> with a
-    /// declined key that it is sugar for (#172).
+    /// Classifies a native `foreach` ending in `yield return` (<see cref="TryReadIteratorForEach"/>'s
+    /// shape) into the same <see cref="ForEachNode"/> the <c>ForEach</c> combinator builds, with
+    /// <c>Key</c> always <see langword="null"/>: a native iteration has no sibling key argument to bind,
+    /// so it always folds the way a declined key does (#172).
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <see cref="ClassifyForEach"/>'s push/pop discipline for the one iteration variable a
+    /// `foreach` header declares, rather than the up-to-two symbols <c>ForEach</c>'s key and content
+    /// lambdas can each separately bind.
+    /// </remarks>
+    private static ForEachNode? ClassifyIteratorForEach(
+        ForEachStatementSyntax statement,
+        ImmutableArray<StatementSyntax> bodyStatements,
+        ExpressionSyntax yielded,
+        ViewPartBodyContext context)
+    {
+        // The source references the enclosing scope (fields, view part params, outer items), never this
+        // item, so it is normalized before the iteration variable is registered as a render variable
+        // (#569) -- the same ordering ClassifyForEach keeps for its own source argument.
+        var source = ExpressionTemplateFactory.Create(statement.Expression, context);
+
+        // A `foreach (Type identifier in ...)` header, unlike an expression, cannot fail to bind its
+        // declared identifier to a symbol within its own tree -- there is no unresolved-reference or
+        // error-recovery path for it. Confirmed empirically against this project's Roslyn version:
+        // SemanticModel.GetDeclaredSymbol(ForEachStatementSyntax) returns the loop variable's ILocalSymbol
+        // directly, with no fallback overload needed.
+        if (context.SemanticModel.GetDeclaredSymbol(statement, context.CancellationToken) is not { } itemSymbol)
+            return null;
+
+        // An explicit iteration-variable type (`foreach (string s in ...)`) converts from the source's
+        // element type and is legal C# whenever that conversion exists -- emitting `var` unconditionally
+        // would silently re-infer the variable's type from the (possibly wider) source instead of the
+        // author's own explicit one, and a call whose receiver type depends on the narrower type then
+        // fails to bind in generated code with no way for the author to trace it back to their own source
+        // (#316). Checked on syntax alone: unlike a local declaration's `var`, GetSymbolInfo on a
+        // `foreach` header's Type resolves `var` to the inferred element type rather than returning no
+        // symbol (confirmed empirically), so a symbol-based check cannot tell the two apart here.
+        var loopVariableTypeName =
+            statement.Type is IdentifierNameSyntax { Identifier.ValueText: "var" }
+                ? null
+                : itemSymbol.Type.ToDisplayString(AnnotatedFullyQualifiedTypeName);
+
+        ISymbol[] itemSymbols = [itemSymbol];
+        context.PushRenderVariable(itemSymbols);
+
+        // ForEach's own iteration variable is a lambda parameter, reached through ResolveHole and never
+        // tested against IsUnsupportedSourceLocalReference in the first place (that check only classifies
+        // a local, a local function, a range variable, or a label -- never a parameter). This foreach's
+        // own itemSymbol is an ILocalSymbol, confirmed above, so IsUnsupportedSourceLocalReference does
+        // test it, and that check runs before ResolveHole ever sees the symbol -- registering it as a
+        // render variable alone is not enough. What it asks, absent this exemption, is whether the
+        // symbol's declaring syntax falls inside a pushed transplanted scope, and that declaring syntax,
+        // confirmed empirically, is the entire ForEachStatementSyntax rather than the bare Identifier
+        // token: a `foreach` binds its variable with no narrower declarator or designation syntax the way
+        // a local declaration or an `is`/`out var` pattern does. A span wide enough to contain it would
+        // therefore also contain the whole yielded expression's interior, wrongly admitting a reference to
+        // some OTHER local declared there (in a sibling ForEach's own header, say) from anywhere else in
+        // that same yielded expression -- the cross-sibling leak PushTransplantedScope's own remarks name
+        // (#316). So the iteration variable is exempted by symbol identity instead, independent of any
+        // span.
+        context.PushIterationVariableExemption(itemSymbol);
+
+        // Only the source expression's span, the same role ClassifyForEach's analogous push gives its own
+        // source argument (#361): a local the source itself declares (an `out var` there, or a
+        // pattern designator) is legal throughout the loop body, but nothing wider is admitted.
+        context.PushTransplantedScope(statement.Expression.Span);
+
+        try
+        {
+            // The 3-argument overload -- the same one the design-time expression getter's own leading-
+            // statements shape uses -- wraps bodyStatements around yielded, opening its own nested
+            // TransplantedBlockNode when there is something to wrap.
+            var content = Analyze(bodyStatements, yielded, context);
+            return content is null
+                ? null
+                : new ForEachNode(
+                    source,
+                    Key: null,
+                    content,
+                    TemplateLocation.From(statement.GetLocation()),
+                    LoopVariableName: null,
+                    loopVariableTypeName);
+        }
+        finally
+        {
+            context.PopTransplantedScope();
+            context.PopIterationVariableExemption(itemSymbol);
+            context.PopRenderVariable(itemSymbols);
+        }
+    }
+
+    /// <summary>
+    /// A spliced child list, <c>.. &lt;expr&gt;</c>: either <c>source.Select(item =&gt; …)</c>, folded to
+    /// the <c>ForEach</c> with a declined key that it is sugar for (#172), or a call to an iterator
+    /// <c>[ViewPart]</c> (#316), expanded at the call site the same way a call to any other
+    /// <c>[ViewPart]</c> is.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The written shape is <see cref="SpliceSyntax"/>'s, which is also what says why only the fluent
+    /// The projection shape is <see cref="SpliceSyntax"/>'s, which is also what says why only the fluent
     /// spelling is read. What this site adds is the requirement that the call actually resolve to
     /// <c>Enumerable.Select</c>: nothing is emitted from a call that does not, so unlike the diagnostic
-    /// sweep this reader has no reason to fail open.
+    /// sweep this reader has no reason to fail open. <see cref="AnalyzeSplicedProjection"/> carries that
+    /// half.
     /// </para>
     /// <para>
     /// Every other spread returns null here and lands on BCF1003. That is where a stored <c>View</c> read
@@ -936,14 +1063,87 @@ internal static class RenderExpressionAnalyzer
     /// could not report the difference: a field is not a call, so BCF3030 cannot see it, and a surface-
     /// built <c>View</c> carries no fragment and would render nothing in silence (Appendix B).
     /// </para>
+    /// <para>
+    /// The iterator-<c>[ViewPart]</c> branch does not widen that refusal, because it is gated on two
+    /// conditions together, both asked of a symbol the semantic model actually resolved: the callee must
+    /// carry <c>[ViewPart]</c> <em>and</em> its return type must be exactly the sequence type
+    /// (<see cref="KnownSymbols.IsViewSequenceType"/>). A field (<c>.. _views</c>) is not a call and never
+    /// reaches this branch at all; an unattributed method (<c>.. GetViews()</c>) fails the first
+    /// condition; a <c>[ViewPart]</c> that returns some other sequence (<c>.. Rows()</c> returning
+    /// <c>View[]</c>) fails the second. Every one of those still falls through to the same
+    /// <see cref="ViewPartBodyContext.RecordUntranslatable"/> call below that refused it before this
+    /// branch existed, so the Opaque path is still never offered a sequence to widen into.
+    /// </para>
     /// </remarks>
-    private static ForEachNode? AnalyzeSplice(
+    private static RenderNode? AnalyzeSplice(
         ExpressionSyntax expression, ViewPartBodyContext context)
     {
-        // The syntactic match runs first, so a spread of anything but a Select is rejected without a
-        // semantic query.
-        if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector)
-            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+        // The syntactic match runs first, so a spread that is not even shaped like an invocation (a stored
+        // field, say) is rejected without a semantic query. TryMatchProjection's own shape is syntactic --
+        // any one-argument member access named "Select" -- so it matches a type-qualified call to an
+        // iterator [ViewPart] that happens to be named Select the same way it matches a real
+        // Enumerable.Select. The resolved callee is checked before committing to the projection reader, so
+        // a Select-named iterator [ViewPart] falls through to the iterator-[ViewPart] branch below instead
+        // of being carried into AnalyzeSplicedProjection and refused there for not resolving to
+        // Enumerable.Select. A shape that matches syntactically but resolves to neither still costs one
+        // GetSymbolInfo query here before it, too, falls to the iterator-[ViewPart] branch, which resolves
+        // the callee again through its own GetSymbolInfo before it, too, can be rejected.
+        if (SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector)
+            && context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is IMethodSymbol projectionMethod
+            && context.KnownSymbols.IsEnumerableSelect(projectionMethod))
+        {
+            return AnalyzeSplicedProjection(expression, invocation, access, selector, context);
+        }
+
+        // Not a projection -- either a different shape entirely, or a Select-named call the semantic check
+        // above just excluded. The other admitted spread shape (#316): a call whose resolved symbol
+        // carries [ViewPart] and returns the sequence type. Expanded through the same construction an
+        // ordinary (non-spread) [ViewPart] call uses, so the two never drift apart.
+        if (expression is InvocationExpressionSyntax spreadInvocation
+            && context.SemanticModel.GetSymbolInfo(spreadInvocation, context.CancellationToken).Symbol
+                is IMethodSymbol spreadMethod
+            // Mutating this IsViewPart check away is a stryker survivor, measured equivalent rather than
+            // assumed: hand-applying the removal and running
+            // ViewPartIteratorTests.IteratorViewPart_WhenSpreadOfANonAttributedSequenceMethod_ReportsBcf1003
+            // left it passing unchanged. Reading why: ClassifyNonSurfaceCall's own ClassifyCallee asks this
+            // same question independently before falling through to IsContentType(returnType), which is
+            // false for any IsViewSequenceType-returning method regardless of attribution -- the two checks
+            // are exact-type tests over disjoint types, so an unattributed method can never satisfy
+            // IsContentType either. An unattributed callee therefore still lands on NotTranslatable ->
+            // RecordUntranslatable -> BCF1003 with or without this line. It stays anyway, because Global
+            // Constraint 5 requires both conditions named explicitly at this gate rather than depending on
+            // a second file's internal check as the only line of defense.
+            && context.KnownSymbols.IsViewPart(spreadMethod)
+            && context.KnownSymbols.IsViewSequenceType(spreadMethod.ReturnType))
+        {
+            var node = ClassifyNonSurfaceCall(spreadInvocation, spreadMethod, context);
+            if (node is null)
+                context.RecordUntranslatable(expression);
+
+            return node;
+        }
+
+        context.RecordUntranslatable(expression);
+        return null;
+    }
+
+    /// <summary>
+    /// The projection half of <see cref="AnalyzeSplice"/>: <c>source.Select(item =&gt; …)</c>, folded to
+    /// the <c>ForEach</c> with a declined key that it is sugar for (#172). Extracted so
+    /// <see cref="AnalyzeSplice"/> can try the iterator-<c>[ViewPart]</c> shape when the syntax does not
+    /// match this one, without this half's own semantic failures (an unresolved or non-<c>Select</c>
+    /// callee, a lambda <see cref="TryBindTransplantedLambda"/> refuses) being read as that shape's to
+    /// answer for.
+    /// </summary>
+    private static ForEachNode? AnalyzeSplicedProjection(
+        ExpressionSyntax expression,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax access,
+        ExpressionSyntax selector,
+        ViewPartBodyContext context)
+    {
+        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is not IMethodSymbol method
             || !context.KnownSymbols.IsEnumerableSelect(method)
             // The projection is transplanted into the folded loop exactly as a ForEach content lambda is,
@@ -974,7 +1174,11 @@ internal static class RenderExpressionAnalyzer
                     source,
                     Key: null,
                     content,
-                    TemplateLocation.From(expression.GetLocation()));
+                    TemplateLocation.From(expression.GetLocation()),
+                    LoopVariableName: null,
+                    // The projection's parameter is a lambda parameter, not a native `foreach` header, so
+                    // there is no explicit-type spelling to preserve here.
+                    LoopVariableTypeName: null);
         }
         finally
         {
@@ -3939,6 +4143,107 @@ internal static class RenderExpressionAnalyzer
             return false;
 
         switchStatement = last;
+        return true;
+    }
+
+    /// <summary>
+    /// Reads a block whose last statement is a native `foreach` ending, in its own last statement, in
+    /// exactly one `yield return` (ARCHITECTURE.md §5.3's Transplantable syntax, extended to the one shape
+    /// `if`/`switch` cannot cover). Unlike <see cref="TryReadTransplantableIf"/> and
+    /// <see cref="TryReadTransplantableSwitch"/>, a `foreach` cannot replace the getter's trailing `return`:
+    /// returning inside a loop body returns only the first item, and not returning is CS0161. The only
+    /// spelling that both compiles and means what it says is a C# iterator, which requires `yield return`
+    /// and therefore a method rather than a property getter -- <see cref="ViewPartDefinitionFactory"/>'s
+    /// <c>TryReadBody</c> routes a block this accepts to exactly that method form. The loop's own body is
+    /// not read here beyond locating the trailing `yield return`; the caller reads what is yielded.
+    /// </summary>
+    /// <remarks>
+    /// Every rejected shape Global Constraint 6 lists -- multiple `yield`, a `yield` outside the loop,
+    /// `yield break`, `break`, `continue`, or a nested control-flow construct -- is impossible by
+    /// construction here, not by an added scan for it. Conditions 5 and 6 both route their statements
+    /// through the same shared
+    /// <see cref="TryReadLeadingStatements(BlockSyntax,int,out ImmutableArray{StatementSyntax})"/>, which
+    /// accepts only <see cref="LocalDeclarationStatementSyntax"/> and <see cref="ExpressionStatementSyntax"/>
+    /// -- condition 5 for every loop-body statement but the trailing one, condition 6 for every outer-block
+    /// statement before the `foreach`. A second `yield return`, a `yield break`, a `break`, a `continue`, or
+    /// any nested `if`/`switch`/loop is none of those two statement kinds, so within the loop body it is
+    /// caught by condition 5, and written outside the loop -- as one of the outer block's own leading
+    /// statements, ahead of the `foreach` -- it is caught by condition 6 the same way. Nothing can follow
+    /// the `foreach` itself, because condition 1
+    /// already requires it to be the block's own last statement. That leaves only the loop body's *last*
+    /// statement unrouted by either check -- and condition 4 requires that one to be a `yield return` with
+    /// a non-null expression, which none of the rejected shapes is either. A later change must not add a
+    /// redundant walk for any of them; the exclusion is structural.
+    /// </remarks>
+    public static bool TryReadIteratorForEach(
+        BlockSyntax block,
+        out ImmutableArray<StatementSyntax> statements,
+        out ForEachStatementSyntax forEachStatement,
+        out ImmutableArray<StatementSyntax> bodyStatements,
+        out ExpressionSyntax yielded)
+    {
+        statements = [];
+        forEachStatement = null!;
+        bodyStatements = [];
+        yielded = null!;
+
+        // 1. ForEachVariableStatementSyntax (a deconstructing `foreach (var (a, b) in ...)`) is a sibling
+        // of ForEachStatementSyntax under CommonForEachStatementSyntax, not a subtype of it, so this
+        // pattern excludes a deconstructing loop automatically -- no separate check is needed for it.
+        var count = block.Statements.Count;
+        if (count == 0 || block.Statements[count - 1] is not ForEachStatementSyntax last)
+            return false;
+
+        // 2. `await foreach` iterates asynchronously; a getter cannot await, so this reader is only ever
+        // reached from a method body and still refuses it, keeping the accepted shape identical to what a
+        // synchronous iterator method requires.
+        if (!last.AwaitKeyword.IsKind(SyntaxKind.None))
+            return false;
+
+        // 3. A braceless loop body (`foreach (...) yield return x;`) is refused: Global Constraint 6.
+        if (last.Statement is not BlockSyntax innerBlock)
+            return false;
+
+        // 4. The loop body's last statement must be `yield return <expr>`; `yield break` is a
+        // YieldStatementSyntax too but carries SyntaxKind.YieldBreakStatement and a null Expression, so
+        // both are rejected by this one pattern.
+        var innerCount = innerBlock.Statements.Count;
+        if (innerCount == 0
+            || innerBlock.Statements[innerCount - 1] is not YieldStatementSyntax
+            { RawKind: (int)SyntaxKind.YieldReturnStatement, Expression: { } yieldedExpression })
+        {
+            return false;
+        }
+
+        // 5. Every loop-body statement before the trailing `yield return` must be a local declaration or
+        // an expression statement -- see the doc remarks for why this is what rules out every shape
+        // Global Constraint 6 names.
+        if (innerCount > 1 && !TryReadLeadingStatements(innerBlock, innerCount, out bodyStatements))
+            return false;
+
+        // 6. Every statement of the outer block before the `foreach` is read the same way.
+        if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
+            return false;
+
+        // 7. One scan over the whole outer block, not just the loop: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf/Switch's same
+        // call, and covering every leading statement (#570) together with the loop's collection expression
+        // and body. It does NOT cover the foreach's own iteration-variable identifier: unlike a local
+        // declaration or an is/switch pattern, `foreach (Type Identifier in ...)` binds that identifier as
+        // a bare SyntaxToken directly on ForEachStatementSyntax, with no VariableDeclaratorSyntax or
+        // SingleVariableDesignationSyntax node for DeclaresReservedName's TryGetDeclaredLocalIdentifier to
+        // match -- so `foreach (var __builder in items) { yield return __builder; }` passes this reader
+        // unrejected. That is by design, not a gap: the iteration variable is minted (`__bcf_item_N`)
+        // rather than transplanted, exactly like a `ForEach` content lambda's own parameter, so the
+        // author's token never survives into generated code for it to collide with anything --
+        // ClassifyIteratorForEach exempts the variable's declaring symbol the same way, through
+        // PushIterationVariableExemption. `IteratorViewPart_WhenTheIterationVariableCarriesTheBuildersName_MintsOverIt`
+        // and its call-site sibling `...ExpandsAndCompilesAtACallSite` pin this as accepted behaviour.
+        if (DeclaresReservedName(block))
+            return false;
+
+        forEachStatement = last;
+        yielded = yieldedExpression;
         return true;
     }
 

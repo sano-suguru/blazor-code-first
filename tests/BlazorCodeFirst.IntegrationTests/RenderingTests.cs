@@ -193,6 +193,53 @@ public sealed class RenderingTests : BunitContext
     }
 
     [Fact]
+    public void IteratorViewPart_RendersOneChildPerItem()
+    {
+        var cut = Render<IteratorViewPartComponent>();
+
+        var spans = cut.FindAll("span");
+        Assert.Equal(3, spans.Count);
+        Assert.Equal("a:0", spans[0].TextContent);
+        Assert.Equal("b:0", spans[1].TextContent);
+        Assert.Equal("c:0", spans[2].TextContent);
+    }
+
+    [Fact]
+    public void IteratorViewPart_WhenRowStateChangedThenReorderedInsertedAndRemoved_StatePreservedFollowsItem()
+    {
+        // Same shape as KeyedComponentList_WhenRowStateChangedThenRotated_StatePreservedFollowsItem above,
+        // but through the iterator [ViewPart] splice (Div[[.. Rows(_items), …]]) rather than ForEach written
+        // directly at the call site, and extended past a rotate to an insert and a delete: per-row component
+        // state (an internal counter) must follow its item's key through every structural change the list
+        // can make. This is the one thing no compiler test can prove -- it exercises the real renderer, not
+        // generated source text, and it is the only place the key emitted on the yielded element itself
+        // (rather than threaded through a combinator argument) is actually observed to matter.
+        var cut = Render<IteratorViewPartComponent>();
+
+        // Rows start a:0, b:0, c:0. Increment the first row (a) twice.
+        cut.FindAll("button")[0].Click();
+        cut.FindAll("button")[0].Click();
+        Assert.Equal("a:2", cut.FindAll("span")[0].TextContent);
+
+        // Rotate -> order becomes b, c, a. Item a is now last; its counter followed it.
+        cut.FindAll("button")[3].Click();
+        Assert.Equal("b:0", cut.FindAll("span")[0].TextContent);
+        Assert.Equal("a:2", cut.FindAll("span")[2].TextContent);
+
+        // Insert a new item at the front -> z, b, c, a. Item a is still last with its counter intact.
+        cut.FindAll("button")[4].Click();
+        Assert.Equal("z:0", cut.FindAll("span")[0].TextContent);
+        Assert.Equal("a:2", cut.FindAll("span")[3].TextContent);
+
+        // Remove the second item (b) -> z, c, a. Item a's counter still follows it.
+        cut.FindAll("button")[6].Click();
+        Assert.Equal(3, cut.FindAll("span").Count);
+        Assert.Equal("z:0", cut.FindAll("span")[0].TextContent);
+        Assert.Equal("c:0", cut.FindAll("span")[1].TextContent);
+        Assert.Equal("a:2", cut.FindAll("span")[2].TextContent);
+    }
+
+    [Fact]
     public void SplicedList_WhenRendered_EmitsTheProjectionBetweenItsSiblings()
     {
         // The splice generates the same source as the declined-key ForEach, which the compiler tests

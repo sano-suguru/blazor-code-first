@@ -217,4 +217,45 @@ public sealed class ForEachMethodGroupTests
         Assert.Contains("not accessible", message);
         Assert.Empty(result.GeneratedSources);
     }
+
+    /// <summary>
+    /// An iterator <c>[ViewPart]</c>'s method group cannot legally bind to <c>ForEach</c>'s <c>content</c>
+    /// parameter at all: its return type is <c>IEnumerable&lt;View&gt;</c>, not <c>View</c>, so the author's
+    /// own source fails to compile (CS0407, "has the wrong return type") before
+    /// <see cref="RenderViewEmitter"/>'s <c>EmitUnfolded</c> DEBUG-build <c>Debug.Assert</c> guard against a
+    /// region-rooted <c>ForEach</c> content root could ever be reached from this shape. Pinned anyway, so
+    /// that a change letting the callee bind (widening <see cref="TryBindForEachContent"/>'s parameter-count
+    /// check, say) is caught by a crash here rather than by that assert firing in a release the DEBUG
+    /// build never ships (#316).
+    /// </summary>
+    [Fact]
+    public void IteratorViewPart_WhenUsedAsAForEachContentMethodGroup_ReportsBcf1003AndDoesNotCrash()
+    {
+        const string Source = """
+            using BlazorCodeFirst;
+            using System.Collections.Generic;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a", "b" };
+
+                protected override View Body => Html.ForEach(_items, x => x, RowsFor);
+
+                [ViewPart]
+                private static IEnumerable<View> RowsFor(string item)
+                    {
+                        foreach (var i in new[] { item })
+                        {
+                            yield return Html.Span[i];
+                        }
+                    }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(Source);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS0407");
+        Assert.Empty(result.GeneratedSources);
+    }
 }

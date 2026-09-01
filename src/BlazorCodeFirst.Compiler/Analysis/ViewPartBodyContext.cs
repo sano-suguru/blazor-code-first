@@ -49,6 +49,7 @@ internal sealed class ViewPartBodyContext
         new(SymbolEqualityComparer.Default);
     private readonly HashSet<TextSpan> _rejectedValueRouteSpans = [];
     private readonly List<TextSpan> _transplantedScopes = [];
+    private readonly HashSet<ISymbol> _exemptIterationVariables = new(SymbolEqualityComparer.Default);
     private readonly Dictionary<ISymbol, bool> _surfaceBuiltCallees = new(SymbolEqualityComparer.Default);
     private int _renderVariableDepth;
 
@@ -219,14 +220,27 @@ internal sealed class ViewPartBodyContext
     /// cannot exist in generated component code. Several shapes register here: the statements of a
     /// transplanted block, the header expression of a lowered construct, and the header of a native
     /// construct that lowers to the same generated shape -- an `if`'s condition (<c>AnalyzeIf</c>), a
-    /// `switch`'s discriminant (<c>AnalyzeSwitch</c>), and, narrower still, one `case` label's own
-    /// designator over just that section (#569). ARCHITECTURE.md §2.3 says which positions those are and
-    /// why nothing wider is admitted. They share one list because the check asks one question of all of
-    /// them: does the declaration land in a generated scope enclosing this reference.
+    /// `switch`'s discriminant (<c>AnalyzeSwitch</c>), one `case` label's own designator over just that
+    /// section (#569), and a native `foreach`'s own source expression (<c>ClassifyIteratorForEach</c>,
+    /// #316), pushed exactly where <c>ClassifyForEach</c>'s analogous push covers the `ForEach` combinator's
+    /// source argument (#361). ARCHITECTURE.md §2.3 says which positions those are and why nothing wider is
+    /// admitted. They share one list because the check asks one question of all of them: does the
+    /// declaration land in a generated scope enclosing this reference.
     /// <para>
     /// A span and not the node, because containment is all any caller asks. A stack and not a single
     /// value, so a <c>ForEach</c> nested inside a transplanted block can still read the locals of the block
     /// that encloses it, exactly as the C# the author wrote does.
+    /// </para>
+    /// <para>
+    /// A native `foreach`'s own iteration variable is not admitted through this span-containment
+    /// mechanism at all, even though it is legal everywhere in the loop body: its one
+    /// <c>ISymbol.DeclaringSyntaxReferences</c> entry is the whole <c>ForEachStatementSyntax</c>, header
+    /// and yielded expression both, so a span wide enough to contain it would also wrongly admit a
+    /// reference to any OTHER local declared inside the yielded expression from a sibling construct there
+    /// (two `ForEach` calls in the same yielded list, say) -- exactly the cross-sibling leak this list's
+    /// disjoint, independently popped scopes exist to refuse (see the sibling-refusal tests beside
+    /// <c>ForEachSource_DeclaringALocalReadFromASiblingForEachContent_StaysRefused</c>). The iteration
+    /// variable is instead exempted by symbol identity: see <see cref="PushIterationVariableExemption"/>.
     /// </para>
     /// </remarks>
     public void PushTransplantedScope(TextSpan span) => _transplantedScopes.Add(span);
@@ -245,6 +259,28 @@ internal sealed class ViewPartBodyContext
 
         return false;
     }
+
+    /// <summary>
+    /// Marks <paramref name="symbol"/> -- a native `foreach`'s own iteration variable -- as always a legal
+    /// reference, independent of any <see cref="PushTransplantedScope"/> span.
+    /// </summary>
+    /// <remarks>
+    /// A separate, narrower mechanism from <see cref="PushTransplantedScope"/> deliberately: that one
+    /// tests span containment, and the iteration variable's only declaring span is the whole
+    /// <c>ForEachStatementSyntax</c> (see that method's remarks for why widening the scope to cover it is
+    /// refused). It is also deliberately not folded into <see cref="PushRenderVariable"/>, even though
+    /// <c>ClassifyIteratorForEach</c> calls both for the same symbol: <c>CollectDeclaredLocals</c> pushes
+    /// every local a `[ViewPart]` body declares -- including one declared inside the yielded
+    /// expression -- through that same render-variable overlay, so gating this exemption on "is a render
+    /// variable" would readmit the identical cross-sibling leak this exists to close (#316).
+    /// </remarks>
+    public void PushIterationVariableExemption(ISymbol symbol) => _exemptIterationVariables.Add(symbol);
+
+    /// <summary>Removes the exemption registered by the matching <see cref="PushIterationVariableExemption"/>.</summary>
+    public void PopIterationVariableExemption(ISymbol symbol) => _exemptIterationVariables.Remove(symbol);
+
+    /// <summary>Whether <paramref name="symbol"/> is currently exempt as a `foreach` iteration variable.</summary>
+    public bool IsExemptIterationVariable(ISymbol symbol) => _exemptIterationVariables.Contains(symbol);
 
     /// <summary>
     /// The memo for "does this callee's body build its <c>View</c> from the design-time surface", the

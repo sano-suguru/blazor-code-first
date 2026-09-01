@@ -303,4 +303,27 @@ public sealed class ForEachTransplantTests
             result.Diagnostics.Any(d => d.Id == "BCF3004"),
             $"expected BCF3004, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
     }
+
+    /// <summary>
+    /// The CS1621 counterpart to <c>BodyTransplantIfTests.Body_WhenAGetterYields_IsRejectedByCSharpBeforeBcf1004</c>:
+    /// why <c>TryBindForEachContent</c> needs no branch of its own for a content lambda whose body ends in
+    /// `yield return` (the shape a `[ViewPart]` iterator writes instead, #316). C# refuses a `yield`
+    /// statement inside any anonymous method or lambda expression outright -- CS1621 -- on the ORIGINAL
+    /// author source, before this content lambda's block is ever read as a candidate Transplantable
+    /// shape.
+    /// </summary>
+    [Fact]
+    public void ForEachContent_WhenTheLambdaYields_IsRejectedByCSharpBeforeBcf3004()
+    {
+        var result = Run(
+            """
+            x =>
+                    {
+                        yield return Html.Span[x];
+                    }
+            """);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1621");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3004");
+    }
 }

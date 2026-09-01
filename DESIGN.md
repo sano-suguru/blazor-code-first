@@ -38,7 +38,7 @@ The platform strategy prioritizes LTS: net10.0 is the baseline, and net11.0 is o
 
 Why build this library when Razor already exists? As a starting premise: for declarative UI that targets the DOM, Razor — which aligns its syntax with the ready-made set of HTML tags (`div` / `span` / `ul`, and so on) — is the syntactically most straightforward default answer. This library accepts that fact, and deliberately aims at a different design point: pure C#, code-first.
 
-The basis for that difference lies in language features. SwiftUI and Jetpack Compose can write `if` / `for` directly inside UI, because Swift/Kotlin carry result builders (`@ViewBuilder`) and trailing lambdas as language features. C# has none of this. Strictly, what is missing is not the whole of result builders so much as a mechanism that converts a statement (`if` / `foreach`) directly into a child-generating expression; a flat sequence of children can already be expressed with `params` or a collection initializer. That conditionals and lists in this library go through the `If()` / `ForEach()` combinators (§4.2) is because this surface makes up for that missing piece by an out-of-language means — the Source Generator. The path that handles a plain `if` is implemented (§5.3); `foreach` and `switch` remain incremental work.
+The basis for that difference lies in language features. SwiftUI and Jetpack Compose can write `if` / `for` directly inside UI, because Swift/Kotlin carry result builders (`@ViewBuilder`) and trailing lambdas as language features. C# has none of this. Strictly, what is missing is not the whole of result builders so much as a mechanism that converts a statement (`if` / `foreach`) directly into a child-generating expression; a flat sequence of children can already be expressed with `params` or a collection initializer. That conditionals and lists in this library go through the `If()` / `ForEach()` combinators (§4.2) is because this surface makes up for that missing piece by an out-of-language means — the Source Generator. The path that handles a native `if` and `switch` directly inside `Body` is implemented at all three positions it reaches (§5.3); a native `foreach` is implemented too, but only at a `[ViewPart]`'s own position, as an iterator (§4.3) — the other two positions are excluded by the language itself, not by this design.
 
 The reason for choosing this design, which concedes a step in syntactic straightforwardness, is not appearance — it lies in the following real value. Because UI and logic both close within the same C#, the context switch between markup and code disappears. Because UI is a plain C# expression, IDE rename and extract refactorings apply as-is, and type mismatches are caught at build time. There is also none of the tooling-accuracy degradation Razor tends to suffer at the boundary it straddles between markup and code. And UI can be assembled with ordinary functions, generics, and collection operations.
 
@@ -213,8 +213,8 @@ public partial class TaskListPage : BodyComponentBase
   Ul[[.. _columns.Select(c => Li[c.Header])]]
   ```
 
-  A spread mixes with sibling children (`Ul[[Li["first"], .. proj, Li["last"]]]`). Only `<source>.Select(<inline expression lambda>)` folds; any other spread is BCF1003. The reason for this boundary is in `ARCHITECTURE.md`'s Appendix B.12.
-- Using a native `if` or `switch` directly inside `Body`, as the last statement of a block-bodied getter, is also possible. The Source Generator transplants that syntax whole into the generated code and wraps it in a dynamic region (§5.3). `foreach` is not yet accepted at this position.
+  A spread mixes with sibling children (`Ul[[Li["first"], .. proj, Li["last"]]]`). Only `<source>.Select(<inline expression lambda>)`, and a call to an iterator `[ViewPart]` (§4.3), fold; any other spread is BCF1003. The reason for the first boundary is in `ARCHITECTURE.md`'s Appendix B.12; the second is Appendix B.26.
+- Using a native `if` or `switch` directly inside `Body`, as the last statement of a block-bodied getter, is also possible. The Source Generator transplants that syntax whole into the generated code and wraps it in a dynamic region (§5.3). A native `foreach` is not accepted at this position — a property getter cannot be a C# iterator block — but the equivalent shape is accepted at a `[ViewPart]`'s own position instead, as an iterator (§4.3).
 
 ### 4.3 Splitting and reusing components
 
@@ -262,6 +262,32 @@ Automatically treating any attribute-less static method that returns `View` as s
 `[ViewPart]` cannot be declared as an extension member (decided 2026-08-09, #203). Both a classic `this` parameter (`static View Label(this string value)`) and a member inside a C# 14 `extension` block are BCF1002. The only call spelling this section gives is the plain call, `AppHeader("My Application")` — a trailing `.Foo(...)` chain is, per §4.1, reserved for decorating an element. The full reasoning behind this rejection is in `ARCHITECTURE.md`'s Appendix B.17.
 
 Static expansion needs the declaration's source syntax, so it only works when the call site is in the same compilation as the declaration. A definition is collected from the current compilation's own syntax, and since IL carries no body syntax, a `[ViewPart]` in a referenced project or NuGet package becomes BCF1002 at the call site (`ARCHITECTURE.md`'s Appendix A). A part meant for reuse across an assembly boundary should be a component instead, used via `Component<T>()` (§6.2) or as a tag from `.razor` (§6.1).
+
+### Iterating: a `[ViewPart]` as a native `foreach`
+
+A `[ViewPart]` may also be an iterator: a `static` method returning `IEnumerable<View>` whose body is a native `foreach` ending, in its own last statement, in one `yield return` per iteration (decided 2026-09-01, #316).
+
+```csharp
+[ViewPart]
+private static IEnumerable<View> Rows(IReadOnlyList<Item> items)
+{
+    foreach (var item in items)
+    {
+        yield return Li.Key(item.Id)[item.Name];
+    }
+}
+
+protected override View Body =>
+    Ul[[.. Rows(_items)]];
+```
+
+The call site is a spread, the same spelling as the declined-key `ForEach` sugar above. A bare call with no `..` (`Ul[Rows(_items)]`) does not even reach the generator: the child indexer takes `params ReadOnlySpan<View>`, and `IEnumerable<View>` converts to neither `View` nor a span, so it fails to compile in the author's own file. `.Key(...)` is optional and is written on the yielded element itself, an ordinary frame decoration, not threaded through a separate `key:` parameter the way `ForEach`'s own key is — a native `foreach` header has no sibling argument to carry one. Omitting it emits no `SetKey`, the same as `ForEach`'s own declined key.
+
+This is not the inline-expansion path an ordinary `[ViewPart]` call takes: the number of iterations is a run-time fact, so this shape instead reuses `ForEach`'s own emission — one static content range, run once per iteration by the loop the call site expands into — rather than pasting a copy of the body per call (`ARCHITECTURE.md` §2.7(B)/(C)). It also does not degrade the way a native `if`/`else` or `switch` transplanted into this same position does (§5.3): the loop's trailing `yield return` is a single statically sequenceable expression every iteration reuses, so no `BCF2002` is reported for it.
+
+`yield return` is the only spelling that both compiles and means "produce every item": a `foreach` ending in `return` instead would exit after the first item, and only a method — never a getter, never a lambda — can be a C# iterator (`ARCHITECTURE.md`'s Appendix B.26). This is why the iterator shape is accepted only at a `[ViewPart]`'s own position, and not, for instance, as the last statement of `Body` or inside `ForEach`'s own `content`.
+
+Because a `[ViewPart]` must be `static` (above), an iterator part's body cannot read an instance field directly; the loop's own source is always taken as an ordinary parameter (`items` above), threaded through the caller's argument the same way any other `[ViewPart]` parameter is.
 
 Four transforms are central to this design: folding a decoration chain, `ForEach`'s key matching, `[ViewPart]`'s static inline expansion, and folding a static subtree. `ARCHITECTURE.md` §2.7 defines, for each, exactly which input turns into which generated code, as input/output examples.
 
@@ -328,7 +354,9 @@ Static sequence assignment cannot hold for arbitrary C# code, so the scope of th
 
 SSC's interior holds two things, both subject to full static assignment: direct writing of an element helper/decoration/combinator inside a `Body` or `[ViewPart]` method, and a direct call to `Component<T>()`, `Fragment`, or `Raw` (including an inline lambda). Outside SSC, one of two treatments applies.
 
-Transplantable syntax (a native `if`/`else` or `switch`; `foreach` remains future work) is transplanted whole into the generated code, and wrapped in a region (`OpenRegion` / `CloseRegion`) whose boundary carries a static sequence. Because a region isolates its sequence space, its internal dynamism never propagates out into the surrounding diffing.
+Transplantable syntax (a native `if`/`else` or `switch`, at any of the three positions this shape is accepted) is transplanted whole into the generated code, and wrapped in a region (`OpenRegion` / `CloseRegion`) whose boundary carries a static sequence. Because a region isolates its sequence space, its internal dynamism never propagates out into the surrounding diffing.
+
+A native `foreach` reaches only one of those three positions, a `[ViewPart]`'s own body, and only as an iterator ending in a single `yield return` (§4.3). There it does not follow this degrading path: its trailing `yield return` is a single statically sequenceable expression every iteration reuses, the same as `ForEach`'s own `content`, so it reuses `ForEach`'s own region and single static content range rather than the freshly synthesized per-arm fragment an `if`/`switch` needs.
 
 An unanalyzable call is evaluated at run time, and the `RenderFragment` its returned `View` wraps is drawn inside a region. Only this path allocates on the heap normally. The only spelling that puts a fragment into a `View`, though, is an implicit conversion from `RenderFragment`, and a `View` built from the design-time API is empty at run time — so a `View`-returning method with no `[ViewPart]` is stopped by BCF3030, as long as its source declaration is in the current compilation. What remains on this path is a body that never uses the design-time API, and a call whose declaration cannot be read (`ARCHITECTURE.md`'s Appendix A, Appendix B.11).
 
