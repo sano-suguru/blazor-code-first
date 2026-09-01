@@ -327,8 +327,9 @@ public sealed class ViewPartIteratorTests
     /// <c>TryGetDeclaredLocalIdentifier</c> to match, so the scan does not see it. This is not a bug --
     /// the iteration variable is minted (<c>__bcf_item_N</c>), not transplanted, exactly like a
     /// <c>ForEach</c> content lambda's own parameter, so the author's original token never survives into
-    /// generated code for it to collide with anything. Only declaration acceptance is confirmed here;
-    /// confirming the expansion itself compiles needs a call site (a later task).
+    /// generated code for it to collide with anything. Declaration acceptance is confirmed here;
+    /// <see cref="IteratorViewPart_WhenTheIterationVariableCarriesTheBuildersName_ExpandsAndCompilesAtACallSite"/>
+    /// confirms the expansion itself compiles, now that a call site can reach it (#316).
     /// </summary>
     [Fact]
     public void IteratorViewPart_WhenTheIterationVariableCarriesTheBuildersName_MintsOverIt()
@@ -343,6 +344,27 @@ public sealed class ViewPartIteratorTests
                     }
                 }
             """);
+    }
+
+    /// <summary>The call-site half of <see cref="IteratorViewPart_WhenTheIterationVariableCarriesTheBuildersName_MintsOverIt"/>.</summary>
+    [Fact]
+    public void IteratorViewPart_WhenTheIterationVariableCarriesTheBuildersName_ExpandsAndCompilesAtACallSite()
+    {
+        const string members = """
+            [ViewPart]
+            private static IEnumerable<View> Rows(IEnumerable<string> items)
+                {
+                    foreach (var __builder in items)
+                    {
+                        yield return Span[__builder];
+                    }
+                }
+            """;
+
+        var result = RunCall("""Div[[.. Rows(new[] { "a", "b" })]]""", members);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        CompilationTestHost.AssertOutputCompiles(result);
     }
 
     // ---------------------------------------------------------------------------

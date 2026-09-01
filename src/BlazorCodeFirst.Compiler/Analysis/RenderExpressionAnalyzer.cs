@@ -1070,6 +1070,17 @@ internal static class RenderExpressionAnalyzer
         if (expression is InvocationExpressionSyntax spreadInvocation
             && context.SemanticModel.GetSymbolInfo(spreadInvocation, context.CancellationToken).Symbol
                 is IMethodSymbol spreadMethod
+            // Mutating this IsViewPart check away is a stryker survivor, measured equivalent rather than
+            // assumed: hand-applying the removal and running
+            // ViewPartIteratorTests.IteratorViewPart_WhenSpreadOfANonAttributedSequenceMethod_ReportsBcf1003
+            // left it passing unchanged. Reading why: ClassifyNonSurfaceCall's own ClassifyCallee asks this
+            // same question independently before falling through to IsContentType(returnType), which is
+            // false for any IsViewSequenceType-returning method regardless of attribution -- the two checks
+            // are exact-type tests over disjoint types, so an unattributed method can never satisfy
+            // IsContentType either. An unattributed callee therefore still lands on NotTranslatable ->
+            // RecordUntranslatable -> BCF1003 with or without this line. It stays anyway, because Global
+            // Constraint 5 requires both conditions named explicitly at this gate rather than depending on
+            // a second file's internal check as the only line of defense.
             && context.KnownSymbols.IsViewPart(spreadMethod)
             && context.KnownSymbols.IsViewSequenceType(spreadMethod.ReturnType))
         {

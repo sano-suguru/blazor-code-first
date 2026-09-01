@@ -324,5 +324,6 @@ public sealed class ForEachTransplantTests
             """);
 
         Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1621");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3004");
     }
 }
