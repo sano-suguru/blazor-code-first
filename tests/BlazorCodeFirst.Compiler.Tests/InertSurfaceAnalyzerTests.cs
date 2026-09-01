@@ -262,6 +262,34 @@ public sealed class InertSurfaceAnalyzerTests
         """;
 
     /// <summary>
+    /// The iterator <c>[ViewPart]</c> shape (#316): its declaration returns <c>IEnumerable&lt;View&gt;</c>,
+    /// the sequence type, rather than one of the scalar inert types (<c>View</c> / <c>ElementView</c> /
+    /// <c>SlotView</c> / <c>ComponentView&lt;T&gt;</c>) condition 1 otherwise checks the declaration against.
+    /// Its yielded expression's outermost design-time reference climbs to no enclosing design-time
+    /// expression and no lambda (a lambda cannot be an iterator), landing on the method-return-type
+    /// fallback, so this is what proves that fallback also recognizes the sequence type.
+    /// </summary>
+    private const string IteratorViewPartDeclarationSource = """
+        using System.Collections.Generic;
+        using BlazorCodeFirst;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            [ViewPart]
+            private static IEnumerable<View> Rows(IReadOnlyList<string> items)
+            {
+                foreach (var item in items)
+                {
+                    yield return Li[item];
+                }
+            }
+
+            protected override View Body => Ul[[.. Rows(new[] { "a", "b" })]];
+        }
+        """;
+
+    /// <summary>
     /// The ForEach content lambda, whose declaration returns View. Condition 1 exempts it without any
     /// position being named, which is the point of asking a return type rather than keeping a list.
     /// </summary>
@@ -415,6 +443,7 @@ public sealed class InertSurfaceAnalyzerTests
         ChromeSource,
         ViewPartDeclarationSource,
         ContentTakingViewPartDeclarationSource,
+        IteratorViewPartDeclarationSource,
         ForEachContentLambdaSource,
         StoredInInertFieldSource,
         InertFieldInitializerSource,
