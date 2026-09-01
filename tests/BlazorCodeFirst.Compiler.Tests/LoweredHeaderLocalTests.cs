@@ -56,6 +56,21 @@ public sealed class LoweredHeaderLocalTests
                 private static View Row(string label) => {{partBody}};
             """);
 
+    /// <summary>
+    /// As <see cref="RunViewPart"/>, but for the iterator shape (#316): <paramref name="part"/> is the
+    /// whole `IEnumerable&lt;View&gt;`-returning method (name, parameters, and a `foreach`+`yield return`
+    /// body), declared alone -- nothing calls it yet, since no call site splices an iterator part in until
+    /// a later task (<see cref="ViewPartIteratorTests"/>'s own remarks explain why declaration-only is
+    /// what these tests can observe).
+    /// </summary>
+    private static GeneratorRunResult RunIteratorViewPart(string part) =>
+        Run(
+            """Span["x"]""",
+            $$"""
+            [ViewPart]
+                private static IEnumerable<View> {{part}}
+            """);
+
     private static string AssertAccepted(string body)
     {
         var result = Run(body);
@@ -329,6 +344,89 @@ public sealed class LoweredHeaderLocalTests
                 ..Items(0).Select(j => Span[n.ToString()])
             ]]
             """);
+
+    /// <summary>
+    /// The native `foreach` iterator shape's own header scope (<c>ClassifyIteratorForEach</c>) is pushed
+    /// over just the loop's own source expression, exactly as narrow as <c>ClassifyForEach</c>'s push for
+    /// the `ForEach` combinator (#361) -- never over the whole `ForEachStatementSyntax`, which would also
+    /// wrongly cover the yielded expression's own interior. Without that narrowness, a local declared in
+    /// one `ForEach`'s own header inside the yielded expression would leak into a sibling `ForEach`'s
+    /// content there, the same class of defect <see cref="ForEachSource_DeclaringALocalReadFromASiblingForEachContent_StaysRefused"/>
+    /// pins for the `ForEach`-combinator-only shape (#487), now pinned across the native `foreach`
+    /// boundary too (#316).
+    /// </summary>
+    [Fact]
+    public void IteratorYield_ForEachSource_DeclaringALocalReadFromASiblingForEachContent_StaysRefused()
+    {
+        var result = RunIteratorViewPart(
+            """
+            RowIter()
+                {
+                    foreach (var _ in Items(0))
+                    {
+                        yield return Div[
+                            ForEach(Items(Take(out var n)), i => i, i => Span["x"]),
+                            ForEach(Items(0), j => j, j => Span[n.ToString()])
+                        ];
+                    }
+                }
+            """);
+
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+        Assert.Contains(
+            "references local 'n' that cannot exist in generated component code",
+            diagnostic.GetMessage(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The accepted counterpart to the refusal above: the iteration variable itself -- exempted by symbol
+    /// identity (<c>ViewPartBodyContext.PushIterationVariableExemption</c>), not by the header-scope span
+    /// containment every other position in this file uses -- is legal wherever the yielded expression
+    /// reads it. <see cref="ViewPartIteratorTests.IteratorViewPart_WhenDeclaredAlone_DoesNotReportBcf1002"/>
+    /// already confirms this implicitly through a whole declaration-acceptance sweep; this pins the
+    /// specific scope-boundary claim explicitly, alongside the rest of this file's boundary pins.
+    /// </summary>
+    [Fact]
+    public void IteratorYield_IterationVariable_ReadFromTheYieldedExpression_IsAccepted()
+    {
+        var result = RunIteratorViewPart(
+            """
+            RowIter()
+                {
+                    foreach (var item in Items(0))
+                    {
+                        yield return Span[item.ToString()];
+                    }
+                }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1002" or "BCF1003");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// The actual acceptance case the narrow <c>statement.Expression.Span</c> push exists for: a local the
+    /// loop's own source expression declares (an `out var` there) is legal throughout the yielded
+    /// expression, the native-`foreach` counterpart to <see cref="ForEachSource_DeclaringALocalReadFromTheContent_IsAccepted"/>.
+    /// </summary>
+    [Fact]
+    public void IteratorYield_ForEachSource_DeclaringALocalReadFromTheYieldedExpression_IsAccepted()
+    {
+        var result = RunIteratorViewPart(
+            """
+            RowIter()
+                {
+                    foreach (var item in Items(Take(out var n)))
+                    {
+                        yield return Span[n.ToString() + item];
+                    }
+                }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Id is "BCF1002" or "BCF1003");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
 
     /// <summary>
     /// <c>ClassifyIf</c>'s own condition-header scope, popped independently of the <c>ForEach</c>/spread

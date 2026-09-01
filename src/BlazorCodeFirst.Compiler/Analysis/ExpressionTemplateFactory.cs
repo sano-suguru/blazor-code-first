@@ -753,6 +753,14 @@ internal static class ExpressionTemplateFactory
         if (kindLabel is null)
             return false;
 
+        // A native `foreach`'s own iteration variable is exempted by symbol identity rather than by span
+        // containment: its only declaring span is the whole ForEachStatementSyntax, which a
+        // transplanted-scope span cannot cover without also wrongly covering (and so admitting references
+        // to) every OTHER local declared anywhere in the yielded expression's interior -- see
+        // ClassifyIteratorForEach and ViewPartBodyContext.PushIterationVariableExemption (#316).
+        if (context.IsExemptIterationVariable(symbol))
+            return false;
+
         foreach (var declaration in symbol.DeclaringSyntaxReferences)
         {
             // Either the declaration travels with this template, or it sits in a block being transplanted

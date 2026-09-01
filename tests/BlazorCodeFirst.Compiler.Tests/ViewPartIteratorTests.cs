@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
@@ -28,12 +30,21 @@ public sealed class ViewPartIteratorTests
     private static GeneratorRunResult Run(string part) =>
         CompilationTestHost.RunGenerator(Host.Replace("$PART$", part));
 
+    /// <summary>
+    /// The id alone would read green for any other BCF1002 the same source could earn, so the message is
+    /// checked too: every rejection here falls through <c>TryReadIteratorForEach</c> without matching any
+    /// accepted body shape, so <c>ValidateDeclaration</c>'s one shared "unaccepted body" message is what
+    /// each of these tests actually pins.
+    /// </summary>
     private static void AssertReportsBcf1002(string part)
     {
         var result = Run(part);
-        Assert.True(
-            result.Diagnostics.Any(d => d.Id == "BCF1002"),
-            $"expected BCF1002, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
+        var diagnostic = Assert.Single(result.Diagnostics, static d => d.Id == "BCF1002");
+
+        Assert.Contains(
+            "must reach one return, or one foreach yielding one child per iteration",
+            diagnostic.GetMessage(CultureInfo.InvariantCulture),
+            StringComparison.Ordinal);
     }
 
     private static void AssertDoesNotReportBcf1002(string part)

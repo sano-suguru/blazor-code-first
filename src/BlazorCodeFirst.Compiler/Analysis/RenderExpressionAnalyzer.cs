@@ -979,21 +979,27 @@ internal static class RenderExpressionAnalyzer
         ISymbol[] itemSymbols = [itemSymbol];
         context.PushRenderVariable(itemSymbols);
 
-        // The whole `foreach` statement -- header and body both -- rather than just the source
-        // expression's span, which is all ClassifyForEach's analogous call needs: ForEach's iteration
-        // variable is a lambda parameter, reached through ResolveHole and never tested against
-        // IsUnsupportedSourceLocalReference in the first place (that check only classifies a local, a
-        // local function, a range variable, or a label -- never a parameter). This foreach's own
-        // itemSymbol is an ILocalSymbol, confirmed above, so IsUnsupportedSourceLocalReference does test
-        // it, and that check runs before ResolveHole ever sees the symbol -- registering it as a render
-        // variable alone is not enough. What it asks is whether the symbol's declaring syntax falls inside
-        // a pushed transplanted scope, and that declaring syntax, confirmed empirically, is the entire
-        // ForEachStatementSyntax rather than the bare Identifier token: a `foreach` binds its variable with
-        // no narrower declarator or designation syntax the way a local declaration or an `is`/`out var`
-        // pattern does, so only a span covering the whole statement contains it. The whole-statement span
-        // also still covers a local the source expression itself declares (an `out var` there, or a
-        // pattern designator), which is what ClassifyForEach's narrower push exists for (#361).
-        context.PushTransplantedScope(statement.Span);
+        // ForEach's own iteration variable is a lambda parameter, reached through ResolveHole and never
+        // tested against IsUnsupportedSourceLocalReference in the first place (that check only classifies
+        // a local, a local function, a range variable, or a label -- never a parameter). This foreach's
+        // own itemSymbol is an ILocalSymbol, confirmed above, so IsUnsupportedSourceLocalReference does
+        // test it, and that check runs before ResolveHole ever sees the symbol -- registering it as a
+        // render variable alone is not enough. What it asks, absent this exemption, is whether the
+        // symbol's declaring syntax falls inside a pushed transplanted scope, and that declaring syntax,
+        // confirmed empirically, is the entire ForEachStatementSyntax rather than the bare Identifier
+        // token: a `foreach` binds its variable with no narrower declarator or designation syntax the way
+        // a local declaration or an `is`/`out var` pattern does. A span wide enough to contain it would
+        // therefore also contain the whole yielded expression's interior, wrongly admitting a reference to
+        // some OTHER local declared there (in a sibling ForEach's own header, say) from anywhere else in
+        // that same yielded expression -- the cross-sibling leak PushTransplantedScope's own remarks name
+        // (#316). So the iteration variable is exempted by symbol identity instead, independent of any
+        // span.
+        context.PushIterationVariableExemption(itemSymbol);
+
+        // Only the source expression's span, the same role ClassifyForEach's analogous push gives its own
+        // source argument (#361): a local the source itself declares (an `out var` there, or a
+        // pattern designator) is legal throughout the loop body, but nothing wider is admitted.
+        context.PushTransplantedScope(statement.Expression.Span);
 
         try
         {
@@ -1012,6 +1018,7 @@ internal static class RenderExpressionAnalyzer
         finally
         {
             context.PopTransplantedScope();
+            context.PopIterationVariableExemption(itemSymbol);
             context.PopRenderVariable(itemSymbols);
         }
     }
