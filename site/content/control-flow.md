@@ -106,9 +106,53 @@ The items land in the order they are spread, among any children written by hand:
 Ul[[Li["first"], .. _columns.Select(c => Li[c.Header]), Li["last"]]]
 ```
 
-Only `<source>.Select(<inline expression lambda>)` folds. Any other spread — a stored array of
-`View`, a method returning one — is not statically sequenceable children and reports
-[BCF1003](./diagnostics.md#bcf1003), as a stored `View` written as a single child already does.
+Only `<source>.Select(<inline expression lambda>)` folds, and so does a call to an iterator
+`[ViewPart]` — see [iterating with a ViewPart](#iterating-with-a-viewpart) below. Any other spread —
+a stored array of `View`, a method returning one — is not statically sequenceable children and
+reports [BCF1003](./diagnostics.md#bcf1003), as a stored `View` written as a single child already
+does.
+
+## Iterating with a `[ViewPart]`
+
+A `[ViewPart]` can also be an iterator: a `static` method returning `IEnumerable<View>` whose body
+is a native `foreach` ending, in its own last statement, in one `yield return` per iteration.
+
+```csharp
+[ViewPart]
+private static IEnumerable<View> Rows(IReadOnlyList<Item> items)
+{
+    foreach (var item in items)
+    {
+        yield return Li.Key(item.Id)[item.Name];
+    }
+}
+```
+
+Splice a call to it the same way as any other spread:
+
+```csharp
+Ul[[.. Rows(_items)]]
+```
+
+This does not take the same path an ordinary `[ViewPart]` call does — expanding its body once per
+call site. The number of items is a run-time fact, so a spliced iterator part instead reuses
+`ForEach`'s own emission: one static content range, run once per iteration, the same as the
+declined-key spread above rather than a copy of the body pasted per call.
+
+`.Key(...)` is optional and is written on the yielded element itself, as an ordinary frame
+decoration. It is the element's own key, not threaded through a separate `key:` argument the way
+`ForEach`'s own key is — a native `foreach` header has no sibling slot to carry one. Omitting it
+emits no `SetKey`, the same as `ForEach`'s own declined key.
+
+`yield return` is the only spelling accepted here, and only on a `[ViewPart]`. A `foreach` ending in
+`return` instead would exit after the first item rather than producing every one. C# allows
+`yield return` only inside a genuine iterator — a method, never a property getter or a lambda. That
+is why this shape is accepted only at a `[ViewPart]`'s own position, never where a plain
+`foreach`/`if`/`switch` is written (see [BCF1002](./diagnostics.md#bcf1002)).
+
+A `[ViewPart]` must still be `static`, the same as any other. Its body cannot read an instance field
+directly, so the loop's own source is always taken as a parameter (`items` above), the same way any
+other `[ViewPart]` argument is.
 
 ## Fragment
 

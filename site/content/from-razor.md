@@ -28,7 +28,7 @@ one of these can call a `.razor` component
 | `@onclick="Save"` | `.OnClick(() => Save())` |
 | `@bind="_name"` | `.Bind("value", "oninput", () => _name)` |
 | `@if (x) { … } else { … }` | `If(x, () => …, () => …)` |
-| `@foreach (var r in rows) { … }` | `ForEach(rows, key: r => r.Id, content: r => …)` |
+| `@foreach (var r in rows) { … }` | `ForEach(rows, key: r => r.Id, content: r => …)`, or splice a `[ViewPart]` iterator ([control flow](./control-flow.md#iterating-with-a-viewpart)) |
 | `@key="r.Id"` | the `key` argument of `ForEach`, or `.Key(…)` |
 | `@ref="_el"` | `.Ref(…)` |
 | `<Card Title="x" />` | `Component<Card>().Param(c => c.Title, "x")` |
@@ -51,8 +51,9 @@ already produced a `View`, so nothing may decorate an element after them
 ### The getter reaches one expression
 
 A `.razor` file is a template with statements in it. A `Body` is one returned expression, with
-locals allowed ahead of the return. A second return or a native `if` needs a sequence space of its
-own, which is why neither is accepted ([BCF1004](./diagnostics.md#bcf1004)).
+locals allowed ahead of the return. A second return needs a sequence space of its own, which is why
+it is not accepted; a native `if`/`switch` may end the getter instead, though it degrades
+([BCF1004](./diagnostics.md#bcf1004), [BCF2002](./diagnostics.md#bcf2002)).
 
 That is also why `If` and `ForEach` exist as constructs rather than as C# keywords. Read
 [control flow](./control-flow.md) before rewriting a template with branches in it.

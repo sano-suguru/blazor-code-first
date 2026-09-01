@@ -418,8 +418,10 @@ A `[ViewPart]` has to satisfy a declaration contract the generator can expand, o
 - static
 - non-generic, and declared in a non-generic type
 - reaching one returned expression, with locals and expression statements allowed ahead of it — the
-  same shape a `Body` getter takes
-- returning `View`, or `SlotView` to take content
+  same shape a `Body` getter takes — or ending in one `foreach` yielding one child per iteration (see
+  [iterating with a ViewPart](./control-flow.md#iterating-with-a-viewpart))
+- returning `View`, `SlotView` to take content, or `IEnumerable<View>` for that `foreach`-yielding
+  shape
 
 Its parameters must be ordinary by-value parameters whose types can be named from generated code.
 `params`, by-reference parameters,

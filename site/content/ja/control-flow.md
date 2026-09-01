@@ -3,7 +3,7 @@ title: 制御構文
 description: If と ForEach。テンプレートの各位置にコンパイル時のシーケンス番号を割り当てるための構文。
 order: 50
 group: write
-source-hash: 3bc6405f
+source-hash: 46485d19
 ---
 
 条件分岐とリストには、専用の構文があります。テンプレートのどの位置にも、ジェネレーターがコン
@@ -104,10 +104,54 @@ Ul[[.. _columns.Select(c => Li[c.Header])]]
 Ul[[Li["先頭"], .. _columns.Select(c => Li[c.Header]), Li["末尾"]]]
 ```
 
-畳めるのは `<source>.Select(<その場に書いた式のラムダ>)` だけです。それ以外のスプレッド、たとえば
-保存した `View` の配列や、それを返すメソッドは、静的に順序付けできる子ではないので
+畳めるのは `<source>.Select(<その場に書いた式のラムダ>)` と、イテレータ `[ViewPart]` の呼び出し
+（下の[`[ViewPart]` でイテレートする](#viewpart-でイテレートする)）です。それ以外のスプレッド、
+たとえば保存した `View` の配列や、それを返すメソッドは、静的に順序付けできる子ではないので
 [BCF1003](./diagnostics.md#bcf1003) を報告します。保存した `View` を子として1つ書いたときと同じ
 結果です。
+
+## `[ViewPart]` でイテレートする
+
+`[ViewPart]` はイテレータにもできます。`IEnumerable<View>` を返す `static` メソッドで、本体の末尾
+で C# 本来の `foreach` が繰り返しごとに1つ `yield return` します。
+
+```csharp
+[ViewPart]
+private static IEnumerable<View> Rows(IReadOnlyList<Item> items)
+{
+    foreach (var item in items)
+    {
+        yield return Li.Key(item.Id)[item.Name];
+    }
+}
+```
+
+呼び出しは他のスプレッドと同じ形です。
+
+```csharp
+Ul[[.. Rows(_items)]]
+```
+
+これは通常の `[ViewPart]` 呼び出しとは違う経路です。通常の呼び出しは呼び出し箇所ごとに本体を展開
+しますが、繰り返す回数は実行時にしか分かりません。そのためスプライスしたイテレータ部品は
+`ForEach` 自身の出力をそのまま使い回します。静的なシーケンス空間を1つだけ持ち、それを繰り返しの
+たびに使い回すのは、上のキーを使わないスプレッドと同じで、呼び出しごとに本体をコピーするわけでは
+ありません。
+
+`.Key(...)` は省略でき、書く場合は yield した要素自身の装飾として書きます。要素自身のキーであり、
+`ForEach` の `key:` 引数のように別の引数へは渡しません。C# 本来の `foreach` のヘッダーには、それを
+渡す引数の場所がないからです。省略すると `SetKey` は出ません。`ForEach` でキーを使わないときと
+同じです。
+
+ここで受け付けるのは `yield return` だけで、それも `[ViewPart]` でだけです。`foreach` を `return`
+で終える書き方では、最初の1件で抜けてしまい、全件を作ることになりません。C# が `yield return` を
+許すのは本物のイテレータの中だけで、それになれるのはメソッドだけです。プロパティのゲッターやラム
+ダはなれません。そのためこの形は `foreach`/`if`/`switch` を受け付けるどの位置にも通らず、
+`[ViewPart]` のこの位置だけで受け付けます（[BCF1002](./diagnostics.md#bcf1002)）。
+
+`[ViewPart]` は他と同じく `static` である必要があります。本体からインスタンスフィールドを直接読む
+ことはできないので、ループの元になる値は常に引数として渡します（上の `items`）。他の `[ViewPart]`
+の引数と同じです。
 
 ## Fragment
 
