@@ -1059,8 +1059,10 @@ internal static class RenderExpressionAnalyzer
     private static RenderNode? AnalyzeSplice(
         ExpressionSyntax expression, ViewPartBodyContext context)
     {
-        // The syntactic match runs first, so a spread of anything but a Select is rejected without a
-        // semantic query.
+        // The syntactic match runs first, so a spread that is not even shaped like an invocation (a stored
+        // field, say) is rejected without a semantic query. An invocation-shaped spread that fails the
+        // Select match still costs one: it falls to the iterator-[ViewPart] branch below, which resolves
+        // the callee through GetSymbolInfo before it, too, can be rejected.
         if (SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector))
             return AnalyzeSplicedProjection(expression, invocation, access, selector, context);
 
@@ -4116,9 +4118,9 @@ internal static class RenderExpressionAnalyzer
     /// <see cref="TryReadTransplantableSwitch"/>, a `foreach` cannot replace the getter's trailing `return`:
     /// returning inside a loop body returns only the first item, and not returning is CS0161. The only
     /// spelling that both compiles and means what it says is a C# iterator, which requires `yield return`
-    /// and therefore a method rather than a property getter -- a later task is expected to route a block
-    /// this accepts to that method form. The loop's own body is not read here beyond locating the trailing
-    /// `yield return`; the caller reads what is yielded.
+    /// and therefore a method rather than a property getter -- <see cref="ViewPartDefinitionFactory"/>'s
+    /// <c>TryReadBody</c> routes a block this accepts to exactly that method form. The loop's own body is
+    /// not read here beyond locating the trailing `yield return`; the caller reads what is yielded.
     /// </summary>
     /// <remarks>
     /// Every rejected shape Global Constraint 6 lists -- multiple `yield`, a `yield` outside the loop,
@@ -4195,10 +4197,13 @@ internal static class RenderExpressionAnalyzer
         // declaration or an is/switch pattern, `foreach (Type Identifier in ...)` binds that identifier as
         // a bare SyntaxToken directly on ForEachStatementSyntax, with no VariableDeclaratorSyntax or
         // SingleVariableDesignationSyntax node for DeclaresReservedName's TryGetDeclaredLocalIdentifier to
-        // match -- so `foreach (var __builder in items) { yield return __builder; }` currently passes this
-        // reader unrejected (confirmed empirically; recorded as a known gap for a follow-up task, not
-        // fixed here since the brief scopes this reader to exactly seven conditions matching the
-        // established If/Switch call shape).
+        // match -- so `foreach (var __builder in items) { yield return __builder; }` passes this reader
+        // unrejected. That is by design, not a gap: the iteration variable is minted (`__bcf_item_N`)
+        // rather than transplanted, exactly like a `ForEach` content lambda's own parameter, so the
+        // author's token never survives into generated code for it to collide with anything --
+        // ClassifyIteratorForEach exempts the variable's declaring symbol the same way, through
+        // PushIterationVariableExemption. `IteratorViewPart_WhenTheIterationVariableCarriesTheBuildersName_MintsOverIt`
+        // and its call-site sibling `...ExpandsAndCompilesAtACallSite` pin this as accepted behaviour.
         if (DeclaresReservedName(block))
             return false;
 
