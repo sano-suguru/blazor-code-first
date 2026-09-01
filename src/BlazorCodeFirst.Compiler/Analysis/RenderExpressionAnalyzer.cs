@@ -937,7 +937,11 @@ internal static class RenderExpressionAnalyzer
                 source,
                 key,
                 content,
-                TemplateLocation.From(invocation.GetLocation()));
+                TemplateLocation.From(invocation.GetLocation()),
+                LoopVariableName: null,
+                // ForEach's own iteration variable is a content/key lambda parameter, never a native
+                // `foreach` header, so there is no explicit-type spelling to preserve here.
+                LoopVariableTypeName: null);
         }
         finally
         {
@@ -976,6 +980,19 @@ internal static class RenderExpressionAnalyzer
         if (context.SemanticModel.GetDeclaredSymbol(statement, context.CancellationToken) is not { } itemSymbol)
             return null;
 
+        // An explicit iteration-variable type (`foreach (string s in ...)`) converts from the source's
+        // element type and is legal C# whenever that conversion exists -- emitting `var` unconditionally
+        // would silently re-infer the variable's type from the (possibly wider) source instead of the
+        // author's own explicit one, and a call whose receiver type depends on the narrower type then
+        // fails to bind in generated code with no way for the author to trace it back to their own source
+        // (#316). Checked on syntax alone: unlike a local declaration's `var`, GetSymbolInfo on a
+        // `foreach` header's Type resolves `var` to the inferred element type rather than returning no
+        // symbol (confirmed empirically), so a symbol-based check cannot tell the two apart here.
+        var loopVariableTypeName =
+            statement.Type is IdentifierNameSyntax { Identifier.ValueText: "var" }
+                ? null
+                : itemSymbol.Type.ToDisplayString(AnnotatedFullyQualifiedTypeName);
+
         ISymbol[] itemSymbols = [itemSymbol];
         context.PushRenderVariable(itemSymbols);
 
@@ -1013,7 +1030,9 @@ internal static class RenderExpressionAnalyzer
                     source,
                     Key: null,
                     content,
-                    TemplateLocation.From(statement.GetLocation()));
+                    TemplateLocation.From(statement.GetLocation()),
+                    LoopVariableName: null,
+                    loopVariableTypeName);
         }
         finally
         {
@@ -1143,7 +1162,11 @@ internal static class RenderExpressionAnalyzer
                     source,
                     Key: null,
                     content,
-                    TemplateLocation.From(expression.GetLocation()));
+                    TemplateLocation.From(expression.GetLocation()),
+                    LoopVariableName: null,
+                    // The projection's parameter is a lambda parameter, not a native `foreach` header, so
+                    // there is no explicit-type spelling to preserve here.
+                    LoopVariableTypeName: null);
         }
         finally
         {

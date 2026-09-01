@@ -321,6 +321,63 @@ public sealed class ViewPartIteratorTests
     }
 
     /// <summary>
+    /// A `foreach` header may declare its iteration variable with an explicit type rather than `var`,
+    /// legal C# whenever the source's element type converts to it. The generated code must preserve that
+    /// conversion rather than re-infer the variable's type from the (possibly wider) source, or a call
+    /// whose receiver type depends on the explicit type fails to bind in generated code with no way for
+    /// the author to trace it back to their own source.
+    /// </summary>
+    [Fact]
+    public void IteratorViewPart_WhenTheIterationVariableIsExplicitlyTyped_PreservesItsTypeAtTheCallSite()
+    {
+        const string members = """
+            [ViewPart]
+            private static IEnumerable<View> Rows(IEnumerable<object> items)
+                {
+                    foreach (string s in items)
+                    {
+                        yield return Span[s.Substring(1)];
+                    }
+                }
+            """;
+
+        var result = RunCall("""Div[[.. Rows(new object[] { "ab", "cd" })]]""", members);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        Assert.Contains(result.GeneratedSources, s => s.SourceText.ToString().Contains(
+            "foreach (global::System.String ", StringComparison.Ordinal));
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// The explicit-type case above, carrying a nullable reference annotation. The repository builds with
+    /// nullable warnings as errors, so dropping the annotation in generated code would fail this the same
+    /// way losing the type outright fails the case above.
+    /// </summary>
+    [Fact]
+    public void IteratorViewPart_WhenTheExplicitTypeIsNullable_PreservesTheAnnotationAtTheCallSite()
+    {
+        const string members = """
+            [ViewPart]
+            private static IEnumerable<View> Rows(IEnumerable<string?> items)
+                {
+                    foreach (string? s in items)
+                    {
+                        yield return Span[s ?? "n"];
+                    }
+                }
+            """;
+
+        var result = RunCall("""Div[[.. Rows(new string?[] { "ab", null })]]""", members);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        Assert.Contains(result.GeneratedSources, s => s.SourceText.ToString().Contains(
+            "foreach (global::System.String? ", StringComparison.Ordinal));
+        CompilationTestHost.AssertOutputCompiles(result);
+        CompilationTestHost.AssertGeneratedOutputHasNoWarnings(result);
+    }
+
+    /// <summary>
     /// The one deliberate, already-adjudicated gap in <see cref="RenderExpressionAnalyzer.TryReadIteratorForEach"/>'s
     /// reserved-name scan: the `foreach`'s own iteration-variable token is a bare <c>SyntaxToken</c>
     /// directly on <c>ForEachStatementSyntax</c>, with no declarator or designation node for

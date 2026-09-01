@@ -169,12 +169,21 @@ internal sealed record ViewPartCallNode(
 /// The generated iteration variable name <paramref name="Content"/> and <paramref name="Key"/> were
 /// substituted onto, or <see langword="null"/> before expansion.
 /// </param>
+/// <param name="LoopVariableTypeName">
+/// The fully qualified spelling of an explicit iteration-variable type the author wrote on a native
+/// `foreach` header (<c>foreach (string s in items)</c>), or <see langword="null"/> when the author wrote
+/// `var` (or this node came from <c>ForEach(...)</c>, which has no header to write a type on). Emitting
+/// `var` unconditionally would silently re-infer the variable's type from the source's element type
+/// instead of the author's own explicit, possibly-narrower one -- legal C#, since a `foreach` header may
+/// declare any type its source's element type converts to (#316).
+/// </param>
 internal sealed record ForEachNode(
     ExpressionTemplate Source,
     ExpressionTemplate? Key,
     RenderNode Content,
     TemplateLocation? Location,
-    string? LoopVariableName = null) : RenderNode;
+    string? LoopVariableName = null,
+    string? LoopVariableTypeName = null) : RenderNode;
 
 internal enum ComponentSlotKind
 {

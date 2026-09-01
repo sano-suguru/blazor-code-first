@@ -169,8 +169,16 @@ internal static class ViewPartExpander
                     }
 
                     // Location is a template-phase field (BCF3002/BCF3003 blame it); an expanded node
-                    // carries no absolute TextSpan (see RenderNode's remarks).
-                    return new ForEachNode(source, key, content, Location: null, LoopVariableName: loopVariableName);
+                    // carries no absolute TextSpan (see RenderNode's remarks). LoopVariableTypeName carries
+                    // forward unchanged: expansion substitutes holes and mints the loop variable's name, but
+                    // an explicit type the author wrote on the header is neither a hole nor tied to that name.
+                    return new ForEachNode(
+                        source,
+                        key,
+                        content,
+                        Location: null,
+                        LoopVariableName: loopVariableName,
+                        forEach.LoopVariableTypeName);
                 }
 
             case ComponentNode component:
