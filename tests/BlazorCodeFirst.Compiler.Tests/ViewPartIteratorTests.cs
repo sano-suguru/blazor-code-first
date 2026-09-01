@@ -795,6 +795,35 @@ public sealed class ViewPartIteratorTests
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
     }
 
+    /// <summary>
+    /// A type-qualified spread call, `.. C.Select(items)`, matches `SpliceSyntax.TryMatchProjection`'s
+    /// syntactic shape (any one-argument member access named `Select`) regardless of what the name
+    /// resolves to. An iterator `[ViewPart]` that happens to be named `Select` must still expand through
+    /// the iterator-`[ViewPart]` branch rather than being carried into the projection reader and refused
+    /// there for not resolving to `Enumerable.Select` -- the identical part under any other name expands.
+    /// </summary>
+    [Fact]
+    public void IteratorViewPart_WhenTheIteratorPartIsNamedSelect_ExpandsInsteadOfReportingBcf1003()
+    {
+        const string members = """
+            [ViewPart]
+            private static IEnumerable<View> Select(IReadOnlyList<Item> items)
+                {
+                    foreach (var item in items)
+                    {
+                        yield return Li.Key(item.Id)[item.Name];
+                    }
+                }
+            """;
+
+        var result = RunCall("""Ul[[.. C.Select(_items)]]""", ItemMembers + members);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id is "BCF1002" or "BCF1003");
+        Assert.Contains("foreach (var __bcf_item_", generated, StringComparison.Ordinal);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     [Fact]
     public void IteratorViewPart_WhenSpreadOfAStoredViewArray_ReportsBcf1003()
     {

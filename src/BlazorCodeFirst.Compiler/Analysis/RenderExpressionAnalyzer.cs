@@ -1079,15 +1079,27 @@ internal static class RenderExpressionAnalyzer
         ExpressionSyntax expression, ViewPartBodyContext context)
     {
         // The syntactic match runs first, so a spread that is not even shaped like an invocation (a stored
-        // field, say) is rejected without a semantic query. An invocation-shaped spread that fails the
-        // Select match still costs one: it falls to the iterator-[ViewPart] branch below, which resolves
-        // the callee through GetSymbolInfo before it, too, can be rejected.
-        if (SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector))
+        // field, say) is rejected without a semantic query. TryMatchProjection's own shape is syntactic --
+        // any one-argument member access named "Select" -- so it matches a type-qualified call to an
+        // iterator [ViewPart] that happens to be named Select the same way it matches a real
+        // Enumerable.Select. The resolved callee is checked before committing to the projection reader, so
+        // a Select-named iterator [ViewPart] falls through to the iterator-[ViewPart] branch below instead
+        // of being carried into AnalyzeSplicedProjection and refused there for not resolving to
+        // Enumerable.Select. A shape that matches syntactically but resolves to neither still costs one
+        // GetSymbolInfo query here before it, too, falls to the iterator-[ViewPart] branch, which resolves
+        // the callee again through its own GetSymbolInfo before it, too, can be rejected.
+        if (SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector)
+            && context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is IMethodSymbol projectionMethod
+            && context.KnownSymbols.IsEnumerableSelect(projectionMethod))
+        {
             return AnalyzeSplicedProjection(expression, invocation, access, selector, context);
+        }
 
-        // Not a projection. The other admitted spread shape (#316): a call whose resolved symbol carries
-        // [ViewPart] and returns the sequence type. Expanded through the same construction an ordinary
-        // (non-spread) [ViewPart] call uses, so the two never drift apart.
+        // Not a projection -- either a different shape entirely, or a Select-named call the semantic check
+        // above just excluded. The other admitted spread shape (#316): a call whose resolved symbol
+        // carries [ViewPart] and returns the sequence type. Expanded through the same construction an
+        // ordinary (non-spread) [ViewPart] call uses, so the two never drift apart.
         if (expression is InvocationExpressionSyntax spreadInvocation
             && context.SemanticModel.GetSymbolInfo(spreadInvocation, context.CancellationToken).Symbol
                 is IMethodSymbol spreadMethod
