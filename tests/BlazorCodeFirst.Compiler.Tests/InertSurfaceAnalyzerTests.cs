@@ -194,6 +194,32 @@ public sealed class InertSurfaceAnalyzerTests
         }
         """;
 
+    /// <summary>
+    /// The unattributed twin of <c>IteratorViewPartDeclarationSource</c> below (#316): the same
+    /// <c>IEnumerable&lt;View&gt;</c>-returning shape without <c>[ViewPart]</c>. Global Constraint 5 gives an
+    /// unattributed sequence-returning method no legitimate spread — spreading it falls through to BCF1003 —
+    /// so its yield is dead code and must still report. This is what proves the sequence arm of condition 1's
+    /// fallback requires <c>[ViewPart]</c> rather than the return type alone.
+    /// </summary>
+    private const string UnattributedSequenceReturningMethodSource = """
+        using System.Collections.Generic;
+        using BlazorCodeFirst;
+        using static BlazorCodeFirst.Html;
+
+        public partial class C : BodyComponentBase
+        {
+            protected override View Body => Div["ok"];
+
+            private static IEnumerable<View> Rows(IReadOnlyList<string> items)
+            {
+                foreach (var item in items)
+                {
+                    yield return Li[item];
+                }
+            }
+        }
+        """;
+
     /// <summary>Passed to an ordinary runtime method, which receives the empty marker.</summary>
     private const string PassedToARuntimeMethodSource = """
         using BlazorCodeFirst;
@@ -436,6 +462,7 @@ public sealed class InertSurfaceAnalyzerTests
         ViewPartCallInVoidMethodSource,
         ChainInsideAnEventHandlerLambdaSource,
         StoredInObjectFieldSource,
+        UnattributedSequenceReturningMethodSource,
         PassedToARuntimeMethodSource);
 
     public static TheoryData<string> SourcesThatDoNotReportBCF3029 { get; } = new(

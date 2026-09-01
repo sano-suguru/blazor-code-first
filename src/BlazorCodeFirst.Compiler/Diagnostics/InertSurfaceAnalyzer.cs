@@ -261,6 +261,6 @@ public sealed class InertSurfaceAnalyzer : DiagnosticAnalyzer
         // design-time expression and no lambda, landing here.
         return containingSymbol is IMethodSymbol method
             && (knownSymbols.IsInertDesignTimeType(method.ReturnType)
-                || knownSymbols.IsViewSequenceType(method.ReturnType));
+                || (knownSymbols.IsViewSequenceType(method.ReturnType) && knownSymbols.IsViewPart(method)));
     }
 }
