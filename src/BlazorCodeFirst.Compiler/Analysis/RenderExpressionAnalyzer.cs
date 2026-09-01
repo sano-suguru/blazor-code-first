@@ -3943,6 +3943,104 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// Reads a block whose last statement is a native `foreach` ending, in its own last statement, in
+    /// exactly one `yield return` (ARCHITECTURE.md §5.3's Transplantable syntax, extended to the one shape
+    /// `if`/`switch` cannot cover). Unlike <see cref="TryReadTransplantableIf"/> and
+    /// <see cref="TryReadTransplantableSwitch"/>, a `foreach` cannot replace the getter's trailing `return`:
+    /// returning inside a loop body returns only the first item, and not returning is CS0161. The only
+    /// spelling that both compiles and means what it says is a C# iterator, which requires `yield return`
+    /// and therefore a method rather than a property getter -- a later task is expected to route a block
+    /// this accepts to that method form. The loop's own body is not read here beyond locating the trailing
+    /// `yield return`; the caller reads what is yielded.
+    /// </summary>
+    /// <remarks>
+    /// Every rejected shape Global Constraint 6 lists -- multiple `yield`, a `yield` outside the loop,
+    /// `yield break`, `break`, `continue`, or a nested control-flow construct -- is impossible by
+    /// construction here, not by an added scan for it. Conditions 5 and 6 both route their statements
+    /// through the same shared
+    /// <see cref="TryReadLeadingStatements(BlockSyntax,int,out ImmutableArray{StatementSyntax})"/>, which
+    /// accepts only <see cref="LocalDeclarationStatementSyntax"/> and <see cref="ExpressionStatementSyntax"/>
+    /// -- condition 5 for every loop-body statement but the trailing one, condition 6 for every outer-block
+    /// statement before the `foreach`. A second `yield return`, a `yield break`, a `break`, a `continue`, or
+    /// any nested `if`/`switch`/loop is none of those two statement kinds, so within the loop body it is
+    /// caught by condition 5, and written outside the loop -- as one of the outer block's own leading
+    /// statements, ahead of the `foreach` -- it is caught by condition 6 the same way. Nothing can follow
+    /// the `foreach` itself, because condition 1
+    /// already requires it to be the block's own last statement. That leaves only the loop body's *last*
+    /// statement unrouted by either check -- and condition 4 requires that one to be a `yield return` with
+    /// a non-null expression, which none of the rejected shapes is either. A later change must not add a
+    /// redundant walk for any of them; the exclusion is structural.
+    /// </remarks>
+    public static bool TryReadIteratorForEach(
+        BlockSyntax block,
+        out ImmutableArray<StatementSyntax> statements,
+        out ForEachStatementSyntax forEachStatement,
+        out ImmutableArray<StatementSyntax> bodyStatements,
+        out ExpressionSyntax yielded)
+    {
+        statements = [];
+        forEachStatement = null!;
+        bodyStatements = [];
+        yielded = null!;
+
+        // 1. ForEachVariableStatementSyntax (a deconstructing `foreach (var (a, b) in ...)`) is a sibling
+        // of ForEachStatementSyntax under CommonForEachStatementSyntax, not a subtype of it, so this
+        // pattern excludes a deconstructing loop automatically -- no separate check is needed for it.
+        var count = block.Statements.Count;
+        if (count == 0 || block.Statements[count - 1] is not ForEachStatementSyntax last)
+            return false;
+
+        // 2. `await foreach` iterates asynchronously; a getter cannot await, so this reader is only ever
+        // reached from a method body and still refuses it, keeping the accepted shape identical to what a
+        // synchronous iterator method requires.
+        if (!last.AwaitKeyword.IsKind(SyntaxKind.None))
+            return false;
+
+        // 3. A braceless loop body (`foreach (...) yield return x;`) is refused: Global Constraint 6.
+        if (last.Statement is not BlockSyntax innerBlock)
+            return false;
+
+        // 4. The loop body's last statement must be `yield return <expr>`; `yield break` is a
+        // YieldStatementSyntax too but carries SyntaxKind.YieldBreakStatement and a null Expression, so
+        // both are rejected by this one pattern.
+        var innerCount = innerBlock.Statements.Count;
+        if (innerCount == 0
+            || innerBlock.Statements[innerCount - 1] is not YieldStatementSyntax
+            { RawKind: (int)SyntaxKind.YieldReturnStatement, Expression: { } yieldedExpression })
+        {
+            return false;
+        }
+
+        // 5. Every loop-body statement before the trailing `yield return` must be a local declaration or
+        // an expression statement -- see the doc remarks for why this is what rules out every shape
+        // Global Constraint 6 names.
+        if (innerCount > 1 && !TryReadLeadingStatements(innerBlock, innerCount, out bodyStatements))
+            return false;
+
+        // 6. Every statement of the outer block before the `foreach` is read the same way.
+        if (count > 1 && !TryReadLeadingStatements(block, count, out statements))
+            return false;
+
+        // 7. One scan over the whole outer block, not just the loop: DeclaresReservedName walks all
+        // descendant nodes except into a nested lambda, mirroring TryReadTransplantableIf/Switch's same
+        // call, and covering every leading statement (#570) together with the loop's collection expression
+        // and body. It does NOT cover the foreach's own iteration-variable identifier: unlike a local
+        // declaration or an is/switch pattern, `foreach (Type Identifier in ...)` binds that identifier as
+        // a bare SyntaxToken directly on ForEachStatementSyntax, with no VariableDeclaratorSyntax or
+        // SingleVariableDesignationSyntax node for DeclaresReservedName's TryGetDeclaredLocalIdentifier to
+        // match -- so `foreach (var __builder in items) { yield return __builder; }` currently passes this
+        // reader unrejected (confirmed empirically; recorded as a known gap for a follow-up task, not
+        // fixed here since the brief scopes this reader to exactly seven conditions matching the
+        // established If/Switch call shape).
+        if (DeclaresReservedName(block))
+            return false;
+
+        forEachStatement = last;
+        yielded = yieldedExpression;
+        return true;
+    }
+
+    /// <summary>
     /// Whether <paramref name="node"/> declares a local under a name the generator reserves: the builder's,
     /// or one carrying the generator's own prefix.
     /// </summary>
