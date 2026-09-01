@@ -274,6 +274,49 @@ public sealed class ViewPartTransplantTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
+    /// <summary>
+    /// The iterator-<c>[ViewPart]</c> counterpart to
+    /// <see cref="ViewPart_WhenACalledTwicePartDeclaresInsideItsForEachContent_MintsBesideTheIterationVariable"/>:
+    /// the loop body's own leading local, minted beside the loop's minted iteration variable, at each of
+    /// two independent call-site expansions (#316).
+    /// </summary>
+    [Fact]
+    public void ViewPart_WhenACalledTwiceIteratorPartDeclaresInsideItsLoopBody_MintsBesideTheIterationVariable()
+    {
+        const string source = """
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            public partial class C : BodyComponentBase
+            {
+                private static readonly List<string> Inner = new() { "b" };
+
+                protected override View Body => Div[Ul[[.. PartIter(Inner)]], Ul[[.. PartIter(Inner)]]];
+
+                [ViewPart]
+                private static IEnumerable<View> PartIter(List<string> xs)
+                    {
+                        foreach (var y in xs)
+                        {
+                            var label = y.ToUpperInvariant();
+                            yield return Span[label];
+                        }
+                    }
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        // One minted local name per expansion, and each loop still reads only its own iteration variable.
+        Assert.Equal(
+            2,
+            Regex.Matches(generated, "__bcf_local_[0-9]+_0").Select(m => m.Value).Distinct().Count());
+        CompilationTestHost.AssertNoDiagnostics(result);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
     [Fact]
     public void ViewPart_WhenTwoSiblingForEachContentsEachDeclareALocal_PopsTheFirstBeforePushingTheSecond()
     {

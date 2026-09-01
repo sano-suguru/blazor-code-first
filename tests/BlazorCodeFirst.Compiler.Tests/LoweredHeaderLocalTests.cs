@@ -5,11 +5,12 @@ namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
 /// A local declared in the header of a lowered or native construct and read from the body it encloses:
-/// the lowered <c>If</c> call's condition, a native `if`'s condition, a native `switch`'s discriminant
-/// and each `case` label's own designator (#569), and the source of a <c>ForEach</c> or of the
-/// <c>Select</c> a spliced child list is sugar for (#361). ARCHITECTURE.md §2.3 states the rule and why
-/// nothing wider is admitted; the refused shapes are here beside the accepted ones because a rule this
-/// narrow is only meaningful with its boundary pinned.
+/// (1) the lowered <c>If</c> call's condition, (2) a native `if`'s condition, (3) a native `switch`'s
+/// discriminant, (4) each `case` label's own designator (#569), (5) the source of a <c>ForEach</c> or of
+/// the <c>Select</c> a spliced child list is sugar for (#361), and (6) the source of the native `foreach`
+/// a <c>[ViewPart]</c> iterator ends in (<c>ClassifyIteratorForEach</c>, #316). ARCHITECTURE.md §2.3
+/// states the rule and why nothing wider is admitted; the refused shapes are here beside the accepted
+/// ones because a rule this narrow is only meaningful with its boundary pinned.
 /// </summary>
 public sealed class LoweredHeaderLocalTests
 {

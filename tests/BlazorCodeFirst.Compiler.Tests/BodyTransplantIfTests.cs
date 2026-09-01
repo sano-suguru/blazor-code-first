@@ -103,6 +103,34 @@ public sealed class BodyTransplantIfTests
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
     }
 
+    /// <summary>
+    /// Plays the same role as <see cref="Body_WhenIfHasNoElseAndNoTrailingStatement_ReportsBcf1004"/>:
+    /// why <c>ComponentModelFactory</c> needs no branch of its own for a getter whose body ends in `yield
+    /// return` (the shape a `[ViewPart]` iterator writes, #316). A property accessor can never legally be
+    /// an iterator block -- <c>View</c> is not <c>IEnumerable</c>/<c>IEnumerator</c> -- so this is CS1624
+    /// on the ORIGINAL author source, before any BCF analysis runs at all. The block's last statement is
+    /// a <c>YieldStatementSyntax</c> rather than a <c>ReturnStatementSyntax</c>, so it also fails every
+    /// Transplantable reader (block, `if`, `switch`, `foreach`) and falls to the ordinary BCF1004 an
+    /// unaccepted shape earns -- the same fallback bucket the CS0161 case above lands in, for the same
+    /// reason: the C# compiler already rejects this input independently of BCF.
+    /// </summary>
+    [Fact]
+    public void Body_WhenAGetterYields_IsRejectedByCSharpBeforeBcf1004()
+    {
+        const string Getter = """
+            {
+                    get
+                    {
+                        yield return Span["x"];
+                    }
+                }
+            """;
+        var result = Run(Getter);
+
+        Assert.Contains(result.OutputCompilation.GetDiagnostics(), d => d.Id == "CS1624");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1004");
+    }
+
     [Fact]
     public void Body_WhenElseIfChainThreeDeep_SharesOneRegionAndOneSequenceAcrossAllArms()
     {

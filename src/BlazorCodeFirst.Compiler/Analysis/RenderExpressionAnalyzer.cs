@@ -1024,15 +1024,18 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// A spliced child list, <c>.. source.Select(item =&gt; …)</c>, folded to the <c>ForEach</c> with a
-    /// declined key that it is sugar for (#172).
+    /// A spliced child list, <c>.. &lt;expr&gt;</c>: either <c>source.Select(item =&gt; …)</c>, folded to
+    /// the <c>ForEach</c> with a declined key that it is sugar for (#172), or a call to an iterator
+    /// <c>[ViewPart]</c> (#316), expanded at the call site the same way a call to any other
+    /// <c>[ViewPart]</c> is.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The written shape is <see cref="SpliceSyntax"/>'s, which is also what says why only the fluent
+    /// The projection shape is <see cref="SpliceSyntax"/>'s, which is also what says why only the fluent
     /// spelling is read. What this site adds is the requirement that the call actually resolve to
     /// <c>Enumerable.Select</c>: nothing is emitted from a call that does not, so unlike the diagnostic
-    /// sweep this reader has no reason to fail open.
+    /// sweep this reader has no reason to fail open. <see cref="AnalyzeSplicedProjection"/> carries that
+    /// half.
     /// </para>
     /// <para>
     /// Every other spread returns null here and lands on BCF1003. That is where a stored <c>View</c> read
@@ -1041,14 +1044,62 @@ internal static class RenderExpressionAnalyzer
     /// could not report the difference: a field is not a call, so BCF3030 cannot see it, and a surface-
     /// built <c>View</c> carries no fragment and would render nothing in silence (Appendix B).
     /// </para>
+    /// <para>
+    /// The iterator-<c>[ViewPart]</c> branch does not widen that refusal, because it is gated on two
+    /// conditions together, both asked of a symbol the semantic model actually resolved: the callee must
+    /// carry <c>[ViewPart]</c> <em>and</em> its return type must be exactly the sequence type
+    /// (<see cref="KnownSymbols.IsViewSequenceType"/>). A field (<c>.. _views</c>) is not a call and never
+    /// reaches this branch at all; an unattributed method (<c>.. GetViews()</c>) fails the first
+    /// condition; a <c>[ViewPart]</c> that returns some other sequence (<c>.. Rows()</c> returning
+    /// <c>View[]</c>) fails the second. Every one of those still falls through to the same
+    /// <see cref="ViewPartBodyContext.RecordUntranslatable"/> call below that refused it before this
+    /// branch existed, so the Opaque path is still never offered a sequence to widen into.
+    /// </para>
     /// </remarks>
-    private static ForEachNode? AnalyzeSplice(
+    private static RenderNode? AnalyzeSplice(
         ExpressionSyntax expression, ViewPartBodyContext context)
     {
         // The syntactic match runs first, so a spread of anything but a Select is rejected without a
         // semantic query.
-        if (!SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector)
-            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+        if (SpliceSyntax.TryMatchProjection(expression, out var invocation, out var access, out var selector))
+            return AnalyzeSplicedProjection(expression, invocation, access, selector, context);
+
+        // Not a projection. The other admitted spread shape (#316): a call whose resolved symbol carries
+        // [ViewPart] and returns the sequence type. Expanded through the same construction an ordinary
+        // (non-spread) [ViewPart] call uses, so the two never drift apart.
+        if (expression is InvocationExpressionSyntax spreadInvocation
+            && context.SemanticModel.GetSymbolInfo(spreadInvocation, context.CancellationToken).Symbol
+                is IMethodSymbol spreadMethod
+            && context.KnownSymbols.IsViewPart(spreadMethod)
+            && context.KnownSymbols.IsViewSequenceType(spreadMethod.ReturnType))
+        {
+            var node = ClassifyNonSurfaceCall(spreadInvocation, spreadMethod, context);
+            if (node is null)
+                context.RecordUntranslatable(expression);
+
+            return node;
+        }
+
+        context.RecordUntranslatable(expression);
+        return null;
+    }
+
+    /// <summary>
+    /// The projection half of <see cref="AnalyzeSplice"/>: <c>source.Select(item =&gt; …)</c>, folded to
+    /// the <c>ForEach</c> with a declined key that it is sugar for (#172). Extracted so
+    /// <see cref="AnalyzeSplice"/> can try the iterator-<c>[ViewPart]</c> shape when the syntax does not
+    /// match this one, without this half's own semantic failures (an unresolved or non-<c>Select</c>
+    /// callee, a lambda <see cref="TryBindTransplantedLambda"/> refuses) being read as that shape's to
+    /// answer for.
+    /// </summary>
+    private static ForEachNode? AnalyzeSplicedProjection(
+        ExpressionSyntax expression,
+        InvocationExpressionSyntax invocation,
+        MemberAccessExpressionSyntax access,
+        ExpressionSyntax selector,
+        ViewPartBodyContext context)
+    {
+        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
                 is not IMethodSymbol method
             || !context.KnownSymbols.IsEnumerableSelect(method)
             // The projection is transplanted into the folded loop exactly as a ForEach content lambda is,

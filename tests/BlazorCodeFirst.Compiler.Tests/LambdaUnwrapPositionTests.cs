@@ -85,7 +85,9 @@ public sealed class LambdaUnwrapPositionTests
     public static TheoryData<string, int, bool> Positions() => new()
     {
         // The projection of a spliced `.. source.Select(item => …)`, transplanted into the folded loop.
-        { "AnalyzeSplice", 1, true },
+        // Extracted from AnalyzeSplice into its own method so AnalyzeSplice can also try the iterator-
+        // [ViewPart]-call spread shape when the projection syntax does not match (#316).
+        { "AnalyzeSplicedProjection", 1, true },
         // Both branches, each transplanted into one arm of the generated `if`.
         { "ClassifyIf", 2, true },
         // The content of a contextual `.Template`, transplanted into the generated fragment. The other

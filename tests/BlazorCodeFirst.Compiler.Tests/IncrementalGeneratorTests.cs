@@ -426,6 +426,91 @@ public sealed class IncrementalGeneratorTests
         }
     }
 
+    /// <summary>
+    /// A component whose <c>Body</c> splices an iterator <c>[ViewPart]</c> call (#316) must participate in
+    /// the same caching path as any other component: an unrelated whitespace edit re-parses the tree (so
+    /// the node is re-transformed) but must not change the model the transform produces, and the
+    /// <c>ComponentModeling</c> step must report reuse (Cached/Unchanged) rather than Modified.
+    /// </summary>
+    [Fact]
+    public void IncrementalGenerator_WhenIteratorViewPartCallerHasAnUnrelatedWhitespaceEdit_ReusesTheCachedModel()
+    {
+        const string sourceV1 = """
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace TestNs;
+
+            public partial class Rows : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a", "b" };
+
+                protected override View Body => Ul[[.. Part(_items)]];
+
+                [ViewPart]
+                private static IEnumerable<View> Part(List<string> items)
+                {
+                    foreach (var item in items)
+                    {
+                        yield return Li[item];
+                    }
+                }
+            }
+            """;
+
+        // Only a blank line inserted between two members, nothing about the component's own shape.
+        const string sourceV2 = """
+            using System.Collections.Generic;
+            using BlazorCodeFirst;
+            using static BlazorCodeFirst.Html;
+
+            namespace TestNs;
+
+            public partial class Rows : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a", "b" };
+
+
+                protected override View Body => Ul[[.. Part(_items)]];
+
+                [ViewPart]
+                private static IEnumerable<View> Part(List<string> items)
+                {
+                    foreach (var item in items)
+                    {
+                        yield return Li[item];
+                    }
+                }
+            }
+            """;
+
+        var treeV1 = ParseTree(sourceV1, "Rows.cs");
+        var compilation1 = CreateCompilation(treeV1);
+        GeneratorDriver driver = CreateDriver();
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation1, out _, out _);
+        var run1Source = Assert.Single(driver.GetRunResult().Results[0].GeneratedSources);
+
+        var treeV2 = ParseTree(sourceV2, "Rows.cs");
+        var compilation2 = compilation1.ReplaceSyntaxTree(treeV1, treeV2);
+
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation2, out _, out _);
+        var run2 = driver.GetRunResult();
+
+        var run2Source = Assert.Single(run2.Results[0].GeneratedSources);
+        Assert.Equal(run1Source.SourceText.ToString(), run2Source.SourceText.ToString());
+
+        var outputs = run2.Results[0].TrackedSteps["ComponentModeling"]
+            .SelectMany(s => s.Outputs).ToImmutableArray();
+        var rows = outputs.Single(o =>
+            o.Value is ComponentModelResult result && result.Model is { } model && model.ClassName == "Rows");
+
+        Assert.True(
+            rows.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged,
+            $"Expected iterator [ViewPart] caller model reuse after a whitespace edit but got {rows.Reason}");
+    }
+
     // ---------------------------------------------------------------------------
     // Cross-file view part invalidation and registry stability
     // ---------------------------------------------------------------------------

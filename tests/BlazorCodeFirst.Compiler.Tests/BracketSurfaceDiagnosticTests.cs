@@ -371,6 +371,32 @@ public sealed class BracketSurfaceDiagnosticTests
     }
 
     [Fact]
+    public void Splice_WhenSpreadingAnIteratorViewPartCall_IsAccepted()
+    {
+        // #316: the other admitted spread shape besides the projection above -- a call whose resolved
+        // symbol carries [ViewPart] and returns the sequence type exactly, expanded at the call site the
+        // same way an ordinary (non-spread) [ViewPart] call is.
+        var result = RunResult(
+            """Ul[[.. Rows(_items)]]""",
+            """
+            private sealed record Item(int Id, string Name);
+            private readonly List<Item> _items = new();
+
+            [ViewPart]
+            private static IEnumerable<View> Rows(List<Item> items)
+            {
+                foreach (var item in items)
+                {
+                    yield return Li[item.Name];
+                }
+            }
+            """);
+
+        Assert.DoesNotContain(result.Diagnostics, static d => d.Severity == DiagnosticSeverity.Error);
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
     public void SpreadInsideACollectionExpressionLiteral_ReportsBCF1003()
     {
         // A spread of stored Views has no per-child written expression and is not a projection the
