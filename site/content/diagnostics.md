@@ -688,6 +688,10 @@ A `[ViewPart]`'s body is built from the design-time surface, which is inert at r
 a loop's source position, it runs as ordinary code against that inert surface instead of being
 statically expanded, so the loop count comes out right but every yielded item comes out empty.
 
+This also applies to a spliced projection's own source (`Ul[.. Rows(items).Select(item => ...)]`) and
+to a native `foreach` inside another `[ViewPart]` iterator's own body — the same failure at every
+loop-header position a `[ViewPart]` call can be written at.
+
 An iterator `[ViewPart]` has exactly one supported call spelling: a spread in a child position.
 Rewrite the loop source as a spread there instead.
 

@@ -78,6 +78,14 @@ public sealed class ViewPartIteratorTests
         CompilationTestHost.RunGenerator(Host.Replace("$PART$", part));
 
     /// <summary>
+    /// <see cref="RunCall(string, string)"/> with a fixed, unexercised <c>Body</c> -- for a BCF3043 test
+    /// whose subject is entirely inside <c>$MEMBERS$</c>'s own declarations (a native `foreach` inside one
+    /// iterator part's body reading another), with nothing at the call site to analyze.
+    /// </summary>
+    private static GeneratorRunResult RunDeclaration(string members) =>
+        RunCall("""Span["Body"]""", members);
+
+    /// <summary>
     /// The id alone would read green for any other BCF1002 the same source could earn, so the message is
     /// checked too: every rejection here falls through <c>TryReadIteratorForEach</c> without matching any
     /// accepted body shape, so <c>ValidateDeclaration</c>'s one shared "unaccepted body" message is what
@@ -847,5 +855,98 @@ public sealed class ViewPartIteratorTests
         var result = RunCall("""Ul[[.. Rows()]]""", members);
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+    }
+
+    // ---------------------------------------------------------------------------
+    // BCF3043: a loop source -- ForEach's source argument, a native `foreach`'s source inside this same
+    // iterator shape's own body, or a spliced projection's own source (`..source.Select(...)`) -- that
+    // calls a [ViewPart] renders nothing at runtime: the callee's body is built from the design-time
+    // surface, so every yielded item is empty (#578). Refused at the loop's source position, the one
+    // position `ClassifyCallee` was never asked about before this fix.
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceCallsAViewPart_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(Rows(_items), item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAPlainCollection_DoesNotReportBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(_items, item => item.Id, item => Span[item.Name])",
+            ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceCallsAnOrdinaryMethod_DoesNotReportBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(GetItems(), item => item.Id, item => Span[item.Name])",
+            ItemMembers + "private IReadOnlyList<Item> GetItems() => _items;");
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    [Fact]
+    public void NativeForEach_InsideAnIteratorViewPart_WhenSourceCallsAnotherViewPart_ReportsBcf3043()
+    {
+        const string outerUsesRowsAsSource = """
+            [ViewPart]
+            private static IEnumerable<View> Outer(IReadOnlyList<Item> items)
+            {
+                foreach (var v in Rows(items))
+                {
+                    yield return Span["x"];
+                }
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerUsesRowsAsSource + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void NativeForEach_InsideAnIteratorViewPart_WhenSourceIsAPlainCollection_DoesNotReportBcf3043()
+    {
+        var result = RunDeclaration(RowsPart + ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void SpreadOfIteratorViewPart_InContentPosition_DoesNotReportBcf3043()
+    {
+        var result = RunCall("""Ul[[.. Rows(_items)]]""", RowsPart + ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// The third loop-source position (#578, found in the same review that added the other five tests
+    /// above): <see cref="RenderExpressionAnalyzer"/>'s spliced-projection reader
+    /// (<c>AnalyzeSplicedProjection</c>) normalizes its own source the same way <c>ForEach</c>'s source
+    /// argument and the iterator shape's native `foreach` source do, so a <c>[ViewPart]</c> called there
+    /// is refused the same way.
+    /// </summary>
+    [Fact]
+    public void SplicedProjection_WhenSourceCallsAViewPart_ReportsBcf3043()
+    {
+        var result = RunCall(
+            """Ul[[.. Rows(_items).Select(item => Span["x"])]]""",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
     }
 }

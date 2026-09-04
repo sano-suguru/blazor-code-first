@@ -883,15 +883,9 @@ internal static class RenderExpressionAnalyzer
         // A source that is itself a call is asked the same callee question a written invocation asks
         // in content position (ClassifyNonSurfaceCall) -- ClassifyForEach never routed its own source
         // through it, so a [ViewPart] call there ran at runtime against the inert design-time surface
-        // uninspected, rendering nothing (#578). Only ViewPart is intercepted here: RendersNothing
-        // (BCF3030) and Opaque (BCF2001) already report themselves inside ClassifyCallee, and
-        // NotTranslatable is the ordinary case (a ForEach source is never exactly View-typed).
-        if (IsViewPartSourceCall(sourceArg.Expression, context, out var viewPartCallee))
-        {
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3043, sourceArg.Expression.GetLocation(), [viewPartCallee.Name]));
+        // uninspected, rendering nothing (#578).
+        if (ReportViewPartLoopSource(sourceArg.Expression, context))
             return null;
-        }
 
         // Source references the enclosing scope (fields, view part params, outer items), never this
         // item, so it is normalized before the iteration variable is registered.
@@ -980,15 +974,9 @@ internal static class RenderExpressionAnalyzer
         ExpressionSyntax yielded,
         ViewPartBodyContext context)
     {
-        // Same callee question ClassifyForEach's own source argument now asks (#578): a source that is
-        // itself a call to a [ViewPart] ran at runtime against the inert design-time surface
-        // uninspected, rendering nothing.
-        if (IsViewPartSourceCall(statement.Expression, context, out var viewPartCallee))
-        {
-            context.Diagnostics.Add(DiagnosticInfo.Create(
-                DiagnosticDescriptors.BCF3043, statement.Expression.GetLocation(), [viewPartCallee.Name]));
+        // Same callee question ClassifyForEach's own source argument now asks (#578).
+        if (ReportViewPartLoopSource(statement.Expression, context))
             return null;
-        }
 
         // The source references the enclosing scope (fields, view part params, outer items), never this
         // item, so it is normalized before the iteration variable is registered as a render variable
@@ -1177,6 +1165,13 @@ internal static class RenderExpressionAnalyzer
             context.RecordUntranslatable(expression);
             return null;
         }
+
+        // Same callee question ClassifyForEach's own source argument asks (#578): a spliced
+        // projection's own source (`..Rows(items).Select(...)`) is the same loop-header position
+        // ARCHITECTURE.md groups with ForEach's source, so a [ViewPart] call written there is refused
+        // the same way.
+        if (ReportViewPartLoopSource(access.Expression, context))
+            return null;
 
         // The source is bound in the enclosing scope, so it is normalized before the iteration variable
         // is registered, exactly as ForEach's own source is.
@@ -2530,6 +2525,38 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
+    /// BCF3043: <paramref name="sourceExpression"/> -- a loop's source position -- is itself a call to a
+    /// <c>[ViewPart]</c> (#578). <c>ClassifyForEach</c>, <c>ClassifyIteratorForEach</c>, and
+    /// <c>AnalyzeSplicedProjection</c> each normalized their own source expression through
+    /// <see cref="ExpressionTemplateFactory"/> alone and never asked <see cref="ClassifyCallee"/> about it,
+    /// so a <c>[ViewPart]</c> call written there ran at runtime against its design-time-built body
+    /// uninspected -- the loop count came out right, and every yielded item came out empty.
+    /// </summary>
+    /// <remarks>
+    /// Detection goes one level deep, the same depth <see cref="AnalyzeSplice"/> resolves a spread
+    /// expression's own callee at: a chained call (<c>Rows(items).OrderBy(...)</c>) or a source read back
+    /// from a variable is not traced to a <c>[ViewPart]</c> call it may wrap. Unlike <see cref="AnalyzeSplice"/>,
+    /// which refuses (<see cref="ViewPartBodyContext.RecordUntranslatable"/>, BCF1003) whatever a level-one
+    /// match does not resolve, an unresolved source here falls through to being normalized and emitted as
+    /// ordinary code -- so this check is not a floor against every rewrite that hides the same callee behind
+    /// one more level of indirection, only against the call written directly at the source position.
+    /// </remarks>
+    private static bool ReportViewPartLoopSource(ExpressionSyntax sourceExpression, ViewPartBodyContext context)
+    {
+        if (sourceExpression is not InvocationExpressionSyntax invocation
+            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is not IMethodSymbol resolvedMethod
+            || ClassifyCallee(resolvedMethod, invocation.GetLocation(), context) != NonSurfaceCallKind.ViewPart)
+        {
+            return false;
+        }
+
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3043, sourceExpression.GetLocation(), [resolvedMethod.Name]));
+        return true;
+    }
+
+    /// <summary>
     /// Which of the four answers a call to <paramref name="method"/> gets, reporting BCF3030 or BCF2001 as
     /// it decides.
     /// </summary>
@@ -2551,31 +2578,6 @@ internal static class RenderExpressionAnalyzer
     /// renders nothing on every path.
     /// </para>
     /// </remarks>
-    /// <summary>
-    /// Whether <paramref name="sourceExpression"/> -- a loop's source position -- is itself a call to a
-    /// <c>[ViewPart]</c> (#578). Detection goes one level deep, the same depth
-    /// <see cref="AnalyzeSplice"/> resolves a spread expression's own callee at: a chained call
-    /// (<c>Rows(items).OrderBy(...)</c>) or a source read back from a variable is not traced to a
-    /// <c>[ViewPart]</c> call it may wrap.
-    /// </summary>
-    private static bool IsViewPartSourceCall(
-        ExpressionSyntax sourceExpression,
-        ViewPartBodyContext context,
-        [MaybeNullWhen(false)] out IMethodSymbol method)
-    {
-        if (sourceExpression is InvocationExpressionSyntax invocation
-            && context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
-                is IMethodSymbol resolvedMethod
-            && ClassifyCallee(resolvedMethod, invocation.GetLocation(), context) == NonSurfaceCallKind.ViewPart)
-        {
-            method = resolvedMethod;
-            return true;
-        }
-
-        method = null!;
-        return false;
-    }
-
     private static NonSurfaceCallKind ClassifyCallee(
         IMethodSymbol method, Location location, ViewPartBodyContext context)
     {

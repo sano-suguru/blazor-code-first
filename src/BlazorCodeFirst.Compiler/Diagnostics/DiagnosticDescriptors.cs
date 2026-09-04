@@ -1289,9 +1289,10 @@ internal static class DiagnosticDescriptors
             ".Param's compile-time type check with nothing to show for it at the call site.");
 
     /// <summary>
-    /// BCF3043: a <c>ForEach</c>'s source argument, or a native <c>foreach</c>'s source inside a
-    /// <c>[ViewPart]</c> iterator's own body, is a call to a <c>[ViewPart]</c>. <c>ClassifyForEach</c>
-    /// and <c>ClassifyIteratorForEach</c> normalized the source expression with
+    /// BCF3043: a <c>ForEach</c>'s source argument, a native <c>foreach</c>'s source inside a
+    /// <c>[ViewPart]</c> iterator's own body, or a spliced projection's source (<c>..source.Select(…)</c>),
+    /// is a call to a <c>[ViewPart]</c>. <c>ClassifyForEach</c>, <c>ClassifyIteratorForEach</c>, and
+    /// <c>AnalyzeSplicedProjection</c> normalized the source expression with
     /// <c>ExpressionTemplateFactory</c> alone and never asked <c>ClassifyCallee</c> about it, so the
     /// callee's design-time-built body ran at runtime uninspected, yielding one empty <c>View</c> per
     /// iteration (#578). DESIGN.md §4.3 names one supported call spelling for an iterator
@@ -1310,10 +1311,10 @@ internal static class DiagnosticDescriptors
             "produces the default View regardless of what the call site passed. DESIGN.md §4.3 gives " +
             "an iterator [ViewPart] exactly one supported call spelling, a spread in a child position " +
             "(Ul[.. Rows(_items)]), which the generator expands statically. A loop source position " +
-            "(ForEach's source argument, or a native foreach inside another [ViewPart]'s own iterator " +
-            "body) is not that spelling: the call runs at runtime instead, against the inert surface, " +
-            "so every yielded item is empty while the loop count stays correct. Rewrite the call as a " +
-            "spread in a child position.");
+            "(ForEach's source argument, a native foreach inside another [ViewPart]'s own iterator " +
+            "body, or a spliced projection's own source, ..source.Select(...)) is not that spelling: " +
+            "the call runs at runtime instead, against the inert surface, so every yielded item is " +
+            "empty while the loop count stays correct. Rewrite the call as a spread in a child position.");
 
     /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
