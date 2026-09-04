@@ -1108,7 +1108,7 @@ internal static class RenderExpressionAnalyzer
                 is IMethodSymbol projectionMethod
             && context.KnownSymbols.IsEnumerableSelect(projectionMethod))
         {
-            return AnalyzeSplicedProjection(expression, invocation, access, selector, context);
+            return AnalyzeSplicedProjection(expression, access, selector, context);
         }
 
         // Not a projection -- either a different shape entirely, or a Select-named call the semantic check
@@ -1147,28 +1147,24 @@ internal static class RenderExpressionAnalyzer
     /// The projection half of <see cref="AnalyzeSplice"/>: <c>source.Select(item =&gt; …)</c>, folded to
     /// the <c>ForEach</c> with a declined key that it is sugar for (#172). Extracted so
     /// <see cref="AnalyzeSplice"/> can try the iterator-<c>[ViewPart]</c> shape when the syntax does not
-    /// match this one, without this half's own semantic failures (an unresolved or non-<c>Select</c>
-    /// callee, a lambda <see cref="TryBindTransplantedLambda"/> refuses) being read as that shape's to
-    /// answer for.
+    /// match this one, without this half's own semantic failure (a lambda
+    /// <see cref="TryBindTransplantedLambda"/> refuses) being read as that shape's to answer for.
     /// </summary>
+    /// <remarks>
+    /// Takes no <c>invocation</c>/callee parameter: the caller only reaches this function once its own
+    /// <c>GetSymbolInfo</c>/<see cref="KnownSymbols.IsEnumerableSelect"/> check on the same node has
+    /// already passed, so re-asking it here would always answer the same way -- a second query with no
+    /// reachable negative outcome.
+    /// </remarks>
     private static ForEachNode? AnalyzeSplicedProjection(
         ExpressionSyntax expression,
-        InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax access,
         ExpressionSyntax selector,
         ViewPartBodyContext context)
     {
-        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
-                is not IMethodSymbol method
-            || !context.KnownSymbols.IsEnumerableSelect(method))
-        {
-            context.RecordUntranslatable(expression);
-            return null;
-        }
-
-        // Asked as soon as the source is confirmed a real projection and before the selector is bound:
-        // the source does not depend on the selector, and asking first means a [ViewPart] source is
-        // reported even when the selector also fails to bind (a method-group selector, say), rather than
+        // Asked as soon as control reaches this function, before the selector is bound: the source does
+        // not depend on the selector, and asking first means a [ViewPart] source is reported even when
+        // the selector also fails to bind (a method-group selector, say), rather than
         // being hidden behind the selector's generic BCF1003. Same callee question ClassifyForEach's own
         // source argument asks (#578): a spliced projection's own source (`..Rows(items).Select(...)`) is
         // the same loop-header position ARCHITECTURE.md groups with ForEach's source, so a [ViewPart]
