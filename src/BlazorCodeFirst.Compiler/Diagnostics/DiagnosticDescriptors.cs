@@ -1289,6 +1289,33 @@ internal static class DiagnosticDescriptors
             ".Param's compile-time type check with nothing to show for it at the call site.");
 
     /// <summary>
+    /// BCF3043: a <c>ForEach</c>'s source argument, or a native <c>foreach</c>'s source inside a
+    /// <c>[ViewPart]</c> iterator's own body, is a call to a <c>[ViewPart]</c>. <c>ClassifyForEach</c>
+    /// and <c>ClassifyIteratorForEach</c> normalized the source expression with
+    /// <c>ExpressionTemplateFactory</c> alone and never asked <c>ClassifyCallee</c> about it, so the
+    /// callee's design-time-built body ran at runtime uninspected, yielding one empty <c>View</c> per
+    /// iteration (#578). DESIGN.md §4.3 names one supported call spelling for an iterator
+    /// <c>[ViewPart]</c> — a spread in a child position — and a loop source is not it.
+    /// </summary>
+    public static readonly DiagnosticDescriptor BCF3043 = new(
+        id: "BCF3043",
+        title: "Loop source calls a [ViewPart]",
+        messageFormat: "'{0}' is [ViewPart]; its result renders nothing when used as a loop source. " +
+            "Spread it into a child position instead (e.g. 'Ul[.. {0}(...)]').",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "A [ViewPart]'s body is built from the design-time surface, which is inert: at runtime it " +
+            "produces the default View regardless of what the call site passed. DESIGN.md §4.3 gives " +
+            "an iterator [ViewPart] exactly one supported call spelling, a spread in a child position " +
+            "(Ul[.. Rows(_items)]), which the generator expands statically. A loop source position " +
+            "(ForEach's source argument, or a native foreach inside another [ViewPart]'s own iterator " +
+            "body) is not that spelling: the call runs at runtime instead, against the inert surface, " +
+            "so every yielded item is empty while the loop count stays correct. Rewrite the call as a " +
+            "spread in a child position.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static
