@@ -680,8 +680,8 @@ Error. A loop's source argument is a call to a `[ViewPart]`.
 [ViewPart]
 private static IEnumerable<View> Rows(IReadOnlyList<Item> items) => ...;
 
-ForEach(Rows(items), key: r => r.Id, content: r => r)   // BCF3043
-Ul[.. Rows(items)]                                      // what to write instead
+ForEach(Rows(items), key: item => 0, content: item => item)   // BCF3043
+Ul[.. Rows(items)]                                             // what to write instead
 ```
 
 A `[ViewPart]`'s body is built from the design-time surface, which is inert at runtime. Called from

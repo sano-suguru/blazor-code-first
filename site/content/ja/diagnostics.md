@@ -671,8 +671,8 @@ Error. ループのソース引数が `[ViewPart]` の呼び出しです。
 [ViewPart]
 private static IEnumerable<View> Rows(IReadOnlyList<Item> items) => ...;
 
-ForEach(Rows(items), key: r => r.Id, content: r => r)   // BCF3043
-Ul[.. Rows(items)]                                      // 代わりにこう書く
+ForEach(Rows(items), key: item => 0, content: item => item)   // BCF3043
+Ul[.. Rows(items)]                                             // 代わりにこう書く
 ```
 
 `[ViewPart]` の本体はデザインタイムサーフェスから組み立てられており、実行時には不活性です。

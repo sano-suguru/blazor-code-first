@@ -875,6 +875,26 @@ public sealed class ViewPartIteratorTests
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
     }
 
+    /// <summary>
+    /// Regression: the source check runs before the key/content lambdas are bound, so a source that is
+    /// itself a <c>[ViewPart]</c> call is still reported even when the content also fails to bind --
+    /// rather than being hidden behind the generic BCF3004 until a rebuild (after fixing the content)
+    /// exposes it.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenSourceCallsAViewPartAndContentDoesNotBind_StillReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(Rows(_items), item => 0, RenderContent)",
+            // Rows yields View (it is an iterator [ViewPart]), so ForEach<T> infers T = View: the content
+            // delegate's parameter type has to match View, not Item, or the call wouldn't resolve at all.
+            RowsPart + ItemMembers +
+                "private static readonly System.Func<View, View> RenderContent = v => v;");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3004");
+    }
+
     [Fact]
     public void ForEachCombinator_WhenSourceIsAPlainCollection_DoesNotReportBcf3043()
     {
@@ -948,5 +968,24 @@ public sealed class ViewPartIteratorTests
             RowsPart + ItemMembers);
 
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    /// <summary>
+    /// Regression: the source check runs before the projection's selector is bound, so a source that is
+    /// itself a <c>[ViewPart]</c> call is still reported even when the selector also fails to bind (a
+    /// method-group selector, which <c>TryBindTransplantedLambda</c> refuses because it is not a lambda
+    /// syntax) -- rather than being hidden behind the generic BCF1003.
+    /// </summary>
+    [Fact]
+    public void SplicedProjection_WhenSourceCallsAViewPartAndSelectorDoesNotBind_StillReportsBcf3043()
+    {
+        var result = RunCall(
+            """Ul[[.. Rows(_items).Select(Render)]]""",
+            // Rows yields View (it is an iterator [ViewPart]), so Select's selector parameter has to
+            // match View, not Item, or the call wouldn't resolve to Enumerable.Select at all.
+            RowsPart + ItemMembers + """private static View Render(View item) => item;""");
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
     }
 }
