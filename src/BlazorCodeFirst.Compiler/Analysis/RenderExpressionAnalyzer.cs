@@ -870,6 +870,17 @@ internal static class RenderExpressionAnalyzer
             return null;
         }
 
+        // Asked before the key/content lambdas are bound: the source argument's classification is
+        // independent of its siblings, and asking first means a source that is itself a [ViewPart] call
+        // is reported even when the key or content also fails to bind, rather than being hidden behind
+        // BCF3004 until a rebuild fixes the sibling and exposes it. A source that is itself a call is
+        // asked the same callee question a written invocation asks in content position
+        // (ClassifyNonSurfaceCall) -- ClassifyForEach never routed its own source through it, so a
+        // [ViewPart] call there ran at runtime against the inert design-time surface uninspected,
+        // rendering nothing (#578).
+        if (ReportViewPartLoopSource(sourceArg.Expression, context))
+            return null;
+
         if (!TryBindForEachKey(keyArg.Expression, context, out var keyShape)
             || !TryBindForEachContent(contentArg.Expression, context, out var contentShape))
         {
@@ -967,6 +978,10 @@ internal static class RenderExpressionAnalyzer
         ExpressionSyntax yielded,
         ViewPartBodyContext context)
     {
+        // Same callee question ClassifyForEach's own source argument now asks (#578).
+        if (ReportViewPartLoopSource(statement.Expression, context))
+            return null;
+
         // The source references the enclosing scope (fields, view part params, outer items), never this
         // item, so it is normalized before the iteration variable is registered as a render variable
         // (#569) -- the same ordering ClassifyForEach keeps for its own source argument.
@@ -1093,7 +1108,7 @@ internal static class RenderExpressionAnalyzer
                 is IMethodSymbol projectionMethod
             && context.KnownSymbols.IsEnumerableSelect(projectionMethod))
         {
-            return AnalyzeSplicedProjection(expression, invocation, access, selector, context);
+            return AnalyzeSplicedProjection(expression, access, selector, context);
         }
 
         // Not a projection -- either a different shape entirely, or a Select-named call the semantic check
@@ -1132,24 +1147,35 @@ internal static class RenderExpressionAnalyzer
     /// The projection half of <see cref="AnalyzeSplice"/>: <c>source.Select(item =&gt; …)</c>, folded to
     /// the <c>ForEach</c> with a declined key that it is sugar for (#172). Extracted so
     /// <see cref="AnalyzeSplice"/> can try the iterator-<c>[ViewPart]</c> shape when the syntax does not
-    /// match this one, without this half's own semantic failures (an unresolved or non-<c>Select</c>
-    /// callee, a lambda <see cref="TryBindTransplantedLambda"/> refuses) being read as that shape's to
-    /// answer for.
+    /// match this one, without this half's own semantic failure (a lambda
+    /// <see cref="TryBindTransplantedLambda"/> refuses) being read as that shape's to answer for.
     /// </summary>
+    /// <remarks>
+    /// Takes no <c>invocation</c>/callee parameter: the caller only reaches this function once its own
+    /// <c>GetSymbolInfo</c>/<see cref="KnownSymbols.IsEnumerableSelect"/> check on the same node has
+    /// already passed, so re-asking it here would always answer the same way -- a second query with no
+    /// reachable negative outcome.
+    /// </remarks>
     private static ForEachNode? AnalyzeSplicedProjection(
         ExpressionSyntax expression,
-        InvocationExpressionSyntax invocation,
         MemberAccessExpressionSyntax access,
         ExpressionSyntax selector,
         ViewPartBodyContext context)
     {
-        if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
-                is not IMethodSymbol method
-            || !context.KnownSymbols.IsEnumerableSelect(method)
-            // The projection is transplanted into the folded loop exactly as a ForEach content lambda is,
-            // so it is read through the same shared reader. BCF1003 is where every other refused spread
-            // shape lands, so a body it refuses is refused under that number too.
-            || !TryBindTransplantedLambda(selector, context, out var parameterSymbol, out var body))
+        // Asked as soon as control reaches this function, before the selector is bound: the source does
+        // not depend on the selector, and asking first means a [ViewPart] source is reported even when
+        // the selector also fails to bind (a method-group selector, say), rather than
+        // being hidden behind the selector's generic BCF1003. Same callee question ClassifyForEach's own
+        // source argument asks (#578): a spliced projection's own source (`..Rows(items).Select(...)`) is
+        // the same loop-header position ARCHITECTURE.md groups with ForEach's source, so a [ViewPart]
+        // call written there is refused the same way.
+        if (ReportViewPartLoopSource(access.Expression, context))
+            return null;
+
+        // The projection is transplanted into the folded loop exactly as a ForEach content lambda is, so
+        // it is read through the same shared reader. BCF1003 is where every other refused spread shape
+        // lands, so a body it refuses is refused under that number too.
+        if (!TryBindTransplantedLambda(selector, context, out var parameterSymbol, out var body))
         {
             context.RecordUntranslatable(expression);
             return null;
@@ -2504,6 +2530,53 @@ internal static class RenderExpressionAnalyzer
 
         /// <summary>Rendered at runtime through the fragment it returns. BCF2001 reported.</summary>
         Opaque,
+    }
+
+    /// <summary>
+    /// BCF3043: <paramref name="sourceExpression"/> -- a loop's source position -- is itself a call to a
+    /// <c>[ViewPart]</c> (#578). <c>ClassifyForEach</c>, <c>ClassifyIteratorForEach</c>, and
+    /// <c>AnalyzeSplicedProjection</c> each normalized their own source expression through
+    /// <see cref="ExpressionTemplateFactory"/> alone and never asked <see cref="ClassifyCallee"/> about it,
+    /// so a <c>[ViewPart]</c> call written there ran at runtime against its design-time-built body
+    /// uninspected -- the loop count came out right, and every yielded item came out empty.
+    /// </summary>
+    /// <remarks>
+    /// Detection goes one level deep, the same depth <see cref="AnalyzeSplice"/> resolves a spread
+    /// expression's own callee at: a chained call (<c>Rows(items).OrderBy(...)</c>) or a source read back
+    /// from a variable is not traced to a <c>[ViewPart]</c> call it may wrap. Unlike <see cref="AnalyzeSplice"/>,
+    /// which refuses (<see cref="ViewPartBodyContext.RecordUntranslatable"/>, BCF1003) whatever a level-one
+    /// match does not resolve, an unresolved source here falls through to being normalized and emitted as
+    /// ordinary code -- so this check is not a floor against every rewrite that hides the same callee behind
+    /// one more level of indirection, only against the call written directly at the source position.
+    /// <para>
+    /// Asks <see cref="KnownSymbols.IsViewPart"/> directly rather than routing through
+    /// <see cref="ClassifyCallee"/>: this call site only ever acts on the <see cref="NonSurfaceCallKind.ViewPart"/>
+    /// answer, but <c>ClassifyCallee</c> is not pure on its other branches -- reaching
+    /// <see cref="BodyBuildsFromDesignTimeSurface"/> forces a bind of the callee's whole declaration and
+    /// reports BCF3030 or BCF2001 as a side effect, which this caller would then discard by returning
+    /// <see langword="false"/>, leaving a wrong diagnostic sitting at the loop-source location. Neither
+    /// branch is reachable from compiling code -- a loop source's callee returns some
+    /// <c>IEnumerable&lt;...&gt;</c>, never <c>View</c> exactly -- but a loop header is analyzed on every
+    /// keystroke, including while the source doesn't yet resolve to anything real, so "unreachable once
+    /// the code compiles" is not the same as "never asked". The same one-level-deep resolution still pays
+    /// a <c>GetSymbolInfo</c> for a LINQ-chained source (<c>Rows(items).OrderBy(...)</c>) whose answer is
+    /// never <c>[ViewPart]</c>-shaped -- accepted here because no syntactic shape separates that call from
+    /// <c>Type.Rows(items)</c> itself.
+    /// </para>
+    /// </remarks>
+    private static bool ReportViewPartLoopSource(ExpressionSyntax sourceExpression, ViewPartBodyContext context)
+    {
+        if (sourceExpression is not InvocationExpressionSyntax invocation
+            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                is not IMethodSymbol resolvedMethod
+            || !context.KnownSymbols.IsViewPart(resolvedMethod))
+        {
+            return false;
+        }
+
+        context.Diagnostics.Add(DiagnosticInfo.Create(
+            DiagnosticDescriptors.BCF3043, sourceExpression.GetLocation(), [resolvedMethod.Name]));
+        return true;
     }
 
     /// <summary>

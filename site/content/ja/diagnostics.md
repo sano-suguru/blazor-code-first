@@ -3,7 +3,7 @@ title: 診断
 description: このコンパイラが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。
 order: 100
 group: reference
-source-hash: bbff5419
+source-hash: e67e79c3
 ---
 
 このコンパイラが報告する診断のすべてと、その意味と、代わりに書くものです。
@@ -662,6 +662,29 @@ ForEach(rows, key: r => r.Id, content: r => Li.Key(r.Id)[r.Name])   // BCF3032
 1つのフレームに `SetKey` が2回届き、後のほうが勝ちます。そのためどちらのキーが有効かは、呼び出し
 サイトではなくフレームの発行順で決まります。ルートに付けるか、ループに付けるか、どちらかにして
 ください。
+
+### BCF3043
+
+Error. ループのソース引数が `[ViewPart]` の呼び出しです。
+
+```csharp
+[ViewPart]
+private static IEnumerable<View> Rows(IReadOnlyList<Item> items) => ...;
+
+ForEach(Rows(items), key: item => 0, content: item => item)   // BCF3043
+Ul[.. Rows(items)]                                             // 代わりにこう書く
+```
+
+`[ViewPart]` の本体はデザインタイムサーフェスから組み立てられており、実行時には不活性です。
+ループのソース位置から呼び出すと、静的に展開されるのではなく不活性なサーフェスに対して通常の
+コードとして実行されるため、ループの回数は正しく出ますが、各要素は空になります。
+
+これはスプライスされた射影自身のソース (`Ul[.. Rows(items).Select(item => ...)]`) や、別の
+`[ViewPart]` イテレーターの本体内にあるネイティブな `foreach` にも当てはまります —
+`[ViewPart]` の呼び出しを書けるすべてのループヘッダー位置で同じ失敗が起こります。
+
+イテレーター `[ViewPart]` には唯一サポートされる呼び出し方があります: 子要素位置でのスプレッドです。
+ループのソースをそこでのスプレッドとして書き直してください。
 
 ## コンポーネント
 

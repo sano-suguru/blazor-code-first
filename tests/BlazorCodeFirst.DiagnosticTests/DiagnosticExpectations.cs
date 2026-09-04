@@ -340,6 +340,15 @@ public static class DiagnosticExpectations
                 + "The written name (\"label\") differs in case from the declared parameter (Label) on "
                 + "purpose, since that is the shape this rule exists to catch — an exact-case collision "
                 + "is pinned in-process by AttrNameCollidingWithDeclaredParameter_ExactCase_IsBCF3042."),
+        new(
+            "BCF3043",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3043.cs",
+            "Rows(_items)",
+            Note: "Anchors the source argument, which is what the author rewrites into a spread. The "
+                + "callee's own declaration is legitimate [ViewPart] syntax on its own -- "
+                + "Ul[.. Rows(_items)] is exactly how it is meant to be called."),
     ];
 
     /// <summary>
