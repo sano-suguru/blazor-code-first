@@ -2533,21 +2533,30 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// BCF3043: <paramref name="sourceExpression"/> -- a loop's source position -- is itself a call to a
-    /// <c>[ViewPart]</c> (#578). <c>ClassifyForEach</c>, <c>ClassifyIteratorForEach</c>, and
+    /// Bounds <see cref="ResolveViewPartLoopSource"/>'s peel: a constant so a pathological chain costs a
+    /// fixed number of <c>GetSymbolInfo</c> calls on the keystroke path rather than growing with input size.
+    /// </summary>
+    private const int MaxLoopSourcePeelDepth = 16;
+
+    /// <summary>
+    /// BCF3043: <paramref name="sourceExpression"/> -- a loop's source position -- resolves to a call to a
+    /// <c>[ViewPart]</c> (#578, #580). <c>ClassifyForEach</c>, <c>ClassifyIteratorForEach</c>, and
     /// <c>AnalyzeSplicedProjection</c> each normalized their own source expression through
     /// <see cref="ExpressionTemplateFactory"/> alone and never asked <see cref="ClassifyCallee"/> about it,
     /// so a <c>[ViewPart]</c> call written there ran at runtime against its design-time-built body
     /// uninspected -- the loop count came out right, and every yielded item came out empty.
     /// </summary>
     /// <remarks>
-    /// Detection goes one level deep, the same depth <see cref="AnalyzeSplice"/> resolves a spread
-    /// expression's own callee at: a chained call (<c>Rows(items).OrderBy(...)</c>) or a source read back
-    /// from a variable is not traced to a <c>[ViewPart]</c> call it may wrap. Unlike <see cref="AnalyzeSplice"/>,
-    /// which refuses (<see cref="ViewPartBodyContext.RecordUntranslatable"/>, BCF1003) whatever a level-one
-    /// match does not resolve, an unresolved source here falls through to being normalized and emitted as
-    /// ordinary code -- so this check is not a floor against every rewrite that hides the same callee behind
-    /// one more level of indirection, only against the call written directly at the source position.
+    /// Resolution peels through <see cref="ResolveViewPartLoopSource"/>: a reduced-extension receiver
+    /// (<c>Rows(items).ToList()</c>), a null-forgiving suffix/parenthesization/cast (<c>Rows(items)!</c>),
+    /// or a local variable's own initializer (<c>var rows = Rows(items); ForEach(rows, ...)</c>), repeated
+    /// until nothing more can be peeled. Unlike <see cref="AnalyzeSplice"/>, which refuses
+    /// (<see cref="ViewPartBodyContext.RecordUntranslatable"/>, BCF1003) whatever its own one-level match
+    /// does not resolve, an unresolved source here still falls through to being normalized and emitted as
+    /// ordinary code. Left unhandled, deliberately (#580): a ternary, <c>?.</c>, property/field indirection,
+    /// the explicit static form of a reduced extension (<c>Enumerable.ToList(x)</c>), a local rebound after
+    /// the peel resolves (suppressed by <see cref="IsRebound"/>, not traced further), and a local assigned
+    /// across more than the one initializer.
     /// <para>
     /// Asks <see cref="KnownSymbols.IsViewPart"/> directly rather than routing through
     /// <see cref="ClassifyCallee"/>: this call site only ever acts on the <see cref="NonSurfaceCallKind.ViewPart"/>
@@ -2558,25 +2567,182 @@ internal static class RenderExpressionAnalyzer
     /// branch is reachable from compiling code -- a loop source's callee returns some
     /// <c>IEnumerable&lt;...&gt;</c>, never <c>View</c> exactly -- but a loop header is analyzed on every
     /// keystroke, including while the source doesn't yet resolve to anything real, so "unreachable once
-    /// the code compiles" is not the same as "never asked". The same one-level-deep resolution still pays
-    /// a <c>GetSymbolInfo</c> for a LINQ-chained source (<c>Rows(items).OrderBy(...)</c>) whose answer is
-    /// never <c>[ViewPart]</c>-shaped -- accepted here because no syntactic shape separates that call from
-    /// <c>Type.Rows(items)</c> itself.
+    /// the code compiles" is not the same as "never asked".
     /// </para>
     /// </remarks>
     private static bool ReportViewPartLoopSource(ExpressionSyntax sourceExpression, ViewPartBodyContext context)
     {
-        if (sourceExpression is not InvocationExpressionSyntax invocation
-            || context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
-                is not IMethodSymbol resolvedMethod
-            || !context.KnownSymbols.IsViewPart(resolvedMethod))
-        {
+        List<ILocalSymbol>? peeledLocals = null;
+        if (ResolveViewPartLoopSource(sourceExpression, context, ref peeledLocals) is not { } resolvedMethod)
             return false;
+
+        if (peeledLocals is not null)
+        {
+            foreach (var local in peeledLocals)
+            {
+                if (IsRebound(local, context))
+                    return false;
+            }
         }
 
         context.Diagnostics.Add(DiagnosticInfo.Create(
             DiagnosticDescriptors.BCF3043, sourceExpression.GetLocation(), [resolvedMethod.Name]));
         return true;
+    }
+
+    /// <summary>
+    /// Peels <paramref name="sourceExpression"/> down to the <c>[ViewPart]</c> it calls, if any -- see
+    /// <see cref="ReportViewPartLoopSource"/>'s remarks for exactly what is peeled and what is left
+    /// unhandled. Every peel but the local-variable one moves to a syntactic descendant of
+    /// <paramref name="sourceExpression"/>, so it terminates structurally; the local-variable peel is the
+    /// only one that can cycle (<c>var a = a;</c> binds <c>a</c> to itself), so it alone is guarded by a
+    /// visited set, and <see cref="MaxLoopSourcePeelDepth"/> bounds the whole walk besides. A local reached
+    /// this way lands in <paramref name="peeledLocals"/> for <see cref="ReportViewPartLoopSource"/> to
+    /// re-check for a rebinding after the walk succeeds -- reads of a local do not, by themselves, prove it
+    /// still holds the <c>[ViewPart]</c> call's result by the time the loop runs it.
+    /// </summary>
+    private static IMethodSymbol? ResolveViewPartLoopSource(
+        ExpressionSyntax sourceExpression, ViewPartBodyContext context, ref List<ILocalSymbol>? peeledLocals)
+    {
+        var current = sourceExpression;
+        for (var remaining = MaxLoopSourcePeelDepth; remaining > 0; remaining--)
+        {
+            switch (current)
+            {
+                case ParenthesizedExpressionSyntax parenthesized:
+                    current = parenthesized.Expression;
+                    continue;
+
+                case CastExpressionSyntax cast:
+                    current = cast.Expression;
+                    continue;
+
+                case BinaryExpressionSyntax { RawKind: (int)SyntaxKind.AsExpression } asExpression:
+                    current = asExpression.Left;
+                    continue;
+
+                case PostfixUnaryExpressionSyntax
+                { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppressed:
+                    current = suppressed.Operand;
+                    continue;
+
+                case InvocationExpressionSyntax invocation:
+                    if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol
+                        is not IMethodSymbol resolvedMethod)
+                    {
+                        return null;
+                    }
+
+                    // Asked before MethodKind: a [ViewPart] is never an extension method by the design
+                    // recorded at MethodKey.cs, but that is an invariant this analysis enforces, not one
+                    // Roslyn holds for half-typed code -- an attributed reduced extension must still match
+                    // here rather than being peeled past.
+                    if (context.KnownSymbols.IsViewPart(resolvedMethod))
+                        return resolvedMethod;
+
+                    if (resolvedMethod.MethodKind != MethodKind.ReducedExtension
+                        || invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+                    {
+                        return null;
+                    }
+
+                    current = memberAccess.Expression;
+                    continue;
+
+                case IdentifierNameSyntax identifier:
+                    if (context.SemanticModel.GetSymbolInfo(identifier, context.CancellationToken).Symbol
+                            is not ILocalSymbol local
+                        || (peeledLocals ??= []).Contains(local, SymbolEqualityComparer.Default)
+                        || local.DeclaringSyntaxReferences.Length != 1
+                        || local.DeclaringSyntaxReferences[0].GetSyntax(context.CancellationToken)
+                            is not VariableDeclaratorSyntax { Initializer.Value: { } initializer })
+                    {
+                        return null;
+                    }
+
+                    System.Diagnostics.Debug.Assert(
+                        local.DeclaringSyntaxReferences[0].SyntaxTree == context.SemanticModel.SyntaxTree,
+                        "A local resolved from the analyzed tree declares in the same tree.");
+
+                    peeledLocals.Add(local);
+                    current = initializer;
+                    continue;
+
+                default:
+                    return null;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="local"/> is ever the target of an assignment, a <see langword="ref"/>/
+    /// <see langword="out"/> argument, or a <see langword="ref"/> re-alias, anywhere in the member
+    /// declaration enclosing it. Called only once <see cref="ResolveViewPartLoopSource"/> has already
+    /// matched a <c>[ViewPart]</c> through this local's initializer, so a rebinding -- legal code that
+    /// simply discards that call's result before the loop runs -- must suppress the report rather than
+    /// mark it as the bug.
+    /// </summary>
+    /// <remarks>
+    /// The scan's root is the enclosing <see cref="MemberDeclarationSyntax"/>, wider than the local's own
+    /// scope; that is harmless here because every candidate is compared by symbol, which a same-named
+    /// sibling local fails. Do not narrow the root to "look smaller" -- it would not observe a rebind
+    /// written after the point this method is called from but still inside the local's own scope.
+    /// </remarks>
+    private static bool IsRebound(ILocalSymbol local, ViewPartBodyContext context)
+    {
+        if (local.DeclaringSyntaxReferences.Length != 1)
+            return true;
+
+        if (local.DeclaringSyntaxReferences[0].GetSyntax(context.CancellationToken)
+                .FirstAncestorOrSelf<MemberDeclarationSyntax>()
+            is not { } scope)
+        {
+            return true;
+        }
+
+        foreach (var node in scope.DescendantNodes())
+        {
+            var candidate = node switch
+            {
+                AssignmentExpressionSyntax assignment => assignment.Left,
+                ArgumentSyntax
+                {
+                    RefKindKeyword.RawKind: (int)SyntaxKind.RefKeyword or (int)SyntaxKind.OutKeyword,
+                } argument => argument.Expression,
+                RefExpressionSyntax refExpression => refExpression.Expression,
+                _ => null,
+            };
+
+            if (candidate is not null && NamesLocal(candidate, local, context))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether any identifier in <paramref name="expression"/> -- not <paramref name="expression"/> alone
+    /// -- names <paramref name="local"/>. A deconstruction assignment's left side
+    /// (<c>(rows, other) = (a, b);</c>) is a <see cref="TupleExpressionSyntax"/>, not an identifier, so
+    /// <see cref="IsRebound"/> would miss it without walking descendants too.
+    /// </summary>
+    private static bool NamesLocal(ExpressionSyntax expression, ILocalSymbol local, ViewPartBodyContext context)
+    {
+        foreach (var identifier in expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+        {
+            if (identifier.Identifier.ValueText != local.Name)
+                continue;
+
+            if (SymbolEqualityComparer.Default.Equals(
+                    context.SemanticModel.GetSymbolInfo(identifier, context.CancellationToken).Symbol, local))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
