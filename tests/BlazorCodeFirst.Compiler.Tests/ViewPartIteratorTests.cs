@@ -988,4 +988,151 @@ public sealed class ViewPartIteratorTests
         Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF1003");
     }
+
+    // ---------------------------------------------------------------------------
+    // BCF3043, one-step rewrites that bypassed the syntax-only check (#580): the resolution now peels a
+    // reduced-extension receiver, a null-forgiving suffix, and a local variable's own initializer, and
+    // repeats until nothing more can be peeled -- rather than matching only a bare call at the source
+    // position.
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAViewPartCallWithToList_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(Rows(_items).ToList(), item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAViewPartCallSuppressedWithBang_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(Rows(_items)!, item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsALocalVariableInitializedFromAViewPart_ReportsBcf3043()
+    {
+        const string outerReadsRowsThroughALocal = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items);
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerReadsRowsThroughALocal + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void NativeForEach_InsideAnIteratorViewPart_WhenSourceIsALocalVariableInitializedFromAViewPart_ReportsBcf3043()
+    {
+        const string outerReadsRowsThroughALocal = """
+            [ViewPart]
+            private static IEnumerable<View> Outer(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items);
+                foreach (var v in rows)
+                {
+                    yield return Span["x"];
+                }
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerReadsRowsThroughALocal + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAViewPartCallSuppressedWithBangThenToList_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(Rows(_items)!.ToList(), item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    /// <summary>
+    /// A local rebound after its [ViewPart]-calling initializer is legal code (the [ViewPart] call's
+    /// result is discarded, never rendered) -- resolving only as far as the initializer would report an
+    /// Error on code that does not have the bug. The rebound assignment must suppress the report.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenSourceLocalIsReboundAfterAViewPartInitializer_DoesNotReportBcf3043()
+    {
+        const string outerReboundsTheLocal = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items);
+                rows = _views;
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+
+            private static readonly IEnumerable<View> _views = new List<View>();
+            """;
+
+        var result = RunDeclaration(RowsPart + outerReboundsTheLocal + ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    /// <summary>
+    /// The explicit static form of a reduced extension call is a deliberately unhandled boundary (#580):
+    /// only a receiver-style call (<c>Rows(_items).ToList()</c>) is peeled, not its equivalent static
+    /// spelling. This fixes the boundary rather than leaving it to drift.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAnExplicitStaticToListCall_DoesNotReportBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(System.Linq.Enumerable.ToList(Rows(_items)), item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAPlainCollectionWithToList_DoesNotReportBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(_items.ToList(), item => item.Id, item => Span[item.Name])",
+            ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+        CompilationTestHost.AssertOutputCompiles(result);
+    }
+
+    /// <summary>
+    /// Termination safety (#580): a local bound to itself (<c>var rows = rows;</c>, CS0841) must not send
+    /// the peel into an infinite loop. The assertion is only that the run returns and reports no BCF3043,
+    /// not that the source resolves to anything.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenSourceLocalSelfReferences_DoesNotReportBcf3043()
+    {
+        const string outerSelfReferencingLocal = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = rows;
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerSelfReferencingLocal + ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+    }
 }
