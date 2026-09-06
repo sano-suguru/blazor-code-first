@@ -2548,14 +2548,17 @@ internal static class RenderExpressionAnalyzer
     /// </summary>
     /// <remarks>
     /// Resolution peels through <see cref="ResolveViewPartLoopSource"/>: a reduced-extension receiver
-    /// (<c>Rows(items).ToList()</c>), a null-forgiving suffix/parenthesization/cast (<c>Rows(items)!</c>),
-    /// or a local variable's own initializer (<c>var rows = Rows(items); ForEach(rows, ...)</c>), repeated
-    /// until nothing more can be peeled, up to a fixed depth. Unlike <see cref="AnalyzeSplice"/>, which
-    /// refuses (<see cref="ViewPartBodyContext.RecordUntranslatable"/>, BCF1003) whatever its own one-level
-    /// match does not resolve, an unresolved source here still falls through to being normalized and
-    /// emitted as ordinary code. Left unhandled, deliberately (#580): a ternary, <c>?.</c>, property/field
+    /// (<c>Rows(items).ToList()</c>), a null-forgiving suffix, a parenthesization, a cast, an <c>as</c>
+    /// conversion (<c>Rows(items)!</c>, <c>(Rows(items))</c>, <c>(IEnumerable&lt;View&gt;)Rows(items)</c>,
+    /// <c>Rows(items) as IEnumerable&lt;View&gt;</c>), or a local variable's own initializer
+    /// (<c>var rows = Rows(items); ForEach(rows, ...)</c>), repeated until nothing more can be peeled, up
+    /// to a fixed depth. Unlike <see cref="AnalyzeSplice"/>, which refuses
+    /// (<see cref="ViewPartBodyContext.RecordUntranslatable"/>, BCF1003) whatever its own one-level match
+    /// does not resolve, an unresolved source here still falls through to being normalized and emitted as
+    /// ordinary code. Left unhandled, deliberately (#580): a ternary, <c>?.</c>, property/field
     /// indirection, the explicit static form of a reduced extension (<c>Enumerable.ToList(x)</c>), a local
-    /// rebound after the peel resolves (suppressed by <see cref="IsRebound"/>, not traced further), and a
+    /// rebound after the peel resolves -- wherever that rebinding assignment sits, including a branch not
+    /// taken or a point after the loop (suppressed by <see cref="IsRebound"/>, not traced further) -- and a
     /// local assigned across more than the one initializer.
     /// <para>
     /// Asks <see cref="KnownSymbols.IsViewPart"/> directly rather than routing through
@@ -2703,6 +2706,8 @@ internal static class RenderExpressionAnalyzer
 
         foreach (var node in scope.DescendantNodes())
         {
+            context.CancellationToken.ThrowIfCancellationRequested();
+
             var candidate = node switch
             {
                 AssignmentExpressionSyntax assignment => assignment.Left,
@@ -2722,26 +2727,41 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// Whether any identifier in <paramref name="expression"/> -- not <paramref name="expression"/> alone
-    /// -- names <paramref name="local"/>. A deconstruction assignment's left side
-    /// (<c>(rows, other) = (a, b);</c>) is a <see cref="TupleExpressionSyntax"/>, not an identifier, so
-    /// <see cref="IsRebound"/> would miss it without walking descendants too.
+    /// Whether <paramref name="expression"/> -- a write target -- rebinds <paramref name="local"/> itself,
+    /// rather than merely writing through it. Only an identifier leaf counts: <paramref name="expression"/>
+    /// itself when it is an <see cref="IdentifierNameSyntax"/>, or one reached by unwrapping nothing but
+    /// <see cref="ParenthesizedExpressionSyntax"/> and <see cref="TupleExpressionSyntax"/> -- the
+    /// deconstruction assignment shape (<c>(rows, other) = (a, b);</c>) that puts a local directly as one
+    /// of a tuple's own elements. An <see cref="ElementAccessExpressionSyntax"/>
+    /// (<c>rows[0] = x;</c>) or a <see cref="MemberAccessExpressionSyntax"/> (<c>rows.Capacity = n;</c>)
+    /// writes through the local without rebinding it -- <paramref name="local"/> still holds the same
+    /// reference the <c>[ViewPart]</c> call produced -- so neither must match here, even though both
+    /// contain an <see cref="IdentifierNameSyntax"/> naming <paramref name="local"/> somewhere inside.
     /// </summary>
     private static bool NamesLocal(ExpressionSyntax expression, ILocalSymbol local, ViewPartBodyContext context)
     {
-        foreach (var identifier in expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+        switch (expression)
         {
-            if (identifier.Identifier.ValueText != local.Name)
-                continue;
+            case ParenthesizedExpressionSyntax parenthesized:
+                return NamesLocal(parenthesized.Expression, local, context);
 
-            if (SymbolEqualityComparer.Default.Equals(
-                    context.SemanticModel.GetSymbolInfo(identifier, context.CancellationToken).Symbol, local))
-            {
-                return true;
-            }
+            case TupleExpressionSyntax tuple:
+                foreach (var argument in tuple.Arguments)
+                {
+                    if (NamesLocal(argument.Expression, local, context))
+                        return true;
+                }
+
+                return false;
+
+            case IdentifierNameSyntax identifier:
+                return identifier.Identifier.ValueText == local.Name
+                    && SymbolEqualityComparer.Default.Equals(
+                        context.SemanticModel.GetSymbolInfo(identifier, context.CancellationToken).Symbol, local);
+
+            default:
+                return false;
         }
-
-        return false;
     }
 
     /// <summary>

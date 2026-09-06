@@ -1295,9 +1295,9 @@ internal static class DiagnosticDescriptors
     /// and <c>AnalyzeSplicedProjection</c> normalized the source expression with
     /// <c>ExpressionTemplateFactory</c> alone and never asked <c>ClassifyCallee</c> about it, so the
     /// callee's design-time-built body ran at runtime uninspected, yielding one empty <c>View</c> per
-    /// iteration (#578). Resolution peels a reduced-extension receiver, a null-forgiving suffix, and a
-    /// local variable's own initializer, repeated until nothing more can be peeled, up to a fixed depth
-    /// (#580). DESIGN.md §4.3
+    /// iteration (#578). Resolution peels a reduced-extension receiver, a null-forgiving suffix, a
+    /// parenthesization, a cast, an <c>as</c> conversion, and a local variable's own initializer, repeated
+    /// until nothing more can be peeled, up to a fixed depth (#580). DESIGN.md §4.3
     /// names one supported call spelling for an iterator <c>[ViewPart]</c> — a spread in a child position —
     /// and a loop source is not it.
     /// </summary>

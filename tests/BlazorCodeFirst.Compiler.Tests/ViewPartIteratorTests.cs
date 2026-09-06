@@ -1135,4 +1135,165 @@ public sealed class ViewPartIteratorTests
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
     }
+
+    // ---------------------------------------------------------------------------
+    // BCF3043, IsRebound over-reach (#581 review): a write that merely *mentions* the peeled local --
+    // writing one of its elements or one of its members -- is not a rebinding of the local itself, and
+    // must not suppress the report the way an actual reassignment of the local does.
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceLocalHasAnElementAssignmentAfterInitializer_ReportsBcf3043()
+    {
+        const string outerWritesAnElementOfTheLocal = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items).ToList();
+                rows[0] = Span["header"];
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerWritesAnElementOfTheLocal + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceLocalHasAMemberWriteAfterInitializer_ReportsBcf3043()
+    {
+        const string outerWritesAMemberOfTheLocal = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items).ToList();
+                rows.Capacity = rows.Count;
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerWritesAMemberOfTheLocal + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    /// <summary>
+    /// Regression companion to the two tests above: an actual rebinding through deconstruction --
+    /// <c>(rows, other) = (...)</c>, a <see cref="TupleExpressionSyntax"/> left side named in
+    /// <see cref="RenderExpressionAnalyzer.NamesLocal"/>'s own doc comment -- must still suppress the
+    /// report, unlike the element/member writes above that only mention the local.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenSourceLocalIsReboundThroughDeconstruction_DoesNotReportBcf3043()
+    {
+        const string outerDeconstructsIntoTheLocal = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items);
+                IEnumerable<View> other;
+                (rows, other) = (_views, _views);
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+
+            private static readonly IEnumerable<View> _views = new List<View>();
+            """;
+
+        var result = RunDeclaration(RowsPart + outerDeconstructsIntoTheLocal + ItemMembers);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    /// <summary>
+    /// A deconstruction elsewhere in the member whose tuple elements name neither the peeled local nor
+    /// anything that resolves to it must not be mistaken for a rebind of it -- <c>NamesLocal</c>'s tuple
+    /// recursion has to actually check each element's own symbol, not short-circuit true the moment any
+    /// element is an identifier at all.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenAnUnrelatedDeconstructionSitsAlongsideTheLocal_StillReportsBcf3043()
+    {
+        const string outerHasAnUnrelatedDeconstruction = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                var rows = Rows(items);
+                string a = "", b = "";
+                (a, b) = ("x", "y");
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+            """;
+
+        var result = RunDeclaration(RowsPart + outerHasAnUnrelatedDeconstruction + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    /// <summary>
+    /// A same-named local in a sibling, non-overlapping scope is a different symbol -- reassigning it must
+    /// not suppress the report for the peeled local it merely shares a name with.
+    /// <see cref="RenderExpressionAnalyzer.NamesLocal"/>'s own remarks name this as the reason every
+    /// candidate is compared by symbol, not by name alone.
+    /// </summary>
+    [Fact]
+    public void ForEachCombinator_WhenASiblingScopeReboundsASameNamedLocal_StillReportsBcf3043()
+    {
+        const string outerHasAShadowingSibling = """
+            [ViewPart]
+            private static View Grid(IReadOnlyList<Item> items)
+            {
+                Unrelated(v =>
+                {
+                    var rows = v;
+                    rows = v;
+                    return rows;
+                });
+                var rows = Rows(items);
+                return ForEach(rows, item => 0, item => Span["x"]);
+            }
+
+            private static View Unrelated(Func<View, View> f) => f(Span["x"]);
+            """;
+
+        var result = RunDeclaration(RowsPart + outerHasAShadowingSibling + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    // ---------------------------------------------------------------------------
+    // BCF3043, peel branches with no prior coverage (#581 review): parenthesization, a cast, and `as`
+    // each already peel in ResolveViewPartLoopSource -- these tests pin that, matching the coverage the
+    // .ToList()/!/local-initializer peels already have above.
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAParenthesizedViewPartCall_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach((Rows(_items)), item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsACastViewPartCall_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach((IEnumerable<View>)Rows(_items), item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
+
+    [Fact]
+    public void ForEachCombinator_WhenSourceIsAnAsCastViewPartCall_ReportsBcf3043()
+    {
+        var result = RunCall(
+            "ForEach(Rows(_items) as IEnumerable<View>, item => 0, item => Span[\"x\"])",
+            RowsPart + ItemMembers);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+    }
 }
