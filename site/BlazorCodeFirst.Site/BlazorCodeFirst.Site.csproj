@@ -71,7 +71,7 @@
          time) predates net10.0 support; 8.1.0-preview.4 is the first version whose restore
          reports compatibility with a net10.0 TargetFramework. Prerelease dependency accepted as a
          spike caveat; revisit for a stable net10 release (or a self-hosted prerender step). -->
-    <PackageReference Include="BlazorWasmPreRendering.Build" Version="8.1.0-preview.4" />
+    <PackageReference Include="BlazorWasmPreRendering.Build" Version="8.1.0-preview.6" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
   </ItemGroup>
