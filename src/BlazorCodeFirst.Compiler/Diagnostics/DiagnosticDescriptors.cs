@@ -272,26 +272,30 @@ internal static class DiagnosticDescriptors
     /// generator neither sequences statically nor transplants.
     /// </summary>
     /// <remarks>
-    /// Narrowed when the Transplantable and Opaque paths landed. Content now also accepts a block with one
-    /// trailing <c>return</c> (ARCHITECTURE.md §2.3 Transplantable) and a one-parameter
-    /// <c>View</c>-returning method group, which is read as the call it stands for and answered by the
-    /// same three-way split every other call gets. What is left is the key, whose body has to be an
-    /// expression because it is transplanted into <c>SetKey</c>, and the content shapes that would each
-    /// need a sequence space of their own.
+    /// Narrowed as the Transplantable and Opaque paths landed. Content now also accepts a block with one
+    /// trailing <c>return</c> (ARCHITECTURE.md §2.3 Transplantable), a block ending in a native `if`/`else`
+    /// or `switch` (same section; BCF2002 notifies the degradation to a dynamic region), and a
+    /// one-parameter <c>View</c>-returning method group, which is read as the call it stands for and
+    /// answered by the same three-way split every other call gets. What is left is the key, whose body has
+    /// to be an expression because it is transplanted into <c>SetKey</c>, and a second `return`, which
+    /// would need a sequence space of its own that a single static content range cannot give it.
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3004 = new(
         id: "BCF3004",
         title: "ForEach key or content has a shape the generator cannot sequence",
         messageFormat:
             "ForEach requires an expression-bodied key lambda, and content that is an expression lambda, "
-                + "a block with one trailing return, or a single-parameter method group",
+                + "a block with one trailing return, a block ending in a native if/else or switch, or a "
+                + "single-parameter method group",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
             "The key body is transplanted into SetKey, so it has to be an expression. The content is "
-                + "given one static sequence space that every iteration reuses, which a second return or a "
-                + "native control statement would each need their own copy of.");
+                + "given one static sequence space that every iteration reuses, which a second return "
+                + "would need its own copy of; a native if/else or switch is accepted instead, but only one "
+                + "arm or section ever runs, so it degrades to a dynamic region (BCF2002) rather than "
+                + "getting a static range of its own.");
 
     /// <summary>
     /// BCF3005: A <c>Component&lt;T&gt;()</c> parameter-binding selector is not a simple property selection
