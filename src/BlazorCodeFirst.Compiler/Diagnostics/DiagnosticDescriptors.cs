@@ -663,26 +663,36 @@ internal static class DiagnosticDescriptors
 
     /// <summary>
     /// BCF3022: The content argument of the contextual <c>Component&lt;T&gt;().Template</c> overload is not
-    /// an inline expression lambda, so the generator has no expression to sequence and no parameter symbol
-    /// to substitute the generated context variable for. A method group, an anonymous method, and a
-    /// block-bodied lambda all hide the content behind a call.
+    /// a shape the generator can sequence: neither an inline expression lambda, a block reaching one of
+    /// <see cref="Analysis.RenderExpressionAnalyzer.TransplantableTail"/>'s shapes, nor a one-parameter
+    /// <c>View</c>-returning method group. An anonymous method hides the content behind no callee at all.
     /// </summary>
     /// <remarks>
-    /// Sibling of BCF3004, which places the same restriction on <c>ForEach</c>'s content and key for the
-    /// same reason. Arity is not this rule's concern: a zero-parameter or multi-parameter lambda does not
-    /// convert to <c>Func&lt;TContext, View&gt;</c> at all, so C# rejects the call before this rule could
-    /// apply. The number follows BCF3021, which was withdrawn (Appendix B.5) and stays retired.
+    /// Sibling of BCF3004, which places the same restriction on <c>ForEach</c>'s content for the same
+    /// reason (#317): both read a <c>content</c>-shaped argument through
+    /// <see cref="Analysis.RenderExpressionAnalyzer"/>'s shared <c>TryBindTransplantableContent</c>, at the
+    /// arity each position's delegate type requires. A method group is reread as the call it stands for and
+    /// falls to the same three-way branch (static expansion / BCF3030 / Opaque) any other call gets. Arity
+    /// is not this rule's concern: a zero-parameter or multi-parameter lambda does not convert to
+    /// <c>Func&lt;TContext, View&gt;</c> at all, so C# rejects the call before this rule could apply. The
+    /// number follows BCF3021, which was withdrawn (Appendix B.5) and stays retired.
     /// </remarks>
     public static readonly DiagnosticDescriptor BCF3022 = new(
         id: "BCF3022",
-        title: "Generic fragment template must be an inline expression lambda",
-        messageFormat: "Generic fragment template must be an inline expression lambda so it can be statically analyzed; write it as context => content",
+        title: "Generic fragment template content has a shape the generator cannot sequence",
+        messageFormat:
+            "The contextual .Template content must be an expression lambda, a block with one trailing "
+                + "return, a block ending in a native if/else or switch, or a single-parameter method group",
         category: "BlazorCodeFirst",
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:
-            "Component<T>().Template contextual content must be an inline expression lambda. " +
-            "Method groups, anonymous methods, and block-bodied lambdas cannot be statically sequenced.");
+            "The content is given one static sequence space that every use of the fragment reuses, which a "
+                + "second return would need its own copy of; a native if/else or switch is accepted "
+                + "instead, but only one arm or section ever runs, so it degrades to a dynamic region "
+                + "(BCF2002) rather than getting a static range of its own. An anonymous method is excluded "
+                + "outright: it names no callee a method group could be read as, and it is not one of the "
+                + "lambda shapes either.");
 
     /// <summary>
     /// BCF3023: a decoration written on the <c>class</c> name carries a value the class channel cannot join

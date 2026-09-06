@@ -1,3 +1,4 @@
+using System;
 using BlazorCodeFirst;
 using Microsoft.AspNetCore.Components;
 using static BlazorCodeFirst.Html;
@@ -14,13 +15,20 @@ public sealed class GenericTemplateWidget : ComponentBase
 }
 
 /// <summary>
-/// BCF3022: the contextual <c>.Template</c> content is a method group, so there is no inline expression
-/// to sequence and no lambda parameter to substitute the generated context variable for.
+/// BCF3022: the contextual <c>.Template</c> content is a constructed delegate, which names no callee at
+/// the call site.
 /// </summary>
+/// <remarks>
+/// A bare method group is no longer this diagnostic's business: it is read as the call it stands for and
+/// answered by the same three-way split every other call gets, the same as <c>ForEach</c>'s content
+/// (#317). <c>DiagnosticDeliveryTests</c> requires exactly one occurrence of an id across the build, so a
+/// fixture holds one shape per diagnostic, and the anchor is matched within a line — which the block shape
+/// would not fit on.
+/// </remarks>
 public partial class Bcf3022Host : BodyComponentBase
 {
     protected override View Body =>
-        Component<GenericTemplateWidget>().Template(w => w.RowTemplate, Render);
+        Component<GenericTemplateWidget>().Template(w => w.RowTemplate, new Func<int, View>(Render));
 
     private static View Render(int value) => Span[value.ToString()];
 }

@@ -8,6 +8,15 @@ namespace BlazorCodeFirst.Compiler.Tests;
 /// argument the generator cannot statically sequence, and BCF3007 for a parameter bound twice through
 /// the template channel.
 /// </summary>
+/// <remarks>
+/// Contextual content accepts the same five shapes <c>ForEach</c>'s content does (#317): an inline
+/// expression lambda; a block reaching one trailing <c>return</c>, ending in a native <c>if</c>/<c>else</c>,
+/// or ending in a native <c>switch</c> (ARCHITECTURE.md §2.3 Transplantable); and a one-parameter
+/// <c>View</c>-returning method group, read as the call it stands for. An anonymous method
+/// (<c>delegate(int x) { ... }</c>) stays rejected: it is an inline function like a lambda, but it names
+/// no callee for the method-group path and none of <see cref="RenderExpressionAnalyzer.TransplantableTail"/>'s
+/// readers match its syntax either.
+/// </remarks>
 public sealed class ComponentTemplateDiagnosticTests
 {
     private const string TemplateTargetSource = """
@@ -21,8 +30,10 @@ public sealed class ComponentTemplateDiagnosticTests
 
     /// <summary>
     /// The source of a host whose <c>Body</c> is <paramref name="body"/> and which also declares a
-    /// <c>Render</c> method group of the contextual template's shape, so a rejected method-group
-    /// spelling is a real conversion rather than an unresolved name.
+    /// <c>Render</c> method group of the contextual template's shape, so an accepted or rejected
+    /// method-group spelling is a real conversion rather than an unresolved name. Marked
+    /// <c>[ViewPart]</c> so the accepted method-group case expands statically rather than reporting
+    /// BCF3030 for a plain method that builds from the design-time surface.
     /// </summary>
     private static string HostSource(string body) =>
         $$"""
@@ -33,6 +44,7 @@ public sealed class ComponentTemplateDiagnosticTests
         {
             protected override View Body => {{body}};
 
+            [ViewPart]
             private static View Render(int value) => Span[value.ToString()];
         }
         """;
@@ -45,7 +57,11 @@ public sealed class ComponentTemplateDiagnosticTests
     [InlineData("x => Span[x.ToString()]")]
     [InlineData("static x => Span[x.ToString()]")]
     [InlineData("(int x) => Span[x.ToString()]")]
-    public void ContextualTemplate_InlineExpressionLambda_IsAcceptedAndCompiles(string content)
+    [InlineData("x => { return Span[x.ToString()]; }")]
+    [InlineData("x => { if (x > 0) { return Span[x.ToString()]; } else { return Span[\"neg\"]; } }")]
+    [InlineData("x => { switch (x) { case 0: return Span[\"zero\"]; default: return Span[x.ToString()]; } }")]
+    [InlineData("Render")]
+    public void ContextualTemplate_AcceptedShape_IsAcceptedAndCompiles(string content)
     {
         var result = Run($"Component<TemplateTarget>().Template(c => c.RowTemplate, {content})");
 
@@ -54,12 +70,10 @@ public sealed class ComponentTemplateDiagnosticTests
         CompilationTestHost.AssertOutputCompiles(result);
     }
 
-    [Theory]
-    [InlineData("Render")]
-    [InlineData("x => { return Span[x.ToString()]; }")]
-    [InlineData("delegate(int x) { return Span[x.ToString()]; }")]
-    public void ContextualTemplate_NonInlineContent_ReportsBCF3022OnTheWholeArgument(string content)
+    [Fact]
+    public void ContextualTemplate_AnonymousMethod_ReportsBCF3022OnTheWholeArgument()
     {
+        const string content = "delegate(int x) { return Span[x.ToString()]; }";
         var body = $"Component<TemplateTarget>().Template(c => c.RowTemplate, {content})";
         var result = Run(body);
 
