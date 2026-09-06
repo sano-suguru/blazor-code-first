@@ -2561,6 +2561,16 @@ internal static class RenderExpressionAnalyzer
     /// taken or a point after the loop (suppressed by <see cref="IsRebound"/>, not traced further) -- and a
     /// local assigned across more than the one initializer.
     /// <para>
+    /// Reports at the resolved <c>[ViewPart]</c> invocation's own location, not
+    /// <paramref name="sourceExpression"/>'s (#582): for a bare call the two coincide, but for every peel
+    /// -- a suffix, a wrapping call, a local's initializer -- they differ, and the message names the
+    /// callee, so squiggling anywhere else leaves the diagnostic pointing at code the message does not
+    /// describe. A consequence: two loops that each read the same local through the same initializer
+    /// report two BCF3043s at that one identical span, since <see cref="ViewPartBodyContext.Diagnostics"/>
+    /// is an unindexed builder rather than a set -- both reports are true of the code, so this is
+    /// redundant, not wrong.
+    /// </para>
+    /// <para>
     /// Asks <see cref="KnownSymbols.IsViewPart"/> directly rather than routing through
     /// <see cref="ClassifyCallee"/>: this call site only ever acts on the <see cref="NonSurfaceCallKind.ViewPart"/>
     /// answer, but <c>ClassifyCallee</c> is not pure on its other branches -- reaching
@@ -2575,13 +2585,20 @@ internal static class RenderExpressionAnalyzer
     /// </remarks>
     private static bool ReportViewPartLoopSource(ExpressionSyntax sourceExpression, ViewPartBodyContext context)
     {
-        if (ResolveViewPartLoopSource(sourceExpression, context) is not { } resolvedMethod)
+        if (ResolveViewPartLoopSource(sourceExpression, context) is not { } resolution)
             return false;
 
         context.Diagnostics.Add(DiagnosticInfo.Create(
-            DiagnosticDescriptors.BCF3043, sourceExpression.GetLocation(), [resolvedMethod.Name]));
+            DiagnosticDescriptors.BCF3043, resolution.Location, [resolution.Method.Name]));
         return true;
     }
+
+    /// <summary>
+    /// <see cref="ResolveViewPartLoopSource"/>'s answer: the resolved <c>[ViewPart]</c>, and the location
+    /// of the invocation that named it -- a descendant of the peeled source expression, not necessarily
+    /// the source expression itself (#582).
+    /// </summary>
+    private readonly record struct LoopSourceResolution(IMethodSymbol Method, Location Location);
 
     /// <summary>
     /// Peels <paramref name="sourceExpression"/> down to the <c>[ViewPart]</c> it calls, if any -- see
@@ -2594,7 +2611,7 @@ internal static class RenderExpressionAnalyzer
     /// reads of a local do not, by themselves, prove it still holds the <c>[ViewPart]</c> call's result by
     /// the time the loop runs it.
     /// </summary>
-    private static IMethodSymbol? ResolveViewPartLoopSource(
+    private static LoopSourceResolution? ResolveViewPartLoopSource(
         ExpressionSyntax sourceExpression, ViewPartBodyContext context)
     {
         List<ILocalSymbol>? peeledLocals = null;
@@ -2642,7 +2659,7 @@ internal static class RenderExpressionAnalyzer
                             }
                         }
 
-                        return resolvedMethod;
+                        return new LoopSourceResolution(resolvedMethod, invocation.GetLocation());
                     }
 
                     if (resolvedMethod.MethodKind != MethodKind.ReducedExtension

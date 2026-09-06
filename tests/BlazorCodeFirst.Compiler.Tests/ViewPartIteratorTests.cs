@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis.Text;
 
 namespace BlazorCodeFirst.Compiler.Tests;
 
@@ -71,8 +72,17 @@ public sealed class ViewPartIteratorTests
         """;
 
     private static GeneratorRunResult RunCall(string body, string members) =>
-        CompilationTestHost.RunGenerator(
-            CallHost.Replace("$MEMBERS$", members).Replace("$BODY$", body));
+        CompilationTestHost.RunGenerator(CallHostSource(body, members));
+
+    /// <summary>
+    /// The exact source text <see cref="RunCall"/> hands to the generator -- needed alongside a
+    /// <see cref="GeneratorRunResult"/> to read back a diagnostic's squiggled text
+    /// (<c>SourceText.From(...).ToString(diagnostic.Location.SourceSpan)</c>), since a generator
+    /// diagnostic's <see cref="Location"/> is reconstructed via <c>Location.Create(path, span, lineSpan)</c>
+    /// (<see cref="Diagnostics.DiagnosticInfo.ToDiagnostic"/>) and so carries no <c>SourceTree</c> of its own.
+    /// </summary>
+    private static string CallHostSource(string body, string members) =>
+        CallHost.Replace("$MEMBERS$", members).Replace("$BODY$", body);
 
     private static GeneratorRunResult Run(string part) =>
         CompilationTestHost.RunGenerator(Host.Replace("$PART$", part));
@@ -868,11 +878,17 @@ public sealed class ViewPartIteratorTests
     [Fact]
     public void ForEachCombinator_WhenSourceCallsAViewPart_ReportsBcf3043()
     {
-        var result = RunCall(
-            "ForEach(Rows(_items), item => 0, item => Span[\"x\"])",
-            RowsPart + ItemMembers);
+        const string body = "ForEach(Rows(_items), item => 0, item => Span[\"x\"])";
+        var members = RowsPart + ItemMembers;
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+        var result = RunCall(body, members);
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF3043");
+
+        // Regression pin (#582): a bare call's squiggle is the whole source expression, since it and the
+        // resolved invocation are one and the same node here.
+        Assert.Equal(
+            "Rows(_items)",
+            SourceText.From(CallHostSource(body, members)).ToString(diagnostic.Location.SourceSpan));
     }
 
     /// <summary>
@@ -999,11 +1015,17 @@ public sealed class ViewPartIteratorTests
     [Fact]
     public void ForEachCombinator_WhenSourceIsAViewPartCallWithToList_ReportsBcf3043()
     {
-        var result = RunCall(
-            "ForEach(Rows(_items).ToList(), item => 0, item => Span[\"x\"])",
-            RowsPart + ItemMembers);
+        const string body = "ForEach(Rows(_items).ToList(), item => 0, item => Span[\"x\"])";
+        var members = RowsPart + ItemMembers;
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+        var result = RunCall(body, members);
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF3043");
+
+        // #582: squiggles the receiver the peel resolved to a [ViewPart] (`Rows(_items)`), not the whole
+        // `.ToList()` expression the message doesn't name.
+        Assert.Equal(
+            "Rows(_items)",
+            SourceText.From(CallHostSource(body, members)).ToString(diagnostic.Location.SourceSpan));
     }
 
     [Fact]
@@ -1027,10 +1049,18 @@ public sealed class ViewPartIteratorTests
                 return ForEach(rows, item => 0, item => Span["x"]);
             }
             """;
+        var members = RowsPart + outerReadsRowsThroughALocal + ItemMembers;
 
-        var result = RunDeclaration(RowsPart + outerReadsRowsThroughALocal + ItemMembers);
+        var result = RunDeclaration(members);
+        var diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "BCF3043");
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3043");
+        // #582: squiggles the [ViewPart] call in `rows`'s own initializer, not the `rows` identifier read
+        // at the ForEach call two lines below -- the message talks about the call, so the squiggle must
+        // land there, not on a name that isn't one.
+        Assert.Equal(
+            "Rows(items)",
+            SourceText.From(CallHostSource("""Span["Body"]""", members))
+                .ToString(diagnostic.Location.SourceSpan));
     }
 
     [Fact]
