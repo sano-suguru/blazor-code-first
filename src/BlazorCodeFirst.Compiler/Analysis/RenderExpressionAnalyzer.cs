@@ -189,6 +189,85 @@ internal static class RenderExpressionAnalyzer
             () => ClassifyIteratorForEach(forEachStatement, bodyStatements, yielded, context));
 
     /// <summary>
+    /// The tail of a transplantable body: leading statements plus exactly one of a returned expression, a
+    /// native `if`/`else`, or a native `switch` — the three shapes <see cref="TryReadTransplantableBlock"/>,
+    /// <see cref="TryReadTransplantableIf"/>, and <see cref="TryReadTransplantableSwitch"/> each read on
+    /// their own. Read together by <see cref="TryReadTransplantableTail"/> and consumed together by
+    /// <see cref="AnalyzeTail"/>/<see cref="AnalyzeArmTail"/>, so the three positions that read this shape —
+    /// a design-time expression getter, a <c>ForEach</c> content lambda, and a <c>[ViewPart]</c> body — and
+    /// the two that read it again one level down — an <c>If</c> branch's own tail and a <c>switch</c>
+    /// section's own tail — share one trial ladder and one consuming ladder rather than five hand-written
+    /// copies of each (#571).
+    /// </summary>
+    public readonly record struct TransplantableTail(
+        ImmutableArray<StatementSyntax> Statements,
+        ExpressionSyntax? Expression,
+        IfStatementSyntax? IfStatement,
+        SwitchStatementSyntax? SwitchStatement);
+
+    /// <summary>
+    /// Reads <paramref name="block"/> as whichever of the three <see cref="TransplantableTail"/> shapes it
+    /// is, trying the narrowest (a single trailing <c>return</c>) first since that is the overwhelmingly
+    /// common shape every component body reaches on every keystroke.
+    /// </summary>
+    public static bool TryReadTransplantableTail(BlockSyntax block, out TransplantableTail tail)
+    {
+        if (TryReadTransplantableBlock(block, out var statements, out var returned))
+        {
+            tail = new TransplantableTail(statements, returned, null, null);
+            return true;
+        }
+
+        if (TryReadTransplantableIf(block, out var ifStatements, out var ifStatement))
+        {
+            tail = new TransplantableTail(ifStatements, null, ifStatement, null);
+            return true;
+        }
+
+        if (TryReadTransplantableSwitch(block, out var switchStatements, out var switchStatement))
+        {
+            tail = new TransplantableTail(switchStatements, null, null, switchStatement);
+            return true;
+        }
+
+        tail = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Consumes a <see cref="TransplantableTail"/> at a root position — a design-time expression getter, a
+    /// <c>ForEach</c> content lambda, or a <c>[ViewPart]</c> body — by dispatching to whichever public
+    /// <c>Analyze</c> overload matches the shape that was read. BCF2002 is reported once when the tail
+    /// degrades to a native `if`/`switch`, since each of those overloads reports it itself.
+    /// </summary>
+    public static RenderNode? AnalyzeTail(TransplantableTail tail, ViewPartBodyContext context) =>
+        tail.Expression is { } expression
+            ? Analyze(tail.Statements, expression, context)
+            : tail.IfStatement is { } ifStatement
+                ? Analyze(tail.Statements, ifStatement, context)
+                : Analyze(tail.Statements, tail.SwitchStatement!, context);
+
+    /// <summary>
+    /// Consumes a <see cref="TransplantableTail"/> one level down from a root position — an <c>If</c>
+    /// branch's own tail, or a <c>switch</c> section's own tail — where BCF2002 was already reported once
+    /// for the whole chain by the root call and must not be reported a second time for this arm. Goes
+    /// straight to <see cref="AnalyzeTransplantedBody"/> and <see cref="AnalyzeIf"/>/<see cref="AnalyzeSwitch"/>
+    /// rather than through the public <c>Analyze</c> overloads <see cref="AnalyzeTail"/> uses, which is what
+    /// keeps the report to one per chain.
+    /// </summary>
+    private static RenderNode? AnalyzeArmTail(TransplantableTail tail, ViewPartBodyContext context) =>
+        tail.Expression is { } expression
+            ? Analyze(tail.Statements, expression, context)
+            : tail.IfStatement is { } ifStatement
+                ? AnalyzeTransplantedBody(
+                    tail.Statements, ifStatement.Condition, context, () => AnalyzeIf(ifStatement, context))
+                : AnalyzeTransplantedBody(
+                    tail.Statements,
+                    tail.SwitchStatement!.Expression,
+                    context,
+                    () => AnalyzeSwitch(tail.SwitchStatement!, context));
+
+    /// <summary>
     /// The scaffolding both <c>Analyze</c> overloads share: collect the leading statements' declared
     /// locals (against <paramref name="localsAnchor"/>, the returned expression or the `if`'s condition
     /// — either can hold a pattern designation that binds into the same scope a declaration statement
@@ -308,22 +387,11 @@ internal static class RenderExpressionAnalyzer
     /// Reads one `if`/`else` arm's block: either the existing single-trailing-return shape, or a
     /// further nested `if` (an explicitly braced `else { var y = ...; if (...) { ... } }`, as opposed
     /// to the `else if` sugar <see cref="AnalyzeIf"/> handles directly), or a further nested `switch`.
-    /// The nested-`if`/`switch` case goes through <see cref="AnalyzeTransplantedBody"/> directly, not the
-    /// public <see cref="Analyze(ImmutableArray{StatementSyntax}, IfStatementSyntax, ViewPartBodyContext)"/>/
-    /// <see cref="Analyze(ImmutableArray{StatementSyntax}, SwitchStatementSyntax, ViewPartBodyContext)"/>
-    /// overload, so this continuation of the same chain does not report BCF2002 a second time.
+    /// Consumed through <see cref="AnalyzeArmTail"/> rather than <see cref="AnalyzeTail"/>, so this
+    /// continuation of the same chain does not report BCF2002 a second time.
     /// </summary>
     private static RenderNode? AnalyzeArm(BlockSyntax block, ViewPartBodyContext context) =>
-        TryReadTransplantableBlock(block, out var exprStatements, out var returned)
-            ? Analyze(exprStatements, returned, context)
-            : TryReadTransplantableIf(block, out var ifStatements, out var nestedIf)
-                ? AnalyzeTransplantedBody(
-                    ifStatements, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context))
-                : TryReadTransplantableSwitch(block, out var switchStatements, out var nestedSwitch)
-                    ? AnalyzeTransplantedBody(
-                        switchStatements, nestedSwitch.Expression, context,
-                        () => AnalyzeSwitch(nestedSwitch, context))
-                    : null;
+        TryReadTransplantableTail(block, out var tail) ? AnalyzeArmTail(tail, context) : null;
 
     /// <summary>
     /// Reads one `switch`, in the same shape <see cref="AnalyzeIf"/> reads one `if`/`else`: a discriminant
@@ -411,16 +479,20 @@ internal static class RenderExpressionAnalyzer
         if (!TryReadLeadingStatements(statements, count, out var leading))
             return null;
 
-        return statements[count - 1] switch
+        // A section has no wrapping block by grammar, so there is no BlockSyntax to hand
+        // TryReadTransplantableTail the usual way; this builds the same TransplantableTail shape by hand
+        // from the statement list directly, then consumes it exactly the way AnalyzeArm does.
+        TransplantableTail? tail = statements[count - 1] switch
         {
-            ReturnStatementSyntax { Expression: { } returned } => Analyze(leading, returned, context),
-            IfStatementSyntax { Statement: BlockSyntax } nestedIf =>
-                AnalyzeTransplantedBody(leading, nestedIf.Condition, context, () => AnalyzeIf(nestedIf, context)),
-            SwitchStatementSyntax nestedSwitch =>
-                AnalyzeTransplantedBody(
-                    leading, nestedSwitch.Expression, context, () => AnalyzeSwitch(nestedSwitch, context)),
+            ReturnStatementSyntax { Expression: { } returned } => new TransplantableTail(
+                leading, returned, null, null),
+            IfStatementSyntax { Statement: BlockSyntax } nestedIf => new TransplantableTail(
+                leading, null, nestedIf, null),
+            SwitchStatementSyntax nestedSwitch => new TransplantableTail(leading, null, null, nestedSwitch),
             _ => null,
         };
+
+        return tail is { } t ? AnalyzeArmTail(t, context) : null;
     }
 
     /// <summary>
@@ -920,16 +992,12 @@ internal static class RenderExpressionAnalyzer
                 ? ExpressionTemplateFactory.Create(keyBody, context)
                 : null;
 
-            // The content's transplanted scope opens inside Analyze rather than around this whole block.
-            // The key is a sibling argument, so its span cannot be inside the content's statements and
-            // the scope could never have covered it.
+            // The content's transplanted scope opens inside AnalyzeTail rather than around this whole
+            // block. The key is a sibling argument, so its span cannot be inside the content's statements
+            // and the scope could never have covered it.
             var content = contentShape.Callee is { } callee
                 ? BuildMethodGroupContent(callee, contentArg.Expression, itemOrdinal, context)
-                : contentShape.LambdaBody is { } lambdaBody
-                    ? Analyze(contentShape.Statements, lambdaBody, context)
-                    : contentShape.LambdaIf is { } lambdaIf
-                        ? Analyze(contentShape.Statements, lambdaIf, context)
-                        : Analyze(contentShape.Statements, contentShape.LambdaSwitch!, context);
+                : AnalyzeTail(contentShape.Tail, context);
             if (content is null)
                 return null;
 
@@ -1214,49 +1282,80 @@ internal static class RenderExpressionAnalyzer
     }
 
     /// <summary>
-    /// The <c>content</c> argument of a <c>ForEach</c>, resolved to one of the two shapes the generator
-    /// accepts. Exactly one of <see cref="Callee"/> and <see cref="LambdaParameter"/> is set.
+    /// A <c>content</c>-shaped argument, resolved to one of the two shapes a position accepting either a
+    /// lambda of a fixed arity or a matching-arity bare method group can take: exactly one of
+    /// <see cref="Callee"/> and <see cref="Tail"/>'s <see cref="TransplantableTail.Expression"/>/
+    /// <see cref="TransplantableTail.IfStatement"/>/<see cref="TransplantableTail.SwitchStatement"/> is
+    /// set. <see cref="LambdaParameter"/> is set only when the arity is 1 and a lambda (not a method
+    /// group) was bound.
     /// </summary>
-    private readonly record struct ForEachContent(
+    private readonly record struct TransplantableContent(
         IMethodSymbol? Callee,
         ISymbol? LambdaParameter,
-        ExpressionSyntax? LambdaBody,
-        IfStatementSyntax? LambdaIf,
-        SwitchStatementSyntax? LambdaSwitch,
-        ImmutableArray<StatementSyntax> Statements);
+        TransplantableTail Tail);
 
     /// <summary>
-    /// Resolves the <c>content</c> argument to a lambda (expression- or block-bodied) or to a bare method
-    /// group read as the call it stands for.
+    /// Resolves a <c>content</c>-shaped argument to a lambda of exactly <paramref name="parameterCount"/>
+    /// parameters (0 or 1), in any of <see cref="TransplantableTail"/>'s shapes, or to a bare method group
+    /// of matching arity read as the call it stands for.
     /// </summary>
     /// <remarks>
-    /// The method group is restricted to one parameter, which is the shape <c>Func&lt;T, View&gt;</c> binds
-    /// to directly. Anything wider would need argument binding, and there is no invocation syntax here to
-    /// bind against. Whether that callee can be translated at all is <see cref="ClassifyCallee"/>'s
-    /// question, asked later so its diagnostics land after the key's.
+    /// Shared by every position that accepts this shape at a given arity: a <c>ForEach</c> content lambda
+    /// and a contextual <c>.Template</c> content (both arity 1, <c>Func&lt;T, View&gt;</c>), and an
+    /// <c>If</c> branch (arity 0, <c>Func&lt;View&gt;</c>). The method group is restricted to matching
+    /// arity, which is the shape the delegate type binds to directly; anything wider would need argument
+    /// binding, and there is no invocation syntax here to bind against. Whether that callee can be
+    /// translated at all is <see cref="ClassifyCallee"/>'s question, asked later by each caller so its
+    /// diagnostics land after any sibling argument's.
     /// </remarks>
-    private static bool TryBindForEachContent(
-        ExpressionSyntax content, ViewPartBodyContext context, out ForEachContent shape)
+    private static bool TryBindTransplantableContent(
+        ExpressionSyntax content,
+        int parameterCount,
+        ViewPartBodyContext context,
+        out TransplantableContent shape)
     {
         shape = default;
 
-        if (content is not LambdaExpressionSyntax)
+        // An anonymous method (`delegate(...) { }`) is excluded alongside a lambda: it is an inline
+        // function with no name to call, but it is not a LambdaExpressionSyntax, so GetSymbolInfo would
+        // otherwise be asked about it below. Roslyn resolves that ask to the anonymous method's own
+        // compiler-synthesized symbol, whose MethodKind is AnonymousFunction rather than Ordinary --
+        // ClassifyCallee's own guard excludes that kind, but silently (NonSurfaceCallKind.NotTranslatable
+        // reports nothing), so the content fell through to the generic BCF1003 instead of naming the shape
+        // with the position's own diagnostic (measured empirically before this exclusion).
+        if (content is not AnonymousFunctionExpressionSyntax)
         {
             if (context.SemanticModel.GetSymbolInfo(content, context.CancellationToken).Symbol
-                is not IMethodSymbol { Parameters.Length: 1 } callee)
+                is not IMethodSymbol { Parameters.Length: var arity } callee || arity != parameterCount)
             {
                 return false;
             }
 
-            shape = new ForEachContent(callee, null, null, null, null, []);
+            shape = new TransplantableContent(callee, null, default);
             return true;
         }
 
-        if (!TryExtractLambdaParameterAndBody(content, out var parameter, out var bodyNode)
-            || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
-                is not { } parameterSymbol)
+        ISymbol? parameterSymbol = null;
+        CSharpSyntaxNode bodyNode;
+        if (parameterCount == 0)
         {
-            return false;
+            // A zero-parameter lambda is always parenthesized (`() => ...`); C# has no bare-identifier
+            // spelling for one, unlike the one-parameter case TryExtractLambdaParameterAndBody reads.
+            if (content is not ParenthesizedLambdaExpressionSyntax { ParameterList.Parameters.Count: 0 } zeroArg)
+                return false;
+
+            bodyNode = zeroArg.Body;
+        }
+        else
+        {
+            if (!TryExtractLambdaParameterAndBody(content, out var parameter, out bodyNode)
+                || context.SemanticModel.GetDeclaredSymbol(parameter, context.CancellationToken)
+                    is not { } declared)
+            {
+                return false;
+            }
+
+            parameterSymbol = declared;
         }
 
         if (bodyNode is ExpressionSyntax expressionBody)
@@ -1266,33 +1365,27 @@ internal static class RenderExpressionAnalyzer
             if (DeclaresReservedName(expressionBody))
                 return false;
 
-            shape = new ForEachContent(null, parameterSymbol, expressionBody, null, null, []);
+            shape = new TransplantableContent(
+                null, parameterSymbol, new TransplantableTail([], expressionBody, null, null));
             return true;
         }
 
-        if (bodyNode is BlockSyntax block
-            && TryReadTransplantableBlock(block, out var statements, out var returned))
+        if (bodyNode is BlockSyntax block && TryReadTransplantableTail(block, out var tail))
         {
-            shape = new ForEachContent(null, parameterSymbol, returned, null, null, statements);
-            return true;
-        }
-
-        if (bodyNode is BlockSyntax ifBlock
-            && TryReadTransplantableIf(ifBlock, out var ifStatements, out var ifStatement))
-        {
-            shape = new ForEachContent(null, parameterSymbol, null, ifStatement, null, ifStatements);
-            return true;
-        }
-
-        if (bodyNode is BlockSyntax switchBlock
-            && TryReadTransplantableSwitch(switchBlock, out var switchStatements, out var switchStatement))
-        {
-            shape = new ForEachContent(null, parameterSymbol, null, null, switchStatement, switchStatements);
+            shape = new TransplantableContent(null, parameterSymbol, tail);
             return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// Resolves the <c>content</c> argument of a <c>ForEach</c> to one of the two shapes the generator
+    /// accepts, at the one-parameter arity <c>Func&lt;T, View&gt;</c> requires.
+    /// </summary>
+    private static bool TryBindForEachContent(
+        ExpressionSyntax content, ViewPartBodyContext context, out TransplantableContent shape) =>
+        TryBindTransplantableContent(content, parameterCount: 1, context, out shape);
 
     /// <summary>
     /// The content of a method group: the call it stands for, with the iteration variable in its one
@@ -4620,11 +4713,12 @@ internal static class RenderExpressionAnalyzer
             // TryExtractSingleParameterLambda, the caller pattern-matches this method's null-forgiven
             // `body` against ExpressionSyntax; a null body fails that match regardless of the bool this
             // returns, so TryExtractSingleParameterLambda itself still answers false either way. At
-            // TryBindForEachContent, the caller has already proven `content is LambdaExpressionSyntax`
-            // before reaching here, so only a wrong-arity parenthesized lambda (0 or 2+ parameters) can
-            // land in this branch -- and no construction found reaches it with the invocation still
-            // resolving to the ForEach method symbol; overload resolution fails on the arity mismatch
-            // first, so Classify never calls this function for that content at all.
+            // TryBindTransplantableContent's one-parameter call (ForEach's content), the caller has
+            // already proven `content is LambdaExpressionSyntax` before reaching here, so only a
+            // wrong-arity parenthesized lambda (0 or 2+ parameters) can land in this branch -- and no
+            // construction found reaches it with the invocation still resolving to the ForEach method
+            // symbol; overload resolution fails on the arity mismatch first, so Classify never calls this
+            // function for that content at all.
             default:
                 parameter = null!;
                 body = null!;

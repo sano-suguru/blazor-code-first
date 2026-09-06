@@ -109,9 +109,7 @@ internal static class ComponentModelFactory
                 [symbol.Name, expressionName, designTimeBase.Name]));
         }
 
-        var shape = FindDesignTimeExpression(
-            elected, out var bodyExpression, out var bodyIf, out var bodySwitch, out var bodyStatements,
-            out var getterLocation);
+        var shape = FindDesignTimeExpression(elected, out var tail, out var getterLocation);
 
         if (shape == DesignTimeExpressionShape.NoDeclaration)
             return null;
@@ -136,7 +134,7 @@ internal static class ComponentModelFactory
         if (knownSymbols is null)
             return null;
 
-        if (bodyExpression is null && bodyIf is null && bodySwitch is null)
+        if (tail is not { } transplantableTail)
             return null;
 
         // Reuse the view-part-definition analyzer so component bodies and view part bodies share a
@@ -152,11 +150,7 @@ internal static class ComponentModelFactory
             isInlinedAtCallSites: false,
             cancellationToken);
 
-        var template = bodyExpression is not null
-            ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, bodyContext)
-            : bodyIf is not null
-                ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf, bodyContext)
-                : RenderExpressionAnalyzer.Analyze(bodyStatements, bodySwitch!, bodyContext);
+        var template = RenderExpressionAnalyzer.AnalyzeTail(transplantableTail, bodyContext);
 
         // Translation failed. Sweep the whole expression for the specific cause, an unresolved
         // Component<T>() type argument, a value-position type reference, a misplaced decoration, so the
@@ -169,7 +163,9 @@ internal static class ComponentModelFactory
         TemplateLocation? failureLocation = null;
         if (template is null)
         {
-            var failureRoot = bodyExpression ?? bodyIf?.Condition ?? bodySwitch!.Expression;
+            var failureRoot = transplantableTail.Expression
+                ?? transplantableTail.IfStatement?.Condition
+                ?? transplantableTail.SwitchStatement!.Expression;
             FailurePathScanners.ReportAll(failureRoot, bodyContext);
 
             // Carry the innermost expression that failed to classify across the symbol-free boundary so
@@ -378,15 +374,10 @@ internal static class ComponentModelFactory
 
     /// <summary>
     /// Classifies the elected design-time expression declaration. Five getter spellings reach a
-    /// translatable shape, exactly one of <paramref name="expression"/>/<paramref name="ifStatement"/>/
-    /// <paramref name="switchStatement"/> set on success: the property's own expression body
-    /// (<c>=&gt; e</c>), the getter's expression body (<c>get =&gt; e</c>), a getter block ending in a
-    /// single `return`, which <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/> reads and
-    /// whose leading statements it returns in <paramref name="statements"/>, a getter block ending in a
-    /// native `if`/`else`, read the same way by
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>, and a getter block ending in a
-    /// native `switch`, read the same way by
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableSwitch"/>.
+    /// translatable shape, leaving <paramref name="tail"/> set on success: the property's own expression
+    /// body (<c>=&gt; e</c>), the getter's expression body (<c>get =&gt; e</c>), and the three block shapes
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableTail"/> reads — a getter block ending in a
+    /// single `return`, one ending in a native `if`/`else`, and one ending in a native `switch`.
     /// An auto property (no getter body and no <c>partial</c> modifier) is
     /// <see cref="DesignTimeExpressionShape.NotTranslatable"/> and earns BCF1004. A partial property with
     /// no implementation part (<c>partial</c> modifier and no getter body) is
@@ -401,16 +392,10 @@ internal static class ComponentModelFactory
     /// </summary>
     private static DesignTimeExpressionShape FindDesignTimeExpression(
         PropertyDeclarationSyntax prop,
-        out ExpressionSyntax? expression,
-        out IfStatementSyntax? ifStatement,
-        out SwitchStatementSyntax? switchStatement,
-        out ImmutableArray<StatementSyntax> statements,
+        out RenderExpressionAnalyzer.TransplantableTail? tail,
         out Location? location)
     {
-        expression = null;
-        ifStatement = null;
-        switchStatement = null;
-        statements = [];
+        tail = null;
         location = null;
 
         // `=> e;`
@@ -425,7 +410,7 @@ internal static class ComponentModelFactory
                 return DesignTimeExpressionShape.NotTranslatable;
             }
 
-            expression = propertyBody;
+            tail = new RenderExpressionAnalyzer.TransplantableTail([], propertyBody, null, null);
             return DesignTimeExpressionShape.Translatable;
         }
 
@@ -454,38 +439,17 @@ internal static class ComponentModelFactory
             if (RenderExpressionAnalyzer.DeclaresReservedName(accessorBody))
                 return DesignTimeExpressionShape.NotTranslatable;
 
-            expression = accessorBody;
+            tail = new RenderExpressionAnalyzer.TransplantableTail([], accessorBody, null, null);
             return DesignTimeExpressionShape.Translatable;
         }
 
-        // `get { return e; }`, and the same block with statements ahead of that return. One reader for
-        // both, so the getter and a ForEach content block agree on the shape by construction rather than
-        // by two implementations of the same rule.
-        if (getter.Body is { } getterBody
-            && RenderExpressionAnalyzer.TryReadTransplantableBlock(
-                getterBody, out var leading, out var returned))
+        // `get { return e; }`, `get { ...; if (...) { ... } else { ... } }`, and `get { ...; switch (...)
+        // { ... } }` (ARCHITECTURE.md §5.3 Transplantable). One reader for all three, so the getter and a
+        // ForEach content block agree on the shape by construction rather than by three implementations
+        // of the same rule.
+        if (getter.Body is { } block && RenderExpressionAnalyzer.TryReadTransplantableTail(block, out var blockTail))
         {
-            expression = returned;
-            statements = leading;
-            return DesignTimeExpressionShape.Translatable;
-        }
-
-        // `get { ...; if (...) { ... } else { ... } }` (ARCHITECTURE.md §5.3's Transplantable syntax).
-        if (getter.Body is { } ifBody
-            && RenderExpressionAnalyzer.TryReadTransplantableIf(ifBody, out var ifLeading, out var ifStmt))
-        {
-            ifStatement = ifStmt;
-            statements = ifLeading;
-            return DesignTimeExpressionShape.Translatable;
-        }
-
-        // `get { ...; switch (...) { ... } }` (ARCHITECTURE.md §5.3's Transplantable syntax).
-        if (getter.Body is { } switchBody
-            && RenderExpressionAnalyzer.TryReadTransplantableSwitch(
-                switchBody, out var switchLeading, out var switchStmt))
-        {
-            switchStatement = switchStmt;
-            statements = switchLeading;
+            tail = blockTail;
             return DesignTimeExpressionShape.Translatable;
         }
 

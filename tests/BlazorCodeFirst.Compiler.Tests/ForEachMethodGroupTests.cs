@@ -73,6 +73,33 @@ public sealed class ForEachMethodGroupTests
     }
 
     [Fact]
+    public void ForEachContent_WhenAnonymousMethod_ReportsBCF3004()
+    {
+        // An anonymous method is not a LambdaExpressionSyntax, so without excluding it alongside a lambda
+        // it would reach GetSymbolInfo, which resolves it to its own compiler-synthesized symbol rather
+        // than to nothing -- and ClassifyCallee's MethodKind.Ordinary guard rejects that kind silently
+        // (NonSurfaceCallKind.NotTranslatable reports nothing), so the content fell through to the
+        // generic BCF1003 instead of naming the shape with BCF3004 (measured empirically before this
+        // exclusion; #317's other two content positions share the same fix).
+        const string Source = """
+            using BlazorCodeFirst;
+            using System.Collections.Generic;
+
+            public partial class C : BodyComponentBase
+            {
+                private readonly List<string> _items = new() { "a", "b" };
+
+                protected override View Body =>
+                    Html.ForEach(_items, x => x, delegate(string item) { return Html.Span[item]; });
+            }
+            """;
+
+        var result = CompilationTestHost.RunGenerator(Source);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3004");
+    }
+
+    [Fact]
     public void ForEachContent_WhenTheOpaqueMethodGroupIsAnInstanceMethod_CallsItOnTheComponentItself()
     {
         // The group was written with an implicit 'this' and the generated RenderView has the same one, so

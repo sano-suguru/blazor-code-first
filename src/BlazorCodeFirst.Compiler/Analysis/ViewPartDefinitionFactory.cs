@@ -45,9 +45,7 @@ internal static class ViewPartDefinitionFactory
         // would walk the whole block a second time on every keystroke to reach the same two values.
         var bodyAccepted = TryReadBody(
             declaration,
-            out var bodyExpression,
-            out var bodyIf,
-            out var bodySwitch,
+            out var bodyTail,
             out var bodyForEach,
             out var bodyStatements,
             out var bodyForEachStatements,
@@ -61,9 +59,7 @@ internal static class ViewPartDefinitionFactory
             attributeContext,
             method,
             declaration,
-            bodyExpression,
-            bodyIf,
-            bodySwitch,
+            bodyTail,
             bodyForEach,
             bodyStatements,
             bodyForEachStatements,
@@ -213,70 +209,43 @@ internal static class ViewPartDefinitionFactory
     }
 
     /// <summary>
-    /// Either the expression a view part body returns, the native `if` it ends in, the native `switch` it
-    /// ends in, or the native `foreach` it ends in, and the statements written ahead of it — exactly one
-    /// of
-    /// <paramref name="expression"/>/<paramref name="ifStatement"/>/<paramref name="switchStatement"/>/<paramref name="forEachStatement"/>
-    /// is set on a <see langword="true"/> return. Five body forms reach here: <c>=&gt; e</c>; the block a
-    /// design-time expression getter and a <c>ForEach</c> content lambda also accept, read by
-    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableBlock"/>; a block ending in a native
-    /// `if`/`else`, read by <see cref="RenderExpressionAnalyzer.TryReadTransplantableIf"/>; a block ending
-    /// in a native `switch`, read by <see cref="RenderExpressionAnalyzer.TryReadTransplantableSwitch"/>
-    /// (both ARCHITECTURE.md §2.3 Transplantable); and a block ending in a native `foreach` whose own last
-    /// statement is exactly one `yield return`, read by
-    /// <see cref="RenderExpressionAnalyzer.TryReadIteratorForEach"/> (the one shape `if`/`switch` cannot
-    /// cover, since a getter cannot be an iterator). Returns <see langword="false"/> for a body outside
-    /// all five, which earns BCF1002 at the declaration.
+    /// Either the <see cref="RenderExpressionAnalyzer.TransplantableTail"/> a view part body reaches, or
+    /// the native `foreach` it ends in and the statements written ahead of it — exactly one of
+    /// <paramref name="tail"/>/<paramref name="forEachStatement"/> is set on a <see langword="true"/>
+    /// return. Five body forms reach here: <c>=&gt; e</c>; the three block shapes
+    /// <see cref="RenderExpressionAnalyzer.TryReadTransplantableTail"/> reads (the same shapes a
+    /// design-time expression getter and a <c>ForEach</c> content lambda accept, ARCHITECTURE.md §2.3
+    /// Transplantable); and a block ending in a native `foreach` whose own last statement is exactly one
+    /// `yield return`, read by <see cref="RenderExpressionAnalyzer.TryReadIteratorForEach"/> (the one shape
+    /// `if`/`switch` cannot cover, since a getter cannot be an iterator). Returns <see langword="false"/>
+    /// for a body outside all five, which earns BCF1002 at the declaration.
     /// </summary>
     private static bool TryReadBody(
         MethodDeclarationSyntax declaration,
-        out ExpressionSyntax? expression,
-        out IfStatementSyntax? ifStatement,
-        out SwitchStatementSyntax? switchStatement,
+        out RenderExpressionAnalyzer.TransplantableTail? tail,
         out ForEachStatementSyntax? forEachStatement,
         out ImmutableArray<StatementSyntax> statements,
         out ImmutableArray<StatementSyntax> forEachBodyStatements,
         out ExpressionSyntax? yieldedExpression)
     {
+        tail = null;
         statements = [];
-        ifStatement = null;
-        switchStatement = null;
         forEachStatement = null;
         forEachBodyStatements = [];
         yieldedExpression = null;
 
         if (declaration.ExpressionBody is { Expression: var expressionBody })
         {
-            expression = expressionBody;
+            tail = new RenderExpressionAnalyzer.TransplantableTail([], expressionBody, null, null);
             return true;
         }
 
-        if (declaration.Body is { } block
-            && RenderExpressionAnalyzer.TryReadTransplantableBlock(block, out var leading, out var returned))
+        // `get { return e; }` / `{ ...; if (...) { ... } else { ... } }` / `{ ...; switch (...) { ... } }`
+        // (ARCHITECTURE.md §2.3/§5.3 Transplantable). One reader for all three, so a [ViewPart] body
+        // agrees with the getter and ForEach content on the shape by construction.
+        if (declaration.Body is { } block && RenderExpressionAnalyzer.TryReadTransplantableTail(block, out var blockTail))
         {
-            expression = returned;
-            statements = leading;
-            return true;
-        }
-
-        // `if (...) { ... } else { ... }` (ARCHITECTURE.md §5.3's Transplantable syntax).
-        if (declaration.Body is { } ifBlock
-            && RenderExpressionAnalyzer.TryReadTransplantableIf(ifBlock, out var ifLeading, out var ifStmt))
-        {
-            expression = null;
-            ifStatement = ifStmt;
-            statements = ifLeading;
-            return true;
-        }
-
-        // `switch (...) { ... }` (ARCHITECTURE.md §5.3's Transplantable syntax).
-        if (declaration.Body is { } switchBlock
-            && RenderExpressionAnalyzer.TryReadTransplantableSwitch(
-                switchBlock, out var switchLeading, out var switchStmt))
-        {
-            expression = null;
-            switchStatement = switchStmt;
-            statements = switchLeading;
+            tail = blockTail;
             return true;
         }
 
@@ -290,7 +259,6 @@ internal static class ViewPartDefinitionFactory
                 out var forEachBody,
                 out var yielded))
         {
-            expression = null;
             forEachStatement = forEachStmt;
             statements = forEachLeading;
             forEachBodyStatements = forEachBody;
@@ -298,7 +266,6 @@ internal static class ViewPartDefinitionFactory
             return true;
         }
 
-        expression = null;
         return false;
     }
 
@@ -306,9 +273,7 @@ internal static class ViewPartDefinitionFactory
         GeneratorAttributeSyntaxContext attributeContext,
         IMethodSymbol method,
         MethodDeclarationSyntax declaration,
-        ExpressionSyntax? bodyExpression,
-        IfStatementSyntax? bodyIf,
-        SwitchStatementSyntax? bodySwitch,
+        RenderExpressionAnalyzer.TransplantableTail? bodyTail,
         ForEachStatementSyntax? bodyForEach,
         ImmutableArray<StatementSyntax> bodyStatements,
         ImmutableArray<StatementSyntax> bodyForEachStatements,
@@ -317,6 +282,12 @@ internal static class ViewPartDefinitionFactory
         CancellationToken cancellationToken,
         out ImmutableArray<DiagnosticInfo> diagnostics)
     {
+        // The outer leading statements, whichever of the two shapes supplied them: the tail's own (when
+        // the body is one of TransplantableTail's three shapes) or the ones read ahead of the foreach
+        // (when it is the fourth). Exactly one of bodyTail/bodyForEach is set, so exactly one side of this
+        // is non-empty.
+        var leadingStatements = bodyTail?.Statements ?? bodyStatements;
+
         var ordinals = ImmutableDictionary.CreateBuilder<ISymbol, int>(SymbolEqualityComparer.Default);
         var contentOrdinals = ImmutableHashSet.CreateBuilder<int>();
         var parameters = ImmutableArray.CreateBuilder<ViewPartParameter>(method.Parameters.Length);
@@ -365,10 +336,13 @@ internal static class ViewPartDefinitionFactory
             // as one in the returned expression is, so leaving them out would let `var v = Slot;` pass as
             // "never named" and then place the content twice.
             var slotReferences = CountSlotReferences(
-                (SyntaxNode?)bodyExpression ?? (SyntaxNode?)bodyIf ?? (SyntaxNode?)bodySwitch ?? bodyForEach!,
+                (SyntaxNode?)bodyTail?.Expression
+                    ?? (SyntaxNode?)bodyTail?.IfStatement
+                    ?? (SyntaxNode?)bodyTail?.SwitchStatement
+                    ?? bodyForEach!,
                 attributeContext.SemanticModel, knownSymbols, cancellationToken);
 
-            foreach (var statement in bodyStatements)
+            foreach (var statement in leadingStatements)
             {
                 slotReferences += CountSlotReferences(
                     statement, attributeContext.SemanticModel, knownSymbols, cancellationToken);
@@ -396,14 +370,10 @@ internal static class ViewPartDefinitionFactory
             cancellationToken,
             contentOrdinals.ToImmutable());
 
-        var body = bodyExpression is not null
-            ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyExpression, context)
-            : bodyIf is not null
-                ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodyIf, context)
-                : bodySwitch is not null
-                    ? RenderExpressionAnalyzer.Analyze(bodyStatements, bodySwitch, context)
-                    : RenderExpressionAnalyzer.Analyze(
-                        bodyStatements, bodyForEach!, bodyForEachStatements, bodyYielded!, context);
+        var body = bodyTail is { } tail
+            ? RenderExpressionAnalyzer.AnalyzeTail(tail, context)
+            : RenderExpressionAnalyzer.Analyze(
+                bodyStatements, bodyForEach!, bodyForEachStatements, bodyYielded!, context);
         if (body is null)
         {
             // The same failure-path sweeps the component host runs, from the one list both share: report
@@ -413,7 +383,10 @@ internal static class ViewPartDefinitionFactory
             // read by nested Analyze calls, each carrying its own UntranslatableLocation on failure, same
             // as ComponentModelFactory's equivalent branch.
             FailurePathScanners.ReportAll(
-                bodyExpression ?? bodyIf?.Condition ?? bodySwitch?.Expression ?? bodyForEach!.Expression,
+                bodyTail?.Expression
+                    ?? bodyTail?.IfStatement?.Condition
+                    ?? bodyTail?.SwitchStatement?.Expression
+                    ?? bodyForEach!.Expression,
                 context);
 
             // Prefer a specific recorded unsupported-reference diagnostic (for example a referenced local
