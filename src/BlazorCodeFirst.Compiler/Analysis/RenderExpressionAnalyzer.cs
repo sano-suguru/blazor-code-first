@@ -1316,7 +1316,14 @@ internal static class RenderExpressionAnalyzer
     {
         shape = default;
 
-        if (content is not LambdaExpressionSyntax)
+        // An anonymous method (`delegate(...) { }`) is excluded alongside a lambda: it is an inline
+        // function with no name to call, but it is not a LambdaExpressionSyntax, so GetSymbolInfo would
+        // otherwise be asked about it below. Roslyn resolves that ask to the anonymous method's own
+        // compiler-synthesized symbol, whose MethodKind is AnonymousFunction rather than Ordinary --
+        // ClassifyCallee's own guard excludes that kind, but silently (NonSurfaceCallKind.NotTranslatable
+        // reports nothing), so the content fell through to the generic BCF1003 instead of naming the shape
+        // with the position's own diagnostic (measured empirically before this exclusion).
+        if (content is not AnonymousFunctionExpressionSyntax)
         {
             if (context.SemanticModel.GetSymbolInfo(content, context.CancellationToken).Symbol
                 is not IMethodSymbol { Parameters.Length: var arity } callee || arity != parameterCount)
