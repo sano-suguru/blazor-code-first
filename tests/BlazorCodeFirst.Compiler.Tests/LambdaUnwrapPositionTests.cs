@@ -90,8 +90,9 @@ public sealed class LambdaUnwrapPositionTests
         // Extracted from AnalyzeSplice into its own method so AnalyzeSplice can also try the iterator-
         // [ViewPart]-call spread shape when the projection syntax does not match (#316).
         { "AnalyzeSplicedProjection", 1, true },
-        // Both branches, each transplanted into one arm of the generated `if`.
-        { "ClassifyIf", 2, true },
+        // One `If` branch (`then` or `otherwise`), transplanted into one arm of the generated `if`.
+        // `ClassifyIf` calls this once per branch rather than unwrapping either one itself.
+        { "AnalyzeIfBranch", 1, true },
         // The content of a contextual `.Template`, transplanted into the generated fragment. The other
         // arms of this dispatcher unwrap nothing, which is why one row covers it.
         { "ClassifyComponentParameter", 1, true },

@@ -326,15 +326,15 @@ public sealed class BodyTransplantTests
                 }
             }
         """)]
-    public void Body_WhenAnIfBranchDeclaresTheBuildersName_ReportsBCF1003(string shape, string getter)
+    public void Body_WhenAnIfBranchDeclaresTheBuildersName_ReportsBCF3044(string shape, string getter)
     {
         var result = Run(getter);
 
         Assert.Empty(result.GeneratedSources);
-        // BCF1003 rather than BCF1004: the refusal comes from the branch, and that is the expression the
-        // author has to change.
+        // BCF3044 rather than BCF1003 or BCF1004: the refusal comes from the branch itself (#317), and
+        // that is the expression the author has to change.
         Assert.True(
-            result.Diagnostics.Any(d => d.Id == "BCF1003"),
-            $"{shape}: expected BCF1003, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
+            result.Diagnostics.Any(d => d.Id == "BCF3044"),
+            $"{shape}: expected BCF3044, got [{string.Join(", ", result.Diagnostics.Select(d => d.Id))}].");
     }
 }

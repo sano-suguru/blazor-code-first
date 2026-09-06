@@ -206,6 +206,7 @@ public partial class TaskListPage : BodyComponentBase
 
 - `If` expands into a native `if` statement, and `ForEach` into `foreach` + `SetKey`. Each branch path is assigned a disjoint static sequence space, preventing state from carrying over incorrectly (`ARCHITECTURE.md` §2.4).
 - `ForEach`'s `key` selector cannot be omitted. Either write one, or explicitly decline by writing `key: null` — there is no default, so declining is always visible at the call site. When written, the sequence number carries "syntactic position within the template" and the key carries "data identity," guaranteeing state survives a reorder, insertion, or deletion. Declined, that guarantee is gone, and the diff behaves like an index-derived key: a leading insertion rewrites every row and loses each row's local state (`ARCHITECTURE.md` §2.7(B)). A declined `ForEach` emits no `SetKey`, so `Fragment` / `Raw` / a bare `If` may sit at content's root.
+- Unlike `ForEach`'s content, `If`'s branches, and a contextual `.Template`'s content (§4.2, #317), `ForEach`'s `key` and `.Bind`'s getter stay expression-only and always will: both transplant the body itself (into `SetKey`; into both the attribute value and `CreateBinder`'s current value), so a written expression is required by construction, and a method group has no body at the call site for either to read.
 - There are two spellings for building children from data, and the second is sugar for the first — they fold into the same node, agreeing down to not emitting `SetKey`.
 
   ```csharp

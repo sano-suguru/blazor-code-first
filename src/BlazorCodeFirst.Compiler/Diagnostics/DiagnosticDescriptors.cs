@@ -1334,6 +1334,40 @@ internal static class DiagnosticDescriptors
             "empty while the loop count stays correct. Rewrite the call as a spread in a child position.");
 
     /// <summary>
+    /// BCF3044: an <c>If</c>'s <c>then</c> or <c>otherwise</c> branch is not a shape the generator can
+    /// sequence: neither an inline expression lambda, a block reaching one of
+    /// <see cref="Analysis.RenderExpressionAnalyzer.TransplantableTail"/>'s shapes, nor a zero-parameter
+    /// <c>View</c>-returning method group. An anonymous method hides the branch behind no callee at all.
+    /// </summary>
+    /// <remarks>
+    /// Sibling of BCF3004 and BCF3022, which place the same restriction on <c>ForEach</c>'s content and a
+    /// contextual <c>.Template</c>'s content for the same reason (#317): all three read a
+    /// <c>content</c>-shaped argument through <see cref="Analysis.RenderExpressionAnalyzer"/>'s shared
+    /// <c>TryBindTransplantableContent</c>, at the arity each position's delegate type requires -- zero
+    /// here, since <c>If</c>'s branches are <c>Func&lt;View&gt;</c>. A method group is reread as the call
+    /// it stands for and falls to the same three-way branch (static expansion / BCF3030 / Opaque) any
+    /// other call gets. Before this diagnostic existed, a branch outside the accepted shapes fell through
+    /// silently to BCF1003, which named the whole design-time expression rather than the branch itself.
+    /// </remarks>
+    public static readonly DiagnosticDescriptor BCF3044 = new(
+        id: "BCF3044",
+        title: "If branch has a shape the generator cannot sequence",
+        messageFormat:
+            "An If branch must be an expression lambda, a block with one trailing return, a block ending "
+                + "in a native if/else or switch, or a zero-parameter method group",
+        category: "BlazorCodeFirst",
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:
+            "Each branch is given its own static sequence range (unlike ForEach's content or a contextual "
+                + ".Template's content, which reuse one range across many iterations/uses), which a second "
+                + "return would need its own copy of; a native if/else or switch is accepted instead, but "
+                + "only one arm or section ever runs, so it degrades to a dynamic region (BCF2002) rather "
+                + "than getting a static range of its own. An anonymous method is excluded outright: it "
+                + "names no callee a method group could be read as, and it is not one of the lambda shapes "
+                + "either.");
+
+    /// <summary>
     /// Every declared descriptor, discovered reflectively from this type's public static
     /// <see cref="DiagnosticDescriptor"/> fields so a newly added descriptor registers automatically and
     /// <see cref="ById"/> cannot drift out of sync. Declared after the descriptor fields so their static

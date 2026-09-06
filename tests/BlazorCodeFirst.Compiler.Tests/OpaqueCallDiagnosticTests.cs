@@ -62,12 +62,19 @@ public sealed class OpaqueCallDiagnosticTests
     }
 
     /// <summary>
-    /// <c>otherwise</c> bound to a method group rather than an inline lambda: <c>ExtractLambdaBody</c>
-    /// cannot recover a body from it, and the check right after must still short-circuit rather than pass
-    /// that <see langword="null"/> body on to <c>DeclaresReservedName</c>, which throws on it (#487).
+    /// <c>otherwise</c> bound to a method group rather than an inline lambda: a zero-parameter method
+    /// group is now read as the call it stands for (#317), the same as <c>ForEach</c>'s content, and falls
+    /// to the same three-way branch. <c>NotALambda</c> builds its <c>View</c> from the design-time surface
+    /// without <c>[ViewPart]</c>, so it lands on BCF3030 rather than BCF1003 or BCF3044 -- the shape itself
+    /// is accepted; only the callee is refused. Originally guarded a crash: before this shape was accepted,
+    /// <c>ExtractLambdaBody</c> could not recover a body from a method group, and the null check right
+    /// after had to short-circuit rather than pass that <see langword="null"/> body on to
+    /// <c>DeclaresReservedName</c>, which throws on it (#487). <c>TryBindTransplantableContent</c> never
+    /// reaches that call for a method group at all, so the crash risk this test named no longer applies,
+    /// but the test still pins that this shape compiles cleanly rather than throwing.
     /// </summary>
     [Fact]
-    public void IfOtherwiseBranch_WhenNotAnInlineLambda_ReportsBCF1003WithoutThrowing()
+    public void IfOtherwiseBranch_WhenAMethodGroupBuildsFromTheSurfaceWithoutTheAttribute_ReportsBCF3030()
     {
         var result = CompilationTestHost.RunGenerator("""
             using BlazorCodeFirst;
@@ -82,7 +89,8 @@ public sealed class OpaqueCallDiagnosticTests
             }
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "BCF1003");
+        Assert.Contains(result.Diagnostics, d => d.Id == "BCF3030");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Id == "BCF3044");
     }
 
     /// <summary>

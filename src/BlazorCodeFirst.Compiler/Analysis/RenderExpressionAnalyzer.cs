@@ -845,13 +845,6 @@ internal static class RenderExpressionAnalyzer
         if (args.At(0) is not { } conditionArg || args.At(1) is not { } thenArg)
             return null;
 
-        // A branch is transplanted under the author's own names, so it holds the reserved set every such
-        // position holds. Asked here rather than by the getter's scan, which stops at the lambda: the
-        // branch is this arm's to transplant, and the condition beside it is the getter's (#389).
-        var thenExpr = ExtractLambdaBody(thenArg.Expression);
-        if (thenExpr is null || DeclaresReservedName(thenExpr))
-            return null;
-
         // The condition is transplanted into the generated `if` header, which scopes over both branches,
         // so a local the author declared there is legal in either one (#361). Registered as a scope for
         // the same reason a transplanted block is: each branch is normalized against a root of its own,
@@ -861,7 +854,7 @@ internal static class RenderExpressionAnalyzer
         context.PushTransplantedScope(conditionArg.Expression.Span);
         try
         {
-            var thenNode = Analyze(thenExpr, context);
+            var thenNode = AnalyzeIfBranch(thenArg.Expression, context);
             if (thenNode is null)
                 return null;
 
@@ -873,11 +866,7 @@ internal static class RenderExpressionAnalyzer
                 otherwiseArg.Expression is not LiteralExpressionSyntax
                 { Token.RawKind: (int)SyntaxKind.NullKeyword })
             {
-                var otherwiseExpr = ExtractLambdaBody(otherwiseArg.Expression);
-                if (otherwiseExpr is null || DeclaresReservedName(otherwiseExpr))
-                    return null;
-
-                otherwiseNode = Analyze(otherwiseExpr, context);
+                otherwiseNode = AnalyzeIfBranch(otherwiseArg.Expression, context);
                 if (otherwiseNode is null)
                     return null;
             }
@@ -891,6 +880,32 @@ internal static class RenderExpressionAnalyzer
         {
             context.PopTransplantedScope();
         }
+    }
+
+    /// <summary>
+    /// Resolves one <c>If</c> branch (<c>then</c> or <c>otherwise</c>) to content-shaped, at the
+    /// zero-parameter arity <c>Func&lt;View&gt;</c> requires: an inline expression lambda, a block in any
+    /// of <see cref="TransplantableTail"/>'s shapes, or a zero-parameter <c>View</c>-returning method
+    /// group read as the call it stands for (#317). Reports BCF3044 on a shape outside that set.
+    /// </summary>
+    /// <remarks>
+    /// A lambda's body is transplanted under the author's own names, so it holds the reserved set every
+    /// such position holds, asked by <see cref="TryBindTransplantableContent"/> itself rather than by the
+    /// getter's scan, which stops at the lambda: the branch is this arm's to transplant, and the condition
+    /// beside it is the getter's (#389).
+    /// </remarks>
+    private static RenderNode? AnalyzeIfBranch(ExpressionSyntax branch, ViewPartBodyContext context)
+    {
+        if (!TryBindTransplantableContent(branch, parameterCount: 0, context, out var shape))
+        {
+            context.Diagnostics.Add(DiagnosticInfo.Create(
+                DiagnosticDescriptors.BCF3044, branch.GetLocation(), []));
+            return null;
+        }
+
+        return shape.Callee is { } callee
+            ? BuildMethodGroupContent(callee, branch, holeOrdinal: null, context)
+            : AnalyzeTail(shape.Tail, context);
     }
 
     /// <summary>
@@ -1399,29 +1414,35 @@ internal static class RenderExpressionAnalyzer
     private static RenderNode? BuildMethodGroupContent(
         IMethodSymbol callee,
         ExpressionSyntax contentExpression,
-        int itemOrdinal,
+        int? holeOrdinal,
         ViewPartBodyContext context)
     {
-        var itemHole = new ParameterHoleExpressionSegment(itemOrdinal);
+        // Null at the zero-parameter arity an If branch's Func<View> requires: the callee takes no
+        // argument, so there is no ordinal to splice and no render variable needed for it (a method group
+        // there binds no parameter, unlike ForEach's item or .Template's context).
+        var argumentTemplates = holeOrdinal is { } ordinal
+            ? new EquatableArray<ViewPartInvocationArgument>(
+                [
+                    // Mutating this true away is a stryker survivor, measured equivalent rather than
+                    // assumed: flipping it and running BlazorCodeFirst.Compiler.Tests and
+                    // BlazorCodeFirst.DiagnosticTests left every test passing unchanged.
+                    // ViewPartInvocationArgument.IsImplicitDefault has no reader anywhere in the
+                    // compiler outside its own constructors -- expansion never asks it, so its value
+                    // cannot affect emitted code, and equality between two arguments (which is what an
+                    // incremental cache hit turns on) is exercised by every existing generator test
+                    // regardless of which constant this site writes.
+                    new ViewPartInvocationArgument(
+                        0, 0, IsImplicitDefault: false,
+                        ExpressionTemplate.Create([new ParameterHoleExpressionSegment(ordinal)])),
+                ])
+            : new EquatableArray<ViewPartInvocationArgument>([]);
 
         return ClassifyCallee(callee, contentExpression.GetLocation(), context) switch
         {
             NonSurfaceCallKind.ViewPart => new ViewPartCallNode(
                 MethodKey.Create(callee),
                 callee.Name,
-                new EquatableArray<ViewPartInvocationArgument>(
-                    [
-                        // Mutating this true away is a stryker survivor, measured equivalent rather than
-                        // assumed: flipping it and running BlazorCodeFirst.Compiler.Tests and
-                        // BlazorCodeFirst.DiagnosticTests left every test passing unchanged.
-                        // ViewPartInvocationArgument.IsImplicitDefault has no reader anywhere in the
-                        // compiler outside its own constructors -- expansion never asks it, so its value
-                        // cannot affect emitted code, and equality between two arguments (which is what an
-                        // incremental cache hit turns on) is exercised by every existing generator test
-                        // regardless of which constant this site writes.
-                        new ViewPartInvocationArgument(
-                            0, 0, IsImplicitDefault: false, ExpressionTemplate.Create([itemHole])),
-                    ]),
+                argumentTemplates,
                 TemplateLocation.From(contentExpression.GetLocation())),
 
             // The group written back as the call it stands for, spelled from the written expression on the
@@ -1437,7 +1458,9 @@ internal static class RenderExpressionAnalyzer
                     .. ExpressionTemplateFactory.Create(contentExpression, context)
                         .Segments.AsImmutableArray(),
                     new LiteralExpressionSegment("("),
-                    itemHole,
+                    .. holeOrdinal is { } opaqueOrdinal
+                        ? (ExpressionSegment[]) [new ParameterHoleExpressionSegment(opaqueOrdinal)]
+                        : [],
                     new LiteralExpressionSegment(")"),
                 ])),
 
