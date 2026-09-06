@@ -52,6 +52,7 @@ public sealed class LambdaUnwrapPositionTests
     private static readonly string[] UnwrapHelpers =
     [
         "ExtractLambdaBody",
+        "TryBindTransplantableContent",
         "TryBindTransplantedLambda",
         "TryExtractLambdaParameterAndBody",
         "TryExtractSingleParameterLambda",
@@ -59,14 +60,15 @@ public sealed class LambdaUnwrapPositionTests
 
     /// <summary>
     /// What a position answers the reserved names with. <c>TryReadTransplantableBlock</c>,
-    /// <c>TryReadTransplantableIf</c>, <c>TryReadTransplantableSwitch</c>, and
-    /// <c>TryBindTransplantedLambda</c> count because each runs the scan over what it accepts, which is
-    /// how the block-bodied <c>ForEach</c> content (all three Transplantable shapes, #570) and the three
-    /// lambda-reading positions ask.
+    /// <c>TryReadTransplantableIf</c>, <c>TryReadTransplantableSwitch</c>,
+    /// <c>TryBindTransplantableContent</c>, and <c>TryBindTransplantedLambda</c> count because each runs
+    /// the scan over what it accepts, which is how the block-bodied <c>ForEach</c> content (all three
+    /// Transplantable shapes, #570) and the three lambda-reading positions ask.
     /// </summary>
     private static readonly string[] Scans =
     [
         "DeclaresReservedName",
+        "TryBindTransplantableContent",
         "TryBindTransplantedLambda",
         "TryReadTransplantableBlock",
         "TryReadTransplantableIf",
@@ -109,15 +111,17 @@ public sealed class LambdaUnwrapPositionTests
     /// <remarks>
     /// The three unwrap helpers name one because unwrapping is what they do. The two walks name
     /// <c>AnonymousFunctionExpressionSyntax</c> as the boundary they stop at, which is the same rule read
-    /// from the other side. <c>TryBindForEachContent</c> names one to separate a lambda from a method
-    /// group before it unwraps, a question no helper answers for it.
+    /// from the other side. <c>TryBindTransplantableContent</c> names one to separate a lambda from a
+    /// method group before it unwraps, a question no helper answers for it, and a second
+    /// (<c>ParenthesizedLambdaExpressionSyntax</c>) to read the zero-parameter shape an <c>If</c> branch
+    /// accepts, which no arity-one helper reads either.
     /// </remarks>
     private static readonly string[] MembersThatMayNameLambdaSyntax =
     [
         "CollectDeclaredLocals",
         "DeclaresReservedName",
         "ExtractLambdaBody",
-        "TryBindForEachContent",
+        "TryBindTransplantableContent",
         "TryExtractLambdaParameterAndBody",
     ];
 
