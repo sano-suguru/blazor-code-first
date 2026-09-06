@@ -78,10 +78,13 @@ public sealed class IncrementalStepReasonProbeTests
     /// leaving a non-calling component's emitted model unchanged.
     /// </summary>
     /// <remarks>
-    /// This only shows <c>Cached</c> as an observable proxy for "did not run" — it cannot count
-    /// invocations the way the synthetic probe does. It is included anyway because it is the shape the
-    /// real #480 pipeline would actually take, and because it also confirms the guard: the edit must
-    /// genuinely change <see cref="ViewPartRegistry"/>, or the scenario is vacuous.
+    /// Unlike the synthetic probe above, this assertion is still the <c>Cached or Unchanged</c>
+    /// disjunction every other test in this project uses — it does not by itself distinguish "did not
+    /// run" from "re-ran and returned an equal value" the way counting <c>Stage2Invocations</c> does.
+    /// It earns its place anyway: it confirms the guard (the edit must genuinely change
+    /// <see cref="ViewPartRegistry"/>, or the scenario is vacuous) in the real pipeline shape #480's
+    /// design actually takes, and its outcome is consistent with the mechanism the synthetic probe
+    /// proves outright.
     /// </remarks>
     [Fact]
     public void RealPipeline_WhenAnUnrelatedViewPartOffsetEditLeavesTheModelEqual_CachesTheNonCaller()
