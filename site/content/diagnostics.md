@@ -674,7 +674,7 @@ depends on emission order rather than on anything at the call site. Key the root
 
 ### BCF3043
 
-Error. A loop's source argument is a call to a `[ViewPart]`.
+Error. A loop's source argument resolves to a call to a `[ViewPart]`.
 
 ```csharp
 [ViewPart]
@@ -687,6 +687,16 @@ Ul[.. Rows(items)]                                             // what to write 
 A `[ViewPart]`'s body is built from the design-time surface, which is inert at runtime. Called from
 a loop's source position, it runs as ordinary code against that inert surface instead of being
 statically expanded, so the loop count comes out right but every yielded item comes out empty.
+
+This is also reported when the call is reached indirectly — through an intermediate local, a
+`.ToList()`, a null-forgiving suffix, a parenthesization, a cast, or an `as` conversion — since the
+same runs-against-an-inert-surface failure follows the call wherever it ends up:
+
+```csharp
+var rows = Rows(items);
+ForEach(rows, key: item => 0, content: item => item)   // BCF3043
+Ul[.. Rows(items)]                                     // what to write instead -- remove the local too
+```
 
 This also applies to a spliced projection's own source (`Ul[.. Rows(items).Select(item => ...)]`) and
 to a native `foreach` inside another `[ViewPart]` iterator's own body — the same failure at every
