@@ -142,7 +142,7 @@ public static class DiagnosticExpectations
             FixtureKind.GeneratorViaProjectReference,
             "error",
             "Bcf3022.cs",
-            "Render",
+            "new Func<int, View>(Render)",
             Note: "Anchors the complete contextual-template content argument; the argument shape is what " +
                 "must be rewritten."),
         new(

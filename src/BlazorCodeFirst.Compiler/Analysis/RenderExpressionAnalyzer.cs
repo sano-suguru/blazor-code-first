@@ -1656,26 +1656,25 @@ internal static class RenderExpressionAnalyzer
             if (!TryGetFragmentContextTypeName(property, symbols, out var contextTypeName))
                 return null;
 
-            // The content has to be an inline expression lambda twice over: the body is what gets
-            // sequenced, and the parameter symbol is what the generated context variable is substituted
-            // for. A method group, an anonymous method, and a block-bodied lambda supply neither. Arity is
-            // not checked here: a lambda with no parameter or with two does not convert to
-            // Func<TContext, View>, so C# has already rejected the call.
+            // Content-shaped, at the one-parameter arity Func<TContext, View> requires: an inline
+            // expression lambda, a block in any of TransplantableTail's shapes, or a matching-arity method
+            // group read as the call it stands for (#317). Arity is not checked here: a lambda with no
+            // parameter or with two does not convert to Func<TContext, View>, so C# has already rejected
+            // the call.
             //
-            // The body is transplanted into the generated fragment, so it is read through the shared
-            // reader, which refuses a reserved name. AuthoredContextNameHygiene renames one name of that
-            // set, the generated context parameter's, and the reader refuses that one along with the rest
-            // rather than carving out an exception: what the wider set alone catches was measured, an
+            // A lambda's body is transplanted into the generated fragment, so it is read through the
+            // shared reader, which refuses a reserved name. AuthoredContextNameHygiene renames one name of
+            // that set, the generated context parameter's, and the reader refuses that one along with the
+            // rest rather than carving out an exception: what the wider set alone catches was measured, an
             // authored __bcf_item_0 colliding with the iteration variable of an enclosing ForEach (#413).
-            if (!TryBindTransplantedLambda(
-                    valueExpression, context, out var contextParameterSymbol, out var contextBody))
+            if (!TryBindTransplantableContent(valueExpression, parameterCount: 1, context, out var shape))
             {
                 // Mutating this call away is a stryker survivor, measured equivalent rather than assumed:
                 // hand-applying it and running BlazorCodeFirst.Compiler.Tests and BlazorCodeFirst.DiagnosticTests
                 // left every test passing unchanged. A content argument reaches this branch only by resolving
-                // Template<TContext>'s Func<TContext, View> overload while failing TryBindTransplantedLambda's
-                // structural lambda check -- a method group or a delegate-typed member, both of which name a
-                // definite, already-resolved symbol. An unresolved reference tried in this position (a bare
+                // Template<TContext>'s Func<TContext, View> overload while failing
+                // TryBindTransplantableContent's structural checks -- a delegate-typed member, whose symbol is
+                // definite and already resolved. An unresolved reference tried in this position (a bare
                 // undeclared identifier, a field of an unresolved type) leaves Template's two overloads
                 // (View vs Func<TContext, View>) unable to settle on one candidate from an error-typed
                 // argument, so GetSymbolInfo never resolves the call to Template at all and the whole body
@@ -1689,10 +1688,18 @@ internal static class RenderExpressionAnalyzer
                 return null;
             }
 
-            context.PushRenderVariable(contextParameterSymbol);
+            // A method group binds no parameter, so contextSymbols is empty either way -- the context
+            // variable still takes its ordinal, and a method group's context argument is spliced from that
+            // ordinal rather than resolved from a written reference (mirrors ClassifyForEach's content).
+            ISymbol[] contextSymbols = shape.LambdaParameter is { } contextParameterSymbol
+                ? [contextParameterSymbol]
+                : [];
+            var contextOrdinal = context.PushRenderVariable(contextSymbols);
             try
             {
-                var slotContent = Analyze(contextBody, context);
+                var slotContent = shape.Callee is { } callee
+                    ? BuildMethodGroupContent(callee, valueExpression, contextOrdinal, context)
+                    : AnalyzeTail(shape.Tail, context);
                 if (slotContent is null)
                     return null;
 
@@ -1705,7 +1712,7 @@ internal static class RenderExpressionAnalyzer
             }
             finally
             {
-                context.PopRenderVariable(contextParameterSymbol);
+                context.PopRenderVariable(contextSymbols);
             }
         }
 

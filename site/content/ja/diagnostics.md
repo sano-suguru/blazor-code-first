@@ -3,7 +3,7 @@ title: 診断
 description: このコンパイラが報告する全診断と、それぞれの意味、代わりに書くべきコード。ビルドが出力した ID でページ内を検索する。
 order: 100
 group: reference
-source-hash: 6d79786b
+source-hash: d270e8c2
 ---
 
 このコンパイラが報告する診断のすべてと、その意味と、代わりに書くものです。
@@ -787,15 +787,18 @@ Component<Card>().Param(c => c.Body, () => Div["x"])        // 代わりにこ�
 
 ### BCF3022
 
-Error. コンテキストを取る `.Template` の内容が、その場に書いた式のラムダではありません。
+Error. コンテキストを取る `.Template` の内容が、ジェネレーターの順序付けできない形です。
 
 ```csharp
-Component<Grid<Row>>().Template(c => c.RowTemplate, RenderRow)          // BCF3022
-Component<Grid<Row>>().Template(c => c.RowTemplate, row => Td[row.Name]) // 代わりにこう書く
+Component<Grid<Row>>().Template(c => c.RowTemplate, delegate(Row row) { return Td[row.Name]; }) // BCF3022
+Component<Grid<Row>>().Template(c => c.RowTemplate, row => Td[row.Name])                        // 代わりにこう書く
 ```
 
-メソッドグループ、匿名メソッド、本体が文のラムダは、いずれも内容を呼び出しの内側に隠します。
-順序付ける式も、生成したコンテキスト変数を差し替える引数のシンボルも残りません。
+内容が受け付けるのは、式のラムダ、末尾に `return` を1つ持つブロック、末尾がC#本来の `if`/`else`
+であるブロック([BCF2002](#bcf2002))、末尾がC#本来の `switch` であるブロック
+([BCF2002](#bcf2002))、引数1つの `View` を返すメソッドグループです。これは `ForEach` の内容が
+受け付けるのと同じ5つの形です([BCF3004](#bcf3004))。匿名メソッドは対象外です。呼び出し名を
+持たないのでメソッドグループとしても読めず、ラムダの形のいずれにも当てはまりません。
 
 内容にも、ゲッターについて [BCF1004](#bcf1004) が述べる予約名の規則が当てはまります。
 

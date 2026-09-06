@@ -795,16 +795,18 @@ parameter throws an invalid cast when Blazor applies parameters.
 
 ### BCF3022
 
-Error. The contextual `.Template` content is not an inline expression lambda.
+Error. The contextual `.Template` content has a shape the generator cannot sequence.
 
 ```csharp
-Component<Grid<Row>>().Template(c => c.RowTemplate, RenderRow)          // BCF3022
-Component<Grid<Row>>().Template(c => c.RowTemplate, row => Td[row.Name]) // what to write instead
+Component<Grid<Row>>().Template(c => c.RowTemplate, delegate(Row row) { return Td[row.Name]; }) // BCF3022
+Component<Grid<Row>>().Template(c => c.RowTemplate, row => Td[row.Name])                        // what to write instead
 ```
 
-A method group, an anonymous method, and a block-bodied lambda all hide the content behind a call,
-leaving no expression to sequence and no parameter symbol to substitute the generated context
-variable for.
+Content accepts an expression lambda, a block with one trailing `return`, a block ending in a native
+`if`/`else` ([BCF2002](#bcf2002)), a block ending in a native `switch` ([BCF2002](#bcf2002)), and a
+single-parameter `View`-returning method group. This is the same five shapes `ForEach`'s content
+accepts ([BCF3004](#bcf3004)). An anonymous method is excluded outright: it names no callee a method
+group could be read as, and it is not one of the lambda shapes either.
 
 The content follows the same reserved-name rule [BCF1004](#bcf1004) states for its getter.
 
