@@ -71,9 +71,8 @@ method marked `[ViewPart]`.
 Marking a `View`-returning method of your own `[ViewPart]` keeps the factoring rather than inlining
 its markup back into the caller.
 
-An `If` branch and a spliced projection (`.. source.Select(item => …)`) carry their body across
-under the author's own names, the same way BCF1004's getter does, so [BCF1004](#bcf1004)'s
-reserved-name rule reaches them too.
+A spliced projection (`.. source.Select(item => …)`) carries its body across under the author's own
+names, the same way BCF1004's getter does, so [BCF1004](#bcf1004)'s reserved-name rule reaches it too.
 
 ### BCF1004
 
@@ -704,6 +703,23 @@ loop-header position a `[ViewPart]` call can be written at.
 
 An iterator `[ViewPart]` has exactly one supported call spelling: a spread in a child position.
 Rewrite the loop source as a spread there instead.
+
+### BCF3044
+
+Error. An `If` branch has a shape the generator cannot sequence.
+
+```csharp
+If(_flag, delegate() { return Span["yes"]; })   // BCF3044
+If(_flag, () => Span["yes"])                    // what to write instead
+```
+
+Each branch accepts an expression lambda, a block with one trailing `return`, a block ending in a
+native `if`/`else` ([BCF2002](#bcf2002)), a block ending in a native `switch` ([BCF2002](#bcf2002)),
+and a zero-parameter `View`-returning method group. This is the same five shapes `ForEach`'s content
+accepts ([BCF3004](#bcf3004)). An anonymous method is excluded outright: it names no callee a method
+group could be read as, and it is not one of the lambda shapes either.
+
+The branch follows the same reserved-name rule [BCF1004](#bcf1004) states for its getter.
 
 ## Components
 

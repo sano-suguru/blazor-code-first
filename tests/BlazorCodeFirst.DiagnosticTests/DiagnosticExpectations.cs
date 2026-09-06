@@ -349,6 +349,14 @@ public static class DiagnosticExpectations
             Note: "Anchors the source argument, which is what the author rewrites into a spread. The "
                 + "callee's own declaration is legitimate [ViewPart] syntax on its own -- "
                 + "Ul[.. Rows(_items)] is exactly how it is meant to be called."),
+        new(
+            "BCF3044",
+            FixtureKind.GeneratorViaProjectReference,
+            "error",
+            "Bcf3044.cs",
+            "new Func<View>(Render)",
+            Note: "Anchors the complete branch argument; the argument shape is what must be rewritten, "
+                + "the same anchor policy BCF3004 and BCF3022 use for their own content argument."),
     ];
 
     /// <summary>
