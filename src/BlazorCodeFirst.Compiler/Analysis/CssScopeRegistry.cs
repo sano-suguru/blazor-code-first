@@ -49,14 +49,14 @@ internal sealed class CssScopeRegistry : IEquatable<CssScopeRegistry>
 {
     public static readonly CssScopeRegistry Empty = new([]);
 
-    private readonly Dictionary<string, string> _scopeByComponentFilePath;
+    private readonly Dictionary<string, CssScopeEntry> _entryByComponentFilePath;
 
     private CssScopeRegistry(ImmutableArray<CssScopeEntry> entries)
     {
         Entries = entries;
-        _scopeByComponentFilePath = new Dictionary<string, string>(entries.Length, StringComparer.OrdinalIgnoreCase);
+        _entryByComponentFilePath = new Dictionary<string, CssScopeEntry>(entries.Length, StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
-            _scopeByComponentFilePath[entry.ComponentFilePath] = entry.Scope;
+            _entryByComponentFilePath[entry.ComponentFilePath] = entry;
     }
 
     public EquatableArray<CssScopeEntry> Entries { get; }
@@ -84,8 +84,17 @@ internal sealed class CssScopeRegistry : IEquatable<CssScopeRegistry>
     /// Resolves the scope stamped on <paramref name="componentFilePath"/>'s sibling <c>.cs.css</c> file,
     /// or <see langword="false"/> when there is none.
     /// </summary>
-    public bool TryGetScopeForComponentFile(string componentFilePath, [MaybeNullWhen(false)] out string scope) =>
-        _scopeByComponentFilePath.TryGetValue(componentFilePath, out scope);
+    public bool TryGetScopeForComponentFile(string componentFilePath, [MaybeNullWhen(false)] out string scope)
+    {
+        if (_entryByComponentFilePath.TryGetValue(componentFilePath, out var entry))
+        {
+            scope = entry.Scope;
+            return true;
+        }
+
+        scope = null;
+        return false;
+    }
 
     /// <summary>
     /// <see cref="TryGetScopeForComponentFile"/> as an expression rather than a <c>bool</c>/<c>out</c>
@@ -93,6 +102,15 @@ internal sealed class CssScopeRegistry : IEquatable<CssScopeRegistry>
     /// </summary>
     public string? GetScopeOrDefault(string componentFilePath) =>
         TryGetScopeForComponentFile(componentFilePath, out var scope) ? scope : null;
+
+    /// <summary>
+    /// Resolves the whole <see cref="CssScopeEntry"/> stamped on <paramref name="componentFilePath"/>'s
+    /// sibling <c>.cs.css</c> file. Distinct from <see cref="TryGetScopeForComponentFile"/> because a
+    /// caller building a subset registry (issue #480's registry-subset projection) needs the entry
+    /// itself to reinsert into <see cref="Create"/>, not just its scope string.
+    /// </summary>
+    public bool TryGetEntryForComponentFile(string componentFilePath, out CssScopeEntry entry) =>
+        _entryByComponentFilePath.TryGetValue(componentFilePath, out entry);
 
     public bool Equals(CssScopeRegistry? other) =>
         other is not null && Entries.Equals(other.Entries);
