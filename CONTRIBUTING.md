@@ -83,6 +83,11 @@ dotnet run -c Release --project tests/BlazorCodeFirst.Benchmarks -- --filter '*'
 # The measurements published in DESIGN.md §7.4 (registry-broadcast cost of a view-part edit)
 dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj -c Release \
   --filter FullyQualifiedName~RegistryBroadcastCostTests --logger "console;verbosity=detailed"
+
+# The measurements published in ARCHITECTURE.md 付録B.25 (registry-subset design vs. the pre-#480
+# whole-registry shape)
+dotnet test tests/BlazorCodeFirst.Compiler.Tests/BlazorCodeFirst.Compiler.Tests.csproj -c Release \
+  --filter FullyQualifiedName~RegistrySubsetCostTests --logger "console;verbosity=detailed"
 ```
 
 Only the `BlazorCodeFirst.DiagnosticTests` command builds the successful Razor interop fixtures under
@@ -104,18 +109,21 @@ numbers. The §7.2 comparison asserts that equivalence in
 comparison would describe the mismatch, not the compilation strategy.
 
 §7.4's figure comes from the `RegistryBroadcastCostTests` command that follows
-them. It carries no such equivalence gate — the claim it verifies is
-structural (the `Cached` count in `ComponentModeling`'s tracked steps), not a
-frame-for-frame comparison, so there is nothing to render and compare.
+them, and 付録B.25's from the `RegistrySubsetCostTests` command after that. Neither
+carries an equivalence gate — the claims they verify are structural (the
+`Cached` count in `ComponentModeling`'s tracked steps), not a frame-for-frame
+comparison, so there is nothing to render and compare. `RegistrySubsetCostTests`'
+correctness gate lives separately, in `ViewPartReachabilityEquivalenceTests`.
 
-No CI step runs any of the three as a dedicated step. A published figure has to
+No CI step runs any of the four as a dedicated step. A published figure has to
 be reproducible on demand, which is a lower bar than a per-PR gate; gating
 would need a noise threshold and a failure policy that nothing has decided
-yet. The §7.2 assertions and §7.4's structural assertion do ride the ordinary
-`dotnet test BlazorCodeFirst.slnx` run, because they are tests (`RegistryBroadcastCostTests`
-lives in `BlazorCodeFirst.Compiler.Tests`, so the ordinary run covers it too).
-That follows from where they live, and is not a gate on the published wall-clock
-figures, which §7.1 and §7.4 both exclude.
+yet. The §7.2 assertions and the two structural assertions do ride the ordinary
+`dotnet test BlazorCodeFirst.slnx` run, because they are tests
+(`RegistryBroadcastCostTests` and `RegistrySubsetCostTests` both live in
+`BlazorCodeFirst.Compiler.Tests`, so the ordinary run covers them too). That
+follows from where they live, and is not a gate on the published wall-clock
+figures, which §7.1, §7.4, and 付録B.25 all exclude.
 
 The benchmark project holds a second measurement set that is **not** published.
 `StaticFoldBenchmarks` compares folded markup frames against element frames to

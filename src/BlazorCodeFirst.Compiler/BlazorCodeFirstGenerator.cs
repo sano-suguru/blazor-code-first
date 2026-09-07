@@ -132,14 +132,34 @@ public sealed class BlazorCodeFirstGenerator : IIncrementalGenerator
             orphanCssDiagnostics,
             static (productionContext, diagnostics) => ReportAll(productionContext, diagnostics));
 
-        // Expand each analyzed component against the registry as a pure value transform. Both inputs are
-        // value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic branch, and a
-        // change to the compose API surface re-runs the transform above and correctly invalidates here.
-        var modelResults = analyses
+        // Project each analyzed component down to the subset of registry/CSS-scope entries it can
+        // actually reach (issue #480), before Expand runs. Combine still re-pairs every component with
+        // the whole registry on any edit, so this stage itself runs for all N components regardless of
+        // relevance; what it buys is that its OUTPUT is value-equal for a component whose subset the
+        // edit did not touch, letting Expand below go Cached for it instead of re-running. Returning the
+        // raw EquatableArray entries rather than built ViewPartRegistry/CssScopeRegistry instances
+        // matters here: registry construction (dictionary building) is deferred to the Expand stage, so
+        // a component whose subset is unchanged never pays for it.
+        var expansionInputs = analyses
             .Combine(registry)
             .Combine(cssScopeRegistry)
             .Select(static (input, _) =>
-                ComponentModelFactory.Expand(input.Left.Left!, input.Left.Right, input.Right))
+            {
+                var analysis = input.Left.Left!;
+                var (viewParts, cssEntries) = ViewPartReachability.Collect(analysis, input.Left.Right, input.Right);
+                return (Analysis: analysis, ViewParts: viewParts, CssScopes: cssEntries);
+            })
+            .WithTrackingName("ComponentExpansionInput");
+
+        // Expand each analyzed component against its reachable subset as a pure value transform. Both
+        // inputs are value-equal, so an unchanged rerun is Cached/Unchanged even on the diagnostic
+        // branch, and a change to the compose API surface re-runs the transform above and correctly
+        // invalidates here.
+        var modelResults = expansionInputs
+            .Select(static (i, _) => ComponentModelFactory.Expand(
+                i.Analysis,
+                ViewPartRegistry.Create(i.ViewParts.AsImmutableArray()),
+                CssScopeRegistry.Create(i.CssScopes.AsImmutableArray())))
             .WithTrackingName("ComponentModeling");
 
         // Report model (call-site expansion) diagnostics separately, reconstructing Roslyn diagnostics

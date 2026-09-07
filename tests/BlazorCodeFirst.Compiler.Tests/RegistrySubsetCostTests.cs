@@ -9,22 +9,24 @@ using Xunit.Abstractions;
 namespace BlazorCodeFirst.Compiler.Tests;
 
 /// <summary>
-/// The measurement issue #480's second comment calls for before choosing between dependency tracking
-/// and the cheaper registry-subset alternative <see cref="ViewPartReachability"/> implements.
-/// <see cref="RegistryBroadcastCostTests"/> measures the current whole-registry <c>Combine</c>'s cost;
-/// this class measures the same edit against a prototype pipeline with the subset projection inserted,
-/// so the two figures can be compared directly. <see cref="ViewPartReachabilityEquivalenceTests"/> is
-/// the correctness gate this measurement depends on: a figure here means nothing if the subset can
-/// diverge from the full registry's <c>Expand</c> result.
+/// The measurement issue #480's second comment called for before choosing between dependency tracking
+/// and the cheaper registry-subset alternative <see cref="ViewPartReachability"/> implements. That
+/// measurement supported adoption (recorded in <c>ARCHITECTURE.md</c> 付録B.25), and
+/// <see cref="BlazorCodeFirstGenerator.Initialize"/> now ships the subset design. This class keeps the
+/// comparison this project's decision was made from reproducible: it measures the real generator
+/// against <see cref="WholeRegistryBaselineGenerator"/>, a retained copy of the pipeline's pre-#480
+/// shape, on the same edit. <see cref="ViewPartReachabilityEquivalenceTests"/> is the correctness gate
+/// this measurement depends on: a figure here means nothing if the subset can diverge from the full
+/// registry's <c>Expand</c> result.
 /// </summary>
 /// <remarks>
-/// The prototype generator below lives only in this test project. It mirrors
-/// <c>BlazorCodeFirstGenerator.Initialize</c>'s full pipeline (so diagnostics-reporting overhead is
-/// identical between the two measurements) with one change: the <c>ComponentModeling</c> assembly line
-/// gains an intermediate <c>ComponentExpansionInput</c> stage that projects each component down to its
-/// <see cref="ViewPartReachability"/> subset before <c>Expand</c> runs. It is not wired into production
-/// and will drift from <c>BlazorCodeFirstGenerator</c> if that file changes; adopting the design for
-/// real means applying the same edit there, not promoting this class.
+/// <see cref="WholeRegistryBaselineGenerator"/> lives only in this test project. It mirrors
+/// <see cref="BlazorCodeFirstGenerator.Initialize"/>'s full pipeline (so diagnostics-reporting overhead
+/// stays identical between the two measurements) with one difference: its <c>ComponentModeling</c>
+/// assembly line combines <c>analyses</c> directly onto the whole registry, the shape production used
+/// before #480. It exists only to keep this comparison reproducible and will drift from
+/// <see cref="BlazorCodeFirstGenerator"/> if that file changes further; it is not a second design to
+/// maintain in parallel.
 /// </remarks>
 public sealed class RegistrySubsetCostTests(ITestOutputHelper output)
 {
@@ -57,7 +59,7 @@ public sealed class RegistrySubsetCostTests(ITestOutputHelper output)
     private void AssertNonCallersAreCached(Corpus corpus, int componentCount)
     {
         var compilation = CreateCompilation(corpus.AllTrees);
-        GeneratorDriver driver = CreatePrototypeDriver();
+        GeneratorDriver driver = CreateProductionDriver();
 
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
 
@@ -86,11 +88,11 @@ public sealed class RegistrySubsetCostTests(ITestOutputHelper output)
     }
 
     // ---------------------------------------------------------------------------
-    // Cost: the same view-part edit, timed against the subset-projecting prototype, printed alongside
-    // the baseline (whole-registry) figure for the same corpus so the two can be compared without
-    // rerunning RegistryBroadcastCostTests separately. Not asserted, for the same reason DESIGN.md §7.1
-    // and §7.4 exclude wall-clock from published figures: variance is machine-dependent. This is the
-    // reproduction procedure for #480's go/no-go call, not a gate.
+    // Cost: the same view-part edit, timed against the shipped generator, printed alongside the
+    // pre-#480 baseline figure for the same corpus so the two stay comparable without rerunning a
+    // separate historical build. Not asserted, for the same reason DESIGN.md §7.1 and §7.4 exclude
+    // wall-clock from published figures: variance is machine-dependent. This is the reproduction
+    // procedure for the figures ARCHITECTURE.md 付録B.25 records, not a gate.
     // ---------------------------------------------------------------------------
 
     [Theory]
@@ -112,7 +114,7 @@ public sealed class RegistrySubsetCostTests(ITestOutputHelper output)
         const int trials = 5;
 
         double baselineMs = MeasureMedianMs(componentCount, buildCorpus, CreateBaselineDriver, trials);
-        double subsetMs = MeasureMedianMs(componentCount, buildCorpus, CreatePrototypeDriver, trials);
+        double subsetMs = MeasureMedianMs(componentCount, buildCorpus, CreateProductionDriver, trials);
 
         output.WriteLine(
             $"[{label}] N={componentCount,5} M={ViewPartCount} " +
@@ -302,14 +304,14 @@ public sealed class RegistrySubsetCostTests(ITestOutputHelper output)
 
     private static CSharpGeneratorDriver CreateBaselineDriver() =>
         (CSharpGeneratorDriver)CSharpGeneratorDriver.Create(
-            generators: [new BlazorCodeFirstGenerator().AsSourceGenerator()],
+            generators: [new WholeRegistryBaselineGenerator().AsSourceGenerator()],
             driverOptions: new GeneratorDriverOptions(
                 disabledOutputs: default,
                 trackIncrementalGeneratorSteps: true));
 
-    private static CSharpGeneratorDriver CreatePrototypeDriver() =>
+    private static CSharpGeneratorDriver CreateProductionDriver() =>
         (CSharpGeneratorDriver)CSharpGeneratorDriver.Create(
-            generators: [new RegistrySubsetPrototypeGenerator().AsSourceGenerator()],
+            generators: [new BlazorCodeFirstGenerator().AsSourceGenerator()],
             driverOptions: new GeneratorDriverOptions(
                 disabledOutputs: default,
                 trackIncrementalGeneratorSteps: true));
@@ -323,11 +325,12 @@ public sealed class RegistrySubsetCostTests(ITestOutputHelper output)
 }
 
 /// <summary>
-/// Test-project-only prototype: <see cref="BlazorCodeFirstGenerator.Initialize"/>'s pipeline with one
-/// change, the <c>ComponentModeling</c> assembly line gains an intermediate projection stage. See
-/// <see cref="RegistrySubsetCostTests"/>'s remarks for why this lives here rather than in production.
+/// Test-project-only: <see cref="BlazorCodeFirstGenerator.Initialize"/>'s pipeline as it stood before
+/// issue #480, retained so <see cref="RegistrySubsetCostTests"/> can keep comparing the shipped subset
+/// design against the whole-registry shape it replaced. See that class's remarks for why this lives here
+/// rather than in production.
 /// </summary>
-file sealed class RegistrySubsetPrototypeGenerator : IIncrementalGenerator
+file sealed class WholeRegistryBaselineGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -410,30 +413,15 @@ file sealed class RegistrySubsetPrototypeGenerator : IIncrementalGenerator
             orphanCssDiagnostics,
             static (productionContext, diagnostics) => ReportAll(productionContext, diagnostics));
 
-        // The one change from BlazorCodeFirstGenerator.Initialize: an intermediate stage that projects
-        // each component down to its ViewPartReachability subset before Expand runs, so an edit to a
-        // view part only re-runs Expand for the components that can actually reach it. This stage
-        // returns the subset's raw EquatableArray entries, not built registries: registry construction
-        // (dictionary building in ViewPartRegistry.Create/CssScopeRegistry.Create) is deferred to the
-        // Expand stage below, so a component whose subset is unchanged never pays for it.
-        var expansionInputs = analyses
+        // The pre-#480 shape: every component re-pairs with the whole registry on any edit, so
+        // ComponentModelFactory.Expand re-runs for all N components regardless of relevance. This is
+        // exactly what ViewPartReachability's projection (now in BlazorCodeFirstGenerator.Initialize)
+        // replaced.
+        var modelResults = analyses
             .Combine(registry)
             .Combine(cssScopeRegistry)
             .Select(static (input, _) =>
-            {
-                var analysis = input.Left.Left!;
-                var fullRegistry = input.Left.Right;
-                var fullCss = input.Right;
-                var (viewParts, cssEntries) = ViewPartReachability.Collect(analysis, fullRegistry, fullCss);
-                return (Analysis: analysis, ViewParts: viewParts, CssScopes: cssEntries);
-            })
-            .WithTrackingName("ComponentExpansionInput");
-
-        var modelResults = expansionInputs
-            .Select(static (i, _) => ComponentModelFactory.Expand(
-                i.Analysis,
-                ViewPartRegistry.Create(i.ViewParts.AsImmutableArray()),
-                CssScopeRegistry.Create(i.CssScopes.AsImmutableArray())))
+                ComponentModelFactory.Expand(input.Left.Left!, input.Left.Right, input.Right))
             .WithTrackingName("ComponentModeling");
 
         context.RegisterSourceOutput(
