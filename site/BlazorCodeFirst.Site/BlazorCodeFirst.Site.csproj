@@ -70,8 +70,8 @@
          feature). 10.0.0 is the first stable release that supports a net10.0 TargetFramework;
          the site ran on 8.1.0-preview.4 until it shipped. -->
     <PackageReference Include="BlazorWasmPreRendering.Build" Version="10.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
