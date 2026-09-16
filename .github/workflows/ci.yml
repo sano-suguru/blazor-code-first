@@ -152,10 +152,10 @@ jobs:
     # mid-fetch against the Ubuntu archive mirror on GitHub-hosted runners (#473), well past
     # apt's own Acquire::http::Timeout -- a retry loop around the hang bought nothing because
     # the hang itself was unbounded. The tag must track package-lock.json's pinned `playwright`
-    # version exactly (currently 1.62.1); a mismatch fails the browser launch, not silently.
+    # version exactly (currently 1.63.0); a mismatch fails the browser launch, not silently.
     # .NET builds and runs fine in this image -- confirmed by building WebAppTestHost inside it;
     # the image already carries libicu/libssl for the browsers' own sake.
-    container: mcr.microsoft.com/playwright:v1.62.1-noble
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 20
 
     steps:
