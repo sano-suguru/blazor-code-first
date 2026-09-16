@@ -67,10 +67,8 @@
 
   <ItemGroup>
     <!-- M0b spike: build-time static prerendering (community tool; not a first-class .NET 10
-         feature). Version pinned explicitly because the latest STABLE release (8.0.1 at spike
-         time) predates net10.0 support; 8.1.0-preview.4 is the first version whose restore
-         reports compatibility with a net10.0 TargetFramework. Prerelease dependency accepted as a
-         spike caveat; revisit for a stable net10 release (or a self-hosted prerender step). -->
+         feature). 10.0.0 is the first stable release that supports a net10.0 TargetFramework;
+         the site ran on 8.1.0-preview.4 until it shipped. -->
     <PackageReference Include="BlazorWasmPreRendering.Build" Version="10.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />
