@@ -677,8 +677,8 @@ jobs:
     # mid-fetch against the Ubuntu archive mirror on GitHub-hosted runners (#473), well past
     # apt's own Acquire::http::Timeout -- a retry loop around the hang bought nothing because
     # the hang itself was unbounded. The tag must track package-lock.json's pinned `playwright`
-    # version exactly (currently 1.62.1); a mismatch fails the browser launch, not silently.
-    container: mcr.microsoft.com/playwright:v1.62.1-noble
+    # version exactly (currently 1.63.0); a mismatch fails the browser launch, not silently.
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -923,7 +923,7 @@ jobs:
     if: needs.plan.outputs.site == 'true'
     runs-on: ubuntu-latest
     # Same Playwright image, and the same reason, as `site-browser`.
-    container: mcr.microsoft.com/playwright:v1.62.1-noble
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 20
     steps:
       # For the smoke specs and site/content, which they read routes from the same way the sibling
